@@ -1,0 +1,253 @@
+import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { bankTransactions, bankAccounts } from '@runq/db';
+import type { Db } from '@runq/db';
+import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
+import type { TransactionFilter } from '@runq/validators';
+import { applyPagination, calcTotalPages } from '@runq/db';
+import { NotFoundError } from '../../utils/errors';
+import { randomUUID } from 'crypto';
+
+export interface TransactionListParams {
+  page: number;
+  limit: number;
+  filters: TransactionFilter;
+}
+
+export interface TransactionListResult {
+  data: BankTransaction[];
+  meta: PaginationMeta;
+}
+
+interface ParsedRow {
+  transactionDate: string;
+  valueDate?: string;
+  type: 'credit' | 'debit';
+  amount: number;
+  reference: string | null;
+  narration: string | null;
+  runningBalance: number | null;
+}
+
+export class TransactionService {
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+  ) {}
+
+  async list(bankAccountId: string, params: TransactionListParams): Promise<TransactionListResult> {
+    const { page, limit, filters } = params;
+    const { offset } = applyPagination(page, limit);
+
+    const conditions = [
+      eq(bankTransactions.tenantId, this.tenantId),
+      eq(bankTransactions.bankAccountId, bankAccountId),
+      filters.type ? eq(bankTransactions.type, filters.type) : undefined,
+      filters.reconciled !== undefined
+        ? filters.reconciled
+          ? sql`${bankTransactions.reconStatus} != 'unreconciled'`
+          : eq(bankTransactions.reconStatus, 'unreconciled')
+        : undefined,
+      filters.dateFrom ? gte(bankTransactions.transactionDate, filters.dateFrom) : undefined,
+      filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
+      filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
+    ];
+
+    const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);
+
+    const [rows, countResult] = await Promise.all([
+      this.db.select().from(bankTransactions).where(baseWhere).limit(limit).offset(offset),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(baseWhere),
+    ]);
+
+    const total = countResult[0]?.count ?? 0;
+    return {
+      data: rows.map((r) => this.toTransaction(r)),
+      meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
+    };
+  }
+
+  async importCSV(bankAccountId: string, csvData: string): Promise<BankStatementImportResult> {
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!account) throw new NotFoundError('Bank account');
+
+    const { rows, errors } = this.parseCSV(csvData);
+    const importBatchId = randomUUID();
+    let imported = 0;
+    let duplicatesSkipped = 0;
+    let lastBalance: number | null = null;
+
+    for (const row of rows) {
+      const isDuplicate = await this.checkDuplicate(bankAccountId, row);
+      if (isDuplicate) {
+        duplicatesSkipped++;
+        continue;
+      }
+
+      await this.db.insert(bankTransactions).values({
+        tenantId: this.tenantId,
+        bankAccountId,
+        transactionDate: row.transactionDate,
+        valueDate: row.valueDate ?? null,
+        type: row.type,
+        amount: row.amount.toString(),
+        reference: row.reference,
+        narration: row.narration,
+        runningBalance: row.runningBalance?.toString() ?? null,
+        reconStatus: 'unreconciled',
+        importBatchId,
+      });
+
+      imported++;
+      if (row.runningBalance !== null) lastBalance = row.runningBalance;
+    }
+
+    if (lastBalance !== null) {
+      await this.db
+        .update(bankAccounts)
+        .set({ currentBalance: lastBalance.toString(), updatedAt: new Date() })
+        .where(eq(bankAccounts.id, bankAccountId));
+    }
+
+    return { imported, duplicatesSkipped, errors };
+  }
+
+  private async checkDuplicate(bankAccountId: string, row: ParsedRow): Promise<boolean> {
+    const conditions = [
+      eq(bankTransactions.tenantId, this.tenantId),
+      eq(bankTransactions.bankAccountId, bankAccountId),
+      eq(bankTransactions.transactionDate, row.transactionDate),
+      eq(bankTransactions.type, row.type),
+      sql`${bankTransactions.amount}::numeric = ${row.amount}`,
+    ];
+
+    if (row.reference) {
+      conditions.push(eq(bankTransactions.reference, row.reference));
+    }
+
+    const [result] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bankTransactions)
+      .where(and(...conditions as Parameters<typeof and>));
+
+    return (result?.count ?? 0) > 0;
+  }
+
+  private parseCSV(csvData: string): { rows: ParsedRow[]; errors: { row: number; message: string }[] } {
+    const lines = csvData.split('\n').map((l) => l.trim()).filter(Boolean);
+    const errors: { row: number; message: string }[] = [];
+    const rows: ParsedRow[] = [];
+
+    if (lines.length < 2) return { rows, errors };
+
+    const headers = lines[0]!.toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
+    const headerMap = this.detectColumns(headers);
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = this.splitCSVLine(lines[i]!);
+      try {
+        const parsed = this.parseRow(cols, headerMap, i + 1);
+        if (parsed) rows.push(parsed);
+      } catch (err) {
+        errors.push({ row: i + 1, message: err instanceof Error ? err.message : 'Parse error' });
+      }
+    }
+
+    return { rows, errors };
+  }
+
+  private detectColumns(headers: string[]): Record<string, number> {
+    const map: Record<string, number> = {};
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i]!;
+      if (/date/i.test(h) && !map['date']) map['date'] = i;
+      if (/value.*date|val.*dt/i.test(h)) map['valueDate'] = i;
+      if (/narration|description|particulars|details/i.test(h)) map['narration'] = i;
+      if (/reference|ref|chq|cheque|utr/i.test(h)) map['reference'] = i;
+      if (/debit|dr|withdrawal/i.test(h)) map['debit'] = i;
+      if (/credit|cr|deposit/i.test(h)) map['credit'] = i;
+      if (/balance|bal/i.test(h)) map['balance'] = i;
+    }
+    return map;
+  }
+
+  private parseRow(cols: string[], map: Record<string, number>, rowNum: number): ParsedRow | null {
+    const dateStr = cols[map['date'] ?? 0] ?? '';
+    if (!dateStr) return null;
+
+    const transactionDate = this.parseDate(dateStr);
+    if (!transactionDate) throw new Error(`Invalid date: ${dateStr}`);
+
+    const debitStr = map['debit'] !== undefined ? cols[map['debit']] ?? '' : '';
+    const creditStr = map['credit'] !== undefined ? cols[map['credit']] ?? '' : '';
+    const debit = parseFloat(debitStr.replace(/[,\s]/g, '')) || 0;
+    const credit = parseFloat(creditStr.replace(/[,\s]/g, '')) || 0;
+
+    if (debit === 0 && credit === 0) throw new Error(`Row ${rowNum}: no debit or credit amount`);
+
+    const type: 'credit' | 'debit' = credit > 0 ? 'credit' : 'debit';
+    const amount = credit > 0 ? credit : debit;
+
+    const balanceStr = map['balance'] !== undefined ? cols[map['balance']] ?? '' : '';
+    const runningBalance = balanceStr ? (parseFloat(balanceStr.replace(/[,\s]/g, '')) || null) : null;
+    const valueDateStr = map['valueDate'] !== undefined ? cols[map['valueDate']] ?? '' : '';
+
+    return {
+      transactionDate,
+      valueDate: valueDateStr ? this.parseDate(valueDateStr) ?? undefined : undefined,
+      type,
+      amount,
+      reference: (map['reference'] !== undefined ? cols[map['reference']]?.trim() || null : null),
+      narration: (map['narration'] !== undefined ? cols[map['narration']]?.trim() || null : null),
+      runningBalance,
+    };
+  }
+
+  private parseDate(str: string): string | null {
+    const clean = str.trim().replace(/"/g, '');
+    const dmyMatch = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      const year = y!.length === 2 ? `20${y}` : y;
+      return `${year}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
+    }
+    const iso = new Date(clean);
+    return isNaN(iso.getTime()) ? null : iso.toISOString().slice(0, 10);
+  }
+
+  private splitCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  private toTransaction(row: typeof bankTransactions.$inferSelect): BankTransaction {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      bankAccountId: row.bankAccountId,
+      transactionDate: row.transactionDate,
+      valueDate: row.valueDate,
+      type: row.type,
+      amount: parseFloat(row.amount),
+      reference: row.reference,
+      narration: row.narration,
+      runningBalance: row.runningBalance ? parseFloat(row.runningBalance) : null,
+      reconStatus: row.reconStatus,
+      importBatchId: row.importBatchId,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+}

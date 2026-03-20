@@ -1,0 +1,19 @@
+import { FastifyPluginAsync } from 'fastify';
+import { vendorRoutes } from './vendor.routes';
+import { debitNoteRoutes } from './debit-note.routes';
+import { paymentRoutes } from './payment.routes';
+import { purchaseInvoiceRoutes } from './purchase-invoice.routes';
+
+export const apRoutes: FastifyPluginAsync = async (app) => {
+  // Vendor routes
+  await app.register(vendorRoutes, { prefix: '/vendors' });
+
+  // Debit note routes
+  await app.register(debitNoteRoutes, { prefix: '/debit-notes' });
+
+  // Payment routes
+  await app.register(paymentRoutes, { prefix: '/payments' });
+
+  // Purchase invoice routes
+  await app.register(purchaseInvoiceRoutes, { prefix: '/purchase-invoices' });
+};

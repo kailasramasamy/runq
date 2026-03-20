@@ -1,0 +1,27 @@
+import { pgTable, uuid, varchar, integer, boolean, timestamp } from 'drizzle-orm/pg-core';
+import { tenants } from '../tenant';
+
+export const vendors = pgTable('vendors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  gstin: varchar('gstin', { length: 15 }),
+  pan: varchar('pan', { length: 10 }),
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 20 }),
+  addressLine1: varchar('address_line1', { length: 255 }),
+  addressLine2: varchar('address_line2', { length: 255 }),
+  city: varchar('city', { length: 100 }),
+  state: varchar('state', { length: 100 }),
+  pincode: varchar('pincode', { length: 10 }),
+  bankAccountName: varchar('bank_account_name', { length: 255 }),
+  bankAccountNumber: varchar('bank_account_number', { length: 30 }),
+  bankIfsc: varchar('bank_ifsc', { length: 11 }),
+  bankName: varchar('bank_name', { length: 255 }),
+  paymentTermsDays: integer('payment_terms_days').notNull().default(30),
+  wmsVendorId: varchar('wms_vendor_id', { length: 100 }),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+});
