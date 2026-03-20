@@ -38,6 +38,9 @@ import { TransactionsPage } from './banking/transactions/index';
 import { ImportTransactionsPage } from './banking/transactions/import';
 import { ReconciliationPage } from './banking/reconciliation/index';
 import { PettyCashPage } from './banking/petty-cash/index';
+import { PGReconciliationPage } from './banking/pg-recon/index';
+import { ImportPGSettlementPage } from './banking/pg-recon/import';
+import { PGSettlementDetailPage } from './banking/pg-recon/detail';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -405,6 +408,7 @@ const BANKING_TABS = [
   { label: 'Accounts', path: '/banking/accounts' },
   { label: 'Transactions', path: '/banking/transactions' },
   { label: 'Reconciliation', path: '/banking/reconciliation' },
+  { label: 'PG Reconciliation', path: '/banking/pg-recon' },
   { label: 'Petty Cash', path: '/banking/petty-cash' },
 ];
 
@@ -421,7 +425,7 @@ function BankingNav() {
         {BANKING_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/petty-cash'}
+            to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/pg-recon' | '/banking/petty-cash'}
             className={[
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               current.startsWith(path)
@@ -503,6 +507,27 @@ const pettyCashRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/petty-cash',
   component: PettyCashPage,
+});
+
+const pgReconRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/pg-recon',
+  component: PGReconciliationPage,
+});
+
+const pgReconImportRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/pg-recon/import',
+  component: ImportPGSettlementPage,
+});
+
+const pgReconDetailRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/pg-recon/$settlementId',
+  component: () => {
+    const { settlementId } = pgReconDetailRoute.useParams();
+    return <PGSettlementDetailPage settlementId={settlementId} />;
+  },
 });
 
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
@@ -630,6 +655,9 @@ export const routeTree = rootRoute.addChildren([
       bankTransactionsImportRoute,
       bankReconciliationRoute,
       pettyCashRoute,
+      pgReconRoute,
+      pgReconImportRoute,
+      pgReconDetailRoute,
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,
