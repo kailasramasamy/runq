@@ -74,7 +74,7 @@ export function usePGSettlements(filters?: PGSettlementsFilters) {
     queryKey: PG_KEYS.settlements(filters),
     queryFn: () =>
       api.get<ApiSuccess<{ data: PGSettlement[]; total: number; page: number; pageSize: number }>>(
-        `/pg-recon/pg-settlements${qs ? `?${qs}` : ''}`,
+        `/pg-recon${qs ? `?${qs}` : ''}`,
       ),
   });
 }
@@ -82,7 +82,7 @@ export function usePGSettlements(filters?: PGSettlementsFilters) {
 export function usePGSettlement(id: string) {
   return useQuery({
     queryKey: PG_KEYS.settlement(id),
-    queryFn: () => api.get<ApiSuccess<PGSettlement>>(`/pg-recon/pg-settlements/${id}`),
+    queryFn: () => api.get<ApiSuccess<PGSettlement>>(`/pg-recon/${id}`),
     enabled: !!id,
   });
 }
@@ -91,7 +91,7 @@ export function useImportPGSettlement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { gateway: PGGateway; csvData: string }) =>
-      api.post<ApiSuccess<PGImportResult>>('/pg-recon/pg-settlements/import', data),
+      api.post<ApiSuccess<PGImportResult>>('/pg-recon/import', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: PG_KEYS.all }),
   });
 }
@@ -100,7 +100,7 @@ export function useReconcilePGSettlement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      api.post<ApiSuccess<PGReconcileResult>>(`/pg-recon/pg-settlements/${id}/reconcile`),
+      api.post<ApiSuccess<PGReconcileResult>>(`/pg-recon/${id}/reconcile`),
     onSuccess: () => qc.invalidateQueries({ queryKey: PG_KEYS.all }),
   });
 }
@@ -109,7 +109,7 @@ export function usePGUnmatched(id: string) {
   return useQuery({
     queryKey: PG_KEYS.unmatched(id),
     queryFn: () =>
-      api.get<ApiSuccess<PGSettlementLine[]>>(`/pg-recon/pg-settlements/${id}/unmatched`),
+      api.get<ApiSuccess<PGSettlementLine[]>>(`/pg-recon/${id}/unmatched`),
     enabled: !!id,
   });
 }
