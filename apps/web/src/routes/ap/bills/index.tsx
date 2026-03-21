@@ -22,6 +22,7 @@ import {
   TableSkeleton,
   EmptyState,
   Pagination,
+  ConfirmationDialog,
 } from '@/components/ui';
 
 const STATUS_BADGE_VARIANT: Record<PurchaseInvoiceStatus, React.ComponentProps<typeof Badge>['variant']> = {
@@ -93,8 +94,10 @@ export function BillListPage() {
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
   ];
 
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
   function handleDelete(id: string) {
-    if (confirm('Delete this bill?')) deleteMutation.mutate(id);
+    setDeleteTarget(id);
   }
 
   function handleRowClick(bill: PurchaseInvoice) {
@@ -261,6 +264,21 @@ export function BillListPage() {
           />
         </div>
       )}
+
+      <ConfirmationDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) });
+          }
+        }}
+        title="Delete Bill"
+        description="Are you sure you want to delete this bill? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }

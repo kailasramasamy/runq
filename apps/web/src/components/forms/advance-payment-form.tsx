@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useVendors } from '../../hooks/queries/use-vendors';
+import { useBankAccounts } from '../../hooks/queries/use-bank-accounts';
 import { createAdvancePaymentSchema } from '@runq/validators';
 import type { CreateAdvancePaymentInput } from '@runq/validators';
 import {
@@ -29,11 +30,17 @@ export function AdvancePaymentForm({ onSubmit, isLoading }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data } = useVendors({ limit: 100 });
+  const { data: bankData } = useBankAccounts();
   const vendors = data?.data ?? [];
+  const bankAccounts = bankData?.data ?? [];
 
   const vendorOptions = [
     { value: '', label: 'Select vendor…' },
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
+  ];
+  const bankOptions = [
+    { value: '', label: 'Select bank account…' },
+    ...bankAccounts.map((b) => ({ value: b.id, label: `${b.name} (****${b.accountNumber.slice(-4)})` })),
   ];
 
   function handleSubmit(e: React.FormEvent) {
@@ -82,10 +89,10 @@ export function AdvancePaymentForm({ onSubmit, isLoading }: Props) {
               error={errors.amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <Input
-              label="Bank Account ID"
+            <Select
+              label="Bank Account"
               required
-              placeholder="UUID of bank account"
+              options={bankOptions}
               value={bankAccountId}
               error={errors.bankAccountId}
               onChange={(e) => setBankAccountId(e.target.value)}

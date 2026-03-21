@@ -356,10 +356,15 @@ function LogTab() {
             </td>
           </tr>
         ) : (
-          entries.map((entry: DunningLogEntry) => (
+          entries.map((entry: any) => (
             <TableRow key={entry.id}>
-              <TableCell className="font-mono text-xs">{entry.invoiceId.slice(0, 8)}…</TableCell>
-              <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">—</TableCell>
+              <TableCell className="font-medium">{entry.invoiceNumber ?? entry.invoiceId.slice(0, 8)}</TableCell>
+              <TableCell>
+                <div>{entry.customerName ?? '—'}</div>
+                {entry.customerEmail && (
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">{entry.customerEmail}</div>
+                )}
+              </TableCell>
               <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">{entry.channel}</TableCell>
               <TableCell className="text-zinc-600 dark:text-zinc-400">
                 {new Date(entry.sentAt).toLocaleDateString()}

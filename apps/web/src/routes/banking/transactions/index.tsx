@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Upload } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
@@ -95,6 +95,13 @@ export function TransactionsPage() {
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
+
+  // Auto-select first account
+  useEffect(() => {
+    if (!accountId && accounts.length > 0) {
+      setAccountId(accounts[0].id);
+    }
+  }, [accounts, accountId]);
 
   const reconciled = reconStatus === 'matched' || reconStatus === 'manually_matched'
     ? true

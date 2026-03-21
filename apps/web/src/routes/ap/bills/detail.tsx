@@ -4,6 +4,7 @@ import {
   usePurchaseInvoice,
   useThreeWayMatch,
   useApproveInvoice,
+  useDeletePurchaseInvoice,
 } from '../../../hooks/queries/use-purchase-invoices';
 import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
 import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
@@ -23,6 +24,7 @@ import {
   TableCell,
   Th,
   StatsCard,
+  ConfirmationDialog,
 } from '@/components/ui';
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
@@ -181,16 +183,42 @@ function MatchResultPanel({ result }: { result: ThreeWayMatchResult }) {
 function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
   const [showMatchForm, setShowMatchForm] = useState(false);
   const [matchResult, setMatchResult] = useState<ThreeWayMatchResult | null>(null);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const approveMutation = useApproveInvoice();
+  const deleteMutation = useDeletePurchaseInvoice();
 
-  function handleApprove() {
-    if (confirm('Approve this bill?')) {
-      approveMutation.mutate({ id: invoice.id });
-    }
-  }
+  const approveDialog = (
+    <ConfirmationDialog
+      open={showApproveDialog}
+      onClose={() => setShowApproveDialog(false)}
+      onConfirm={() => {
+        approveMutation.mutate({ id: invoice.id }, { onSuccess: () => setShowApproveDialog(false) });
+      }}
+      title="Approve Bill"
+      description={`Approve bill ${invoice.invoiceNumber} for ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}? Once approved, it will be available for payment.`}
+      confirmLabel="Approve"
+      variant="warning"
+      loading={approveMutation.isPending}
+    />
+  );
+
+  const cancelDialog = (
+    <ConfirmationDialog
+      open={showCancelDialog}
+      onClose={() => setShowCancelDialog(false)}
+      onConfirm={() => {
+        deleteMutation.mutate(invoice.id, { onSuccess: () => setShowCancelDialog(false) });
+      }}
+      title="Cancel Bill"
+      description={`Cancel bill ${invoice.invoiceNumber}? You can create a revised bill afterwards.`}
+      confirmLabel="Cancel Bill"
+      variant="danger"
+      loading={deleteMutation.isPending}
+    />
+  );
 
   if (invoice.status === 'draft' && !invoice.poId) {
-    // No PO linked — direct approval flow (no matching needed)
     return (
       <Card>
         <CardHeader title="Approval" />
@@ -202,8 +230,7 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
             <Button
               variant="primary"
               size="sm"
-              loading={approveMutation.isPending}
-              onClick={handleApprove}
+              onClick={() => setShowApproveDialog(true)}
             >
               Approve Bill
             </Button>
@@ -221,12 +248,12 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
           )}
           {matchResult && <MatchResultPanel result={matchResult} />}
         </CardContent>
+        {approveDialog}
       </Card>
     );
   }
 
   if (invoice.status === 'draft' && invoice.poId) {
-    // PO linked — must run 3-way match before approval
     return (
       <Card>
         <CardHeader title="3-Way Match Required" />
@@ -262,14 +289,26 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
               )}
             </div>
           </div>
-          {showMatchForm ? (
-            <MatchForm invoiceId={invoice.id} onDone={() => setShowMatchForm(false)} />
-          ) : (
-            <Button variant="primary" size="sm" onClick={() => setShowMatchForm(true)}>
-              Re-run Match
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {showMatchForm ? (
+              <MatchForm invoiceId={invoice.id} onDone={() => setShowMatchForm(false)} />
+            ) : (
+              <>
+                <Button variant="primary" size="sm" onClick={() => setShowMatchForm(true)}>
+                  Re-run Match
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowCancelDialog(true)}
+                >
+                  Cancel Bill
+                </Button>
+              </>
+            )}
+          </div>
         </CardContent>
+        {cancelDialog}
       </Card>
     );
   }
@@ -285,12 +324,12 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
           <Button
             variant="primary"
             size="sm"
-            loading={approveMutation.isPending}
-            onClick={handleApprove}
+            onClick={() => setShowApproveDialog(true)}
           >
             Approve Bill
           </Button>
         </CardContent>
+        {approveDialog}
       </Card>
     );
   }

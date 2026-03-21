@@ -27,7 +27,6 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  TableSkeleton,
 } from '@/components/ui';
 import { PettyCashAccountForm } from '@/components/forms/petty-cash-account-form';
 import { PettyCashTransactionForm } from '@/components/forms/petty-cash-transaction-form';
@@ -115,13 +114,6 @@ function TxnRow({
       </TableCell>
       <TableCell>
         {isPending ? (
-          <Badge variant="warning">Pending</Badge>
-        ) : (
-          <Badge variant="success">Approved</Badge>
-        )}
-      </TableCell>
-      <TableCell>
-        {isPending && (
           <div className="flex items-center gap-1">
             <button
               onClick={() => onApprove(accountId, txn.id)}
@@ -138,6 +130,8 @@ function TxnRow({
               <X size={14} />
             </button>
           </div>
+        ) : (
+          <Badge variant="success">Approved</Badge>
         )}
       </TableCell>
     </TableRow>
@@ -242,13 +236,23 @@ function AccountPanel({ account }: { account: PettyCashAccount }) {
 
           {txnLoading ? (
             <div className="p-4">
-              <TableSkeleton rows={3} cols={7} />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="h-4 flex-1 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : txns.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-zinc-500 dark:text-zinc-400">
               No transactions yet.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <tr>
@@ -257,7 +261,6 @@ function AccountPanel({ account }: { account: PettyCashAccount }) {
                   <Th align="right">Amount</Th>
                   <Th>Description</Th>
                   <Th>Category</Th>
-                  <Th>Status</Th>
                   <Th>Actions</Th>
                 </tr>
               </TableHeader>
@@ -273,6 +276,7 @@ function AccountPanel({ account }: { account: PettyCashAccount }) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
       )}
@@ -340,7 +344,7 @@ export function PettyCashPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-4">
           {accounts.map((account) => (
             <AccountPanel key={account.id} account={account} />
           ))}

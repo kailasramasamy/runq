@@ -18,14 +18,14 @@ const PC_KEYS = {
 export function usePettyCashAccounts() {
   return useQuery({
     queryKey: PC_KEYS.accounts,
-    queryFn: () => api.get<PaginatedResponse<PettyCashAccount>>('/banking/petty-cash/accounts'),
+    queryFn: () => api.get<PaginatedResponse<PettyCashAccount>>('/banking/petty-cash'),
   });
 }
 
 export function usePettyCashAccount(id: string) {
   return useQuery({
     queryKey: PC_KEYS.account(id),
-    queryFn: () => api.get<ApiSuccess<PettyCashAccount>>(`/banking/petty-cash/accounts/${id}`),
+    queryFn: () => api.get<ApiSuccess<PettyCashAccount>>(`/banking/petty-cash/${id}`),
     enabled: !!id,
   });
 }
@@ -34,7 +34,7 @@ export function useCreatePettyCashAccount() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreatePettyCashAccountInput) =>
-      api.post<ApiSuccess<PettyCashAccount>>('/banking/petty-cash/accounts', data),
+      api.post<ApiSuccess<PettyCashAccount>>('/banking/petty-cash', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: PC_KEYS.all }),
   });
 }
@@ -44,7 +44,7 @@ export function usePettyCashTransactions(accountId: string) {
     queryKey: PC_KEYS.transactions(accountId),
     queryFn: () =>
       api.get<PaginatedResponse<PettyCashTransaction>>(
-        `/banking/petty-cash/accounts/${accountId}/transactions`,
+        `/banking/petty-cash/${accountId}/transactions`,
       ),
     enabled: !!accountId,
   });
@@ -55,7 +55,7 @@ export function useCreatePettyCashTransaction(accountId: string) {
   return useMutation({
     mutationFn: (data: PettyCashTransactionInput) =>
       api.post<ApiSuccess<PettyCashTransaction>>(
-        `/banking/petty-cash/accounts/${accountId}/transactions`,
+        `/banking/petty-cash/${accountId}/transactions`,
         data,
       ),
     onSuccess: () => {
@@ -78,7 +78,7 @@ export function useApprovePettyCashTransaction() {
       data: ApprovePettyCashInput;
     }) =>
       api.post<ApiSuccess<PettyCashTransaction>>(
-        `/banking/petty-cash/accounts/${accountId}/transactions/${transactionId}/approve`,
+        `/banking/petty-cash/${accountId}/transactions/${transactionId}/approve`,
         data,
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: PC_KEYS.all }),

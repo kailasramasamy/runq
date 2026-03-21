@@ -154,8 +154,8 @@ export class PurchaseInvoiceService {
 
   async cancel(id: string): Promise<PurchaseInvoice> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft') {
-      throw new ConflictError('Only draft invoices can be cancelled');
+    if (existing.status !== 'draft' && existing.status !== 'pending_match') {
+      throw new ConflictError('Only draft or pending match invoices can be cancelled');
     }
 
     const [row] = await this.db

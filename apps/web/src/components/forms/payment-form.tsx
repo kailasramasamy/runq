@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useVendors } from '../../hooks/queries/use-vendors';
 import { usePurchaseInvoices } from '../../hooks/queries/use-purchase-invoices';
+import { useBankAccounts } from '../../hooks/queries/use-bank-accounts';
 import { createVendorPaymentSchema } from '@runq/validators';
 import type { CreateVendorPaymentInput } from '@runq/validators';
 import type { PurchaseInvoice } from '@runq/types';
@@ -81,8 +82,14 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
 
   const { data: vendorsData } = useVendors({ limit: 100 });
   const { data: invoicesData } = usePurchaseInvoices(vendorId ? { vendorId } : undefined);
+  const { data: bankData } = useBankAccounts();
 
   const vendors = vendorsData?.data ?? [];
+  const bankAccounts = bankData?.data ?? [];
+  const bankOptions = [
+    { value: '', label: 'Select bank account…' },
+    ...bankAccounts.map((b) => ({ value: b.id, label: `${b.name} (****${b.accountNumber.slice(-4)})` })),
+  ];
   const invoices = (invoicesData?.data ?? []).filter(
     (inv) => inv.status === 'approved' || inv.status === 'partially_paid',
   );
@@ -213,10 +220,10 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="3. Payment Details" />
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Bank Account ID"
+            <Select
+              label="Bank Account"
               required
-              placeholder="UUID of bank account"
+              options={bankOptions}
               value={bankAccountId}
               error={errors.bankAccountId}
               onChange={(e) => setBankAccountId(e.target.value)}

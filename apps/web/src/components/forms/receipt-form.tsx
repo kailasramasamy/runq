@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCustomers } from '../../hooks/queries/use-customers';
 import { useInvoices } from '../../hooks/queries/use-invoices';
+import { useBankAccounts } from '../../hooks/queries/use-bank-accounts';
 import { createReceiptSchema } from '@runq/validators';
 import type { CreateReceiptInput } from '@runq/validators';
 import type { SalesInvoiceWithDetails } from '@runq/types';
@@ -88,7 +89,9 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
     customerId ? { customerId, status: 'partially_paid' } : undefined,
   );
 
+  const { data: bankData } = useBankAccounts();
   const customers = customersData?.data ?? [];
+  const bankAccounts = bankData?.data ?? [];
   const sentInvoices = invoicesData?.data ?? [];
   const partialInvoices = partialData?.data ?? [];
   const invoices = [...sentInvoices, ...partialInvoices];
@@ -96,6 +99,10 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
   const customerOptions = [
     { value: '', label: 'Select customer…' },
     ...customers.map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const bankOptions = [
+    { value: '', label: 'Select bank account…' },
+    ...bankAccounts.map((b) => ({ value: b.id, label: `${b.name} (****${b.accountNumber.slice(-4)})` })),
   ];
 
   function toggleInvoice(id: string, balanceDue: number) {
@@ -220,10 +227,10 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="3. Receipt Details" />
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Bank Account ID"
+            <Select
+              label="Bank Account"
               required
-              placeholder="UUID of bank account"
+              options={bankOptions}
               value={bankAccountId}
               error={errors.bankAccountId}
               onChange={(e) => setBankAccountId(e.target.value)}

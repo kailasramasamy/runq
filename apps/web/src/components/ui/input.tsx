@@ -105,7 +105,7 @@ export const DateInput = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         type="date"
         required={required}
-        className={cn(baseInputClasses, error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500', className)}
+        className={cn(baseInputClasses, 'dark:[color-scheme:dark]', error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500', className)}
         {...props}
       />
     </FieldWrapper>

@@ -48,7 +48,7 @@ export function DebitNoteForm({ onSubmit, isLoading }: Props) {
     queryKey: ['invoices', 'by-vendor', form.vendorId],
     queryFn: () =>
       api.get<PaginatedResponse<PurchaseInvoice>>(
-        `/ap/invoices?vendorId=${form.vendorId}&limit=200`,
+        `/ap/purchase-invoices?vendorId=${form.vendorId}&limit=100`,
       ),
     enabled: !!form.vendorId,
   });

@@ -146,13 +146,38 @@ export class DunningService {
     );
 
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(dunningLog).where(baseWhere).limit(limit).offset(offset),
+      this.db
+        .select({
+          id: dunningLog.id,
+          tenantId: dunningLog.tenantId,
+          invoiceId: dunningLog.invoiceId,
+          ruleId: dunningLog.ruleId,
+          sentAt: dunningLog.sentAt,
+          channel: dunningLog.channel,
+          status: dunningLog.status,
+          createdAt: dunningLog.createdAt,
+          invoiceNumber: salesInvoices.invoiceNumber,
+          customerName: customers.name,
+          customerEmail: customers.email,
+        })
+        .from(dunningLog)
+        .innerJoin(salesInvoices, eq(dunningLog.invoiceId, salesInvoices.id))
+        .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+        .where(baseWhere)
+        .orderBy(dunningLog.sentAt)
+        .limit(limit)
+        .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(dunningLog).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => this.toLogEntry(r)),
+      data: rows.map((r) => ({
+        ...this.toLogEntry(r),
+        invoiceNumber: r.invoiceNumber,
+        customerName: r.customerName,
+        customerEmail: r.customerEmail,
+      })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
