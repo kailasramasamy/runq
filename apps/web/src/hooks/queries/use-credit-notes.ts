@@ -67,6 +67,19 @@ export function useIssueCreditNote() {
   });
 }
 
+export function useApplyCreditNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<ApiSuccess<CreditNote>>(`/ar/credit-notes/${id}/apply`),
+    onSuccess: (_res, id) => {
+      qc.invalidateQueries({ queryKey: CN_KEYS.all });
+      qc.invalidateQueries({ queryKey: CN_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
 export function useDeleteCreditNote() {
   const qc = useQueryClient();
   return useMutation({

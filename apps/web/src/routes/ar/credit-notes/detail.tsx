@@ -1,5 +1,5 @@
 import { FileMinus } from 'lucide-react';
-import { useCreditNote, useIssueCreditNote } from '../../../hooks/queries/use-credit-notes';
+import { useCreditNote, useIssueCreditNote, useApplyCreditNote } from '../../../hooks/queries/use-credit-notes';
 import type { CreditNoteStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -34,6 +34,7 @@ interface Props { creditNoteId: string }
 export function CreditNoteDetailPage({ creditNoteId }: Props) {
   const { data, isLoading, isError } = useCreditNote(creditNoteId);
   const issueMutation = useIssueCreditNote();
+  const applyMutation = useApplyCreditNote();
   const { toast } = useToast();
 
   const cn = data?.data;
@@ -42,6 +43,13 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
     issueMutation.mutate(creditNoteId, {
       onSuccess: () => toast('Credit note issued successfully.', 'success'),
       onError: () => toast('Failed to issue credit note.', 'error'),
+    });
+  }
+
+  function handleApply() {
+    applyMutation.mutate(creditNoteId, {
+      onSuccess: () => toast('Credit note applied to invoice. Balance updated.', 'success'),
+      onError: () => toast('Failed to apply credit note.', 'error'),
     });
   }
 
@@ -77,9 +85,16 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
               <Button
                 onClick={handleIssue}
                 loading={issueMutation.isPending}
-                disabled={issueMutation.isPending}
               >
                 Issue Credit Note
+              </Button>
+            )}
+            {cn.status === 'issued' && cn.invoiceId && (
+              <Button
+                onClick={handleApply}
+                loading={applyMutation.isPending}
+              >
+                Apply to Invoice
               </Button>
             )}
           </div>

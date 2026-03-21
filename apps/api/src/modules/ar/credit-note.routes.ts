@@ -70,6 +70,17 @@ export const creditNoteRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.post(
+    '/:id/apply',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new CreditNoteService(request.server.db, request.tenantId);
+      const creditNote = await service.apply(id);
+      return { data: creditNote };
+    },
+  );
+
   app.delete(
     '/:id',
     { preHandler: [rbacHook([...OWNER_ROLES])] },
