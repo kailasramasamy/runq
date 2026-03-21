@@ -12,10 +12,10 @@ import {
   CardHeader,
   CardContent,
   CardFooter,
-  Select,
   Input,
   DateInput,
   Textarea,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -97,21 +97,23 @@ export function DebitNoteForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="Debit Note Information" />
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <Select
+            <Combobox
               label="Vendor"
               required
               options={vendorOptions}
               value={form.vendorId}
               error={errors.vendorId}
-              onChange={(e) => set('vendorId', e.target.value)}
+              placeholder="Search vendor…"
+              onChange={(value) => set('vendorId', value)}
             />
-            <Select
+            <Combobox
               label="Linked Invoice (optional)"
               options={invoiceOptions}
               value={form.invoiceId}
               error={errors.invoiceId}
               disabled={!form.vendorId}
-              onChange={(e) => set('invoiceId', e.target.value)}
+              placeholder="Search invoice…"
+              onChange={(value) => set('invoiceId', value)}
             />
             <DateInput
               label="Issue Date"

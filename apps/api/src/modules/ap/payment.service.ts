@@ -250,6 +250,56 @@ export class PaymentService {
     return { created: paymentRows.length, totalAmount, payments: paymentRows };
   }
 
+  async exportPaymentsCSV(filters: { status?: string; dateFrom?: string; dateTo?: string }): Promise<string> {
+    const { status, dateFrom, dateTo } = filters;
+    const rows = await this.db
+      .select({
+        id: payments.id,
+        paymentDate: payments.paymentDate,
+        amount: payments.amount,
+        utrNumber: payments.utrNumber,
+        paymentMethod: payments.paymentMethod,
+        notes: payments.notes,
+        vendorName: vendors.name,
+        bankAccountName: vendors.bankAccountName,
+        bankAccountNumber: vendors.bankAccountNumber,
+        bankIfsc: vendors.bankIfsc,
+      })
+      .from(payments)
+      .innerJoin(vendors, eq(payments.vendorId, vendors.id))
+      .where(and(
+        eq(payments.tenantId, this.tenantId),
+        status ? eq(payments.status, status as 'pending' | 'completed' | 'failed' | 'reversed') : undefined,
+        dateFrom ? gte(payments.paymentDate, dateFrom) : undefined,
+        dateTo ? lte(payments.paymentDate, dateTo) : undefined,
+      ));
+
+    return this.buildExportCSV(rows);
+  }
+
+  private buildExportCSV(rows: {
+    id: string; paymentDate: string; amount: string; utrNumber: string | null;
+    paymentMethod: string; notes: string | null; vendorName: string;
+    bankAccountName: string | null; bankAccountNumber: string | null; bankIfsc: string | null;
+  }[]): string {
+    const csvQuote = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const header = 'Beneficiary Name,Account Number,IFSC Code,Amount,Payment Mode,Reference,Remarks';
+    const lines = rows.map((r) => {
+      const hasBankDetails = r.bankAccountNumber && r.bankIfsc;
+      const remarks = hasBankDetails ? (r.notes ?? 'Payment') : 'MISSING BANK DETAILS';
+      return [
+        csvQuote(r.bankAccountName ?? r.vendorName),
+        csvQuote(r.bankAccountNumber ?? ''),
+        csvQuote(r.bankIfsc ?? ''),
+        csvQuote(parseFloat(r.amount).toFixed(2)),
+        csvQuote('NEFT'),
+        csvQuote(r.utrNumber ?? ''),
+        csvQuote(remarks),
+      ].join(',');
+    });
+    return [header, ...lines].join('\n');
+  }
+
   async importBatchFromCSV(bankAccountId: string, paymentDate: string, csvData: string): Promise<BatchImportResult> {
     const { rows, parseErrors } = this.parseBatchCSV(csvData);
     const errors: BatchImportResult['errors'] = [...parseErrors];

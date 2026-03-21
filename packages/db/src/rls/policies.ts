@@ -37,6 +37,8 @@ export const RLS_TABLES = [
   'petty_cash_transactions',
   'pg_settlements',
   'pg_settlement_lines',
+  'payment_batches',
+  'payment_instructions',
   'webhook_events',
 ];
 

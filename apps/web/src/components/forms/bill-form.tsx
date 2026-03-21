@@ -11,7 +11,6 @@ import {
   CardContent,
   CardFooter,
   Input,
-  Select,
   DateInput,
   Textarea,
   Table,
@@ -20,6 +19,7 @@ import {
   TableRow,
   TableCell,
   Th,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -112,12 +112,13 @@ export function BillForm({ onSubmit, isLoading }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Select
+              <Combobox
                 label="Vendor"
                 required
                 options={vendorOptions}
                 value={vendorId}
-                onChange={(e) => setVendorId(e.target.value)}
+                onChange={(value) => setVendorId(value)}
+                placeholder="Search vendor…"
                 error={errors.vendorId}
               />
             </div>

@@ -10,3 +10,4 @@ export { Pagination } from './pagination';
 export { ConfirmationDialog } from './confirmation-dialog';
 export { ToastProvider, useToast } from './toast';
 export { StatsCard } from './stats-card';
+export { Combobox } from './combobox';

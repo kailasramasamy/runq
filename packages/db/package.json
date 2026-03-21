@@ -10,7 +10,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx seeds/index.ts"
+    "db:seed": "tsx seeds/index.ts",
+    "db:rls": "tsx scripts/apply-rls.ts"
   },
   "dependencies": {
     "@runq/types": "workspace:*",

@@ -1,5 +1,6 @@
 
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createVendorPaymentSchema,
   createAdvancePaymentSchema,
@@ -17,7 +18,27 @@ import { PaymentService } from './payment.service';
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 
+const exportCSVQuerySchema = z.object({
+  status: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+});
+
 export const paymentRoutes: FastifyPluginAsync = async (app) => {
+  app.get(
+    '/export-csv',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request, reply) => {
+      const filters = exportCSVQuerySchema.parse(request.query);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const csv = await service.exportPaymentsCSV(filters);
+      return reply
+        .type('text/csv')
+        .header('Content-Disposition', 'attachment; filename="payments-export.csv"')
+        .send(csv);
+    },
+  );
+
   app.get(
     '/',
     { preHandler: [rbacHook([...READ_ROLES])] },

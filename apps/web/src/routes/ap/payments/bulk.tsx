@@ -18,6 +18,7 @@ import {
   DateInput,
   Textarea,
   Badge,
+  Combobox,
 } from '@/components/ui';
 
 // ─── Shared select helpers ──────────────────────────────────────────────────
@@ -125,7 +126,7 @@ function ManualBatchTab() {
           {rows.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <div className="w-52">
-                <Select label={i === 0 ? 'Vendor' : undefined} options={vendorOptions} value={row.vendorId} onChange={(e) => updateRow(i, 'vendorId', e.target.value)} />
+                <Combobox label={i === 0 ? 'Vendor' : undefined} options={vendorOptions} value={row.vendorId} placeholder="Search vendor…" onChange={(value) => updateRow(i, 'vendorId', value)} />
               </div>
               <div className="w-32">
                 <Input label={i === 0 ? 'Amount' : undefined} type="number" placeholder="0.00" value={row.amount} onChange={(e) => updateRow(i, 'amount', e.target.value)} />

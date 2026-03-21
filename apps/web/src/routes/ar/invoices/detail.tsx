@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Send, CheckCircle, AlertTriangle, Bell } from 'lucide-react';
+import { Send, CheckCircle, AlertTriangle, Bell, Printer } from 'lucide-react';
 import { useInvoice, useSendInvoice, useMarkPaid } from '@/hooks/queries/use-invoices';
+import { useAuth } from '@/providers/auth-provider';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceStatus } from '@runq/types';
 import {
@@ -25,10 +26,16 @@ interface Props { invoiceId: string }
 
 export function InvoiceDetailPage({ invoiceId }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data, isLoading, isError } = useInvoice(invoiceId);
   const sendMutation = useSendInvoice();
   const markPaidMutation = useMarkPaid();
   const invoice = data?.data;
+
+  function getPrintUrl() {
+    const tenantId = user?.tenantId ?? '';
+    return `/api/v1/ar/invoices/${invoiceId}/print?tenantId=${tenantId}`;
+  }
 
   function handleSend() {
     sendMutation.mutate({ id: invoiceId, data: { sendEmail: false } });
@@ -54,6 +61,22 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   }
 
   const statusInfo = STATUS_BADGE[invoice.status];
+
+  const printUrl = getPrintUrl();
+
+  function PrintButtons() {
+    if (invoice!.status === 'draft') return null;
+    return (
+      <>
+        <Button variant="outline" size="sm" onClick={() => window.open(printUrl, '_blank')}>
+          <Printer size={14} /> Print Invoice
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => window.open(printUrl, '_blank')}>
+          Download PDF
+        </Button>
+      </>
+    );
+  }
 
   function InvoiceActions() {
     if (invoice!.status === 'draft') {
@@ -122,6 +145,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         actions={
           <>
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+            <PrintButtons />
             <InvoiceActions />
           </>
         }

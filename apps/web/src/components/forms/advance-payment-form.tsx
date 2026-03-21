@@ -13,6 +13,7 @@ import {
   Input,
   DateInput,
   Textarea,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -70,13 +71,14 @@ export function AdvancePaymentForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="Advance Payment Details" />
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <Select
+            <Combobox
               label="Vendor"
               required
               options={vendorOptions}
               value={vendorId}
               error={errors.vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
+              placeholder="Search vendor…"
+              onChange={(value) => setVendorId(value)}
             />
             <Input
               label="Amount (₹)"

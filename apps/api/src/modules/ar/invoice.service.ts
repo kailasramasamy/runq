@@ -79,6 +79,40 @@ export class InvoiceService {
     };
   }
 
+  async getForPrint(id: string): Promise<{
+    invoice: SalesInvoice;
+    items: SalesInvoiceItem[];
+    customer: typeof customers.$inferSelect;
+    tenant: typeof tenants.$inferSelect;
+  }> {
+    const [row] = await this.db
+      .select({ invoice: salesInvoices, customer: customers })
+      .from(salesInvoices)
+      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+      .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!row) throw new NotFoundError('SalesInvoice');
+
+    const [tenantRow] = await this.db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const itemRows = await this.db
+      .select()
+      .from(salesInvoiceItems)
+      .where(and(eq(salesInvoiceItems.invoiceId, id), eq(salesInvoiceItems.tenantId, this.tenantId)));
+
+    return {
+      invoice: this.toInvoice(row.invoice),
+      items: itemRows.map(this.toInvoiceItem),
+      customer: row.customer,
+      tenant: tenantRow!,
+    };
+  }
+
   async create(input: CreateSalesInvoiceInput): Promise<SalesInvoiceWithDetails> {
     return this.db.transaction(async (tx) => {
       const invoiceNumber = await this.resolveInvoiceNumber(tx);

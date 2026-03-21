@@ -22,6 +22,7 @@ import {
   TableRow,
   TableCell,
   Th,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -155,14 +156,15 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="1. Select Vendor" />
         <CardContent>
           <div className="max-w-sm">
-            <Select
+            <Combobox
               label="Vendor"
               required
               options={vendorOptions}
               value={vendorId}
               error={errors.vendorId}
-              onChange={(e) => {
-                setVendorId(e.target.value);
+              placeholder="Search vendor…"
+              onChange={(value) => {
+                setVendorId(value);
                 setSelected(new Set());
                 setAllocations({});
               }}

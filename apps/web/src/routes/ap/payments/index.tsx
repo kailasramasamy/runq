@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { CreditCard, Plus } from 'lucide-react';
+import { CreditCard, Plus, Download } from 'lucide-react';
 import { useVendorPayments } from '../../../hooks/queries/use-payments';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import type { VendorPayment, PaymentStatus } from '@runq/types';
@@ -85,6 +85,13 @@ export function PaymentListPage() {
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
   ];
 
+  function getExportUrl() {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    return `/api/v1/ap/payments/export-csv?${params.toString()}`;
+  }
+
   return (
     <div>
       <PageHeader
@@ -92,6 +99,13 @@ export function PaymentListPage() {
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Payments' }]}
         actions={
           <>
+            <button
+              onClick={() => window.open(getExportUrl(), '_blank')}
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
             <Link to="/ap/payments/advance">
               <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Advance Payment

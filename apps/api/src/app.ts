@@ -8,6 +8,7 @@ import { errorHandlerPlugin } from './plugins/error-handler';
 import { authRoutes } from './modules/auth/routes';
 import { apRoutes } from './modules/ap/routes';
 import { arRoutes } from './modules/ar/routes';
+import { invoicePrintRoutes } from './modules/ar/invoice-print.routes';
 import { bankingRoutes } from './modules/banking/routes';
 import { pgReconRoutes } from './modules/pg-recon/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
@@ -30,6 +31,7 @@ export async function buildApp() {
   // Public routes (no auth required)
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
+  await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
 
   // Protected routes
   await app.register(async (scope) => {

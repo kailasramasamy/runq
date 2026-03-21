@@ -13,6 +13,7 @@ import {
   Input,
   DateInput,
   Textarea,
+  Combobox,
 } from '@/components/ui';
 
 const EXPENSE_CATEGORY_OPTIONS = [
@@ -87,13 +88,14 @@ export function DirectPaymentForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="Payment Details" />
         <CardContent className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <Select
+            <Combobox
               label="Vendor"
               required
               options={vendorOptions}
               value={vendorId}
               error={errors.vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
+              placeholder="Search vendor…"
+              onChange={(value) => setVendorId(value)}
             />
           </div>
           <Input

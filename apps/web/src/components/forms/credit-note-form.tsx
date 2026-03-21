@@ -9,10 +9,10 @@ import {
   CardHeader,
   CardContent,
   CardFooter,
-  Select,
   Input,
   DateInput,
   Textarea,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -77,25 +77,28 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 max-w-sm">
-              <Select
+              <Combobox
                 label="Customer"
                 required
                 options={customerOptions}
                 value={customerId}
                 error={errors.customerId}
-                onChange={(e) => {
-                  setCustomerId(e.target.value);
+                placeholder="Search customer…"
+                onChange={(value) => {
+                  setCustomerId(value);
                   setInvoiceId('');
                 }}
               />
             </div>
             <div className="col-span-2 max-w-sm">
-              <Select
+              <Combobox
                 label="Linked Invoice (optional)"
                 options={invoiceOptions}
                 value={invoiceId}
                 error={errors.invoiceId}
-                onChange={(e) => setInvoiceId(e.target.value)}
+                placeholder="Search invoice…"
+                disabled={!customerId}
+                onChange={(value) => setInvoiceId(value)}
               />
             </div>
             <DateInput

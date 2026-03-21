@@ -22,6 +22,7 @@ import {
   TableRow,
   TableCell,
   Th,
+  Combobox,
 } from '@/components/ui';
 
 interface Props {
@@ -161,14 +162,15 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
         <CardHeader title="1. Select Customer" />
         <CardContent>
           <div className="max-w-sm">
-            <Select
+            <Combobox
               label="Customer"
               required
               options={customerOptions}
               value={customerId}
               error={errors.customerId}
-              onChange={(e) => {
-                setCustomerId(e.target.value);
+              placeholder="Search customer…"
+              onChange={(value) => {
+                setCustomerId(value);
                 setSelected(new Set());
                 setAllocations({});
               }}
