@@ -189,13 +189,50 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
     }
   }
 
-  if (invoice.status === 'draft') {
+  if (invoice.status === 'draft' && !invoice.poId) {
+    // No PO linked — direct approval flow (no matching needed)
     return (
       <Card>
-        <CardHeader title="3-Way Match" />
+        <CardHeader title="Approval" />
         <CardContent>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-            Link this bill to a Purchase Order and Goods Receipt to run the 3-way match.
+            This bill has no linked Purchase Order. You can approve it directly or link a PO for 3-way matching.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="primary"
+              size="sm"
+              loading={approveMutation.isPending}
+              onClick={handleApprove}
+            >
+              Approve Bill
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowMatchForm(true)}>
+              Link PO &amp; Match
+            </Button>
+          </div>
+          {showMatchForm && (
+            <div className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+              <MatchForm
+                invoiceId={invoice.id}
+                onDone={() => { setShowMatchForm(false); setMatchResult(null); }}
+              />
+            </div>
+          )}
+          {matchResult && <MatchResultPanel result={matchResult} />}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (invoice.status === 'draft' && invoice.poId) {
+    // PO linked — must run 3-way match before approval
+    return (
+      <Card>
+        <CardHeader title="3-Way Match Required" />
+        <CardContent>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+            This bill is linked to a PO. Run 3-way matching before approval.
           </p>
           <MatchForm
             invoiceId={invoice.id}

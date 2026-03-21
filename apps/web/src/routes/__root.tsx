@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar } from '../components/layout/sidebar';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
@@ -147,7 +147,7 @@ const apRoute = createRoute({
 const apIndexRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/',
-  component: () => <p className="text-sm text-zinc-500">Select a section above.</p>,
+  component: () => <Navigate to="/ap/vendors" />,
 });
 
 const vendorsRoute = createRoute({
@@ -309,7 +309,7 @@ const arRoute = createRoute({
 const arIndexRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/',
-  component: () => <p className="text-sm text-zinc-500">Select a section above.</p>,
+  component: () => <Navigate to="/ar/customers" />,
 });
 
 const customersRoute = createRoute({
@@ -461,7 +461,7 @@ const bankingRoute = createRoute({
 const bankingIndexRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/',
-  component: () => <p className="text-sm text-zinc-500">Select a section above.</p>,
+  component: () => <Navigate to="/banking/accounts" />,
 });
 
 const bankAccountsRoute = createRoute({
@@ -587,7 +587,7 @@ const settingsRoute = createRoute({
 const settingsIndexRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/',
-  component: () => <p className="text-sm text-zinc-500">Select a settings section above.</p>,
+  component: () => <Navigate to="/settings/company" />,
 });
 
 const settingsCompanyRoute = createRoute({

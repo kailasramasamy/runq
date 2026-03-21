@@ -70,19 +70,25 @@ export class ThreeWayMatchService {
 
   async approve(invoiceId: string, approvedBy: string): Promise<void> {
     const [invoice] = await this.db
-      .select({ status: purchaseInvoices.status })
+      .select({ status: purchaseInvoices.status, poId: purchaseInvoices.poId })
       .from(purchaseInvoices)
       .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)))
       .limit(1);
 
     if (!invoice) throw new NotFoundError('PurchaseInvoice');
-    if (invoice.status !== 'matched') {
-      throw new ConflictError('Invoice must be in matched status to approve');
+
+    // Bills with PO require matching first; bills without PO can be approved directly from draft
+    const allowedStatuses = invoice.poId ? ['matched'] : ['draft', 'matched'];
+    if (!allowedStatuses.includes(invoice.status)) {
+      const msg = invoice.poId
+        ? 'Invoice with PO must be matched before approval'
+        : 'Invoice must be in draft status to approve';
+      throw new ConflictError(msg);
     }
 
     await this.db
       .update(purchaseInvoices)
-      .set({ status: 'approved', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'approved', matchStatus: 'matched', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
   }
 
