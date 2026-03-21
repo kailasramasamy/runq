@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Download, Play } from 'lucide-react';
+import { CheckCircle2, XCircle, Download, Play, UserPlus } from 'lucide-react';
 import { usePaymentBatch, useApproveInstructions, useRejectInstructions, useExecuteBatch } from '../../../hooks/queries/use-payment-queue';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
+import { useCreateVendor } from '../../../hooks/queries/use-vendors';
 import type { PaymentBatchStatus, InstructionStatus, PaymentInstruction } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -19,6 +20,7 @@ import {
   Th,
   TableSkeleton,
   StatsCard,
+  Input,
   useToast,
 } from '@/components/ui';
 
@@ -78,40 +80,107 @@ interface InstructionRowProps {
   onToggle: (id: string) => void;
 }
 
-function InstructionRow({ instruction: ins, checked, onToggle }: InstructionRowProps) {
+function InstructionRow({ instruction: ins, checked, onToggle, onVendorCreated }: InstructionRowProps & { onVendorCreated: () => void }) {
   const isMatched = ins.vendorId !== null;
   const isPending = ins.status === 'pending';
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   return (
-    <TableRow className={!isMatched && isPending ? 'bg-amber-50 dark:bg-amber-900/10' : undefined}>
-      <TableCell>
-        {isPending ? (
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => onToggle(ins.id)}
-            className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
-          />
-        ) : null}
-      </TableCell>
-      <TableCell className="font-medium">{ins.vendorName}</TableCell>
-      <TableCell>
-        {isMatched ? (
-          <CheckCircle2 size={16} className="text-emerald-500" aria-label="Matched" />
-        ) : (
-          <XCircle size={16} className="text-red-400" aria-label="Unmatched" />
-        )}
-      </TableCell>
-      <TableCell align="right" numeric>{formatINR(ins.amount)}</TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{ins.reference ?? '—'}</TableCell>
-      <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.reason ?? '—'}</TableCell>
-      <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.dueDate ?? '—'}</TableCell>
-      <TableCell>
-        <Badge variant={INSTRUCTION_STATUS_VARIANT[ins.status]} className="capitalize">
-          {ins.status}
-        </Badge>
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow className={!isMatched && isPending ? 'bg-amber-50 dark:bg-amber-900/10' : undefined}>
+        <TableCell>
+          {isPending ? (
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(ins.id)}
+              className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+            />
+          ) : null}
+        </TableCell>
+        <TableCell className="font-medium">{ins.vendorName}</TableCell>
+        <TableCell>
+          {isMatched ? (
+            <CheckCircle2 size={16} className="text-emerald-500" aria-label="Matched" />
+          ) : (
+            <div className="flex items-center gap-2">
+              <XCircle size={16} className="text-red-400" aria-label="Unmatched" />
+              {isPending && !showCreateForm && (
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                >
+                  <UserPlus size={12} /> Create
+                </button>
+              )}
+            </div>
+          )}
+        </TableCell>
+        <TableCell align="right" numeric>{formatINR(ins.amount)}</TableCell>
+        <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{ins.reference ?? '—'}</TableCell>
+        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.reason ?? '—'}</TableCell>
+        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.dueDate ?? '—'}</TableCell>
+        <TableCell>
+          <Badge variant={INSTRUCTION_STATUS_VARIANT[ins.status]} className="capitalize">
+            {ins.status}
+          </Badge>
+        </TableCell>
+      </TableRow>
+      {showCreateForm && (
+        <tr>
+          <td colSpan={8}>
+            <QuickVendorForm
+              vendorName={ins.vendorName}
+              onCreated={() => { setShowCreateForm(false); onVendorCreated(); }}
+              onCancel={() => setShowCreateForm(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ─── Quick Vendor Creation Form (inline) ─────────────────────────────────────
+
+function QuickVendorForm({ vendorName, onCreated, onCancel }: { vendorName: string; onCreated: () => void; onCancel: () => void }) {
+  const { toast } = useToast();
+  const createVendor = useCreateVendor();
+  const [name, setName] = useState(vendorName);
+  const [phone, setPhone] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [bankName, setBankName] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createVendor.mutate(
+      { name, phone: phone || undefined, bankAccountNumber: bankAccount || undefined, bankIfsc: ifsc || undefined, bankName: bankName || undefined, paymentTermsDays: 15 },
+      {
+        onSuccess: () => { toast(`Vendor "${name}" created. Re-submit the batch to re-match.`, 'success'); onCreated(); },
+        onError: () => toast('Failed to create vendor', 'error'),
+      },
+    );
+  }
+
+  return (
+    <div className="border-l-4 border-indigo-500 bg-zinc-50 p-4 dark:bg-zinc-800/50">
+      <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <UserPlus size={14} className="mr-1 inline" />
+        Quick Vendor Creation — {vendorName}
+      </p>
+      <form onSubmit={handleSubmit} className="grid grid-cols-5 gap-3">
+        <Input label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" />
+        <Input label="Bank A/C No" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+        <Input label="IFSC" value={ifsc} onChange={(e) => setIfsc(e.target.value)} placeholder="SBIN0001234" />
+        <Input label="Bank Name" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="SBI" />
+      </form>
+      <div className="mt-3 flex items-center gap-2">
+        <Button size="sm" onClick={handleSubmit} loading={createVendor.isPending}>Create Vendor</Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
   );
 }
 
@@ -339,6 +408,7 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
                 instruction={ins}
                 checked={selected.includes(ins.id)}
                 onToggle={toggleOne}
+                onVendorCreated={() => {/* batch will be refetched on next query invalidation */}}
               />
             ))
           )}
