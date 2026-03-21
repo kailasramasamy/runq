@@ -6,6 +6,8 @@ import {
   vendorFilterSchema,
   paginationSchema,
   uuidParamSchema,
+  syncVendorsSchema,
+  importVendorsCSVSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { VendorService } from './vendor.service';
@@ -13,6 +15,7 @@ import { VendorService } from './vendor.service';
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const OWNER_ROLES = ['owner'] as const;
+const SYNC_ROLES = ['owner', 'accountant'] as const;
 
 export const vendorRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -86,6 +89,28 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       uuidParamSchema.parse(request.params);
       return { data: [], meta: { page: 1, limit: 25, total: 0, totalPages: 0 } };
+    },
+  );
+
+  app.post(
+    '/sync',
+    { preHandler: [rbacHook([...SYNC_ROLES])] },
+    async (request) => {
+      const { vendors: vendorList } = syncVendorsSchema.parse(request.body);
+      const service = new VendorService(request.server.db, request.tenantId);
+      const result = await service.syncVendors(vendorList);
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/import',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { csvData } = importVendorsCSVSchema.parse(request.body);
+      const service = new VendorService(request.server.db, request.tenantId);
+      const result = await service.importFromCSV(csvData);
+      return { data: result };
     },
   );
 };

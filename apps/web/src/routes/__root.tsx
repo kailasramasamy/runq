@@ -8,6 +8,7 @@ import { UsersPage } from './settings/users';
 import { VendorListPage } from './ap/vendors/index';
 import { NewVendorPage } from './ap/vendors/new';
 import { VendorDetailPage } from './ap/vendors/detail';
+import { ImportVendorsPage } from './ap/vendors/import';
 import { DebitNoteListPage } from './ap/debit-notes/index';
 import { NewDebitNotePage } from './ap/debit-notes/new';
 import { DebitNoteDetailPage } from './ap/debit-notes/detail';
@@ -165,6 +166,12 @@ const vendorNewRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/vendors/new',
   component: NewVendorPage,
+});
+
+const vendorImportRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/vendors/import',
+  component: ImportVendorsPage,
 });
 
 const vendorDetailRoute = createRoute({
@@ -650,6 +657,7 @@ export const routeTree = rootRoute.addChildren([
       apIndexRoute,
       vendorsRoute,
       vendorNewRoute,
+      vendorImportRoute,
       vendorDetailRoute,
       billsRoute,
       billNewRoute,

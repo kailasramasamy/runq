@@ -2,7 +2,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type { Vendor } from '@runq/types';
 import type { PaginatedResponse, ApiSuccess } from '@runq/types';
-import type { CreateVendorInput, UpdateVendorInput } from '@runq/validators';
+import type { CreateVendorInput, UpdateVendorInput, SyncVendorsInput } from '@runq/validators';
+
+interface SyncVendorsResult {
+  created: number;
+  updated: number;
+  errors: Array<{ index: number; name: string; message: string }>;
+}
+
+interface ImportVendorsCSVResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: Array<{ row: number; name: string; message: string }>;
+}
 
 const VENDOR_KEYS = {
   all: ['vendors'] as const,
@@ -62,6 +75,24 @@ export function useDeleteVendor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ap/vendors/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_KEYS.all }),
+  });
+}
+
+export function useSyncVendors() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SyncVendorsInput) =>
+      api.post<ApiSuccess<SyncVendorsResult>>('/ap/vendors/sync', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_KEYS.all }),
+  });
+}
+
+export function useImportVendorsCSV() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { csvData: string }) =>
+      api.post<ApiSuccess<ImportVendorsCSVResult>>('/ap/vendors/import', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: VENDOR_KEYS.all }),
   });
 }

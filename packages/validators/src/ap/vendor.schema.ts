@@ -34,3 +34,15 @@ export const vendorFilterSchema = z.object({
 export type CreateVendorInput = z.infer<typeof createVendorSchema>;
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
 export type VendorFilter = z.infer<typeof vendorFilterSchema>;
+
+export const syncVendorsSchema = z.object({
+  vendors: z.array(createVendorSchema.extend({
+    wmsVendorId: z.string().max(100).nullish(),
+  })).min(1),
+});
+
+export type SyncVendorsInput = z.infer<typeof syncVendorsSchema>;
+
+export const importVendorsCSVSchema = z.object({
+  csvData: z.string().min(1, 'CSV data required'),
+});

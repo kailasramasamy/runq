@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Users, Upload } from 'lucide-react';
 import { useVendors, useDeleteVendor } from '@/hooks/queries/use-vendors';
 import type { Vendor } from '@runq/types';
 import {
@@ -104,10 +104,16 @@ export function VendorListPage() {
         title="Vendors"
         description="Manage your supplier and vendor relationships."
         actions={
-          <Button onClick={() => navigate({ to: '/ap/vendors/new' })}>
-            <Plus size={16} />
-            New Vendor
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate({ to: '/ap/vendors/import' })}>
+              <Upload size={16} />
+              Import Vendors
+            </Button>
+            <Button onClick={() => navigate({ to: '/ap/vendors/new' })}>
+              <Plus size={16} />
+              New Vendor
+            </Button>
+          </div>
         }
       />
 
