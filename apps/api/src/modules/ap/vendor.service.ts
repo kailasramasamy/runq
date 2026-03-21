@@ -134,6 +134,7 @@ export class VendorService {
       bankName: row.bankName,
       paymentTermsDays: row.paymentTermsDays,
       wmsVendorId: row.wmsVendorId,
+      category: row.category ?? null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

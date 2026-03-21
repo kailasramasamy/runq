@@ -17,7 +17,9 @@ import { BillDetailPage } from './ap/bills/detail';
 import { PaymentListPage } from './ap/payments/index';
 import { NewPaymentPage } from './ap/payments/new';
 import { AdvancePaymentPage } from './ap/payments/advance';
+import { DirectPaymentPage } from './ap/payments/direct';
 import { PaymentDetailPage } from './ap/payments/detail';
+import { BulkPaymentPage } from './ap/payments/bulk';
 import { CustomerListPage } from './ar/customers/index';
 import { NewCustomerPage } from './ar/customers/new';
 import { CustomerDetailPage } from './ar/customers/detail';
@@ -210,6 +212,12 @@ const paymentAdvanceRoute = createRoute({
   component: AdvancePaymentPage,
 });
 
+const paymentDirectRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/payments/direct',
+  component: DirectPaymentPage,
+});
+
 const paymentDetailRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/payments/$paymentId',
@@ -217,6 +225,12 @@ const paymentDetailRoute = createRoute({
     const { paymentId } = paymentDetailRoute.useParams();
     return <PaymentDetailPage paymentId={paymentId} />;
   },
+});
+
+const paymentBulkRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/payments/bulk',
+  component: BulkPaymentPage,
 });
 
 const debitNotesRoute = createRoute({
@@ -625,6 +639,8 @@ export const routeTree = rootRoute.addChildren([
       paymentsRoute,
       paymentNewRoute,
       paymentAdvanceRoute,
+      paymentDirectRoute,
+      paymentBulkRoute,
       paymentDetailRoute,
       debitNotesRoute,
       debitNoteNewRoute,

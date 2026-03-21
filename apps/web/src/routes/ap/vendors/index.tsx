@@ -4,10 +4,25 @@ import { Plus, Search, Eye, Trash2, Users } from 'lucide-react';
 import { useVendors, useDeleteVendor } from '@/hooks/queries/use-vendors';
 import type { Vendor } from '@runq/types';
 import {
-  PageHeader, Badge, Button, Input,
+  PageHeader, Badge, Button, Input, Select,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   TableSkeleton, EmptyState, Pagination, ConfirmationDialog,
 } from '@/components/ui';
+
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'All Categories' },
+  { value: 'raw_material', label: 'Raw Material' },
+  { value: 'service_provider', label: 'Service Provider' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'other', label: 'Other' },
+];
+
+function formatCategory(cat: string | null): string {
+  if (!cat) return '—';
+  return cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const LIMIT = 20;
 
@@ -28,6 +43,7 @@ function VendorRow({
       </TableCell>
       <TableCell>{vendor.city ?? '—'}</TableCell>
       <TableCell>{vendor.state ?? '—'}</TableCell>
+      <TableCell>{formatCategory(vendor.category)}</TableCell>
       <TableCell>Net {vendor.paymentTermsDays}d</TableCell>
       <TableCell>
         <Badge variant={vendor.isActive ? 'success' : 'default'}>
@@ -59,13 +75,15 @@ function VendorRow({
 export function VendorListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, isLoading } = useVendors({ search: search || undefined, page, limit: LIMIT });
   const deleteMutation = useDeleteVendor();
 
-  const vendors = data?.data ?? [];
+  const allVendors = data?.data ?? [];
+  const vendors = category ? allVendors.filter((v) => v.category === category) : allVendors;
   const meta = data?.meta;
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
@@ -93,14 +111,24 @@ export function VendorListPage() {
         }
       />
 
-      <div className="mb-4 w-72">
-        <Input
-          placeholder="Search vendors…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="pl-9"
-        />
-        <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
+      <div className="mb-4 flex items-end gap-3">
+        <div className="w-72">
+          <Input
+            placeholder="Search vendors…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="pl-9"
+          />
+          <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
+        </div>
+        <div className="w-48">
+          <Select
+            label=""
+            options={CATEGORY_OPTIONS}
+            value={category}
+            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+          />
+        </div>
       </div>
 
       <Table>
@@ -110,6 +138,7 @@ export function VendorListPage() {
             <Th>GSTIN</Th>
             <Th>City</Th>
             <Th>State</Th>
+            <Th>Category</Th>
             <Th>Terms</Th>
             <Th>Status</Th>
             <Th>Actions</Th>
@@ -117,10 +146,10 @@ export function VendorListPage() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={6} cols={7} />
+            <TableSkeleton rows={6} cols={8} />
           ) : vendors.length === 0 ? (
             <tr>
-              <td colSpan={7}>
+              <td colSpan={8}>
                 <EmptyState
                   icon={Users}
                   title={search ? 'No vendors match your search' : 'No vendors yet'}

@@ -13,6 +13,16 @@ interface Props {
 
 type FormState = Partial<CreateVendorInput> & { name: string };
 
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'No category' },
+  { value: 'raw_material', label: 'Raw Material' },
+  { value: 'service_provider', label: 'Service Provider' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'other', label: 'Other' },
+];
+
 function buildInitial(v?: Vendor): FormState {
   if (!v) return { name: '', paymentTermsDays: 30 };
   return {
@@ -31,6 +41,7 @@ function buildInitial(v?: Vendor): FormState {
     bankIfsc: v.bankIfsc ?? undefined,
     bankName: v.bankName ?? undefined,
     paymentTermsDays: v.paymentTermsDays,
+    category: v.category ?? undefined,
   };
 }
 
@@ -87,6 +98,13 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
           </div>
           <Input label="Email" type="email" placeholder="billing@acme.com" {...field('email')} />
           <Input label="Phone" placeholder="+91 98765 43210" {...field('phone')} />
+          <Select
+            label="Category"
+            options={CATEGORY_OPTIONS}
+            value={(form.category as string) ?? ''}
+            onChange={(e) => set('category', e.target.value)}
+            error={errors.category}
+          />
         </CardContent>
       </Card>
 

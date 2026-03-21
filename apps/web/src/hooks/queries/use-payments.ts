@@ -1,11 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { VendorPayment, VendorPaymentWithAllocations, PaginatedResponse, ApiSuccess } from '@runq/types';
+import type { VendorPayment, VendorPaymentWithAllocations, PaginatedResponse, ApiSuccess, BatchPaymentResult, BatchImportResult } from '@runq/types';
 import type {
   CreateVendorPaymentInput,
   CreateAdvancePaymentInput,
+  CreateDirectPaymentInput,
   AdjustAdvanceInput,
   VendorPaymentFilter,
+  CreateBatchPaymentInput,
+  ImportBatchPaymentInput,
 } from '@runq/validators';
 
 const PAYMENT_KEYS = {
@@ -58,6 +61,15 @@ export function useCreateAdvancePayment() {
   });
 }
 
+export function useCreateDirectPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateDirectPaymentInput) =>
+      api.post<ApiSuccess<VendorPayment>>('/ap/payments/direct', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+  });
+}
+
 export function useAdjustAdvance() {
   const qc = useQueryClient();
   return useMutation({
@@ -67,5 +79,23 @@ export function useAdjustAdvance() {
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
     },
+  });
+}
+
+export function useCreateBatchPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateBatchPaymentInput) =>
+      api.post<ApiSuccess<BatchPaymentResult>>('/ap/payments/batch', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+  });
+}
+
+export function useImportBatchPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ImportBatchPaymentInput) =>
+      api.post<ApiSuccess<BatchImportResult>>('/ap/payments/import', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
   });
 }

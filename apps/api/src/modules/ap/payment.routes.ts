@@ -3,10 +3,13 @@ import { FastifyPluginAsync } from 'fastify';
 import {
   createVendorPaymentSchema,
   createAdvancePaymentSchema,
+  createDirectPaymentSchema,
   adjustAdvanceSchema,
   vendorPaymentFilterSchema,
   paginationSchema,
   uuidParamSchema,
+  createBatchPaymentSchema,
+  importBatchPaymentSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { PaymentService } from './payment.service';
@@ -49,6 +52,17 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.post(
+    '/direct',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const input = createDirectPaymentSchema.parse(request.body);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const payment = await service.createDirectPayment(input);
+      return reply.status(201).send({ data: payment });
+    },
+  );
+
+  app.post(
     '/advance',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request, reply) => {
@@ -68,6 +82,28 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const service = new PaymentService(request.server.db, request.tenantId);
       await service.adjustAdvance(id, invoiceId, amount);
       return reply.status(200).send({ data: { success: true } });
+    },
+  );
+
+  app.post(
+    '/batch',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const input = createBatchPaymentSchema.parse(request.body);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const result = await service.createBatch(input);
+      return reply.status(201).send({ data: result });
+    },
+  );
+
+  app.post(
+    '/import',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { bankAccountId, paymentDate, csvData } = importBatchPaymentSchema.parse(request.body);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const result = await service.importBatchFromCSV(bankAccountId, paymentDate, csvData);
+      return reply.status(200).send({ data: result });
     },
   );
 };

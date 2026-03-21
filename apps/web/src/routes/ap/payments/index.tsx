@@ -30,7 +30,7 @@ const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | '
   reversed: 'outline',
 };
 
-function PaymentRow({ payment }: { payment: VendorPayment }) {
+function PaymentRow({ payment }: { payment: VendorPayment & { vendorName?: string } }) {
   return (
     <TableRow>
       <TableCell>
@@ -42,7 +42,7 @@ function PaymentRow({ payment }: { payment: VendorPayment }) {
           {payment.id.slice(0, 8)}…
         </Link>
       </TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{payment.vendorId.slice(0, 8)}…</TableCell>
+      <TableCell className="text-sm">{payment.vendorName ?? payment.vendorId.slice(0, 8)}</TableCell>
       <TableCell className="text-zinc-600 dark:text-zinc-400">{payment.paymentDate}</TableCell>
       <TableCell align="right" numeric>{formatINR(payment.amount)}</TableCell>
       <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">
@@ -95,6 +95,16 @@ export function PaymentListPage() {
             <Link to="/ap/payments/advance">
               <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Advance Payment
+              </button>
+            </Link>
+            <Link to="/ap/payments/direct">
+              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                Direct Payment
+              </button>
+            </Link>
+            <Link to="/ap/payments/bulk">
+              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                Bulk Payment
               </button>
             </Link>
             <Link to="/ap/payments/new">

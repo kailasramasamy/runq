@@ -1,3 +1,5 @@
+export type VendorCategory = 'raw_material' | 'service_provider' | 'logistics' | 'utilities' | 'equipment' | 'other';
+
 export interface Vendor {
   id: string;
   tenantId: string;
@@ -17,6 +19,7 @@ export interface Vendor {
   bankName: string | null;
   paymentTermsDays: number;
   wmsVendorId: string | null;
+  category: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

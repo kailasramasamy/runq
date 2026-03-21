@@ -20,6 +20,7 @@ export const vendors = pgTable('vendors', {
   bankName: varchar('bank_name', { length: 255 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   wmsVendorId: varchar('wms_vendor_id', { length: 100 }),
+  category: varchar('category', { length: 50 }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

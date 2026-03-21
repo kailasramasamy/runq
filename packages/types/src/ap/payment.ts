@@ -55,3 +55,22 @@ export interface VendorPaymentWithAllocations extends VendorPayment {
   })[];
   vendorName: string;
 }
+
+export interface BatchPaymentResult {
+  created: number;
+  totalAmount: number;
+  payments: VendorPayment[];
+}
+
+export interface BatchImportError {
+  row: number;
+  vendorName: string;
+  message: string;
+}
+
+export interface BatchImportResult {
+  created: number;
+  totalAmount: number;
+  skipped: number;
+  errors: BatchImportError[];
+}

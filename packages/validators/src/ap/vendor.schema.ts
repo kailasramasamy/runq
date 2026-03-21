@@ -21,6 +21,7 @@ export const createVendorSchema = z.object({
   bankName: z.string().max(255).nullish(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
   wmsVendorId: z.string().max(100).nullish(),
+  category: z.string().max(50).nullish(),
 });
 
 export const updateVendorSchema = createVendorSchema.partial();
