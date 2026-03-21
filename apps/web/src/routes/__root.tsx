@@ -20,6 +20,8 @@ import { AdvancePaymentPage } from './ap/payments/advance';
 import { DirectPaymentPage } from './ap/payments/direct';
 import { PaymentDetailPage } from './ap/payments/detail';
 import { BulkPaymentPage } from './ap/payments/bulk';
+import { PaymentQueuePage } from './ap/queue/index';
+import { PaymentQueueDetailPage } from './ap/queue/detail';
 import { CustomerListPage } from './ar/customers/index';
 import { NewCustomerPage } from './ar/customers/new';
 import { CustomerDetailPage } from './ar/customers/detail';
@@ -87,6 +89,7 @@ const AP_TABS = [
   { label: 'Vendors', path: '/ap/vendors' },
   { label: 'Bills', path: '/ap/bills' },
   { label: 'Payments', path: '/ap/payments' },
+  { label: 'Queue', path: '/ap/queue' },
   { label: 'Debit Notes', path: '/ap/debit-notes' },
 ];
 
@@ -231,6 +234,21 @@ const paymentBulkRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/payments/bulk',
   component: BulkPaymentPage,
+});
+
+const paymentQueueRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/queue',
+  component: PaymentQueuePage,
+});
+
+const paymentQueueDetailRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/queue/$batchId',
+  component: () => {
+    const { batchId } = paymentQueueDetailRoute.useParams();
+    return <PaymentQueueDetailPage batchId={batchId} />;
+  },
 });
 
 const debitNotesRoute = createRoute({
@@ -642,6 +660,8 @@ export const routeTree = rootRoute.addChildren([
       paymentDirectRoute,
       paymentBulkRoute,
       paymentDetailRoute,
+      paymentQueueRoute,
+      paymentQueueDetailRoute,
       debitNotesRoute,
       debitNoteNewRoute,
       debitNoteDetailRoute,

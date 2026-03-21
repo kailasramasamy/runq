@@ -5,6 +5,7 @@ export * from './ap/purchase-orders';
 export * from './ap/grns';
 export * from './ap/purchase-invoices';
 export * from './ap/payments';
+export * from './ap/payment-instructions';
 export * from './ap/debit-notes';
 export * from './ar/customers';
 export * from './ar/invoices';

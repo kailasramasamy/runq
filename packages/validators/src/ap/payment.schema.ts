@@ -70,6 +70,41 @@ export const importBatchPaymentSchema = z.object({
   csvData: z.string().min(1, 'CSV data required'),
 });
 
+const paymentInstructionItemSchema = z.object({
+  vendorName: z.string().min(1),
+  vendorId: z.string().uuid().nullish(),
+  amount: z.number().positive(),
+  reference: z.string().max(100).nullish(),
+  reason: z.string().nullish(),
+  dueDate: z.string().date().nullish(),
+});
+
+export const createPaymentBatchSchema = z.object({
+  batchId: z.string().min(1).max(100),
+  source: z.string().min(1).max(100),
+  description: z.string().nullish(),
+  instructions: z.array(paymentInstructionItemSchema).min(1),
+});
+
+export const approveInstructionsSchema = z.object({
+  instructionIds: z.array(z.string().uuid()).min(1),
+});
+
+export const rejectInstructionsSchema = z.object({
+  instructionIds: z.array(z.string().uuid()).min(1),
+  reason: z.string().nullish(),
+});
+
+export const paymentBatchFilterSchema = z.object({
+  status: z.enum(['pending_approval', 'partially_approved', 'approved', 'rejected', 'executed']).optional(),
+  source: z.string().optional(),
+});
+
+export type CreatePaymentBatchInput = z.infer<typeof createPaymentBatchSchema>;
+export type ApproveInstructionsInput = z.infer<typeof approveInstructionsSchema>;
+export type RejectInstructionsInput = z.infer<typeof rejectInstructionsSchema>;
+export type PaymentBatchFilter = z.infer<typeof paymentBatchFilterSchema>;
+
 export type CreateVendorPaymentInput = z.infer<typeof createVendorPaymentSchema>;
 export type CreateAdvancePaymentInput = z.infer<typeof createAdvancePaymentSchema>;
 export type CreateDirectPaymentInput = z.infer<typeof createDirectPaymentSchema>;
