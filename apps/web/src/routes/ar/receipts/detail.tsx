@@ -58,7 +58,7 @@ export function ReceiptDetailPage({ receiptId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="max-w-3xl space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-48 w-full" />
@@ -71,7 +71,7 @@ export function ReceiptDetailPage({ receiptId }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title={`Receipt ${receipt.id.slice(0, 8)}…`}
         breadcrumbs={[

@@ -458,7 +458,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="max-w-4xl">
         <div className="mb-6 h-6 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
         <div className="grid grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map((i) => (
@@ -471,14 +471,14 @@ export function BillDetailPage({ billId }: { billId: string }) {
 
   if (isError || !invoice) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="max-w-4xl">
         <p className="text-sm text-red-500">Bill not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="max-w-4xl">
       <PageHeader
         title={invoice.invoiceNumber}
         breadcrumbs={[

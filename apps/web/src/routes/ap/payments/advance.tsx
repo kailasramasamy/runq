@@ -22,7 +22,7 @@ export function AdvancePaymentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         title="Advance Payment"
         description="Record an advance payment for a vendor."

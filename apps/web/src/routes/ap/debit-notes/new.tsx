@@ -22,7 +22,7 @@ export function NewDebitNotePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         title="New Debit Note"
         description="Raise a debit note against a vendor or invoice."

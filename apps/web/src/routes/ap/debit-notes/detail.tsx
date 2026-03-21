@@ -63,7 +63,7 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="max-w-2xl space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -77,7 +77,7 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
   const isCancelled = dn.status === 'cancelled';
 
   return (
-    <div className={`mx-auto max-w-2xl ${isCancelled ? 'opacity-70' : ''}`}>
+    <div className={`max-w-2xl ${isCancelled ? 'opacity-70' : ''}`}>
       <PageHeader
         title={dn.debitNoteNumber}
         breadcrumbs={[

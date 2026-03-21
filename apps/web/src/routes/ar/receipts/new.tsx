@@ -22,7 +22,7 @@ export function NewReceiptPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="Record Receipt"
         description="Record a payment received from a customer against their invoices."

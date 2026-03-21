@@ -27,7 +27,7 @@ export function NewVendorPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AP', href: '/ap' },

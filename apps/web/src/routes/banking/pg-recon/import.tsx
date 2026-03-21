@@ -90,7 +90,7 @@ export function ImportPGSettlementPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <PageHeader
         breadcrumbs={[
           { label: 'Banking', href: '/banking' },

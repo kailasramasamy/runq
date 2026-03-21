@@ -22,7 +22,7 @@ export function NewInvoicePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },

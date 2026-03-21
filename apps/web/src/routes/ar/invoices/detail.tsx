@@ -41,7 +41,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="max-w-3xl space-y-4">
         <CardSkeleton />
         <CardSkeleton />
         <CardSkeleton />
@@ -111,7 +111,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },

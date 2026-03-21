@@ -23,7 +23,7 @@ export function NewBankAccountPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="New Bank Account"
         description="Link a bank account to start tracking transactions."

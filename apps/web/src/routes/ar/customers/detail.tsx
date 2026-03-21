@@ -83,7 +83,7 @@ export function CustomerDetailPage({ customerId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="max-w-2xl space-y-4">
         <CardSkeleton />
         <CardSkeleton />
         <CardSkeleton />
@@ -96,7 +96,7 @@ export function CustomerDetailPage({ customerId }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },

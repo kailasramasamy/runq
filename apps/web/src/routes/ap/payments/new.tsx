@@ -23,7 +23,7 @@ export function NewPaymentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="New Payment"
         description="Record a payment against one or more invoices."

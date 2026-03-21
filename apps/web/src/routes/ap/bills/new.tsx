@@ -15,7 +15,7 @@ export function NewBillPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="New Bill"
         description="Record a vendor bill (purchase invoice)."

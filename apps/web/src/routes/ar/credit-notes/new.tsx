@@ -22,7 +22,7 @@ export function NewCreditNotePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="New Credit Note"
         description="Issue a credit note to adjust a customer's account or invoice."

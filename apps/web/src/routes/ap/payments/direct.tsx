@@ -23,7 +23,7 @@ export function DirectPaymentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         title="Direct Payment"
         description="Record a payment directly without linking to an invoice."

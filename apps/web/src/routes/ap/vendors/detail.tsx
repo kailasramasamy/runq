@@ -89,7 +89,7 @@ export function VendorDetailPage({ vendorId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="max-w-2xl space-y-4">
         <CardSkeleton />
         <CardSkeleton />
         <CardSkeleton />
@@ -102,7 +102,7 @@ export function VendorDetailPage({ vendorId }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AP', href: '/ap' },

@@ -26,7 +26,7 @@ export function NewCustomerPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="max-w-2xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
