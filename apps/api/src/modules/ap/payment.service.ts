@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, inArray, ilike } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, inArray, ilike, desc } from 'drizzle-orm';
 import { payments, paymentAllocations, advancePayments, advanceAdjustments, purchaseInvoices, vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { VendorPayment, VendorPaymentWithAllocations, AdvancePayment, BatchPaymentResult, BatchImportResult } from '@runq/types';
@@ -52,7 +52,7 @@ export class PaymentService {
         .from(payments)
         .innerJoin(vendors, eq(payments.vendorId, vendors.id))
         .where(baseWhere)
-        .orderBy(payments.createdAt)
+        .orderBy(desc(payments.createdAt))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(payments).where(baseWhere),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, Link } from '@tanstack/react-router';
 import { Plus, Trash2, Upload, Check, X } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { useVendors } from '@/hooks/queries/use-vendors';
@@ -205,10 +205,17 @@ function CsvImportTab() {
   }
 
   function handleImport() {
+    if (importBatch.isPending) return;
     importBatch.mutate(
       { bankAccountId, paymentDate, csvData },
       {
-        onSuccess: (res) => { setResult(res.data as BatchImportResult); setStep(4); },
+        onSuccess: (res) => {
+          const data = (res as any)?.data ?? res;
+          setResult(data as BatchImportResult);
+          setStep(4);
+          toast(`${data.created} payment(s) created successfully.`, 'success');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
         onError: () => toast('Import failed. Check your CSV and try again.', 'error'),
       },
     );
@@ -289,47 +296,68 @@ function CsvImportTab() {
       )}
 
       {step === 4 && result && (
-        <Card>
-          <CardHeader title="4. Import Results" />
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
-                <Check className="mx-auto mb-1 text-emerald-600 dark:text-emerald-400" size={20} />
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{result.created}</p>
-                <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-500">Created</p>
+        <>
+          {/* Success banner */}
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-5 dark:border-emerald-800 dark:bg-emerald-900/20">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-800/50">
+                <Check size={22} className="text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-center dark:border-zinc-800 dark:bg-zinc-800/50">
-                <Badge variant="default" className="mx-auto mb-1 block w-fit">Skip</Badge>
-                <p className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">{result.skipped}</p>
-                <p className="mt-0.5 text-xs text-zinc-500">Skipped</p>
-              </div>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center dark:border-red-900 dark:bg-red-900/20">
-                <X className="mx-auto mb-1 text-red-600 dark:text-red-400" size={20} />
-                <p className="text-2xl font-bold text-red-700 dark:text-red-400">{result.errors.length}</p>
-                <p className="mt-0.5 text-xs text-red-600 dark:text-red-500">Errors</p>
+              <div>
+                <h3 className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">
+                  Bulk Payment Complete
+                </h3>
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  {result.created} payment{result.created !== 1 ? 's' : ''} created
+                  {result.created > 0 && <> — Total: <span className="font-semibold">₹{result.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></>}
+                  {result.skipped > 0 && <>, {result.skipped} skipped</>}
+                  {result.errors.length > 0 && <>, {result.errors.length} error{result.errors.length !== 1 ? 's' : ''}</>}
+                </p>
               </div>
             </div>
+          </div>
 
-            {result.created > 0 && (
-              <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-                Total amount: <span className="font-semibold">₹{result.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </p>
-            )}
-
-            {result.errors.length > 0 && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-900/20">
-                <p className="mb-2 text-xs font-semibold text-red-700 dark:text-red-400">Errors:</p>
-                <ul className="space-y-1">
-                  {result.errors.map((err, i) => (
-                    <li key={i} className="text-xs text-red-600 dark:text-red-400">
-                      Row {err.row} ({err.vendorName}): {err.message}
-                    </li>
-                  ))}
-                </ul>
+          {/* Stats */}
+          <Card>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{result.created}</p>
+                  <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-500">Created</p>
+                </div>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-center dark:border-zinc-800 dark:bg-zinc-800/50">
+                  <p className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">{result.skipped}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">Skipped</p>
+                </div>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center dark:border-red-900 dark:bg-red-900/20">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-400">{result.errors.length}</p>
+                  <p className="mt-0.5 text-xs text-red-600 dark:text-red-500">Errors</p>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {result.errors.length > 0 && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-900/20">
+                  <p className="mb-2 text-xs font-semibold text-red-700 dark:text-red-400">Errors:</p>
+                  <ul className="space-y-1">
+                    {result.errors.map((err, i) => (
+                      <li key={i} className="text-xs text-red-600 dark:text-red-400">
+                        Row {err.row} ({err.vendorName}): {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="outline" onClick={() => { setStep(1); setResult(null); setPreview([]); setCsvData(''); }}>
+                Import Another Batch
+              </Button>
+              <Link to="/ap/payments">
+                <Button>Go to Payments</Button>
+              </Link>
+            </CardFooter>
+          </Card>
+        </>
       )}
     </div>
   );
