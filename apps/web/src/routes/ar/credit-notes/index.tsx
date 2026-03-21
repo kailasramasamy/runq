@@ -81,7 +81,7 @@ export function CreditNoteListPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const { data, isLoading } = useCreditNotes({
     customerId: customerId || undefined,
     status: (status || undefined) as CreditNoteStatus | undefined,

@@ -28,7 +28,7 @@ export function AdvancePaymentForm({ onSubmit, isLoading }: Props) {
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data } = useVendors({ limit: 200 });
+  const { data } = useVendors({ limit: 100 });
   const vendors = data?.data ?? [];
 
   const vendorOptions = [

@@ -40,7 +40,7 @@ function lineAmount(line: LineItem): number {
 }
 
 export function InvoiceForm({ onSubmit, isLoading }: Props) {
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data?.filter((c) => c.isActive) ?? [];
 
   const [customerId, setCustomerId] = useState('');

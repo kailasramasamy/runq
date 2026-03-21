@@ -79,7 +79,7 @@ export function BillListPage() {
   };
 
   const { data, isLoading } = usePurchaseInvoices(filters);
-  const { data: vendorsData } = useVendors({ limit: 200 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
   const deleteMutation = useDeletePurchaseInvoice();
 
   const bills = data?.data ?? [];

@@ -64,7 +64,7 @@ export function ReceiptListPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data ?? [];
 
   const { data, isLoading } = useReceipts({

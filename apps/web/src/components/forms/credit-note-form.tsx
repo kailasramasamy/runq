@@ -29,7 +29,7 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const { data: invoicesData } = useInvoices(customerId ? { customerId } : undefined);
 
   const customers = customersData?.data ?? [];

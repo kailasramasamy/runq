@@ -79,7 +79,7 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
   const [allocations, setAllocations] = useState<AllocationMap>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: vendorsData } = useVendors({ limit: 200 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
   const { data: invoicesData } = usePurchaseInvoices(vendorId ? { vendorId } : undefined);
 
   const vendors = vendorsData?.data ?? [];

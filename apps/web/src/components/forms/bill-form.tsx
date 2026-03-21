@@ -41,7 +41,7 @@ function lineAmount(line: LineItem): number {
 }
 
 export function BillForm({ onSubmit, isLoading }: Props) {
-  const { data: vendorsData } = useVendors({ limit: 200 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data?.filter((v) => v.isActive) ?? [];
 
   const [vendorId, setVendorId] = useState('');

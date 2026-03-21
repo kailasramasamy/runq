@@ -80,7 +80,7 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
   const [allocations, setAllocations] = useState<AllocationMap>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const { data: invoicesData } = useInvoices(
     customerId ? { customerId, status: 'sent' } : undefined,
   );

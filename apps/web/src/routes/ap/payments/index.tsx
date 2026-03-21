@@ -66,7 +66,7 @@ export function PaymentListPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: vendorsData } = useVendors({ limit: 200 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data ?? [];
 
   const { data, isLoading } = useVendorPayments({

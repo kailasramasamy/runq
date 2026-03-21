@@ -73,7 +73,7 @@ export function DebitNoteListPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: vendorData } = useVendors({ limit: 200 });
+  const { data: vendorData } = useVendors({ limit: 100 });
   const { data, isLoading } = useDebitNotes({
     vendorId: vendorId || undefined,
     status: status || undefined,

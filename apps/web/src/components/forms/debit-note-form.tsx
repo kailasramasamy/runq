@@ -41,7 +41,7 @@ export function DebitNoteForm({ onSubmit, isLoading }: Props) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: vendorData } = useVendors({ limit: 200 });
+  const { data: vendorData } = useVendors({ limit: 100 });
   const vendors = vendorData?.data ?? [];
 
   const { data: invoiceData } = useQuery({
