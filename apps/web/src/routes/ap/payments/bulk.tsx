@@ -31,7 +31,7 @@ function useBankAccountOptions() {
 }
 
 function useVendorOptions() {
-  const { data } = useVendors({ limit: 200 });
+  const { data } = useVendors({ limit: 100 });
   return [
     { value: '', label: 'Select vendor…' },
     ...(data?.data ?? []).map((v) => ({ value: v.id, label: v.name })),
