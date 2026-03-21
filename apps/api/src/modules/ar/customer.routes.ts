@@ -5,6 +5,8 @@ import {
   customerFilterSchema,
   paginationSchema,
   uuidParamSchema,
+  syncCustomersSchema,
+  importCustomersCSVSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { CustomerService } from './customer.service';
@@ -12,6 +14,7 @@ import { CustomerService } from './customer.service';
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const OWNER_ROLES = ['owner'] as const;
+const SYNC_ROLES = ['owner', 'accountant'] as const;
 
 export const customerRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -73,6 +76,28 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const service = new CustomerService(request.server.db, request.tenantId);
       await service.softDelete(id);
       return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    '/sync',
+    { preHandler: [rbacHook([...SYNC_ROLES])] },
+    async (request) => {
+      const { customers: customerList } = syncCustomersSchema.parse(request.body);
+      const service = new CustomerService(request.server.db, request.tenantId);
+      const result = await service.syncCustomers(customerList);
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/import',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { csvData } = importCustomersCSVSchema.parse(request.body);
+      const service = new CustomerService(request.server.db, request.tenantId);
+      const result = await service.importFromCSV(csvData);
+      return { data: result };
     },
   );
 };

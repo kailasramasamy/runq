@@ -26,6 +26,7 @@ import { PaymentQueueDetailPage } from './ap/queue/detail';
 import { CustomerListPage } from './ar/customers/index';
 import { NewCustomerPage } from './ar/customers/new';
 import { CustomerDetailPage } from './ar/customers/detail';
+import { ImportCustomersPage } from './ar/customers/import';
 import { InvoiceListPage } from './ar/invoices/index';
 import { NewInvoicePage } from './ar/invoices/new';
 import { InvoiceDetailPage } from './ar/invoices/detail';
@@ -363,6 +364,12 @@ const customerNewRoute = createRoute({
   component: NewCustomerPage,
 });
 
+const customerImportRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/customers/import',
+  component: ImportCustomersPage,
+});
+
 const customerDetailRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/customers/$customerId',
@@ -678,6 +685,7 @@ export const routeTree = rootRoute.addChildren([
       arIndexRoute,
       customersRoute,
       customerNewRoute,
+      customerImportRoute,
       customerDetailRoute,
       invoicesRoute,
       invoiceNewRoute,

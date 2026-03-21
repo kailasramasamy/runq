@@ -30,3 +30,13 @@ export const customerFilterSchema = z.object({
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type CustomerFilter = z.infer<typeof customerFilterSchema>;
+
+export const syncCustomersSchema = z.object({
+  customers: z.array(createCustomerSchema).min(1),
+});
+
+export const importCustomersCSVSchema = z.object({
+  csvData: z.string().min(1, 'CSV data required'),
+});
+
+export type SyncCustomersInput = z.infer<typeof syncCustomersSchema>;

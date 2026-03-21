@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type { Customer, CustomerWithOutstanding, PaginatedResponse, ApiSuccess } from '@runq/types';
-import type { CreateCustomerInput, UpdateCustomerInput } from '@runq/validators';
+import type { CreateCustomerInput, UpdateCustomerInput, SyncCustomersInput } from '@runq/validators';
 
 const CUSTOMER_KEYS = {
   all: ['customers'] as const,
@@ -65,6 +65,37 @@ export function useDeleteCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/customers/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_KEYS.all }),
+  });
+}
+
+interface SyncCustomersResult {
+  created: number;
+  updated: number;
+  errors: Array<{ index: number; name: string; message: string }>;
+}
+
+interface ImportCustomersCSVResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: Array<{ row: number; name: string; message: string }>;
+}
+
+export function useSyncCustomers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SyncCustomersInput) =>
+      api.post<ApiSuccess<SyncCustomersResult>>('/ar/customers/sync', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_KEYS.all }),
+  });
+}
+
+export function useImportCustomersCSV() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { csvData: string }) =>
+      api.post<ApiSuccess<ImportCustomersCSVResult>>('/ar/customers/import', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_KEYS.all }),
   });
 }

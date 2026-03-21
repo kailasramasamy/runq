@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Users, Upload } from 'lucide-react';
 import { useCustomers, useDeleteCustomer } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
@@ -104,10 +104,16 @@ export function CustomerListPage() {
         title="Customers"
         description="Manage your customer relationships and outstanding balances."
         actions={
-          <Button onClick={() => navigate({ to: '/ar/customers/new' })}>
-            <Plus size={16} />
-            New Customer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate({ to: '/ar/customers/import' })}>
+              <Upload size={16} />
+              Import Customers
+            </Button>
+            <Button onClick={() => navigate({ to: '/ar/customers/new' })}>
+              <Plus size={16} />
+              New Customer
+            </Button>
+          </div>
         }
       />
 

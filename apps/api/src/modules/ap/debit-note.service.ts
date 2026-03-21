@@ -37,9 +37,10 @@ export class DebitNoteService {
 
     const [rows, countResult] = await Promise.all([
       this.db
-        .select({ debitNote: debitNotes, vendorName: vendors.name })
+        .select({ debitNote: debitNotes, vendorName: vendors.name, invoiceNumber: purchaseInvoices.invoiceNumber })
         .from(debitNotes)
         .innerJoin(vendors, eq(debitNotes.vendorId, vendors.id))
+        .leftJoin(purchaseInvoices, eq(debitNotes.invoiceId, purchaseInvoices.id))
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
@@ -50,7 +51,7 @@ export class DebitNoteService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...this.toDebitNote(r.debitNote), vendorName: r.vendorName }));
+    const data = rows.map((r) => ({ ...this.toDebitNote(r.debitNote), vendorName: r.vendorName, invoiceNumber: r.invoiceNumber ?? null }));
 
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }

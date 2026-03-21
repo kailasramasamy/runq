@@ -37,7 +37,7 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-function DebitNoteRow({ dn }: { dn: DebitNote }) {
+function DebitNoteRow({ dn }: { dn: DebitNote & { vendorName?: string; invoiceNumber?: string | null } }) {
   const isCancelled = dn.status === 'cancelled';
   return (
     <TableRow>
@@ -50,9 +50,9 @@ function DebitNoteRow({ dn }: { dn: DebitNote }) {
           {dn.debitNoteNumber}
         </Link>
       </TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{dn.vendorId.slice(0, 8)}…</TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-        {dn.invoiceId ? dn.invoiceId.slice(0, 8) + '…' : '—'}
+      <TableCell className="text-sm">{dn.vendorName ?? dn.vendorId.slice(0, 8)}</TableCell>
+      <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
+        {dn.invoiceNumber ?? (dn.invoiceId ? dn.invoiceId.slice(0, 8) : '—')}
       </TableCell>
       <TableCell className="text-zinc-600 dark:text-zinc-400">{dn.issueDate}</TableCell>
       <TableCell align="right" numeric>{formatINR(dn.amount)}</TableCell>
