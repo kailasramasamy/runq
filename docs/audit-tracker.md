@@ -63,7 +63,7 @@
 | 23 | Budget vs actual comparison | 🟢 | [ ] | No budgeting module. Can't compare planned vs actual spend. |
 | 24 | Accrual accounting | 🟢 | [ ] | No accrual/prepaid/deferred revenue handling. Cash-basis only. |
 | 25 | Statutory reporting (GST/TDS) | 🟢 | [ ] | No GSTR-1, GSTR-3B, 26Q export. No HSN code tracking. No TDS auto-deduction. |
-| 26 | Tally export format | 🟢 | [ ] | No XML export compatible with Tally import. Useful for accountants who use Tally for filing. |
+| 26 | Tally export format | 🟢 | [x] | No XML export compatible with Tally import. Useful for accountants who use Tally for filing. |
 | 27 | Multi-company per tenant | 🟢 | [ ] | Single company per tenant. No inter-company transactions. |
 | 28 | Recurring payment scheduler | 🟢 | [ ] | No auto-generation of recurring payments (rent, subscriptions). |
 | 29 | Purchase requisition workflow | 🟢 | [ ] | No PR → PO conversion workflow. POs come directly from WMS. |
@@ -81,7 +81,7 @@
 | 🔴 CRITICAL | 4 | **4 done** ✅ |
 | 🟠 HIGH | 6 | **6 done** ✅ |
 | 🟡 MEDIUM | 10 | **10 done** ✅ |
-| 🟢 LOW | 13 | 0 done |
+| 🟢 LOW | 13 | 1 done |
 | **Total** | **33** | **0 done** |
 
 ---
