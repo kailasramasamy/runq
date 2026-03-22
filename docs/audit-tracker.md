@@ -41,16 +41,16 @@
 
 | # | Issue | Severity | Status | Description |
 |---|-------|----------|--------|-------------|
-| 11 | 3-way match tolerance | 🟡 | [ ] | Hard binary match — no tolerance for minor variances. Real ERPs allow 0.5-2% variance threshold (configurable). Also: null-pointer risk in match logic if PO item not found. |
-| 12 | Early payment discounts | 🟡 | [ ] | No support for "2/10 Net 30" discount terms. Common in Indian B2B. Need: discount_terms field on invoices, calculate discount if paid early. |
-| 13 | Dunning automation | 🟡 | [ ] | Dunning is manual — requires API call to trigger reminders. Need: cron job or scheduled task to auto-send reminders based on dunning rules. |
-| 14 | markPaid overrides receipts | 🟡 | [ ] | invoice.markPaid() sets amountReceived = totalAmount regardless of actual receipt amounts. Should validate sum of receipts matches before marking paid. |
-| 15 | Customer credit limit | 🟡 | [ ] | No credit limit field on customers. Can't block further invoicing when customer exceeds limit. Need: credit_limit field + check on invoice creation. |
-| 16 | CSV import dedup too aggressive | 🟡 | [ ] | Bank statement import considers same amount + date as duplicate, even for intentional repeat payments. Need: smarter dedup using UTR/reference as primary key. |
-| 17 | Optimistic locking | 🟡 | [ ] | No version field on financial records. Concurrent edits can silently overwrite each other. Need: version/updated_at check on updates. |
-| 18 | Payment instruction vendor matching | 🟡 | [ ] | Case-insensitive exact match only. No fuzzy matching for slight name variations (e.g., "Gopal Sharma" vs "Gopal Kumar Sharma"). |
-| 19 | Negative/zero amount validation | 🟡 | [ ] | Negative amounts allowed in some tables. Zero-amount invoices possible. Need: CHECK constraints on DB + Zod validation. |
-| 20 | Race conditions in allocation updates | 🟡 | [ ] | Payment/receipt allocation loops update invoices sequentially. If crash between updates, partial state. Should batch all invoice updates in single statement. |
+| 11 | (fixed) | 🟡 | [x] | Hard binary match — no tolerance for minor variances. Real ERPs allow 0.5-2% variance threshold (configurable). Also: null-pointer risk in match logic if PO item not found. |
+| 12 | (fixed) | 🟡 | [x] | No support for "2/10 Net 30" discount terms. Common in Indian B2B. Need: discount_terms field on invoices, calculate discount if paid early. |
+| 13 | (fixed) | 🟡 | [x] | Dunning is manual — requires API call to trigger reminders. Need: cron job or scheduled task to auto-send reminders based on dunning rules. |
+| 14 | (fixed) | 🟡 | [x] | invoice.markPaid() sets amountReceived = totalAmount regardless of actual receipt amounts. Should validate sum of receipts matches before marking paid. |
+| 15 | (fixed) | 🟡 | [x] | No credit limit field on customers. Can't block further invoicing when customer exceeds limit. Need: credit_limit field + check on invoice creation. |
+| 16 | (fixed) | 🟡 | [x] | Bank statement import considers same amount + date as duplicate, even for intentional repeat payments. Need: smarter dedup using UTR/reference as primary key. |
+| 17 | (fixed) | 🟡 | [x] | No version field on financial records. Concurrent edits can silently overwrite each other. Need: version/updated_at check on updates. |
+| 18 | (fixed) | 🟡 | [x] | Case-insensitive exact match only. No fuzzy matching for slight name variations (e.g., "Gopal Sharma" vs "Gopal Kumar Sharma"). |
+| 19 | (fixed) | 🟡 | [x] | Negative amounts allowed in some tables. Zero-amount invoices possible. Need: CHECK constraints on DB + Zod validation. |
+| 20 | (fixed) | 🟡 | [x] | Payment/receipt allocation loops update invoices sequentially. If crash between updates, partial state. Should batch all invoice updates in single statement. |
 
 ---
 
@@ -80,7 +80,7 @@
 |----------|-------|--------|
 | 🔴 CRITICAL | 4 | **4 done** ✅ |
 | 🟠 HIGH | 6 | **6 done** ✅ |
-| 🟡 MEDIUM | 10 | 0 done |
+| 🟡 MEDIUM | 10 | **10 done** ✅ |
 | 🟢 LOW | 13 | 0 done |
 | **Total** | **33** | **0 done** |
 
