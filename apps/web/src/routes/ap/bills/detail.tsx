@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Check, X, AlertTriangle } from 'lucide-react';
+import { Check, X, AlertTriangle, FileWarning } from 'lucide-react';
 import {
   usePurchaseInvoice,
   useThreeWayMatch,
   useApproveInvoice,
   useDeletePurchaseInvoice,
 } from '../../../hooks/queries/use-purchase-invoices';
-import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
+import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
+import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, DebitNote } from '@runq/types';
 import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -422,6 +423,65 @@ function LineItemsTable({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
   );
 }
 
+// ─── Debit Note Adjustments ──────────────────────────────────────────────────
+
+function DebitNoteAdjustments({ invoiceId }: { invoiceId: string }) {
+  const { data } = useDebitNotes({ invoiceId });
+  const debitNotes = (data?.data ?? []).filter((dn: DebitNote) => dn.status === 'adjusted' || dn.status === 'issued');
+
+  if (debitNotes.length === 0) return null;
+
+  const totalAdjusted = debitNotes
+    .filter((dn: DebitNote) => dn.status === 'adjusted')
+    .reduce((sum: number, dn: DebitNote) => sum + dn.amount, 0);
+
+  return (
+    <Card className="border-amber-200 dark:border-amber-800">
+      <CardHeader title="Debit Note Adjustments" />
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <tr>
+              <Th>DN #</Th>
+              <Th>Date</Th>
+              <Th>Reason</Th>
+              <Th align="right">Amount</Th>
+              <Th>Status</Th>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {debitNotes.map((dn: DebitNote) => (
+              <TableRow key={dn.id}>
+                <TableCell className="font-medium">{dn.debitNoteNumber}</TableCell>
+                <TableCell className="text-zinc-500 dark:text-zinc-400">{dn.issueDate}</TableCell>
+                <TableCell className="max-w-[250px] truncate text-sm text-zinc-500 dark:text-zinc-400">{dn.reason}</TableCell>
+                <TableCell align="right" numeric>
+                  <span className="text-red-600 dark:text-red-400">-{formatINR(dn.amount)}</span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
+                    {dn.status}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {totalAdjusted > 0 && (
+          <div className="flex justify-end px-4 py-2 text-sm border-t border-amber-200 dark:border-amber-800">
+            <div className="flex w-52 justify-between gap-6">
+              <span className="font-medium text-amber-700 dark:text-amber-400">Total Adjusted</span>
+              <span className="font-mono font-medium tabular-nums text-red-600 dark:text-red-400">
+                -{formatINR(totalAdjusted)}
+              </span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Bill Info Card ───────────────────────────────────────────────────────────
 
 function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
@@ -500,7 +560,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
 
       {/* Summary Stats */}
       <div className="mb-6 grid grid-cols-3 gap-4">
-        <StatsCard title="Total Amount" value={invoice.totalAmount} />
+        <StatsCard title="Invoice Total" value={invoice.totalAmount} />
         <StatsCard title="Amount Paid" value={invoice.amountPaid} />
         <StatsCard title="Balance Due" value={invoice.balanceDue} />
       </div>
@@ -508,6 +568,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
       <div className="flex flex-col gap-4">
         <BillInfoCard invoice={invoice} />
         <LineItemsTable invoice={invoice} />
+        <DebitNoteAdjustments invoiceId={invoice.id} />
         <ActionsPanel invoice={invoice} />
       </div>
     </div>
