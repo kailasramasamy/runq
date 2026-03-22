@@ -28,12 +28,12 @@
 
 | # | Issue | Severity | Status | Description |
 |---|-------|----------|--------|-------------|
-| 5 | Missing DB indexes | 🟠 | [ ] | No indexes on (tenant_id, status), (due_date), (vendor_id), (customer_id) across invoices, payments, receipts tables. Will cause slow queries at scale. |
-| 6 | bankAccountId FK constraint missing | 🟠 | [ ] | payments.bankAccountId and payment_receipts.bankAccountId have no FK reference to bank_accounts. Payments can reference deleted bank accounts. |
-| 7 | Customer outstanding always returns 0 | 🟠 | [ ] | Bug in customer.service.ts — outstandingAmount query exists but always returns 0. Vendor outstanding works correctly. |
-| 8 | Invoice auto-overdue | 🟠 | [ ] | Invoice status never auto-transitions from 'sent' to 'overdue'. Need either: (a) cron job to mark overdue daily, or (b) compute on-the-fly when querying. |
-| 9 | Bank reconciliation period locking | 🟠 | [ ] | No period-end closing. Can re-reconcile or modify past periods. bank_reconciliations table exists but is never used. Need: lock completed periods, prevent backdated changes. |
-| 10 | Debit/credit notes — single invoice only | 🟠 | [ ] | DN/CN can only apply to one linked invoice. Standard ERPs allow applying one DN/CN across multiple invoices, or as general vendor/customer credit. |
+| 5 | Missing DB indexes | 🟠 | [x] | No indexes on (tenant_id, status), (due_date), (vendor_id), (customer_id) across invoices, payments, receipts tables. Will cause slow queries at scale. |
+| 6 | bankAccountId FK constraint missing | 🟠 | [x] | payments.bankAccountId and payment_receipts.bankAccountId have no FK reference to bank_accounts. Payments can reference deleted bank accounts. |
+| 7 | Customer outstanding always returns 0 | 🟠 | [x] | Bug in customer.service.ts — outstandingAmount query exists but always returns 0. Vendor outstanding works correctly. |
+| 8 | Invoice auto-overdue | 🟠 | [x] | Invoice status never auto-transitions from 'sent' to 'overdue'. Need either: (a) cron job to mark overdue daily, or (b) compute on-the-fly when querying. |
+| 9 | Bank reconciliation period locking | 🟠 | [x] | No period-end closing. Can re-reconcile or modify past periods. bank_reconciliations table exists but is never used. Need: lock completed periods, prevent backdated changes. |
+| 10 | Debit/credit notes — single invoice only | 🟠 | [x] | DN/CN can only apply to one linked invoice. Standard ERPs allow applying one DN/CN across multiple invoices, or as general vendor/customer credit. |
 
 ---
 
@@ -79,7 +79,7 @@
 | Severity | Count | Status |
 |----------|-------|--------|
 | 🔴 CRITICAL | 4 | **4 done** ✅ |
-| 🟠 HIGH | 6 | 0 done |
+| 🟠 HIGH | 6 | **6 done** ✅ |
 | 🟡 MEDIUM | 10 | 0 done |
 | 🟢 LOW | 13 | 0 done |
 | **Total** | **33** | **0 done** |
