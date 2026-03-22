@@ -8,6 +8,9 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
 import { AuditService } from '../../utils/audit';
+import { sendEmail } from '../../utils/email';
+import { getTenantName } from '../../utils/tenant-name';
+import { paymentConfirmation } from '../../utils/email-templates';
 
 export interface PaymentListParams {
   page: number;
@@ -279,7 +282,10 @@ export class PaymentService {
       .returning();
 
     await this.audit().log({ userId: approvedBy, action: 'approved', entityType: 'payment', entityId: paymentId });
-    return this.toPayment(updated!);
+
+    const result = this.toPayment(updated!);
+    void this.sendPaymentConfirmationEmail(result, payment.vendorId);
+    return result;
   }
 
   async rejectPayment(paymentId: string, rejectedBy: string, reason?: string): Promise<void> {
@@ -559,6 +565,30 @@ export class PaymentService {
     if (diff > 0.01) throw new ConflictError('Sum of allocations must equal total payment amount');
 
     return rows;
+  }
+
+  private async sendPaymentConfirmationEmail(payment: VendorPayment, vendorId: string): Promise<void> {
+    const [vendorRow] = await this.db
+      .select({ name: vendors.name, email: vendors.email })
+      .from(vendors)
+      .where(eq(vendors.id, vendorId))
+      .limit(1);
+
+    if (!vendorRow?.email) return;
+
+    const companyName = await getTenantName(this.db, this.tenantId);
+    const template = paymentConfirmation({
+      vendorName: vendorRow.name,
+      amount: payment.amount,
+      utr: payment.utrNumber ?? payment.id,
+      date: payment.paymentDate,
+      ref: payment.id,
+      companyName,
+    });
+
+    sendEmail({ to: vendorRow.email, fromName: companyName, ...template }).catch((err) =>
+      console.error('Payment confirmation email failed:', err),
+    );
   }
 
   private toPayment(row: typeof payments.$inferSelect): VendorPayment {

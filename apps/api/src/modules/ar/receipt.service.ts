@@ -7,6 +7,9 @@ import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
+import { sendEmail } from '../../utils/email';
+import { receiptConfirmation } from '../../utils/email-templates';
+import { getTenantName } from '../../utils/tenant-name';
 
 export interface ReceiptListParams {
   page: number;
@@ -155,7 +158,37 @@ export class ReceiptService {
       return receipt!;
     });
 
-    return this.getById(result.id);
+    const receiptWithAllocations = await this.getById(result.id);
+    void this.sendReceiptEmail(receiptWithAllocations);
+    return receiptWithAllocations;
+  }
+
+  private async sendReceiptEmail(receipt: ReceiptWithAllocations): Promise<void> {
+    const [customerRow] = await this.db
+      .select({ email: customers.email })
+      .from(customers)
+      .where(eq(customers.id, receipt.customerId))
+      .limit(1);
+
+    if (!customerRow?.email) return;
+
+    const firstAlloc = receipt.allocations[0];
+    const invoiceNumber = firstAlloc?.invoiceNumber ?? 'N/A';
+    const balance = firstAlloc?.invoiceBalanceDue ?? 0;
+
+    const companyName = await getTenantName(this.db, this.tenantId);
+    const template = receiptConfirmation({
+      customerName: receipt.customerName,
+      amount: receipt.amount,
+      invoiceNumber,
+      ref: receipt.referenceNumber ?? receipt.id,
+      balance,
+      companyName,
+    });
+
+    sendEmail({ to: customerRow.email, fromName: companyName, ...template }).catch((err) =>
+      console.error('Receipt email failed:', err),
+    );
   }
 
   private async fetchAndValidateInvoices(

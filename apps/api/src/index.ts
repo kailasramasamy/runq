@@ -1,8 +1,10 @@
 import { loadEnv } from './config/env';
 import { buildApp } from './app';
+import { initEmailTransport } from './utils/email';
 
 async function main() {
   const env = loadEnv();
+  initEmailTransport();
   const app = await buildApp();
 
   try {

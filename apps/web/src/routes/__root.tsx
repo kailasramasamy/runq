@@ -6,6 +6,7 @@ import { CompanySettingsPage } from './settings/company';
 import { InvoiceNumberingPage } from './settings/invoice-numbering';
 import { UsersPage } from './settings/users';
 import { TallyExportPage } from './settings/tally-export';
+import { NotificationsPage } from './settings/notifications';
 import { VendorListPage } from './ap/vendors/index';
 import { NewVendorPage } from './ap/vendors/new';
 import { VendorDetailPage } from './ap/vendors/detail';
@@ -665,6 +666,7 @@ const SETTINGS_TABS = [
   { label: 'Invoice Numbering', path: '/settings/invoice-numbering' },
   { label: 'Users', path: '/settings/users' },
   { label: 'Tally Export', path: '/settings/tally-export' },
+  { label: 'Notifications', path: '/settings/notifications' },
 ];
 
 function SettingsNav() {
@@ -680,7 +682,7 @@ function SettingsNav() {
         {SETTINGS_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/settings/company' | '/settings/invoice-numbering' | '/settings/users' | '/settings/tally-export'}
+            to={path as '/settings/company' | '/settings/invoice-numbering' | '/settings/users' | '/settings/tally-export' | '/settings/notifications'}
             className={[
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               current === path
@@ -741,6 +743,12 @@ const settingsTallyExportRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/tally-export',
   component: TallyExportPage,
+});
+
+const settingsNotificationsRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/notifications',
+  component: NotificationsPage,
 });
 
 // ─── Route Tree ───────────────────────────────────────────────────────────────
@@ -812,6 +820,7 @@ export const routeTree = rootRoute.addChildren([
       settingsInvoiceNumberingRoute,
       settingsUsersRoute,
       settingsTallyExportRoute,
+      settingsNotificationsRoute,
     ]),
   ]),
 ]);

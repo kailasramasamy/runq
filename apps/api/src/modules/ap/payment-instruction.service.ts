@@ -6,6 +6,10 @@ import type { CreatePaymentBatchInput, ApproveInstructionsInput, RejectInstructi
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { sendEmail } from '../../utils/email';
+import { batchPaymentSummary } from '../../utils/email-templates';
+import { tenants } from '@runq/db';
+import { getTenantName } from '../../utils/tenant-name';
 
 export interface BatchListParams extends PaymentBatchFilter {
   page: number;
@@ -172,6 +176,7 @@ export class PaymentInstructionService {
       .set({ status: 'executed', updatedAt: new Date() })
       .where(eq(paymentBatches.id, batchId));
 
+    void this.sendBatchSummaryEmail(approvedRows, result.totalPaid);
     return result;
   }
 
@@ -248,6 +253,38 @@ export class PaymentInstructionService {
     if (partial.length === 1) return partial[0]!.id;
 
     return null;
+  }
+
+  private async sendBatchSummaryEmail(
+    rows: (typeof paymentInstructions.$inferSelect)[],
+    totalPaid: number,
+  ): Promise<void> {
+    const [tenantRow] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const settings = (tenantRow?.settings ?? {}) as Record<string, unknown>;
+    const ownerEmail = (settings['ownerEmail'] as string | undefined) ?? process.env.MAIL_FROM;
+    if (!ownerEmail) return;
+
+    const companyName = await getTenantName(this.db, this.tenantId);
+    const paidRows = rows.filter((r) => r.vendorId);
+    const template = batchPaymentSummary({
+      count: paidRows.length,
+      totalAmount: totalPaid,
+      companyName,
+      payments: paidRows.map((r) => ({
+        vendorName: r.vendorName,
+        amount: parseFloat(r.amount),
+        reference: r.reference,
+      })),
+    });
+
+    sendEmail({ to: ownerEmail, fromName: companyName, ...template }).catch((err) =>
+      console.error('Batch summary email failed:', err),
+    );
   }
 
   private async processApprovedInstructions(

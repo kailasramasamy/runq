@@ -8,6 +8,9 @@ import type { CreateSalesInvoiceInput, UpdateSalesInvoiceInput, SalesInvoiceFilt
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
+import { sendEmail } from '../../utils/email';
+import { invoiceSent } from '../../utils/email-templates';
+import { getTenantName } from '../../utils/tenant-name';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
@@ -280,7 +283,33 @@ export class InvoiceService {
       .returning();
 
     await this.audit().log({ userId, action: 'sent', entityType: 'sales_invoice', entityId: id });
-    return this.toInvoice(row!);
+    const invoice = this.toInvoice(row!);
+    void this.sendInvoiceEmail(invoice, existing.customerId, existing.customerName);
+    return invoice;
+  }
+
+  private async sendInvoiceEmail(invoice: SalesInvoice, customerId: string, customerName: string): Promise<void> {
+    const [customerRow] = await this.db
+      .select({ email: customers.email, paymentTermsDays: customers.paymentTermsDays })
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
+
+    if (!customerRow?.email) return;
+
+    const companyName = await getTenantName(this.db, this.tenantId);
+    const template = invoiceSent({
+      customerName,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.totalAmount,
+      dueDate: invoice.dueDate,
+      terms: customerRow.paymentTermsDays,
+      companyName,
+    });
+
+    sendEmail({ to: customerRow.email, fromName: companyName, ...template }).catch((err) =>
+      console.error('Invoice email failed:', err),
+    );
   }
 
   async markPaid(id: string, input: MarkPaidInput): Promise<SalesInvoiceWithDetails> {

@@ -9,22 +9,24 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@runq/db": "workspace:*",
-    "@runq/types": "workspace:*",
-    "@runq/validators": "workspace:*",
-    "drizzle-orm": "^0.38.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/jwt": "^9.0.0",
     "@fastify/multipart": "^9.0.0",
+    "@runq/db": "workspace:*",
+    "@runq/types": "workspace:*",
+    "@runq/validators": "workspace:*",
+    "argon2": "^0.41.0",
+    "drizzle-orm": "^0.38.0",
     "fastify": "^5.2.0",
     "fastify-plugin": "^5.0.0",
     "fastify-type-provider-zod": "^4.0.0",
     "ioredis": "^5.4.0",
+    "nodemailer": "^8.0.3",
     "pg": "^8.13.0",
-    "argon2": "^0.41.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.11.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
