@@ -17,10 +17,10 @@
 
 | # | Issue | Severity | Status | Description |
 |---|-------|----------|--------|-------------|
-| 1 | Float precision in money calculations | 🔴 | [ ] | Using `parseFloat()` for money math causes rounding errors. Must use integer paise (multiply by 100) or decimal.js library. Affects: payment.service, receipt.service, debit-note.service, credit-note.service, invoice.service |
-| 2 | Payment approval workflow | 🔴 | [ ] | Payments go directly to 'completed' — no approval gate. Need: pending_approval → approved → executed. Different users for approval and execution (segregation of duties) |
-| 3 | Audit trail for financial transactions | 🔴 | [ ] | No record of who created, approved, modified, deleted any financial record. Need: audit_log table with user_id, action, entity, entity_id, old_values, new_values, timestamp |
-| 4 | General Ledger integration | 🔴 | [ ] | No GL posting — can't generate P&L or Balance Sheet. Every AP/AR/Banking transaction must create journal entries. This is the foundation of accounting. |
+| 1 | Float precision in money calculations | 🔴 | [x] | Using `parseFloat()` for money math causes rounding errors. Must use integer paise (multiply by 100) or decimal.js library. Affects: payment.service, receipt.service, debit-note.service, credit-note.service, invoice.service |
+| 2 | Payment approval workflow | 🔴 | [x] | Payments go directly to 'completed' — no approval gate. Need: pending_approval → approved → executed. Different users for approval and execution (segregation of duties) |
+| 3 | Audit trail for financial transactions | 🔴 | [x] | No record of who created, approved, modified, deleted any financial record. Need: audit_log table with user_id, action, entity, entity_id, old_values, new_values, timestamp |
+| 4 | General Ledger integration | 🔴 | [x] | No GL posting — can't generate P&L or Balance Sheet. Every AP/AR/Banking transaction must create journal entries. This is the foundation of accounting. |
 
 ---
 
@@ -78,7 +78,7 @@
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| 🔴 CRITICAL | 4 | 0 done |
+| 🔴 CRITICAL | 4 | **4 done** ✅ |
 | 🟠 HIGH | 6 | 0 done |
 | 🟡 MEDIUM | 10 | 0 done |
 | 🟢 LOW | 13 | 0 done |
