@@ -193,6 +193,11 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 Due Date
               </p>
               <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{invoice.dueDate}</p>
+              {invoice.discountPercent != null && invoice.discountDays != null && (
+                <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+                  Discount: {invoice.discountPercent}% if paid within {invoice.discountDays} days
+                </p>
+              )}
             </div>
             {invoice.notes && (
               <div className="col-span-2">

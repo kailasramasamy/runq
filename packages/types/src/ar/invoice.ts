@@ -13,6 +13,8 @@ export interface SalesInvoice {
   amountReceived: number;
   balanceDue: number;
   status: SalesInvoiceStatus;
+  discountPercent: number | null;
+  discountDays: number | null;
   notes: string | null;
   fileUrl: string | null;
   createdAt: string;

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, decimal, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 
 export const customerTypeEnum = pgEnum('customer_type', ['b2b', 'payment_gateway']);
@@ -17,6 +17,7 @@ export const customers = pgTable('customers', {
   city: varchar('city', { length: 100 }),
   state: varchar('state', { length: 100 }),
   pincode: varchar('pincode', { length: 10 }),
+  creditLimit: decimal('credit_limit', { precision: 15, scale: 2 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   contactPerson: varchar('contact_person', { length: 255 }),
   isActive: boolean('is_active').notNull().default(true),

@@ -71,4 +71,14 @@ export const dunningRoutes: FastifyPluginAsync = async (app) => {
       return service.getLog(filters, pagination.page, pagination.limit);
     },
   );
+
+  app.post(
+    '/auto-run',
+    { preHandler: [rbacHook(['owner'])] },
+    async (request) => {
+      const service = new DunningService(request.server.db, request.tenantId);
+      const result = await service.autoSendDunning();
+      return { data: result };
+    },
+  );
 };

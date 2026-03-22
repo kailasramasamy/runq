@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, notInArray } from 'drizzle-orm';
 import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants, paymentReceipts, receiptAllocations } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -118,7 +118,38 @@ export class InvoiceService {
     };
   }
 
+  private async checkCreditLimit(customerId: string, newInvoiceTotal: number): Promise<void> {
+    const [customer] = await this.db
+      .select({ creditLimit: customers.creditLimit })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!customer?.creditLimit) return;
+
+    const limit = Number(customer.creditLimit);
+    const [outstandingRow] = await this.db
+      .select({ total: sql<number>`coalesce(sum(${salesInvoices.balanceDue}), 0)::float` })
+      .from(salesInvoices)
+      .where(
+        and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          eq(salesInvoices.customerId, customerId),
+          notInArray(salesInvoices.status, ['paid', 'cancelled']),
+          sql`${salesInvoices.balanceDue} > 0`,
+        ),
+      );
+
+    const outstanding = outstandingRow?.total ?? 0;
+    if (outstanding + newInvoiceTotal > limit) {
+      throw new ConflictError(
+        `Customer credit limit exceeded (limit: ₹${limit.toFixed(2)}, outstanding: ₹${outstanding.toFixed(2)}, new invoice: ₹${newInvoiceTotal.toFixed(2)})`,
+      );
+    }
+  }
+
   async create(input: CreateSalesInvoiceInput, userId?: string): Promise<SalesInvoiceWithDetails> {
+    await this.checkCreditLimit(input.customerId, input.totalAmount);
     return this.db.transaction(async (tx) => {
       const invoiceNumber = await this.resolveInvoiceNumber(tx);
 
@@ -258,6 +289,16 @@ export class InvoiceService {
       throw new ConflictError('Invoice cannot be marked as paid in its current status');
     }
 
+    const allocationSum = await this.db
+      .select({ total: sql<number>`coalesce(sum(${receiptAllocations.amount}), 0)::float` })
+      .from(receiptAllocations)
+      .where(and(eq(receiptAllocations.invoiceId, id), eq(receiptAllocations.tenantId, this.tenantId)));
+
+    const alreadyAllocated = allocationSum[0]?.total ?? 0;
+    const balanceDue = existing.totalAmount - alreadyAllocated;
+
+    if (balanceDue <= 0) throw new ConflictError('Invoice already fully paid');
+
     return this.db.transaction(async (tx) => {
       const [receipt] = await tx
         .insert(paymentReceipts)
@@ -265,7 +306,7 @@ export class InvoiceService {
           tenantId: this.tenantId,
           customerId: existing.customerId,
           receiptDate: input.paymentDate,
-          amount: String(existing.balanceDue),
+          amount: String(balanceDue),
           paymentMethod: 'bank_transfer',
           referenceNumber: input.referenceNumber ?? null,
           notes: input.notes ?? null,
@@ -276,14 +317,15 @@ export class InvoiceService {
         tenantId: this.tenantId,
         receiptId: receipt!.id,
         invoiceId: id,
-        amount: String(existing.balanceDue),
+        amount: String(balanceDue),
       });
 
+      const newAmountReceived = alreadyAllocated + balanceDue;
       const [row] = await tx
         .update(salesInvoices)
         .set({
           status: 'paid',
-          amountReceived: String(existing.totalAmount),
+          amountReceived: String(newAmountReceived),
           balanceDue: '0',
           updatedAt: new Date(),
         })
@@ -378,6 +420,8 @@ export class InvoiceService {
       amountReceived: Number(row.amountReceived),
       balanceDue: Number(row.balanceDue),
       status: this.computeEffectiveStatus({ status: row.status, dueDate: row.dueDate }),
+      discountPercent: row.discountPercent != null ? Number(row.discountPercent) : null,
+      discountDays: row.discountDays ?? null,
       notes: row.notes ?? null,
       fileUrl: row.fileUrl ?? null,
       createdAt: row.createdAt.toISOString(),

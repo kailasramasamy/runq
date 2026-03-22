@@ -5,12 +5,14 @@ import type { ThreeWayMatchResult, MatchLineResult } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
 
+const MATCH_TOLERANCE_PERCENT = 2;
+
 type POItem = typeof purchaseOrderItems.$inferSelect;
 type GRNItem = typeof grnItems.$inferSelect;
 type InvoiceItem = typeof purchaseInvoiceItems.$inferSelect;
 
 interface MatchedLine {
-  poItem: POItem;
+  poItem: POItem | undefined;
   grnItem: GRNItem | undefined;
   invoiceItem: InvoiceItem;
 }
@@ -109,13 +111,18 @@ export class ThreeWayMatchService {
         ? grnItemRows.find((g) => g.poItemId === poItem.id || (g.sku && g.sku === invItem.sku))
         : undefined;
 
-      return { poItem: poItem!, invoiceItem: invItem, grnItem };
+      return { poItem, invoiceItem: invItem, grnItem };
     });
+  }
+
+  private isWithinTolerance(actual: number, reference: number): boolean {
+    if (reference === 0) return actual === 0;
+    const variance = Math.abs((actual - reference) / reference) * 100;
+    return variance <= MATCH_TOLERANCE_PERCENT;
   }
 
   private evaluateLine(ml: MatchedLine): MatchLineResult {
     const { poItem, grnItem, invoiceItem } = ml;
-    const messages: string[] = [];
 
     if (!poItem) {
       return {
@@ -124,7 +131,7 @@ export class ThreeWayMatchService {
         status: 'mismatch',
         qty: { po: 0, grn: 0, invoice: Number(invoiceItem.quantity) },
         unitPrice: { po: 0, invoice: Number(invoiceItem.unitPrice) },
-        message: 'No matching PO line found',
+        message: 'No matching PO item found',
       };
     }
 
@@ -133,19 +140,39 @@ export class ThreeWayMatchService {
     const invQty = Number(invoiceItem.quantity);
     const poPrice = Number(poItem.unitPrice);
     const invPrice = Number(invoiceItem.unitPrice);
+    const messages: string[] = [];
+    const notes: string[] = [];
 
     if (grnQty > poQty) messages.push(`GRN accepted qty (${grnQty}) exceeds PO qty (${poQty})`);
-    if (invQty > poQty) messages.push(`Invoice qty (${invQty}) exceeds PO qty (${poQty})`);
-    if (invPrice !== poPrice) messages.push(`Invoice unit price (${invPrice}) does not match PO price (${poPrice})`);
-    if (grnItem && invQty > grnQty) messages.push(`Invoice qty (${invQty}) exceeds GRN accepted qty (${grnQty})`);
 
+    if (invQty !== poQty) {
+      if (this.isWithinTolerance(invQty, poQty)) {
+        const pct = Math.abs(((invQty - poQty) / poQty) * 100).toFixed(1);
+        notes.push(`Qty variance ${pct}% (within tolerance)`);
+      } else {
+        messages.push(`Invoice qty (${invQty}) exceeds PO qty (${poQty})`);
+      }
+    }
+
+    if (invPrice !== poPrice) messages.push(`Invoice unit price (${invPrice}) does not match PO price (${poPrice})`);
+
+    if (grnItem && invQty !== grnQty) {
+      if (!this.isWithinTolerance(invQty, grnQty)) {
+        messages.push(`Invoice qty (${invQty}) exceeds GRN accepted qty (${grnQty})`);
+      } else if (!notes.some((n) => n.startsWith('Qty variance'))) {
+        const pct = Math.abs(((invQty - grnQty) / grnQty) * 100).toFixed(1);
+        notes.push(`Qty variance ${pct}% (within tolerance)`);
+      }
+    }
+
+    const allMessages = [...messages, ...notes];
     return {
       sku: invoiceItem.sku,
       itemName: invoiceItem.itemName,
       status: messages.length === 0 ? 'matched' : 'mismatch',
       qty: { po: poQty, grn: grnQty, invoice: invQty },
       unitPrice: { po: poPrice, invoice: invPrice },
-      message: messages.length > 0 ? messages.join('; ') : null,
+      message: allMessages.length > 0 ? allMessages.join('; ') : null,
     };
   }
 

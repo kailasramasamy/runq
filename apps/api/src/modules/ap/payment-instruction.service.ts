@@ -204,21 +204,50 @@ export class PaymentInstructionService {
   private async matchVendors(
     instructions: CreatePaymentBatchInput['instructions'],
   ): Promise<(CreatePaymentBatchInput['instructions'][number] & { vendorId?: string | null })[]> {
-    const vendorNames = instructions.filter((i) => !i.vendorId).map((i) => i.vendorName);
-    if (vendorNames.length === 0) return instructions;
+    const unmatched = instructions.filter((i) => !i.vendorId);
+    if (unmatched.length === 0) return instructions;
 
-    const vendorRows = await this.db
-      .select({ id: vendors.id, name: vendors.name })
-      .from(vendors)
-      .where(eq(vendors.tenantId, this.tenantId));
+    const results = await Promise.all(
+      unmatched.map((item) => this.resolveVendorId(item.vendorName)),
+    );
 
-    const nameToId = new Map(vendorRows.map((v) => [v.name.toLowerCase(), v.id]));
+    const resolvedMap = new Map(unmatched.map((item, idx) => [item.vendorName, results[idx]]));
 
     return instructions.map((item) => {
       if (item.vendorId) return item;
-      const matched = nameToId.get(item.vendorName.toLowerCase());
-      return { ...item, vendorId: matched ?? null };
+      return { ...item, vendorId: resolvedMap.get(item.vendorName) ?? null };
     });
+  }
+
+  private async resolveVendorId(vendorName: string): Promise<string | null> {
+    // Step 1: exact case-insensitive match
+    const exact = await this.db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, vendorName)))
+      .limit(1);
+    if (exact.length === 1) return exact[0]!.id;
+
+    // Step 2: contains match — only accept if exactly one result
+    const contains = await this.db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `%${vendorName}%`)))
+      .limit(2);
+    if (contains.length === 1) return contains[0]!.id;
+
+    // Step 3: first-word match — only accept if exactly one result
+    const firstWord = vendorName.trim().split(/\s+/)[0];
+    if (!firstWord || firstWord.length < 2) return null;
+
+    const partial = await this.db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `${firstWord}%`)))
+      .limit(2);
+    if (partial.length === 1) return partial[0]!.id;
+
+    return null;
   }
 
   private async processApprovedInstructions(

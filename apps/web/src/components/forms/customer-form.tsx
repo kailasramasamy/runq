@@ -27,6 +27,7 @@ function buildInitial(c?: Customer): FormState {
     city: c.city ?? undefined,
     state: c.state ?? undefined,
     pincode: c.pincode ?? undefined,
+    creditLimit: c.creditLimit ?? undefined,
     paymentTermsDays: c.paymentTermsDays,
     contactPerson: c.contactPerson ?? undefined,
   };
@@ -134,6 +135,15 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             value={String(form.paymentTermsDays ?? 30)}
             onChange={(e) => set('paymentTermsDays', Number(e.target.value))}
             error={errors.paymentTermsDays}
+          />
+          <Input
+            label="Credit Limit (₹)"
+            type="number"
+            min="0"
+            placeholder="e.g. 500000"
+            value={form.creditLimit != null ? String(form.creditLimit) : ''}
+            onChange={(e) => set('creditLimit', e.target.value === '' ? (undefined as unknown as number) : Number(e.target.value))}
+            error={errors.creditLimit}
           />
         </CardContent>
       </Card>

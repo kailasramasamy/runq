@@ -14,6 +14,7 @@ export interface Customer {
   city: string | null;
   state: string | null;
   pincode: string | null;
+  creditLimit: number | null;
   paymentTermsDays: number;
   contactPerson: string | null;
   isActive: boolean;

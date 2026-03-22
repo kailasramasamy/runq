@@ -117,22 +117,35 @@ export class TransactionService {
   }
 
   private async checkDuplicate(bankAccountId: string, row: ParsedRow): Promise<boolean> {
-    const conditions = [
-      eq(bankTransactions.tenantId, this.tenantId),
-      eq(bankTransactions.bankAccountId, bankAccountId),
-      eq(bankTransactions.transactionDate, row.transactionDate),
-      eq(bankTransactions.type, row.type),
-      sql`${bankTransactions.amount}::numeric = ${row.amount}`,
-    ];
-
+    // If UTR/reference is present, it's globally unique — dedup by bankAccountId + reference only
     if (row.reference) {
-      conditions.push(eq(bankTransactions.reference, row.reference));
+      const [result] = await this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, bankAccountId),
+          eq(bankTransactions.reference, row.reference),
+        ));
+      return (result?.count ?? 0) > 0;
     }
+
+    // No reference: dedup by date + type + amount + narration to avoid false positives
+    const narrationCondition = row.narration
+      ? eq(bankTransactions.narration, row.narration)
+      : sql`${bankTransactions.narration} IS NULL`;
 
     const [result] = await this.db
       .select({ count: sql<number>`count(*)::int` })
       .from(bankTransactions)
-      .where(and(...conditions as Parameters<typeof and>));
+      .where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        eq(bankTransactions.bankAccountId, bankAccountId),
+        eq(bankTransactions.transactionDate, row.transactionDate),
+        eq(bankTransactions.type, row.type),
+        sql`${bankTransactions.amount}::numeric = ${row.amount}`,
+        narrationCondition,
+      ));
 
     return (result?.count ?? 0) > 0;
   }

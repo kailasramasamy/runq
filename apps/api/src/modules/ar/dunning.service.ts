@@ -135,6 +135,39 @@ export class DunningService {
     return { logged: input.invoiceIds.length };
   }
 
+  async autoSendDunning(): Promise<{ sent: number; skipped: number }> {
+    const [rules, overdueInvoices] = await Promise.all([
+      this.db
+        .select()
+        .from(dunningRules)
+        .where(and(eq(dunningRules.tenantId, this.tenantId), eq(dunningRules.isActive, true)))
+        .orderBy(dunningRules.daysAfterDue),
+      this.getOverdueInvoices(),
+    ]);
+
+    if (rules.length === 0 || overdueInvoices.length === 0) return { sent: 0, skipped: overdueInvoices.length };
+
+    const invoiceIds = overdueInvoices.map((i) => i.id);
+    const existingLogs = await this.db
+      .select({ invoiceId: dunningLog.invoiceId, ruleId: dunningLog.ruleId })
+      .from(dunningLog)
+      .where(and(eq(dunningLog.tenantId, this.tenantId), inArray(dunningLog.invoiceId, invoiceIds)));
+
+    const alreadySent = new Set(existingLogs.map((l) => `${l.invoiceId}:${l.ruleId}`));
+    const toInsert: { tenantId: string; invoiceId: string; ruleId: string; channel: typeof dunningRules.$inferSelect['channel']; status: string }[] = [];
+
+    for (const invoice of overdueInvoices) {
+      const matchingRule = [...rules].reverse().find((r) => invoice.daysOverdue >= r.daysAfterDue);
+      if (!matchingRule) continue;
+      const key = `${invoice.id}:${matchingRule.id}`;
+      if (alreadySent.has(key)) continue;
+      toInsert.push({ tenantId: this.tenantId, invoiceId: invoice.id, ruleId: matchingRule.id, channel: matchingRule.channel, status: 'sent' });
+    }
+
+    if (toInsert.length > 0) await this.db.insert(dunningLog).values(toInsert);
+    return { sent: toInsert.length, skipped: overdueInvoices.length - toInsert.length };
+  }
+
   async getLog(filters: DunningLogFilter, page: number, limit: number): Promise<DunningLogListResult> {
     const { offset } = applyPagination(page, limit);
 

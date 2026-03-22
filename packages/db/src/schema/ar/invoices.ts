@@ -28,6 +28,8 @@ export const salesInvoices = pgTable('sales_invoices', {
   amountReceived: decimal('amount_received', { precision: 15, scale: 2 }).notNull().default('0'),
   balanceDue: decimal('balance_due', { precision: 15, scale: 2 }).notNull(),
   status: salesInvoiceStatusEnum('status').notNull().default('draft'),
+  discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }),
+  discountDays: integer('discount_days'),
   notes: text('notes'),
   fileUrl: varchar('file_url', { length: 500 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

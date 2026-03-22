@@ -4,7 +4,7 @@ const invoiceItemSchema = z.object({
   description: z.string().min(1).max(500),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().nonnegative('Unit price must be non-negative'),
-  amount: z.number().nonnegative('Amount must be non-negative'),
+  amount: z.number().positive('Amount must be positive'),
 });
 
 export const createSalesInvoiceSchema = z.object({

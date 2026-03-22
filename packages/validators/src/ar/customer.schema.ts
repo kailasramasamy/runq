@@ -15,6 +15,7 @@ export const createCustomerSchema = z.object({
   city: z.string().max(100).nullish(),
   state: z.string().max(100).nullish(),
   pincode: z.string().regex(/^[1-9][0-9]{5}$/, 'Invalid pincode').nullish(),
+  creditLimit: z.number().nonnegative().nullish(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
   contactPerson: z.string().max(255).nullish(),
 });
