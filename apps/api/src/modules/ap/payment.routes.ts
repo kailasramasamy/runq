@@ -17,11 +17,16 @@ import { PaymentService } from './payment.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
+const OWNER_ROLES = ['owner'] as const;
 
 const exportCSVQuerySchema = z.object({
   status: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
+});
+
+const rejectBodySchema = z.object({
+  reason: z.string().optional(),
 });
 
 export const paymentRoutes: FastifyPluginAsync = async (app) => {
@@ -67,7 +72,7 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const input = createVendorPaymentSchema.parse(request.body);
       const service = new PaymentService(request.server.db, request.tenantId);
-      const payment = await service.createPayment(input);
+      const payment = await service.createPayment(input, request.user.userId);
       return reply.status(201).send({ data: payment });
     },
   );
@@ -125,6 +130,29 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const service = new PaymentService(request.server.db, request.tenantId);
       const result = await service.importBatchFromCSV(bankAccountId, paymentDate, csvData);
       return reply.status(200).send({ data: result });
+    },
+  );
+
+  app.post(
+    '/:id/approve',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const payment = await service.approvePayment(id, request.user.userId);
+      return reply.status(200).send({ data: payment });
+    },
+  );
+
+  app.post(
+    '/:id/reject',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { reason } = rejectBodySchema.parse(request.body);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      await service.rejectPayment(id, request.user.userId, reason);
+      return reply.status(200).send({ data: { success: true } });
     },
   );
 };

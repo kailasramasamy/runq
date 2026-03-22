@@ -40,6 +40,11 @@ export const RLS_TABLES = [
   'payment_batches',
   'payment_instructions',
   'webhook_events',
+  'audit_log',
+  'accounts',
+  'journal_sequences',
+  'journal_entries',
+  'journal_lines',
 ];
 
 export function generateRLSSQL(): string {

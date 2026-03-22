@@ -58,6 +58,8 @@ export interface VendorPayment {
   utrNumber: string | null;
   status: PaymentStatus;
   notes: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

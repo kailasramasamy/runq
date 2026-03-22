@@ -1,5 +1,6 @@
-import { Banknote } from 'lucide-react';
-import { useVendorPayment } from '../../../hooks/queries/use-payments';
+import { useState } from 'react';
+import { Banknote, CheckCircle, XCircle } from 'lucide-react';
+import { useVendorPayment, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
 import type { VendorPaymentWithAllocations, PaymentStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -15,6 +16,7 @@ import {
   TableCell,
   Th,
   Skeleton,
+  ConfirmationDialog,
 } from '@/components/ui';
 
 const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | 'outline'> = {
@@ -44,6 +46,12 @@ function PaymentInfoCard({ payment }: { payment: VendorPaymentWithAllocations })
           <DetailRow label="Method" value={payment.paymentMethod.replace(/_/g, ' ')} />
           <DetailRow label="UTR / Reference" value={payment.utrNumber} />
           <DetailRow label="Bank Account" value={payment.bankAccountId} />
+          {payment.approvedBy && (
+            <DetailRow label="Approved By" value={payment.approvedBy} />
+          )}
+          {payment.approvedAt && (
+            <DetailRow label="Approved At" value={new Date(payment.approvedAt).toLocaleString()} />
+          )}
           {payment.notes && (
             <div className="col-span-2 sm:col-span-3">
               <DetailRow label="Notes" value={payment.notes} />
@@ -95,6 +103,9 @@ interface Props { paymentId: string }
 export function PaymentDetailPage({ paymentId }: Props) {
   const { data, isLoading, isError } = useVendorPayment(paymentId);
   const payment = data?.data;
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const approveMutation = useApprovePayment();
+  const rejectMutation = useRejectPayment();
 
   if (isLoading) {
     return (
@@ -120,9 +131,30 @@ export function PaymentDetailPage({ paymentId }: Props) {
           { label: payment.id.slice(0, 8) + '…' },
         ]}
         actions={
-          <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize text-sm px-3 py-1">
-            {payment.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize text-sm px-3 py-1">
+              {payment.status}
+            </Badge>
+            {payment.status === 'pending' && (
+              <>
+                <button
+                  onClick={() => approveMutation.mutate(paymentId)}
+                  disabled={approveMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  <CheckCircle size={15} />
+                  Approve
+                </button>
+                <button
+                  onClick={() => setShowRejectDialog(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                >
+                  <XCircle size={15} />
+                  Reject
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -161,6 +193,20 @@ export function PaymentDetailPage({ paymentId }: Props) {
         <PaymentInfoCard payment={payment} />
         <AllocationsCard payment={payment} />
       </div>
+
+      <ConfirmationDialog
+        open={showRejectDialog}
+        title="Reject Payment"
+        description="Are you sure you want to reject this payment? Any invoice allocations will be reversed."
+        confirmLabel="Reject"
+        variant="danger"
+        loading={rejectMutation.isPending}
+        onConfirm={() => {
+          rejectMutation.mutate({ id: paymentId });
+          setShowRejectDialog(false);
+        }}
+        onClose={() => setShowRejectDialog(false)}
+      />
     </div>
   );
 }

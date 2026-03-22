@@ -7,6 +7,7 @@ import type { SalesInvoice, SalesInvoiceItem, SalesInvoiceWithDetails, Paginatio
 import type { CreateSalesInvoiceInput, UpdateSalesInvoiceInput, SalesInvoiceFilter, SendInvoiceInput, MarkPaidInput } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AuditService } from '../../utils/audit';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
@@ -34,6 +35,10 @@ export class InvoiceService {
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
 
   async list(params: InvoiceListParams): Promise<InvoiceListResult> {
     const { page, limit, filters } = params;
@@ -113,7 +118,7 @@ export class InvoiceService {
     };
   }
 
-  async create(input: CreateSalesInvoiceInput): Promise<SalesInvoiceWithDetails> {
+  async create(input: CreateSalesInvoiceInput, userId?: string): Promise<SalesInvoiceWithDetails> {
     return this.db.transaction(async (tx) => {
       const invoiceNumber = await this.resolveInvoiceNumber(tx);
 
@@ -154,11 +159,13 @@ export class InvoiceService {
         .where(eq(customers.id, input.customerId))
         .limit(1);
 
-      return {
+      const result = {
         ...this.toInvoice(invoice!),
         customerName: customerRow?.name ?? '',
         items: items.map(this.toInvoiceItem),
       };
+      await this.audit().log({ userId, action: 'created', entityType: 'sales_invoice', entityId: invoice!.id });
+      return result;
     });
   }
 
@@ -229,7 +236,7 @@ export class InvoiceService {
     return this.toInvoice(row!);
   }
 
-  async send(id: string, _input: SendInvoiceInput): Promise<SalesInvoice> {
+  async send(id: string, _input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {
       throw new ConflictError('Only draft invoices can be sent');
@@ -241,6 +248,7 @@ export class InvoiceService {
       .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
       .returning();
 
+    await this.audit().log({ userId, action: 'sent', entityType: 'sales_invoice', entityId: id });
     return this.toInvoice(row!);
   }
 

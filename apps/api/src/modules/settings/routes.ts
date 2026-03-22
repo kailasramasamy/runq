@@ -3,6 +3,7 @@ import { companySettingsSchema, invoiceNumberingSchema } from '@runq/validators'
 import { rbacHook } from '../../hooks/rbac';
 import { SettingsService } from './settings.service';
 import { userRoutes } from './user.routes';
+import { auditRoutes } from './audit.routes';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const OWNER_ROLES = ['owner'] as const;
@@ -51,4 +52,5 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
   );
 
   await app.register(userRoutes, { prefix: '/users' });
+  await app.register(auditRoutes, { prefix: '/audit-log' });
 };

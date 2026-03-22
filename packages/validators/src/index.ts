@@ -16,3 +16,4 @@ export * from './banking/reconciliation.schema';
 export * from './banking/petty-cash.schema';
 export * from './settings/company.schema';
 export * from './settings/invoice-numbering.schema';
+export * from './gl/gl.schema';

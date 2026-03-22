@@ -5,6 +5,7 @@ import type { PurchaseInvoice, PurchaseInvoiceItem, PurchaseInvoiceWithDetails, 
 import type { CreatePurchaseInvoiceInput, UpdatePurchaseInvoiceInput, PurchaseInvoiceFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AuditService } from '../../utils/audit';
 
 export interface InvoiceListParams {
   page: number;
@@ -22,6 +23,10 @@ export class PurchaseInvoiceService {
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
 
   async list(params: InvoiceListParams): Promise<InvoiceListResult> {
     const { page, limit, filters } = params;
@@ -73,7 +78,7 @@ export class PurchaseInvoiceService {
     };
   }
 
-  async create(input: CreatePurchaseInvoiceInput): Promise<PurchaseInvoiceWithDetails> {
+  async create(input: CreatePurchaseInvoiceInput, userId?: string): Promise<PurchaseInvoiceWithDetails> {
     return this.db.transaction(async (tx) => {
       const [invoice] = await tx
         .insert(purchaseInvoices)
@@ -113,11 +118,13 @@ export class PurchaseInvoiceService {
         .where(eq(vendors.id, input.vendorId))
         .limit(1);
 
-      return {
+      const result = {
         ...this.toInvoice(invoice!),
         vendorName: vendorRow?.name ?? '',
         items: items.map(this.toInvoiceItem),
       };
+      await this.audit().log({ userId, action: 'created', entityType: 'purchase_invoice', entityId: invoice!.id });
+      return result;
     });
   }
 
@@ -152,7 +159,7 @@ export class PurchaseInvoiceService {
     return this.getById(id);
   }
 
-  async cancel(id: string): Promise<PurchaseInvoice> {
+  async cancel(id: string, userId?: string): Promise<PurchaseInvoice> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft' && existing.status !== 'pending_match') {
       throw new ConflictError('Only draft or pending match invoices can be cancelled');
@@ -164,6 +171,7 @@ export class PurchaseInvoiceService {
       .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)))
       .returning();
 
+    await this.audit().log({ userId, action: 'cancelled', entityType: 'purchase_invoice', entityId: id });
     return this.toInvoice(row!);
   }
 

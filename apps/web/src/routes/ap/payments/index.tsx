@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { CreditCard, Plus, Download } from 'lucide-react';
-import { useVendorPayments } from '../../../hooks/queries/use-payments';
+import { CreditCard, Plus, Download, CheckCircle, XCircle } from 'lucide-react';
+import { useVendorPayments, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import type { VendorPayment, PaymentStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
@@ -21,6 +21,7 @@ import {
   TableSkeleton,
   EmptyState,
   Pagination,
+  ConfirmationDialog,
 } from '@/components/ui';
 
 const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | 'outline'> = {
@@ -30,7 +31,15 @@ const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | '
   reversed: 'outline',
 };
 
-function PaymentRow({ payment }: { payment: VendorPayment & { vendorName?: string } }) {
+function PaymentRow({
+  payment,
+  onApprove,
+  onReject,
+}: {
+  payment: VendorPayment & { vendorName?: string };
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
   return (
     <TableRow>
       <TableCell>
@@ -56,6 +65,28 @@ function PaymentRow({ payment }: { payment: VendorPayment & { vendorName?: strin
           {payment.status}
         </Badge>
       </TableCell>
+      <TableCell>
+        {payment.status === 'pending' && (
+          <div className="flex gap-1">
+            <button
+              onClick={() => onApprove(payment.id)}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+              title="Approve"
+            >
+              <CheckCircle size={14} />
+              Approve
+            </button>
+            <button
+              onClick={() => onReject(payment.id)}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              title="Reject"
+            >
+              <XCircle size={14} />
+              Reject
+            </button>
+          </div>
+        )}
+      </TableCell>
     </TableRow>
   );
 }
@@ -65,6 +96,10 @@ export function PaymentListPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+
+  const approveMutation = useApprovePayment();
+  const rejectMutation = useRejectPayment();
 
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data ?? [];
@@ -168,14 +203,15 @@ export function PaymentListPage() {
             <Th>Method</Th>
             <Th>UTR / Reference</Th>
             <Th>Status</Th>
+            <Th>Actions</Th>
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={8} cols={7} />
+            <TableSkeleton rows={8} cols={8} />
           ) : payments.length === 0 ? (
             <tr>
-              <td colSpan={7}>
+              <td colSpan={8}>
                 <EmptyState
                   icon={CreditCard}
                   title="No payments found"
@@ -184,10 +220,30 @@ export function PaymentListPage() {
               </td>
             </tr>
           ) : (
-            payments.map((p) => <PaymentRow key={p.id} payment={p} />)
+            payments.map((p) => (
+              <PaymentRow
+                key={p.id}
+                payment={p}
+                onApprove={(id) => approveMutation.mutate(id)}
+                onReject={(id) => setRejectingId(id)}
+              />
+            ))
           )}
         </TableBody>
       </Table>
+
+      <ConfirmationDialog
+        open={!!rejectingId}
+        title="Reject Payment"
+        description="Are you sure you want to reject this payment? Any invoice allocations will be reversed."
+        confirmLabel="Reject"
+        variant="danger"
+        onConfirm={() => {
+          if (rejectingId) rejectMutation.mutate({ id: rejectingId });
+          setRejectingId(null);
+        }}
+        onClose={() => setRejectingId(null)}
+      />
 
       {totalPages > 1 && (
         <div className="mt-4">

@@ -6,6 +6,8 @@ import type { CreateVendorPaymentInput, CreateAdvancePaymentInput, CreateDirectP
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
+import { AuditService } from '../../utils/audit';
 
 export interface PaymentListParams {
   page: number;
@@ -27,6 +29,10 @@ export class PaymentService {
     private readonly tenantId: string,
   ) {}
 
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
+
   async list(params: PaymentListParams): Promise<PaymentListResult> {
     const { page, limit, vendorId, bankAccountId, dateFrom, dateTo } = params;
     const { offset } = applyPagination(page, limit);
@@ -46,6 +52,7 @@ export class PaymentService {
           bankAccountId: payments.bankAccountId, paymentDate: payments.paymentDate,
           amount: payments.amount, paymentMethod: payments.paymentMethod,
           utrNumber: payments.utrNumber, status: payments.status, notes: payments.notes,
+          approvedBy: payments.approvedBy, approvedAt: payments.approvedAt,
           createdAt: payments.createdAt, updatedAt: payments.updatedAt,
           vendorName: vendors.name, vendorCategory: vendors.category,
         })
@@ -108,16 +115,16 @@ export class PaymentService {
         tenantId: r.tenantId,
         paymentId: r.paymentId,
         invoiceId: r.invoiceId,
-        amount: parseFloat(r.amount),
+        amount: toNumber(r.amount),
         createdAt: r.createdAt.toISOString(),
         invoiceNumber: r.invoiceNumber,
-        invoiceTotal: parseFloat(r.invoiceTotal),
-        invoiceBalanceDue: parseFloat(r.invoiceBalanceDue),
+        invoiceTotal: toNumber(r.invoiceTotal),
+        invoiceBalanceDue: toNumber(r.invoiceBalanceDue),
       })),
     };
   }
 
-  async createPayment(input: CreateVendorPaymentInput): Promise<VendorPaymentWithAllocations> {
+  async createPayment(input: CreateVendorPaymentInput, userId?: string): Promise<VendorPaymentWithAllocations> {
     const invoiceIds = input.allocations.map((a) => a.invoiceId);
     const invoiceRows = await this.fetchAndValidateInvoices(invoiceIds, input.allocations, input.totalAmount);
 
@@ -132,7 +139,7 @@ export class PaymentService {
           amount: input.totalAmount.toString(),
           paymentMethod: input.paymentMethod,
           utrNumber: input.referenceNumber ?? null,
-          status: 'completed',
+          status: 'pending',
           notes: input.notes ?? null,
         })
         .returning();
@@ -148,15 +155,15 @@ export class PaymentService {
 
       for (const alloc of input.allocations) {
         const inv = invoiceRows.find((r) => r.id === alloc.invoiceId)!;
-        const newAmountPaid = parseFloat(inv.amountPaid) + alloc.amount;
-        const newBalanceDue = parseFloat(inv.balanceDue) - alloc.amount;
-        const newStatus = newBalanceDue <= 0 ? 'paid' : 'partially_paid';
+        const newAmountPaid = decimalAdd(inv.amountPaid, alloc.amount);
+        const newBalanceDue = decimalSubtract(inv.balanceDue, alloc.amount);
+        const newStatus = decimalLte(newBalanceDue, '0') ? 'paid' : 'partially_paid';
 
         await tx
           .update(purchaseInvoices)
           .set({
-            amountPaid: newAmountPaid.toString(),
-            balanceDue: newBalanceDue.toString(),
+            amountPaid: newAmountPaid,
+            balanceDue: newBalanceDue,
             status: newStatus,
             updatedAt: new Date(),
           })
@@ -166,6 +173,7 @@ export class PaymentService {
       return payment!;
     });
 
+    await this.audit().log({ userId, action: 'created', entityType: 'payment', entityId: result.id });
     return this.getById(result.id);
   }
 
@@ -181,7 +189,7 @@ export class PaymentService {
           amount: input.amount.toString(),
           paymentMethod: input.paymentMethod,
           utrNumber: input.referenceNumber ?? null,
-          status: 'completed',
+          status: 'pending',
           notes: input.notes ?? null,
         })
         .returning();
@@ -214,7 +222,7 @@ export class PaymentService {
         amount: input.amount.toString(),
         paymentMethod: input.paymentMethod,
         utrNumber: input.referenceNumber ?? null,
-        status: 'completed',
+        status: 'pending',
         notes: input.notes ?? null,
       })
       .returning();
@@ -236,7 +244,7 @@ export class PaymentService {
             amount: item.amount.toString(),
             paymentMethod: input.paymentMethod,
             utrNumber: item.referenceNumber ?? null,
-            status: 'completed',
+            status: 'pending',
             notes: item.notes ?? input.description ?? null,
           })
           .returning();
@@ -248,6 +256,77 @@ export class PaymentService {
     const paymentRows = created.map((r) => this.toPayment(r));
     const totalAmount = paymentRows.reduce((sum, p) => sum + p.amount, 0);
     return { created: paymentRows.length, totalAmount, payments: paymentRows };
+  }
+
+  async approvePayment(paymentId: string, approvedBy: string): Promise<VendorPayment> {
+    const [payment] = await this.db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!payment) throw new NotFoundError('Payment');
+    if (payment.status !== 'pending') throw new ConflictError('Only pending payments can be approved');
+
+    const [updated] = await this.db
+      .update(payments)
+      .set({ status: 'completed', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
+      .returning();
+
+    await this.audit().log({ userId: approvedBy, action: 'approved', entityType: 'payment', entityId: paymentId });
+    return this.toPayment(updated!);
+  }
+
+  async rejectPayment(paymentId: string, rejectedBy: string, reason?: string): Promise<void> {
+    const [payment] = await this.db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!payment) throw new NotFoundError('Payment');
+    if (payment.status !== 'pending') throw new ConflictError('Only pending payments can be rejected');
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(payments)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)));
+
+      const allocs = await tx
+        .select()
+        .from(paymentAllocations)
+        .where(eq(paymentAllocations.paymentId, paymentId));
+
+      for (const alloc of allocs) {
+        const [inv] = await tx
+          .select()
+          .from(purchaseInvoices)
+          .where(eq(purchaseInvoices.id, alloc.invoiceId))
+          .limit(1);
+
+        if (!inv) continue;
+
+        const allocAmount = parseFloat(alloc.amount);
+        const newAmountPaid = Math.max(0, parseFloat(inv.amountPaid) - allocAmount);
+        const newBalanceDue = parseFloat(inv.balanceDue) + allocAmount;
+        const newStatus = newAmountPaid <= 0 ? 'approved' : 'partially_paid';
+
+        await tx
+          .update(purchaseInvoices)
+          .set({ amountPaid: newAmountPaid.toString(), balanceDue: newBalanceDue.toString(), status: newStatus, updatedAt: new Date() })
+          .where(eq(purchaseInvoices.id, alloc.invoiceId));
+      }
+    });
+
+    await this.audit().log({
+      userId: rejectedBy,
+      action: 'rejected',
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: reason ? { reason } : undefined,
+    });
   }
 
   async exportPaymentsCSV(filters: { status?: string; dateFrom?: string; dateTo?: string }): Promise<string> {
@@ -291,7 +370,7 @@ export class PaymentService {
         csvQuote(r.bankAccountName ?? r.vendorName),
         csvQuote(r.bankAccountNumber ?? ''),
         csvQuote(r.bankIfsc ?? ''),
-        csvQuote(parseFloat(r.amount).toFixed(2)),
+        csvQuote(toNumber(r.amount).toFixed(2)),
         csvQuote('NEFT'),
         csvQuote(r.utrNumber ?? ''),
         csvQuote(remarks),
@@ -332,7 +411,7 @@ export class PaymentService {
             amount: row.amount.toString(),
             paymentMethod: 'bank_transfer',
             utrNumber: row.reference ?? null,
-            status: 'completed',
+            status: 'pending',
             notes: row.notes ?? null,
           })
           .returning();
@@ -391,8 +470,6 @@ export class PaymentService {
 
   async adjustAdvance(advanceId: string, invoiceId: string, amount: number): Promise<void> {
     const { advance, invoice } = await this.fetchAndValidateAdjustment(advanceId, invoiceId, amount);
-    const advanceBalance = parseFloat(advance.balance);
-    const invoiceBalance = parseFloat(invoice.balanceDue);
 
     await this.db.transaction(async (tx) => {
       await tx.insert(advanceAdjustments).values({
@@ -404,18 +481,18 @@ export class PaymentService {
 
       await tx
         .update(advancePayments)
-        .set({ balance: (advanceBalance - amount).toString(), updatedAt: new Date() })
+        .set({ balance: decimalSubtract(advance.balance, amount), updatedAt: new Date() })
         .where(eq(advancePayments.id, advanceId));
 
-      const newAmountPaid = parseFloat(invoice.amountPaid) + amount;
-      const newBalanceDue = invoiceBalance - amount;
-      const newStatus = newBalanceDue <= 0 ? 'paid' : 'partially_paid';
+      const newAmountPaid = decimalAdd(invoice.amountPaid, amount);
+      const newBalanceDue = decimalSubtract(invoice.balanceDue, amount);
+      const newStatus = decimalLte(newBalanceDue, '0') ? 'paid' : 'partially_paid';
 
       await tx
         .update(purchaseInvoices)
         .set({
-          amountPaid: newAmountPaid.toString(),
-          balanceDue: newBalanceDue.toString(),
+          amountPaid: newAmountPaid,
+          balanceDue: newBalanceDue,
           status: newStatus,
           updatedAt: new Date(),
         })
@@ -440,8 +517,8 @@ export class PaymentService {
 
     if (!invoice) throw new NotFoundError('Invoice');
 
-    if (amount > parseFloat(advance.balance)) throw new ConflictError('Adjustment amount exceeds advance balance');
-    if (amount > parseFloat(invoice.balanceDue)) throw new ConflictError('Adjustment amount exceeds invoice balance due');
+    if (decimalGt(amount, advance.balance)) throw new ConflictError('Adjustment amount exceeds advance balance');
+    if (decimalGt(amount, invoice.balanceDue)) throw new ConflictError('Adjustment amount exceeds invoice balance due');
     if (invoice.status !== 'approved' && invoice.status !== 'partially_paid') {
       throw new ConflictError('Invoice must be approved or partially paid');
     }
@@ -468,7 +545,7 @@ export class PaymentService {
     for (const alloc of allocations) {
       const inv = rows.find((r) => r.id === alloc.invoiceId);
       if (!inv) throw new NotFoundError(`Invoice ${alloc.invoiceId}`);
-      if (alloc.amount > parseFloat(inv.balanceDue)) {
+      if (decimalGt(alloc.amount, inv.balanceDue)) {
         throw new ConflictError(`Allocation amount exceeds balance due for invoice ${inv.invoiceNumber}`);
       }
     }
@@ -487,11 +564,13 @@ export class PaymentService {
       vendorId: row.vendorId,
       bankAccountId: row.bankAccountId,
       paymentDate: row.paymentDate,
-      amount: parseFloat(row.amount),
+      amount: toNumber(row.amount),
       paymentMethod: row.paymentMethod,
       utrNumber: row.utrNumber,
       status: row.status,
       notes: row.notes,
+      approvedBy: row.approvedBy ?? null,
+      approvedAt: row.approvedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -503,8 +582,8 @@ export class PaymentService {
       tenantId: row.tenantId,
       vendorId: row.vendorId,
       paymentId: row.paymentId,
-      amount: parseFloat(row.amount),
-      balance: parseFloat(row.balance),
+      amount: toNumber(row.amount),
+      balance: toNumber(row.balance),
       advanceDate: row.advanceDate,
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),

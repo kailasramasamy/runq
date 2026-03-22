@@ -99,3 +99,27 @@ export function useImportBatchPayment() {
     onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
   });
 }
+
+export function useApprovePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<ApiSuccess<VendorPayment>>(`/ap/payments/${id}/approve`, {}),
+    onSuccess: (_res, id) => {
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
+    },
+  });
+}
+
+export function useRejectPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      api.post<ApiSuccess<{ success: boolean }>>(`/ap/payments/${id}/reject`, { reason }),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
+    },
+  });
+}

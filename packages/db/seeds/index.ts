@@ -1,6 +1,7 @@
 import { createDb } from '../src/client';
 import { tenants } from '../src/schema/tenant';
 import { users } from '../src/schema/user';
+import { seedChartOfAccounts } from './chart-of-accounts';
 
 async function seed() {
   const dbUrl = process.env.DATABASE_URL;
@@ -34,6 +35,9 @@ async function seed() {
   });
 
   console.log(`Demo tenant created: ${tenant.id}`);
+
+  await seedChartOfAccounts(db, tenant.id);
+
   console.log('Seed complete.');
 
   await pool.end();

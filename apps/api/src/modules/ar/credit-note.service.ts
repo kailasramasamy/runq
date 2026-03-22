@@ -6,6 +6,8 @@ import type { CreateCreditNoteInput, UpdateCreditNoteInput, CreditNoteFilter } f
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { decimalAdd, decimalSubtract, decimalMin, decimalLte, toNumber } from '../../utils/decimal';
+import { AuditService } from '../../utils/audit';
 
 export interface CreditNoteListParams {
   page: number;
@@ -23,6 +25,10 @@ export class CreditNoteService {
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
 
   async list(params: CreditNoteListParams): Promise<CreditNoteListResult> {
     const { page, limit, filters } = params;
@@ -147,19 +153,17 @@ export class CreditNoteService {
 
     if (!invoice) throw new NotFoundError('Linked invoice');
 
-    const creditAmount = parseFloat(existing.amount);
-    const currentBalance = parseFloat(invoice.balanceDue);
-    const adjustment = Math.min(creditAmount, currentBalance);
-    const newBalance = currentBalance - adjustment;
-    const newReceived = parseFloat(invoice.amountReceived) + adjustment;
-    const newStatus = newBalance <= 0 ? 'paid' : invoice.status;
+    const adjustment = decimalMin(existing.amount, invoice.balanceDue);
+    const newBalance = decimalSubtract(invoice.balanceDue, adjustment);
+    const newReceived = decimalAdd(invoice.amountReceived, adjustment);
+    const newStatus = decimalLte(newBalance, '0') ? 'paid' : invoice.status;
 
     // Update invoice and credit note in sequence
     await this.db
       .update(salesInvoices)
       .set({
-        balanceDue: newBalance.toString(),
-        amountReceived: newReceived.toString(),
+        balanceDue: newBalance,
+        amountReceived: newReceived,
         status: newStatus,
         updatedAt: new Date(),
       })
@@ -172,6 +176,7 @@ export class CreditNoteService {
       .returning();
 
     if (!row) throw new NotFoundError('Credit note');
+    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
     return this.toCreditNote(row);
   }
 
@@ -229,7 +234,7 @@ export class CreditNoteService {
       customerId: row.customerId,
       invoiceId: row.invoiceId ?? null,
       issueDate: row.issueDate,
-      amount: parseFloat(row.amount),
+      amount: toNumber(row.amount),
       reason: row.reason,
       status: row.status,
       createdAt: row.createdAt.toISOString(),

@@ -6,6 +6,8 @@ import type { CreateDebitNoteInput, UpdateDebitNoteInput, DebitNoteFilter } from
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { decimalAdd, decimalSubtract, decimalMin, decimalLte, toNumber } from '../../utils/decimal';
+import { AuditService } from '../../utils/audit';
 
 export interface DebitNoteListParams {
   page: number;
@@ -23,6 +25,10 @@ export class DebitNoteService {
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
 
   async list(params: DebitNoteListParams): Promise<DebitNoteListResult> {
     const { page, limit, filters } = params;
@@ -152,18 +158,16 @@ export class DebitNoteService {
 
     if (!invoice) throw new NotFoundError('Linked invoice');
 
-    const debitAmount = parseFloat(existing.amount);
-    const currentBalance = parseFloat(invoice.balanceDue);
-    const adjustment = Math.min(debitAmount, currentBalance);
-    const newBalance = currentBalance - adjustment;
-    const newAmountPaid = parseFloat(invoice.amountPaid) + adjustment;
-    const newStatus = newBalance <= 0 ? 'paid' : invoice.status;
+    const adjustment = decimalMin(existing.amount, invoice.balanceDue);
+    const newBalance = decimalSubtract(invoice.balanceDue, adjustment);
+    const newAmountPaid = decimalAdd(invoice.amountPaid, adjustment);
+    const newStatus = decimalLte(newBalance, '0') ? 'paid' : invoice.status;
 
     await this.db
       .update(purchaseInvoices)
       .set({
-        balanceDue: newBalance.toString(),
-        amountPaid: newAmountPaid.toString(),
+        balanceDue: newBalance,
+        amountPaid: newAmountPaid,
         status: newStatus,
         updatedAt: new Date(),
       })
@@ -176,6 +180,7 @@ export class DebitNoteService {
       .returning();
 
     if (!row) throw new NotFoundError('Debit note');
+    await this.audit().log({ action: 'applied', entityType: 'debit_note', entityId: id });
     return this.getById(id);
   }
 
@@ -233,7 +238,7 @@ export class DebitNoteService {
       vendorId: row.vendorId,
       invoiceId: row.invoiceId ?? null,
       issueDate: row.issueDate,
-      amount: Number(row.amount),
+      amount: toNumber(row.amount),
       reason: row.reason,
       status: row.status,
       createdAt: row.createdAt.toISOString(),

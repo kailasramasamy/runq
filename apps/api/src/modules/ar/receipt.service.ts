@@ -6,6 +6,7 @@ import type { CreateReceiptInput, ReceiptFilter } from '@runq/validators';
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
 
 export interface ReceiptListParams {
   page: number;
@@ -93,11 +94,11 @@ export class ReceiptService {
         tenantId: r.tenantId,
         receiptId: r.receiptId,
         invoiceId: r.invoiceId,
-        amount: parseFloat(r.amount),
+        amount: toNumber(r.amount),
         createdAt: r.createdAt.toISOString(),
         invoiceNumber: r.invoiceNumber,
-        invoiceTotal: parseFloat(r.invoiceTotal),
-        invoiceBalanceDue: parseFloat(r.invoiceBalanceDue),
+        invoiceTotal: toNumber(r.invoiceTotal),
+        invoiceBalanceDue: toNumber(r.invoiceBalanceDue),
       })),
     };
   }
@@ -132,15 +133,15 @@ export class ReceiptService {
 
       for (const alloc of input.allocations) {
         const inv = invoiceRows.find((r) => r.id === alloc.invoiceId)!;
-        const newAmountReceived = parseFloat(inv.amountReceived) + alloc.amount;
-        const newBalanceDue = parseFloat(inv.balanceDue) - alloc.amount;
-        const newStatus = newBalanceDue <= 0 ? 'paid' : 'partially_paid';
+        const newAmountReceived = decimalAdd(inv.amountReceived, alloc.amount);
+        const newBalanceDue = decimalSubtract(inv.balanceDue, alloc.amount);
+        const newStatus = decimalLte(newBalanceDue, '0') ? 'paid' : 'partially_paid';
 
         await tx
           .update(salesInvoices)
           .set({
-            amountReceived: newAmountReceived.toString(),
-            balanceDue: newBalanceDue.toString(),
+            amountReceived: newAmountReceived,
+            balanceDue: newBalanceDue,
             status: newStatus,
             updatedAt: new Date(),
           })
@@ -172,7 +173,7 @@ export class ReceiptService {
     for (const alloc of allocations) {
       const inv = rows.find((r) => r.id === alloc.invoiceId);
       if (!inv) throw new NotFoundError(`Invoice ${alloc.invoiceId}`);
-      if (alloc.amount > parseFloat(inv.balanceDue)) {
+      if (decimalGt(alloc.amount, inv.balanceDue)) {
         throw new ConflictError(`Allocation amount exceeds balance due for invoice ${inv.invoiceNumber}`);
       }
     }
@@ -192,7 +193,7 @@ export class ReceiptService {
       customerId: row.customerId,
       bankAccountId: row.bankAccountId,
       receiptDate: row.receiptDate,
-      amount: parseFloat(row.amount),
+      amount: toNumber(row.amount),
       paymentMethod: row.paymentMethod,
       referenceNumber: row.referenceNumber ?? null,
       notes: row.notes ?? null,

@@ -4,6 +4,7 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   Landmark,
+  BookOpen,
   Settings,
   Sun,
   Moon,
@@ -16,6 +17,7 @@ const navItems = [
   { label: 'Accounts Payable', path: '/ap', icon: ArrowUpFromLine },
   { label: 'Accounts Receivable', path: '/ar', icon: ArrowDownToLine },
   { label: 'Banking', path: '/banking', icon: Landmark },
+  { label: 'General Ledger', path: '/gl', icon: BookOpen },
   { label: 'Settings', path: '/settings', icon: Settings },
 ];
 

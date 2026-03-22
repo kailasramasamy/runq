@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
+import { users } from '../user';
 import { vendors } from './vendors';
 import { purchaseInvoices } from './purchase-invoices';
 
@@ -17,6 +18,8 @@ export const payments = pgTable('payments', {
   utrNumber: varchar('utr_number', { length: 50 }),
   status: paymentStatusEnum('status').notNull().default('pending'),
   notes: text('notes'),
+  approvedBy: uuid('approved_by').references(() => users.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

@@ -18,3 +18,4 @@ export * from './banking/petty-cash';
 export * from './common/pagination';
 export * from './common/api-response';
 export * from './webhook/wms';
+export * from './gl';

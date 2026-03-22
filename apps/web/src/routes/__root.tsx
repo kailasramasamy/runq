@@ -47,6 +47,9 @@ import { PettyCashPage } from './banking/petty-cash/index';
 import { PGReconciliationPage } from './banking/pg-recon/index';
 import { ImportPGSettlementPage } from './banking/pg-recon/import';
 import { PGSettlementDetailPage } from './banking/pg-recon/detail';
+import { ChartOfAccountsPage } from './gl/accounts';
+import { JournalEntriesPage } from './gl/journal-entries';
+import { TrialBalancePage } from './gl/trial-balance';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -576,6 +579,84 @@ const pgReconDetailRoute = createRoute({
   },
 });
 
+// ─── General Ledger Sub-navigation ───────────────────────────────────────────
+
+const GL_TABS = [
+  { label: 'Chart of Accounts', path: '/gl/accounts' },
+  { label: 'Journal Entries', path: '/gl/journal-entries' },
+  { label: 'Trial Balance', path: '/gl/trial-balance' },
+];
+
+function GlNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold">General Ledger</h1>
+      </div>
+      <nav className="flex gap-1">
+        {GL_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/gl/accounts' | '/gl/journal-entries' | '/gl/trial-balance'}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function GlLayout() {
+  return (
+    <div>
+      <GlNav />
+      <Outlet />
+    </div>
+  );
+}
+
+// ─── GL Routes ────────────────────────────────────────────────────────────────
+
+const glRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/gl',
+  component: GlLayout,
+});
+
+const glIndexRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/',
+  component: () => <Navigate to="/gl/accounts" />,
+});
+
+const glAccountsRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/accounts',
+  component: ChartOfAccountsPage,
+});
+
+const glJournalEntriesRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/journal-entries',
+  component: JournalEntriesPage,
+});
+
+const glTrialBalanceRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/trial-balance',
+  component: TrialBalancePage,
+});
+
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
 
 const SETTINGS_TABS = [
@@ -710,6 +791,12 @@ export const routeTree = rootRoute.addChildren([
       pgReconRoute,
       pgReconImportRoute,
       pgReconDetailRoute,
+    ]),
+    glRoute.addChildren([
+      glIndexRoute,
+      glAccountsRoute,
+      glJournalEntriesRoute,
+      glTrialBalanceRoute,
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,

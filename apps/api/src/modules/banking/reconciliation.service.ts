@@ -10,6 +10,7 @@ import type { Db } from '@runq/db';
 import type { AutoReconciliationResult, ReconciliationMatch } from '@runq/types';
 import type { AutoReconcileInput, ManualMatchInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { toNumber } from '../../utils/decimal';
 
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
@@ -61,9 +62,9 @@ export class ReconciliationService {
       ),
     ]);
 
-    const bankBalance = parseFloat(account.currentBalance);
-    const totalPayments = unreconciledPayments.reduce((s, p) => s + parseFloat(p.amount), 0);
-    const totalReceipts = unreconciledReceipts.reduce((s, r) => s + parseFloat(r.amount), 0);
+    const bankBalance = toNumber(account.currentBalance);
+    const totalPayments = unreconciledPayments.reduce((s, p) => s + toNumber(p.amount), 0);
+    const totalReceipts = unreconciledReceipts.reduce((s, r) => s + toNumber(r.amount), 0);
     const bookBalance = bankBalance - totalPayments + totalReceipts;
 
     return {
@@ -91,14 +92,14 @@ export class ReconciliationService {
       ...allPayments.filter((p) => !matchedPaymentIds.has(p.id)).map((p) => ({
         id: p.id,
         type: 'vendor_payment' as const,
-        amount: parseFloat(p.amount),
+        amount: toNumber(p.amount),
         date: p.paymentDate,
         referenceNumber: p.utrNumber,
       })),
       ...allReceipts.filter((r) => !matchedReceiptIds.has(r.id)).map((r) => ({
         id: r.id,
         type: 'payment_receipt' as const,
-        amount: parseFloat(r.amount),
+        amount: toNumber(r.amount),
         date: r.receiptDate,
         referenceNumber: r.referenceNumber,
       })),
@@ -115,7 +116,7 @@ export class ReconciliationService {
           id: t.id,
           date: t.transactionDate,
           description: t.narration,
-          amount: parseFloat(t.amount),
+          amount: toNumber(t.amount),
           type: t.type,
         })),
         payments: unmatchedPayments,
@@ -136,7 +137,7 @@ export class ReconciliationService {
 
     const { paymentId, receiptId, matchAmount } = await this.resolveMatchTarget(input);
 
-    const diff = Math.abs(parseFloat(txn.amount) - matchAmount);
+    const diff = Math.abs(toNumber(txn.amount) - matchAmount);
     if (diff > 1) throw new ConflictError(`Amount mismatch: bank ${txn.amount}, book ${matchAmount}`);
 
     return this.db.transaction(async (tx) => {
@@ -230,7 +231,7 @@ export class ReconciliationService {
         await this.insertMatch(txn.id, payment.id, null, 'auto_utr');
         matchedTxnIds.add(txn.id);
         matchedPaymentIds.add(payment.id);
-        matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'vendor_payment', id: payment.id }, strategy: 'utr', amount: parseFloat(txn.amount), confidence: 'exact' });
+        matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'vendor_payment', id: payment.id }, strategy: 'utr', amount: toNumber(txn.amount), confidence: 'exact' });
         continue;
       }
 
@@ -241,7 +242,7 @@ export class ReconciliationService {
         await this.insertMatch(txn.id, null, receipt.id, 'auto_utr');
         matchedTxnIds.add(txn.id);
         matchedReceiptIds.add(receipt.id);
-        matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'payment_receipt', id: receipt.id }, strategy: 'utr', amount: parseFloat(txn.amount), confidence: 'exact' });
+        matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'payment_receipt', id: receipt.id }, strategy: 'utr', amount: toNumber(txn.amount), confidence: 'exact' });
       }
     }
   }
@@ -258,13 +259,13 @@ export class ReconciliationService {
     for (const txn of txns) {
       if (matchedTxnIds.has(txn.id)) continue;
 
-      const amount = parseFloat(txn.amount);
+      const amount = toNumber(txn.amount);
       const txnDate = new Date(txn.transactionDate).getTime();
 
       if (txn.type === 'debit') {
         const candidates = allPayments.filter((p) => {
           if (matchedPaymentIds.has(p.id)) return false;
-          const diff = Math.abs(parseFloat(p.amount) - amount);
+          const diff = Math.abs(toNumber(p.amount) - amount);
           const dayDiff = Math.abs(new Date(p.paymentDate).getTime() - txnDate) / 86400000;
           return diff < 0.01 && dayDiff <= 1;
         });
@@ -277,7 +278,7 @@ export class ReconciliationService {
       } else {
         const candidates = allReceipts.filter((r) => {
           if (matchedReceiptIds.has(r.id)) return false;
-          const diff = Math.abs(parseFloat(r.amount) - amount);
+          const diff = Math.abs(toNumber(r.amount) - amount);
           const dayDiff = Math.abs(new Date(r.receiptDate).getTime() - txnDate) / 86400000;
           return diff < 0.01 && dayDiff <= 1;
         });
@@ -320,7 +321,7 @@ export class ReconciliationService {
         .where(and(eq(payments.id, input.matchId), eq(payments.tenantId, this.tenantId)))
         .limit(1);
       if (!payment) throw new NotFoundError('Payment');
-      return { paymentId: payment.id, receiptId: null as null, matchAmount: parseFloat(payment.amount) };
+      return { paymentId: payment.id, receiptId: null as null, matchAmount: toNumber(payment.amount) };
     }
 
     const [receipt] = await this.db
@@ -329,7 +330,7 @@ export class ReconciliationService {
       .where(and(eq(paymentReceipts.id, input.matchId), eq(paymentReceipts.tenantId, this.tenantId)))
       .limit(1);
     if (!receipt) throw new NotFoundError('Payment receipt');
-    return { paymentId: null as null, receiptId: receipt.id, matchAmount: parseFloat(receipt.amount) };
+    return { paymentId: null as null, receiptId: receipt.id, matchAmount: toNumber(receipt.amount) };
   }
 
   private toMatch(row: typeof reconciliationMatches.$inferSelect): ReconciliationMatch {

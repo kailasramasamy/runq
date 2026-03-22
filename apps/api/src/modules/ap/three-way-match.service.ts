@@ -3,6 +3,7 @@ import { purchaseInvoices, purchaseInvoiceItems, purchaseOrders, purchaseOrderIt
 import type { Db } from '@runq/db';
 import type { ThreeWayMatchResult, MatchLineResult } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AuditService } from '../../utils/audit';
 
 type POItem = typeof purchaseOrderItems.$inferSelect;
 type GRNItem = typeof grnItems.$inferSelect;
@@ -19,6 +20,10 @@ export class ThreeWayMatchService {
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  private audit(): AuditService {
+    return new AuditService(this.db, this.tenantId);
+  }
 
   async performMatch(invoiceId: string, poId: string, grnId: string): Promise<ThreeWayMatchResult> {
     const [invoice, po, grn] = await Promise.all([
@@ -68,7 +73,7 @@ export class ThreeWayMatchService {
     };
   }
 
-  async approve(invoiceId: string, approvedBy: string): Promise<void> {
+  async approve(invoiceId: string, approvedBy: string, userId?: string): Promise<void> {
     const [invoice] = await this.db
       .select({ status: purchaseInvoices.status, poId: purchaseInvoices.poId })
       .from(purchaseInvoices)
@@ -90,6 +95,8 @@ export class ThreeWayMatchService {
       .update(purchaseInvoices)
       .set({ status: 'approved', matchStatus: 'matched', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
+
+    await this.audit().log({ userId: userId ?? approvedBy, action: 'approved', entityType: 'purchase_invoice', entityId: invoiceId });
   }
 
   private buildMatchedLines(invItems: InvoiceItem[], poItems: POItem[], grnItemRows: GRNItem[]): MatchedLine[] {
