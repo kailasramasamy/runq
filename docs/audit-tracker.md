@@ -69,7 +69,7 @@
 | 29 | Purchase requisition workflow | 🟢 | [ ] | No PR → PO conversion workflow. POs come directly from WMS. |
 | 30 | Advance receipt from customers | 🟢 | [ ] | No customer advance payment tracking (only vendor advances exist). |
 | 31 | Bank feed standards (OFX/MT940) | 🟢 | [ ] | CSV only. No support for standard bank feed formats. |
-| 32 | Notifications (email/SMS on events) | 🟢 | [ ] | No outbound notifications when payments complete, invoices overdue, etc. |
+| 32 | Notifications (email on events) | 🟢 | [x] | No outbound notifications when payments complete, invoices overdue, etc. |
 | 33 | Segregation of duties enforcement | 🟢 | [ ] | Same user can create + approve + execute. No mandatory different-user checks. |
 
 ---
@@ -81,7 +81,7 @@
 | 🔴 CRITICAL | 4 | **4 done** ✅ |
 | 🟠 HIGH | 6 | **6 done** ✅ |
 | 🟡 MEDIUM | 10 | **10 done** ✅ |
-| 🟢 LOW | 13 | 1 done |
+| 🟢 LOW | 13 | 2 done |
 | **Total** | **33** | **0 done** |
 
 ---
