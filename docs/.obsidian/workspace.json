@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "audit-tracker.md",
+                "file": "product-assessment.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "audit-tracker"
+              "title": "product-assessment"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "audit-tracker.md",
+                "file": "product-assessment.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for audit-tracker"
+              "title": "Backlinks for product-assessment"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "audit-tracker.md",
+                "file": "product-assessment.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from audit-tracker"
+              "title": "Outgoing links from product-assessment"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "audit-tracker.md",
+                "file": "product-assessment.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of audit-tracker"
+              "title": "Outline of product-assessment"
             }
           }
         ]
@@ -185,9 +185,9 @@
   },
   "active": "c4b2a52328679b98",
   "lastOpenFiles": [
+    "audit-tracker.md",
     "product-assessment.md",
     "tracking.md",
-    "audit-tracker.md",
     "wms-integration-guide.md",
     "payment-integration-plan.md",
     "finance-accounting-decisions.md",
