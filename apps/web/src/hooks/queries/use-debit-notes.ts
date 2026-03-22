@@ -72,6 +72,18 @@ export function useIssueDebitNote() {
   });
 }
 
+export function useApplyDebitNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<DebitNote>>(`/ap/debit-notes/${id}/apply`),
+    onSuccess: (_res, id) => {
+      qc.invalidateQueries({ queryKey: DN_KEYS.all });
+      qc.invalidateQueries({ queryKey: DN_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+    },
+  });
+}
+
 export function useDeleteDebitNote() {
   const qc = useQueryClient();
   return useMutation({

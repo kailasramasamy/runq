@@ -135,6 +135,50 @@ export class DebitNoteService {
     return this.toDebitNote(row);
   }
 
+  async apply(id: string): Promise<DebitNote & { vendorName: string }> {
+    const existing = await this.findRaw(id);
+    if (existing.status !== 'issued') {
+      throw new ConflictError('Only issued debit notes can be applied');
+    }
+    if (!existing.invoiceId) {
+      throw new ConflictError('Debit note has no linked invoice to apply against');
+    }
+
+    const [invoice] = await this.db
+      .select()
+      .from(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.id, existing.invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!invoice) throw new NotFoundError('Linked invoice');
+
+    const debitAmount = parseFloat(existing.amount);
+    const currentBalance = parseFloat(invoice.balanceDue);
+    const adjustment = Math.min(debitAmount, currentBalance);
+    const newBalance = currentBalance - adjustment;
+    const newAmountPaid = parseFloat(invoice.amountPaid) + adjustment;
+    const newStatus = newBalance <= 0 ? 'paid' : invoice.status;
+
+    await this.db
+      .update(purchaseInvoices)
+      .set({
+        balanceDue: newBalance.toString(),
+        amountPaid: newAmountPaid.toString(),
+        status: newStatus,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(purchaseInvoices.id, existing.invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
+
+    const [row] = await this.db
+      .update(debitNotes)
+      .set({ status: 'adjusted', updatedAt: new Date() })
+      .where(and(eq(debitNotes.id, id), eq(debitNotes.tenantId, this.tenantId)))
+      .returning();
+
+    if (!row) throw new NotFoundError('Debit note');
+    return this.getById(id);
+  }
+
   async cancel(id: string): Promise<void> {
     const existing = await this.findRaw(id);
     if (existing.status !== 'draft') {

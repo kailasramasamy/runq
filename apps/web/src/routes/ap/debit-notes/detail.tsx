@@ -1,5 +1,5 @@
 import { Send } from 'lucide-react';
-import { useDebitNote, useIssueDebitNote } from '../../../hooks/queries/use-debit-notes';
+import { useDebitNote, useIssueDebitNote, useApplyDebitNote } from '../../../hooks/queries/use-debit-notes';
 import { useVendor } from '../../../hooks/queries/use-vendors';
 import type { DebitNote, DebitNoteStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardContent,
   Skeleton,
+  useToast,
 } from '@/components/ui';
 
 const STATUS_VARIANT: Record<DebitNoteStatus, 'default' | 'info' | 'success' | 'outline'> = {
@@ -34,23 +35,31 @@ function VendorName({ vendorId }: { vendorId: string }) {
   return <>{data?.data?.name ?? vendorId}</>;
 }
 
-function DebitNoteActions({ dn }: { dn: DebitNote }) {
-  const issueMutation = useIssueDebitNote();
-
-  if (dn.status !== 'draft') return null;
-
+function DebitNoteActions({ dn, onIssue, onApply, issuing, applying }: {
+  dn: DebitNote;
+  onIssue: () => void;
+  onApply: () => void;
+  issuing: boolean;
+  applying: boolean;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" disabled title="Edit coming soon">
-        Edit
-      </Button>
-      <Button
-        onClick={() => issueMutation.mutate(dn.id)}
-        loading={issueMutation.isPending}
-      >
-        <Send size={14} />
-        Issue
-      </Button>
+      {dn.status === 'draft' && (
+        <>
+          <Button variant="outline" disabled title="Edit coming soon">
+            Edit
+          </Button>
+          <Button onClick={onIssue} loading={issuing}>
+            <Send size={14} />
+            Issue
+          </Button>
+        </>
+      )}
+      {dn.status === 'issued' && dn.invoiceId && (
+        <Button onClick={onApply} loading={applying}>
+          Apply to Invoice
+        </Button>
+      )}
     </div>
   );
 }
@@ -59,7 +68,24 @@ interface Props { debitNoteId: string }
 
 export function DebitNoteDetailPage({ debitNoteId }: Props) {
   const { data, isLoading, isError } = useDebitNote(debitNoteId);
+  const issueMutation = useIssueDebitNote();
+  const applyMutation = useApplyDebitNote();
+  const { toast } = useToast();
   const dn = data?.data;
+
+  function handleIssue() {
+    issueMutation.mutate(debitNoteId, {
+      onSuccess: () => toast('Debit note issued successfully.', 'success'),
+      onError: () => toast('Failed to issue debit note.', 'error'),
+    });
+  }
+
+  function handleApply() {
+    applyMutation.mutate(debitNoteId, {
+      onSuccess: () => toast('Debit note applied to invoice. Balance updated.', 'success'),
+      onError: () => toast('Failed to apply debit note.', 'error'),
+    });
+  }
 
   if (isLoading) {
     return (
@@ -85,7 +111,7 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
           { label: 'Debit Notes', href: '/ap/debit-notes' },
           { label: dn.debitNoteNumber },
         ]}
-        actions={<DebitNoteActions dn={dn} />}
+        actions={<DebitNoteActions dn={dn} onIssue={handleIssue} onApply={handleApply} issuing={issueMutation.isPending} applying={applyMutation.isPending} />}
       />
 
       {/* Hero amount row */}

@@ -267,3 +267,5 @@
 - 🚧 Multi-company per tenant
 - 🚧 Recurring payment scheduler
 - 🚧 Tally export format
+- 🚧 Notifications module (email/SMS/WhatsApp on payment.completed, invoice.sent, batch.executed)
+- 🚧 Outbound webhooks (runQ → external systems for payment/invoice status updates)

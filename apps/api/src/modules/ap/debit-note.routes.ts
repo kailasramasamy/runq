@@ -71,6 +71,17 @@ export const debitNoteRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.post(
+    '/:id/apply',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new DebitNoteService(request.server.db, request.tenantId);
+      const debitNote = await service.apply(id);
+      return { data: debitNote };
+    },
+  );
+
   app.delete(
     '/:id',
     { preHandler: [rbacHook([...OWNER_ROLES])] },
