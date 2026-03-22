@@ -1,4 +1,4 @@
-import { eq, and, sql, lte, sum } from 'drizzle-orm';
+import { eq, and, sql, lte, sum, inArray } from 'drizzle-orm';
 import { accounts, journalEntries, journalLines, journalSequences } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Account, JournalEntry, JournalEntryWithLines, TrialBalanceRow } from '@runq/types';
@@ -260,7 +260,7 @@ export class GLService {
     const rows = await tx
       .select({ id: accounts.id, code: accounts.code })
       .from(accounts)
-      .where(and(eq(accounts.tenantId, this.tenantId), sql`${accounts.code} = ANY(${unique})`));
+      .where(and(eq(accounts.tenantId, this.tenantId), inArray(accounts.code, unique)));
 
     const missing = unique.filter((c) => !rows.find((r: { code: string }) => r.code === c));
     if (missing.length > 0) throw new ConflictError(`Account codes not found: ${missing.join(', ')}`);
