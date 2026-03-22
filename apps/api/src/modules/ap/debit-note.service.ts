@@ -146,42 +146,55 @@ export class DebitNoteService {
     if (existing.status !== 'issued') {
       throw new ConflictError('Only issued debit notes can be applied');
     }
-    if (!existing.invoiceId) {
-      throw new ConflictError('Debit note has no linked invoice to apply against');
+
+    if (existing.invoiceId) {
+      await this.applyToInvoiceId(id, existing.invoiceId);
+    } else {
+      await this.db
+        .update(debitNotes)
+        .set({ status: 'adjusted', updatedAt: new Date() })
+        .where(and(eq(debitNotes.id, id), eq(debitNotes.tenantId, this.tenantId)));
     }
 
+    await this.audit().log({ action: 'applied', entityType: 'debit_note', entityId: id });
+    return this.getById(id);
+  }
+
+  async applyToInvoice(id: string, invoiceId: string): Promise<DebitNote & { vendorName: string }> {
+    const existing = await this.findRaw(id);
+    if (existing.status !== 'issued') {
+      throw new ConflictError('Only issued debit notes can be applied');
+    }
+
+    await this.applyToInvoiceId(id, invoiceId);
+    await this.audit().log({ action: 'applied', entityType: 'debit_note', entityId: id });
+    return this.getById(id);
+  }
+
+  private async applyToInvoiceId(id: string, invoiceId: string): Promise<void> {
     const [invoice] = await this.db
       .select()
       .from(purchaseInvoices)
-      .where(and(eq(purchaseInvoices.id, existing.invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)))
+      .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!invoice) throw new NotFoundError('Linked invoice');
+    if (!invoice) throw new NotFoundError('Purchase invoice');
 
-    const adjustment = decimalMin(existing.amount, invoice.balanceDue);
+    const debitNote = await this.findRaw(id);
+    const adjustment = decimalMin(debitNote.amount, invoice.balanceDue);
     const newBalance = decimalSubtract(invoice.balanceDue, adjustment);
     const newAmountPaid = decimalAdd(invoice.amountPaid, adjustment);
     const newStatus = decimalLte(newBalance, '0') ? 'paid' : invoice.status;
 
     await this.db
       .update(purchaseInvoices)
-      .set({
-        balanceDue: newBalance,
-        amountPaid: newAmountPaid,
-        status: newStatus,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(purchaseInvoices.id, existing.invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
+      .set({ balanceDue: newBalance, amountPaid: newAmountPaid, status: newStatus, updatedAt: new Date() })
+      .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
 
-    const [row] = await this.db
+    await this.db
       .update(debitNotes)
-      .set({ status: 'adjusted', updatedAt: new Date() })
-      .where(and(eq(debitNotes.id, id), eq(debitNotes.tenantId, this.tenantId)))
-      .returning();
-
-    if (!row) throw new NotFoundError('Debit note');
-    await this.audit().log({ action: 'applied', entityType: 'debit_note', entityId: id });
-    return this.getById(id);
+      .set({ status: 'adjusted', invoiceId, updatedAt: new Date() })
+      .where(and(eq(debitNotes.id, id), eq(debitNotes.tenantId, this.tenantId)));
   }
 
   async cancel(id: string): Promise<void> {

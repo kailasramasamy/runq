@@ -1,14 +1,15 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, text, timestamp, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from './customers';
 import { salesInvoices } from './invoices';
 import { paymentMethodEnum } from '../ap/payments';
+import { bankAccounts } from '../banking/bank-accounts';
 
 export const paymentReceipts = pgTable('payment_receipts', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
-  bankAccountId: uuid('bank_account_id'),
+  bankAccountId: uuid('bank_account_id').references(() => bankAccounts.id),
   receiptDate: date('receipt_date').notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   paymentMethod: paymentMethodEnum('payment_method').notNull(),
@@ -16,7 +17,10 @@ export const paymentReceipts = pgTable('payment_receipts', {
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_pr_tenant_customer').on(t.tenantId, t.customerId),
+  index('idx_pr_tenant_receipt_date').on(t.tenantId, t.receiptDate),
+]);
 
 export const receiptAllocations = pgTable('receipt_allocations', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -3,12 +3,13 @@ import {
   bankTransactions,
   bankAccounts,
   reconciliationMatches,
+  bankReconciliations,
   payments,
   paymentReceipts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { AutoReconciliationResult, ReconciliationMatch } from '@runq/types';
-import type { AutoReconcileInput, ManualMatchInput } from '@runq/validators';
+import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch } from '@runq/types';
+import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
@@ -77,6 +78,9 @@ export class ReconciliationService {
 
   async autoReconcile(bankAccountId: string, input: AutoReconcileInput): Promise<AutoReconciliationResult> {
     const txns = await this.fetchUnreconciledTxns(bankAccountId, input.dateFrom, input.dateTo);
+    for (const txn of txns) {
+      await this.validateNotInClosedPeriod(txn.transactionDate, bankAccountId);
+    }
     const [allPayments, allReceipts] = await this.fetchBookItems(bankAccountId);
 
     const matched: AutoReconciliationResult['matched'] = [];
@@ -134,6 +138,8 @@ export class ReconciliationService {
 
     if (!txn) throw new NotFoundError('Bank transaction');
     if (txn.reconStatus !== 'unreconciled') throw new ConflictError('Transaction is already reconciled');
+
+    await this.validateNotInClosedPeriod(txn.transactionDate, txn.bankAccountId);
 
     const { paymentId, receiptId, matchAmount } = await this.resolveMatchTarget(input);
 
@@ -311,6 +317,92 @@ export class ReconciliationService {
         .set({ reconStatus: matchType === 'manual' ? 'manually_matched' : 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
     });
+  }
+
+  async closePeriod(input: ClosePeriodInput, completedBy: string): Promise<BankReconciliation> {
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, input.bankAccountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!account) throw new NotFoundError('Bank account');
+
+    const bookBalance = toNumber(account.currentBalance);
+    const difference = input.bankClosingBalance - bookBalance;
+
+    const [row] = await this.db
+      .insert(bankReconciliations)
+      .values({
+        tenantId: this.tenantId,
+        bankAccountId: input.bankAccountId,
+        periodStart: account.createdAt.toISOString().split('T')[0]!,
+        periodEnd: input.periodEnd,
+        bankClosingBalance: String(input.bankClosingBalance),
+        bookClosingBalance: String(bookBalance),
+        difference: String(difference),
+        isCompleted: true,
+        completedAt: new Date(),
+        completedBy,
+      })
+      .returning();
+
+    return this.toReconciliation(row!);
+  }
+
+  async getClosedPeriods(bankAccountId: string): Promise<BankReconciliation[]> {
+    const rows = await this.db
+      .select()
+      .from(bankReconciliations)
+      .where(
+        and(
+          eq(bankReconciliations.tenantId, this.tenantId),
+          eq(bankReconciliations.bankAccountId, bankAccountId),
+          eq(bankReconciliations.isCompleted, true),
+        ),
+      );
+
+    return rows.map((r) => this.toReconciliation(r));
+  }
+
+  private async validateNotInClosedPeriod(transactionDate: string, bankAccountId: string): Promise<void> {
+    const [closed] = await this.db
+      .select()
+      .from(bankReconciliations)
+      .where(
+        and(
+          eq(bankReconciliations.tenantId, this.tenantId),
+          eq(bankReconciliations.bankAccountId, bankAccountId),
+          eq(bankReconciliations.isCompleted, true),
+          lte(bankReconciliations.periodStart, transactionDate),
+          gte(bankReconciliations.periodEnd, transactionDate),
+        ),
+      )
+      .limit(1);
+
+    if (closed) {
+      throw new ConflictError(
+        `Transaction date falls within closed reconciliation period (${closed.periodStart} to ${closed.periodEnd})`,
+      );
+    }
+  }
+
+  private toReconciliation(row: typeof bankReconciliations.$inferSelect): BankReconciliation {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      bankAccountId: row.bankAccountId,
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      bankClosingBalance: toNumber(row.bankClosingBalance),
+      bookClosingBalance: toNumber(row.bookClosingBalance),
+      difference: toNumber(row.difference),
+      isCompleted: row.isCompleted,
+      completedAt: row.completedAt?.toISOString() ?? null,
+      completedBy: row.completedBy ?? null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   private async resolveMatchTarget(input: ManualMatchInput) {

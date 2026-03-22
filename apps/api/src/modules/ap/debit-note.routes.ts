@@ -4,6 +4,7 @@ import {
   createDebitNoteSchema,
   updateDebitNoteSchema,
   debitNoteFilterSchema,
+  applyDebitNoteToInvoiceSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -78,6 +79,18 @@ export const debitNoteRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new DebitNoteService(request.server.db, request.tenantId);
       const debitNote = await service.apply(id);
+      return { data: debitNote };
+    },
+  );
+
+  app.post(
+    '/:id/apply-to-invoice',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { invoiceId } = applyDebitNoteToInvoiceSchema.parse(request.body);
+      const service = new DebitNoteService(request.server.db, request.tenantId);
+      const debitNote = await service.applyToInvoice(id, invoiceId);
       return { data: debitNote };
     },
   );

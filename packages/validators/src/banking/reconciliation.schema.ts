@@ -15,6 +15,13 @@ export const unmatchSchema = z.object({
   bankTransactionId: z.string().uuid(),
 });
 
+export const closePeriodSchema = z.object({
+  bankAccountId: z.string().uuid(),
+  periodEnd: z.string().date(),
+  bankClosingBalance: z.number(),
+});
+
 export type AutoReconcileInput = z.infer<typeof autoReconcileSchema>;
 export type ManualMatchInput = z.infer<typeof manualMatchSchema>;
 export type UnmatchInput = z.infer<typeof unmatchSchema>;
+export type ClosePeriodInput = z.infer<typeof closePeriodSchema>;

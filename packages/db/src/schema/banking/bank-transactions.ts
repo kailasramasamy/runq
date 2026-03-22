@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { bankAccounts } from './bank-accounts';
 
@@ -20,4 +20,7 @@ export const bankTransactions = pgTable('bank_transactions', {
   importBatchId: uuid('import_batch_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_bt_tenant_account_date').on(t.tenantId, t.bankAccountId, t.transactionDate),
+  index('idx_bt_tenant_recon_status').on(t.tenantId, t.reconStatus),
+]);

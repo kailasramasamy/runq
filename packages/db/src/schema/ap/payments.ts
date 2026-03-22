@@ -1,8 +1,9 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
 import { vendors } from './vendors';
 import { purchaseInvoices } from './purchase-invoices';
+import { bankAccounts } from '../banking/bank-accounts';
 
 export const paymentMethodEnum = pgEnum('payment_method', ['bank_transfer']);
 export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'completed', 'failed', 'reversed']);
@@ -11,7 +12,7 @@ export const payments = pgTable('payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
-  bankAccountId: uuid('bank_account_id'),
+  bankAccountId: uuid('bank_account_id').references(() => bankAccounts.id),
   paymentDate: date('payment_date').notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   paymentMethod: paymentMethodEnum('payment_method').notNull().default('bank_transfer'),
@@ -22,7 +23,11 @@ export const payments = pgTable('payments', {
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_payments_tenant_status').on(t.tenantId, t.status),
+  index('idx_payments_tenant_vendor').on(t.tenantId, t.vendorId),
+  index('idx_payments_tenant_payment_date').on(t.tenantId, t.paymentDate),
+]);
 
 export const paymentAllocations = pgTable('payment_allocations', {
   id: uuid('id').primaryKey().defaultRandom(),

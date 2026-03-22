@@ -17,6 +17,11 @@ export const creditNoteFilterSchema = z.object({
   status: z.enum(['draft', 'issued', 'adjusted', 'cancelled']).optional(),
 });
 
+export const applyCreditNoteToInvoiceSchema = z.object({
+  invoiceId: z.string().uuid(),
+});
+
 export type CreateCreditNoteInput = z.infer<typeof createCreditNoteSchema>;
 export type UpdateCreditNoteInput = z.infer<typeof updateCreditNoteSchema>;
 export type CreditNoteFilter = z.infer<typeof creditNoteFilterSchema>;
+export type ApplyCreditNoteToInvoiceInput = z.infer<typeof applyCreditNoteToInvoiceSchema>;

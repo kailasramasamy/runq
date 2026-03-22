@@ -1,4 +1,4 @@
-import { eq, and, ilike, isNull, sql } from 'drizzle-orm';
+import { eq, and, ilike, isNull, sql, notInArray } from 'drizzle-orm';
 import { customers, salesInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Customer, CustomerWithOutstanding, PaginationMeta } from '@runq/types';
@@ -268,6 +268,7 @@ export class CustomerService {
         and(
           eq(salesInvoices.tenantId, this.tenantId),
           sql`${salesInvoices.customerId} = ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)}])`,
+          notInArray(salesInvoices.status, ['paid', 'cancelled', 'draft']),
           sql`${salesInvoices.balanceDue} > 0`,
         ),
       )

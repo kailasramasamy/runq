@@ -3,6 +3,7 @@ import {
   createCreditNoteSchema,
   updateCreditNoteSchema,
   creditNoteFilterSchema,
+  applyCreditNoteToInvoiceSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -77,6 +78,18 @@ export const creditNoteRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new CreditNoteService(request.server.db, request.tenantId);
       const creditNote = await service.apply(id);
+      return { data: creditNote };
+    },
+  );
+
+  app.post(
+    '/:id/apply-to-invoice',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { invoiceId } = applyCreditNoteToInvoiceSchema.parse(request.body);
+      const service = new CreditNoteService(request.server.db, request.tenantId);
+      const creditNote = await service.applyToInvoice(id, invoiceId);
       return { data: creditNote };
     },
   );

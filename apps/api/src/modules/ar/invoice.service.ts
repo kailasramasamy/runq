@@ -3,7 +3,7 @@ import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants,
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
-import type { SalesInvoice, SalesInvoiceItem, SalesInvoiceWithDetails, PaginationMeta } from '@runq/types';
+import type { SalesInvoice, SalesInvoiceItem, SalesInvoiceStatus, SalesInvoiceWithDetails, PaginationMeta } from '@runq/types';
 import type { CreateSalesInvoiceInput, UpdateSalesInvoiceInput, SalesInvoiceFilter, SendInvoiceInput, MarkPaidInput } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -356,6 +356,14 @@ export class InvoiceService {
     );
   }
 
+  private computeEffectiveStatus(invoice: { status: SalesInvoiceStatus; dueDate: string }): SalesInvoiceStatus {
+    if (invoice.status === 'sent' || invoice.status === 'partially_paid') {
+      const today = new Date().toISOString().split('T')[0]!;
+      if (invoice.dueDate < today) return 'overdue';
+    }
+    return invoice.status;
+  }
+
   private toInvoice(row: typeof salesInvoices.$inferSelect): SalesInvoice {
     return {
       id: row.id,
@@ -369,7 +377,7 @@ export class InvoiceService {
       totalAmount: Number(row.totalAmount),
       amountReceived: Number(row.amountReceived),
       balanceDue: Number(row.balanceDue),
-      status: row.status,
+      status: this.computeEffectiveStatus({ status: row.status, dueDate: row.dueDate }),
       notes: row.notes ?? null,
       fileUrl: row.fileUrl ?? null,
       createdAt: row.createdAt.toISOString(),

@@ -141,43 +141,55 @@ export class CreditNoteService {
     if (existing.status !== 'issued') {
       throw new ConflictError('Only issued credit notes can be applied');
     }
-    if (!existing.invoiceId) {
-      throw new ConflictError('Credit note has no linked invoice to apply against');
+
+    if (existing.invoiceId) {
+      await this.applyToInvoiceId(id, existing.invoiceId);
+    } else {
+      await this.db
+        .update(creditNotes)
+        .set({ status: 'adjusted', updatedAt: new Date() })
+        .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)));
     }
 
+    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
+    return this.getById(id);
+  }
+
+  async applyToInvoice(id: string, invoiceId: string): Promise<CreditNote> {
+    const existing = await this.findRaw(id);
+    if (existing.status !== 'issued') {
+      throw new ConflictError('Only issued credit notes can be applied');
+    }
+
+    await this.applyToInvoiceId(id, invoiceId);
+    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
+    return this.getById(id);
+  }
+
+  private async applyToInvoiceId(id: string, invoiceId: string): Promise<void> {
     const [invoice] = await this.db
       .select()
       .from(salesInvoices)
-      .where(and(eq(salesInvoices.id, existing.invoiceId), eq(salesInvoices.tenantId, this.tenantId)))
+      .where(and(eq(salesInvoices.id, invoiceId), eq(salesInvoices.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!invoice) throw new NotFoundError('Linked invoice');
+    if (!invoice) throw new NotFoundError('Sales invoice');
 
-    const adjustment = decimalMin(existing.amount, invoice.balanceDue);
+    const creditNote = await this.findRaw(id);
+    const adjustment = decimalMin(creditNote.amount, invoice.balanceDue);
     const newBalance = decimalSubtract(invoice.balanceDue, adjustment);
     const newReceived = decimalAdd(invoice.amountReceived, adjustment);
     const newStatus = decimalLte(newBalance, '0') ? 'paid' : invoice.status;
 
-    // Update invoice and credit note in sequence
     await this.db
       .update(salesInvoices)
-      .set({
-        balanceDue: newBalance,
-        amountReceived: newReceived,
-        status: newStatus,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(salesInvoices.id, existing.invoiceId), eq(salesInvoices.tenantId, this.tenantId)));
+      .set({ balanceDue: newBalance, amountReceived: newReceived, status: newStatus, updatedAt: new Date() })
+      .where(and(eq(salesInvoices.id, invoiceId), eq(salesInvoices.tenantId, this.tenantId)));
 
-    const [row] = await this.db
+    await this.db
       .update(creditNotes)
-      .set({ status: 'adjusted', updatedAt: new Date() })
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
-      .returning();
-
-    if (!row) throw new NotFoundError('Credit note');
-    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
-    return this.toCreditNote(row);
+      .set({ status: 'adjusted', invoiceId, updatedAt: new Date() })
+      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)));
   }
 
   async cancel(id: string): Promise<void> {

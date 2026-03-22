@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from './vendors';
 import { purchaseOrders, purchaseOrderItems } from './purchase-orders';
@@ -30,7 +30,11 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   wmsInvoiceId: varchar('wms_invoice_id', { length: 100 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_pi_tenant_status').on(t.tenantId, t.status),
+  index('idx_pi_tenant_vendor').on(t.tenantId, t.vendorId),
+  index('idx_pi_tenant_due_date').on(t.tenantId, t.dueDate),
+]);
 
 export const purchaseInvoiceItems = pgTable('purchase_invoice_items', {
   id: uuid('id').primaryKey().defaultRandom(),

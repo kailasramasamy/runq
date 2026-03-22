@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, date, decimal, text, timestamp, pgEnum, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, date, decimal, text, timestamp, pgEnum, unique, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from './customers';
 
@@ -32,7 +32,11 @@ export const salesInvoices = pgTable('sales_invoices', {
   fileUrl: varchar('file_url', { length: 500 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_si_tenant_status').on(t.tenantId, t.status),
+  index('idx_si_tenant_customer').on(t.tenantId, t.customerId),
+  index('idx_si_tenant_due_date').on(t.tenantId, t.dueDate),
+]);
 
 export const salesInvoiceItems = pgTable('sales_invoice_items', {
   id: uuid('id').primaryKey().defaultRandom(),

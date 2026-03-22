@@ -1,5 +1,21 @@
 export type ReconMatchType = 'auto_utr' | 'auto_amount_date' | 'manual';
 
+export interface BankReconciliation {
+  id: string;
+  tenantId: string;
+  bankAccountId: string;
+  periodStart: string;
+  periodEnd: string;
+  bankClosingBalance: number;
+  bookClosingBalance: number;
+  difference: number;
+  isCompleted: boolean;
+  completedAt: string | null;
+  completedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReconciliationMatch {
   id: string;
   tenantId: string;

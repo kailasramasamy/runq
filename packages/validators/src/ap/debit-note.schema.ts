@@ -17,6 +17,11 @@ export const debitNoteFilterSchema = z.object({
   status: z.enum(['draft', 'issued', 'adjusted', 'cancelled']).optional(),
 });
 
+export const applyDebitNoteToInvoiceSchema = z.object({
+  invoiceId: z.string().uuid(),
+});
+
 export type CreateDebitNoteInput = z.infer<typeof createDebitNoteSchema>;
 export type UpdateDebitNoteInput = z.infer<typeof updateDebitNoteSchema>;
 export type DebitNoteFilter = z.infer<typeof debitNoteFilterSchema>;
+export type ApplyDebitNoteToInvoiceInput = z.infer<typeof applyDebitNoteToInvoiceSchema>;
