@@ -15,6 +15,14 @@ const SETTINGS_KEYS = {
 
 interface CompanySettings extends CompanySettingsInput {
   name: string;
+  gstin?: string | null;
+  legalName?: string | null;
+  state?: string | null;
+  stateCode?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  pincode?: string | null;
 }
 
 export function useCompanySettings() {

@@ -12,6 +12,7 @@ import {
   CardFooter,
   Input,
   DateInput,
+  Select,
   Textarea,
   Table,
   TableHeader,
@@ -20,6 +21,7 @@ import {
   TableCell,
   Th,
   Combobox,
+  HsnSacCombobox,
 } from '@/components/ui';
 
 interface Props {
@@ -31,9 +33,27 @@ interface LineItem {
   description: string;
   quantity: string;
   unitPrice: string;
+  hsnSacCode: string;
+  taxRate: string;
+  taxCategory: string;
 }
 
-const EMPTY_LINE: LineItem = { description: '', quantity: '', unitPrice: '' };
+const EMPTY_LINE: LineItem = { description: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
+
+const TAX_RATE_OPTIONS = [
+  { value: '0', label: '0%' },
+  { value: '5', label: '5%' },
+  { value: '12', label: '12%' },
+  { value: '18', label: '18%' },
+  { value: '28', label: '28%' },
+];
+
+const TAX_CATEGORY_OPTIONS = [
+  { value: 'taxable', label: 'Taxable' },
+  { value: 'exempt', label: 'Exempt' },
+  { value: 'nil_rated', label: 'Nil Rated' },
+  { value: 'zero_rated', label: 'Zero Rated' },
+];
 
 function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
@@ -46,14 +66,17 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
   const [customerId, setCustomerId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [taxAmount, setTaxAmount] = useState('0');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
-  const tax = parseFloat(taxAmount) || 0;
-  const total = subtotal + tax;
+  const tax = lines.reduce((sum, l) => {
+    const cat = l.taxCategory;
+    if (cat === 'exempt' || cat === 'nil_rated' || cat === 'zero_rated') return sum;
+    return sum + lineAmount(l) * (parseFloat(l.taxRate) || 0) / 100;
+  }, 0);
+  const total = Math.round((subtotal + tax) * 100) / 100;
 
   const customerOptions = [
     { value: '', label: 'Select customer…' },
@@ -87,6 +110,9 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
         quantity: parseFloat(l.quantity) || 0,
         unitPrice: parseFloat(l.unitPrice) || 0,
         amount: lineAmount(l),
+        hsnSacCode: l.hsnSacCode || null,
+        taxRate: parseFloat(l.taxRate) || 0,
+        taxCategory: l.taxCategory || 'taxable',
       })),
     };
     const parsed = createSalesInvoiceSchema.safeParse(payload);
@@ -155,9 +181,12 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
             <TableHeader>
               <tr>
                 <Th>Description</Th>
+                <Th>HSN/SAC</Th>
                 <Th align="right">Qty</Th>
                 <Th align="right">Unit Price</Th>
                 <Th align="right">Amount</Th>
+                <Th>Tax Category</Th>
+                <Th>GST Rate</Th>
                 <Th />
               </tr>
             </TableHeader>
@@ -168,7 +197,16 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
                     <Input
                       value={line.description}
                       onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      placeholder="Description of service or product"
+                      placeholder="Description"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <HsnSacCombobox
+                      value={line.hsnSacCode}
+                      onChange={(code, gstRate) => {
+                        setLines((prev) => prev.map((l, i) => i === idx ? { ...l, hsnSacCode: code, taxRate: gstRate != null ? String(gstRate) : l.taxRate } : l));
+                      }}
+                      placeholder="Code…"
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -194,6 +232,21 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
                   </TableCell>
                   <TableCell align="right" numeric>
                     {formatINR(lineAmount(line))}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={line.taxCategory}
+                      onChange={(e) => updateLine(idx, 'taxCategory', e.target.value)}
+                      options={TAX_CATEGORY_OPTIONS}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={line.taxRate}
+                      onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
+                      options={TAX_RATE_OPTIONS}
+                      disabled={line.taxCategory !== 'taxable'}
+                    />
                   </TableCell>
                   <TableCell align="right">
                     {lines.length > 1 && (
@@ -224,32 +277,20 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
       <Card>
         <CardHeader title="Summary" />
         <CardContent>
-          <div className="flex items-start justify-between gap-8">
-            <div className="w-40">
-              <Input
-                label="Tax Amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
-              />
+          <div className="flex flex-col items-end gap-2 text-sm">
+            <div className="flex w-56 justify-between gap-4">
+              <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
+              <span className="font-mono tabular-nums">{formatINR(subtotal)}</span>
             </div>
-            <div className="flex flex-col items-end gap-2 text-sm">
-              <div className="flex w-56 justify-between gap-4">
-                <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
-                <span className="font-mono tabular-nums">{formatINR(subtotal)}</span>
-              </div>
-              <div className="flex w-56 justify-between gap-4">
-                <span className="text-zinc-500 dark:text-zinc-400">Tax</span>
-                <span className="font-mono tabular-nums">{formatINR(tax)}</span>
-              </div>
-              <div className="flex w-56 justify-between gap-4 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
-                <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {formatINR(total)}
-                </span>
-              </div>
+            <div className="flex w-56 justify-between gap-4">
+              <span className="text-zinc-500 dark:text-zinc-400">GST (auto-calculated)</span>
+              <span className="font-mono tabular-nums">{formatINR(Math.round(tax * 100) / 100)}</span>
+            </div>
+            <div className="flex w-56 justify-between gap-4 border-t border-zinc-200 pt-2 dark:border-zinc-700">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
+              <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {formatINR(total)}
+              </span>
             </div>
           </div>
         </CardContent>

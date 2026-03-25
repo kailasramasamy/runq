@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { dbPlugin } from './plugins/db';
 import { redisPlugin } from './plugins/redis';
 import { authPlugin } from './plugins/auth';
@@ -16,6 +17,8 @@ import { settingsRoutes } from './modules/settings/routes';
 import { webhookRoutes } from './modules/webhook/routes';
 import { glRoutes } from './modules/gl/routes';
 import { tallyRoutes } from './modules/tally/routes';
+import { mastersRoutes } from './modules/masters/routes';
+import { attachmentRoutes } from './modules/common/attachment.routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -25,6 +28,7 @@ export async function buildApp() {
 
   // Infrastructure plugins
   await app.register(errorHandlerPlugin);
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
   await app.register(dbPlugin);
   await app.register(redisPlugin);
   await app.register(authPlugin);
@@ -47,6 +51,8 @@ export async function buildApp() {
     await scope.register(settingsRoutes, { prefix: '/api/v1/settings' });
     await scope.register(glRoutes, { prefix: '/api/v1/gl' });
     await scope.register(tallyRoutes, { prefix: '/api/v1/tally' });
+    await scope.register(mastersRoutes, { prefix: '/api/v1/masters' });
+    await scope.register(attachmentRoutes, { prefix: '/api/v1/common' });
   });
 
   // Health check

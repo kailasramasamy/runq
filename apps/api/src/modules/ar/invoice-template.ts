@@ -1,4 +1,9 @@
 import type { SalesInvoice, SalesInvoiceItem } from '@runq/types';
+import {
+  fmtINR, fmtDate, numToWords, hasGstData, hasHsnCodes,
+  lineTaxAmount, formatTaxBreakdownRows, renderHsnSummaryTable,
+  renderIrnSection, supplyTypeLabel, placeOfSupplyDisplay,
+} from './invoice-template-helpers';
 
 interface CustomerInfo {
   name: string;
@@ -15,44 +20,19 @@ interface TenantInfo {
   settings: Record<string, unknown>;
 }
 
-function fmtINR(n: number): string {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
-
-function fmtDate(d: string): string {
-  const [y, m, day] = d.split('-');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${day}-${months[Number(m) - 1]}-${y}`;
-}
-
-const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-  'Seventeen', 'Eighteen', 'Nineteen'];
-const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-
-function twoDigits(n: number): string {
-  if (n < 20) return ones[n] ?? '';
-  return (tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '')).trim();
-}
-
-function numToWords(n: number): string {
-  const whole = Math.floor(n);
-  if (whole === 0) return 'Zero Rupees Only';
-  const parts: string[] = [];
-  const cr = Math.floor(whole / 10000000);
-  const lakh = Math.floor((whole % 10000000) / 100000);
-  const thou = Math.floor((whole % 100000) / 1000);
-  const rem = whole % 1000;
-  if (cr) parts.push(twoDigits(cr) + ' Crore');
-  if (lakh) parts.push(twoDigits(lakh) + ' Lakh');
-  if (thou) parts.push(twoDigits(thou) + ' Thousand');
-  if (rem >= 100) {
-    parts.push(ones[Math.floor(rem / 100)] + ' Hundred');
-    if (rem % 100) parts.push(twoDigits(rem % 100));
-  } else if (rem) {
-    parts.push(twoDigits(rem));
-  }
-  return parts.join(' ') + ' Rupees Only';
+interface TenantSettings {
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  gstin?: string;
+  legalName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  pincode?: string;
+  paymentTermsDays?: number;
 }
 
 function buildAddress(c: CustomerInfo): string {
@@ -60,7 +40,12 @@ function buildAddress(c: CustomerInfo): string {
     .filter(Boolean).join(', ');
 }
 
-function buildItemRows(items: SalesInvoiceItem[]): string {
+function buildTenantAddress(s: TenantSettings): string {
+  return [s.addressLine1, s.addressLine2, s.city, s.state, s.pincode]
+    .filter(Boolean).join(', ');
+}
+
+function buildItemRowsSimple(items: SalesInvoiceItem[]): string {
   return items.map((item, i) => `
     <tr>
       <td class="cell center">${i + 1}</td>
@@ -71,23 +56,104 @@ function buildItemRows(items: SalesInvoiceItem[]): string {
     </tr>`).join('');
 }
 
+function buildItemRowsGst(items: SalesInvoiceItem[]): string {
+  const showHsn = hasHsnCodes(items);
+  return items.map((item, i) => {
+    const hsnCell = showHsn
+      ? `<td class="cell">${item.hsnSacCode ?? ''}</td>`
+      : '';
+    const taxRate = item.taxRate != null ? `${item.taxRate}%` : '';
+    return `
+    <tr>
+      <td class="cell center">${i + 1}</td>
+      <td class="cell">${item.description}</td>
+      ${hsnCell}
+      <td class="cell right">${fmtINR(item.quantity)}</td>
+      <td class="cell right">${fmtINR(item.unitPrice)}</td>
+      <td class="cell right">${fmtINR(item.amount)}</td>
+      <td class="cell center">${taxRate}</td>
+      <td class="cell right">${fmtINR(lineTaxAmount(item))}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildSimpleTotals(invoice: SalesInvoice): string {
+  return `
+      <tr class="totals-row">
+        <td colspan="3" class="totals-label">Subtotal</td>
+        <td colspan="2" class="right">${fmtINR(invoice.subtotal)}</td>
+      </tr>
+      <tr class="totals-row">
+        <td colspan="3" class="totals-label">Tax</td>
+        <td colspan="2" class="right">${fmtINR(invoice.taxAmount)}</td>
+      </tr>
+      <tr class="totals-row grand-total">
+        <td colspan="3" class="totals-label">TOTAL</td>
+        <td colspan="2" class="right">\u20B9 ${fmtINR(invoice.totalAmount)}</td>
+      </tr>`;
+}
+
+function buildGstTotals(invoice: SalesInvoice, colSpan: number): string {
+  const labelSpan = colSpan - 1;
+  const taxRows = formatTaxBreakdownRows(invoice);
+  const fallbackTax = !taxRows
+    ? `<tr class="totals-row">
+        <td colspan="${labelSpan}" class="totals-label">Tax</td>
+        <td colspan="1" class="right">${fmtINR(invoice.taxAmount)}</td>
+      </tr>`
+    : '';
+
+  return `
+      <tr class="totals-row">
+        <td colspan="${labelSpan}" class="totals-label">Subtotal</td>
+        <td colspan="1" class="right">${fmtINR(invoice.subtotal)}</td>
+      </tr>
+      ${taxRows}${fallbackTax}
+      <tr class="totals-row grand-total">
+        <td colspan="${labelSpan}" class="totals-label">TOTAL</td>
+        <td colspan="1" class="right">\u20B9 ${fmtINR(invoice.totalAmount)}</td>
+      </tr>`;
+}
+
+function buildGstHeaderFields(invoice: SalesInvoice): string {
+  const pos = placeOfSupplyDisplay(invoice);
+  const supply = supplyTypeLabel(invoice);
+  if (!pos && !supply) return '';
+
+  const rows: string[] = [];
+  if (pos) rows.push(`<div>Place of Supply: <strong>${pos}</strong></div>`);
+  if (supply) rows.push(`<div>Supply Type: <strong>${supply}</strong></div>`);
+  rows.push(`<div>Reverse Charge: <strong>${invoice.reverseCharge ? 'Yes' : 'No'}</strong></div>`);
+  return `<div style="font-size:11px;color:#444;margin-top:4px">${rows.join('')}</div>`;
+}
+
+function buildGstItemTableHeader(items: SalesInvoiceItem[]): string {
+  const showHsn = hasHsnCodes(items);
+  const hsnTh = showHsn ? '<th style="text-align:left;width:80px">HSN/SAC</th>' : '';
+  return `<tr>
+        <th style="width:32px">#</th>
+        <th style="text-align:left">Description</th>
+        ${hsnTh}
+        <th style="text-align:right;width:60px">Qty</th>
+        <th style="text-align:right;width:80px">Rate (\u20B9)</th>
+        <th style="text-align:right;width:80px">Amount (\u20B9)</th>
+        <th style="text-align:center;width:60px">Tax %</th>
+        <th style="text-align:right;width:80px">Tax (\u20B9)</th>
+      </tr>`;
+}
+
 export function renderInvoiceHTML(
   invoice: SalesInvoice,
   items: SalesInvoiceItem[],
   customer: CustomerInfo,
   tenant: TenantInfo,
 ): string {
-  const settings = tenant.settings as {
-    bankName?: string; bankAccount?: string; bankIfsc?: string;
-    gstin?: string; addressLine1?: string; city?: string;
-    paymentTermsDays?: number;
-  };
-
-  const tenantAddr = [settings.addressLine1, settings.city].filter(Boolean).join(', ');
+  const settings = tenant.settings as TenantSettings;
+  const tenantAddr = buildTenantAddress(settings);
   const paymentTerms = settings.paymentTermsDays ?? 30;
   const amountWords = numToWords(invoice.totalAmount);
   const custAddr = buildAddress(customer);
-  const itemRows = buildItemRows(items);
+  const gst = hasGstData(invoice);
 
   const bankSection = (settings.bankName || settings.bankAccount)
     ? `<p><strong>Bank:</strong> ${settings.bankName ?? ''} &nbsp;|&nbsp;
@@ -95,12 +161,90 @@ export function renderInvoiceHTML(
        <strong>IFSC:</strong> ${settings.bankIfsc ?? ''}</p>`
     : '<p><em>Bank details not configured in settings.</em></p>';
 
+  const gstHeaderFields = gst ? buildGstHeaderFields(invoice) : '';
+  const irnSection = gst ? renderIrnSection(invoice) : '';
+  const hsnSummary = gst ? renderHsnSummaryTable(items) : '';
+
+  const itemTableHeader = gst
+    ? buildGstItemTableHeader(items)
+    : `<tr>
+        <th style="width:32px">#</th>
+        <th style="text-align:left">Description</th>
+        <th style="text-align:right;width:70px">Qty</th>
+        <th style="text-align:right;width:90px">Rate (\u20B9)</th>
+        <th style="text-align:right;width:90px">Amount (\u20B9)</th>
+      </tr>`;
+
+  const itemRows = gst ? buildItemRowsGst(items) : buildItemRowsSimple(items);
+  const showHsn = gst && hasHsnCodes(items);
+  const totalCols = gst ? (showHsn ? 8 : 7) : 5;
+  const totalsRows = gst
+    ? buildGstTotals(invoice, totalCols)
+    : buildSimpleTotals(invoice);
+
+  const p = {
+    invoice, tenantName: tenant.name, settings, tenantAddr, custAddr,
+    customer, gstHeaderFields, itemTableHeader, itemRows,
+    totalsRows, amountWords, bankSection, hsnSummary,
+    irnSection, paymentTerms,
+  };
+  return buildHtmlDocument(p);
+}
+
+interface DocParams {
+  invoice: SalesInvoice; tenantName: string; settings: TenantSettings;
+  tenantAddr: string; custAddr: string; customer: CustomerInfo;
+  gstHeaderFields: string; itemTableHeader: string; itemRows: string;
+  totalsRows: string; amountWords: string; bankSection: string;
+  hsnSummary: string; irnSection: string; paymentTerms: number;
+}
+
+function buildHtmlDocument(p: DocParams): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Invoice ${invoice.invoiceNumber}</title>
-<style>
+<title>Invoice ${p.invoice.invoiceNumber}</title>
+${buildStyleBlock()}
+</head>
+<body>
+<div class="print-btn">
+  <button onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
+    Print / Save as PDF
+  </button>
+</div>
+<div class="page">
+  ${buildHeaderSection(p.invoice, p.tenantName, p.settings, p.tenantAddr, p.gstHeaderFields)}
+  <hr class="divider">
+  ${buildBillToSection(p.customer, p.custAddr)}
+  <hr class="divider">
+  <table>
+    <thead>${p.itemTableHeader}</thead>
+    <tbody>
+      ${p.itemRows}
+      ${p.totalsRows}
+    </tbody>
+  </table>
+  <div class="words-box">
+    <strong>Amount in words:</strong> ${p.amountWords}
+  </div>
+  ${p.hsnSummary}
+  ${p.irnSection}
+  <hr class="divider">
+  <div class="bank-box">
+    <div class="label">Bank Details</div>
+    ${p.bankSection}
+  </div>
+  <div class="footer-note">
+    Terms: Payment due within ${p.paymentTerms} days of invoice date. Thank you for your business.
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+function buildStyleBlock(): string {
+  return `<style>
   @page { size: A4; margin: 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
@@ -108,7 +252,8 @@ export function renderInvoiceHTML(
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
   .company-name { font-size: 20px; font-weight: bold; color: #1a1a1a; }
   .company-sub { color: #555; margin-top: 4px; font-size: 11px; }
-  .invoice-title { font-size: 24px; font-weight: bold; color: #2563eb; text-align: right; }
+  .gstin-badge { font-size: 12px; font-weight: bold; color: #4f46e5; margin-top: 4px; }
+  .invoice-title { font-size: 24px; font-weight: bold; color: #4f46e5; text-align: right; }
   .invoice-meta { text-align: right; font-size: 11px; color: #444; margin-top: 6px; }
   .divider { border: none; border-top: 1.5px solid #ccc; margin: 12px 0; }
   .two-col { display: flex; gap: 24px; margin-bottom: 12px; }
@@ -133,20 +278,25 @@ export function renderInvoiceHTML(
     .print-btn { display: none; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
-</style>
-</head>
-<body>
-<div class="print-btn">
-  <button onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
-    Print / Save as PDF
-  </button>
-</div>
-<div class="page">
-  <div class="header">
+</style>`;
+}
+
+function buildHeaderSection(
+  invoice: SalesInvoice,
+  tenantName: string,
+  settings: TenantSettings,
+  tenantAddr: string,
+  gstHeaderFields: string,
+): string {
+  const gstinLine = settings.gstin
+    ? `<div class="gstin-badge">GSTIN: ${settings.gstin}</div>`
+    : '';
+
+  return `<div class="header">
     <div>
-      <div class="company-name">${tenant.name}</div>
+      <div class="company-name">${tenantName}</div>
       <div class="company-sub">${tenantAddr}</div>
-      ${settings.gstin ? `<div class="company-sub">GSTIN: ${settings.gstin}</div>` : ''}
+      ${gstinLine}
     </div>
     <div>
       <div class="invoice-title">INVOICE</div>
@@ -154,57 +304,19 @@ export function renderInvoiceHTML(
         <div><strong>${invoice.invoiceNumber}</strong></div>
         <div>Date: ${fmtDate(invoice.invoiceDate)}</div>
         <div>Due: ${fmtDate(invoice.dueDate)}</div>
+        ${gstHeaderFields}
       </div>
     </div>
-  </div>
-  <hr class="divider">
-  <div class="two-col">
+  </div>`;
+}
+
+function buildBillToSection(customer: CustomerInfo, custAddr: string): string {
+  return `<div class="two-col">
     <div class="col">
       <div class="label">Bill To</div>
       <div class="value"><strong>${customer.name}</strong></div>
       ${custAddr ? `<div class="value" style="margin-top:2px">${custAddr}</div>` : ''}
       ${customer.gstin ? `<div class="value" style="margin-top:2px">GSTIN: ${customer.gstin}</div>` : ''}
     </div>
-  </div>
-  <hr class="divider">
-  <table>
-    <thead>
-      <tr>
-        <th style="width:32px">#</th>
-        <th style="text-align:left">Description</th>
-        <th style="text-align:right;width:70px">Qty</th>
-        <th style="text-align:right;width:90px">Rate (₹)</th>
-        <th style="text-align:right;width:90px">Amount (₹)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${itemRows}
-      <tr class="totals-row">
-        <td colspan="3" class="totals-label">Subtotal</td>
-        <td colspan="2" class="right">${fmtINR(invoice.subtotal)}</td>
-      </tr>
-      <tr class="totals-row">
-        <td colspan="3" class="totals-label">Tax</td>
-        <td colspan="2" class="right">${fmtINR(invoice.taxAmount)}</td>
-      </tr>
-      <tr class="totals-row grand-total">
-        <td colspan="3" class="totals-label">TOTAL</td>
-        <td colspan="2" class="right">₹ ${fmtINR(invoice.totalAmount)}</td>
-      </tr>
-    </tbody>
-  </table>
-  <div class="words-box">
-    <strong>Amount in words:</strong> ${amountWords}
-  </div>
-  <hr class="divider">
-  <div class="bank-box">
-    <div class="label">Bank Details</div>
-    ${bankSection}
-  </div>
-  <div class="footer-note">
-    Terms: Payment due within ${paymentTerms} days of invoice date. Thank you for your business.
-  </div>
-</div>
-</body>
-</html>`;
+  </div>`;
 }

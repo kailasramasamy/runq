@@ -1,6 +1,8 @@
-import { pgTable, uuid, varchar, integer, date, decimal, text, timestamp, pgEnum, unique, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, date, decimal, text, timestamp, pgEnum, unique, index, boolean } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from './customers';
+
+export const taxCategoryEnum = pgEnum('tax_category', ['taxable', 'exempt', 'nil_rated', 'zero_rated', 'reverse_charge']);
 
 export const salesInvoiceStatusEnum = pgEnum('sales_invoice_status', ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled']);
 
@@ -32,6 +34,18 @@ export const salesInvoices = pgTable('sales_invoices', {
   discountDays: integer('discount_days'),
   notes: text('notes'),
   fileUrl: varchar('file_url', { length: 500 }),
+  // GST fields
+  placeOfSupply: varchar('place_of_supply', { length: 100 }),
+  placeOfSupplyCode: varchar('place_of_supply_code', { length: 2 }),
+  isInterState: boolean('is_inter_state'),
+  cgstAmount: decimal('cgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  sgstAmount: decimal('sgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  igstAmount: decimal('igst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  cessAmount: decimal('cess_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  reverseCharge: boolean('reverse_charge').notNull().default(false),
+  // IRN placeholder for e-invoicing (populated externally)
+  irnNumber: varchar('irn_number', { length: 100 }),
+  irnDate: date('irn_date'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -48,6 +62,18 @@ export const salesInvoiceItems = pgTable('sales_invoice_items', {
   quantity: decimal('quantity', { precision: 12, scale: 3 }).notNull(),
   unitPrice: decimal('unit_price', { precision: 15, scale: 2 }).notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+  // GST fields per line item
+  hsnSacCode: varchar('hsn_sac_code', { length: 8 }),
+  taxCategory: taxCategoryEnum('tax_category'),
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }),
+  cgstRate: decimal('cgst_rate', { precision: 5, scale: 2 }).notNull().default('0'),
+  cgstAmount: decimal('cgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  sgstRate: decimal('sgst_rate', { precision: 5, scale: 2 }).notNull().default('0'),
+  sgstAmount: decimal('sgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  igstRate: decimal('igst_rate', { precision: 5, scale: 2 }).notNull().default('0'),
+  igstAmount: decimal('igst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  cessRate: decimal('cess_rate', { precision: 5, scale: 2 }).notNull().default('0'),
+  cessAmount: decimal('cess_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

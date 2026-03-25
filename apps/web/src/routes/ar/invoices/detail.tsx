@@ -38,7 +38,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   }
 
   function handleSend() {
-    sendMutation.mutate({ id: invoiceId, data: { sendEmail: false } });
+    sendMutation.mutate({ id: invoiceId, data: { channel: 'email', sendEmail: false } });
   }
 
   function handleMarkPaid() {

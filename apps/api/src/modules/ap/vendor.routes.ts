@@ -11,6 +11,8 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { VendorService } from './vendor.service';
+import { validateGSTIN } from '@runq/validators';
+import { lookupGSTIN } from '../../utils/gstin-lookup';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -89,6 +91,21 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       uuidParamSchema.parse(request.params);
       return { data: [], meta: { page: 1, limit: 25, total: 0, totalPages: 0 } };
+    },
+  );
+
+  app.post(
+    '/verify-gstin',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { gstin } = request.body as { gstin: string };
+      if (!gstin) return { data: null, error: 'GSTIN is required' };
+
+      const validation = validateGSTIN(gstin);
+      if (!validation.valid) return { data: null, error: validation.error };
+
+      const lookup = await lookupGSTIN(gstin);
+      return { data: lookup, checksum: 'valid' };
     },
   );
 

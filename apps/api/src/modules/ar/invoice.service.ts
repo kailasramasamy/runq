@@ -11,6 +11,9 @@ import { AuditService } from '../../utils/audit';
 import { sendEmail } from '../../utils/email';
 import { invoiceSent } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
+import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
+import { getMessageProvider } from '../../utils/messaging';
+import type { TaxCategory, TaxBreakdown } from '@runq/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
@@ -155,6 +158,7 @@ export class InvoiceService {
     await this.checkCreditLimit(input.customerId, input.totalAmount);
     return this.db.transaction(async (tx) => {
       const invoiceNumber = await this.resolveInvoiceNumber(tx);
+      const gst = await this.computeGstForInvoice(tx, input.customerId, input.items, input.reverseCharge);
 
       const [invoice] = await tx
         .insert(salesInvoices)
@@ -164,26 +168,48 @@ export class InvoiceService {
           customerId: input.customerId,
           invoiceDate: input.invoiceDate,
           dueDate: input.dueDate,
-          subtotal: String(input.subtotal),
-          taxAmount: String(input.taxAmount),
-          totalAmount: String(input.totalAmount),
-          balanceDue: String(input.totalAmount),
+          subtotal: String(gst.summary.subtotal),
+          taxAmount: String(gst.summary.taxAmount),
+          totalAmount: String(gst.summary.totalAmount),
+          balanceDue: String(gst.summary.totalAmount),
           status: 'draft',
           notes: input.notes ?? null,
+          placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
+          placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,
+          isInterState: gst.placeOfSupply?.isInterState ?? null,
+          cgstAmount: String(gst.summary.cgstAmount),
+          sgstAmount: String(gst.summary.sgstAmount),
+          igstAmount: String(gst.summary.igstAmount),
+          cessAmount: String(gst.summary.cessAmount),
+          reverseCharge: input.reverseCharge ?? false,
         })
         .returning();
 
       const items = await tx
         .insert(salesInvoiceItems)
         .values(
-          input.items.map((item) => ({
-            tenantId: this.tenantId,
-            invoiceId: invoice!.id,
-            description: item.description,
-            quantity: String(item.quantity),
-            unitPrice: String(item.unitPrice),
-            amount: String(item.amount),
-          })),
+          input.items.map((item, i) => {
+            const tax = gst.itemTaxes[i]!;
+            return {
+              tenantId: this.tenantId,
+              invoiceId: invoice!.id,
+              description: item.description,
+              quantity: String(item.quantity),
+              unitPrice: String(item.unitPrice),
+              amount: String(item.amount),
+              hsnSacCode: item.hsnSacCode ?? null,
+              taxCategory: (item.taxCategory as TaxCategory) ?? null,
+              taxRate: item.taxRate != null ? String(item.taxRate) : null,
+              cgstRate: String(tax.cgstRate),
+              cgstAmount: String(tax.cgstAmount),
+              sgstRate: String(tax.sgstRate),
+              sgstAmount: String(tax.sgstAmount),
+              igstRate: String(tax.igstRate),
+              igstAmount: String(tax.igstAmount),
+              cessRate: String(tax.cessRate),
+              cessAmount: String(tax.cessAmount),
+            };
+          }),
         )
         .returning();
 
@@ -201,6 +227,44 @@ export class InvoiceService {
       await this.audit().log({ userId, action: 'created', entityType: 'sales_invoice', entityId: invoice!.id });
       return result;
     });
+  }
+
+  private async computeGstForInvoice(
+    tx: AnyTx,
+    customerId: string,
+    items: CreateSalesInvoiceInput['items'],
+    reverseCharge?: boolean,
+  ) {
+    const [tenantRow] = await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
+    const settings = (tenantRow?.settings ?? {}) as TenantSettings & { stateCode?: string };
+
+    const [customerRow] = await tx
+      .select({ state: customers.state, gstin: customers.gstin })
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
+
+    const sellerState = settings.stateCode ?? '';
+    const buyerGstin = customerRow?.gstin;
+    const buyerState = buyerGstin ? buyerGstin.slice(0, 2) : resolveStateCode(customerRow?.state ?? sellerState);
+
+    const placeOfSupply = sellerState && buyerState ? determinePlaceOfSupply(sellerState, buyerState) : null;
+    const isInterState = placeOfSupply?.isInterState ?? false;
+
+    const itemTaxes: TaxBreakdown[] = items.map((item) => {
+      const taxCategory: TaxCategory = reverseCharge ? 'reverse_charge' : (item.taxCategory as TaxCategory) ?? 'taxable';
+      return calculateLineItemTax({
+        amount: item.amount,
+        taxRate: item.taxRate ?? 0,
+        isInterState,
+        taxCategory,
+        cessRate: item.cessRate ?? 0,
+      });
+    });
+
+    const summary = calculateInvoiceTax(items.map((item, i) => ({ amount: item.amount, tax: itemTaxes[i]! })));
+
+    return { placeOfSupply, itemTaxes, summary };
   }
 
   private async resolveInvoiceNumber(tx: AnyTx): Promise<string> {
@@ -270,7 +334,7 @@ export class InvoiceService {
     return this.toInvoice(row!);
   }
 
-  async send(id: string, _input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {
+  async send(id: string, input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {
       throw new ConflictError('Only draft invoices can be sent');
@@ -284,8 +348,49 @@ export class InvoiceService {
 
     await this.audit().log({ userId, action: 'sent', entityType: 'sales_invoice', entityId: id });
     const invoice = this.toInvoice(row!);
-    void this.sendInvoiceEmail(invoice, existing.customerId, existing.customerName);
+
+    if (input.channel === 'whatsapp') {
+      void this.sendInvoiceWhatsApp(invoice, existing.customerId, existing.customerName, input.whatsappTo);
+    } else {
+      void this.sendInvoiceEmail(invoice, existing.customerId, existing.customerName);
+    }
+
     return invoice;
+  }
+
+  private async sendInvoiceWhatsApp(
+    invoice: SalesInvoice,
+    customerId: string,
+    customerName: string,
+    whatsappTo?: string | null,
+  ): Promise<void> {
+    const provider = getMessageProvider();
+    if (!provider) return;
+
+    const phone = whatsappTo ?? await this.getCustomerPhone(customerId);
+    if (!phone) return;
+
+    const companyName = await getTenantName(this.db, this.tenantId);
+    provider.sendWhatsApp({
+      to: phone,
+      templateName: 'invoice_sent',
+      templateParams: {
+        company: companyName,
+        customer: customerName,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: `₹${invoice.totalAmount.toFixed(2)}`,
+        dueDate: invoice.dueDate,
+      },
+    }).catch((err) => console.error('WhatsApp invoice send failed:', err));
+  }
+
+  private async getCustomerPhone(customerId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ phone: customers.phone })
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
+    return row?.phone ?? null;
   }
 
   private async sendInvoiceEmail(invoice: SalesInvoice, customerId: string, customerName: string): Promise<void> {
@@ -410,6 +515,9 @@ export class InvoiceService {
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
         amount: String(item.amount),
+        hsnSacCode: item.hsnSacCode ?? null,
+        taxCategory: (item.taxCategory as TaxCategory) ?? null,
+        taxRate: item.taxRate != null ? String(item.taxRate) : null,
       })),
     );
   }
@@ -453,6 +561,16 @@ export class InvoiceService {
       discountDays: row.discountDays ?? null,
       notes: row.notes ?? null,
       fileUrl: row.fileUrl ?? null,
+      placeOfSupply: row.placeOfSupply ?? null,
+      placeOfSupplyCode: row.placeOfSupplyCode ?? null,
+      isInterState: row.isInterState ?? null,
+      cgstAmount: Number(row.cgstAmount),
+      sgstAmount: Number(row.sgstAmount),
+      igstAmount: Number(row.igstAmount),
+      cessAmount: Number(row.cessAmount),
+      reverseCharge: row.reverseCharge,
+      irnNumber: row.irnNumber ?? null,
+      irnDate: row.irnDate ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -467,6 +585,17 @@ export class InvoiceService {
       quantity: Number(row.quantity),
       unitPrice: Number(row.unitPrice),
       amount: Number(row.amount),
+      hsnSacCode: row.hsnSacCode ?? null,
+      taxCategory: row.taxCategory as TaxCategory | null,
+      taxRate: row.taxRate != null ? Number(row.taxRate) : null,
+      cgstRate: Number(row.cgstRate),
+      cgstAmount: Number(row.cgstAmount),
+      sgstRate: Number(row.sgstRate),
+      sgstAmount: Number(row.sgstAmount),
+      igstRate: Number(row.igstRate),
+      igstAmount: Number(row.igstAmount),
+      cessRate: Number(row.cessRate),
+      cessAmount: Number(row.cessAmount),
     };
   }
 }

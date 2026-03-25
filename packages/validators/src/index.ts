@@ -18,3 +18,7 @@ export * from './settings/company.schema';
 export * from './settings/invoice-numbering.schema';
 export * from './gl/gl.schema';
 export * from './tally/tally.schema';
+export * from './masters/hsn-sac.schema';
+export * from './utils/gstin';
+export * from './common/attachment.schema';
+export * from './ar/recurring.schema';

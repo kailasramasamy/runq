@@ -1,11 +1,17 @@
 import { eq, and, sql, gte, lte } from 'drizzle-orm';
-import { purchaseInvoices, purchaseInvoiceItems, vendors } from '@runq/db';
+import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { PurchaseInvoice, PurchaseInvoiceItem, PurchaseInvoiceWithDetails, PaginationMeta } from '@runq/types';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PgTransaction } from 'drizzle-orm/pg-core';
+import type { PurchaseInvoice, PurchaseInvoiceItem, PurchaseInvoiceWithDetails, PaginationMeta, TaxCategory, TaxBreakdown } from '@runq/types';
 import type { CreatePurchaseInvoiceInput, UpdatePurchaseInvoiceInput, PurchaseInvoiceFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
+import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
 export interface InvoiceListParams {
   page: number;
@@ -80,6 +86,9 @@ export class PurchaseInvoiceService {
 
   async create(input: CreatePurchaseInvoiceInput, userId?: string): Promise<PurchaseInvoiceWithDetails> {
     return this.db.transaction(async (tx) => {
+      const gst = await this.computeGstForBill(tx, input.vendorId, input.items, input.reverseCharge);
+      const tdsTotal = this.computeTdsTotal(input.items);
+
       const [invoice] = await tx
         .insert(purchaseInvoices)
         .values({
@@ -89,26 +98,54 @@ export class PurchaseInvoiceService {
           invoiceDate: input.invoiceDate,
           dueDate: input.dueDate,
           poId: input.poId ?? null,
-          subtotal: String(input.subtotal),
-          taxAmount: String(input.taxAmount),
-          totalAmount: String(input.totalAmount),
-          balanceDue: String(input.totalAmount),
+          subtotal: String(gst.summary.subtotal),
+          taxAmount: String(gst.summary.taxAmount),
+          totalAmount: String(gst.summary.totalAmount),
+          balanceDue: String(gst.summary.totalAmount),
           status: 'draft',
+          placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
+          placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,
+          isInterState: gst.placeOfSupply?.isInterState ?? null,
+          cgstAmount: String(gst.summary.cgstAmount),
+          sgstAmount: String(gst.summary.sgstAmount),
+          igstAmount: String(gst.summary.igstAmount),
+          cessAmount: String(gst.summary.cessAmount),
+          reverseCharge: input.reverseCharge ?? false,
+          tdsSection: input.tdsSection ?? null,
+          tdsAmount: String(tdsTotal),
         })
         .returning();
 
       const items = await tx
         .insert(purchaseInvoiceItems)
         .values(
-          input.items.map((item) => ({
-            tenantId: this.tenantId,
-            invoiceId: invoice!.id,
-            itemName: item.itemName,
-            sku: item.sku ?? null,
-            quantity: String(item.quantity),
-            unitPrice: String(item.unitPrice),
-            amount: String(item.amount),
-          })),
+          input.items.map((item, i) => {
+            const tax = gst.itemTaxes[i]!;
+            const itemTds = (item.tdsRate ?? 0) * item.amount / 100;
+            return {
+              tenantId: this.tenantId,
+              invoiceId: invoice!.id,
+              itemName: item.itemName,
+              sku: item.sku ?? null,
+              quantity: String(item.quantity),
+              unitPrice: String(item.unitPrice),
+              amount: String(item.amount),
+              hsnSacCode: item.hsnSacCode ?? null,
+              taxCategory: (item.taxCategory as TaxCategory) ?? null,
+              taxRate: item.taxRate != null ? String(item.taxRate) : null,
+              cgstRate: String(tax.cgstRate),
+              cgstAmount: String(tax.cgstAmount),
+              sgstRate: String(tax.sgstRate),
+              sgstAmount: String(tax.sgstAmount),
+              igstRate: String(tax.igstRate),
+              igstAmount: String(tax.igstAmount),
+              cessRate: String(tax.cessRate),
+              cessAmount: String(tax.cessAmount),
+              tdsSection: item.tdsSection ?? null,
+              tdsRate: item.tdsRate != null ? String(item.tdsRate) : null,
+              tdsAmount: String(Math.round(itemTds * 100) / 100),
+            };
+          }),
         )
         .returning();
 
@@ -126,6 +163,53 @@ export class PurchaseInvoiceService {
       await this.audit().log({ userId, action: 'created', entityType: 'purchase_invoice', entityId: invoice!.id });
       return result;
     });
+  }
+
+  private async computeGstForBill(
+    tx: AnyTx,
+    vendorId: string,
+    items: CreatePurchaseInvoiceInput['items'],
+    reverseCharge?: boolean,
+  ) {
+    const [tenantRow] = await tx.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
+    const settings = (tenantRow?.settings ?? {}) as { stateCode?: string };
+
+    const [vendorRow] = await tx
+      .select({ state: vendors.state, gstin: vendors.gstin })
+      .from(vendors)
+      .where(eq(vendors.id, vendorId))
+      .limit(1);
+
+    const buyerState = settings.stateCode ?? '';
+    const sellerGstin = vendorRow?.gstin;
+    const sellerState = sellerGstin ? sellerGstin.slice(0, 2) : resolveStateCode(vendorRow?.state ?? buyerState);
+
+    const placeOfSupply = buyerState && sellerState ? determinePlaceOfSupply(sellerState, buyerState) : null;
+    const isInterState = placeOfSupply?.isInterState ?? false;
+
+    const itemTaxes: TaxBreakdown[] = items.map((item) => {
+      const taxCategory: TaxCategory = reverseCharge ? 'reverse_charge' : (item.taxCategory as TaxCategory) ?? 'taxable';
+      return calculateLineItemTax({
+        amount: item.amount,
+        taxRate: item.taxRate ?? 0,
+        isInterState,
+        taxCategory,
+        cessRate: item.cessRate ?? 0,
+      });
+    });
+
+    const summary = calculateInvoiceTax(items.map((item, i) => ({ amount: item.amount, tax: itemTaxes[i]! })));
+    return { placeOfSupply, itemTaxes, summary };
+  }
+
+  private computeTdsTotal(items: CreatePurchaseInvoiceInput['items']): number {
+    let total = 0;
+    for (const item of items) {
+      if (item.tdsRate) {
+        total += item.amount * item.tdsRate / 100;
+      }
+    }
+    return Math.round(total * 100) / 100;
   }
 
   async update(id: string, input: UpdatePurchaseInvoiceInput): Promise<PurchaseInvoiceWithDetails> {
@@ -192,6 +276,11 @@ export class PurchaseInvoiceService {
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
         amount: String(item.amount),
+        hsnSacCode: item.hsnSacCode ?? null,
+        taxCategory: (item.taxCategory as TaxCategory) ?? null,
+        taxRate: item.taxRate != null ? String(item.taxRate) : null,
+        tdsSection: item.tdsSection ?? null,
+        tdsRate: item.tdsRate != null ? String(item.tdsRate) : null,
       })),
     );
   }
@@ -228,6 +317,16 @@ export class PurchaseInvoiceService {
       approvedBy: row.approvedBy ?? null,
       approvedAt: row.approvedAt?.toISOString() ?? null,
       wmsInvoiceId: row.wmsInvoiceId ?? null,
+      placeOfSupply: row.placeOfSupply ?? null,
+      placeOfSupplyCode: row.placeOfSupplyCode ?? null,
+      isInterState: row.isInterState ?? null,
+      cgstAmount: Number(row.cgstAmount),
+      sgstAmount: Number(row.sgstAmount),
+      igstAmount: Number(row.igstAmount),
+      cessAmount: Number(row.cessAmount),
+      reverseCharge: row.reverseCharge,
+      tdsSection: row.tdsSection ?? null,
+      tdsAmount: Number(row.tdsAmount),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -244,6 +343,20 @@ export class PurchaseInvoiceService {
       quantity: Number(row.quantity),
       unitPrice: Number(row.unitPrice),
       amount: Number(row.amount),
+      hsnSacCode: row.hsnSacCode ?? null,
+      taxCategory: row.taxCategory as TaxCategory | null,
+      taxRate: row.taxRate != null ? Number(row.taxRate) : null,
+      cgstRate: Number(row.cgstRate),
+      cgstAmount: Number(row.cgstAmount),
+      sgstRate: Number(row.sgstRate),
+      sgstAmount: Number(row.sgstAmount),
+      igstRate: Number(row.igstRate),
+      igstAmount: Number(row.igstAmount),
+      cessRate: Number(row.cessRate),
+      cessAmount: Number(row.cessAmount),
+      tdsSection: row.tdsSection ?? null,
+      tdsRate: row.tdsRate != null ? Number(row.tdsRate) : null,
+      tdsAmount: Number(row.tdsAmount),
     };
   }
 }

@@ -21,3 +21,6 @@ export * from './webhook-events';
 export * from './audit-log';
 export * from './gl/accounts';
 export * from './gl/journal-entries';
+export * from './masters/hsn-sac';
+export * from './common/attachments';
+export * from './ar/recurring-invoices';

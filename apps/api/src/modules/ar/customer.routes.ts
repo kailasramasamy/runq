@@ -10,6 +10,8 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { CustomerService } from './customer.service';
+import { validateGSTIN } from '@runq/validators';
+import { lookupGSTIN } from '../../utils/gstin-lookup';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -76,6 +78,21 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const service = new CustomerService(request.server.db, request.tenantId);
       await service.softDelete(id);
       return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    '/verify-gstin',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { gstin } = request.body as { gstin: string };
+      if (!gstin) return { data: null, error: 'GSTIN is required' };
+
+      const validation = validateGSTIN(gstin);
+      if (!validation.valid) return { data: null, error: validation.error };
+
+      const lookup = await lookupGSTIN(gstin);
+      return { data: lookup, checksum: 'valid' };
     },
   );
 

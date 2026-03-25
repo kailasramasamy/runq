@@ -12,8 +12,8 @@ import {
 import type { Db } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
 
-type SalesInvoiceRow = typeof salesInvoices.$inferSelect & { customerName: string };
-type PurchaseInvoiceRow = typeof purchaseInvoices.$inferSelect & { vendorName: string };
+type SalesInvoiceRow = typeof salesInvoices.$inferSelect & { customerName: string; cgstAmount: string; sgstAmount: string; igstAmount: string };
+type PurchaseInvoiceRow = typeof purchaseInvoices.$inferSelect & { vendorName: string; cgstAmount: string; sgstAmount: string; igstAmount: string; tdsAmount: string };
 type PaymentRow = typeof payments.$inferSelect & { vendorName: string; bankName: string | null };
 type ReceiptRow = typeof paymentReceipts.$inferSelect & { customerName: string; bankName: string | null };
 
@@ -42,8 +42,24 @@ export class TallyService {
   }
 
   private buildSalesVoucher(invoice: SalesInvoiceRow): string {
-    const amount = parseFloat(invoice.totalAmount).toFixed(2);
+    const total = parseFloat(invoice.totalAmount).toFixed(2);
+    const subtotal = parseFloat(invoice.subtotal).toFixed(2);
     const customer = this.escapeXml(invoice.customerName);
+    const cgst = parseFloat(invoice.cgstAmount).toFixed(2);
+    const sgst = parseFloat(invoice.sgstAmount).toFixed(2);
+    const igst = parseFloat(invoice.igstAmount).toFixed(2);
+    const hasCgstSgst = parseFloat(cgst) > 0;
+    const hasIgst = parseFloat(igst) > 0;
+
+    const taxEntries: string[] = [];
+    if (hasCgstSgst) {
+      taxEntries.push(this.buildLedgerLine('Output CGST', 'No', cgst));
+      taxEntries.push(this.buildLedgerLine('Output SGST', 'No', sgst));
+    }
+    if (hasIgst) {
+      taxEntries.push(this.buildLedgerLine('Output IGST', 'No', igst));
+    }
+
     return `<TALLYMESSAGE xmlns:UDF="TallyUDF">
 <VOUCHER VCHTYPE="Sales" ACTION="Create">
   <DATE>${this.formatTallyDate(invoice.invoiceDate)}</DATE>
@@ -54,20 +70,50 @@ export class TallyService {
   <ALLLEDGERENTRIES.LIST>
     <LEDGERNAME>${customer}</LEDGERNAME>
     <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-    <AMOUNT>-${amount}</AMOUNT>
+    <AMOUNT>-${total}</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
   <ALLLEDGERENTRIES.LIST>
     <LEDGERNAME>Sales Account</LEDGERNAME>
     <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-    <AMOUNT>${amount}</AMOUNT>
+    <AMOUNT>${subtotal}</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
+${taxEntries.join('\n')}
 </VOUCHER>
 </TALLYMESSAGE>`;
   }
 
+  private buildLedgerLine(name: string, isDeemed: string, amount: string): string {
+    return `  <ALLLEDGERENTRIES.LIST>
+    <LEDGERNAME>${this.escapeXml(name)}</LEDGERNAME>
+    <ISDEEMEDPOSITIVE>${isDeemed}</ISDEEMEDPOSITIVE>
+    <AMOUNT>${amount}</AMOUNT>
+  </ALLLEDGERENTRIES.LIST>`;
+  }
+
   private buildPurchaseVoucher(invoice: PurchaseInvoiceRow): string {
-    const amount = parseFloat(invoice.totalAmount).toFixed(2);
+    const total = parseFloat(invoice.totalAmount).toFixed(2);
+    const subtotal = parseFloat(invoice.subtotal).toFixed(2);
     const vendor = this.escapeXml(invoice.vendorName);
+    const cgst = parseFloat(invoice.cgstAmount).toFixed(2);
+    const sgst = parseFloat(invoice.sgstAmount).toFixed(2);
+    const igst = parseFloat(invoice.igstAmount).toFixed(2);
+    const tds = parseFloat(invoice.tdsAmount).toFixed(2);
+    const hasCgstSgst = parseFloat(cgst) > 0;
+    const hasIgst = parseFloat(igst) > 0;
+    const hasTds = parseFloat(tds) > 0;
+
+    const taxEntries: string[] = [];
+    if (hasCgstSgst) {
+      taxEntries.push(this.buildLedgerLine('Input CGST', 'Yes', `-${cgst}`));
+      taxEntries.push(this.buildLedgerLine('Input SGST', 'Yes', `-${sgst}`));
+    }
+    if (hasIgst) {
+      taxEntries.push(this.buildLedgerLine('Input IGST', 'Yes', `-${igst}`));
+    }
+    if (hasTds) {
+      taxEntries.push(this.buildLedgerLine('TDS Payable', 'No', tds));
+    }
+
     return `<TALLYMESSAGE xmlns:UDF="TallyUDF">
 <VOUCHER VCHTYPE="Purchase" ACTION="Create">
   <DATE>${this.formatTallyDate(invoice.invoiceDate)}</DATE>
@@ -78,12 +124,13 @@ export class TallyService {
   <ALLLEDGERENTRIES.LIST>
     <LEDGERNAME>Purchase Account</LEDGERNAME>
     <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-    <AMOUNT>-${amount}</AMOUNT>
+    <AMOUNT>-${subtotal}</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
+${taxEntries.join('\n')}
   <ALLLEDGERENTRIES.LIST>
     <LEDGERNAME>${vendor}</LEDGERNAME>
     <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-    <AMOUNT>${amount}</AMOUNT>
+    <AMOUNT>${total}</AMOUNT>
   </ALLLEDGERENTRIES.LIST>
 </VOUCHER>
 </TALLYMESSAGE>`;
@@ -186,6 +233,14 @@ ${vouchers.join('\n')}
       ...customerRows.map((r) => this.buildLedgerEntry(r.name, 'Sundry Debtors')),
       ...vendorRows.map((r) => this.buildLedgerEntry(r.name, 'Sundry Creditors')),
       ...bankRows.map((r) => this.buildLedgerEntry(r.name, 'Bank Accounts')),
+      // GST tax ledgers
+      this.buildLedgerEntry('Output CGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('Output SGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('Output IGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('Input CGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('Input SGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('Input IGST', 'Duties & Taxes'),
+      this.buildLedgerEntry('TDS Payable', 'Duties & Taxes'),
     ];
 
     return this.wrapLedgerEnvelope(companyName, ledgers);
@@ -230,6 +285,11 @@ ${ledgers.join('\n')}
         balanceDue: salesInvoices.balanceDue, status: salesInvoices.status,
         discountPercent: salesInvoices.discountPercent, discountDays: salesInvoices.discountDays,
         notes: salesInvoices.notes, fileUrl: salesInvoices.fileUrl,
+        placeOfSupply: salesInvoices.placeOfSupply, placeOfSupplyCode: salesInvoices.placeOfSupplyCode,
+        isInterState: salesInvoices.isInterState, reverseCharge: salesInvoices.reverseCharge,
+        cgstAmount: salesInvoices.cgstAmount, sgstAmount: salesInvoices.sgstAmount,
+        igstAmount: salesInvoices.igstAmount, cessAmount: salesInvoices.cessAmount,
+        irnNumber: salesInvoices.irnNumber, irnDate: salesInvoices.irnDate,
         createdAt: salesInvoices.createdAt, updatedAt: salesInvoices.updatedAt,
         customerName: customers.name,
       })
@@ -257,6 +317,11 @@ ${ledgers.join('\n')}
         matchStatus: purchaseInvoices.matchStatus, matchNotes: purchaseInvoices.matchNotes,
         approvedBy: purchaseInvoices.approvedBy, approvedAt: purchaseInvoices.approvedAt,
         wmsInvoiceId: purchaseInvoices.wmsInvoiceId,
+        placeOfSupply: purchaseInvoices.placeOfSupply, placeOfSupplyCode: purchaseInvoices.placeOfSupplyCode,
+        isInterState: purchaseInvoices.isInterState, reverseCharge: purchaseInvoices.reverseCharge,
+        cgstAmount: purchaseInvoices.cgstAmount, sgstAmount: purchaseInvoices.sgstAmount,
+        igstAmount: purchaseInvoices.igstAmount, cessAmount: purchaseInvoices.cessAmount,
+        tdsSection: purchaseInvoices.tdsSection, tdsAmount: purchaseInvoices.tdsAmount,
         createdAt: purchaseInvoices.createdAt, updatedAt: purchaseInvoices.updatedAt,
         vendorName: vendors.name,
       })
