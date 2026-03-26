@@ -32,13 +32,13 @@
 ## Phase 2 — AI Differentiation
 
 ### AI-Powered Automation
-- ⬜ (#8) AI invoice data extraction (OCR + LLM — snap photo / upload PDF → auto-fill bill)
+- ✅ (#8) AI invoice data extraction (OCR + LLM — snap photo / upload PDF → auto-fill bill)
 - ⬜ (#9) AI bank transaction categorization (auto-suggest ledger account)
-- ⬜ (#15) Duplicate invoice detection (fuzzy match on vendor + amount + date)
+- ✅ (#15) Duplicate invoice detection (fuzzy match on vendor + amount + date)
 - ⬜ (#13) AI financial summaries (daily/weekly digest for business owner)
 - ⬜ (#10) Smart reconciliation suggestions (ML-based, learn from user corrections)
 - ⬜ (#11) Anomaly detection on expenses (flag unusual spends)
-- ⬜ (#14) Smart vendor payment prioritization (terms, discounts, relationship)
+- ✅ (#14) Smart vendor payment prioritization (terms, discounts, relationship)
 
 ---
 

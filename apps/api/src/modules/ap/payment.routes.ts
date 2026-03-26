@@ -14,6 +14,7 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { PaymentService } from './payment.service';
+import { PrioritizeService } from './prioritize.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -29,7 +30,21 @@ const rejectBodySchema = z.object({
   reason: z.string().optional(),
 });
 
+const prioritizeLimitSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
 export const paymentRoutes: FastifyPluginAsync = async (app) => {
+  app.get(
+    '/prioritize',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { limit } = prioritizeLimitSchema.parse(request.query);
+      const service = new PrioritizeService(request.server.db, request.tenantId);
+      return service.getPrioritizedPayments(limit);
+    },
+  );
+
   app.get(
     '/export-csv',
     { preHandler: [rbacHook([...READ_ROLES])] },

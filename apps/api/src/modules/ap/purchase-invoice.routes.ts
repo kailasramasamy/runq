@@ -12,6 +12,8 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { ThreeWayMatchService } from './three-way-match.service';
+import { DuplicateService } from './duplicate.service';
+import { checkDuplicatesSchema } from './duplicate.schema';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -117,6 +119,17 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const invoiceService = new PurchaseInvoiceService(request.server.db, request.tenantId);
       const invoice = await invoiceService.getById(id);
       return { data: invoice };
+    },
+  );
+
+  app.post(
+    '/check-duplicates',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const input = checkDuplicatesSchema.parse(request.body);
+      const service = new DuplicateService(request.server.db, request.tenantId);
+      const result = await service.checkDuplicates(input);
+      return { data: result };
     },
   );
 };

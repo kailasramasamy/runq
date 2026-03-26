@@ -23,6 +23,7 @@ import {
   useReceivablesAging,
 } from '@/hooks/queries/use-dashboard';
 import type { AgingData } from '@/hooks/queries/use-dashboard';
+import { PaymentPriorityWidget } from '@/components/dashboard/payment-priority';
 
 // ─── Aging Bar Chart ──────────────────────────────────────────────────────────
 
@@ -224,7 +225,10 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Row 3: Quick Actions */}
+      {/* Row 3: Payment Priority */}
+      <PaymentPriorityWidget />
+
+      {/* Row 4: Quick Actions */}
       <Card>
         <CardHeader title="Quick Actions" />
         <CardContent>

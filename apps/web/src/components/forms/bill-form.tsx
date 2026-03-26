@@ -1,9 +1,13 @@
-import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Trash2, Sparkles } from 'lucide-react';
 import { createPurchaseInvoiceSchema } from '@runq/validators';
 import type { CreatePurchaseInvoiceInput } from '@runq/validators';
 import { useVendors } from '../../hooks/queries/use-vendors';
 import { formatINR } from '../../lib/utils';
+import { api } from '../../lib/api-client';
+import { DuplicateWarning } from './duplicate-warning';
+import type { DuplicateMatch } from './duplicate-warning';
+import { BillExtractDialog } from './bill-extract-dialog';
 import {
   Button,
   Card,
@@ -27,6 +31,7 @@ import {
 interface Props {
   onSubmit: (data: CreatePurchaseInvoiceInput) => void;
   isLoading: boolean;
+  initialData?: Partial<CreatePurchaseInvoiceInput>;
 }
 
 interface LineItem {
@@ -77,7 +82,7 @@ function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
 }
 
-export function BillForm({ onSubmit, isLoading }: Props) {
+export function BillForm({ onSubmit, isLoading, initialData }: Props) {
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data?.filter((v) => v.isActive) ?? [];
 
@@ -88,6 +93,59 @@ export function BillForm({ onSubmit, isLoading }: Props) {
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+  const [extractOpen, setExtractOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!initialData) return;
+    if (initialData.vendorId) setVendorId(initialData.vendorId);
+    if (initialData.invoiceNumber) setInvoiceNumber(initialData.invoiceNumber);
+    if (initialData.invoiceDate) setInvoiceDate(initialData.invoiceDate);
+    if (initialData.dueDate) setDueDate(initialData.dueDate);
+    if (initialData.notes) setNotes(initialData.notes);
+    if (initialData.items?.length) {
+      setLines(initialData.items.map((item) => ({
+        itemName: item.itemName || '',
+        sku: item.sku || '',
+        quantity: String(item.quantity || ''),
+        unitPrice: String(item.unitPrice || ''),
+        hsnSacCode: item.hsnSacCode || '',
+        taxRate: String(item.taxRate ?? 0),
+        taxCategory: item.taxCategory || 'taxable',
+        tdsSection: item.tdsSection || '',
+        tdsRate: String(item.tdsRate ?? 0),
+      })));
+    }
+  }, [initialData]);
+
+  const checkDuplicates = useCallback(async (vid: string, invNum: string) => {
+    if (!vid || !invNum) {
+      setDuplicateMatches([]);
+      return;
+    }
+    const total = lines.reduce((s, l) => s + lineAmount(l), 0);
+    try {
+      const res = await api.post<{ data: { hasDuplicates: boolean; matches: DuplicateMatch[] } }>(
+        '/ap/purchase-invoices/check-duplicates',
+        { vendorId: vid, invoiceNumber: invNum, invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10), totalAmount: total || 0 },
+      );
+      setDuplicateMatches(res.data.matches);
+      setDuplicateDismissed(false);
+    } catch {
+      setDuplicateMatches([]);
+    }
+  }, [lines, invoiceDate]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => checkDuplicates(vendorId, invoiceNumber), 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [vendorId, invoiceNumber, checkDuplicates]);
+
+  const hasExactDuplicate = duplicateMatches.some((m) => m.confidence === 1.0);
+  const showDuplicateWarning = duplicateMatches.length > 0 && !duplicateDismissed;
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
   const tax = lines.reduce((sum, l) => {
@@ -152,6 +210,48 @@ export function BillForm({ onSubmit, isLoading }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setExtractOpen(true)}
+        >
+          <Sparkles size={14} />
+          Extract from Invoice
+        </Button>
+      </div>
+      <BillExtractDialog
+        open={extractOpen}
+        onClose={() => setExtractOpen(false)}
+        onExtracted={(data) => {
+          setExtractOpen(false);
+          const e = data.extracted;
+          if (data.vendorMatch) setVendorId(data.vendorMatch.id);
+          if (e.invoiceNumber) setInvoiceNumber(e.invoiceNumber);
+          if (e.invoiceDate) setInvoiceDate(e.invoiceDate);
+          if (e.dueDate) setDueDate(e.dueDate);
+          if (e.items?.length) {
+            setLines(e.items.map((item) => ({
+              itemName: item.itemName || '',
+              sku: '',
+              quantity: String(item.quantity || ''),
+              unitPrice: String(item.unitPrice || ''),
+              hsnSacCode: item.hsnSacCode || '',
+              taxRate: String(item.taxRate ?? 0),
+              taxCategory: item.taxCategory || 'taxable',
+              tdsSection: e.tdsSection || '',
+              tdsRate: '0',
+            })));
+          }
+        }}
+      />
+      {showDuplicateWarning && (
+        <DuplicateWarning
+          matches={duplicateMatches}
+          onDismiss={() => setDuplicateDismissed(true)}
+        />
+      )}
       <Card>
         <CardHeader title="Bill Info" />
         <CardContent>
@@ -358,7 +458,7 @@ export function BillForm({ onSubmit, isLoading }: Props) {
       </Card>
 
       <div className="flex justify-end">
-        <Button type="submit" variant="primary" loading={isLoading}>
+        <Button type="submit" variant="primary" loading={isLoading} disabled={hasExactDuplicate}>
           Save Bill
         </Button>
       </div>
