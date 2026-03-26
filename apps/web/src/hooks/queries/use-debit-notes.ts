@@ -12,6 +12,7 @@ const DN_KEYS = {
 
 interface DebitNoteFilters {
   vendorId?: string;
+  invoiceId?: string;
   status?: string;
   page?: number;
   limit?: number;
@@ -21,6 +22,7 @@ interface DebitNoteFilters {
 export function useDebitNotes(filters?: DebitNoteFilters) {
   const params = new URLSearchParams();
   if (filters?.vendorId) params.set('vendorId', filters.vendorId);
+  if (filters?.invoiceId) params.set('invoiceId', filters.invoiceId);
   if (filters?.status) params.set('status', filters.status);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));

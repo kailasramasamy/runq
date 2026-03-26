@@ -24,6 +24,9 @@
 - ✅ (#24) WhatsApp invoice delivery + payment reminders
 - ✅ (#48) Document attachments on transactions (PO PDF, invoice scan, GRN photo)
 
+### Follow-up (from Phase 1 testing)
+- ⬜ Item Master / Product Catalog (name, HSN, unit, GST rate per product — auto-fill on invoice)
+
 ---
 
 ## Phase 2 — AI Differentiation

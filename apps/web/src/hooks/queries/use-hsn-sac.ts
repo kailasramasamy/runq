@@ -10,13 +10,14 @@ const HSN_SAC_KEYS = {
 export function useHsnSacSearch(q: string, type?: 'hsn' | 'sac') {
   return useQuery({
     queryKey: HSN_SAC_KEYS.search(q, type),
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams({ q });
       if (type) params.set('type', type);
-      return api.get<{ data: HsnSacCode[] }>(`/masters/hsn-sac?${params}`);
+      const res = await api.get<{ data: HsnSacCode[] }>(`/masters/hsn-sac?${params}`);
+      return res.data;
     },
     enabled: q.length >= 2,
-    staleTime: 5 * 60 * 1000, // 5 min — reference data rarely changes
+    staleTime: 5 * 60 * 1000,
   });
 }
 

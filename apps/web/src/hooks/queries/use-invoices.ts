@@ -49,6 +49,23 @@ export function useInvoice(id: string) {
   });
 }
 
+export interface InvoiceReceipt {
+  id: string;
+  receiptDate: string;
+  amount: number;
+  paymentMethod: string;
+  referenceNumber: string | null;
+  notes: string | null;
+}
+
+export function useInvoiceReceipts(invoiceId: string) {
+  return useQuery({
+    queryKey: [...INVOICE_KEYS.detail(invoiceId), 'receipts'] as const,
+    queryFn: () => api.get<{ data: InvoiceReceipt[] }>(`/ar/invoices/${invoiceId}/receipts`),
+    enabled: !!invoiceId,
+  });
+}
+
 export function useCreateInvoice() {
   const qc = useQueryClient();
   return useMutation({

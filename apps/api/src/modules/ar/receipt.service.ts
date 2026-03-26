@@ -113,7 +113,9 @@ export class ReceiptService {
     const result = await this.db.transaction(async (tx) => {
       // Lock all target invoices to prevent concurrent balance corruption
       const invoiceIds = input.allocations.map((a) => a.invoiceId);
-      await tx.execute(sql`SELECT id FROM sales_invoices WHERE id = ANY(${invoiceIds}) FOR UPDATE`);
+      for (const invId of invoiceIds) {
+        await tx.execute(sql`SELECT id FROM sales_invoices WHERE id = ${invId} FOR UPDATE`);
+      }
 
       const [receipt] = await tx
         .insert(paymentReceipts)

@@ -28,6 +28,7 @@ export interface SalesInvoice {
   igstAmount: number;
   cessAmount: number;
   reverseCharge: boolean;
+  wmsInvoiceId: string | null;
   irnNumber: string | null;
   irnDate: string | null;
   createdAt: string;

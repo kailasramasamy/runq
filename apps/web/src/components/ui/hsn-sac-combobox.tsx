@@ -34,8 +34,14 @@ export function HsnSacCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const { data: results, isLoading } = useHsnSacSearch(query, type);
-  const items = results?.data ?? [];
+  const { data: items = [], isLoading } = useHsnSacSearch(query, type);
+
+  // Auto-highlight first result when items load
+  useEffect(() => {
+    if (items.length > 0 && open) {
+      setActiveIndex(0);
+    }
+  }, [items, open]);
 
   const closeDropdown = useCallback(() => {
     setOpen(false);
@@ -73,13 +79,32 @@ export function HsnSacCombobox({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Always prevent Enter from submitting the parent form
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+
+      // Select highlighted item, or first item if none highlighted
+      const idx = activeIndex >= 0 ? activeIndex : 0;
+      if (items[idx]) {
+        handleSelect(items[idx].code, items[idx].gstRate);
+      }
+      return;
+    }
+
     if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+      if (e.key === 'ArrowDown') {
         setOpen(true);
         e.preventDefault();
       }
       return;
     }
+
     switch (e.key) {
       case 'ArrowDown':
         setActiveIndex((i) => Math.min(i + 1, items.length - 1));
@@ -87,12 +112,6 @@ export function HsnSacCombobox({
         break;
       case 'ArrowUp':
         setActiveIndex((i) => Math.max(i - 1, 0));
-        e.preventDefault();
-        break;
-      case 'Enter':
-        if (activeIndex >= 0 && items[activeIndex]) {
-          handleSelect(items[activeIndex].code, items[activeIndex].gstRate);
-        }
         e.preventDefault();
         break;
       case 'Escape':
@@ -112,7 +131,7 @@ export function HsnSacCombobox({
       <div ref={containerRef} className="relative">
         <Search
           size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
         />
         <input
           ref={inputRef}
@@ -128,7 +147,13 @@ export function HsnSacCombobox({
             setOpen(true);
             setActiveIndex(-1);
           }}
-          onFocus={() => !disabled && setOpen(true)}
+          onFocus={() => {
+            if (!disabled) {
+              setOpen(true);
+              // If re-opening with a value, pre-fill search with it
+              if (value && !query) setQuery(value);
+            }
+          }}
           onKeyDown={handleKeyDown}
           className={cn(
             baseInputClasses,
@@ -150,7 +175,7 @@ export function HsnSacCombobox({
           <ul
             ref={listRef}
             role="listbox"
-            className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            className="absolute z-[100] mt-1 max-h-60 w-max min-w-full overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
           >
             {isLoading && query.length >= 2 && (
               <li className="px-3 py-2 text-sm text-zinc-400">Searching…</li>
@@ -169,26 +194,22 @@ export function HsnSacCombobox({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(item.code, item.gstRate)}
                 className={cn(
-                  'cursor-pointer px-3 py-2 text-sm',
+                  'cursor-pointer px-3 py-2 text-sm whitespace-nowrap',
                   idx === activeIndex
                     ? 'bg-indigo-50 dark:bg-indigo-900/20'
                     : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/20',
                   item.code === value && 'bg-indigo-50 font-medium dark:bg-indigo-900/20',
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <span>
-                    <span className="font-mono font-medium">{item.code}</span>
-                    <span className="ml-2 text-zinc-500 dark:text-zinc-400">
-                      {item.description}
-                    </span>
+                <span className="font-mono font-medium">{item.code}</span>
+                <span className="ml-2 text-zinc-500 dark:text-zinc-400">
+                  {item.description}
+                </span>
+                {item.gstRate != null && (
+                  <span className="ml-2 text-xs text-indigo-600 dark:text-indigo-400">
+                    {item.gstRate}%
                   </span>
-                  {item.gstRate != null && (
-                    <span className="ml-2 shrink-0 text-xs text-indigo-600 dark:text-indigo-400">
-                      {item.gstRate}%
-                    </span>
-                  )}
-                </div>
+                )}
               </li>
             ))}
           </ul>

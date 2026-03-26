@@ -479,6 +479,34 @@ export class InvoiceService {
     });
   }
 
+  async getReceiptsForInvoice(invoiceId: string) {
+    const rows = await this.db
+      .select({
+        id: paymentReceipts.id,
+        receiptDate: paymentReceipts.receiptDate,
+        amount: receiptAllocations.amount,
+        paymentMethod: paymentReceipts.paymentMethod,
+        referenceNumber: paymentReceipts.referenceNumber,
+        notes: paymentReceipts.notes,
+      })
+      .from(receiptAllocations)
+      .innerJoin(paymentReceipts, eq(receiptAllocations.receiptId, paymentReceipts.id))
+      .where(and(
+        eq(receiptAllocations.invoiceId, invoiceId),
+        eq(receiptAllocations.tenantId, this.tenantId),
+      ))
+      .orderBy(paymentReceipts.receiptDate);
+
+    return rows.map((r) => ({
+      id: r.id,
+      receiptDate: r.receiptDate,
+      amount: Number(r.amount),
+      paymentMethod: r.paymentMethod,
+      referenceNumber: r.referenceNumber ?? null,
+      notes: r.notes ?? null,
+    }));
+  }
+
   private getCurrentFY(startMonth: number): string {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -569,6 +597,7 @@ export class InvoiceService {
       igstAmount: Number(row.igstAmount),
       cessAmount: Number(row.cessAmount),
       reverseCharge: row.reverseCharge,
+      wmsInvoiceId: row.wmsInvoiceId ?? null,
       irnNumber: row.irnNumber ?? null,
       irnDate: row.irnDate ?? null,
       createdAt: row.createdAt.toISOString(),

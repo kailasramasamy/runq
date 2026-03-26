@@ -9,7 +9,7 @@ const ATTACHMENT_KEYS = {
 };
 
 function getToken(): string | null {
-  return localStorage.getItem('token');
+  return localStorage.getItem('runq-token');
 }
 
 function authHeaders(): Record<string, string> {

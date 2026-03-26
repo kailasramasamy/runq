@@ -11,9 +11,10 @@ export function NewInvoicePage() {
 
   function handleSubmit(data: CreateSalesInvoiceInput) {
     mutation.mutate(data, {
-      onSuccess: () => {
+      onSuccess: (res) => {
         toast('Invoice created successfully', 'success');
-        navigate({ to: '/ar/invoices' });
+        const id = (res as any)?.data?.id;
+        navigate({ to: id ? `/ar/invoices/${id}` : '/ar/invoices' });
       },
       onError: () => {
         toast('Failed to create invoice. Please try again.', 'error');
@@ -22,7 +23,7 @@ export function NewInvoicePage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },

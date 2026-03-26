@@ -14,8 +14,8 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
       const service = new SettingsService(request.server.db, request.tenantId);
-      const data = await service.getCompanySettings();
-      return { data };
+      const tenant = await service.getCompanySettings();
+      return { data: { name: tenant.name, id: tenant.id, ...tenant.settings } };
     },
   );
 

@@ -16,7 +16,7 @@ const HSN_CODES: HsnSacSeed[] = [
   // Food & Agricultural (Chapter 1-21)
   { code: '0401', type: 'hsn', description: 'Milk and cream, not concentrated', gstRate: '0.00' },
   { code: '0402', type: 'hsn', description: 'Milk and cream, concentrated or sweetened', gstRate: '5.00' },
-  { code: '0406', type: 'hsn', description: 'Cheese and curd', gstRate: '12.00' },
+  { code: '0406', type: 'hsn', description: 'Cheese and curd', gstRate: '5.00' },
   { code: '0702', type: 'hsn', description: 'Tomatoes, fresh or chilled', gstRate: '0.00' },
   { code: '0713', type: 'hsn', description: 'Dried leguminous vegetables (pulses)', gstRate: '0.00' },
   { code: '0901', type: 'hsn', description: 'Coffee (roasted or not)', gstRate: '5.00' },

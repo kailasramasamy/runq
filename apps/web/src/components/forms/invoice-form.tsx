@@ -173,21 +173,21 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
 
       <Card>
         <CardHeader title="Line Items" />
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
           )}
-          <Table>
+          <Table className="min-w-[900px]">
             <TableHeader>
               <tr>
-                <Th>Description</Th>
-                <Th>HSN/SAC</Th>
-                <Th align="right">Qty</Th>
-                <Th align="right">Unit Price</Th>
-                <Th align="right">Amount</Th>
-                <Th>Tax Category</Th>
-                <Th>GST Rate</Th>
-                <Th />
+                <Th className="min-w-[240px]">Description</Th>
+                <Th className="min-w-[180px]">HSN/SAC</Th>
+                <Th align="right" className="min-w-[80px]">Qty</Th>
+                <Th align="right" className="min-w-[110px]">Unit Price</Th>
+                <Th align="right" className="min-w-[100px]">Amount</Th>
+                <Th className="min-w-[130px]">Tax Category</Th>
+                <Th className="min-w-[90px]">GST Rate</Th>
+                <Th className="w-10" />
               </tr>
             </TableHeader>
             <TableBody>
@@ -197,7 +197,7 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
                     <Input
                       value={line.description}
                       onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      placeholder="Description"
+                      placeholder="Description of service or product"
                     />
                   </TableCell>
                   <TableCell>
@@ -206,7 +206,7 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
                       onChange={(code, gstRate) => {
                         setLines((prev) => prev.map((l, i) => i === idx ? { ...l, hsnSacCode: code, taxRate: gstRate != null ? String(gstRate) : l.taxRate } : l));
                       }}
-                      placeholder="Code…"
+                      placeholder="Search HSN/SAC…"
                     />
                   </TableCell>
                   <TableCell align="right">

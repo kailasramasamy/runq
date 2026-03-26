@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Send, CheckCircle, AlertTriangle, Bell, Printer } from 'lucide-react';
-import { useInvoice, useSendInvoice, useMarkPaid } from '@/hooks/queries/use-invoices';
+import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts } from '@/hooks/queries/use-invoices';
+import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceStatus } from '@runq/types';
@@ -9,6 +10,7 @@ import {
   StatsCard, EmptyState, CardSkeleton,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
 } from '@/components/ui';
+import { FileUpload } from '@/components/ui/file-upload';
 import { FileText } from 'lucide-react';
 
 type BadgeVariant = 'default' | 'info' | 'success' | 'danger' | 'outline' | 'primary' | 'cyan';
@@ -28,9 +30,11 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data, isLoading, isError } = useInvoice(invoiceId);
+  const { data: receiptsData } = useInvoiceReceipts(invoiceId);
   const sendMutation = useSendInvoice();
   const markPaidMutation = useMarkPaid();
   const invoice = data?.data;
+  const receipts: InvoiceReceipt[] = receiptsData?.data ?? [];
 
   function getPrintUrl() {
     const tenantId = user?.tenantId ?? '';
@@ -65,7 +69,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const printUrl = getPrintUrl();
 
   function PrintButtons() {
-    if (invoice!.status === 'draft') return null;
+    if (invoice!.status === 'cancelled') return null;
     return (
       <>
         <Button variant="outline" size="sm" onClick={() => window.open(printUrl, '_blank')}>
@@ -134,7 +138,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
@@ -199,6 +203,26 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 </p>
               )}
             </div>
+            {invoice.placeOfSupply && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Place of Supply
+                </p>
+                <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">
+                  {invoice.placeOfSupply} ({invoice.placeOfSupplyCode})
+                </p>
+              </div>
+            )}
+            {invoice.isInterState != null && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Supply Type
+                </p>
+                <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">
+                  {invoice.isInterState ? 'Inter-State' : 'Intra-State'}
+                </p>
+              </div>
+            )}
             {invoice.notes && (
               <div className="col-span-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
@@ -222,39 +246,72 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 <TableHeader>
                   <tr>
                     <Th>Description</Th>
-                    <Th align="right">Qty</Th>
+                    <Th>HSN/SAC</Th>
+                    <Th>Qty</Th>
                     <Th align="right">Unit Price</Th>
                     <Th align="right">Amount</Th>
+                    <Th align="right">Tax Rate</Th>
+                    <Th align="right">Tax Amount</Th>
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {invoice.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell numeric>{item.quantity}</TableCell>
-                      <TableCell numeric>{formatINR(item.unitPrice)}</TableCell>
-                      <TableCell numeric>{formatINR(item.amount)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {invoice.items.map((item) => {
+                    const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.description}</TableCell>
+                        <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
+                        <TableCell>{item.quantity}</TableCell>
+                        <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
+                        <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
+                        <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
+                        <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                   <TableRow>
-                    <TableCell colSpan={3} className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                    <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                       Subtotal
                     </TableCell>
-                    <TableCell numeric className="font-mono">{formatINR(invoice.subtotal)}</TableCell>
+                    <TableCell align="right" numeric className="font-mono">{formatINR(invoice.subtotal)}</TableCell>
                   </TableRow>
-                  {invoice.taxAmount > 0 && (
+                  {invoice.cgstAmount > 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-right text-sm text-zinc-500 dark:text-zinc-400">
-                        Tax
+                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                        CGST
                       </TableCell>
-                      <TableCell numeric className="font-mono">{formatINR(invoice.taxAmount)}</TableCell>
+                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cgstAmount)}</TableCell>
+                    </TableRow>
+                  )}
+                  {invoice.sgstAmount > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                        SGST
+                      </TableCell>
+                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.sgstAmount)}</TableCell>
+                    </TableRow>
+                  )}
+                  {invoice.igstAmount > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                        IGST
+                      </TableCell>
+                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.igstAmount)}</TableCell>
+                    </TableRow>
+                  )}
+                  {invoice.cessAmount > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                        Cess
+                      </TableCell>
+                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cessAmount)}</TableCell>
                     </TableRow>
                   )}
                   <TableRow>
-                    <TableCell colSpan={3} className="text-right text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    <TableCell colSpan={6} align="right" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                       Total
                     </TableCell>
-                    <TableCell numeric className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                    <TableCell align="right" numeric className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                       {formatINR(invoice.totalAmount)}
                     </TableCell>
                   </TableRow>
@@ -264,18 +321,42 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </CardContent>
         </Card>
 
-        {(invoice.status === 'partially_paid' || invoice.status === 'paid') && (
+        {receipts.length > 0 && (
           <Card>
             <CardHeader title="Receipt History" />
-            <CardContent>
-              <EmptyState
-                icon={FileText}
-                title="No receipts recorded"
-                description="Receipts against this invoice will appear here."
-              />
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <Th>Date</Th>
+                    <Th>Reference</Th>
+                    <Th>Method</Th>
+                    <Th align="right">Amount</Th>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {receipts.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>{r.receiptDate}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.referenceNumber ?? '—'}</TableCell>
+                      <TableCell className="capitalize">{r.paymentMethod.replace(/_/g, ' ')}</TableCell>
+                      <TableCell align="right" numeric className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        {formatINR(r.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader title="Attachments" />
+          <CardContent>
+            <FileUpload entityType="sales_invoice" entityId={invoiceId} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { ArrowDownToLine } from 'lucide-react';
 import { useReceipt } from '../../../hooks/queries/use-receipts';
+import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import type { ReceiptAllocationDetail } from '../../../hooks/queries/use-receipts';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -34,7 +35,8 @@ const STATUS_VARIANT: Record<string, 'warning' | 'success' | 'info' | 'outline'>
 };
 
 function AllocationRow({ alloc }: { alloc: ReceiptAllocationDetail }) {
-  const variant = STATUS_VARIANT[alloc.invoiceStatus] ?? 'outline';
+  const status = alloc.invoiceStatus ?? 'unknown';
+  const variant = STATUS_VARIANT[status] ?? 'outline';
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{alloc.invoiceNumber}</TableCell>
@@ -43,7 +45,7 @@ function AllocationRow({ alloc }: { alloc: ReceiptAllocationDetail }) {
       <TableCell align="right" numeric>{formatINR(alloc.invoiceBalanceDue)}</TableCell>
       <TableCell>
         <Badge variant={variant} className="capitalize">
-          {alloc.invoiceStatus.replace(/_/g, ' ')}
+          {status.replace(/_/g, ' ')}
         </Badge>
       </TableCell>
     </TableRow>
@@ -54,7 +56,12 @@ interface Props { receiptId: string }
 
 export function ReceiptDetailPage({ receiptId }: Props) {
   const { data, isLoading, isError } = useReceipt(receiptId);
+  const { data: bankData } = useBankAccounts();
   const receipt = data?.data;
+  const bankAccounts = bankData?.data ?? [];
+  const bankName = receipt?.bankAccountId
+    ? bankAccounts.find((b) => b.id === receipt.bankAccountId)?.name ?? receipt.bankAccountId
+    : '—';
 
   if (isLoading) {
     return (
@@ -73,11 +80,11 @@ export function ReceiptDetailPage({ receiptId }: Props) {
   return (
     <div className="max-w-3xl">
       <PageHeader
-        title={`Receipt ${receipt.id.slice(0, 8)}…`}
+        title={receipt.referenceNumber ? `Receipt — ${receipt.referenceNumber}` : `Receipt ${receipt.id.slice(0, 8)}…`}
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
           { label: 'Receipts', href: '/ar/receipts' },
-          { label: receipt.id.slice(0, 8) + '…' },
+          { label: receipt.referenceNumber ?? receipt.id.slice(0, 8) + '…' },
         ]}
       />
 
@@ -118,7 +125,7 @@ export function ReceiptDetailPage({ receiptId }: Props) {
               <DetailRow label="Receipt Date" value={receipt.receiptDate} />
               <DetailRow label="Method" value={receipt.paymentMethod.replace(/_/g, ' ')} />
               <DetailRow label="Reference Number" value={receipt.referenceNumber} />
-              <DetailRow label="Bank Account" value={receipt.bankAccountId} />
+              <DetailRow label="Bank Account" value={bankName} />
               {receipt.notes && (
                 <div className="col-span-2 sm:col-span-3">
                   <DetailRow label="Notes" value={receipt.notes} />

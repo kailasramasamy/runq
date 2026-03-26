@@ -43,6 +43,8 @@ export const salesInvoices = pgTable('sales_invoices', {
   igstAmount: decimal('igst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   cessAmount: decimal('cess_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   reverseCharge: boolean('reverse_charge').notNull().default(false),
+  // WMS integration
+  wmsInvoiceId: varchar('wms_invoice_id', { length: 100 }),
   // IRN placeholder for e-invoicing (populated externally)
   irnNumber: varchar('irn_number', { length: 100 }),
   irnDate: date('irn_date'),

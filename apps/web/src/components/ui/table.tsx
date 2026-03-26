@@ -10,7 +10,7 @@ const alignClasses: Record<Align, string> = {
 
 export function Table({ className, children, ...props }: HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
       <table className={cn('w-full border-collapse text-sm', className)} {...props}>
         {children}
       </table>

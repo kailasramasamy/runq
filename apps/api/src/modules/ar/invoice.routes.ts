@@ -72,6 +72,17 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.get(
+    '/:id/receipts',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const data = await service.getReceiptsForInvoice(id);
+      return { data };
+    },
+  );
+
   app.post(
     '/:id/send',
     { preHandler: [rbacHook([...WRITE_ROLES])] },

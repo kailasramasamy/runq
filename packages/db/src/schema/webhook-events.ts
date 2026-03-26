@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, jsonb, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, jsonb, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenant';
 
 export const webhookEventStatusEnum = pgEnum('webhook_event_status', ['received', 'processing', 'processed', 'failed']);
@@ -7,10 +7,12 @@ export const webhookEventTypeEnum = pgEnum('webhook_event_type', [
   'po.created', 'po.updated',
   'grn.created', 'grn.updated',
   'invoice.created', 'invoice.updated',
+  'purchase_invoice.created', 'sales_invoice.created',
 ]);
 
 export const webhookEvents = pgTable('webhook_events', {
   id: uuid('id').primaryKey().defaultRandom(),
+  eventId: varchar('event_id', { length: 255 }).notNull(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   eventType: webhookEventTypeEnum('event_type').notNull(),
   source: varchar('source', { length: 50 }).notNull().default('wms'),
@@ -22,4 +24,6 @@ export const webhookEvents = pgTable('webhook_events', {
   processedAt: timestamp('processed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_webhook_event_id_tenant').on(t.eventId, t.tenantId),
+]);

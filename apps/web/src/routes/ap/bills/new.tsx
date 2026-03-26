@@ -10,12 +10,15 @@ export function NewBillPage() {
 
   function handleSubmit(data: CreatePurchaseInvoiceInput) {
     mutation.mutate(data, {
-      onSuccess: () => navigate({ to: '/ap/bills' }),
+      onSuccess: (res) => {
+        const id = (res as any)?.data?.id;
+        navigate({ to: id ? `/ap/bills/${id}` : '/ap/bills' });
+      },
     });
   }
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         title="New Bill"
         description="Record a vendor bill (purchase invoice)."

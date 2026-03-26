@@ -196,24 +196,24 @@ export function BillForm({ onSubmit, isLoading }: Props) {
 
       <Card>
         <CardHeader title="Line Items" />
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
           )}
-          <Table>
+          <Table className="min-w-[1400px]">
             <TableHeader>
               <tr>
-                <Th>Item Name</Th>
-                <Th>HSN/SAC</Th>
-                <Th>SKU</Th>
-                <Th align="right">Qty</Th>
-                <Th align="right">Unit Price</Th>
-                <Th align="right">Amount</Th>
-                <Th>Tax Category</Th>
-                <Th>GST Rate</Th>
-                <Th>TDS Section</Th>
-                <Th>TDS %</Th>
-                <Th />
+                <Th className="w-[16%]">Item Name</Th>
+                <Th className="w-[11%]">HSN/SAC</Th>
+                <Th className="w-[6%]">SKU</Th>
+                <Th align="right" className="w-[6%]">Qty</Th>
+                <Th align="right" className="w-[8%]">Unit Price</Th>
+                <Th align="right" className="w-[8%]">Amount</Th>
+                <Th className="w-[10%]">Tax Category</Th>
+                <Th className="w-[7%]">GST Rate</Th>
+                <Th className="w-[15%]">TDS Section</Th>
+                <Th className="w-[8%]">TDS %</Th>
+                <Th className="w-[3%]" />
               </tr>
             </TableHeader>
             <TableBody>
@@ -232,7 +232,7 @@ export function BillForm({ onSubmit, isLoading }: Props) {
                       onChange={(code, gstRate) => {
                         setLines((prev) => prev.map((l, i) => i === idx ? { ...l, hsnSacCode: code, taxRate: gstRate != null ? String(gstRate) : l.taxRate } : l));
                       }}
-                      placeholder="Code…"
+                      placeholder="Search HSN/SAC…"
                     />
                   </TableCell>
                   <TableCell>
@@ -240,7 +240,6 @@ export function BillForm({ onSubmit, isLoading }: Props) {
                       value={line.sku}
                       onChange={(e) => updateLine(idx, 'sku', e.target.value)}
                       placeholder="SKU"
-                      className="w-24"
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -248,7 +247,7 @@ export function BillForm({ onSubmit, isLoading }: Props) {
                       type="number" min="0"
                       value={line.quantity}
                       onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
-                      placeholder="0" className="w-20 text-right"
+                      placeholder="0" className="text-right"
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -256,7 +255,7 @@ export function BillForm({ onSubmit, isLoading }: Props) {
                       type="number" min="0" step="0.01"
                       value={line.unitPrice}
                       onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
-                      placeholder="0.00" className="w-28 text-right"
+                      placeholder="0.00" className="text-right"
                     />
                   </TableCell>
                   <TableCell align="right" numeric>
@@ -289,7 +288,7 @@ export function BillForm({ onSubmit, isLoading }: Props) {
                       type="number" min="0" max="100" step="0.1"
                       value={line.tdsRate}
                       onChange={(e) => updateLine(idx, 'tdsRate', e.target.value)}
-                      placeholder="0" className="w-16 text-right"
+                      placeholder="0" className="text-right"
                       disabled={!line.tdsSection}
                     />
                   </TableCell>
