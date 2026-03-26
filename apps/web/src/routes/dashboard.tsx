@@ -24,6 +24,8 @@ import {
 } from '@/hooks/queries/use-dashboard';
 import type { AgingData } from '@/hooks/queries/use-dashboard';
 import { PaymentPriorityWidget } from '@/components/dashboard/payment-priority';
+import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
+import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
 
 // ─── Aging Bar Chart ──────────────────────────────────────────────────────────
 
@@ -125,6 +127,9 @@ export function DashboardPage() {
         </p>
       </div>
 
+      {/* AI Insights */}
+      <AIInsightsWidget />
+
       {/* Row 1: Stats */}
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -225,8 +230,11 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Row 3: Payment Priority */}
-      <PaymentPriorityWidget />
+      {/* Row 3: Payment Priority + Expense Alerts */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <PaymentPriorityWidget />
+        <ExpenseAlertsWidget />
+      </div>
 
       {/* Row 4: Quick Actions */}
       <Card>

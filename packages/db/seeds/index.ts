@@ -3,6 +3,7 @@ import { tenants } from '../src/schema/tenant';
 import { users } from '../src/schema/user';
 import { seedChartOfAccounts } from './chart-of-accounts';
 import { seedHsnSacCodes } from './hsn-sac';
+import { seedVrindavanData } from './vrindavan-test-data';
 
 async function seed() {
   const dbUrl = process.env.DATABASE_URL;
@@ -39,6 +40,10 @@ async function seed() {
 
   await seedChartOfAccounts(db, tenant.id);
   await seedHsnSacCodes(db);
+
+  if (process.argv.includes('--vrindavan')) {
+    await seedVrindavanData(db, tenant.id);
+  }
 
   console.log('Seed complete.');
 

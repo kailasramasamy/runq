@@ -13,6 +13,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { ThreeWayMatchService } from './three-way-match.service';
 import { DuplicateService } from './duplicate.service';
+import { AnomalyService } from './anomaly.service';
 import { checkDuplicatesSchema } from './duplicate.schema';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -20,6 +21,16 @@ const WRITE_ROLES = ['owner', 'accountant'] as const;
 const OWNER_ROLES = ['owner'] as const;
 
 export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
+  app.get(
+    '/anomalies',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new AnomalyService(request.server.db, request.tenantId);
+      const anomalies = await service.detectAnomalies();
+      return { data: anomalies };
+    },
+  );
+
   app.get(
     '/',
     { preHandler: [rbacHook([...READ_ROLES])] },

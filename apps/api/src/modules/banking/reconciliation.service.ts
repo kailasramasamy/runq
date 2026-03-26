@@ -12,6 +12,8 @@ import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch 
 import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
+import type { SmartMatchResult } from './smart-match.service';
+import { SmartMatchService } from './smart-match.service';
 
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
@@ -21,6 +23,7 @@ export interface UnreconciledResult {
   unreconciledBankTxns: BankTxnRow[];
   unreconciledPayments: PaymentRow[];
   unreconciledReceipts: ReceiptRow[];
+  suggestedMatches: SmartMatchResult[];
   summary: { bankBalance: number; bookBalance: number; difference: number };
 }
 
@@ -68,10 +71,14 @@ export class ReconciliationService {
     const totalReceipts = unreconciledReceipts.reduce((s, r) => s + toNumber(r.amount), 0);
     const bookBalance = bankBalance - totalPayments + totalReceipts;
 
+    const smartMatch = new SmartMatchService(this.db, this.tenantId);
+    const suggestedMatches = await smartMatch.getSuggestions(bankAccountId);
+
     return {
       unreconciledBankTxns,
       unreconciledPayments,
       unreconciledReceipts,
+      suggestedMatches,
       summary: { bankBalance, bookBalance, difference: bankBalance - bookBalance },
     };
   }

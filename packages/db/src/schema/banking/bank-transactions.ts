@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { bankAccounts } from './bank-accounts';
+import { accounts } from '../gl/accounts';
 
 export const bankTxnTypeEnum = pgEnum('bank_txn_type', ['credit', 'debit']);
 export const reconStatusEnum = pgEnum('recon_status', ['unreconciled', 'matched', 'manually_matched', 'excluded']);
@@ -18,6 +19,10 @@ export const bankTransactions = pgTable('bank_transactions', {
   runningBalance: decimal('running_balance', { precision: 15, scale: 2 }),
   reconStatus: reconStatusEnum('recon_status').notNull().default('unreconciled'),
   importBatchId: uuid('import_batch_id'),
+  // AI categorization
+  glAccountId: uuid('gl_account_id').references(() => accounts.id),
+  glConfidence: decimal('gl_confidence', { precision: 3, scale: 2 }),
+  glSuggestedAt: timestamp('gl_suggested_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

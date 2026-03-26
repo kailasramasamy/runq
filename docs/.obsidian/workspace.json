@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "product-assessment.md",
+                "file": "feature-roadmap.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "product-assessment"
+              "title": "feature-roadmap"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "product-assessment.md",
+                "file": "feature-roadmap.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for product-assessment"
+              "title": "Backlinks for feature-roadmap"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "product-assessment.md",
+                "file": "feature-roadmap.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from product-assessment"
+              "title": "Outgoing links from feature-roadmap"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "product-assessment.md",
+                "file": "feature-roadmap.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of product-assessment"
+              "title": "Outline of feature-roadmap"
             }
           }
         ]
@@ -185,14 +185,16 @@
   },
   "active": "c4b2a52328679b98",
   "lastOpenFiles": [
-    "audit-tracker.md",
-    "product-assessment.md",
-    "tracking.md",
-    "wms-integration-guide.md",
-    "payment-integration-plan.md",
     "finance-accounting-decisions.md",
-    "database-schema.md",
+    "payment-integration-plan.md",
+    "phase1-manual-testing.md",
+    "product-assessment.md",
     "project-structure.md",
+    "tracking.md",
+    "feature-roadmap.md",
+    "database-schema.md",
+    "audit-tracker.md",
+    "wms-integration-guide.md",
     "api-routes.md"
   ]
 }

@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
-import { bankTransactions, bankAccounts } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
 import type { TransactionFilter } from '@runq/validators';
@@ -55,13 +55,23 @@ export class TransactionService {
     const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);
 
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(bankTransactions).where(baseWhere).limit(limit).offset(offset),
+      this.db
+        .select({
+          txn: bankTransactions,
+          glAccountCode: accounts.code,
+          glAccountName: accounts.name,
+        })
+        .from(bankTransactions)
+        .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
+        .where(baseWhere)
+        .limit(limit)
+        .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => this.toTransaction(r)),
+      data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName)),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -245,7 +255,11 @@ export class TransactionService {
     return result;
   }
 
-  private toTransaction(row: typeof bankTransactions.$inferSelect): BankTransaction {
+  private toTransaction(
+    row: typeof bankTransactions.$inferSelect,
+    glAccountCode?: string | null,
+    glAccountName?: string | null,
+  ): BankTransaction {
     return {
       id: row.id,
       tenantId: row.tenantId,
@@ -259,6 +273,10 @@ export class TransactionService {
       runningBalance: row.runningBalance ? parseFloat(row.runningBalance) : null,
       reconStatus: row.reconStatus,
       importBatchId: row.importBatchId,
+      glAccountId: row.glAccountId,
+      glAccountCode: glAccountCode ?? null,
+      glAccountName: glAccountName ?? null,
+      glConfidence: row.glConfidence ? parseFloat(row.glConfidence) : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

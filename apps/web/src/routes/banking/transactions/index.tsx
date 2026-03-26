@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload } from 'lucide-react';
+import { Upload, Sparkles } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
-import { useBankTransactions } from '@/hooks/queries/use-transactions';
+import { useBankTransactions, useCategorizeTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
+import { CategoryBadge } from '@/components/banking/category-badge';
 import type { BankTransaction, ReconStatus } from '@runq/types';
 import {
   PageHeader,
@@ -76,6 +77,13 @@ function TxnRow({ txn }: { txn: BankTransaction }) {
         </span>
       </TableCell>
       <TableCell>
+        <CategoryBadge
+          accountName={txn.glAccountName}
+          accountCode={txn.glAccountCode}
+          confidence={txn.glConfidence}
+        />
+      </TableCell>
+      <TableCell>
         <Badge variant={RECON_VARIANT[txn.reconStatus]}>
           {RECON_LABELS[txn.reconStatus]}
         </Badge>
@@ -92,6 +100,7 @@ export function TransactionsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const categorize = useCategorizeTransactions();
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
@@ -150,13 +159,23 @@ export function TransactionsPage() {
         title="Transactions"
         description="Bank statement entries and reconciliation status."
         actions={
-          <Button
-            variant="outline"
-            onClick={() => navigate({ to: '/banking/transactions/import' })}
-          >
-            <Upload size={16} />
-            Import CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => accountId && categorize.mutate({ accountId })}
+              disabled={!accountId || categorize.isPending}
+            >
+              <Sparkles size={16} />
+              {categorize.isPending ? 'Categorizing...' : 'Auto-Categorize'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: '/banking/transactions/import' })}
+            >
+              <Upload size={16} />
+              Import CSV
+            </Button>
+          </div>
         }
       />
 
@@ -210,15 +229,16 @@ export function TransactionsPage() {
             <Th align="right">Debit</Th>
             <Th align="right">Credit</Th>
             <Th align="right">Balance</Th>
+            <Th>Category</Th>
             <Th>Status</Th>
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={8} cols={7} />
+            <TableSkeleton rows={8} cols={8} />
           ) : transactions.length === 0 ? (
             <tr>
-              <td colSpan={7}>
+              <td colSpan={8}>
                 <EmptyState
                   icon={ArrowUpDown}
                   title="No transactions found"

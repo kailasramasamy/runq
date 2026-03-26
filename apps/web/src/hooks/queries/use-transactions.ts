@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { BankTransaction, BankStatementImportResult } from '@runq/types';
+import type { BankTransaction, BankStatementImportResult, CategorizationResult } from '@runq/types';
 import type { PaginatedResponse, ApiSuccess } from '@runq/types';
 
 const TXN_KEYS = {
@@ -48,6 +48,17 @@ export function useImportTransactions() {
       api.post<ApiSuccess<BankStatementImportResult>>(
         `/banking/accounts/${accountId}/import`,
         { csvData },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+  });
+}
+
+export function useCategorizeTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ accountId }: { accountId: string }) =>
+      api.post<ApiSuccess<CategorizationResult>>(
+        `/banking/accounts/${accountId}/categorize`,
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
   });
