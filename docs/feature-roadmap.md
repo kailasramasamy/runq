@@ -106,9 +106,9 @@
 
 ---
 
-## Phase 5 — Xero-Inspired Features (from competitive analysis)
+## Phase 5 — Competitive Feature Gaps (from Xero + Zoho analysis)
 
-*Features inspired by Xero that strengthen runq for the Indian market.*
+*Features identified from Xero and Zoho Books competitive analysis that strengthen runq for the Indian market.*
 
 ### Sales Workflow
 - ⬜ (#58) Quote / estimate creation with branded templates
@@ -133,12 +133,24 @@
 - ⬜ (#71) AI vendor negotiation insights (benchmark prices, suggest alternatives)
 - ⬜ (#72) Auto-categorization rules that learn from manual corrections
 
+### Portals & Self-Service (from Zoho analysis)
+- ⬜ (#78) Vendor portal (vendors view POs, accept/decline, check payment status — reduces "where's my payment?" calls)
+- ⬜ (#79) Sales orders (create, track, convert to invoice — complete sales workflow)
+- ⬜ (#80) Retainer invoices (advance billing for ongoing engagements)
+- ⬜ (#81) Custom report builder (slice data by any dimension — P&L by customer, expenses by category by month)
+
+### Inventory (from Zoho analysis — for trading/distribution businesses)
+- ⬜ (#82) Item master with stock tracking (qty on hand, reorder points, low-stock alerts)
+- ⬜ (#83) Multi-warehouse / multi-location inventory
+- ⬜ (#84) Batch and serial number tracking
+
 ### Platform
 - ⬜ (#73) Mobile app (React Native — invoicing, approvals, dashboard on phone)
 - ⬜ (#74) NEFT/RTGS batch payment file export (Indian net banking format)
 - ⬜ (#75) Webhook API for external integrations (runq → your system events)
 - ⬜ (#76) Multi-company per tenant (manage 2+ companies from one login)
 - ⬜ (#77) White-label / reseller mode (for CAs managing multiple clients)
+- ⬜ (#85) Bank feed via Setu Account Aggregator (Indian RBI-approved real bank feeds)
 
 ---
 
@@ -164,5 +176,6 @@
 | 2 | 7 | ✅ Done | AI automation — demo-ready differentiation |
 | 3 | 12 | ✅ Done | Banking + collections — daily time-saver |
 | 4 | 26 | ⬜ Next | Financial statements, workflows, integrations — scale to larger teams |
-| 5 | 20 | ⬜ Future | Xero-inspired — sales workflow, accounting depth, expense mgmt, AI v2, platform |
+| 5 | 29 | ⬜ Future | Competitive gaps — sales workflow, accounting depth, portals, inventory, AI v2, platform |
+| **Total** | **84** | | |
 | **Total** | **75** | | |
