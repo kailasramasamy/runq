@@ -66,15 +66,19 @@
 
 ## Phase 4 — Scale Features
 
-### Reporting & Dashboards
+### Financial Statements & Reporting (CRITICAL — needed for serious businesses)
 - ⬜ (#36) P&L statement (management view — real-time operational, not statutory)
+- ⬜ (#56) Balance Sheet (management view — assets, liabilities, equity snapshot)
 - ⬜ (#37) Cash flow statement (direct method — where money comes from / goes)
+- ⬜ (#57) Accrual accounting mode (currently cash-basis only — most CAs need accrual)
 - ⬜ (#38) Expense analytics by category / vendor / period
 - ⬜ (#39) Revenue analytics by customer / product / period
-- ⬜ (#40) Configurable dashboard widgets (user builds their own view)
-- ⬜ (#41) Scheduled report emails (daily cash position, weekly AR aging)
 - ⬜ (#42) Comparison reports (MoM, YoY, budget vs actual)
 - ⬜ (#12) Cash flow forecasting (AI — predict 30/60/90 day cash position)
+
+### Dashboard & Notifications
+- ⬜ (#40) Configurable dashboard widgets (user builds their own view)
+- ⬜ (#41) Scheduled report emails (daily cash position, weekly AR aging)
 
 ### Workflow & Collaboration
 - ⬜ (#43) Configurable approval workflows (multi-level, amount-based routing)
@@ -102,6 +106,42 @@
 
 ---
 
+## Phase 5 — Xero-Inspired Features (from competitive analysis)
+
+*Features inspired by Xero that strengthen runq for the Indian market.*
+
+### Sales Workflow
+- ⬜ (#58) Quote / estimate creation with branded templates
+- ⬜ (#59) Quote-to-invoice conversion (one click, carry over line items)
+- ⬜ (#60) Embedded "Pay Now" button on invoices (Razorpay/Cashfree checkout)
+
+### Accounting Depth
+- ⬜ (#61) Fixed asset register + depreciation schedules (straight-line, diminishing value)
+- ⬜ (#62) Year-end adjustments + lock date enforcement
+- ⬜ (#63) Multi-currency support (160+ currencies, auto exchange rates)
+- ⬜ (#64) Cost center / branch tracking (multi-location P&L)
+- ⬜ (#65) Item Master / Product Catalog (name, HSN, unit, GST rate — auto-fill on invoice)
+
+### Expense Management
+- ⬜ (#66) Employee expense claims (submit receipt → manager approves → reimburse)
+- ⬜ (#67) Mileage / travel expense tracking
+- ⬜ (#68) Corporate card transaction import + reconciliation
+
+### AI — Next Level
+- ⬜ (#69) Conversational AI finance assistant ("How much did we spend on logistics last month?")
+- ⬜ (#70) AI cash flow forecasting (predict shortfalls 30/60/90 days out)
+- ⬜ (#71) AI vendor negotiation insights (benchmark prices, suggest alternatives)
+- ⬜ (#72) Auto-categorization rules that learn from manual corrections
+
+### Platform
+- ⬜ (#73) Mobile app (React Native — invoicing, approvals, dashboard on phone)
+- ⬜ (#74) NEFT/RTGS batch payment file export (Indian net banking format)
+- ⬜ (#75) Webhook API for external integrations (runq → your system events)
+- ⬜ (#76) Multi-company per tenant (manage 2+ companies from one login)
+- ⬜ (#77) White-label / reseller mode (for CAs managing multiple clients)
+
+---
+
 ## Won't Build (Tally's Job)
 
 - 🚫 GST return filing (GSTR-1, GSTR-3B)
@@ -110,15 +150,19 @@
 - 🚫 TDS/TCS return filing
 - 🚫 Statutory financial statements (Schedule III P&L, Balance Sheet)
 - 🚫 Audit-ready reports for statutory compliance
+- 🚫 Payroll (PF, ESI, PT — use dedicated payroll software)
+- 🚫 Full app marketplace (too early — focus on core product)
+- 🚫 Projects / time tracking (niche — let users use Toggl/Clockify)
 
 ---
 
 ## Summary
 
-| Phase | Features | Focus |
-|-------|----------|-------|
-| 1 | 10 | GST-aware invoicing + quick wins — make Tally export production-ready |
-| 2 | 7 | AI automation — the "wow" factor, demo-ready differentiation |
-| 3 | 12 | Banking + collections — biggest daily time-saver for finance teams |
-| 4 | 24 | Reporting, workflows, integrations — scale to larger teams |
-| **Total** | **53** | |
+| Phase | Features | Status | Focus |
+|-------|----------|--------|-------|
+| 1 | 10 | ✅ Done | GST-aware invoicing + quick wins |
+| 2 | 7 | ✅ Done | AI automation — demo-ready differentiation |
+| 3 | 12 | ✅ Done | Banking + collections — daily time-saver |
+| 4 | 26 | ⬜ Next | Financial statements, workflows, integrations — scale to larger teams |
+| 5 | 20 | ⬜ Future | Xero-inspired — sales workflow, accounting depth, expense mgmt, AI v2, platform |
+| **Total** | **75** | | |
