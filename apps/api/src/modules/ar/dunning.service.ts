@@ -141,7 +141,7 @@ export class DunningService {
         .select()
         .from(dunningRules)
         .where(and(eq(dunningRules.tenantId, this.tenantId), eq(dunningRules.isActive, true)))
-        .orderBy(dunningRules.daysAfterDue),
+        .orderBy(dunningRules.escalationLevel),
       this.getOverdueInvoices(),
     ]);
 
@@ -149,23 +149,76 @@ export class DunningService {
 
     const invoiceIds = overdueInvoices.map((i) => i.id);
     const existingLogs = await this.db
-      .select({ invoiceId: dunningLog.invoiceId, ruleId: dunningLog.ruleId })
+      .select({
+        invoiceId: dunningLog.invoiceId,
+        ruleId: dunningLog.ruleId,
+        sentAt: dunningLog.sentAt,
+      })
       .from(dunningLog)
       .where(and(eq(dunningLog.tenantId, this.tenantId), inArray(dunningLog.invoiceId, invoiceIds)));
 
-    const alreadySent = new Set(existingLogs.map((l) => `${l.invoiceId}:${l.ruleId}`));
-    const toInsert: { tenantId: string; invoiceId: string; ruleId: string; channel: typeof dunningRules.$inferSelect['channel']; status: string }[] = [];
-
-    for (const invoice of overdueInvoices) {
-      const matchingRule = [...rules].reverse().find((r) => invoice.daysOverdue >= r.daysAfterDue);
-      if (!matchingRule) continue;
-      const key = `${invoice.id}:${matchingRule.id}`;
-      if (alreadySent.has(key)) continue;
-      toInsert.push({ tenantId: this.tenantId, invoiceId: invoice.id, ruleId: matchingRule.id, channel: matchingRule.channel, status: 'sent' });
-    }
+    const sentByInvoice = this.groupLogsByInvoice(existingLogs);
+    const toInsert = this.buildEscalationInserts(rules, overdueInvoices, sentByInvoice);
 
     if (toInsert.length > 0) await this.db.insert(dunningLog).values(toInsert);
     return { sent: toInsert.length, skipped: overdueInvoices.length - toInsert.length };
+  }
+
+  private groupLogsByInvoice(logs: { invoiceId: string; ruleId: string; sentAt: Date }[]) {
+    const map = new Map<string, { ruleId: string; sentAt: Date }[]>();
+    for (const log of logs) {
+      const existing = map.get(log.invoiceId) ?? [];
+      existing.push({ ruleId: log.ruleId, sentAt: log.sentAt });
+      map.set(log.invoiceId, existing);
+    }
+    return map;
+  }
+
+  private buildEscalationInserts(
+    rules: (typeof dunningRules.$inferSelect)[],
+    invoices: OverdueInvoice[],
+    sentByInvoice: Map<string, { ruleId: string; sentAt: Date }[]>,
+  ) {
+    type Insert = { tenantId: string; invoiceId: string; ruleId: string; channel: typeof dunningRules.$inferSelect['channel']; status: string };
+    const toInsert: Insert[] = [];
+    const ruleIds = new Set(rules.map((r) => r.id));
+
+    for (const invoice of invoices) {
+      const logs = sentByInvoice.get(invoice.id) ?? [];
+      const sentRuleIds = new Set(logs.map((l) => l.ruleId));
+      const nextRule = this.findNextEscalation(rules, ruleIds, sentRuleIds, logs, invoice);
+      if (!nextRule) continue;
+
+      toInsert.push({
+        tenantId: this.tenantId,
+        invoiceId: invoice.id,
+        ruleId: nextRule.id,
+        channel: nextRule.channel,
+        status: 'sent',
+      });
+    }
+    return toInsert;
+  }
+
+  private findNextEscalation(
+    rules: (typeof dunningRules.$inferSelect)[],
+    _ruleIds: Set<string>,
+    sentRuleIds: Set<string>,
+    logs: { ruleId: string; sentAt: Date }[],
+    invoice: OverdueInvoice,
+  ) {
+    for (const rule of rules) {
+      if (invoice.daysOverdue < rule.daysAfterDue) continue;
+      if (sentRuleIds.has(rule.id)) continue;
+
+      const prevLevel = rule.escalationLevel - 1;
+      if (prevLevel >= 1) {
+        const prevRule = rules.find((r) => r.escalationLevel === prevLevel);
+        if (prevRule && !sentRuleIds.has(prevRule.id)) continue;
+      }
+      return rule;
+    }
+    return null;
   }
 
   async getLog(filters: DunningLogFilter, page: number, limit: number): Promise<DunningLogListResult> {

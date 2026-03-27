@@ -10,6 +10,8 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { CustomerService } from './customer.service';
+import { CreditScoreService } from './credit-score.service';
+import { PortalService } from './portal.service';
 import { validateGSTIN } from '@runq/validators';
 import { lookupGSTIN } from '../../utils/gstin-lookup';
 
@@ -115,6 +117,28 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const service = new CustomerService(request.server.db, request.tenantId);
       const result = await service.importFromCSV(csvData);
       return { data: result };
+    },
+  );
+
+  app.get(
+    '/:id/credit-score',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new CreditScoreService(request.server.db, request.tenantId);
+      const data = await service.getScore(id);
+      return { data };
+    },
+  );
+
+  app.post(
+    '/:id/portal-token',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PortalService(request.server.db, request.tenantId);
+      const token = service.generateToken(id);
+      return { data: { token } };
     },
   );
 };

@@ -15,6 +15,8 @@ export const companySettingsSchema = z.object({
   addressLine2: z.string().max(255).nullish(),
   city: z.string().max(100).nullish(),
   pincode: z.string().regex(/^[1-9][0-9]{5}$/, 'Invalid pincode').nullish(),
+  // UPI collection
+  upiId: z.string().max(100).nullish(),
 });
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;

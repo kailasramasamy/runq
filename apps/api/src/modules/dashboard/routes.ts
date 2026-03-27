@@ -19,6 +19,16 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.get(
+    '/bank-balances',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new DashboardService(request.server.db, request.tenantId);
+      const data = await service.getBankBalances();
+      return { data };
+    },
+  );
+
+  app.get(
     '/payables-aging',
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {

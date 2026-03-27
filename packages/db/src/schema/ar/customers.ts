@@ -20,6 +20,7 @@ export const customers = pgTable('customers', {
   creditLimit: decimal('credit_limit', { precision: 15, scale: 2 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   contactPerson: varchar('contact_person', { length: 255 }),
+  overdueInterestRate: decimal('overdue_interest_rate', { precision: 5, scale: 2 }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

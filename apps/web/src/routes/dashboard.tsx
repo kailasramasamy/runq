@@ -26,6 +26,8 @@ import type { AgingData } from '@/hooks/queries/use-dashboard';
 import { PaymentPriorityWidget } from '@/components/dashboard/payment-priority';
 import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
 import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
+import { CashPositionWidget } from '@/components/dashboard/cash-position';
+import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
 
 // ─── Aging Bar Chart ──────────────────────────────────────────────────────────
 
@@ -230,13 +232,19 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Row 3: Payment Priority + Expense Alerts */}
+      {/* Row 3: Cash Position */}
+      <CashPositionWidget />
+
+      {/* Row 4: Payment Priority + Expense Alerts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <PaymentPriorityWidget />
         <ExpenseAlertsWidget />
       </div>
 
-      {/* Row 4: Quick Actions */}
+      {/* Row 5: Upcoming PDCs */}
+      <PDCCalendarWidget />
+
+      {/* Row 6: Quick Actions */}
       <Card>
         <CardHeader title="Quick Actions" />
         <CardContent>

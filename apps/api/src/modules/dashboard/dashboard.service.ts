@@ -79,6 +79,30 @@ export class DashboardService {
     };
   }
 
+  async getBankBalances() {
+    const rows = await this.db
+      .select({
+        id: bankAccounts.id,
+        name: bankAccounts.name,
+        bankName: bankAccounts.bankName,
+        accountType: bankAccounts.accountType,
+        currentBalance: bankAccounts.currentBalance,
+      })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.tenantId, this.tenantId), eq(bankAccounts.isActive, true)));
+
+    const accounts = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      bankName: r.bankName,
+      accountType: r.accountType,
+      currentBalance: r.currentBalance,
+    }));
+
+    const total = rows.reduce((sum, r) => sum + (parseFloat(r.currentBalance) || 0), 0);
+    return { accounts, total: total.toFixed(2) };
+  }
+
   async getPayablesAging(): Promise<AgingResult> {
     const today = new Date().toISOString().split('T')[0]!;
     const rows = await this.db

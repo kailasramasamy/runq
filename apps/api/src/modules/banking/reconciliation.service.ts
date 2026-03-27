@@ -14,6 +14,7 @@ import { NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 import type { SmartMatchResult } from './smart-match.service';
 import { SmartMatchService } from './smart-match.service';
+import { TdsMatchService } from './tds-match.service';
 
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
@@ -72,7 +73,14 @@ export class ReconciliationService {
     const bookBalance = bankBalance - totalPayments + totalReceipts;
 
     const smartMatch = new SmartMatchService(this.db, this.tenantId);
-    const suggestedMatches = await smartMatch.getSuggestions(bankAccountId);
+    const tdsMatch = new TdsMatchService(this.db, this.tenantId);
+
+    const [smartSuggestions, tdsSuggestions] = await Promise.all([
+      smartMatch.getSuggestions(bankAccountId),
+      tdsMatch.getSuggestions(bankAccountId),
+    ]);
+
+    const suggestedMatches = this.mergeSuggestions(smartSuggestions, tdsSuggestions);
 
     return {
       unreconciledBankTxns,
@@ -430,6 +438,26 @@ export class ReconciliationService {
       .limit(1);
     if (!receipt) throw new NotFoundError('Payment receipt');
     return { paymentId: null as null, receiptId: receipt.id, matchAmount: toNumber(receipt.amount) };
+  }
+
+  private mergeSuggestions(smart: SmartMatchResult[], tds: SmartMatchResult[]): SmartMatchResult[] {
+    const map = new Map<string, SmartMatchResult>();
+
+    for (const s of smart) {
+      map.set(s.transactionId, s);
+    }
+
+    for (const t of tds) {
+      const existing = map.get(t.transactionId);
+      if (existing) {
+        existing.suggestions.push(...t.suggestions);
+        existing.suggestions.sort((a, b) => b.confidence - a.confidence);
+      } else {
+        map.set(t.transactionId, t);
+      }
+    }
+
+    return Array.from(map.values());
   }
 
   private toMatch(row: typeof reconciliationMatches.$inferSelect): ReconciliationMatch {

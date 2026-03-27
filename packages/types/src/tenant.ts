@@ -24,4 +24,6 @@ export interface TenantSettings {
   addressLine2?: string;
   city?: string;
   pincode?: string;
+  // UPI collection
+  upiId?: string;
 }

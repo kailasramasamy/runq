@@ -12,9 +12,12 @@ import {
   createBatchPaymentSchema,
   importBatchPaymentSchema,
 } from '@runq/validators';
+import { eq } from 'drizzle-orm';
+import { payments } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { PaymentService } from './payment.service';
 import { PrioritizeService } from './prioritize.service';
+import { getBankFeedProvider } from '../../utils/banking';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -144,6 +147,30 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const { bankAccountId, paymentDate, csvData } = importBatchPaymentSchema.parse(request.body);
       const service = new PaymentService(request.server.db, request.tenantId);
       const result = await service.importBatchFromCSV(bankAccountId, paymentDate, csvData);
+      return reply.status(200).send({ data: result });
+    },
+  );
+
+  app.post(
+    '/:id/initiate',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      const payment = await service.getById(id);
+      const provider = getBankFeedProvider();
+      const result = await provider.initiatePayment({
+        beneficiaryAccount: '',
+        ifsc: '',
+        amount: payment.amount,
+        reference: payment.id,
+        narration: `Payment ${payment.id}`,
+      });
+      // Update payment with UTR from bank
+      await request.server.db
+        .update(payments)
+        .set({ utrNumber: result.utrNumber, updatedAt: new Date() })
+        .where(eq(payments.id, id));
       return reply.status(200).send({ data: result });
     },
   );

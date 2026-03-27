@@ -1,4 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
+import { eq } from 'drizzle-orm';
+import { tenants } from '@runq/db';
 import {
   createSalesInvoiceSchema,
   updateSalesInvoiceSchema,
@@ -10,6 +12,9 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { InvoiceService } from './invoice.service';
+import { generateUPILink } from '../../utils/upi/upi-link';
+import { InterestService } from './interest.service';
+import { NotFoundError } from '../../utils/errors';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -104,6 +109,46 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const service = new InvoiceService(request.server.db, request.tenantId);
       const invoice = await service.markPaid(id, input);
       return { data: invoice };
+    },
+  );
+
+  app.get(
+    '/:id/upi-link',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const invoice = await service.getById(id);
+
+      const [tenantRow] = await request.server.db
+        .select({ settings: tenants.settings, name: tenants.name })
+        .from(tenants)
+        .where(eq(tenants.id, request.tenantId))
+        .limit(1);
+
+      const settings = (tenantRow?.settings ?? {}) as Record<string, unknown>;
+      const upiId = settings.upiId as string | undefined;
+      if (!upiId) throw new NotFoundError('UPI ID not configured in tenant settings');
+
+      const link = generateUPILink({
+        upiId,
+        payeeName: tenantRow?.name ?? 'Company',
+        amount: invoice.balanceDue,
+        transactionNote: `Payment for ${invoice.invoiceNumber}`,
+      });
+
+      return { data: link };
+    },
+  );
+
+  app.get(
+    '/:id/interest',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new InterestService(request.server.db, request.tenantId);
+      const data = await service.calculateInterest(id);
+      return { data };
     },
   );
 };

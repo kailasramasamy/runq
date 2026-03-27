@@ -17,6 +17,7 @@ export interface Customer {
   creditLimit: number | null;
   paymentTermsDays: number;
   contactPerson: string | null;
+  overdueInterestRate: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

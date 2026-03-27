@@ -23,3 +23,4 @@ export * from './masters/hsn-sac';
 export * from './common/gst';
 export * from './common/attachment';
 export * from './ar/recurring-invoice';
+export * from './banking/cheque';

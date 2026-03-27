@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Send, CheckCircle, AlertTriangle, Bell, Printer } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent } from 'lucide-react';
 import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts } from '@/hooks/queries/use-invoices';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
+import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceStatus } from '@runq/types';
 import {
@@ -26,6 +29,9 @@ const STATUS_BADGE: Record<SalesInvoiceStatus, { variant: BadgeVariant; label: s
 
 interface Props { invoiceId: string }
 
+interface UPILinkData { deepLink: string; qrData: string }
+interface InterestData { principal: number; rate: number; daysOverdue: number; interestAmount: number }
+
 export function InvoiceDetailPage({ invoiceId }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -35,6 +41,21 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const markPaidMutation = useMarkPaid();
   const invoice = data?.data;
   const receipts: InvoiceReceipt[] = receiptsData?.data ?? [];
+  const [upiCopied, setUpiCopied] = useState(false);
+
+  const { data: upiData } = useQuery({
+    queryKey: ['invoices', 'upi-link', invoiceId],
+    queryFn: () => api.get<{ data: UPILinkData }>(`/ar/invoices/${invoiceId}/upi-link`),
+    enabled: !!invoice && invoice.balanceDue > 0,
+    retry: false,
+  });
+
+  const { data: interestData } = useQuery({
+    queryKey: ['invoices', 'interest', invoiceId],
+    queryFn: () => api.get<{ data: InterestData }>(`/ar/invoices/${invoiceId}/interest`),
+    enabled: !!invoice && invoice.status === 'overdue',
+    retry: false,
+  });
 
   function getPrintUrl() {
     const tenantId = user?.tenantId ?? '';
@@ -150,6 +171,19 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           <>
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
             <PrintButtons />
+            {upiData?.data && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(upiData.data.deepLink);
+                  setUpiCopied(true);
+                  setTimeout(() => setUpiCopied(false), 2000);
+                }}
+              >
+                <CreditCard size={14} /> {upiCopied ? 'Copied!' : 'UPI Payment Link'}
+              </Button>
+            )}
             <InvoiceActions />
           </>
         }
@@ -347,6 +381,46 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {interestData?.data && interestData.data.interestAmount > 0 && (
+          <Card>
+            <CardHeader title="Interest Accrued" />
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Principal
+                </p>
+                <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">
+                  {formatINR(interestData.data.principal)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Annual Rate
+                </p>
+                <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">
+                  {interestData.data.rate}%
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Days Overdue
+                </p>
+                <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">
+                  {interestData.data.daysOverdue}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Interest Amount
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-red-600 dark:text-red-400">
+                  {formatINR(interestData.data.interestAmount)}
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}

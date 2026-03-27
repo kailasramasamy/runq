@@ -5,6 +5,7 @@ import { receiptRoutes } from './receipt.routes';
 import { creditNoteRoutes } from './credit-note.routes';
 import { dunningRoutes } from './dunning.routes';
 import { recurringRoutes } from './recurring.routes';
+import { collectionRoutes } from './collection.routes';
 
 export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(customerRoutes, { prefix: '/customers' });
@@ -13,4 +14,5 @@ export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(creditNoteRoutes, { prefix: '/credit-notes' });
   await app.register(dunningRoutes, { prefix: '/dunning' });
   await app.register(recurringRoutes, { prefix: '/recurring' });
+  await app.register(collectionRoutes, { prefix: '/collections' });
 };

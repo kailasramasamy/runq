@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { FileText, Receipt, Trash2 } from 'lucide-react';
 import { useCustomer, useDeleteCustomer } from '@/hooks/queries/use-customers';
+import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
+import { CreditScoreBadge } from '@/components/ar/credit-score-badge';
 import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
   StatsCard, EmptyState, ConfirmationDialog, CardSkeleton,
@@ -68,12 +71,21 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
 
 interface Props { customerId: string }
 
+interface CreditScoreData { score: number; risk: 'high' | 'medium' | 'low'; factors: string[] }
+
 export function CustomerDetailPage({ customerId }: Props) {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useCustomer(customerId);
   const deleteMutation = useDeleteCustomer();
   const [showDelete, setShowDelete] = useState(false);
   const customer = data?.data;
+
+  const { data: creditScoreData } = useQuery({
+    queryKey: ['customers', 'credit-score', customerId],
+    queryFn: () => api.get<{ data: CreditScoreData }>(`/ar/customers/${customerId}/credit-score`),
+    enabled: !!customer,
+    retry: false,
+  });
 
   function handleDeleteConfirm() {
     deleteMutation.mutate(customerId, {
@@ -109,6 +121,9 @@ export function CustomerDetailPage({ customerId }: Props) {
             <Badge variant={customer.isActive ? 'success' : 'default'}>
               {customer.isActive ? 'Active' : 'Inactive'}
             </Badge>
+            {creditScoreData?.data && (
+              <CreditScoreBadge score={creditScoreData.data.score} risk={creditScoreData.data.risk} />
+            )}
             <Button variant="outline" size="sm" disabled title="Edit coming soon">
               Edit
             </Button>

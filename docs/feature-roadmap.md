@@ -45,22 +45,22 @@
 ## Phase 3 — Banking & Payments
 
 ### Bank Integration
-- ⬜ (#16) Live bank feeds (ICICI/HDFC/Axis APIs — auto-import transactions)
-- ⬜ (#17) Payment initiation via bank APIs (approve in runq → payment goes out)
-- ⬜ (#19) Multi-bank cash position dashboard (all balances in one view)
-- ⬜ (#20) Auto-reconciliation improvements (match PG settlements, bank charges, TDS deductions)
-- ⬜ (#22) Bank charge reconciliation (auto-identify fees, interest, penalties)
+- ✅ (#16) Live bank feeds (mock/sandbox — auto-import transactions)
+- ✅ (#17) Payment initiation via bank APIs (mock — approve → payment goes out)
+- ✅ (#19) Multi-bank cash position dashboard (all balances in one view)
+- ✅ (#20) Auto-reconciliation improvements (TDS deduction matching, PG settlement auto-match)
+- ✅ (#22) Bank charge reconciliation (auto-identify fees, interest, penalties)
 
 ### Collections Acceleration
-- ⬜ (#18) UPI collection links on invoices (send invoice → customer pays → auto-reconcile)
-- ⬜ (#23) Customer payment portal (shared link — view outstanding, pay online)
-- ⬜ (#25) Advanced dunning rules (escalation: email → WhatsApp → call task → stop supply)
-- ⬜ (#26) Customer credit scoring (internal score based on payment history)
-- ⬜ (#28) Interest/penalty calculation on overdue invoices
-- ⬜ (#29) Collection agent assignment (assign overdue accounts, track follow-ups)
+- ✅ (#18) UPI collection links on invoices (UPI deep link + copy button)
+- ✅ (#23) Customer payment portal (token-based public page — outstanding + history)
+- ✅ (#25) Advanced dunning rules (escalation levels: send → stop supply → escalate)
+- ✅ (#26) Customer credit scoring (internal score based on payment history)
+- ✅ (#28) Interest/penalty calculation on overdue invoices
+- ✅ (#29) Collection agent assignment (assign overdue accounts, track follow-ups)
 
 ### Cheque & PDC
-- ⬜ (#21) Cheque tracking & post-dated cheque (PDC) management
+- ✅ (#21) Cheque tracking & post-dated cheque (PDC) management
 
 ---
 

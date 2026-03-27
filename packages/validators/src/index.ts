@@ -22,3 +22,4 @@ export * from './masters/hsn-sac.schema';
 export * from './utils/gstin';
 export * from './common/attachment.schema';
 export * from './ar/recurring.schema';
+export * from './banking/cheque.schema';

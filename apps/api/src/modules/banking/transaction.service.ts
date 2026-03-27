@@ -6,6 +6,7 @@ import type { TransactionFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
 import { randomUUID } from 'crypto';
+import { getBankFeedProvider } from '../../utils/banking';
 
 export interface TransactionListParams {
   page: number;
@@ -98,32 +99,85 @@ export class TransactionService {
         continue;
       }
 
-      await this.db.insert(bankTransactions).values({
-        tenantId: this.tenantId,
-        bankAccountId,
-        transactionDate: row.transactionDate,
-        valueDate: row.valueDate ?? null,
-        type: row.type,
-        amount: row.amount.toString(),
-        reference: row.reference,
-        narration: row.narration,
-        runningBalance: row.runningBalance?.toString() ?? null,
-        reconStatus: 'unreconciled',
-        importBatchId,
-      });
+      await this.insertTransaction(bankAccountId, row, importBatchId);
 
       imported++;
       if (row.runningBalance !== null) lastBalance = row.runningBalance;
     }
 
     if (lastBalance !== null) {
-      await this.db
-        .update(bankAccounts)
-        .set({ currentBalance: lastBalance.toString(), updatedAt: new Date() })
-        .where(eq(bankAccounts.id, bankAccountId));
+      await this.updateAccountBalance(bankAccountId, lastBalance);
     }
 
     return { imported, duplicatesSkipped, errors };
+  }
+
+  async syncFromFeed(bankAccountId: string): Promise<{ imported: number; duplicatesSkipped: number }> {
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!account) throw new NotFoundError('Bank account');
+
+    const provider = getBankFeedProvider();
+    const toDate = new Date().toISOString().slice(0, 10);
+    const fromDate = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    const feedTxns = await provider.fetchTransactions(bankAccountId, fromDate, toDate);
+
+    const importBatchId = randomUUID();
+    let imported = 0;
+    let duplicatesSkipped = 0;
+    let lastBalance: number | null = null;
+
+    for (const txn of feedTxns) {
+      const row: ParsedRow = {
+        transactionDate: txn.transactionDate,
+        valueDate: txn.valueDate ?? undefined,
+        type: txn.type,
+        amount: txn.amount,
+        reference: txn.reference,
+        narration: txn.narration,
+        runningBalance: txn.runningBalance,
+      };
+
+      const isDuplicate = await this.checkDuplicate(bankAccountId, row);
+      if (isDuplicate) { duplicatesSkipped++; continue; }
+
+      await this.insertTransaction(bankAccountId, row, importBatchId);
+      imported++;
+      if (row.runningBalance !== null) lastBalance = row.runningBalance;
+    }
+
+    if (lastBalance !== null) {
+      await this.updateAccountBalance(bankAccountId, lastBalance);
+    }
+
+    return { imported, duplicatesSkipped };
+  }
+
+  private async insertTransaction(bankAccountId: string, row: ParsedRow, importBatchId: string): Promise<void> {
+    await this.db.insert(bankTransactions).values({
+      tenantId: this.tenantId,
+      bankAccountId,
+      transactionDate: row.transactionDate,
+      valueDate: row.valueDate ?? null,
+      type: row.type,
+      amount: row.amount.toString(),
+      reference: row.reference,
+      narration: row.narration,
+      runningBalance: row.runningBalance?.toString() ?? null,
+      reconStatus: 'unreconciled',
+      importBatchId,
+    });
+  }
+
+  private async updateAccountBalance(bankAccountId: string, balance: number): Promise<void> {
+    await this.db
+      .update(bankAccounts)
+      .set({ currentBalance: balance.toString(), updatedAt: new Date() })
+      .where(eq(bankAccounts.id, bankAccountId));
   }
 
   private async checkDuplicate(bankAccountId: string, row: ParsedRow): Promise<boolean> {

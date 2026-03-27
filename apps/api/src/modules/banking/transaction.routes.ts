@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { TransactionService } from './transaction.service';
 import { CategorizeService } from './categorize.service';
+import { BankChargesService } from './bank-charges.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -54,6 +55,28 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       const service = new CategorizeService(request.server.db, request.tenantId);
       const result = await service.categorizeTransactions(accountId);
       return reply.status(200).send({ data: result });
+    },
+  );
+
+  app.post(
+    '/:accountId/sync',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { accountId } = accountParamSchema.parse(request.params);
+      const service = new TransactionService(request.server.db, request.tenantId);
+      const result = await service.syncFromFeed(accountId);
+      return reply.status(200).send({ data: result });
+    },
+  );
+
+  app.get(
+    '/:accountId/charges-summary',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { accountId } = accountParamSchema.parse(request.params);
+      const service = new BankChargesService(request.server.db, request.tenantId);
+      const data = await service.getChargesSummary(accountId);
+      return { data };
     },
   );
 

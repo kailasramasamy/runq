@@ -156,9 +156,7 @@ export class PgReconService {
     for (const line of lines) {
       if (line.matchStatus === 'matched') { matched++; totalMatched += parseFloat(line.netAmount); continue; }
 
-      const receipt = receipts.find(
-        (r) => r.referenceNumber === line.orderId || r.referenceNumber === line.transactionId,
-      );
+      const receipt = this.findReceiptMatch(line, receipts);
 
       if (receipt) {
         await this.db
@@ -198,6 +196,27 @@ export class PgReconService {
           eq(pgSettlementLines.matchStatus, 'unmatched'),
         ),
       );
+  }
+
+  private findReceiptMatch(
+    line: typeof pgSettlementLines.$inferSelect,
+    receipts: (typeof paymentReceipts.$inferSelect)[],
+  ) {
+    // First try reference match by orderId or transactionId
+    const refMatch = receipts.find(
+      (r) => r.referenceNumber === line.orderId || r.referenceNumber === line.transactionId,
+    );
+    if (refMatch) return refMatch;
+
+    // Fallback: match by net amount (within ₹0.01 tolerance)
+    const lineAmount = parseFloat(line.netAmount);
+    const amountMatches = receipts.filter((r) => {
+      const diff = Math.abs(parseFloat(r.amount) - lineAmount);
+      return diff < 0.01;
+    });
+
+    // Only return if exactly one amount match to avoid ambiguity
+    return amountMatches.length === 1 ? amountMatches[0]! : null;
   }
 
   private parseGatewayCsv(gateway: Gateway, csvData: string): { lines: ParsedLine[]; errors: { row: number; message: string }[] } {

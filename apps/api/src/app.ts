@@ -19,6 +19,7 @@ import { glRoutes } from './modules/gl/routes';
 import { tallyRoutes } from './modules/tally/routes';
 import { mastersRoutes } from './modules/masters/routes';
 import { attachmentRoutes } from './modules/common/attachment.routes';
+import { portalRoutes } from './modules/ar/portal.routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -38,6 +39,7 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
+  await app.register(portalRoutes, { prefix: '/api/v1/ar' });
 
   // Protected routes
   await app.register(async (scope) => {

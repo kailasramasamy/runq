@@ -24,3 +24,5 @@ export * from './gl/journal-entries';
 export * from './masters/hsn-sac';
 export * from './common/attachments';
 export * from './ar/recurring-invoices';
+export * from './banking/cheques';
+export * from './ar/collection-assignments';
