@@ -78,6 +78,7 @@ function TxnRow({ txn }: { txn: BankTransaction }) {
       </TableCell>
       <TableCell>
         <CategoryBadge
+          transactionId={txn.id}
           accountName={txn.glAccountName}
           accountCode={txn.glAccountCode}
           confidence={txn.glConfidence}

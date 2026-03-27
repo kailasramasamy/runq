@@ -8,6 +8,7 @@ export interface UnreconciledResult {
   unreconciledBankTxns: BankTransaction[];
   unreconciledPayments: unknown[];
   unreconciledReceipts: unknown[];
+  suggestedMatches: Array<{ transactionId: string; suggestions: Array<{ paymentId?: string; receiptId?: string; confidence: number; matchReason: string }> }>;
   summary: { bankBalance: number; bookBalance: number; difference: number };
 }
 

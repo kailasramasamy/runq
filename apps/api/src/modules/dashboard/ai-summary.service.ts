@@ -9,7 +9,7 @@ export interface AISummaryResult {
   generatedAt: string;
 }
 
-const CACHE_TTL = 3600; // 1 hour in seconds
+const CACHE_TTL = 86400; // 24 hours in seconds
 
 export class AISummaryService {
   constructor(

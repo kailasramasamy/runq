@@ -83,15 +83,32 @@ function SummaryBar({
   );
 }
 
+interface SuggestedMatch {
+  paymentId?: string;
+  receiptId?: string;
+  confidence: number;
+  matchReason: string;
+}
+
+function confidenceBadge(c: number) {
+  if (c >= 0.9) return { variant: 'success' as const, label: `${Math.round(c * 100)}%` };
+  if (c >= 0.7) return { variant: 'warning' as const, label: `${Math.round(c * 100)}%` };
+  return { variant: 'default' as const, label: `${Math.round(c * 100)}%` };
+}
+
 function BankTxnRow({
   txn,
   selected,
   onSelect,
+  suggestions,
 }: {
   txn: BankTransaction;
   selected: boolean;
   onSelect: (id: string) => void;
+  suggestions: SuggestedMatch[];
 }) {
+  const topSuggestion = suggestions[0];
+
   return (
     <TableRow
       className={[
@@ -125,6 +142,16 @@ function BankTxnRow({
         >
           {txn.type === 'debit' ? '-' : '+'}{formatINR(txn.amount)}
         </span>
+      </TableCell>
+      <TableCell>
+        {topSuggestion ? (
+          <Badge variant={confidenceBadge(topSuggestion.confidence).variant} title={topSuggestion.matchReason}>
+            {confidenceBadge(topSuggestion.confidence).label}
+            {suggestions.length > 1 && <span className="ml-1 text-xs opacity-60">+{suggestions.length - 1}</span>}
+          </Badge>
+        ) : (
+          <span className="text-xs text-zinc-400">—</span>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -201,6 +228,16 @@ export function ReconciliationPage() {
     accountId || undefined,
   );
   const unreconciledTxns = unreconciledData?.data?.unreconciledBankTxns ?? [];
+  const suggestedMatches = unreconciledData?.data?.suggestedMatches ?? [];
+  const unreconciledPayments: MockPayment[] = (unreconciledData?.data?.unreconciledPayments ?? []).map((p: any) => ({
+    id: p.id, type: 'vendor_payment' as const, amount: Number(p.amount), date: p.paymentDate,
+    referenceNumber: p.utrNumber ?? null, description: p.vendorName ?? p.vendorId?.slice(0, 8) ?? '—',
+  }));
+  const unreconciledReceipts: MockPayment[] = (unreconciledData?.data?.unreconciledReceipts ?? []).map((r: any) => ({
+    id: r.id, type: 'payment_receipt' as const, amount: Number(r.amount), date: r.receiptDate,
+    referenceNumber: r.referenceNumber ?? null, description: r.customerName ?? r.customerId?.slice(0, 8) ?? '—',
+  }));
+  const allPaymentsReceipts = [...unreconciledPayments, ...unreconciledReceipts];
 
   const autoReconcileMutation = useAutoReconcile();
   const manualMatchMutation = useManualMatch();
@@ -371,17 +408,22 @@ export function ReconciliationPage() {
                       <Th>Narration</Th>
                       <Th>Reference</Th>
                       <Th align="right">Amount</Th>
+                      <Th>Match</Th>
                     </tr>
                   </TableHeader>
                   <TableBody>
-                    {unreconciledTxns.map((txn) => (
+                    {unreconciledTxns.map((txn) => {
+                      const txnSuggestions = suggestedMatches.find((s: any) => s.transactionId === txn.id)?.suggestions ?? [];
+                      return (
                       <BankTxnRow
                         key={txn.id}
                         txn={txn}
                         selected={selectedBankTxn === txn.id}
                         onSelect={setSelectedBankTxn}
+                        suggestions={txnSuggestions}
                       />
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -391,13 +433,45 @@ export function ReconciliationPage() {
 
         {/* Right: Unreconciled payments & receipts */}
         <Card>
-          <CardHeader title="Unreconciled Payments & Receipts" />
+          <CardHeader
+            title="Unreconciled Payments & Receipts"
+            action={
+              <Badge variant="info">{allPaymentsReceipts.length} pending</Badge>
+            }
+          />
           <CardContent className="p-0">
-            <EmptyState
-              icon={GitCompare}
-              title="No unreconciled items"
-              description="Payments and receipts pending reconciliation will appear here."
-            />
+            {allPaymentsReceipts.length === 0 ? (
+              <EmptyState
+                icon={GitCompare}
+                title="No unreconciled items"
+                description="Payments and receipts pending reconciliation will appear here."
+              />
+            ) : (
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th className="w-8" />
+                      <Th>Date</Th>
+                      <Th>Description</Th>
+                      <Th>Reference</Th>
+                      <Th>Type</Th>
+                      <Th align="right">Amount</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {allPaymentsReceipts.map((p) => (
+                      <PaymentRow
+                        key={p.id}
+                        payment={p}
+                        selected={selectedPaymentId === p.id}
+                        onSelect={(id) => selectPayment(id, p.type)}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

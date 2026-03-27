@@ -19,18 +19,35 @@ function useAISummary() {
   });
 }
 
+function getLineStyle(line: string) {
+  if (line.startsWith('🔴') || line.includes('🔴'))
+    return { bg: 'bg-red-50 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/40', icon: '🔴' };
+  if (line.startsWith('⚠️') || line.includes('⚠️'))
+    return { bg: 'bg-amber-50 dark:bg-amber-950/20', border: 'border-amber-200 dark:border-amber-900/40', icon: '⚠️' };
+  if (line.startsWith('✅') || line.includes('✅'))
+    return { bg: 'bg-emerald-50 dark:bg-emerald-950/20', border: 'border-emerald-200 dark:border-emerald-900/40', icon: '✅' };
+  return { bg: 'bg-zinc-50 dark:bg-zinc-800/50', border: 'border-zinc-200 dark:border-zinc-700', icon: '•' };
+}
+
+function cleanLine(line: string): string {
+  return line.replace(/^[✅⚠️🔴•\-*]\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+}
+
 function SummaryContent({ text }: { text: string }) {
   const lines = text.split('\n').filter((l) => l.trim().length > 0);
 
   return (
-    <ul className="space-y-2">
-      {lines.map((line, i) => (
-        <li key={i} className="flex gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
-          <span>{line.replace(/^[-•*]\s*/, '')}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-1.5">
+      {lines.map((line, i) => {
+        const style = getLineStyle(line);
+        return (
+          <span key={i} className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="shrink-0 text-sm">{style.icon}</span>
+            {cleanLine(line)}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -62,39 +79,48 @@ export function AIInsightsWidget() {
   };
 
   return (
-    <Card className="border-indigo-200 bg-indigo-50/30 dark:border-indigo-900/50 dark:bg-indigo-950/10">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-indigo-500" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">AI Insights</h3>
+    <Card className="overflow-hidden border-indigo-200/60 dark:border-indigo-900/40">
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex items-center justify-between sm:justify-start gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-500 shadow-sm">
+              <Sparkles size={14} className="text-white" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">AI Snapshot</span>
+          </div>
+          {summary && (
+            <button
+              onClick={handleRefresh}
+              className="sm:hidden shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
+              title="Regenerate"
+            >
+              <RefreshCw size={14} />
+            </button>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+              {[0,1,2].map((i) => <div key={i} className="h-4 w-full sm:w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />)}
+            </div>
+          ) : isNotConfigured ? (
+            <span className="text-xs text-zinc-400">Set ANTHROPIC_API_KEY to enable</span>
+          ) : summary ? (
+            <SummaryContent text={summary.summary} />
+          ) : (
+            <span className="text-sm text-zinc-500">Unable to load</span>
+          )}
         </div>
         {summary && (
-          <Button variant="ghost" size="sm" onClick={handleRefresh} className="text-xs">
+          <button
+            onClick={handleRefresh}
+            className="hidden sm:block shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
+            title="Regenerate"
+          >
             <RefreshCw size={14} />
-          </Button>
+          </button>
         )}
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <LoadingSkeleton />
-        ) : isNotConfigured ? (
-          <div className="flex flex-col items-center gap-2 py-4 text-center">
-            <Settings size={24} className="text-zinc-400" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Configure ANTHROPIC_API_KEY to enable AI insights
-            </p>
-          </div>
-        ) : summary ? (
-          <>
-            <SummaryContent text={summary.summary} />
-            <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
-              Generated {new Date(summary.generatedAt).toLocaleString('en-IN')}
-            </p>
-          </>
-        ) : (
-          <p className="py-4 text-center text-sm text-zinc-500">Unable to load AI insights</p>
-        )}
-      </CardContent>
+      </div>
     </Card>
   );
 }

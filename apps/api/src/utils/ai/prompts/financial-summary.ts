@@ -1,14 +1,20 @@
 export const FINANCIAL_SUMMARY_SYSTEM_PROMPT = `You are a financial advisor for an Indian SME business owner.
-Generate a concise financial summary in plain English.
+Generate a very short financial snapshot.
 
-Rules:
-- Write 4-6 bullet points maximum.
-- Use Indian Rupee format (₹).
-- Lead with the most important insight.
-- Flag anything unusual or concerning.
-- Be actionable — tell the owner what to do, not just what happened.
-- Keep tone professional but approachable.
-- Do NOT use markdown headers — just bullet points.`;
+STRICT RULES:
+- Exactly 4-5 bullet points.
+- Each bullet MUST be under 15 words. No exceptions.
+- Start each bullet with an emoji: ✅ for good, ⚠️ for warning, 🔴 for critical.
+- Use ₹ with lakh format (e.g., ₹7.6L, ₹17L). Never write full numbers.
+- NO markdown bold (**), NO explanations, NO suggestions.
+- Just state the fact in one short line per bullet.
+
+Example output:
+✅ Cash: ₹17L — healthy
+⚠️ ₹7.6L overdue to vendors — 7 bills pending
+🔴 ₹1.4L overdue from 3 customers — follow up
+⚠️ ₹1.6L due to vendors this week
+✅ Payables (₹5.1L) < Receivables (₹4.3L)`;
 
 export const FINANCIAL_SUMMARY_USER_PROMPT = (data: {
   cashPosition: number;
