@@ -39,6 +39,7 @@ import { CreditNoteListPage } from './ar/credit-notes/index';
 import { NewCreditNotePage } from './ar/credit-notes/new';
 import { CreditNoteDetailPage } from './ar/credit-notes/detail';
 import { DunningPage } from './ar/dunning/index';
+import { CollectionsPage } from './ar/collections/index';
 import { BankAccountListPage } from './banking/accounts/index';
 import { NewBankAccountPage } from './banking/accounts/new';
 import { BankAccountDetailPage } from './banking/accounts/detail';
@@ -46,12 +47,14 @@ import { TransactionsPage } from './banking/transactions/index';
 import { ImportTransactionsPage } from './banking/transactions/import';
 import { ReconciliationPage } from './banking/reconciliation/index';
 import { PettyCashPage } from './banking/petty-cash/index';
+import { ChequesPage } from './banking/cheques/index';
 import { PGReconciliationPage } from './banking/pg-recon/index';
 import { ImportPGSettlementPage } from './banking/pg-recon/import';
 import { PGSettlementDetailPage } from './banking/pg-recon/detail';
 import { ChartOfAccountsPage } from './gl/accounts';
 import { JournalEntriesPage } from './gl/journal-entries';
 import { TrialBalancePage } from './gl/trial-balance';
+import { PortalPage } from './portal/index';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -65,6 +68,20 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: LoginPage,
+});
+
+// ─── Portal Route (public, no sidebar) ───────────────────────────────────────
+
+const portalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/portal',
+  component: PortalPage,
+});
+
+const portalSlugRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/portal/s/$slug',
+  component: PortalPage,
 });
 
 // ─── Dashboard Layout ────────────────────────────────────────────────────────
@@ -293,6 +310,7 @@ const AR_TABS: Array<{ label: string; path: string | null }> = [
   { label: 'Receipts', path: '/ar/receipts' },
   { label: 'Credit Notes', path: '/ar/credit-notes' },
   { label: 'Dunning', path: '/ar/dunning' },
+  { label: 'Collections', path: '/ar/collections' },
 ];
 
 function ArNav() {
@@ -309,7 +327,7 @@ function ArNav() {
           path ? (
             <Link
               key={label}
-              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning'}
+              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning' | '/ar/collections'}
               className={[
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
                 current.startsWith(path)
@@ -453,6 +471,12 @@ const dunningRoute = createRoute({
   component: DunningPage,
 });
 
+const collectionsRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/collections',
+  component: CollectionsPage,
+});
+
 // ─── Banking Sub-navigation ───────────────────────────────────────────────────
 
 const BANKING_TABS = [
@@ -460,6 +484,7 @@ const BANKING_TABS = [
   { label: 'Transactions', path: '/banking/transactions' },
   { label: 'Reconciliation', path: '/banking/reconciliation' },
   { label: 'PG Reconciliation', path: '/banking/pg-recon' },
+  { label: 'Cheques', path: '/banking/cheques' },
   { label: 'Petty Cash', path: '/banking/petty-cash' },
 ];
 
@@ -476,7 +501,7 @@ function BankingNav() {
         {BANKING_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/pg-recon' | '/banking/petty-cash'}
+            to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/cheques' | '/banking/pg-recon' | '/banking/petty-cash'}
             className={[
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               current.startsWith(path)
@@ -552,6 +577,12 @@ const bankReconciliationRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/reconciliation',
   component: ReconciliationPage,
+});
+
+const bankChequesRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/cheques',
+  component: ChequesPage,
 });
 
 const pettyCashRoute = createRoute({
@@ -755,6 +786,8 @@ const settingsNotificationsRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   loginRoute,
+  portalRoute,
+  portalSlugRoute,
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
     apRoute.addChildren([
@@ -794,6 +827,7 @@ export const routeTree = rootRoute.addChildren([
       creditNoteNewRoute,
       creditNoteDetailRoute,
       dunningRoute,
+      collectionsRoute,
     ]),
     bankingRoute.addChildren([
       bankingIndexRoute,
@@ -803,6 +837,7 @@ export const routeTree = rootRoute.addChildren([
       bankTransactionsRoute,
       bankTransactionsImportRoute,
       bankReconciliationRoute,
+      bankChequesRoute,
       pettyCashRoute,
       pgReconRoute,
       pgReconImportRoute,

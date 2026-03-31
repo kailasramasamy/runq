@@ -63,3 +63,19 @@ export function useCategorizeTransactions() {
     onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
   });
 }
+
+interface SyncResult {
+  imported: number;
+  duplicatesSkipped: number;
+}
+
+export function useSyncTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ accountId }: { accountId: string }) =>
+      api.post<ApiSuccess<SyncResult>>(
+        `/banking/accounts/${accountId}/sync`,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+  });
+}

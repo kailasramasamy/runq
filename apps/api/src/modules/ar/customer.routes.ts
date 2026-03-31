@@ -137,8 +137,8 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new PortalService(request.server.db, request.tenantId);
-      const token = service.generateToken(id);
-      return { data: { token } };
+      const slug = await service.getOrCreateSlug(id);
+      return { data: { slug } };
     },
   );
 };

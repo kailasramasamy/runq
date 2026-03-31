@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, cheques } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
 import type { TransactionFilter } from '@runq/validators';
@@ -109,6 +109,8 @@ export class TransactionService {
       await this.updateAccountBalance(bankAccountId, lastBalance);
     }
 
+    await this.autoClearCheques(bankAccountId);
+
     return { imported, duplicatesSkipped, errors };
   }
 
@@ -154,7 +156,58 @@ export class TransactionService {
       await this.updateAccountBalance(bankAccountId, lastBalance);
     }
 
+    await this.autoClearCheques(bankAccountId);
+
     return { imported, duplicatesSkipped };
+  }
+
+  /**
+   * Match deposited cheques against credit bank transactions by amount + date range.
+   * If a credit transaction matches a deposited cheque's amount (within the cheque date
+   * to cheque date + 30 days window), auto-clear the cheque.
+   */
+  private async autoClearCheques(bankAccountId: string): Promise<void> {
+    const depositedCheques = await this.db
+      .select()
+      .from(cheques)
+      .where(
+        and(
+          eq(cheques.tenantId, this.tenantId),
+          eq(cheques.bankAccountId, bankAccountId),
+          eq(cheques.status, 'deposited'),
+        ),
+      );
+
+    if (depositedCheques.length === 0) return;
+
+    for (const cheque of depositedCheques) {
+      const chequeAmount = parseFloat(cheque.amount);
+      const fromDate = cheque.chequeDate;
+      const toDate = new Date(new Date(cheque.chequeDate).getTime() + 30 * 86400_000)
+        .toISOString().slice(0, 10);
+
+      const [matchingTxn] = await this.db
+        .select({ id: bankTransactions.id })
+        .from(bankTransactions)
+        .where(
+          and(
+            eq(bankTransactions.tenantId, this.tenantId),
+            eq(bankTransactions.bankAccountId, bankAccountId),
+            eq(bankTransactions.type, 'credit'),
+            sql`ABS(${bankTransactions.amount}::numeric - ${chequeAmount}) < 0.01`,
+            gte(bankTransactions.transactionDate, fromDate),
+            lte(bankTransactions.transactionDate, toDate),
+          ),
+        )
+        .limit(1);
+
+      if (matchingTxn) {
+        await this.db
+          .update(cheques)
+          .set({ status: 'cleared', updatedAt: new Date() })
+          .where(eq(cheques.id, cheque.id));
+      }
+    }
   }
 
   private async insertTransaction(bankAccountId: string, row: ParsedRow, importBatchId: string): Promise<void> {

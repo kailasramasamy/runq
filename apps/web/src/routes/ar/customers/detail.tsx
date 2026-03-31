@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
-import { FileText, Receipt, Trash2 } from 'lucide-react';
-import { useCustomer, useDeleteCustomer } from '@/hooks/queries/use-customers';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { FileText, Receipt, Trash2, ExternalLink, Copy, Check } from 'lucide-react';
+import { useCustomer, useDeleteCustomer, useUpdateCustomer } from '@/hooks/queries/use-customers';
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
@@ -10,6 +10,7 @@ import { CreditScoreBadge } from '@/components/ar/credit-score-badge';
 import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
   StatsCard, EmptyState, ConfirmationDialog, CardSkeleton,
+  Input, useToast,
 } from '@/components/ui';
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
@@ -38,6 +39,11 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
           <DetailField label="Phone" value={customer.phone} />
           <DetailField label="Contact Person" value={customer.contactPerson} />
           <DetailField label="Payment Terms" value={`Net ${customer.paymentTermsDays} days`} />
+          <DetailField label="Credit Limit" value={customer.creditLimit ? formatINR(Number(customer.creditLimit)) : 'No limit'} />
+          <DetailField
+            label="Overdue Interest Rate"
+            value={customer.overdueInterestRate ? `${customer.overdueInterestRate}% p.a.` : 'Not set'}
+          />
         </CardContent>
       </Card>
 
@@ -69,15 +75,184 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
   );
 }
 
+function PortalLinkCard({ customerId }: { customerId: string }) {
+  const [portalUrl, setPortalUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateToken = useMutation({
+    mutationFn: () =>
+      api.post<{ data: { slug: string } }>(`/ar/customers/${customerId}/portal-token`),
+    onSuccess: (res) => {
+      const slug = res.data.slug;
+      setPortalUrl(`${window.location.origin}/portal/s/${slug}`);
+    },
+  });
+
+  function handleCopy() {
+    if (!portalUrl) return;
+    navigator.clipboard.writeText(portalUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Payment Portal" />
+      <CardContent>
+        {portalUrl ? (
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Share this link with the customer. No login required.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {portalUrl}
+              </code>
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(portalUrl, '_blank')}
+              >
+                <ExternalLink size={14} /> Open
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateToken.mutate()}
+              loading={generateToken.isPending}
+            >
+              Regenerate Link
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Generate a portal link so this customer can view their outstanding invoices and pay online.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateToken.mutate()}
+              loading={generateToken.isPending}
+            >
+              <ExternalLink size={14} /> Generate Portal Link
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface Props { customerId: string }
 
 interface CreditScoreData { score: number; risk: 'high' | 'medium' | 'low'; factors: string[] }
+
+function EditCustomerDialog({
+  customer,
+  open,
+  onClose,
+}: {
+  customer: CustomerWithOutstanding;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const updateMutation = useUpdateCustomer();
+  const { toast } = useToast();
+  const [paymentTermsDays, setPaymentTermsDays] = useState(String(customer.paymentTermsDays));
+  const [creditLimit, setCreditLimit] = useState(customer.creditLimit ? String(customer.creditLimit) : '');
+  const [overdueInterestRate, setOverdueInterestRate] = useState(
+    customer.overdueInterestRate ? String(customer.overdueInterestRate) : '',
+  );
+  const [contactPerson, setContactPerson] = useState(customer.contactPerson ?? '');
+
+  if (!open) return null;
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    updateMutation.mutate(
+      {
+        id: customer.id,
+        data: {
+          paymentTermsDays: Number(paymentTermsDays) || 30,
+          creditLimit: creditLimit ? Number(creditLimit) : null,
+          overdueInterestRate: overdueInterestRate ? Number(overdueInterestRate) : null,
+          contactPerson: contactPerson || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast('Customer updated.', 'success');
+          onClose();
+        },
+        onError: () => toast('Failed to update.', 'error'),
+      },
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <Card className="w-full max-w-md">
+        <CardHeader title="Edit Customer" />
+        <form onSubmit={handleSave}>
+          <CardContent className="space-y-4">
+            <Input
+              label="Payment Terms (days)"
+              type="number"
+              min={0}
+              max={365}
+              value={paymentTermsDays}
+              onChange={(e) => setPaymentTermsDays(e.target.value)}
+            />
+            <Input
+              label="Credit Limit"
+              type="number"
+              min={0}
+              placeholder="No limit"
+              value={creditLimit}
+              onChange={(e) => setCreditLimit(e.target.value)}
+            />
+            <Input
+              label="Overdue Interest Rate (% p.a.)"
+              type="number"
+              min={0}
+              max={100}
+              step="0.5"
+              placeholder="e.g. 18"
+              value={overdueInterestRate}
+              onChange={(e) => setOverdueInterestRate(e.target.value)}
+            />
+            <Input
+              label="Contact Person"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
+            />
+          </CardContent>
+          <div className="flex justify-end gap-2 px-6 pb-4">
+            <Button variant="outline" size="sm" type="button" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" type="submit" loading={updateMutation.isPending}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
 
 export function CustomerDetailPage({ customerId }: Props) {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useCustomer(customerId);
   const deleteMutation = useDeleteCustomer();
   const [showDelete, setShowDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const customer = data?.data;
 
   const { data: creditScoreData } = useQuery({
@@ -124,7 +299,7 @@ export function CustomerDetailPage({ customerId }: Props) {
             {creditScoreData?.data && (
               <CreditScoreBadge score={creditScoreData.data.score} risk={creditScoreData.data.risk} />
             )}
-            <Button variant="outline" size="sm" disabled title="Edit coming soon">
+            <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
               Edit
             </Button>
             <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
@@ -140,6 +315,10 @@ export function CustomerDetailPage({ customerId }: Props) {
           value={customer.outstandingAmount}
           formatValue={formatINR}
         />
+      </div>
+
+      <div className="mb-6">
+        <PortalLinkCard customerId={customerId} />
       </div>
 
       <CustomerCards customer={customer} />
@@ -167,6 +346,12 @@ export function CustomerDetailPage({ customerId }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      <EditCustomerDialog
+        customer={customer}
+        open={showEdit}
+        onClose={() => setShowEdit(false)}
+      />
 
       <ConfirmationDialog
         open={showDelete}

@@ -8,7 +8,7 @@ import {
   useUpdateDunningRule,
   useDunningLog,
 } from '../../../hooks/queries/use-dunning';
-import type { DunningRule, DunningLogEntry, DunningChannel } from '@runq/types';
+import type { DunningRule, DunningLogEntry, DunningChannel, DunningAction } from '@runq/types';
 import type { OverdueInvoice } from '../../../hooks/queries/use-dunning';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -39,6 +39,12 @@ const CHANNEL_OPTIONS = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
+];
+
+const ACTION_OPTIONS = [
+  { value: 'send_reminder', label: 'Send Reminder' },
+  { value: 'stop_supply', label: 'Stop Supply' },
+  { value: 'escalate_to_manager', label: 'Escalate to Manager' },
 ];
 
 const CHANNEL_FILTER_OPTIONS = [
@@ -195,6 +201,9 @@ function RuleRow({ rule }: { rule: DunningRule }) {
       <TableCell className="font-medium text-zinc-900 dark:text-zinc-100">{rule.name}</TableCell>
       <TableCell align="right" numeric>{rule.daysAfterDue}d</TableCell>
       <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">{rule.channel}</TableCell>
+      <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">
+        {(rule.action ?? 'send_reminder').replace(/_/g, ' ')}
+      </TableCell>
       <TableCell className="max-w-[240px] truncate text-xs text-zinc-500 dark:text-zinc-400">
         {rule.bodyTemplate}
       </TableCell>
@@ -216,6 +225,7 @@ function RulesTab() {
   const [name, setName] = useState('');
   const [daysAfterDue, setDaysAfterDue] = useState('');
   const [channel, setChannel] = useState<DunningChannel>('email');
+  const [action, setAction] = useState<DunningAction>('send_reminder');
   const [bodyTemplate, setBodyTemplate] = useState('');
 
   const rules = (data?.data ?? []) as DunningRule[];
@@ -223,7 +233,7 @@ function RulesTab() {
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     createMutation.mutate(
-      { name, daysAfterDue: Number(daysAfterDue), channel, bodyTemplate, isActive: true },
+      { name, daysAfterDue: Number(daysAfterDue), channel, action, bodyTemplate, isActive: true },
       {
         onSuccess: () => {
           toast('Dunning rule created.', 'success');
@@ -273,6 +283,12 @@ function RulesTab() {
                   value={channel}
                   onChange={(e) => setChannel(e.target.value as DunningChannel)}
                 />
+                <Select
+                  label="Action"
+                  options={ACTION_OPTIONS}
+                  value={action}
+                  onChange={(e) => setAction(e.target.value as DunningAction)}
+                />
                 <div className="col-span-2">
                   <Textarea
                     label="Body Template"
@@ -299,16 +315,17 @@ function RulesTab() {
             <Th>Name</Th>
             <Th align="right">Days After Due</Th>
             <Th>Channel</Th>
+            <Th>Action</Th>
             <Th>Template Preview</Th>
             <Th>Status</Th>
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={4} cols={5} />
+            <TableSkeleton rows={4} cols={6} />
           ) : rules.length === 0 ? (
             <tr>
-              <td colSpan={5}>
+              <td colSpan={6}>
                 <EmptyState
                   icon={BookOpen}
                   title="No dunning rules"

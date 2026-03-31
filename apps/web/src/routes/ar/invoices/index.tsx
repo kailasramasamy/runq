@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Search } from 'lucide-react';
 import { useInvoices } from '@/hooks/queries/use-invoices';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
 import {
-  PageHeader, Badge, Button, Select, DateInput,
+  PageHeader, Badge, Button, Select, DateInput, Combobox,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   TableSkeleton, EmptyState, Pagination,
 } from '@/components/ui';
@@ -60,6 +60,7 @@ function InvoiceRow({
 
 export function InvoiceListPage() {
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -76,6 +77,7 @@ export function InvoiceListPage() {
   const { data, isLoading } = useInvoices({
     customerId: customerFilter || undefined,
     status: statusFilter as SalesInvoiceStatus | undefined || undefined,
+    search: search || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     page,
@@ -106,11 +108,22 @@ export function InvoiceListPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative w-48">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="Search invoice #..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="block w-full rounded-md border border-zinc-300 bg-white py-2 pl-8 pr-3 text-sm text-zinc-900 placeholder-zinc-400 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-indigo-400"
+          />
+        </div>
         <div className="w-52">
-          <Select
+          <Combobox
             options={customerOptions}
             value={customerFilter}
-            onChange={(e) => { setCustomerFilter(e.target.value); setPage(1); }}
+            onChange={(v) => { setCustomerFilter(v); setPage(1); }}
+            placeholder="All Customers"
           />
         </div>
         <div className="w-44">

@@ -1,4 +1,5 @@
 export type DunningChannel = 'email' | 'sms' | 'whatsapp';
+export type DunningAction = 'send_reminder' | 'stop_supply' | 'escalate_to_manager';
 
 export interface DunningRule {
   id: string;
@@ -6,6 +7,8 @@ export interface DunningRule {
   name: string;
   daysAfterDue: number;
   channel: DunningChannel;
+  action: DunningAction;
+  escalationLevel: number;
   subjectTemplate: string | null;
   bodyTemplate: string;
   isActive: boolean;

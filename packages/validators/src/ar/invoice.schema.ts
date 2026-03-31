@@ -33,6 +33,7 @@ export const salesInvoiceFilterSchema = z.object({
   customerId: z.string().uuid().optional(),
   status: z.enum(['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled']).optional(),
   overdue: z.coerce.boolean().optional(),
+  search: z.string().optional(),
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
 });

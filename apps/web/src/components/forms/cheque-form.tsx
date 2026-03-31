@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { createChequeSchema } from '@runq/validators';
 import type { CreateChequeInput } from '@runq/validators';
-import { Button, Card, CardHeader, CardContent, CardFooter, Input, Select } from '@/components/ui';
+import { Button, Card, CardHeader, CardContent, CardFooter, Input, Select, Combobox, DateInput } from '@/components/ui';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
+import { useCustomers } from '@/hooks/queries/use-customers';
+import { useVendors } from '@/hooks/queries/use-vendors';
 
 interface Props {
   onSubmit: (data: CreateChequeInput) => void;
@@ -24,6 +26,11 @@ export function ChequeForm({ onSubmit, isLoading, onCancel }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { data: bankData } = useBankAccounts();
   const accounts = bankData?.data ?? [];
+  const { data: customersData } = useCustomers({ limit: 100 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
+  const partyOptions = form.partyType === 'customer'
+    ? (customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }))
+    : (vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }));
 
   function handleChange(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -78,29 +85,24 @@ export function ChequeForm({ onSubmit, isLoading, onCancel }: Props) {
               label="Type"
               required
               value={form.type}
-              onChange={(e) => handleChange('type', e.target.value)}
+              onChange={(e) => {
+                const type = e.target.value;
+                const partyType = type === 'received' ? 'customer' : 'vendor';
+                setForm((prev) => ({ ...prev, type: type as 'received' | 'issued', partyType: partyType as 'customer' | 'vendor', partyId: '' }));
+              }}
               options={[
                 { label: 'Received', value: 'received' },
                 { label: 'Issued', value: 'issued' },
               ]}
             />
-            <Select
-              label="Party Type"
+            <Combobox
+              label={form.partyType === 'customer' ? 'Customer' : 'Vendor'}
               required
-              value={form.partyType}
-              onChange={(e) => handleChange('partyType', e.target.value)}
-              options={[
-                { label: 'Customer', value: 'customer' },
-                { label: 'Vendor', value: 'vendor' },
-              ]}
-            />
-            <Input
-              label="Party ID"
-              required
+              options={partyOptions}
               value={form.partyId}
+              onChange={(v) => handleChange('partyId', v)}
+              placeholder={`Search ${form.partyType}...`}
               error={errors.partyId}
-              onChange={(e) => handleChange('partyId', e.target.value)}
-              placeholder="UUID of customer or vendor"
             />
             <Input
               label="Amount"
@@ -112,10 +114,9 @@ export function ChequeForm({ onSubmit, isLoading, onCancel }: Props) {
               error={errors.amount}
               onChange={(e) => handleChange('amount', e.target.value)}
             />
-            <Input
+            <DateInput
               label="Cheque Date"
               required
-              type="date"
               value={form.chequeDate}
               error={errors.chequeDate}
               onChange={(e) => handleChange('chequeDate', e.target.value)}

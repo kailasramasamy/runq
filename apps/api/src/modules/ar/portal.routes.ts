@@ -6,46 +6,85 @@ import { eq } from 'drizzle-orm';
 import { tenants } from '@runq/db';
 
 const tokenQuerySchema = z.object({ token: z.string().min(1) });
+const slugParamSchema = z.object({ slug: z.string().min(1) });
+
+async function resolvePortalContext(
+  db: import('@runq/db').Db,
+  opts: { slug?: string; token?: string },
+): Promise<{ tenantId: string; customerId: string }> {
+  if (opts.slug) {
+    const service = new PortalService(db, '');
+    return service.resolveSlug(opts.slug);
+  }
+  if (opts.token) {
+    const payload = PortalService.verifyToken(opts.token);
+    return { tenantId: payload.tenantId, customerId: payload.customerId };
+  }
+  throw new Error('Missing slug or token');
+}
+
+async function buildInvoiceResponse(
+  db: import('@runq/db').Db,
+  tenantId: string,
+  customerId: string,
+) {
+  const service = new PortalService(db, tenantId);
+  const [companyName, customerName, invoices] = await Promise.all([
+    service.getCompanyName(),
+    service.getCustomerName(customerId),
+    service.getOutstandingInvoices(customerId),
+  ]);
+
+  const upiId = await getUpiId(db, tenantId);
+  const data = invoices.map((inv) => ({
+    ...inv,
+    upiLink: upiId
+      ? generateUPILink({
+          upiId,
+          payeeName: companyName,
+          amount: inv.balanceDue,
+          transactionNote: `Payment for ${inv.invoiceNumber}`,
+        })
+      : null,
+  }));
+
+  return { companyName, customerName, data };
+}
 
 export const portalRoutes: FastifyPluginAsync = async (app) => {
+  // Slug-based routes
+  app.get('/portal/s/:slug/invoices', async (request) => {
+    const { slug } = slugParamSchema.parse(request.params);
+    const { tenantId, customerId } = await resolvePortalContext(request.server.db, { slug });
+    return buildInvoiceResponse(request.server.db, tenantId, customerId);
+  });
+
+  app.get('/portal/s/:slug/history', async (request) => {
+    const { slug } = slugParamSchema.parse(request.params);
+    const { tenantId, customerId } = await resolvePortalContext(request.server.db, { slug });
+    const service = new PortalService(request.server.db, tenantId);
+    const [companyName, history] = await Promise.all([
+      service.getCompanyName(),
+      service.getPaymentHistory(customerId),
+    ]);
+    return { companyName, data: history };
+  });
+
+  // Legacy token-based routes
   app.get('/portal/invoices', async (request) => {
     const { token } = tokenQuerySchema.parse(request.query);
-    const payload = PortalService.verifyToken(token);
-    const service = new PortalService(request.server.db, payload.tenantId);
-
-    const [companyName, customerName, invoices] = await Promise.all([
-      service.getCompanyName(),
-      service.getCustomerName(payload.customerId),
-      service.getOutstandingInvoices(payload.customerId),
-    ]);
-
-    const upiId = await getUpiId(request.server.db, payload.tenantId);
-
-    const data = invoices.map((inv) => ({
-      ...inv,
-      upiLink: upiId
-        ? generateUPILink({
-            upiId,
-            payeeName: companyName,
-            amount: inv.balanceDue,
-            transactionNote: `Payment for ${inv.invoiceNumber}`,
-          })
-        : null,
-    }));
-
-    return { companyName, customerName, data };
+    const { tenantId, customerId } = await resolvePortalContext(request.server.db, { token });
+    return buildInvoiceResponse(request.server.db, tenantId, customerId);
   });
 
   app.get('/portal/history', async (request) => {
     const { token } = tokenQuerySchema.parse(request.query);
-    const payload = PortalService.verifyToken(token);
-    const service = new PortalService(request.server.db, payload.tenantId);
-
+    const { tenantId, customerId } = await resolvePortalContext(request.server.db, { token });
+    const service = new PortalService(request.server.db, tenantId);
     const [companyName, history] = await Promise.all([
       service.getCompanyName(),
-      service.getPaymentHistory(payload.customerId),
+      service.getPaymentHistory(customerId),
     ]);
-
     return { companyName, data: history };
   });
 };

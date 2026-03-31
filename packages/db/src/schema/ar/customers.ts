@@ -21,6 +21,7 @@ export const customers = pgTable('customers', {
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   contactPerson: varchar('contact_person', { length: 255 }),
   overdueInterestRate: decimal('overdue_interest_rate', { precision: 5, scale: 2 }),
+  portalSlug: varchar('portal_slug', { length: 32 }).unique(),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

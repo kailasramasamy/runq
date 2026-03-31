@@ -4,6 +4,8 @@ export const dunningRuleSchema = z.object({
   name: z.string().min(1).max(100),
   daysAfterDue: z.number().int().positive(),
   channel: z.enum(['email', 'sms', 'whatsapp']).default('email'),
+  action: z.enum(['send_reminder', 'stop_supply', 'escalate_to_manager']).default('send_reminder'),
+  escalationLevel: z.number().int().min(1).max(10).default(1),
   subjectTemplate: z.string().max(500).nullish(),
   bodyTemplate: z.string().min(1, 'Template body is required'),
   isActive: z.boolean().default(true),

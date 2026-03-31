@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload, Sparkles } from 'lucide-react';
+import { Upload, Sparkles, RefreshCw } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
-import { useBankTransactions, useCategorizeTransactions } from '@/hooks/queries/use-transactions';
+import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
 import { CategoryBadge } from '@/components/banking/category-badge';
 import type { BankTransaction, ReconStatus } from '@runq/types';
@@ -102,6 +102,7 @@ export function TransactionsPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const categorize = useCategorizeTransactions();
+  const sync = useSyncTransactions();
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
@@ -161,6 +162,14 @@ export function TransactionsPage() {
         description="Bank statement entries and reconciliation status."
         actions={
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => accountId && sync.mutate({ accountId })}
+              disabled={!accountId || sync.isPending}
+            >
+              <RefreshCw size={16} className={sync.isPending ? 'animate-spin' : ''} />
+              {sync.isPending ? 'Syncing...' : 'Sync'}
+            </Button>
             <Button
               variant="outline"
               onClick={() => accountId && categorize.mutate({ accountId })}

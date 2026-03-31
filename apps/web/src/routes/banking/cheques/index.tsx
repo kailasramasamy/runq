@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import {
   useCheques,
@@ -50,13 +50,14 @@ function ChequeActions({ cheque }: { cheque: Cheque }) {
   const clearMutation = useClearCheque();
   const bounceMutation = useBounceCheque();
   const cancelMutation = useCancelCheque();
+  const [showDepositDate, setShowDepositDate] = useState(false);
+  const [depositDate, setDepositDate] = useState(new Date().toISOString().slice(0, 10));
 
   function handleDeposit() {
-    const today = new Date().toISOString().slice(0, 10);
     depositMutation.mutate(
-      { id: cheque.id, data: { depositDate: today } },
+      { id: cheque.id, data: { depositDate } },
       {
-        onSuccess: () => toast('Cheque deposited.', 'success'),
+        onSuccess: () => { toast('Cheque deposited.', 'success'); setShowDepositDate(false); },
         onError: () => toast('Failed to deposit.', 'error'),
       },
     );
@@ -92,7 +93,26 @@ function ChequeActions({ cheque }: { cheque: Cheque }) {
     <div className="flex items-center gap-1">
       {cheque.status === 'pending' && (
         <>
-          <Button size="sm" variant="ghost" onClick={handleDeposit}>Deposit</Button>
+          {cheque.type === 'received' && (
+            showDepositDate ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={depositDate}
+                  onChange={(e) => setDepositDate(e.target.value)}
+                  className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:[color-scheme:dark]"
+                />
+                <Button size="sm" variant="ghost" onClick={handleDeposit} loading={depositMutation.isPending}>
+                  Confirm
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowDepositDate(false)}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setShowDepositDate(true)}>Deposit</Button>
+            )
+          )}
           <Button size="sm" variant="ghost" onClick={handleCancel}>Cancel</Button>
         </>
       )}
@@ -120,6 +140,7 @@ function ChequeRow({ cheque }: { cheque: Cheque }) {
         <span className="font-mono font-medium tabular-nums">{formatINR(cheque.amount)}</span>
       </TableCell>
       <TableCell className="text-xs text-zinc-500">{cheque.chequeDate}</TableCell>
+      <TableCell className="text-xs text-zinc-500">{cheque.depositDate ?? '—'}</TableCell>
       <TableCell>
         <Badge variant={STATUS_VARIANT[cheque.status]}>{cheque.status}</Badge>
       </TableCell>
@@ -217,7 +238,8 @@ export function ChequesPage() {
                 <Th>Type</Th>
                 <Th>Party</Th>
                 <Th align="right">Amount</Th>
-                <Th>Date</Th>
+                <Th>Cheque Date</Th>
+                <Th>Deposit Date</Th>
                 <Th>Status</Th>
                 <Th>Actions</Th>
               </tr>

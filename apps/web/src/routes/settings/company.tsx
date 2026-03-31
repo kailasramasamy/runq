@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, ShieldCheck } from 'lucide-react';
+import { Building2, ShieldCheck, QrCode } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -53,6 +53,7 @@ export function CompanySettingsPage() {
   const [addressLine2, setAddressLine2] = useState('');
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
+  const [upiId, setUpiId] = useState('');
 
   useEffect(() => {
     if (data?.data) {
@@ -66,6 +67,7 @@ export function CompanySettingsPage() {
       setAddressLine2(data.data.addressLine2 ?? '');
       setCity(data.data.city ?? '');
       setPincode(data.data.pincode ?? '');
+      setUpiId(data.data.upiId ?? '');
     }
   }, [data]);
 
@@ -84,6 +86,7 @@ export function CompanySettingsPage() {
         addressLine2: addressLine2 || null,
         city: city || null,
         pincode: pincode || null,
+        upiId: upiId || null,
       });
       toast('Settings saved', 'success');
     } catch {
@@ -214,12 +217,41 @@ export function CompanySettingsPage() {
                 placeholder="e.g. 400001"
               />
             </div>
+
           </CardContent>
 
           <CardFooter className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Building2 size={14} />
               <span>Changes apply to all new documents.</span>
+            </div>
+            <Button type="submit" loading={update.isPending}>
+              Save Changes
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* UPI Collection Section */}
+        <Card className="mt-6 max-w-xl">
+          <CardContent className="space-y-5 pt-5">
+            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <QrCode size={16} />
+              <span>UPI Collection</span>
+            </div>
+
+            <Input
+              label="UPI ID"
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value.toLowerCase())}
+              placeholder="e.g. yourcompany@hdfcbank"
+              helper="Used for UPI payment links on invoices and customer portal."
+            />
+          </CardContent>
+
+          <CardFooter className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Building2 size={14} />
+              <span>Appears on invoices and customer portal.</span>
             </div>
             <Button type="submit" loading={update.isPending}>
               Save Changes

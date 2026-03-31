@@ -17,6 +17,7 @@ const INVOICE_KEYS = {
 interface InvoiceFilters {
   customerId?: string;
   status?: 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
+  search?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -28,6 +29,7 @@ export function useInvoices(filters?: InvoiceFilters) {
   const params = new URLSearchParams();
   if (filters?.customerId) params.set('customerId', filters.customerId);
   if (filters?.status) params.set('status', filters.status);
+  if (filters?.search) params.set('search', filters.search);
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
   if (filters?.page) params.set('page', String(filters.page));

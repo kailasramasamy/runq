@@ -6,6 +6,7 @@ import {
   bankReconciliations,
   payments,
   paymentReceipts,
+  cheques,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch } from '@runq/types';
@@ -106,6 +107,12 @@ export class ReconciliationService {
     await this.matchByUTR(txns, allPayments, allReceipts, matched, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
     await this.matchByAmountDate(txns, allPayments, allReceipts, matched, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
 
+    // Auto-clear deposited cheques that match reconciled credit transactions
+    const matchedCreditTxns = txns.filter((t) => matchedTxnIds.has(t.id) && t.type === 'credit');
+    for (const txn of matchedCreditTxns) {
+      await this.tryClearChequeForTxn(bankAccountId, toNumber(txn.amount), txn.transactionDate);
+    }
+
     const unmatchedTxns = txns.filter((t) => !matchedTxnIds.has(t.id));
     const unmatchedPayments = [
       ...allPayments.filter((p) => !matchedPaymentIds.has(p.id)).map((p) => ({
@@ -161,7 +168,7 @@ export class ReconciliationService {
     const diff = Math.abs(toNumber(txn.amount) - matchAmount);
     if (diff > 1) throw new ConflictError(`Amount mismatch: bank ${txn.amount}, book ${matchAmount}`);
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [match] = await tx
         .insert(reconciliationMatches)
         .values({
@@ -181,6 +188,13 @@ export class ReconciliationService {
 
       return this.toMatch(match!);
     });
+
+    // Auto-clear deposited cheque if this is a credit transaction
+    if (txn.type === 'credit') {
+      await this.tryClearChequeForTxn(txn.bankAccountId, toNumber(txn.amount), txn.transactionDate);
+    }
+
+    return result;
   }
 
   async unmatch(bankTransactionId: string): Promise<void> {
@@ -472,5 +486,36 @@ export class ReconciliationService {
       matchedAt: row.matchedAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Try to auto-clear a deposited cheque that matches a bank credit transaction
+   * by amount (within ₹1) and date (cheque date to cheque date + 30 days).
+   */
+  private async tryClearChequeForTxn(bankAccountId: string, amount: number, txnDate: string): Promise<void> {
+    const [cheque] = await this.db
+      .select({ id: cheques.id })
+      .from(cheques)
+      .where(
+        and(
+          eq(cheques.tenantId, this.tenantId),
+          eq(cheques.bankAccountId, bankAccountId),
+          eq(cheques.status, 'deposited'),
+          sql`ABS(${cheques.amount}::numeric - ${amount}) < 1`,
+          lte(cheques.chequeDate, txnDate),
+          gte(
+            sql`${cheques.chequeDate}::date + interval '30 days'`,
+            sql`${txnDate}::date`,
+          ),
+        ),
+      )
+      .limit(1);
+
+    if (cheque) {
+      await this.db
+        .update(cheques)
+        .set({ status: 'cleared', updatedAt: new Date() })
+        .where(eq(cheques.id, cheque.id));
+    }
   }
 }

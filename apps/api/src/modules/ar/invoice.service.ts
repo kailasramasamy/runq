@@ -551,12 +551,18 @@ export class InvoiceService {
   }
 
   private buildWhereClause(filters: SalesInvoiceFilter) {
+    const isOverdueFilter = filters.status === 'overdue';
     return and(
       eq(salesInvoices.tenantId, this.tenantId),
       filters.customerId ? eq(salesInvoices.customerId, filters.customerId) : undefined,
-      filters.status ? eq(salesInvoices.status, filters.status) : undefined,
+      isOverdueFilter
+        ? sql`${salesInvoices.dueDate} < CURRENT_DATE AND ${salesInvoices.balanceDue} > 0 AND ${salesInvoices.status} IN ('sent', 'partially_paid')`
+        : filters.status ? eq(salesInvoices.status, filters.status) : undefined,
       filters.overdue
         ? sql`${salesInvoices.dueDate} < CURRENT_DATE AND ${salesInvoices.balanceDue} > 0`
+        : undefined,
+      filters.search
+        ? sql`${salesInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'}`
         : undefined,
       filters.dateFrom ? gte(salesInvoices.invoiceDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(salesInvoices.invoiceDate, filters.dateTo) : undefined,

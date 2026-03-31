@@ -26,6 +26,7 @@ export interface CollectionAssignment {
   assignedTo: string;
   assigneeName: string;
   assignedAt: string;
+  balanceDue: number;
   status: string;
   notes: string | null;
   followUpDate: string | null;
@@ -52,6 +53,7 @@ export class CollectionService {
         invoiceId: collectionAssignments.invoiceId,
         invoiceNumber: salesInvoices.invoiceNumber,
         customerName: customers.name,
+        balanceDue: salesInvoices.balanceDue,
         assignedTo: collectionAssignments.assignedTo,
         assigneeName: users.name,
         assignedAt: collectionAssignments.assignedAt,
@@ -124,6 +126,7 @@ export class CollectionService {
         invoiceId: collectionAssignments.invoiceId,
         invoiceNumber: salesInvoices.invoiceNumber,
         customerName: customers.name,
+        balanceDue: salesInvoices.balanceDue,
         assignedTo: collectionAssignments.assignedTo,
         assigneeName: users.name,
         assignedAt: collectionAssignments.assignedAt,
@@ -152,6 +155,7 @@ export class CollectionService {
     invoiceId: string;
     invoiceNumber: string;
     customerName: string;
+    balanceDue: string;
     assignedTo: string;
     assigneeName: string;
     assignedAt: Date;
@@ -170,6 +174,7 @@ export class CollectionService {
       assignedTo: row.assignedTo,
       assigneeName: row.assigneeName,
       assignedAt: row.assignedAt.toISOString(),
+      balanceDue: Number(row.balanceDue),
       status: row.status,
       notes: row.notes,
       followUpDate: row.followUpDate,

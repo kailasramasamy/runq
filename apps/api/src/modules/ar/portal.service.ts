@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { salesInvoices, customers, receiptAllocations, paymentReceipts, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -31,6 +31,10 @@ function verifyPayload(token: string): PortalPayload {
   return payload;
 }
 
+function generateSlug(): string {
+  return randomBytes(4).toString('hex');
+}
+
 export class PortalService {
   constructor(
     private readonly db: Db,
@@ -44,6 +48,34 @@ export class PortalService {
       exp: Date.now() + TOKEN_TTL_MS,
     };
     return signPayload(payload);
+  }
+
+  async getOrCreateSlug(customerId: string): Promise<string> {
+    const [customer] = await this.db
+      .select({ portalSlug: customers.portalSlug })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!customer) throw new NotFoundError('Customer');
+    if (customer.portalSlug) return customer.portalSlug;
+
+    const slug = generateSlug();
+    await this.db
+      .update(customers)
+      .set({ portalSlug: slug })
+      .where(eq(customers.id, customerId));
+    return slug;
+  }
+
+  async resolveSlug(slug: string): Promise<{ tenantId: string; customerId: string }> {
+    const [row] = await this.db
+      .select({ id: customers.id, tenantId: customers.tenantId })
+      .from(customers)
+      .where(eq(customers.portalSlug, slug))
+      .limit(1);
+    if (!row) throw new NotFoundError('Portal link');
+    return { tenantId: row.tenantId, customerId: row.id };
   }
 
   static verifyToken(token: string): PortalPayload {
