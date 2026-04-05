@@ -11,6 +11,7 @@ import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, De
 import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import { FileUpload } from '@/components/ui/file-upload';
+import { ApprovalPanel } from '@/components/approval-panel';
 import {
   PageHeader,
   Badge,
@@ -225,7 +226,8 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
       <Card>
         <CardHeader title="Approval" />
         <CardContent>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+          <ApprovalPanel entityType="purchase_invoice" entityId={invoice.id} amount={Number(invoice.totalAmount)} />
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 mt-4">
             This bill has no linked Purchase Order. You can approve it directly or link a PO for 3-way matching.
           </p>
           <div className="flex items-center gap-3">

@@ -18,8 +18,11 @@ export interface Vendor {
   bankIfsc: string | null;
   bankName: string | null;
   paymentTermsDays: number;
+  earlyPaymentDiscountPercent: number | null;
+  earlyPaymentDiscountDays: number | null;
   wmsVendorId: string | null;
   category: string | null;
+  expenseAccountCode: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

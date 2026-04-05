@@ -41,6 +41,13 @@ export const journalEntryFilterSchema = z.object({
   sourceType: z.string().max(50).optional(),
 });
 
+export const updateAccountSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().max(500).nullish(),
+  isActive: z.boolean().optional(),
+});
+
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type CreateJournalEntryInput = z.infer<typeof createJournalEntrySchema>;
 export type JournalEntryFilter = z.infer<typeof journalEntryFilterSchema>;

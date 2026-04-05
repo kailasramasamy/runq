@@ -12,6 +12,7 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { InvoiceService } from './invoice.service';
+import { GLService } from '../gl/gl.service';
 import { generateUPILink } from '../../utils/upi/upi-link';
 import { InterestService } from './interest.service';
 import { NotFoundError } from '../../utils/errors';
@@ -50,6 +51,15 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const input = createSalesInvoiceSchema.parse(request.body);
       const service = new InvoiceService(request.server.db, request.tenantId);
       const invoice = await service.create(input);
+
+      const gl = new GLService(request.server.db, request.tenantId);
+      void gl.postSalesInvoice({
+        totalAmount: invoice.totalAmount,
+        date: invoice.invoiceDate,
+        id: invoice.id,
+        customerName: invoice.customerName,
+      });
+
       return reply.status(201).send({ data: invoice });
     },
   );

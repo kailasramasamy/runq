@@ -255,18 +255,16 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
       <Card>
         <CardHeader title="Bill Info" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Combobox
-                label="Vendor"
-                required
-                options={vendorOptions}
-                value={vendorId}
-                onChange={(value) => setVendorId(value)}
-                placeholder="Search vendor…"
-                error={errors.vendorId}
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-4 max-w-2xl">
+            <Combobox
+              label="Vendor"
+              required
+              options={vendorOptions}
+              value={vendorId}
+              onChange={(value) => setVendorId(value)}
+              placeholder="Search vendor…"
+              error={errors.vendorId}
+            />
             <Input
               label="Invoice Number"
               required
@@ -275,7 +273,6 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
               onChange={(e) => setInvoiceNumber(e.target.value)}
               error={errors.invoiceNumber}
             />
-            <div />
             <DateInput
               label="Invoice Date"
               required
@@ -306,7 +303,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
                 <Th className="w-[16%]">Item Name</Th>
                 <Th className="w-[11%]">HSN/SAC</Th>
                 <Th className="w-[6%]">SKU</Th>
-                <Th align="right" className="w-[6%]">Qty</Th>
+                <Th align="right" className="w-[9%]">Qty</Th>
                 <Th align="right" className="w-[8%]">Unit Price</Th>
                 <Th align="right" className="w-[8%]">Amount</Th>
                 <Th className="w-[10%]">Tax Category</Th>

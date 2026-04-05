@@ -55,6 +55,29 @@ import { ChartOfAccountsPage } from './gl/accounts';
 import { JournalEntriesPage } from './gl/journal-entries';
 import { TrialBalancePage } from './gl/trial-balance';
 import { PortalPage } from './portal/index';
+// Phase 4: Reports
+import { ProfitAndLossPage } from './reports/profit-and-loss';
+import { BalanceSheetPage } from './reports/balance-sheet';
+import { CashFlowPage } from './reports/cash-flow';
+import { ExpenseAnalyticsPage } from './reports/expense-analytics';
+import { RevenueAnalyticsPage } from './reports/revenue-analytics';
+import { ComparisonPage } from './reports/comparison';
+import { CashFlowForecastPage } from './reports/cash-flow-forecast';
+import { FiscalPeriodsPage } from './reports/fiscal-periods';
+// Phase 4: Workflows
+import { WorkflowsPage } from './workflows/index';
+import { TasksPage } from './workflows/tasks';
+import { ApprovalsPage } from './workflows/approvals';
+// Phase 4: Vendor Management
+import { VendorContractsPage } from './vendor-management/contracts';
+import { VendorRatingsPage } from './vendor-management/ratings';
+import { RequisitionsPage } from './vendor-management/requisitions';
+import { PaymentSchedulesPage } from './vendor-management/payment-schedules';
+import { EarlyDiscountsPage } from './vendor-management/early-discounts';
+// Phase 4: Settings additions
+import { IntegrationsPage } from './settings/integrations';
+import { ScheduledReportsPage } from './settings/scheduled-reports';
+import { EmailProviderPage } from './settings/email-provider';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -618,6 +641,7 @@ const GL_TABS = [
   { label: 'Chart of Accounts', path: '/gl/accounts' },
   { label: 'Journal Entries', path: '/gl/journal-entries' },
   { label: 'Trial Balance', path: '/gl/trial-balance' },
+  { label: 'Fiscal Periods', path: '/gl/fiscal-periods' },
 ];
 
 function GlNav() {
@@ -698,6 +722,9 @@ const SETTINGS_TABS = [
   { label: 'Users', path: '/settings/users' },
   { label: 'Tally Export', path: '/settings/tally-export' },
   { label: 'Notifications', path: '/settings/notifications' },
+  { label: 'Integrations', path: '/settings/integrations' },
+  { label: 'Scheduled Reports', path: '/settings/scheduled-reports' },
+  { label: 'Email Provider', path: '/settings/email-provider' },
 ];
 
 function SettingsNav() {
@@ -782,6 +809,304 @@ const settingsNotificationsRoute = createRoute({
   component: NotificationsPage,
 });
 
+// ─── Reports Sub-navigation ──────────────────────────────────────────────────
+
+const REPORTS_TABS = [
+  { label: 'P&L', path: '/reports/profit-and-loss' },
+  { label: 'Balance Sheet', path: '/reports/balance-sheet' },
+  { label: 'Cash Flow', path: '/reports/cash-flow' },
+  { label: 'Expenses', path: '/reports/expense-analytics' },
+  { label: 'Revenue', path: '/reports/revenue-analytics' },
+  { label: 'Comparison', path: '/reports/comparison' },
+  { label: 'Forecast', path: '/reports/cash-flow-forecast' },
+];
+
+function ReportsNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold">Reports</h1>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto">
+        {REPORTS_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/reports/profit-and-loss'}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function ReportsLayout() {
+  return (
+    <div>
+      <ReportsNav />
+      <Outlet />
+    </div>
+  );
+}
+
+// ─── Reports Routes ──────────────────────────────────────────────────────────
+
+const reportsRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/reports',
+  component: ReportsLayout,
+});
+
+const reportsIndexRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/',
+  component: () => <Navigate to="/reports/profit-and-loss" />,
+});
+
+const reportsPnlRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/profit-and-loss',
+  component: ProfitAndLossPage,
+});
+
+const reportsBsRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/balance-sheet',
+  component: BalanceSheetPage,
+});
+
+const reportsCfRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/cash-flow',
+  component: CashFlowPage,
+});
+
+const reportsExpenseRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/expense-analytics',
+  component: ExpenseAnalyticsPage,
+});
+
+const reportsRevenueRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/revenue-analytics',
+  component: RevenueAnalyticsPage,
+});
+
+const reportsComparisonRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/comparison',
+  component: ComparisonPage,
+});
+
+const reportsForecastRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/cash-flow-forecast',
+  component: CashFlowForecastPage,
+});
+
+// ─── Workflows Sub-navigation ────────────────────────────────────────────────
+
+const WORKFLOWS_TABS = [
+  { label: 'Pending Approvals', path: '/workflows/approvals' },
+  { label: 'Workflows', path: '/workflows' },
+  { label: 'Tasks', path: '/workflows/tasks' },
+];
+
+function WorkflowsNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold">Workflows</h1>
+      </div>
+      <nav className="flex gap-1">
+        {WORKFLOWS_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/workflows'}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              (path === '/workflows' ? current === '/workflows' || current === '/workflows/' : current.startsWith(path))
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function WorkflowsLayout() {
+  return (
+    <div>
+      <WorkflowsNav />
+      <Outlet />
+    </div>
+  );
+}
+
+// ─── Workflows Routes ────────────────────────────────────────────────────────
+
+const workflowsRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/workflows',
+  component: WorkflowsLayout,
+});
+
+const workflowsIndexRoute = createRoute({
+  getParentRoute: () => workflowsRoute,
+  path: '/',
+  component: WorkflowsPage,
+});
+
+const workflowsApprovalsRoute = createRoute({
+  getParentRoute: () => workflowsRoute,
+  path: '/approvals',
+  component: ApprovalsPage,
+});
+
+const workflowsTasksRoute = createRoute({
+  getParentRoute: () => workflowsRoute,
+  path: '/tasks',
+  component: TasksPage,
+});
+
+// ─── Vendor Management Sub-navigation ────────────────────────────────────────
+
+const VM_TABS = [
+  { label: 'Contracts', path: '/vendor-management/contracts' },
+  { label: 'Ratings', path: '/vendor-management/ratings' },
+  { label: 'Requisitions', path: '/vendor-management/requisitions' },
+  { label: 'Payment Schedules', path: '/vendor-management/payment-schedules' },
+  { label: 'Early Discounts', path: '/vendor-management/early-discounts' },
+];
+
+function VmNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold">Vendor Management</h1>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto">
+        {VM_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/vendor-management/contracts'}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function VmLayout() {
+  return (
+    <div>
+      <VmNav />
+      <Outlet />
+    </div>
+  );
+}
+
+// ─── Vendor Management Routes ────────────────────────────────────────────────
+
+const vmRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/vendor-management',
+  component: VmLayout,
+});
+
+const vmIndexRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/',
+  component: () => <Navigate to="/vendor-management/contracts" />,
+});
+
+const vmContractsRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/contracts',
+  component: VendorContractsPage,
+});
+
+const vmRatingsRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/ratings',
+  component: VendorRatingsPage,
+});
+
+const vmRequisitionsRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/requisitions',
+  component: RequisitionsPage,
+});
+
+const vmPaymentSchedulesRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/payment-schedules',
+  component: PaymentSchedulesPage,
+});
+
+const vmEarlyDiscountsRoute = createRoute({
+  getParentRoute: () => vmRoute,
+  path: '/early-discounts',
+  component: EarlyDiscountsPage,
+});
+
+// ─── Additional GL Route ─────────────────────────────────────────────────────
+
+const glFiscalPeriodsRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/fiscal-periods',
+  component: FiscalPeriodsPage,
+});
+
+// ─── Additional Settings Routes ──────────────────────────────────────────────
+
+const settingsIntegrationsRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/integrations',
+  component: IntegrationsPage,
+});
+
+const settingsScheduledReportsRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/scheduled-reports',
+  component: ScheduledReportsPage,
+});
+
+const settingsEmailProviderRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/email-provider',
+  component: EmailProviderPage,
+});
+
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 export const routeTree = rootRoute.addChildren([
@@ -848,6 +1173,30 @@ export const routeTree = rootRoute.addChildren([
       glAccountsRoute,
       glJournalEntriesRoute,
       glTrialBalanceRoute,
+      glFiscalPeriodsRoute,
+    ]),
+    reportsRoute.addChildren([
+      reportsIndexRoute,
+      reportsPnlRoute,
+      reportsBsRoute,
+      reportsCfRoute,
+      reportsExpenseRoute,
+      reportsRevenueRoute,
+      reportsComparisonRoute,
+      reportsForecastRoute,
+    ]),
+    workflowsRoute.addChildren([
+      workflowsIndexRoute,
+      workflowsApprovalsRoute,
+      workflowsTasksRoute,
+    ]),
+    vmRoute.addChildren([
+      vmIndexRoute,
+      vmContractsRoute,
+      vmRatingsRoute,
+      vmRequisitionsRoute,
+      vmPaymentSchedulesRoute,
+      vmEarlyDiscountsRoute,
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,
@@ -856,6 +1205,9 @@ export const routeTree = rootRoute.addChildren([
       settingsUsersRoute,
       settingsTallyExportRoute,
       settingsNotificationsRoute,
+      settingsIntegrationsRoute,
+      settingsScheduledReportsRoute,
+      settingsEmailProviderRoute,
     ]),
   ]),
 ]);

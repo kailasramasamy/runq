@@ -8,6 +8,9 @@ import {
   Settings,
   Sun,
   Moon,
+  BarChart3,
+  GitBranch,
+  Users,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -18,6 +21,9 @@ const navItems = [
   { label: 'Accounts Receivable', path: '/ar', icon: ArrowDownToLine },
   { label: 'Banking', path: '/banking', icon: Landmark },
   { label: 'General Ledger', path: '/gl', icon: BookOpen },
+  { label: 'Reports', path: '/reports', icon: BarChart3 },
+  { label: 'Workflows', path: '/workflows', icon: GitBranch },
+  { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
   { label: 'Settings', path: '/settings', icon: Settings },
 ];
 

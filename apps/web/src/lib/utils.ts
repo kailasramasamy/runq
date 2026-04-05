@@ -26,3 +26,15 @@ export function formatIndianNumber(num: number): string {
 export function formatINR(amount: number): string {
   return `₹${formatIndianNumber(amount)}`;
 }
+
+/**
+ * Format in Indian accounting convention — negatives in parentheses
+ * -1234567 → "(₹12,34,567.00)"
+ */
+export function formatINRAccounting(amount: number): string {
+  if (amount < 0) {
+    const str = formatIndianNumber(Math.abs(amount));
+    return `(₹${str})`;
+  }
+  return `₹${formatIndianNumber(amount)}`;
+}

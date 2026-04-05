@@ -1,8 +1,8 @@
-import { eq, and, sql, lte, sum, inArray } from 'drizzle-orm';
+import { eq, and, sql, lte, sum, inArray, desc } from 'drizzle-orm';
 import { accounts, journalEntries, journalLines, journalSequences } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Account, JournalEntry, JournalEntryWithLines, TrialBalanceRow } from '@runq/types';
-import type { CreateAccountInput, CreateJournalEntryInput, JournalEntryFilter } from '@runq/validators';
+import type { CreateAccountInput, UpdateAccountInput, CreateJournalEntryInput, JournalEntryFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -41,6 +41,27 @@ export class GLService {
         parentId: parentId ?? null,
         description: data.description ?? null,
       })
+      .returning();
+
+    return this.toAccount(row!);
+  }
+
+  async updateAccount(id: string, data: UpdateAccountInput): Promise<Account> {
+    const [existing] = await this.db
+      .select({ isSystemAccount: accounts.isSystemAccount })
+      .from(accounts)
+      .where(and(eq(accounts.id, id), eq(accounts.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!existing) throw new NotFoundError('Account');
+    if (existing.isSystemAccount && data.isActive === false) {
+      throw new ConflictError('System accounts cannot be deactivated');
+    }
+
+    const [row] = await this.db
+      .update(accounts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(accounts.id, id), eq(accounts.tenantId, this.tenantId)))
       .returning();
 
     return this.toAccount(row!);
@@ -121,7 +142,7 @@ export class GLService {
     const where = this.buildJeWhere(filters);
 
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(journalEntries).where(where).orderBy(journalEntries.date).limit(pagination.limit).offset(offset),
+      this.db.select().from(journalEntries).where(where).orderBy(desc(journalEntries.createdAt)).limit(pagination.limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(journalEntries).where(where),
     ]);
 
@@ -187,6 +208,7 @@ export class GLService {
   // ─── Auto-posting helpers ────────────────────────────────────────────────
 
   async postPayment(payment: { amount: number; date: string; id: string; vendorName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('payment', payment.id)) return;
     await this.createJournalEntry({
       date: payment.date,
       description: `Payment to ${payment.vendorName}`,
@@ -200,6 +222,7 @@ export class GLService {
   }
 
   async postReceipt(receipt: { amount: number; date: string; id: string; customerName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('receipt', receipt.id)) return;
     await this.createJournalEntry({
       date: receipt.date,
       description: `Receipt from ${receipt.customerName}`,
@@ -212,20 +235,24 @@ export class GLService {
     });
   }
 
-  async postPurchaseInvoice(invoice: { totalAmount: number; date: string; id: string; vendorName: string }): Promise<void> {
+  async postPurchaseInvoice(invoice: {
+    totalAmount: number; date: string; id: string; vendorName: string; expenseAccountCode?: string;
+  }): Promise<void> {
+    if (await this.isAlreadyPosted('purchase_invoice', invoice.id)) return;
     await this.createJournalEntry({
       date: invoice.date,
       description: `Purchase invoice from ${invoice.vendorName}`,
       sourceType: 'purchase_invoice',
       sourceId: invoice.id,
       lines: [
-        { accountCode: '5002', debit: invoice.totalAmount },
+        { accountCode: invoice.expenseAccountCode ?? '5002', debit: invoice.totalAmount },
         { accountCode: '2101', credit: invoice.totalAmount },
       ],
     });
   }
 
   async postSalesInvoice(invoice: { totalAmount: number; date: string; id: string; customerName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('sales_invoice', invoice.id)) return;
     await this.createJournalEntry({
       date: invoice.date,
       description: `Sales invoice to ${invoice.customerName}`,
@@ -238,7 +265,48 @@ export class GLService {
     });
   }
 
+  async postDebitNote(note: { amount: number; date: string; id: string; vendorName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('debit_note', note.id)) return;
+    await this.createJournalEntry({
+      date: note.date,
+      description: `Debit note to ${note.vendorName}`,
+      sourceType: 'debit_note',
+      sourceId: note.id,
+      lines: [
+        { accountCode: '2101', debit: note.amount },
+        { accountCode: '5002', credit: note.amount },
+      ],
+    });
+  }
+
+  async postCreditNote(note: { amount: number; date: string; id: string; customerName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('credit_note', note.id)) return;
+    await this.createJournalEntry({
+      date: note.date,
+      description: `Credit note to ${note.customerName}`,
+      sourceType: 'credit_note',
+      sourceId: note.id,
+      lines: [
+        { accountCode: '4001', debit: note.amount },
+        { accountCode: '1103', credit: note.amount },
+      ],
+    });
+  }
+
   // ─── Private helpers ─────────────────────────────────────────────────────
+
+  private async isAlreadyPosted(sourceType: string, sourceId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: journalEntries.id })
+      .from(journalEntries)
+      .where(and(
+        eq(journalEntries.tenantId, this.tenantId),
+        eq(journalEntries.sourceType, sourceType),
+        eq(journalEntries.sourceId, sourceId),
+      ))
+      .limit(1);
+    return !!row;
+  }
 
   private validateLines(lines: CreateJournalEntryInput['lines']): void {
     if (lines.length < 2) throw new ConflictError('Journal entry requires at least 2 lines');

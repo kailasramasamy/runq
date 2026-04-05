@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createVendorSchema } from '@runq/validators';
 import type { Vendor } from '@runq/types';
 import type { CreateVendorInput } from '@runq/validators';
+import { useGLAccounts } from '@/hooks/queries/use-gl';
 import { Card, CardHeader, CardContent, Input, Select, Button } from '@/components/ui';
 
 interface Props {
@@ -23,6 +24,14 @@ const CATEGORY_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
+const CATEGORY_EXPENSE_DEFAULTS: Record<string, string> = {
+  raw_material: '5001',
+  equipment: '5305',
+  logistics: '5701',
+  service_provider: '5401',
+  utilities: '5302',
+};
+
 function buildInitial(v?: Vendor): FormState {
   if (!v) return { name: '', paymentTermsDays: 30 };
   return {
@@ -41,7 +50,10 @@ function buildInitial(v?: Vendor): FormState {
     bankIfsc: v.bankIfsc ?? undefined,
     bankName: v.bankName ?? undefined,
     paymentTermsDays: v.paymentTermsDays,
+    earlyPaymentDiscountPercent: v.earlyPaymentDiscountPercent ?? undefined,
+    earlyPaymentDiscountDays: v.earlyPaymentDiscountDays ?? undefined,
     category: v.category ?? undefined,
+    expenseAccountCode: v.expenseAccountCode ?? undefined,
   };
 }
 
@@ -58,6 +70,26 @@ const PAYMENT_TERMS_OPTIONS = [
 export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props) {
   const [form, setForm] = useState<FormState>(buildInitial(initialData));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { data: accountsData } = useGLAccounts();
+  const allAccounts = (accountsData?.data ?? []).filter((a) => a.isActive);
+
+  const ASSET_CATEGORIES = new Set(['raw_material', 'equipment']);
+  const ASSET_CODE_PREFIXES = ['11', '12', '13'];
+
+  function getExpenseAccountOptions() {
+    const showAssets = ASSET_CATEGORIES.has(form.category as string);
+    const filtered = allAccounts.filter((a) => {
+      if (a.type === 'expense') return true;
+      if (showAssets && a.type === 'asset') {
+        return ASSET_CODE_PREFIXES.some((p) => a.code.startsWith(p) && a.code.length === 4);
+      }
+      return false;
+    });
+    return [
+      { value: '', label: 'Default (Purchase Expenses)' },
+      ...filtered.map((a) => ({ value: a.code, label: `${a.code} — ${a.name}` })),
+    ];
+  }
 
   function set(field: keyof FormState, value: string | number) {
     setForm((prev) => ({ ...prev, [field]: value === '' ? undefined : value }));
@@ -69,6 +101,8 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
     const parsed = createVendorSchema.safeParse({
       ...form,
       paymentTermsDays: Number(form.paymentTermsDays ?? 30),
+      earlyPaymentDiscountPercent: form.earlyPaymentDiscountPercent ? Number(form.earlyPaymentDiscountPercent) : null,
+      earlyPaymentDiscountDays: form.earlyPaymentDiscountDays ? Number(form.earlyPaymentDiscountDays) : null,
     });
     if (!parsed.success) {
       const errs: Record<string, string> = {};
@@ -102,8 +136,22 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             label="Category"
             options={CATEGORY_OPTIONS}
             value={(form.category as string) ?? ''}
-            onChange={(e) => set('category', e.target.value)}
+            onChange={(e) => {
+              const cat = e.target.value;
+              set('category', cat);
+              if (!form.expenseAccountCode) {
+                const defaultCode = CATEGORY_EXPENSE_DEFAULTS[cat];
+                if (defaultCode) set('expenseAccountCode', defaultCode);
+              }
+            }}
             error={errors.category}
+          />
+          <Select
+            label="Expense Account"
+            options={getExpenseAccountOptions()}
+            value={(form.expenseAccountCode as string) ?? ''}
+            onChange={(e) => set('expenseAccountCode', e.target.value)}
+            error={errors.expenseAccountCode}
           />
         </CardContent>
       </Card>
@@ -155,6 +203,28 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             onChange={(e) => set('paymentTermsDays', Number(e.target.value))}
             error={errors.paymentTermsDays}
           />
+          <div />
+          <Input
+            label="Early Payment Discount %"
+            type="number"
+            placeholder="e.g. 2"
+            value={form.earlyPaymentDiscountPercent != null ? String(form.earlyPaymentDiscountPercent) : ''}
+            onChange={(e) => set('earlyPaymentDiscountPercent', e.target.value ? Number(e.target.value) : '')}
+            error={errors.earlyPaymentDiscountPercent}
+          />
+          <Input
+            label="Discount If Paid Within (days)"
+            type="number"
+            placeholder="e.g. 10"
+            value={form.earlyPaymentDiscountDays != null ? String(form.earlyPaymentDiscountDays) : ''}
+            onChange={(e) => set('earlyPaymentDiscountDays', e.target.value ? Number(e.target.value) : '')}
+            error={errors.earlyPaymentDiscountDays}
+          />
+          {form.earlyPaymentDiscountPercent && form.earlyPaymentDiscountDays && (
+            <p className="col-span-2 text-xs text-zinc-500">
+              {form.earlyPaymentDiscountPercent}% discount if paid within {form.earlyPaymentDiscountDays} days (i.e. {form.earlyPaymentDiscountPercent}/{form.earlyPaymentDiscountDays} net {form.paymentTermsDays ?? 30})
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, boolean, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, decimal, boolean, timestamp } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 
 export const vendors = pgTable('vendors', {
@@ -19,8 +19,11 @@ export const vendors = pgTable('vendors', {
   bankIfsc: varchar('bank_ifsc', { length: 11 }),
   bankName: varchar('bank_name', { length: 255 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
+  earlyPaymentDiscountPercent: decimal('early_payment_discount_percent', { precision: 5, scale: 2 }),
+  earlyPaymentDiscountDays: integer('early_payment_discount_days'),
   wmsVendorId: varchar('wms_vendor_id', { length: 100 }),
   category: varchar('category', { length: 50 }),
+  expenseAccountCode: varchar('expense_account_code', { length: 20 }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -7,6 +7,7 @@ import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
+import { GLService } from '../gl/gl.service';
 import { sendEmail } from '../../utils/email';
 import { receiptConfirmation } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
@@ -161,6 +162,16 @@ export class ReceiptService {
     });
 
     const receiptWithAllocations = await this.getById(result.id);
+
+    // Post to GL
+    const gl = new GLService(this.db, this.tenantId);
+    void gl.postReceipt({
+      amount: receiptWithAllocations.amount,
+      date: receiptWithAllocations.receiptDate,
+      id: receiptWithAllocations.id,
+      customerName: receiptWithAllocations.customerName,
+    });
+
     void this.sendReceiptEmail(receiptWithAllocations);
     return receiptWithAllocations;
   }

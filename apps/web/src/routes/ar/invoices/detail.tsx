@@ -10,7 +10,7 @@ import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceStatus } from '@runq/types';
 import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
-  StatsCard, EmptyState, CardSkeleton,
+  StatsCard, EmptyState, CardSkeleton, Input, DateInput,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
 } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
@@ -42,6 +42,9 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const invoice = data?.data;
   const receipts: InvoiceReceipt[] = receiptsData?.data ?? [];
   const [upiCopied, setUpiCopied] = useState(false);
+  const [showMarkPaid, setShowMarkPaid] = useState(false);
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [referenceNumber, setReferenceNumber] = useState('');
 
   const { data: upiData } = useQuery({
     queryKey: ['invoices', 'upi-link', invoiceId],
@@ -67,8 +70,10 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   }
 
   function handleMarkPaid() {
-    const today = new Date().toISOString().split('T')[0];
-    markPaidMutation.mutate({ id: invoiceId, data: { paymentDate: today } });
+    markPaidMutation.mutate(
+      { id: invoiceId, data: { paymentDate, referenceNumber: referenceNumber || undefined } },
+      { onSuccess: () => setShowMarkPaid(false) },
+    );
   }
 
   if (isLoading) {
@@ -130,8 +135,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         <>
           <Button
             size="sm"
-            onClick={handleMarkPaid}
-            loading={markPaidMutation.isPending}
+            onClick={() => setShowMarkPaid(true)}
           >
             <CheckCircle size={14} /> Mark as Paid
           </Button>
@@ -432,6 +436,38 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {showMarkPaid && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowMarkPaid(false)} />
+          <div className="relative w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Mark as Paid</h2>
+            <div className="space-y-4">
+              <DateInput
+                label="Payment Date"
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+              />
+              <Input
+                label="UTR / Reference Number"
+                placeholder="e.g. UTR2604001"
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
+              />
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Amount: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{formatINR(invoice?.balanceDue ?? 0)}</span>
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" size="sm" onClick={() => setShowMarkPaid(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleMarkPaid} loading={markPaidMutation.isPending} disabled={!paymentDate}>
+                Confirm Payment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

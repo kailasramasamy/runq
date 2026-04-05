@@ -48,9 +48,9 @@ function InvoiceRow({
       <TableCell>{invoice.customerName}</TableCell>
       <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.invoiceDate}</TableCell>
       <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.dueDate}</TableCell>
-      <TableCell numeric className="font-mono text-sm">{formatINR(invoice.totalAmount)}</TableCell>
-      <TableCell numeric className="font-mono text-sm">{formatINR(invoice.amountReceived)}</TableCell>
-      <TableCell numeric className="font-mono text-sm">{formatINR(invoice.balanceDue)}</TableCell>
+      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.totalAmount)}</TableCell>
+      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.amountReceived)}</TableCell>
+      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.balanceDue)}</TableCell>
       <TableCell>
         <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
       </TableCell>

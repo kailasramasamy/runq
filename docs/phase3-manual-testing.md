@@ -6,7 +6,7 @@
 
 ## Pre-requisites
 
-1. API: `http://localhost:3003` | Web: `http://localhost:4004`
+1. API: `http://localhost:3003` | Web: `http://localhost:4003`
 2. Login: `admin@demo.com` / `admin123` / `demo-company`
 3. Seed data loaded (`pnpm db:seed -- --vrindavan`)
 4. Schema pushed (`pnpm db:push` from `packages/db/`)

@@ -131,28 +131,24 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
       <Card>
         <CardHeader title="Invoice Info" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Combobox
-                label="Customer"
-                required
-                options={customerOptions}
-                value={customerId}
-                onChange={(value) => setCustomerId(value)}
-                placeholder="Search customer…"
-                error={errors.customerId}
-              />
-            </div>
-            <div className="col-span-2">
-              <Input
-                label="Invoice Number"
-                placeholder="Will be auto-generated"
-                disabled
-                value=""
-                onChange={() => undefined}
-                helper="Invoice number is assigned automatically when saved."
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-4 max-w-2xl">
+            <Combobox
+              label="Customer"
+              required
+              options={customerOptions}
+              value={customerId}
+              onChange={(value) => setCustomerId(value)}
+              placeholder="Search customer…"
+              error={errors.customerId}
+            />
+            <Input
+              label="Invoice Number"
+              placeholder="Will be auto-generated"
+              disabled
+              value=""
+              onChange={() => undefined}
+              helper="Auto-assigned on save"
+            />
             <DateInput
               label="Invoice Date"
               required
@@ -182,8 +178,8 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
               <tr>
                 <Th className="min-w-[240px]">Description</Th>
                 <Th className="min-w-[180px]">HSN/SAC</Th>
-                <Th align="right" className="min-w-[80px]">Qty</Th>
-                <Th align="right" className="min-w-[110px]">Unit Price</Th>
+                <Th className="min-w-[120px]">Qty</Th>
+                <Th className="min-w-[150px]">Unit Price</Th>
                 <Th align="right" className="min-w-[100px]">Amount</Th>
                 <Th className="min-w-[130px]">Tax Category</Th>
                 <Th className="min-w-[90px]">GST Rate</Th>
@@ -216,7 +212,7 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
                       value={line.quantity}
                       onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
                       placeholder="0"
-                      className="w-20 text-right"
+                      className="w-full text-right"
                     />
                   </TableCell>
                   <TableCell align="right">

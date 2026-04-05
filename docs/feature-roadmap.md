@@ -67,33 +67,33 @@
 ## Phase 4 — Scale Features
 
 ### Financial Statements & Reporting (CRITICAL — needed for serious businesses)
-- ⬜ (#36) P&L statement (management view — real-time operational, not statutory)
-- ⬜ (#56) Balance Sheet (management view — assets, liabilities, equity snapshot)
-- ⬜ (#37) Cash flow statement (direct method — where money comes from / goes)
+- ✅ (#36) P&L statement (management view — real-time operational, not statutory)
+- ✅ (#56) Balance Sheet (management view — assets, liabilities, equity snapshot)
+- ✅ (#37) Cash flow statement (direct method — where money comes from / goes)
 - ⬜ (#57) Accrual accounting mode (currently cash-basis only — most CAs need accrual)
-- ⬜ (#38) Expense analytics by category / vendor / period
-- ⬜ (#39) Revenue analytics by customer / product / period
-- ⬜ (#42) Comparison reports (MoM, YoY, budget vs actual)
-- ⬜ (#12) Cash flow forecasting (AI — predict 30/60/90 day cash position)
+- ✅ (#38) Expense analytics by category / vendor / period
+- ✅ (#39) Revenue analytics by customer / product / period
+- ✅ (#42) Comparison reports (MoM, YoY, budget vs actual)
+- ✅ (#12) Cash flow forecasting (AI — predict 30/60/90 day cash position)
 
 ### Dashboard & Notifications
-- ⬜ (#40) Configurable dashboard widgets (user builds their own view)
-- ⬜ (#41) Scheduled report emails (daily cash position, weekly AR aging)
+- ✅ (#40) Configurable dashboard widgets (user builds their own view)
+- ✅ (#41) Scheduled report emails (daily cash position, weekly AR aging — with configurable email provider: Resend/SendGrid/SMTP, report renderer, background scheduler, Run Now)
 
 ### Workflow & Collaboration
-- ⬜ (#43) Configurable approval workflows (multi-level, amount-based routing)
+- ✅ (#43) Configurable approval workflows (multi-level, amount-based routing)
 - ⬜ (#44) Mobile-optimized approval flow (one-tap approve from phone)
 - ⬜ (#45) Comments & notes on transactions (in-context team communication)
 - ⬜ (#46) Task assignments ("follow up with vendor X on invoice #123")
-- ⬜ (#47) Activity timeline per entity (full history — who did what, when)
-- ⬜ (#49) Maker-checker for high-value transactions
+- ✅ (#47) Activity timeline per entity (full history — who did what, when)
+- ✅ (#49) Maker-checker for high-value transactions
 
 ### Payables & Vendor Management
-- ⬜ (#30) Vendor payment scheduling ("pay all approved bills due this week on Friday")
-- ⬜ (#31) Early payment discount tracking (alert before discount expiry)
-- ⬜ (#32) Purchase requisition → PO workflow (requestor → approver → PO)
-- ⬜ (#33) Vendor rating / scorecard (delivery, quality, terms)
-- ⬜ (#34) Contract & agreement management (store contracts, alert on renewal)
+- ✅ (#30) Vendor payment scheduling (batch vendor payments into scheduled runs for approval)
+- ✅ (#31) Early payment discount tracking (per-vendor discount terms, savings calculator, urgency dashboard)
+- ✅ (#32) Purchase requisition → PO workflow (create → edit → approve → convert to PO, pricing optional at creation)
+- ✅ (#33) Vendor rating / scorecard (delivery, quality, pricing scores with period tracking)
+- ✅ (#34) Contract & agreement management (store contracts, status tracking, renewal dates)
 - ⬜ (#35) Advance payment tracking with auto-adjustment against future bills
 
 ### Integrations
@@ -116,6 +116,7 @@
 - ⬜ (#60) Embedded "Pay Now" button on invoices (Razorpay/Cashfree checkout)
 
 ### Accounting Depth
+- ⬜ (#86) Auto-reconciliation to payment: bank recon match auto-marks invoices paid, creates receipts/payments + GL entries
 - ⬜ (#61) Fixed asset register + depreciation schedules (straight-line, diminishing value)
 - ⬜ (#62) Year-end adjustments + lock date enforcement
 - ⬜ (#63) Multi-currency support (160+ currencies, auto exchange rates)
@@ -170,12 +171,11 @@
 
 ## Summary
 
-| Phase | Features | Status | Focus |
-|-------|----------|--------|-------|
-| 1 | 10 | ✅ Done | GST-aware invoicing + quick wins |
-| 2 | 7 | ✅ Done | AI automation — demo-ready differentiation |
-| 3 | 12 | ✅ Done | Banking + collections — daily time-saver |
-| 4 | 26 | ⬜ Next | Financial statements, workflows, integrations — scale to larger teams |
-| 5 | 29 | ⬜ Future | Competitive gaps — sales workflow, accounting depth, portals, inventory, AI v2, platform |
-| **Total** | **84** | | |
-| **Total** | **75** | | |
+| Phase | Features | Done | Status | Focus |
+|-------|----------|------|--------|-------|
+| 1 | 10 | 10 | ✅ Done | GST-aware invoicing + quick wins |
+| 2 | 7 | 7 | ✅ Done | AI automation — demo-ready differentiation |
+| 3 | 12 | 12 | ✅ Done | Banking + collections — daily time-saver |
+| 4 | 26 | 16 | 🔧 In Progress | Financial statements, workflows, vendor management, integrations |
+| 5 | 29 | 0 | ⬜ Future | Competitive gaps — sales workflow, accounting depth, portals, inventory, AI v2, platform |
+| **Total** | **84** | **45** | | |

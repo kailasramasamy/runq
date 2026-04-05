@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { companySettingsSchema, invoiceNumberingSchema } from '@runq/validators';
+import { companySettingsSchema, invoiceNumberingSchema, emailProviderConfigSchema, testEmailSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { SettingsService } from './settings.service';
 import { userRoutes } from './user.routes';
@@ -48,6 +48,39 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
       const service = new SettingsService(request.server.db, request.tenantId);
       const data = await service.updateInvoiceNumbering(input);
       return { data };
+    },
+  );
+
+  // Email provider
+  app.get(
+    '/email-provider',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new SettingsService(request.server.db, request.tenantId);
+      const data = await service.getEmailProviderConfig();
+      return { data };
+    },
+  );
+
+  app.put(
+    '/email-provider',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const input = emailProviderConfigSchema.parse(request.body);
+      const service = new SettingsService(request.server.db, request.tenantId);
+      const data = await service.updateEmailProviderConfig(input);
+      return { data };
+    },
+  );
+
+  app.post(
+    '/email-provider/test',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { to } = testEmailSchema.parse(request.body);
+      const service = new SettingsService(request.server.db, request.tenantId);
+      await service.sendTestEmail(to);
+      return { success: true, message: `Test email sent to ${to}` };
     },
   );
 

@@ -5,6 +5,7 @@ import { users } from '../src/schema/user';
 import { seedChartOfAccounts } from './chart-of-accounts';
 import { seedHsnSacCodes } from './hsn-sac';
 import { seedVrindavanData } from './vrindavan-test-data';
+import { seedPhase4Data } from './phase4-test-data';
 
 async function seed() {
   const dbUrl = process.env.DATABASE_URL;
@@ -49,6 +50,10 @@ async function seed() {
 
   if (process.argv.includes('--vrindavan')) {
     await seedVrindavanData(db, tenant.id);
+  }
+
+  if (process.argv.includes('--phase4')) {
+    await seedPhase4Data(db, tenant.id);
   }
 
   console.log('Seed complete.');

@@ -1,9 +1,12 @@
 import { eq, and } from 'drizzle-orm';
-import { purchaseInvoices, purchaseInvoiceItems, purchaseOrders, purchaseOrderItems, goodsReceiptNotes, grnItems } from '@runq/db';
+import { purchaseInvoices, purchaseInvoiceItems, purchaseOrders, purchaseOrderItems, goodsReceiptNotes, grnItems, vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { ThreeWayMatchResult, MatchLineResult } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
+import { GLService } from '../gl/gl.service';
+import { WorkflowService } from '../workflows/workflow.service';
+import { toNumber } from '../../utils/decimal';
 
 const MATCH_TOLERANCE_PERCENT = 2;
 
@@ -77,7 +80,13 @@ export class ThreeWayMatchService {
 
   async approve(invoiceId: string, approvedBy: string, userId?: string): Promise<void> {
     const [invoice] = await this.db
-      .select({ status: purchaseInvoices.status, poId: purchaseInvoices.poId })
+      .select({
+        status: purchaseInvoices.status,
+        poId: purchaseInvoices.poId,
+        totalAmount: purchaseInvoices.totalAmount,
+        invoiceDate: purchaseInvoices.invoiceDate,
+        vendorId: purchaseInvoices.vendorId,
+      })
       .from(purchaseInvoices)
       .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)))
       .limit(1);
@@ -93,10 +102,31 @@ export class ThreeWayMatchService {
       throw new ConflictError(msg);
     }
 
+    // Check workflow approval if configured
+    const wfSvc = new WorkflowService(this.db, this.tenantId);
+    const wfApproved = await wfSvc.isApproved('purchase_invoice', invoiceId);
+    if (!wfApproved) throw new ConflictError('Bill requires workflow approval before it can be approved');
+
     await this.db
       .update(purchaseInvoices)
       .set({ status: 'approved', matchStatus: 'matched', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(purchaseInvoices.id, invoiceId), eq(purchaseInvoices.tenantId, this.tenantId)));
+
+    // Post to GL
+    const [vendorRow] = await this.db
+      .select({ name: vendors.name, expenseAccountCode: vendors.expenseAccountCode })
+      .from(vendors)
+      .where(eq(vendors.id, invoice.vendorId))
+      .limit(1);
+
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.postPurchaseInvoice({
+      totalAmount: toNumber(invoice.totalAmount),
+      date: invoice.invoiceDate,
+      id: invoiceId,
+      vendorName: vendorRow?.name ?? '',
+      expenseAccountCode: vendorRow?.expenseAccountCode ?? undefined,
+    });
 
     await this.audit().log({ userId: userId ?? approvedBy, action: 'approved', entityType: 'purchase_invoice', entityId: invoiceId });
   }

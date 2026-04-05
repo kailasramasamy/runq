@@ -20,6 +20,10 @@ import { tallyRoutes } from './modules/tally/routes';
 import { mastersRoutes } from './modules/masters/routes';
 import { attachmentRoutes } from './modules/common/attachment.routes';
 import { portalRoutes } from './modules/ar/portal.routes';
+import { reportsRoutes } from './modules/reports/routes';
+import { integrationRoutes } from './modules/integrations/routes';
+import { workflowRoutes } from './modules/workflows/routes';
+import { vendorManagementRoutes } from './modules/vendor-management/routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -55,6 +59,10 @@ export async function buildApp() {
     await scope.register(tallyRoutes, { prefix: '/api/v1/tally' });
     await scope.register(mastersRoutes, { prefix: '/api/v1/masters' });
     await scope.register(attachmentRoutes, { prefix: '/api/v1/common' });
+    await scope.register(reportsRoutes, { prefix: '/api/v1/reports' });
+    await scope.register(integrationRoutes, { prefix: '/api/v1/integrations' });
+    await scope.register(workflowRoutes, { prefix: '/api/v1/workflows' });
+    await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
   });
 
   // Health check

@@ -1,13 +1,17 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createAccountSchema,
+  updateAccountSchema,
   createJournalEntrySchema,
   journalEntryFilterSchema,
   paginationSchema,
   uuidParamSchema,
+  createFiscalPeriodSchema,
+  closeFiscalPeriodSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { GLService } from './gl.service';
+import { FiscalService } from './fiscal.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -34,6 +38,19 @@ export const glRoutes: FastifyPluginAsync = async (app) => {
       const service = new GLService(request.server.db, request.tenantId);
       const data = await service.createAccount(input);
       return reply.status(201).send({ data });
+    },
+  );
+
+  // PUT /gl/accounts/:id
+  app.put(
+    '/accounts/:id',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = updateAccountSchema.parse(request.body);
+      const service = new GLService(request.server.db, request.tenantId);
+      const data = await service.updateAccount(id, input);
+      return { data };
     },
   );
 
@@ -81,6 +98,42 @@ export const glRoutes: FastifyPluginAsync = async (app) => {
       const query = request.query as { asOfDate?: string };
       const service = new GLService(request.server.db, request.tenantId);
       const data = await service.getTrialBalance(query.asOfDate);
+      return { data };
+    },
+  );
+
+  // GET /gl/fiscal-periods
+  app.get(
+    '/fiscal-periods',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new FiscalService(request.server.db, request.tenantId);
+      const data = await service.listPeriods();
+      return { data };
+    },
+  );
+
+  // POST /gl/fiscal-periods
+  app.post(
+    '/fiscal-periods',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const input = createFiscalPeriodSchema.parse(request.body);
+      const service = new FiscalService(request.server.db, request.tenantId);
+      const data = await service.createPeriod(input);
+      return reply.status(201).send({ data });
+    },
+  );
+
+  // PUT /gl/fiscal-periods/:id/close
+  app.put(
+    '/fiscal-periods/:id/close',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = closeFiscalPeriodSchema.parse(request.body);
+      const service = new FiscalService(request.server.db, request.tenantId);
+      const data = await service.closePeriod(id, input, request.user?.userId ?? '');
       return { data };
     },
   );

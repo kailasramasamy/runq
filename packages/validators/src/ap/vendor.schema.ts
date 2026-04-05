@@ -20,8 +20,11 @@ export const createVendorSchema = z.object({
   bankIfsc: z.string().regex(ifscRegex, 'Invalid IFSC code').nullish(),
   bankName: z.string().max(255).nullish(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
+  earlyPaymentDiscountPercent: z.number().min(0).max(100).nullish(),
+  earlyPaymentDiscountDays: z.number().int().min(1).max(365).nullish(),
   wmsVendorId: z.string().max(100).nullish(),
   category: z.string().max(50).nullish(),
+  expenseAccountCode: z.string().max(20).nullish(),
 });
 
 export const updateVendorSchema = createVendorSchema.partial();

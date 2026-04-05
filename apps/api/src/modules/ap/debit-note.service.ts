@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { debitNotes, vendors, purchaseInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { DebitNote } from '@runq/types';
@@ -8,6 +8,7 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalMin, decimalLte, toNumber } from '../../utils/decimal';
 import { AuditService } from '../../utils/audit';
+import { GLService } from '../gl/gl.service';
 
 export interface DebitNoteListParams {
   page: number;
@@ -48,6 +49,7 @@ export class DebitNoteService {
         .innerJoin(vendors, eq(debitNotes.vendorId, vendors.id))
         .leftJoin(purchaseInvoices, eq(debitNotes.invoiceId, purchaseInvoices.id))
         .where(baseWhere)
+        .orderBy(desc(debitNotes.createdAt))
         .limit(limit)
         .offset(offset),
       this.db
@@ -138,6 +140,22 @@ export class DebitNoteService {
       .returning();
 
     if (!row) throw new NotFoundError('Debit note');
+
+    // Post to GL
+    const [vendorRow] = await this.db
+      .select({ name: vendors.name })
+      .from(vendors)
+      .where(eq(vendors.id, existing.vendorId))
+      .limit(1);
+
+    const gl = new GLService(this.db, this.tenantId);
+    void gl.postDebitNote({
+      amount: toNumber(existing.amount),
+      date: row.createdAt.toISOString().split('T')[0],
+      id,
+      vendorName: vendorRow?.name ?? '',
+    });
+
     return this.toDebitNote(row);
   }
 

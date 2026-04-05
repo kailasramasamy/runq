@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Banknote, CheckCircle, XCircle } from 'lucide-react';
 import { useVendorPayment, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
+import { ApprovalPanel } from '@/components/approval-panel';
 import type { VendorPaymentWithAllocations, PaymentStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -157,6 +158,12 @@ export function PaymentDetailPage({ paymentId }: Props) {
           </div>
         }
       />
+
+      {payment.status === 'pending' && (
+        <div className="mb-4">
+          <ApprovalPanel entityType="payment" entityId={paymentId} amount={payment.amount} />
+        </div>
+      )}
 
       {/* Amount hero row */}
       <div className="mb-4 grid grid-cols-3 gap-4">

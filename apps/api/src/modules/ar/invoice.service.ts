@@ -8,6 +8,7 @@ import type { CreateSalesInvoiceInput, UpdateSalesInvoiceInput, SalesInvoiceFilt
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
+import { GLService } from '../gl/gl.service';
 import { sendEmail } from '../../utils/email';
 import { invoiceSent } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
@@ -452,6 +453,15 @@ export class InvoiceService {
         receiptId: receipt!.id,
         invoiceId: id,
         amount: String(balanceDue),
+      });
+
+      // Post receipt to GL
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      await gl.postReceipt({
+        amount: balanceDue,
+        date: input.paymentDate,
+        id: receipt!.id,
+        customerName: existing.customerName,
       });
 
       const newAmountReceived = alreadyAllocated + balanceDue;

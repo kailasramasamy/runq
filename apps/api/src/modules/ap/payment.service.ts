@@ -8,6 +8,8 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
 import { AuditService } from '../../utils/audit';
+import { GLService } from '../gl/gl.service';
+import { WorkflowService } from '../workflows/workflow.service';
 import { sendEmail } from '../../utils/email';
 import { getTenantName } from '../../utils/tenant-name';
 import { paymentConfirmation } from '../../utils/email-templates';
@@ -275,6 +277,11 @@ export class PaymentService {
     if (!payment) throw new NotFoundError('Payment');
     if (payment.status !== 'pending') throw new ConflictError('Only pending payments can be approved');
 
+    // Check workflow approval if configured
+    const wfSvc = new WorkflowService(this.db, this.tenantId);
+    const approved = await wfSvc.isApproved('payment', paymentId);
+    if (!approved) throw new ConflictError('Payment requires workflow approval before it can be completed');
+
     const [updated] = await this.db
       .update(payments)
       .set({ status: 'completed', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
@@ -284,6 +291,22 @@ export class PaymentService {
     await this.audit().log({ userId: approvedBy, action: 'approved', entityType: 'payment', entityId: paymentId });
 
     const result = this.toPayment(updated!);
+
+    // Post to GL
+    const [vendorRow] = await this.db
+      .select({ name: vendors.name })
+      .from(vendors)
+      .where(eq(vendors.id, payment.vendorId))
+      .limit(1);
+
+    const gl = new GLService(this.db, this.tenantId);
+    void gl.postPayment({
+      amount: result.amount,
+      date: result.paymentDate,
+      id: result.id,
+      vendorName: vendorRow?.name ?? '',
+    });
+
     void this.sendPaymentConfirmationEmail(result, payment.vendorId);
     return result;
   }

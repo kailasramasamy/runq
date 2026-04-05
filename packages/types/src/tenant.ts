@@ -26,4 +26,16 @@ export interface TenantSettings {
   pincode?: string;
   // UPI collection
   upiId?: string;
+  // Email provider
+  emailProvider?: 'resend' | 'sendgrid' | 'smtp' | null;
+  emailConfig?: {
+    apiKey?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpSecure?: boolean;
+    smtpUser?: string;
+    smtpPass?: string;
+    fromEmail?: string;
+    fromName?: string;
+  };
 }
