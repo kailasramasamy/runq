@@ -78,6 +78,8 @@ import { EarlyDiscountsPage } from './vendor-management/early-discounts';
 import { IntegrationsPage } from './settings/integrations';
 import { ScheduledReportsPage } from './settings/scheduled-reports';
 import { EmailProviderPage } from './settings/email-provider';
+import { CAPortalSettingsPage } from './settings/ca-portal';
+import { CAPortalPage } from './ca-portal/index';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -725,6 +727,7 @@ const SETTINGS_TABS = [
   { label: 'Integrations', path: '/settings/integrations' },
   { label: 'Scheduled Reports', path: '/settings/scheduled-reports' },
   { label: 'Email Provider', path: '/settings/email-provider' },
+  { label: 'CA Portal', path: '/settings/ca-portal' },
 ];
 
 function SettingsNav() {
@@ -1107,12 +1110,26 @@ const settingsEmailProviderRoute = createRoute({
   component: EmailProviderPage,
 });
 
+const settingsCAPortalRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/ca-portal',
+  component: CAPortalSettingsPage,
+});
+
+// Public CA portal route
+const caPortalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/ca/$slug',
+  component: CAPortalPage,
+});
+
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 export const routeTree = rootRoute.addChildren([
   loginRoute,
   portalRoute,
   portalSlugRoute,
+  caPortalRoute,
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
     apRoute.addChildren([
@@ -1208,6 +1225,7 @@ export const routeTree = rootRoute.addChildren([
       settingsIntegrationsRoute,
       settingsScheduledReportsRoute,
       settingsEmailProviderRoute,
+      settingsCAPortalRoute,
     ]),
   ]),
 ]);

@@ -102,7 +102,7 @@
 - ⬜ (#52) Tally bidirectional sync (import opening balances from Tally)
 - ⬜ (#53) Google Sheets / Excel export (ad-hoc analysis, stakeholder sharing)
 - ⬜ (#54) Slack/Teams notifications (payment approved, invoice overdue, cash low)
-- ⬜ (#55) CA portal / shared read-only access (CA pulls reports + exports)
+- ✅ (#55) CA portal / shared read-only access (slug-based link, P&L, Balance Sheet, Trial Balance, journal entries, invoice registers, Tally export)
 
 ---
 
@@ -176,6 +176,6 @@
 | 1 | 10 | 10 | ✅ Done | GST-aware invoicing + quick wins |
 | 2 | 7 | 7 | ✅ Done | AI automation — demo-ready differentiation |
 | 3 | 12 | 12 | ✅ Done | Banking + collections — daily time-saver |
-| 4 | 26 | 16 | 🔧 In Progress | Financial statements, workflows, vendor management, integrations |
+| 4 | 26 | 17 | 🔧 In Progress | Financial statements, workflows, vendor management, integrations |
 | 5 | 29 | 0 | ⬜ Future | Competitive gaps — sales workflow, accounting depth, portals, inventory, AI v2, platform |
-| **Total** | **84** | **45** | | |
+| **Total** | **84** | **46** | | |

@@ -1,7 +1,10 @@
 import { FastifyPluginAsync } from 'fastify';
 import { companySettingsSchema, invoiceNumberingSchema, emailProviderConfigSchema, testEmailSchema } from '@runq/validators';
+import { eq } from 'drizzle-orm';
+import { tenants } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { SettingsService } from './settings.service';
+import { CAPortalService } from '../ca-portal/ca-portal.service';
 import { userRoutes } from './user.routes';
 import { auditRoutes } from './audit.routes';
 
@@ -81,6 +84,32 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
       const service = new SettingsService(request.server.db, request.tenantId);
       await service.sendTestEmail(to);
       return { success: true, message: `Test email sent to ${to}` };
+    },
+  );
+
+  // CA Portal
+  app.get(
+    '/ca-portal',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const svc = new CAPortalService(request.server.db, request.tenantId);
+      const slug = await svc.getOrCreateSlug();
+      return { data: { slug, portalUrl: `/ca/${slug}` } };
+    },
+  );
+
+  app.post(
+    '/ca-portal/regenerate',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      // Clear existing slug, then generate new one
+      const svc = new CAPortalService(request.server.db, request.tenantId);
+      const settingsSvc = new SettingsService(request.server.db, request.tenantId);
+      const tenant = await settingsSvc.getCompanySettings();
+      const settings = { ...(tenant.settings as Record<string, unknown>), caPortalSlug: undefined };
+      await request.server.db.update(tenants).set({ settings, updatedAt: new Date() }).where(eq(tenants.id, request.tenantId));
+      const slug = await svc.getOrCreateSlug();
+      return { data: { slug, portalUrl: `/ca/${slug}` } };
     },
   );
 

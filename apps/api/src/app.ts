@@ -24,6 +24,7 @@ import { reportsRoutes } from './modules/reports/routes';
 import { integrationRoutes } from './modules/integrations/routes';
 import { workflowRoutes } from './modules/workflows/routes';
 import { vendorManagementRoutes } from './modules/vendor-management/routes';
+import { caPortalRoutes } from './modules/ca-portal/routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -44,6 +45,7 @@ export async function buildApp() {
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   await app.register(portalRoutes, { prefix: '/api/v1/ar' });
+  await app.register(caPortalRoutes, { prefix: '/api/v1' });
 
   // Protected routes
   await app.register(async (scope) => {
