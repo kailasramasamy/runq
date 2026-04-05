@@ -5,6 +5,7 @@ import { paymentRoutes } from './payment.routes';
 import { purchaseInvoiceRoutes } from './purchase-invoice.routes';
 import { paymentInstructionRoutes } from './payment-instruction.routes';
 import { extractRoutes } from './extract.routes';
+import { neftExportRoutes } from './neft-export.routes';
 
 export const apRoutes: FastifyPluginAsync = async (app) => {
   // Vendor routes
@@ -24,4 +25,7 @@ export const apRoutes: FastifyPluginAsync = async (app) => {
 
   // Payment instruction queue routes
   await app.register(paymentInstructionRoutes, { prefix: '/payment-queue' });
+
+  // NEFT/RTGS batch payment export
+  await app.register(neftExportRoutes, { prefix: '/neft-export' });
 };

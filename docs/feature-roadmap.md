@@ -111,32 +111,32 @@
 *Features identified from Xero and Zoho Books competitive analysis that strengthen runq for the Indian market.*
 
 ### Sales Workflow
-- ⬜ (#58) Quote / estimate creation with branded templates
-- ⬜ (#59) Quote-to-invoice conversion (one click, carry over line items)
+- ✅ (#58) Quote / estimate creation (create, send, accept/reject, expiry tracking)
+- ✅ (#59) Quote-to-invoice conversion (one click, carry over line items) + quote-to-sales-order
 - ⬜ (#60) Embedded "Pay Now" button on invoices (Razorpay/Cashfree checkout)
 
 ### Accounting Depth
-- ⬜ (#86) Auto-reconciliation to payment: bank recon match auto-marks invoices paid, creates receipts/payments + GL entries
+- ✅ (#86) Auto-reconciliation to payment: bank recon match auto-marks invoices paid, creates receipts/payments
 - ⬜ (#61) Fixed asset register + depreciation schedules (straight-line, diminishing value)
-- ⬜ (#62) Year-end adjustments + lock date enforcement
+- ✅ (#62) Year-end adjustments + lock date enforcement (fiscal period lock/unlock, GL entry protection)
 - ⬜ (#63) Multi-currency support (160+ currencies, auto exchange rates)
 - ⬜ (#64) Cost center / branch tracking (multi-location P&L)
-- ⬜ (#65) Item Master / Product Catalog (name, HSN, unit, GST rate — auto-fill on invoice)
+- ✅ (#65) Item Master / Product Catalog (name, SKU, HSN, unit, selling/purchase price, GST rate — auto-fill on invoices)
 
 ### Expense Management
-- ⬜ (#66) Employee expense claims (submit receipt → manager approves → reimburse)
+- ✅ (#66) Employee expense claims (submit → approve/reject → reimburse, category-based line items)
 - ⬜ (#67) Mileage / travel expense tracking
 - ⬜ (#68) Corporate card transaction import + reconciliation
 
 ### AI — Next Level
-- ⬜ (#69) Conversational AI finance assistant ("How much did we spend on logistics last month?")
+- ✅ (#69) Conversational AI finance assistant (chat widget on dashboard, context-aware answers using Claude)
 - ⬜ (#70) AI cash flow forecasting (predict shortfalls 30/60/90 days out)
 - ⬜ (#71) AI vendor negotiation insights (benchmark prices, suggest alternatives)
 - ⬜ (#72) Auto-categorization rules that learn from manual corrections
 
 ### Portals & Self-Service (from Zoho analysis)
-- ⬜ (#78) Vendor portal (vendors view POs, accept/decline, check payment status — reduces "where's my payment?" calls)
-- ⬜ (#79) Sales orders (create, track, convert to invoice — complete sales workflow)
+- ✅ (#78) Vendor portal (slug-based public access — POs, outstanding bills, payment history)
+- ✅ (#79) Sales orders (create, confirm, track, convert to invoice — complete Quote → SO → Invoice flow)
 - ⬜ (#80) Retainer invoices (advance billing for ongoing engagements)
 - ⬜ (#81) Custom report builder (slice data by any dimension — P&L by customer, expenses by category by month)
 
@@ -147,8 +147,8 @@
 
 ### Platform
 - ⬜ (#73) Mobile app (React Native — invoicing, approvals, dashboard on phone)
-- ⬜ (#74) NEFT/RTGS batch payment file export (Indian net banking format)
-- ⬜ (#75) Webhook API for external integrations (runq → your system events)
+- ✅ (#74) NEFT/RTGS batch payment file export (standard Indian net banking CSV format)
+- ✅ (#75) Webhook API for external integrations (endpoint management, HMAC signing, event subscriptions, test delivery)
 - ⬜ (#76) Multi-company per tenant (manage 2+ companies from one login)
 - ⬜ (#77) White-label / reseller mode (for CAs managing multiple clients)
 - ⬜ (#85) Bank feed via Setu Account Aggregator (Indian RBI-approved real bank feeds)
@@ -177,5 +177,5 @@
 | 2 | 7 | 7 | ✅ Done | AI automation — demo-ready differentiation |
 | 3 | 12 | 12 | ✅ Done | Banking + collections — daily time-saver |
 | 4 | 26 | 19 | 🔧 In Progress | Financial statements, workflows, vendor management, integrations |
-| 5 | 29 | 0 | ⬜ Future | Competitive gaps — sales workflow, accounting depth, portals, inventory, AI v2, platform |
-| **Total** | **84** | **48** | | |
+| 5 | 29 | 10 | 🔧 In Progress | Sales workflow, item master, expense claims, AI chat, vendor portal, webhooks, NEFT export |
+| **Total** | **84** | **58** | | |

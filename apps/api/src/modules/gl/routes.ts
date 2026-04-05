@@ -137,4 +137,28 @@ export const glRoutes: FastifyPluginAsync = async (app) => {
       return { data };
     },
   );
+
+  // PUT /gl/fiscal-periods/:id/lock
+  app.put(
+    '/fiscal-periods/:id/lock',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new FiscalService(request.server.db, request.tenantId);
+      const data = await service.lockPeriod(id, request.user?.userId ?? '');
+      return { data };
+    },
+  );
+
+  // PUT /gl/fiscal-periods/:id/unlock
+  app.put(
+    '/fiscal-periods/:id/unlock',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new FiscalService(request.server.db, request.tenantId);
+      const data = await service.unlockPeriod(id);
+      return { data };
+    },
+  );
 };

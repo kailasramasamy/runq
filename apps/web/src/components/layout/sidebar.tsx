@@ -11,6 +11,8 @@ import {
   BarChart3,
   GitBranch,
   Users,
+  Package,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -21,7 +23,9 @@ const navItems = [
   { label: 'Accounts Receivable', path: '/ar', icon: ArrowDownToLine },
   { label: 'Banking', path: '/banking', icon: Landmark },
   { label: 'General Ledger', path: '/gl', icon: BookOpen },
+  { label: 'Masters', path: '/masters', icon: Package },
   { label: 'Reports', path: '/reports', icon: BarChart3 },
+  { label: 'Expenses', path: '/hr', icon: Receipt },
   { label: 'Workflows', path: '/workflows', icon: GitBranch },
   { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
   { label: 'Settings', path: '/settings', icon: Settings },

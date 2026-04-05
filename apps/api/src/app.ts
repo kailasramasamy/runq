@@ -20,11 +20,14 @@ import { tallyRoutes } from './modules/tally/routes';
 import { mastersRoutes } from './modules/masters/routes';
 import { attachmentRoutes } from './modules/common/attachment.routes';
 import { portalRoutes } from './modules/ar/portal.routes';
+import { vendorPortalRoutes } from './modules/ap/vendor-portal.routes';
 import { reportsRoutes } from './modules/reports/routes';
 import { integrationRoutes } from './modules/integrations/routes';
 import { workflowRoutes } from './modules/workflows/routes';
 import { vendorManagementRoutes } from './modules/vendor-management/routes';
 import { caPortalRoutes } from './modules/ca-portal/routes';
+import { hrRoutes } from './modules/hr/routes';
+import { webhookEndpointRoutes } from './modules/webhooks/webhook-endpoint.routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -45,6 +48,7 @@ export async function buildApp() {
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   await app.register(portalRoutes, { prefix: '/api/v1/ar' });
+  await app.register(vendorPortalRoutes, { prefix: '/api/v1/ap' });
   await app.register(caPortalRoutes, { prefix: '/api/v1' });
 
   // Protected routes
@@ -65,6 +69,8 @@ export async function buildApp() {
     await scope.register(integrationRoutes, { prefix: '/api/v1/integrations' });
     await scope.register(workflowRoutes, { prefix: '/api/v1/workflows' });
     await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
+    await scope.register(hrRoutes, { prefix: '/api/v1/hr' });
+    await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });
   });
 
   // Health check

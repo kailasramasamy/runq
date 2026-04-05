@@ -8,12 +8,14 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { DashboardService } from './dashboard.service';
 import { AISummaryService } from './ai-summary.service';
+import { AIChatService } from './ai-chat.service';
 import { WidgetService } from './widget.service';
 import { ScheduledReportService } from './scheduled-report.service';
 import { runReportNow } from '../../scheduler/report-scheduler';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const aiSummaryQuerySchema = z.object({ refresh: z.string().optional() });
+const aiChatBodySchema = z.object({ question: z.string().min(1).max(500) });
 
 export const dashboardRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -63,6 +65,17 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
       const { refresh } = aiSummaryQuerySchema.parse(request.query);
       const service = new AISummaryService(request.server.db, request.tenantId, request.server.redis);
       const data = await service.getSummary(refresh === 'true');
+      return { data };
+    },
+  );
+
+  app.post(
+    '/ai-chat',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { question } = aiChatBodySchema.parse(request.body);
+      const service = new AIChatService(request.server.db, request.tenantId);
+      const data = await service.ask(question);
       return { data };
     },
   );

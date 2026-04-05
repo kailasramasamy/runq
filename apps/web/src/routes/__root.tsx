@@ -81,6 +81,12 @@ import { EmailProviderPage } from './settings/email-provider';
 import { CAPortalSettingsPage } from './settings/ca-portal';
 import { TallyImportPage } from './settings/tally-import';
 import { CAPortalPage } from './ca-portal/index';
+import { ItemsPage } from './masters/items';
+import { QuotesPage } from './ar/quotes/index';
+import { SalesOrdersPage } from './ar/sales-orders/index';
+import { ExpenseClaimsPage } from './hr/expense-claims';
+import { WebhooksPage } from './settings/webhooks';
+import { VendorPortalPage } from './vendor-portal/index';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -503,6 +509,18 @@ const collectionsRoute = createRoute({
   component: CollectionsPage,
 });
 
+const quotesRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quotes',
+  component: QuotesPage,
+});
+
+const salesOrdersRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/sales-orders',
+  component: SalesOrdersPage,
+});
+
 // ─── Banking Sub-navigation ───────────────────────────────────────────────────
 
 const BANKING_TABS = [
@@ -730,6 +748,7 @@ const SETTINGS_TABS = [
   { label: 'Email Provider', path: '/settings/email-provider' },
   { label: 'CA Portal', path: '/settings/ca-portal' },
   { label: 'Migrate from Tally', path: '/settings/tally-import' },
+  { label: 'Webhooks', path: '/settings/webhooks' },
 ];
 
 function SettingsNav() {
@@ -1124,11 +1143,47 @@ const settingsTallyImportRoute = createRoute({
   component: TallyImportPage,
 });
 
-// Public CA portal route
+const settingsWebhooksRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/webhooks',
+  component: WebhooksPage,
+});
+
+// Masters routes
+const mastersRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/masters',
+});
+
+const mastersItemsRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items',
+  component: ItemsPage,
+});
+
+// HR routes
+const hrRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/hr',
+});
+
+const hrExpenseClaimsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/expense-claims',
+  component: ExpenseClaimsPage,
+});
+
+// Public portals
 const caPortalRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/ca/$slug',
   component: CAPortalPage,
+});
+
+const vendorPortalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/vendor-portal/s/$slug',
+  component: VendorPortalPage,
 });
 
 // ─── Route Tree ───────────────────────────────────────────────────────────────
@@ -1138,6 +1193,7 @@ export const routeTree = rootRoute.addChildren([
   portalRoute,
   portalSlugRoute,
   caPortalRoute,
+  vendorPortalRoute,
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
     apRoute.addChildren([
@@ -1177,6 +1233,8 @@ export const routeTree = rootRoute.addChildren([
       creditNoteNewRoute,
       creditNoteDetailRoute,
       dunningRoute,
+      quotesRoute,
+      salesOrdersRoute,
       collectionsRoute,
     ]),
     bankingRoute.addChildren([
@@ -1235,6 +1293,13 @@ export const routeTree = rootRoute.addChildren([
       settingsEmailProviderRoute,
       settingsCAPortalRoute,
       settingsTallyImportRoute,
+      settingsWebhooksRoute,
+    ]),
+    mastersRoute.addChildren([
+      mastersItemsRoute,
+    ]),
+    hrRoute.addChildren([
+      hrExpenseClaimsRoute,
     ]),
   ]),
 ]);

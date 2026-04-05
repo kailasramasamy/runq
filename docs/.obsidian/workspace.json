@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "feature-roadmap.md",
+                "file": "phase3-manual-testing.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for feature-roadmap"
+              "title": "Backlinks for phase3-manual-testing"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "feature-roadmap.md",
+                "file": "phase3-manual-testing.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from feature-roadmap"
+              "title": "Outgoing links from phase3-manual-testing"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "feature-roadmap.md",
+                "file": "phase3-manual-testing.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of feature-roadmap"
+              "title": "Outline of phase3-manual-testing"
             }
           }
         ]
@@ -185,13 +185,16 @@
   },
   "active": "c4b2a52328679b98",
   "lastOpenFiles": [
+    "phase4-manual-testing.md",
+    "gl-journalling-manual-testing.md",
+    "feature-roadmap.md",
+    "product-assessment.md",
+    "phase3-manual-testing.md",
     "finance-accounting-decisions.md",
     "payment-integration-plan.md",
-    "product-assessment.md",
     "project-structure.md",
     "tracking.md",
     "phase2-manual-testing.md",
-    "feature-roadmap.md",
     "phase1-manual-testing.md",
     "database-schema.md",
     "audit-tracker.md",

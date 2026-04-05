@@ -26,6 +26,7 @@ import type { AgingData } from '@/hooks/queries/use-dashboard';
 import { PaymentPriorityWidget } from '@/components/dashboard/payment-priority';
 import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
 import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
+import { AIChatWidget } from '@/components/ai-chat';
 import { CashPositionWidget } from '@/components/dashboard/cash-position';
 import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
 
@@ -129,8 +130,11 @@ export function DashboardPage() {
         </p>
       </div>
 
-      {/* AI Insights */}
-      <AIInsightsWidget />
+      {/* AI Insights + Chat */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AIInsightsWidget />
+        <AIChatWidget />
+      </div>
 
       {/* Row 1: Stats */}
       {isLoading ? (

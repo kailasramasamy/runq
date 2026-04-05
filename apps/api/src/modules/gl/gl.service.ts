@@ -7,6 +7,7 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
+import { enforceLockDate } from '../../utils/lock-date';
 
 export interface JournalEntryListResult {
   data: JournalEntry[];
@@ -68,6 +69,7 @@ export class GLService {
   }
 
   async createJournalEntry(params: CreateJournalEntryInput & { createdBy?: string }): Promise<JournalEntry> {
+    await enforceLockDate(this.db, this.tenantId, params.date);
     this.validateLines(params.lines);
 
     return this.db.transaction(async (tx) => {

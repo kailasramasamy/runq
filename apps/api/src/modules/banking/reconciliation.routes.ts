@@ -8,12 +8,19 @@ import {
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { ReconciliationService } from './reconciliation.service';
+import { AutoReconcileService } from './auto-reconcile.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const OWNER_ROLES = ['owner'] as const;
 
 const accountParamSchema = z.object({ accountId: z.string().uuid() });
+
+const autoMatchBodySchema = z.object({
+  bankTransactionId: z.string().uuid(),
+  matchType: z.enum(['receipt', 'payment']),
+  invoiceId: z.string().uuid(),
+});
 
 export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -71,6 +78,17 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
       const service = new ReconciliationService(request.server.db, request.tenantId);
       const result = await service.closePeriod(input, completedBy);
       return { data: result };
+    },
+  );
+
+  app.post(
+    '/reconciliation/auto-match',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { bankTransactionId, matchType, invoiceId } = autoMatchBodySchema.parse(request.body);
+      const service = new AutoReconcileService(request.server.db, request.tenantId);
+      const result = await service.processMatch(bankTransactionId, matchType, invoiceId);
+      return reply.status(201).send({ data: result });
     },
   );
 
