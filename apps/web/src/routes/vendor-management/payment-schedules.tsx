@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, CheckCircle, X, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, X, ArrowLeft, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   Card,
   CardContent,
@@ -360,10 +361,15 @@ export function PaymentSchedulesPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Payment Schedules' }]}
         description="Batch vendor payments into scheduled runs for approval and execution."
         actions={
-          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-            <Plus size={14} />
-            New Schedule
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('payment-schedules.csv', ['Name', 'Scheduled Date', 'Status', 'Total Amount'], schedules.map(s => [s.name, s.scheduledDate, s.status, String(s.totalAmount ?? 0)]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+              <Plus size={14} />
+              New Schedule
+            </Button>
+          </div>
         }
       />
 

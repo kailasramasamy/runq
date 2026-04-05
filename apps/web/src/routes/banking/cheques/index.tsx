@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   useCheques,
   useCreateCheque,
@@ -178,9 +179,14 @@ export function ChequesPage() {
         title="Cheque & PDC Management"
         description="Track received and issued cheques, manage post-dated cheques."
         actions={
-          <Button onClick={() => setShowForm((v) => !v)}>
-            <Plus size={16} /> New Cheque
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('cheques.csv', ['Cheque #', 'Date', 'Party', 'Amount', 'Type', 'Status'], chequesList.map(c => [c.chequeNumber, c.chequeDate, c.partyName ?? c.partyId, c.amount, c.type, c.status]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button onClick={() => setShowForm((v) => !v)}>
+              <Plus size={16} /> New Cheque
+            </Button>
+          </div>
         }
       />
 

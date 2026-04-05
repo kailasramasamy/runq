@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, X, Eye, Pencil, Paperclip } from 'lucide-react';
+import { Plus, X, Eye, Pencil, Paperclip, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   Card,
   CardContent,
@@ -314,10 +315,15 @@ export function VendorContractsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Contracts' }]}
         description="Track vendor contracts, expiry dates, and renewal schedules."
         actions={
-          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-            <Plus size={14} />
-            New Contract
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('vendor-contracts.csv', ['Contract Number', 'Title', 'Vendor', 'Start Date', 'End Date', 'Value', 'Status'], contracts.map(c => [c.contractNumber, c.title, c.vendorName ?? c.vendorId, c.startDate, c.endDate, c.value != null ? String(c.value) : '', c.status]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+              <Plus size={14} />
+              New Contract
+            </Button>
+          </div>
         }
       />
 

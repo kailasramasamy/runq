@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { BookOpen, Plus, Pencil, X } from 'lucide-react';
+import { BookOpen, Plus, Pencil, X, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { useGLAccounts, useCreateAccount, useUpdateAccount } from '@/hooks/queries/use-gl';
 import type { Account, AccountType } from '@runq/types';
 import {
@@ -184,9 +185,14 @@ export function ChartOfAccountsPage() {
         title="Chart of Accounts"
         description="Indian COA based on Schedule III of Companies Act."
         actions={
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus size={14} /> New Account
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('chart-of-accounts.csv', ['Code', 'Name', 'Type', 'Status'], accountList.map(a => [a.code, a.name, a.type, a.isActive ? 'Active' : 'Inactive']))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} /> New Account
+            </Button>
+          </div>
         }
       />
 

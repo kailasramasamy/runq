@@ -1,8 +1,10 @@
-import { Clock, AlertTriangle, BadgePercent } from 'lucide-react';
+import { Clock, AlertTriangle, BadgePercent, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   Card,
   CardContent,
   PageHeader,
+  Button,
   Badge,
   Table,
   TableHeader,
@@ -50,6 +52,11 @@ export function EarlyDiscountsPage() {
         title="Early Payment Discounts"
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Early Discounts' }]}
         description="Pay vendors early to capture discounts. Configure discount terms on each vendor's payment settings."
+        actions={
+          <Button variant="outline" size="sm" onClick={() => downloadCSV('early-payment-opportunities.csv', ['Invoice Number', 'Vendor', 'Due Date', 'Balance Due', 'Status', 'Days Remaining', 'Discount %', 'Savings'], payments.map(p => [p.invoiceNumber, p.vendorName, p.dueDate, String(p.balanceDue), p.status, String(p.daysRemaining), p.discountPercent != null ? String(p.discountPercent) : '', p.savingsAmount != null ? String(p.savingsAmount) : '']))}>
+            <Download size={14} /> Export CSV
+          </Button>
+        }
       />
 
       {!isLoading && payments.length > 0 && (

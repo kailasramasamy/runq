@@ -79,6 +79,7 @@ import { IntegrationsPage } from './settings/integrations';
 import { ScheduledReportsPage } from './settings/scheduled-reports';
 import { EmailProviderPage } from './settings/email-provider';
 import { CAPortalSettingsPage } from './settings/ca-portal';
+import { TallyImportPage } from './settings/tally-import';
 import { CAPortalPage } from './ca-portal/index';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
@@ -728,6 +729,7 @@ const SETTINGS_TABS = [
   { label: 'Scheduled Reports', path: '/settings/scheduled-reports' },
   { label: 'Email Provider', path: '/settings/email-provider' },
   { label: 'CA Portal', path: '/settings/ca-portal' },
+  { label: 'Migrate from Tally', path: '/settings/tally-import' },
 ];
 
 function SettingsNav() {
@@ -1116,6 +1118,12 @@ const settingsCAPortalRoute = createRoute({
   component: CAPortalSettingsPage,
 });
 
+const settingsTallyImportRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/tally-import',
+  component: TallyImportPage,
+});
+
 // Public CA portal route
 const caPortalRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -1226,6 +1234,7 @@ export const routeTree = rootRoute.addChildren([
       settingsScheduledReportsRoute,
       settingsEmailProviderRoute,
       settingsCAPortalRoute,
+      settingsTallyImportRoute,
     ]),
   ]),
 ]);

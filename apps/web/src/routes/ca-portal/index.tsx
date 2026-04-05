@@ -136,6 +136,17 @@ function DataTable({ headers, rows }: { headers: string[]; rows: (string | numbe
   );
 }
 
+function ExportBtn({ label, href }: { label: string; href: string }) {
+  return (
+    <button
+      onClick={() => window.open(href, '_blank')}
+      className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+    >
+      <Download size={12} /> {label}
+    </button>
+  );
+}
+
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -176,7 +187,14 @@ function ReportsTab({ slug }: { slug: string }) {
 
   return (
     <div>
-      <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+      <div className="flex items-end gap-2 mb-4">
+        <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+        <div className="flex gap-2 ml-auto mb-4">
+          <ExportBtn label="P&L CSV" href={`/api/v1/ca/s/${slug}/export/profit-and-loss.csv?dateFrom=${dateFrom}&dateTo=${dateTo}`} />
+          <ExportBtn label="Balance Sheet CSV" href={`/api/v1/ca/s/${slug}/export/balance-sheet.csv?asOfDate=${dateTo}`} />
+          <ExportBtn label="Cash Flow CSV" href={`/api/v1/ca/s/${slug}/export/cash-flow.csv?dateFrom=${dateFrom}&dateTo=${dateTo}`} />
+        </div>
+      </div>
 
       {loading ? <p className="text-sm text-zinc-500">Loading reports...</p> : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -235,12 +253,13 @@ function TrialBalanceTab({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex items-end gap-4">
         <label className="text-sm">
           <span className="block text-xs text-zinc-500 mb-1">As of Date</span>
           <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)}
             className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]" />
         </label>
+        <ExportBtn label="Export CSV" href={`/api/v1/ca/s/${slug}/export/trial-balance.csv?asOfDate=${asOfDate}`} />
       </div>
 
       {loading ? <p className="text-sm text-zinc-500">Loading...</p> : data && (
@@ -302,7 +321,12 @@ function JournalTab({ slug }: { slug: string }) {
 
   return (
     <div>
-      <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+      <div className="flex items-end gap-2 mb-4">
+        <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+        <div className="ml-auto mb-4">
+          <ExportBtn label="Export CSV" href={`/api/v1/ca/s/${slug}/export/journal-entries.csv?dateFrom=${dateFrom}&dateTo=${dateTo}`} />
+        </div>
+      </div>
 
       {loading ? <p className="text-sm text-zinc-500">Loading...</p> : (
         <div className="space-y-3">
@@ -364,9 +388,16 @@ function RegisterTab({ slug, type }: { slug: string; type: 'sales' | 'purchase' 
   const totalAmount = rows.reduce((s, r) => s + r.totalAmount, 0);
   const totalTax = rows.reduce((s, r) => s + r.taxAmount, 0);
 
+  const csvEndpoint = type === 'sales' ? 'sales-register' : 'purchase-register';
+
   return (
     <div>
-      <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+      <div className="flex items-end gap-2 mb-4">
+        <PeriodSelector dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+        <div className="ml-auto mb-4">
+          <ExportBtn label="Export CSV" href={`/api/v1/ca/s/${slug}/export/${csvEndpoint}.csv?dateFrom=${dateFrom}&dateTo=${dateTo}`} />
+        </div>
+      </div>
 
       {loading ? <p className="text-sm text-zinc-500">Loading...</p> : (
         <>

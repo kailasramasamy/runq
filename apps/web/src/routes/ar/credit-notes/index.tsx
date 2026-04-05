@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { FileMinus, Plus } from 'lucide-react';
+import { FileMinus, Plus, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { useCreditNotes } from '../../../hooks/queries/use-credit-notes';
 import { useCustomers } from '../../../hooks/queries/use-customers';
 import type { CreditNote, CreditNoteStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
+  Button,
   Badge,
   Card,
   CardContent,
@@ -104,12 +106,17 @@ export function CreditNoteListPage() {
         title="Credit Notes"
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Credit Notes' }]}
         actions={
-          <Link to="/ar/credit-notes/new">
-            <button className="inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-indigo-700">
-              <Plus size={16} />
-              New Credit Note
-            </button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('credit-notes.csv', ['CN #', 'Date', 'Customer ID', 'Invoice ID', 'Amount', 'Reason', 'Status'], creditNotes.map(cn => [cn.creditNoteNumber, cn.issueDate, cn.customerId.slice(0, 8), cn.invoiceId ?? '', cn.amount, cn.reason, cn.status]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Link to="/ar/credit-notes/new">
+              <button className="inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-indigo-700">
+                <Plus size={16} />
+                New Credit Note
+              </button>
+            </Link>
+          </div>
         }
       />
 

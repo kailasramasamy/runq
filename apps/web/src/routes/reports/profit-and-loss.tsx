@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { useProfitAndLoss } from '@/hooks/queries/use-reports';
 import { PageHeader, TableSkeleton, EmptyState, Card, CardContent } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
@@ -94,6 +94,12 @@ export function ProfitAndLossPage() {
             className="ml-2 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm dark:[color-scheme:dark]"
           />
         </label>
+        <button
+          onClick={() => window.open(`/api/v1/reports/profit-and-loss/csv?dateFrom=${dateFrom}&dateTo=${dateTo}`, '_blank')}
+          className="ml-auto flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       {isLoading ? (

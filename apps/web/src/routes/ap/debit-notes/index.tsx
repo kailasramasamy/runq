@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { FileWarning, Plus } from 'lucide-react';
+import { FileWarning, Plus, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import type { DebitNote, DebitNoteStatus } from '@runq/types';
@@ -8,6 +9,7 @@ import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
   Badge,
+  Button,
   Card,
   CardContent,
   Select,
@@ -98,12 +100,17 @@ export function DebitNoteListPage() {
         title="Debit Notes"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Debit Notes' }]}
         actions={
-          <Link to="/ap/debit-notes/new">
-            <button className="inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-indigo-700">
-              <Plus size={16} />
-              New Debit Note
-            </button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('debit-notes.csv', ['DN #', 'Date', 'Vendor', 'Amount', 'Status'], debitNotes.map(dn => [dn.debitNoteNumber, dn.issueDate, (dn as DebitNote & { vendorName?: string }).vendorName ?? '', String(dn.amount), dn.status]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Link to="/ap/debit-notes/new">
+              <button className="inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-indigo-700">
+                <Plus size={16} />
+                New Debit Note
+              </button>
+            </Link>
+          </div>
         }
       />
 

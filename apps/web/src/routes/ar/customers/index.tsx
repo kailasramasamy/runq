@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users, Upload } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Users, Upload, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { useCustomers, useDeleteCustomer } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
@@ -105,6 +106,9 @@ export function CustomerListPage() {
         description="Manage your customer relationships and outstanding balances."
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('customers.csv', ['Name', 'Email', 'Phone', 'GSTIN', 'Outstanding', 'Status'], customers.map(c => [c.name, c.email, c.phone, c.gstin, c.outstandingAmount, c.isActive ? 'Active' : 'Inactive']))}>
+              <Download size={14} /> Export CSV
+            </Button>
             <Button variant="outline" onClick={() => navigate({ to: '/ar/customers/import' })}>
               <Upload size={16} />
               Import Customers

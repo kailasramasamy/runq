@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Star, X } from 'lucide-react';
+import { Plus, Star, X, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   Card,
   CardContent,
@@ -138,10 +139,15 @@ export function VendorRatingsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Ratings' }]}
         description="Track vendor performance with periodic scorecards."
         actions={
-          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-            <Plus size={14} />
-            Rate Vendor
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('vendor-ratings.csv', ['Vendor', 'Period', 'Delivery Score', 'Quality Score', 'Pricing Score', 'Overall Score'], ratings.map(r => [r.vendorId, r.period, String(r.deliveryScore ?? 0), String(r.qualityScore ?? 0), String(r.pricingScore ?? 0), String(Math.round(((r.deliveryScore ?? 0) + (r.qualityScore ?? 0) + (r.pricingScore ?? 0)) / 3))]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+              <Plus size={14} />
+              Rate Vendor
+            </Button>
+          </div>
         }
       />
 

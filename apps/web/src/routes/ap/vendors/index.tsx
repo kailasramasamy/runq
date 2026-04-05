@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users, Upload } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Users, Upload, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { useVendors, useDeleteVendor } from '@/hooks/queries/use-vendors';
 import type { Vendor } from '@runq/types';
 import {
@@ -105,6 +106,9 @@ export function VendorListPage() {
         description="Manage your supplier and vendor relationships."
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('vendors.csv', ['Name', 'Email', 'Phone', 'GSTIN', 'Category', 'Payment Terms', 'Status'], vendors.map(v => [v.name, v.email ?? '', v.phone ?? '', v.gstin ?? '', formatCategory(v.category), `Net ${v.paymentTermsDays}d`, v.isActive ? 'Active' : 'Inactive']))}>
+              <Download size={14} /> Export CSV
+            </Button>
             <Button variant="outline" onClick={() => navigate({ to: '/ap/vendors/import' })}>
               <Upload size={16} />
               Import Vendors

@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react';
-import { BookOpen, ExternalLink, Plus, Trash2, X } from 'lucide-react';
+import { BookOpen, ExternalLink, Plus, Trash2, X, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { Link } from '@tanstack/react-router';
 import { useJournalEntries, useJournalEntry, useCreateJournalEntry, useGLAccounts } from '@/hooks/queries/use-gl';
 import type { JournalEntry } from '@runq/types';
@@ -322,9 +323,14 @@ export function JournalEntriesPage() {
         title="Journal Entries"
         description="Double-entry bookkeeping records."
         actions={
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus size={14} /> New Entry
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('journal-entries.csv', ['Entry #', 'Date', 'Narration', 'Total Debit', 'Total Credit', 'Status'], entries.map(e => [e.entryNumber, e.date, e.description, e.totalDebit, e.totalCredit, e.status]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} /> New Entry
+            </Button>
+          </div>
         }
       />
 

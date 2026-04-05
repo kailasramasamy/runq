@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, CheckCircle, X, Pencil } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, X, Pencil, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   Card,
   CardContent,
@@ -323,10 +324,15 @@ export function RequisitionsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Requisitions' }]}
         description="Create and approve purchase requisitions before vendor orders."
         actions={
-          <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-            <Plus size={14} />
-            New Requisition
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('purchase-requisitions.csv', ['PR Number', 'Description', 'Vendor', 'Amount', 'Status', 'Requested By'], requisitions.map(r => [r.requisitionNumber, r.description, r.vendorName ?? r.vendorId ?? '', String(r.totalAmount ?? 0), r.status, r.requestedByName ?? r.requestedBy.slice(0, 8)]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
+              <Plus size={14} />
+              New Requisition
+            </Button>
+          </div>
         }
       />
 

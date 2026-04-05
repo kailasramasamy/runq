@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Check, X, Wallet } from 'lucide-react';
+import { Plus, Check, X, Wallet, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import {
   usePettyCashAccounts,
   usePettyCashTransactions,
@@ -309,10 +310,15 @@ export function PettyCashPage() {
         title="Petty Cash"
         description="Manage petty cash funds across locations."
         actions={
-          <Button onClick={() => setShowAccountForm((v) => !v)}>
-            <Plus size={16} />
-            New Account
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('petty-cash.csv', ['Account', 'Balance', 'Limit', 'Location', 'Status'], accounts.map(a => [a.name, a.currentBalance, a.cashLimit, a.location ?? '', a.isActive ? 'Active' : 'Inactive']))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button onClick={() => setShowAccountForm((v) => !v)}>
+              <Plus size={16} />
+              New Account
+            </Button>
+          </div>
         }
       />
 

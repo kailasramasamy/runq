@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Download } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import type { PurchaseInvoice, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
@@ -111,14 +112,19 @@ export function BillListPage() {
         description="Manage vendor purchase invoices"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Bills' }]}
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => navigate({ to: '/ap/bills/new' })}
-          >
-            <Plus size={14} />
-            New Bill
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadCSV('bills.csv', ['Invoice #', 'Date', 'Vendor', 'Amount', 'Balance', 'Status'], bills.map(b => [b.invoiceNumber, b.invoiceDate, (b as PurchaseInvoice & { vendorName?: string }).vendorName ?? '', String(b.totalAmount), String(b.balanceDue), STATUS_LABELS[b.status]]))}>
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate({ to: '/ap/bills/new' })}
+            >
+              <Plus size={14} />
+              New Bill
+            </Button>
+          </div>
         }
       />
 
