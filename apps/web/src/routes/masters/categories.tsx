@@ -40,7 +40,7 @@ function CategoryForm({ category, parentId, onClose }: {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
       <Input
         label={isEdit ? 'Rename' : parentId ? 'New Subcategory' : 'New Category'}
         value={name}
@@ -124,7 +124,7 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
         </Badge>
 
         {/* Actions */}
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {depth === 0 && (
             <Button variant="ghost" size="sm" onClick={() => { setShowAddSub(true); setExpanded(true); }}>
               <Plus size={12} />

@@ -72,7 +72,7 @@ export function PettyCashTransactionForm({ onSubmit, isLoading, onCancel }: Prop
       <Card>
         <CardHeader title="New Transaction" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Type"
               required
@@ -92,7 +92,7 @@ export function PettyCashTransactionForm({ onSubmit, isLoading, onCancel }: Prop
               error={errors.amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Textarea
                 label="Description"
                 required
@@ -118,7 +118,7 @@ export function PettyCashTransactionForm({ onSubmit, isLoading, onCancel }: Prop
               error={errors.transactionDate}
               onChange={(e) => setTransactionDate(e.target.value)}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Input
                 label="Receipt URL (optional)"
                 type="url"

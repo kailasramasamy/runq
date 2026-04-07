@@ -228,7 +228,7 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
       <Card className={!hasCustomer ? 'pointer-events-none opacity-50' : ''}>
         <CardHeader title="3. Receipt Details" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Bank Account"
               required
@@ -251,7 +251,7 @@ export function ReceiptForm({ onSubmit, isLoading }: Props) {
               error={errors.receiptDate}
               onChange={(e) => setReceiptDate(e.target.value)}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Textarea
                 label="Notes"
                 placeholder="Optional notes"

@@ -221,7 +221,7 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
       <Card className={!hasVendor ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader title="3. Payment Details" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Bank Account"
               required
@@ -244,7 +244,7 @@ export function PaymentForm({ onSubmit, isLoading }: Props) {
               error={errors.paymentDate}
               onChange={(e) => setPaymentDate(e.target.value)}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Textarea
                 label="Notes"
                 placeholder="Optional notes"

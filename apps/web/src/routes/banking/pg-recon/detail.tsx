@@ -134,7 +134,7 @@ export function PGSettlementDetailPage({ settlementId }: Props) {
     return (
       <div className="space-y-6">
         <div className="h-16 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-24 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
           ))}
@@ -207,7 +207,7 @@ export function PGSettlementDetailPage({ settlementId }: Props) {
         <Card>
           <CardHeader title="Reconciliation Results" />
           <CardContent>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
                 <CheckCircle className="mx-auto mb-1 text-emerald-600 dark:text-emerald-400" size={20} />
                 <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">

@@ -75,8 +75,8 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
       <Card>
         <CardHeader title="Credit Note Details" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 max-w-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2 max-w-sm">
               <Combobox
                 label="Customer"
                 required
@@ -90,7 +90,7 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
                 }}
               />
             </div>
-            <div className="col-span-2 max-w-sm">
+            <div className="sm:col-span-2 max-w-sm">
               <Combobox
                 label="Linked Invoice (optional)"
                 options={invoiceOptions}
@@ -119,7 +119,7 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
               error={errors.amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Textarea
                 label="Reason"
                 required
@@ -131,7 +131,7 @@ export function CreditNoteForm({ onSubmit, isLoading }: Props) {
                 <p className="mt-1 text-xs text-red-600">{errors.reason}</p>
               )}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Textarea
                 label="Notes (optional)"
                 placeholder="Additional notes…"

@@ -112,7 +112,7 @@ export function BillListPage() {
         description="Manage vendor purchase invoices"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Bills' }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('bills.csv', ['Invoice #', 'Date', 'Vendor', 'Amount', 'Balance', 'Status'], bills.map(b => [b.invoiceNumber, b.invoiceDate, (b as PurchaseInvoice & { vendorName?: string }).vendorName ?? '', String(b.totalAmount), String(b.balanceDue), STATUS_LABELS[b.status]]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -165,6 +165,56 @@ export function BillListPage() {
         </CardContent>
       </Card>
 
+      {/* Mobile cards */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : bills.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={hasFilters ? 'No bills match your filters' : 'No bills yet'}
+            description={hasFilters ? 'Try adjusting your filters.' : 'Create your first vendor bill to get started.'}
+            action={
+              !hasFilters ? (
+                <Button size="sm" onClick={() => navigate({ to: '/ap/bills/new' })}>
+                  <Plus size={14} />
+                  New Bill
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          bills.map((bill) => (
+            <div
+              key={bill.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => handleRowClick(bill)}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300">{bill.invoiceNumber}</span>
+                <Badge
+                  variant={STATUS_BADGE_VARIANT[bill.status]}
+                  className={bill.status === 'cancelled' ? 'line-through' : undefined}
+                >
+                  {STATUS_LABELS[bill.status]}
+                </Badge>
+              </div>
+              <div className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {(bill as PurchaseInvoice & { vendorName?: string }).vendorName ?? '—'}
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{bill.invoiceDate}</span>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(bill.balanceDue)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
@@ -258,6 +308,7 @@ export function BillListPage() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

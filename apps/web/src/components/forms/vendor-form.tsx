@@ -126,8 +126,8 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <Card>
         <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Input label="Vendor Name" required placeholder="Acme Supplies Pvt Ltd" {...field('name')} />
           </div>
           <Input label="Email" type="email" placeholder="billing@acme.com" {...field('email')} />
@@ -158,7 +158,7 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
 
       <Card>
         <CardHeader title="Tax & Compliance" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="GSTIN" placeholder="27AAPFU0939F1ZV" className="uppercase" {...field('gstin')} />
           <Input label="PAN" placeholder="AAPFU0939F" className="uppercase" {...field('pan')} />
         </CardContent>
@@ -166,11 +166,11 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
 
       <Card>
         <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Input label="Address Line 1" placeholder="Building, Street" {...field('addressLine1')} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Input label="Address Line 2" placeholder="Area, Landmark" {...field('addressLine2')} />
           </div>
           <Input label="City" placeholder="Mumbai" {...field('city')} />
@@ -181,13 +181,13 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
 
       <Card>
         <CardHeader title="Bank Details" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Input label="Account Name" placeholder="Acme Supplies Pvt Ltd" {...field('bankAccountName')} />
           </div>
           <Input label="Account Number" placeholder="012345678901" {...field('bankAccountNumber')} />
           <Input label="IFSC Code" placeholder="HDFC0001234" className="uppercase" {...field('bankIfsc')} />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Input label="Bank Name" placeholder="HDFC Bank" {...field('bankName')} />
           </div>
         </CardContent>
@@ -195,7 +195,7 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
 
       <Card>
         <CardHeader title="Payment Terms" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Payment Terms"
             options={PAYMENT_TERMS_OPTIONS}
@@ -221,7 +221,7 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             error={errors.earlyPaymentDiscountDays}
           />
           {form.earlyPaymentDiscountPercent && form.earlyPaymentDiscountDays && (
-            <p className="col-span-2 text-xs text-zinc-500">
+            <p className="sm:col-span-2 text-xs text-zinc-500">
               {form.earlyPaymentDiscountPercent}% discount if paid within {form.earlyPaymentDiscountDays} days (i.e. {form.earlyPaymentDiscountPercent}/{form.earlyPaymentDiscountDays} net {form.paymentTermsDays ?? 30})
             </p>
           )}

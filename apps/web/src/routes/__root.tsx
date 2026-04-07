@@ -1,5 +1,5 @@
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
-import { Sidebar } from '../components/layout/sidebar';
+import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { CompanySettingsPage } from './settings/company';
@@ -125,11 +125,13 @@ const dashboardLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'dashboard-layout',
   component: () => (
-    <div className="flex h-screen">
+    <div className="flex h-screen flex-col md:flex-row">
+      <MobileHeader />
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-6 text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:p-6 md:pb-6 text-zinc-900 dark:text-zinc-100">
         <Outlet />
       </main>
+      <MobileBottomNav />
     </div>
   ),
 });
@@ -159,16 +161,16 @@ function ApNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Accounts Payable</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Accounts Payable</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {AP_TABS.map(({ label, path }) =>
           path ? (
             <Link
               key={label}
               to={path as '/ap/vendors'}
               className={[
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 current.startsWith(path)
                   ? 'border-primary-500 text-primary-500'
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -358,16 +360,16 @@ function ArNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Accounts Receivable</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Accounts Receivable</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {AR_TABS.map(({ label, path }) =>
           path ? (
             <Link
               key={label}
               to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning' | '/ar/collections' | '/ar/quick-templates'}
               className={[
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 current.startsWith(path)
                   ? 'border-primary-500 text-primary-500'
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -551,15 +553,15 @@ function BankingNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Banking</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Banking</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {BANKING_TABS.map(({ label, path }) => (
           <Link
             key={label}
             to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/cheques' | '/banking/pg-recon' | '/banking/petty-cash'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               current.startsWith(path)
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -684,15 +686,15 @@ function GlNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">General Ledger</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">General Ledger</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {GL_TABS.map(({ label, path }) => (
           <Link
             key={label}
             to={path as '/gl/accounts' | '/gl/journal-entries' | '/gl/trial-balance'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               current.startsWith(path)
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -770,15 +772,15 @@ function SettingsNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Settings</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {SETTINGS_TABS.map(({ label, path }) => (
           <Link
             key={label}
             to={path as '/settings/company' | '/settings/invoice-numbering' | '/settings/users' | '/settings/tally-export' | '/settings/notifications'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               current === path
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -864,7 +866,7 @@ function ReportsNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Reports</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Reports</h1>
       </div>
       <nav className="flex gap-1 overflow-x-auto">
         {REPORTS_TABS.map(({ label, path }) => (
@@ -872,7 +874,7 @@ function ReportsNav() {
             key={label}
             to={path as '/reports/profit-and-loss'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors whitespace-nowrap',
               current.startsWith(path)
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -966,15 +968,15 @@ function WorkflowsNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Workflows</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Workflows</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {WORKFLOWS_TABS.map(({ label, path }) => (
           <Link
             key={label}
             to={path as '/workflows'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               (path === '/workflows' ? current === '/workflows' || current === '/workflows/' : current.startsWith(path))
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -1040,7 +1042,7 @@ function VmNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Vendor Management</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Vendor Management</h1>
       </div>
       <nav className="flex gap-1 overflow-x-auto">
         {VM_TABS.map(({ label, path }) => (
@@ -1048,7 +1050,7 @@ function VmNav() {
             key={label}
             to={path as '/vendor-management/contracts'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors whitespace-nowrap',
               current.startsWith(path)
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
@@ -1176,15 +1178,15 @@ function MastersNav() {
   return (
     <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Masters</h1>
+        <h1 className="text-lg sm:text-2xl font-semibold">Masters</h1>
       </div>
-      <nav className="flex gap-1">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {MASTERS_TABS.map(({ label, path }) => (
           <Link
             key={label}
             to={path as '/masters/items'}
             className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               current.startsWith(path)
                 ? 'border-primary-500 text-primary-500'
                 : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',

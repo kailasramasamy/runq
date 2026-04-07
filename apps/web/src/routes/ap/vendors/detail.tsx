@@ -27,7 +27,7 @@ function VendorCards({ vendor }: { vendor: Vendor }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Name" value={vendor.name} />
           <DetailField label="Status" value={null} />
           <DetailField label="Email" value={vendor.email} />
@@ -37,7 +37,7 @@ function VendorCards({ vendor }: { vendor: Vendor }) {
 
       <Card>
         <CardHeader title="Tax & Compliance" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="GSTIN" value={vendor.gstin} />
           <DetailField label="PAN" value={vendor.pan} />
           <DetailField label="Payment Terms" value={`Net ${vendor.paymentTermsDays} days`} />
@@ -47,7 +47,7 @@ function VendorCards({ vendor }: { vendor: Vendor }) {
 
       <Card>
         <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <DetailField
               label="Address"
@@ -62,7 +62,7 @@ function VendorCards({ vendor }: { vendor: Vendor }) {
 
       <Card>
         <CardHeader title="Bank Details" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Account Name" value={vendor.bankAccountName} />
           <DetailField label="Account Number" value={vendor.bankAccountNumber} />
           <DetailField label="IFSC" value={vendor.bankIfsc} />
@@ -234,11 +234,11 @@ function EditVendorModal({ vendor, onClose }: { vendor: Vendor; onClose: () => v
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Name" required value={form.name} onChange={(e) => set('name', e.target.value)} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Email" value={form.email} onChange={(e) => set('email', e.target.value)} />
             <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select label="Category" options={CATEGORY_OPTIONS} value={form.category} onChange={(e) => set('category', e.target.value)} />
             <Select label="Payment Terms" options={PAYMENT_TERMS_OPTIONS} value={form.paymentTermsDays} onChange={(e) => set('paymentTermsDays', e.target.value)} />
           </div>
@@ -247,7 +247,7 @@ function EditVendorModal({ vendor, onClose }: { vendor: Vendor; onClose: () => v
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 mb-3">Bank Details</p>
             <div className="space-y-3">
               <Input label="Account Name" value={form.bankAccountName} onChange={(e) => set('bankAccountName', e.target.value)} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Account Number" value={form.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} />
                 <Input label="IFSC" value={form.bankIfsc} onChange={(e) => set('bankIfsc', e.target.value)} />
               </div>

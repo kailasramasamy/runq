@@ -29,6 +29,7 @@ import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
 import { AIChatWidget } from '@/components/ai-chat';
 import { CashPositionWidget } from '@/components/dashboard/cash-position';
 import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
+import { QuickInvoiceWidget } from '@/components/dashboard/quick-invoice';
 
 // ─── Aging Bar Chart ──────────────────────────────────────────────────────────
 
@@ -168,6 +169,7 @@ export function DashboardPage() {
           <StatsCard
             title="Cash Position"
             value={s?.cashPosition ?? 0}
+            icon={Landmark}
             className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/20"
           />
           <div className="relative overflow-hidden rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
@@ -248,7 +250,10 @@ export function DashboardPage() {
       {/* Row 5: Upcoming PDCs */}
       <PDCCalendarWidget />
 
-      {/* Row 6: Quick Actions */}
+      {/* Row 6: Quick Invoice */}
+      <QuickInvoiceWidget />
+
+      {/* Row 7: Quick Actions */}
       <Card>
         <CardHeader title="Quick Actions" />
         <CardContent>

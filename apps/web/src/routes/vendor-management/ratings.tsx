@@ -22,6 +22,8 @@ import {
   useVendorRatings,
   useCreateVendorRating,
 } from '@/hooks/queries/use-vendor-management';
+import { useVendors } from '@/hooks/queries/use-vendors';
+import { Combobox } from '@/components/ui';
 
 // ─── Score Display ───────────────────────────────────────────────────────────
 
@@ -72,6 +74,8 @@ function ScoreInput({ label, value, onChange }: { label: string; value: number; 
 function CreateForm({ onClose }: { onClose: () => void }) {
   const create = useCreateVendorRating();
   const { toast } = useToast();
+  const { data: vendorsData } = useVendors({ limit: 100 });
+  const vendorOptions = (vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }));
   const [vendorId, setVendorId] = useState('');
   const [period, setPeriod] = useState('');
   const [deliveryScore, setDeliveryScore] = useState(3);
@@ -81,6 +85,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!vendorId) { toast('Please select a vendor', 'error'); return; }
     try {
       await create.mutateAsync({
         vendorId,
@@ -107,7 +112,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
       </div>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input label="Vendor ID" value={vendorId} onChange={(e) => setVendorId(e.target.value)} required placeholder="Vendor UUID" />
+          <Combobox label="Vendor" options={vendorOptions} value={vendorId} onChange={setVendorId} placeholder="Search vendor..." required />
           <Input label="Period" value={period} onChange={(e) => setPeriod(e.target.value)} required placeholder="Q4 2025" />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -139,7 +144,7 @@ export function VendorRatingsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Ratings' }]}
         description="Track vendor performance with periodic scorecards."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('vendor-ratings.csv', ['Vendor', 'Period', 'Delivery Score', 'Quality Score', 'Pricing Score', 'Overall Score'], ratings.map(r => [r.vendorId, r.period, String(r.deliveryScore ?? 0), String(r.qualityScore ?? 0), String(r.pricingScore ?? 0), String(Math.round(((r.deliveryScore ?? 0) + (r.qualityScore ?? 0) + (r.pricingScore ?? 0)) / 3))]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -153,43 +158,89 @@ export function VendorRatingsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Vendor</Th>
-                <Th>Period</Th>
-                <Th>Delivery</Th>
-                <Th>Quality</Th>
-                <Th>Pricing</Th>
-                <Th>Overall</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={6} />
-              ) : ratings.length === 0 ? (
-                <TableEmpty colSpan={6} message="No vendor ratings yet." />
-              ) : (
-                ratings.map((r) => {
-                  const overall = Math.round(((r.deliveryScore ?? 0) + (r.qualityScore ?? 0) + (r.pricingScore ?? 0)) / 3);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="text-zinc-600 dark:text-zinc-400">{r.vendorId}</TableCell>
-                      <TableCell className="font-medium">{r.period}</TableCell>
-                      <TableCell><ScoreStars score={r.deliveryScore ?? 0} /></TableCell>
-                      <TableCell><ScoreStars score={r.qualityScore ?? 0} /></TableCell>
-                      <TableCell><ScoreStars score={r.pricingScore ?? 0} /></TableCell>
-                      <TableCell><ScoreStars score={overall} /></TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : ratings.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No vendor ratings yet.</p>
+        ) : (
+          ratings.map((r) => {
+            const overall = Math.round(((r.deliveryScore ?? 0) + (r.qualityScore ?? 0) + (r.pricingScore ?? 0)) / 3);
+            return (
+              <div key={r.id} className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{r.vendorName ?? r.vendorId}</p>
+                    <p className="text-xs text-zinc-500">{r.period}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-zinc-500">Overall</span>
+                    <ScoreStars score={overall} />
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-zinc-500">
+                  <div>
+                    <span className="block text-zinc-400">Delivery</span>
+                    <ScoreStars score={r.deliveryScore ?? 0} />
+                  </div>
+                  <div>
+                    <span className="block text-zinc-400">Quality</span>
+                    <ScoreStars score={r.qualityScore ?? 0} />
+                  </div>
+                  <div>
+                    <span className="block text-zinc-400">Pricing</span>
+                    <ScoreStars score={r.pricingScore ?? 0} />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Vendor</Th>
+                  <Th>Period</Th>
+                  <Th>Delivery</Th>
+                  <Th>Quality</Th>
+                  <Th>Pricing</Th>
+                  <Th>Overall</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={6} />
+                ) : ratings.length === 0 ? (
+                  <TableEmpty colSpan={6} message="No vendor ratings yet." />
+                ) : (
+                  ratings.map((r) => {
+                    const overall = Math.round(((r.deliveryScore ?? 0) + (r.qualityScore ?? 0) + (r.pricingScore ?? 0)) / 3);
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium text-zinc-900 dark:text-zinc-100">{r.vendorName ?? r.vendorId}</TableCell>
+                        <TableCell className="font-medium">{r.period}</TableCell>
+                        <TableCell><ScoreStars score={r.deliveryScore ?? 0} /></TableCell>
+                        <TableCell><ScoreStars score={r.qualityScore ?? 0} /></TableCell>
+                        <TableCell><ScoreStars score={r.pricingScore ?? 0} /></TableCell>
+                        <TableCell><ScoreStars score={overall} /></TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

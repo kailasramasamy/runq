@@ -260,7 +260,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
       <Card>
         <CardHeader title="Bill Info" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             <Combobox
               label="Vendor"
               required

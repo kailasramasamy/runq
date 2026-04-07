@@ -160,7 +160,50 @@ export function ScheduledReportsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : reports.length === 0 ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 text-sm text-zinc-500 text-center">
+            No scheduled reports yet.
+          </div>
+        ) : (
+          reports.map((r) => (
+            <div key={r.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">{r.name}</p>
+                  <p className="text-xs text-zinc-500 capitalize">{r.frequency}</p>
+                  <p className="text-xs text-zinc-500 truncate">{r.recipients.join(', ')}</p>
+                  <p className="text-xs text-zinc-500">
+                    Next: {r.nextRunAt ? new Date(r.nextRunAt).toLocaleString() : '-'}
+                  </p>
+                </div>
+                <Badge variant={r.isActive ? 'success' : 'default'}>
+                  {r.isActive ? 'Active' : 'Paused'}
+                </Badge>
+              </div>
+              <div className="mt-2 flex justify-end gap-1">
+                <Button variant="ghost" size="sm" onClick={() => handleRunNow(r.id)} disabled={runNow.isPending} title="Send now">
+                  <Play size={14} />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleToggle(r.id)} disabled={toggle.isPending}>
+                  {r.isActive ? 'Pause' : 'Resume'}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(r.id)} className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30">
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

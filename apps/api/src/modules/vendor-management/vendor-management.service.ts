@@ -155,12 +155,13 @@ export class VendorManagementService {
     if (vendorId) conditions.push(eq(vendorRatings.vendorId, vendorId));
 
     const rows = await this.db
-      .select()
+      .select({ rating: vendorRatings, vendorName: vendors.name })
       .from(vendorRatings)
+      .leftJoin(vendors, eq(vendorRatings.vendorId, vendors.id))
       .where(and(...conditions))
       .orderBy(desc(vendorRatings.createdAt));
 
-    return rows.map((r) => this.toRating(r));
+    return rows.map((r) => ({ ...this.toRating(r.rating), vendorName: r.vendorName ?? undefined }));
   }
 
   async getVendorScorecard(vendorId: string): Promise<{

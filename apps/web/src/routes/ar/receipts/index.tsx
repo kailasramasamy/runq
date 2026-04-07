@@ -24,6 +24,26 @@ import {
   Pagination,
 } from '@/components/ui';
 
+function ReceiptCard({ receipt }: { receipt: PaymentReceipt }) {
+  return (
+    <Link to="/ar/receipts/$receiptId" params={{ receiptId: receipt.id }}>
+      <div className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-xs">{receipt.id.slice(0, 8)}…</span>
+          <span className="capitalize text-xs text-zinc-600 dark:text-zinc-400">{receipt.paymentMethod.replace(/_/g, ' ')}</span>
+        </div>
+        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <span>{receipt.receiptDate}</span>
+          {receipt.referenceNumber && <span className="ml-2 font-mono">{receipt.referenceNumber}</span>}
+        </div>
+        <div className="mt-2 flex items-center">
+          <span className="ml-auto font-mono font-medium text-sm">{formatINR(receipt.amount)}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function ReceiptRow({ receipt }: { receipt: PaymentReceipt }) {
   return (
     <TableRow>
@@ -91,7 +111,7 @@ export function ReceiptListPage() {
         title="Receipts"
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Receipts' }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('receipts.csv', ['Receipt ID', 'Date', 'Customer ID', 'Amount', 'Payment Method', 'Reference'], receipts.map(r => [r.id.slice(0, 8), r.receiptDate, r.customerId.slice(0, 8), r.amount, r.paymentMethod.replace(/_/g, ' '), r.referenceNumber]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -106,8 +126,8 @@ export function ReceiptListPage() {
       />
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 py-3">
-          <div className="w-52">
+        <CardContent className="grid grid-cols-2 gap-3 py-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="col-span-2 sm:w-52">
             <Select
               label="Customer"
               options={customerOptions}
@@ -115,14 +135,14 @@ export function ReceiptListPage() {
               onChange={(e) => { setCustomerId(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <DateInput
               label="From"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <DateInput
               label="To"
               value={dateTo}
@@ -132,36 +152,49 @@ export function ReceiptListPage() {
         </CardContent>
       </Card>
 
-      <Table>
-        <TableHeader>
-          <tr>
-            <Th>Receipt ID</Th>
-            <Th>Customer</Th>
-            <Th>Date</Th>
-            <Th align="right">Amount</Th>
-            <Th>Method</Th>
-            <Th>Reference</Th>
-            <Th />
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableSkeleton rows={8} cols={7} />
-          ) : receipts.length === 0 ? (
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))
+          : receipts.length === 0
+            ? <EmptyState icon={ArrowDownToLine} title="No receipts found" description="Record a payment received from a customer against their invoices." />
+            : receipts.map((r) => <ReceiptCard key={r.id} receipt={r} />)
+        }
+      </div>
+
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
             <tr>
-              <td colSpan={7}>
-                <EmptyState
-                  icon={ArrowDownToLine}
-                  title="No receipts found"
-                  description="Record a payment received from a customer against their invoices."
-                />
-              </td>
+              <Th>Receipt ID</Th>
+              <Th>Customer</Th>
+              <Th>Date</Th>
+              <Th align="right">Amount</Th>
+              <Th>Method</Th>
+              <Th>Reference</Th>
+              <Th />
             </tr>
-          ) : (
-            receipts.map((r) => <ReceiptRow key={r.id} receipt={r} />)
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton rows={8} cols={7} />
+            ) : receipts.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <EmptyState
+                    icon={ArrowDownToLine}
+                    title="No receipts found"
+                    description="Record a payment received from a customer against their invoices."
+                  />
+                </td>
+              </tr>
+            ) : (
+              receipts.map((r) => <ReceiptRow key={r.id} receipt={r} />)
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

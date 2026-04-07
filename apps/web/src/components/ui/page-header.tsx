@@ -45,14 +45,14 @@ export function PageHeader({ title, description, breadcrumbs, actions, className
       {breadcrumbs && breadcrumbs.length > 0 && (
         <Breadcrumbs items={breadcrumbs} className="mb-2" />
       )}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
           {description && (
             <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
     </div>
   );

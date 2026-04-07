@@ -146,7 +146,7 @@ function TrialBalanceStep({ onNext }: { onNext: () => void }) {
           Export your Trial Balance from Tally as CSV/Excel. Required columns: <strong>Account Name, Debit, Credit</strong>. Optional: Account Code.
         </p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Upload CSV file</label>
             <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="block w-full text-sm text-zinc-500 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950/30 dark:file:text-indigo-400" />
@@ -165,7 +165,7 @@ function TrialBalanceStep({ onNext }: { onNext: () => void }) {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handlePreview} loading={previewMutation.isPending} disabled={!csvData.trim()}>
             <FileSpreadsheet size={14} /> Preview Mapping
           </Button>

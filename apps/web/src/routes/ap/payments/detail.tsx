@@ -41,7 +41,7 @@ function PaymentInfoCard({ payment }: { payment: VendorPaymentWithAllocations })
     <Card>
       <CardHeader title="Payment Information" />
       <CardContent>
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
           <DetailRow label="Vendor" value={payment.vendorName} />
           <DetailRow label="Payment Date" value={payment.paymentDate} />
           <DetailRow label="Method" value={payment.paymentMethod.replace(/_/g, ' ')} />
@@ -54,7 +54,7 @@ function PaymentInfoCard({ payment }: { payment: VendorPaymentWithAllocations })
             <DetailRow label="Approved At" value={new Date(payment.approvedAt).toLocaleString()} />
           )}
           {payment.notes && (
-            <div className="col-span-2 sm:col-span-3">
+            <div className="sm:col-span-2 md:col-span-3">
               <DetailRow label="Notes" value={payment.notes} />
             </div>
           )}
@@ -69,32 +69,62 @@ function AllocationsCard({ payment }: { payment: VendorPaymentWithAllocations })
   return (
     <Card>
       <CardHeader title="Invoice Allocations" />
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>Invoice #</Th>
-              <Th align="right">Allocated</Th>
-              <Th align="right">Invoice Total</Th>
-              <Th align="right">Balance After</Th>
-              <Th>Invoice Status</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {payment.allocations.map((alloc) => (
-              <TableRow key={alloc.id}>
-                <TableCell className="font-mono text-xs">{alloc.invoiceNumber}</TableCell>
-                <TableCell align="right" numeric className="font-medium">{formatINR(alloc.amount)}</TableCell>
-                <TableCell align="right" numeric>{formatINR(alloc.invoiceTotal)}</TableCell>
-                <TableCell align="right" numeric>{formatINR(alloc.invoiceBalanceDue)}</TableCell>
-                <TableCell>
-                  <Badge variant="default" className="capitalize">—</Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
+
+      {/* Mobile cards */}
+      <div className="md:hidden p-3 space-y-2">
+        {payment.allocations.map((alloc) => (
+          <div key={alloc.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">{alloc.invoiceNumber}</span>
+              <Badge variant="default" className="capitalize">—</Badge>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <div>
+                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Allocated</span>
+                <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">{formatINR(alloc.amount)}</span>
+              </div>
+              <div>
+                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Bill Total</span>
+                <span className="tabular-nums">{formatINR(alloc.invoiceTotal)}</span>
+              </div>
+              <div>
+                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Balance</span>
+                <span className="tabular-nums">{formatINR(alloc.invoiceBalanceDue)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <tr>
+                <Th>Invoice #</Th>
+                <Th align="right">Allocated</Th>
+                <Th align="right">Invoice Total</Th>
+                <Th align="right">Balance After</Th>
+                <Th>Invoice Status</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {payment.allocations.map((alloc) => (
+                <TableRow key={alloc.id}>
+                  <TableCell className="font-mono text-xs">{alloc.invoiceNumber}</TableCell>
+                  <TableCell align="right" numeric className="font-medium">{formatINR(alloc.amount)}</TableCell>
+                  <TableCell align="right" numeric>{formatINR(alloc.invoiceTotal)}</TableCell>
+                  <TableCell align="right" numeric>{formatINR(alloc.invoiceBalanceDue)}</TableCell>
+                  <TableCell>
+                    <Badge variant="default" className="capitalize">—</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </div>
     </Card>
   );
 }
@@ -132,7 +162,7 @@ export function PaymentDetailPage({ paymentId }: Props) {
           { label: payment.id.slice(0, 8) + '…' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize text-sm px-3 py-1">
               {payment.status}
             </Badge>
@@ -166,8 +196,8 @@ export function PaymentDetailPage({ paymentId }: Props) {
       )}
 
       {/* Amount hero row */}
-      <div className="mb-4 grid grid-cols-3 gap-4">
-        <Card className="col-span-2">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="sm:col-span-2">
           <CardContent className="flex items-center gap-4 py-5">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
               <Banknote size={22} className="text-indigo-600 dark:text-indigo-400" />

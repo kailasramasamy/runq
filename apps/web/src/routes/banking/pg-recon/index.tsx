@@ -55,6 +55,40 @@ const GATEWAY_OPTIONS = [
 
 const PAGE_SIZE = 20;
 
+const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
+function SettlementCard({ s, onClick }: { s: PGSettlement; onClick: () => void }) {
+  return (
+    <div className={CARD_BASE} onClick={onClick}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+            {s.id.length > 20 ? `${s.id.slice(0, 20)}…` : s.id}
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            {gatewayBadge(s.gateway)}
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">{s.date}</span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+            {formatINR(s.net)}
+          </p>
+          <p className="mt-0.5 text-xs text-red-500 dark:text-red-400">
+            -{formatINR(s.fees)} fees
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        {settlementStatus(s)}
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">
+          {s.matchedLines}/{s.totalLines} lines
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PGReconciliationPage() {
@@ -91,8 +125,8 @@ export function PGReconciliationPage() {
       />
 
       {/* Filter row */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-44">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="sm:w-44">
           <Select
             label="Gateway"
             options={GATEWAY_OPTIONS}
@@ -100,24 +134,59 @@ export function PGReconciliationPage() {
             onChange={handleGatewayChange}
           />
         </div>
-        <div className="w-40">
-          <DateInput
-            label="From"
-            value={from}
-            onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-          />
-        </div>
-        <div className="w-40">
-          <DateInput
-            label="To"
-            value={to}
-            onChange={(e) => { setTo(e.target.value); setPage(1); }}
-          />
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <div className="sm:w-40">
+            <DateInput
+              label="From"
+              value={from}
+              onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+            />
+          </div>
+          <div className="sm:w-40">
+            <DateInput
+              label="To"
+              value={to}
+              onChange={(e) => { setTo(e.target.value); setPage(1); }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <Card>
+      {/* Mobile card list */}
+      <div className="md:hidden">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))}
+          </div>
+        ) : settlements.length === 0 ? (
+          <EmptyState
+            icon={CreditCard}
+            title="No settlements found"
+            description="Import a PG settlement file to get started."
+            action={
+              <Button size="sm" onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
+                <Upload size={14} />
+                Import Settlement
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            {settlements.map((s) => (
+              <SettlementCard
+                key={s.id}
+                s={s}
+                onClick={() => navigate({ to: `/banking/pg-recon/${s.id}` })}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">

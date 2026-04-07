@@ -200,7 +200,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard title="Total Amount" value={invoice.totalAmount} formatValue={formatINR} />
         <StatsCard title="Amount Received" value={invoice.amountReceived} formatValue={formatINR} />
         <StatsCard title="Balance Due" value={invoice.balanceDue} formatValue={formatINR} />
@@ -209,7 +209,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader title="Invoice Details" />
-          <CardContent className="grid grid-cols-2 gap-4">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Invoice Number
@@ -262,7 +262,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               </div>
             )}
             {invoice.notes && (
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                   Notes
                 </p>
@@ -280,81 +280,145 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 <EmptyState icon={FileText} title="No line items" description="No items found for this invoice." />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <Th>Description</Th>
-                    <Th>HSN/SAC</Th>
-                    <Th>Qty</Th>
-                    <Th align="right">Unit Price</Th>
-                    <Th align="right">Amount</Th>
-                    <Th align="right">Tax Rate</Th>
-                    <Th align="right">Tax Amount</Th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile cards */}
+                <div className="flex flex-col gap-2 md:hidden p-3">
                   {invoice.items.map((item) => {
                     const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
                     return (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.description}</TableCell>
-                        <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
-                        <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
-                      </TableRow>
+                      <div key={item.id} className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 text-sm">
+                        <p className="font-medium truncate text-zinc-900 dark:text-zinc-100">{item.description}</p>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          {item.hsnSacCode && (
+                            <span className="font-mono">{item.hsnSacCode}</span>
+                          )}
+                          <span>{item.quantity} × {formatINR(item.unitPrice)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs">
+                          <span className="text-zinc-500 dark:text-zinc-400">
+                            {item.taxRate != null ? `Tax ${item.taxRate}%` : 'No tax'}
+                            {itemTax > 0 && ` · ${formatINR(itemTax)}`}
+                          </span>
+                          <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{formatINR(item.amount)}</span>
+                        </div>
+                      </div>
                     );
                   })}
-                  <TableRow>
-                    <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
-                      Subtotal
-                    </TableCell>
-                    <TableCell align="right" numeric className="font-mono">{formatINR(invoice.subtotal)}</TableCell>
-                  </TableRow>
-                  {invoice.cgstAmount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
-                        CGST
-                      </TableCell>
-                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cgstAmount)}</TableCell>
-                    </TableRow>
-                  )}
-                  {invoice.sgstAmount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
-                        SGST
-                      </TableCell>
-                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.sgstAmount)}</TableCell>
-                    </TableRow>
-                  )}
-                  {invoice.igstAmount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
-                        IGST
-                      </TableCell>
-                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.igstAmount)}</TableCell>
-                    </TableRow>
-                  )}
-                  {invoice.cessAmount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
-                        Cess
-                      </TableCell>
-                      <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cessAmount)}</TableCell>
-                    </TableRow>
-                  )}
-                  <TableRow>
-                    <TableCell colSpan={6} align="right" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      Total
-                    </TableCell>
-                    <TableCell align="right" numeric className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
-                      {formatINR(invoice.totalAmount)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                  <div className="border-t border-zinc-200 dark:border-zinc-700 pt-2 mt-2 space-y-1 text-sm px-1">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
+                      <span className="font-mono">{formatINR(invoice.subtotal)}</span>
+                    </div>
+                    {invoice.cgstAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 dark:text-zinc-400">CGST</span>
+                        <span className="font-mono">{formatINR(invoice.cgstAmount)}</span>
+                      </div>
+                    )}
+                    {invoice.sgstAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 dark:text-zinc-400">SGST</span>
+                        <span className="font-mono">{formatINR(invoice.sgstAmount)}</span>
+                      </div>
+                    )}
+                    {invoice.igstAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 dark:text-zinc-400">IGST</span>
+                        <span className="font-mono">{formatINR(invoice.igstAmount)}</span>
+                      </div>
+                    )}
+                    {invoice.cessAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 dark:text-zinc-400">Cess</span>
+                        <span className="font-mono">{formatINR(invoice.cessAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold text-zinc-900 dark:text-zinc-100">
+                      <span>Total</span>
+                      <span className="font-mono">{formatINR(invoice.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <tr>
+                        <Th>Description</Th>
+                        <Th>HSN/SAC</Th>
+                        <Th>Qty</Th>
+                        <Th align="right">Unit Price</Th>
+                        <Th align="right">Amount</Th>
+                        <Th align="right">Tax Rate</Th>
+                        <Th align="right">Tax Amount</Th>
+                      </tr>
+                    </TableHeader>
+                    <TableBody>
+                      {invoice.items.map((item) => {
+                        const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.description}</TableCell>
+                            <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
+                            <TableCell>{item.quantity}</TableCell>
+                            <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
+                            <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
+                            <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
+                            <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow>
+                        <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                          Subtotal
+                        </TableCell>
+                        <TableCell align="right" numeric className="font-mono">{formatINR(invoice.subtotal)}</TableCell>
+                      </TableRow>
+                      {invoice.cgstAmount > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                            CGST
+                          </TableCell>
+                          <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cgstAmount)}</TableCell>
+                        </TableRow>
+                      )}
+                      {invoice.sgstAmount > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                            SGST
+                          </TableCell>
+                          <TableCell align="right" numeric className="font-mono">{formatINR(invoice.sgstAmount)}</TableCell>
+                        </TableRow>
+                      )}
+                      {invoice.igstAmount > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                            IGST
+                          </TableCell>
+                          <TableCell align="right" numeric className="font-mono">{formatINR(invoice.igstAmount)}</TableCell>
+                        </TableRow>
+                      )}
+                      {invoice.cessAmount > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                            Cess
+                          </TableCell>
+                          <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cessAmount)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow>
+                        <TableCell colSpan={6} align="right" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          Total
+                        </TableCell>
+                        <TableCell align="right" numeric className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                          {formatINR(invoice.totalAmount)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -363,28 +427,49 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           <Card>
             <CardHeader title="Receipt History" />
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <Th>Date</Th>
-                    <Th>Reference</Th>
-                    <Th>Method</Th>
-                    <Th align="right">Amount</Th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {receipts.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell>{r.receiptDate}</TableCell>
-                      <TableCell className="font-mono text-xs">{r.referenceNumber ?? '—'}</TableCell>
-                      <TableCell className="capitalize">{r.paymentMethod.replace(/_/g, ' ')}</TableCell>
-                      <TableCell align="right" numeric className="text-emerald-600 dark:text-emerald-400 font-medium">
-                        {formatINR(r.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {/* Mobile cards */}
+              <div className="flex flex-col gap-2 md:hidden p-3">
+                {receipts.map((r) => (
+                  <div key={r.id} className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-zinc-700 dark:text-zinc-300">{r.receiptDate}</span>
+                      <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">{formatINR(r.amount)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="capitalize">{r.paymentMethod.replace(/_/g, ' ')}</span>
+                      {r.referenceNumber && (
+                        <span className="font-mono">{r.referenceNumber}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th>Date</Th>
+                      <Th>Reference</Th>
+                      <Th>Method</Th>
+                      <Th align="right">Amount</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {receipts.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell>{r.receiptDate}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.referenceNumber ?? '—'}</TableCell>
+                        <TableCell className="capitalize">{r.paymentMethod.replace(/_/g, ' ')}</TableCell>
+                        <TableCell align="right" numeric className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          {formatINR(r.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -392,7 +477,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         {interestData?.data && interestData.data.interestAmount > 0 && (
           <Card>
             <CardHeader title="Interest Accrued" />
-            <CardContent className="grid grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                   Principal

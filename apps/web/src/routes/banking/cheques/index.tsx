@@ -45,6 +45,38 @@ const STATUS_VARIANT: Record<ChequeStatus, 'default' | 'warning' | 'success' | '
   cancelled: 'default',
 };
 
+const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
+function ChequeCard({ cheque }: { cheque: Cheque }) {
+  return (
+    <div className={CARD_BASE}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            #{cheque.chequeNumber}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+            {cheque.partyName ?? cheque.partyId.slice(0, 8)}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-mono text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+            {formatINR(cheque.amount)}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{cheque.chequeDate}</p>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Badge variant={STATUS_VARIANT[cheque.status]}>{cheque.status}</Badge>
+        <Badge variant={cheque.type === 'received' ? 'success' : 'warning'}>{cheque.type}</Badge>
+        {cheque.depositDate && (
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">Dep: {cheque.depositDate}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChequeActions({ cheque }: { cheque: Cheque }) {
   const { toast } = useToast();
   const depositMutation = useDepositCheque();
@@ -179,7 +211,7 @@ export function ChequesPage() {
         title="Cheque & PDC Management"
         description="Track received and issued cheques, manage post-dated cheques."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('cheques.csv', ['Cheque #', 'Date', 'Party', 'Amount', 'Type', 'Status'], chequesList.map(c => [c.chequeNumber, c.chequeDate, c.partyName ?? c.partyId, c.amount, c.type, c.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -219,11 +251,20 @@ export function ChequesPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2 md:hidden">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        </>
       ) : chequesList.length === 0 ? (
         <EmptyState
           icon={Plus}
@@ -236,27 +277,34 @@ export function ChequesPage() {
           }
         />
       ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Cheque #</Th>
-                <Th>Type</Th>
-                <Th>Party</Th>
-                <Th align="right">Amount</Th>
-                <Th>Cheque Date</Th>
-                <Th>Deposit Date</Th>
-                <Th>Status</Th>
-                <Th>Actions</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {chequesList.map((cheque) => (
-                <ChequeRow key={cheque.id} cheque={cheque} />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <>
+          {/* Mobile card list */}
+          <div className="space-y-2 md:hidden">
+            {chequesList.map((cheque) => <ChequeCard key={cheque.id} cheque={cheque} />)}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto md:block">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Cheque #</Th>
+                  <Th>Type</Th>
+                  <Th>Party</Th>
+                  <Th align="right">Amount</Th>
+                  <Th>Cheque Date</Th>
+                  <Th>Deposit Date</Th>
+                  <Th>Status</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {chequesList.map((cheque) => (
+                  <ChequeRow key={cheque.id} cheque={cheque} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
     </div>
   );

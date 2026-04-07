@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { FileWarning, Plus, Download } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
@@ -71,6 +71,7 @@ function DebitNoteRow({ dn }: { dn: DebitNote & { vendorName?: string; invoiceNu
 }
 
 export function DebitNoteListPage() {
+  const navigate = useNavigate();
   const [vendorId, setVendorId] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -100,7 +101,7 @@ export function DebitNoteListPage() {
         title="Debit Notes"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Debit Notes' }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('debit-notes.csv', ['DN #', 'Date', 'Vendor', 'Amount', 'Status'], debitNotes.map(dn => [dn.debitNoteNumber, dn.issueDate, (dn as DebitNote & { vendorName?: string }).vendorName ?? '', String(dn.amount), dn.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -115,8 +116,8 @@ export function DebitNoteListPage() {
       />
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 py-3">
-          <div className="w-52">
+        <CardContent className="grid grid-cols-2 gap-3 py-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="sm:w-52">
             <Select
               label="Vendor"
               options={vendorOptions}
@@ -124,7 +125,7 @@ export function DebitNoteListPage() {
               onChange={(e) => { setVendorId(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <Select
               label="Status"
               options={STATUS_OPTIONS}
@@ -135,6 +136,46 @@ export function DebitNoteListPage() {
         </CardContent>
       </Card>
 
+      {/* Mobile cards */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : debitNotes.length === 0 ? (
+          <EmptyState
+            icon={FileWarning}
+            title="No debit notes found"
+            description="Raise a debit note to capture vendor deductions or adjustments."
+          />
+        ) : (
+          debitNotes.map((dn) => {
+            const isCancelled = dn.status === 'cancelled';
+            return (
+              <div
+                key={dn.id}
+                className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+                onClick={() => navigate({ to: '/ap/debit-notes/$debitNoteId', params: { debitNoteId: dn.id } })}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{dn.debitNoteNumber}</span>
+                  <Badge variant={STATUS_VARIANT[dn.status]} className={`capitalize ${isCancelled ? 'line-through' : ''}`}>{dn.status}</Badge>
+                </div>
+                <div className="mt-0.5 truncate text-sm text-zinc-600 dark:text-zinc-400" title={dn.reason}>
+                  {dn.reason.length > 60 ? dn.reason.slice(0, 60) + '…' : dn.reason}
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>{dn.issueDate}</span>
+                  <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(dn.amount)}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
@@ -165,6 +206,7 @@ export function DebitNoteListPage() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

@@ -224,7 +224,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <DateInput label="Date" required value={date} onChange={(e) => setDate(e.target.value)} />
             <Input label="Description" required placeholder="e.g. Electricity accrual — March 2026" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
@@ -233,7 +233,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Lines</p>
             <div className="space-y-2">
               {lines.map((line, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_100px_100px_1fr_32px] gap-2 items-end">
+                <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px_100px_1fr_32px] items-end">
                   <Select
                     options={accountOptions}
                     value={line.accountCode}
@@ -323,7 +323,7 @@ export function JournalEntriesPage() {
         title="Journal Entries"
         description="Double-entry bookkeeping records."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('journal-entries.csv', ['Entry #', 'Date', 'Narration', 'Total Debit', 'Total Credit', 'Status'], entries.map(e => [e.entryNumber, e.date, e.description, e.totalDebit, e.totalCredit, e.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -335,32 +335,67 @@ export function JournalEntriesPage() {
       />
 
       {isLoading ? (
-        <table className="w-full"><tbody><TableSkeleton rows={8} /></tbody></table>
+        <>
+          <div className="space-y-2 md:hidden">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <table className="w-full"><tbody><TableSkeleton rows={8} /></tbody></table>
+          </div>
+        </>
       ) : entries.length === 0 ? (
         <EmptyState icon={BookOpen} title="No journal entries" description="Entries will appear here as transactions are recorded." />
       ) : (
         <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Entry #</Th>
-                <Th>Date</Th>
-                <Th>Description</Th>
-                <Th>Source</Th>
-                <Th className="text-right">Debit</Th>
-                <Th className="text-right">Credit</Th>
-                <Th>Status</Th>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.map((entry) => (
-                <Fragment key={entry.id}>
-                  <EntryRow entry={entry} onSelect={handleSelect} />
-                  {selectedId === entry.id && <EntryDetail id={entry.id} />}
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
+          {/* Mobile cards */}
+          <div className="space-y-2 md:hidden">
+            {entries.map((entry) => (
+              <div
+                key={entry.id}
+                className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+                onClick={() => handleSelect(entry.id)}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="font-mono text-xs text-zinc-400">{entry.entryNumber}</p>
+                  <Badge variant={STATUS_VARIANT[entry.status as keyof typeof STATUS_VARIANT] ?? 'default'}>
+                    {entry.status}
+                  </Badge>
+                </div>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{entry.description}</p>
+                <div className="flex items-center justify-between mt-1 text-xs text-zinc-500">
+                  <span>{entry.date}</span>
+                  <span className="tabular-nums">{formatINR(entry.totalDebit)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Entry #</Th>
+                  <Th>Date</Th>
+                  <Th>Description</Th>
+                  <Th>Source</Th>
+                  <Th className="text-right">Debit</Th>
+                  <Th className="text-right">Credit</Th>
+                  <Th>Status</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((entry) => (
+                  <Fragment key={entry.id}>
+                    <EntryRow entry={entry} onSelect={handleSelect} />
+                    {selectedId === entry.id && <EntryDetail id={entry.id} />}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {meta && meta.totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 mt-2 text-sm text-zinc-500">

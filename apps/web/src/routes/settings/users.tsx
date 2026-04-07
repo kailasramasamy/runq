@@ -107,7 +107,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setRole(e.target.value as UserRole)}
           options={ROLE_OPTIONS}
         />
-        <div className="flex items-end gap-2 sm:col-span-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:col-span-2">
           <Button type="submit" loading={create.isPending} size="sm">
             <Plus size={14} />
             Add User
@@ -239,7 +239,56 @@ export function UsersPage() {
 
       {showInvite && <InviteForm onClose={() => setShowInvite(false)} />}
 
-      <Card>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : users.length === 0 ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 text-sm text-zinc-500 text-center">
+            No users yet. Invite one above.
+          </div>
+        ) : (
+          users.map((u) => {
+            const isSelf = u.id === currentUser?.id;
+            return (
+              <div key={u.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                      {u.name}
+                      {isSelf && <span className="ml-1 text-xs text-indigo-500 dark:text-indigo-400">(You)</span>}
+                    </p>
+                    <p className="text-xs text-zinc-500 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge variant={roleBadgeVariant(u.role)}>{u.role}</Badge>
+                    <Badge variant={u.isActive ? 'success' : 'default'}>
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </div>
+                {!isSelf && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(u)}
+                      className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

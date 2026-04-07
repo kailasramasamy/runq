@@ -73,7 +73,7 @@ function MatchForm({ invoiceId, onDone }: { invoiceId: string; onDone: () => voi
 
   return (
     <form onSubmit={handleMatch}>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <Input
           label="PO ID (UUID)"
           value={poId}
@@ -112,7 +112,7 @@ function MatchResultPanel({ result }: { result: ThreeWayMatchResult }) {
     <Card className="mt-4">
       <CardHeader title="Match Result" />
       <CardContent>
-        <div className="mb-4 grid grid-cols-3 gap-4 text-center text-sm">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-sm">
           <div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">PO Total</p>
             <p className="font-mono font-medium tabular-nums">{formatINR(result.summary.poTotal)}</p>
@@ -126,56 +126,92 @@ function MatchResultPanel({ result }: { result: ThreeWayMatchResult }) {
             <p className="font-mono font-medium tabular-nums">{formatINR(result.summary.invoiceTotal)}</p>
           </div>
         </div>
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>Item</Th>
-              <Th>SKU</Th>
-              <Th align="right">PO Qty</Th>
-              <Th align="right">GRN Qty</Th>
-              <Th align="right">Inv Qty</Th>
-              <Th align="right">PO Price</Th>
-              <Th align="right">Inv Price</Th>
-              <Th>Result</Th>
-              <Th>Notes</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {result.lines.map((line: MatchLineResult, i: number) => {
-              const isMatched = line.status === 'matched';
-              return (
-                <TableRow
-                  key={i}
-                  className={
-                    isMatched
-                      ? 'bg-green-50 dark:bg-green-950/20'
-                      : 'bg-red-50 dark:bg-red-950/20'
-                  }
-                >
-                  <TableCell>{line.itemName}</TableCell>
-                  <TableCell>
-                    <span className="font-mono text-xs">{line.sku ?? '—'}</span>
-                  </TableCell>
-                  <TableCell align="right" numeric>{line.qty.po}</TableCell>
-                  <TableCell align="right" numeric>{line.qty.grn}</TableCell>
-                  <TableCell align="right" numeric>{line.qty.invoice}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(line.unitPrice.po)}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(line.unitPrice.invoice)}</TableCell>
-                  <TableCell>
-                    {isMatched ? (
-                      <Check size={14} className="text-green-600 dark:text-green-400" />
-                    ) : (
-                      <X size={14} className="text-red-600 dark:text-red-400" />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {line.message ?? '—'}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2">
+          {result.lines.map((line: MatchLineResult, i: number) => {
+            const isMatched = line.status === 'matched';
+            return (
+              <div key={i} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{line.itemName}</span>
+                  {isMatched ? (
+                    <Check size={14} className="shrink-0 text-green-600 dark:text-green-400 mt-0.5" />
+                  ) : (
+                    <X size={14} className="shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                  )}
+                </div>
+                {line.sku && (
+                  <p className="font-mono text-xs text-zinc-400 mb-2">{line.sku}</p>
+                )}
+                <div className="grid grid-cols-3 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  <div><span className="block font-medium">PO Qty</span>{line.qty.po}</div>
+                  <div><span className="block font-medium">GRN Qty</span>{line.qty.grn}</div>
+                  <div><span className="block font-medium">Inv Qty</span>{line.qty.invoice}</div>
+                  <div><span className="block font-medium">PO Price</span>{formatINR(line.unitPrice.po)}</div>
+                  <div><span className="block font-medium">Inv Price</span>{formatINR(line.unitPrice.invoice)}</div>
+                </div>
+                {line.message && (
+                  <p className="mt-2 text-xs text-zinc-400">{line.message}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <tr>
+                <Th>Item</Th>
+                <Th>SKU</Th>
+                <Th align="right">PO Qty</Th>
+                <Th align="right">GRN Qty</Th>
+                <Th align="right">Inv Qty</Th>
+                <Th align="right">PO Price</Th>
+                <Th align="right">Inv Price</Th>
+                <Th>Result</Th>
+                <Th>Notes</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {result.lines.map((line: MatchLineResult, i: number) => {
+                const isMatched = line.status === 'matched';
+                return (
+                  <TableRow
+                    key={i}
+                    className={
+                      isMatched
+                        ? 'bg-green-50 dark:bg-green-950/20'
+                        : 'bg-red-50 dark:bg-red-950/20'
+                    }
+                  >
+                    <TableCell>{line.itemName}</TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs">{line.sku ?? '—'}</span>
+                    </TableCell>
+                    <TableCell align="right" numeric>{line.qty.po}</TableCell>
+                    <TableCell align="right" numeric>{line.qty.grn}</TableCell>
+                    <TableCell align="right" numeric>{line.qty.invoice}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(line.unitPrice.po)}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(line.unitPrice.invoice)}</TableCell>
+                    <TableCell>
+                      {isMatched ? (
+                        <Check size={14} className="text-green-600 dark:text-green-400" />
+                      ) : (
+                        <X size={14} className="text-red-600 dark:text-red-400" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {line.message ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -378,71 +414,147 @@ function LineItemsTable({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
   return (
     <Card>
       <CardHeader title="Line Items" />
-      <CardContent className="p-0 overflow-x-auto">
-        <Table className="min-w-[900px]">
-          <TableHeader>
-            <tr>
-              <Th>Item</Th>
-              <Th>HSN/SAC</Th>
-              <Th>Qty</Th>
-              <Th align="right">Unit Price</Th>
-              <Th align="right">Amount</Th>
-              <Th align="right">Tax Rate</Th>
-              <Th align="right">Tax Amount</Th>
-              {hasTds && <Th align="right">TDS</Th>}
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {invoice.items.map((item) => {
-              const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
-              return (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    {item.itemName}
-                    {item.sku && (
-                      <span className="ml-2 font-mono text-xs text-zinc-400">{item.sku}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
-                  <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
-                  {hasTds && (
-                    <TableCell align="right" numeric>
-                      {item.tdsSection ? (
-                        <span className="text-amber-600 dark:text-amber-400">
-                          {item.tdsSection} @ {item.tdsRate}%
-                        </span>
-                      ) : '—'}
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-      <div className="flex justify-end gap-8 px-4 py-3 text-sm border-t border-zinc-200 dark:border-zinc-800">
-        <div className="flex flex-col items-end gap-1.5">
-          <SummaryRow label="Subtotal" value={formatINR(invoice.subtotal)} />
-          {invoice.cgstAmount > 0 && <SummaryRow label="CGST" value={formatINR(invoice.cgstAmount)} />}
-          {invoice.sgstAmount > 0 && <SummaryRow label="SGST" value={formatINR(invoice.sgstAmount)} />}
-          {invoice.igstAmount > 0 && <SummaryRow label="IGST" value={formatINR(invoice.igstAmount)} />}
-          {invoice.cessAmount > 0 && <SummaryRow label="Cess" value={formatINR(invoice.cessAmount)} />}
-          {invoice.tdsAmount > 0 && (
-            <SummaryRow
-              label={`TDS (${invoice.tdsSection ?? ''})`}
-              value={`-${formatINR(invoice.tdsAmount)}`}
-              className="text-amber-600 dark:text-amber-400"
-            />
+
+      {/* Mobile card view */}
+      <div className="md:hidden p-3 space-y-2">
+        {invoice.items.map((item) => {
+          const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+          return (
+            <div key={item.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{item.itemName}</p>
+              {item.sku && <p className="font-mono text-xs text-zinc-400 mt-0.5">{item.sku}</p>}
+              {item.hsnSacCode && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">HSN/SAC: <span className="font-mono">{item.hsnSacCode}</span></p>
+              )}
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-zinc-500 dark:text-zinc-400">{item.quantity} × {formatINR(item.unitPrice)}</span>
+                <span className="font-medium tabular-nums">{formatINR(item.amount)}</span>
+              </div>
+              {(itemTax > 0 || item.taxRate != null) && (
+                <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>Tax {item.taxRate != null ? `@ ${item.taxRate}%` : ''}</span>
+                  <span className="tabular-nums">{formatINR(itemTax)}</span>
+                </div>
+              )}
+              {item.tdsSection && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  TDS: {item.tdsSection} @ {item.tdsRate}%
+                </p>
+              )}
+            </div>
+          );
+        })}
+        {/* Mobile summary */}
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50 space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
+            <span className="font-mono tabular-nums">{formatINR(invoice.subtotal)}</span>
+          </div>
+          {invoice.cgstAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-zinc-500 dark:text-zinc-400">CGST</span>
+              <span className="font-mono tabular-nums">{formatINR(invoice.cgstAmount)}</span>
+            </div>
           )}
-          <div className="flex w-56 justify-between gap-6 border-t border-zinc-200 pt-1.5 dark:border-zinc-700">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
-            <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {formatINR(invoice.totalAmount)}
-            </span>
+          {invoice.sgstAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-zinc-500 dark:text-zinc-400">SGST</span>
+              <span className="font-mono tabular-nums">{formatINR(invoice.sgstAmount)}</span>
+            </div>
+          )}
+          {invoice.igstAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-zinc-500 dark:text-zinc-400">IGST</span>
+              <span className="font-mono tabular-nums">{formatINR(invoice.igstAmount)}</span>
+            </div>
+          )}
+          {invoice.cessAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-zinc-500 dark:text-zinc-400">Cess</span>
+              <span className="font-mono tabular-nums">{formatINR(invoice.cessAmount)}</span>
+            </div>
+          )}
+          {invoice.tdsAmount > 0 && (
+            <div className="flex justify-between text-amber-600 dark:text-amber-400">
+              <span>TDS ({invoice.tdsSection ?? ''})</span>
+              <span className="font-mono tabular-nums">-{formatINR(invoice.tdsAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-zinc-200 pt-1 dark:border-zinc-700 font-semibold text-zinc-900 dark:text-zinc-100">
+            <span>Total</span>
+            <span className="font-mono tabular-nums">{formatINR(invoice.totalAmount)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <tr>
+                <Th>Item</Th>
+                <Th>HSN/SAC</Th>
+                <Th>Qty</Th>
+                <Th align="right">Unit Price</Th>
+                <Th align="right">Amount</Th>
+                <Th align="right">Tax Rate</Th>
+                <Th align="right">Tax Amount</Th>
+                {hasTds && <Th align="right">TDS</Th>}
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {invoice.items.map((item) => {
+                const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      {item.itemName}
+                      {item.sku && (
+                        <span className="ml-2 font-mono text-xs text-zinc-400">{item.sku}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
+                    <TableCell>{item.quantity}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
+                    <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
+                    {hasTds && (
+                      <TableCell align="right" numeric>
+                        {item.tdsSection ? (
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {item.tdsSection} @ {item.tdsRate}%
+                          </span>
+                        ) : '—'}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+        <div className="flex justify-end gap-8 px-4 py-3 text-sm border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex flex-col items-end gap-1.5">
+            <SummaryRow label="Subtotal" value={formatINR(invoice.subtotal)} />
+            {invoice.cgstAmount > 0 && <SummaryRow label="CGST" value={formatINR(invoice.cgstAmount)} />}
+            {invoice.sgstAmount > 0 && <SummaryRow label="SGST" value={formatINR(invoice.sgstAmount)} />}
+            {invoice.igstAmount > 0 && <SummaryRow label="IGST" value={formatINR(invoice.igstAmount)} />}
+            {invoice.cessAmount > 0 && <SummaryRow label="Cess" value={formatINR(invoice.cessAmount)} />}
+            {invoice.tdsAmount > 0 && (
+              <SummaryRow
+                label={`TDS (${invoice.tdsSection ?? ''})`}
+                value={`-${formatINR(invoice.tdsAmount)}`}
+                className="text-amber-600 dark:text-amber-400"
+              />
+            )}
+            <div className="flex w-56 justify-between gap-6 border-t border-zinc-200 pt-1.5 dark:border-zinc-700">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
+              <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {formatINR(invoice.totalAmount)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -474,46 +586,77 @@ function DebitNoteAdjustments({ invoiceId }: { invoiceId: string }) {
   return (
     <Card className="border-amber-200 dark:border-amber-800">
       <CardHeader title="Debit Note Adjustments" />
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>DN #</Th>
-              <Th>Date</Th>
-              <Th>Reason</Th>
-              <Th align="right">Amount</Th>
-              <Th>Status</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {debitNotes.map((dn: DebitNote) => (
-              <TableRow key={dn.id}>
-                <TableCell className="font-medium">{dn.debitNoteNumber}</TableCell>
-                <TableCell className="text-zinc-500 dark:text-zinc-400">{dn.issueDate}</TableCell>
-                <TableCell className="max-w-[250px] truncate text-sm text-zinc-500 dark:text-zinc-400">{dn.reason}</TableCell>
-                <TableCell align="right" numeric>
-                  <span className="text-red-600 dark:text-red-400">-{formatINR(dn.amount)}</span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
-                    {dn.status}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {totalAdjusted > 0 && (
-          <div className="flex justify-end px-4 py-2 text-sm border-t border-amber-200 dark:border-amber-800">
-            <div className="flex w-52 justify-between gap-6">
-              <span className="font-medium text-amber-700 dark:text-amber-400">Total Adjusted</span>
-              <span className="font-mono font-medium tabular-nums text-red-600 dark:text-red-400">
-                -{formatINR(totalAdjusted)}
-              </span>
+
+      {/* Mobile cards */}
+      <div className="md:hidden p-3 space-y-2">
+        {debitNotes.map((dn: DebitNote) => (
+          <div key={dn.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{dn.debitNoteNumber}</span>
+              <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
+                {dn.status}
+              </Badge>
             </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{dn.issueDate}</p>
+            {dn.reason && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">{dn.reason}</p>
+            )}
+            <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400 tabular-nums">
+              -{formatINR(dn.amount)}
+            </p>
+          </div>
+        ))}
+        {totalAdjusted > 0 && (
+          <div className="flex justify-between px-1 py-1 text-sm font-medium">
+            <span className="text-amber-700 dark:text-amber-400">Total Adjusted</span>
+            <span className="font-mono tabular-nums text-red-600 dark:text-red-400">-{formatINR(totalAdjusted)}</span>
           </div>
         )}
-      </CardContent>
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <tr>
+                <Th>DN #</Th>
+                <Th>Date</Th>
+                <Th>Reason</Th>
+                <Th align="right">Amount</Th>
+                <Th>Status</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {debitNotes.map((dn: DebitNote) => (
+                <TableRow key={dn.id}>
+                  <TableCell className="font-medium">{dn.debitNoteNumber}</TableCell>
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">{dn.issueDate}</TableCell>
+                  <TableCell className="max-w-[250px] truncate text-sm text-zinc-500 dark:text-zinc-400">{dn.reason}</TableCell>
+                  <TableCell align="right" numeric>
+                    <span className="text-red-600 dark:text-red-400">-{formatINR(dn.amount)}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
+                      {dn.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {totalAdjusted > 0 && (
+            <div className="flex justify-end px-4 py-2 text-sm border-t border-amber-200 dark:border-amber-800">
+              <div className="flex w-52 justify-between gap-6">
+                <span className="font-medium text-amber-700 dark:text-amber-400">Total Adjusted</span>
+                <span className="font-mono font-medium tabular-nums text-red-600 dark:text-red-400">
+                  -{formatINR(totalAdjusted)}
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </div>
     </Card>
   );
 }
@@ -537,7 +680,7 @@ function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
     <Card>
       <CardHeader title="Bill Info" />
       <CardContent>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
           {fields.map(({ label, value }) => (
             <div key={label}>
               <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
@@ -560,7 +703,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
     return (
       <div className="max-w-6xl">
         <div className="mb-6 h-6 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-24 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800" />
           ))}
@@ -587,7 +730,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
           { label: invoice.invoiceNumber },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={STATUS_BADGE_VARIANT[invoice.status]}>
               {STATUS_LABELS[invoice.status]}
             </Badge>
@@ -599,7 +742,7 @@ export function BillDetailPage({ billId }: { billId: string }) {
       />
 
       {/* Summary Stats */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard title="Invoice Total" value={invoice.totalAmount} />
         <StatsCard title="Amount Paid" value={invoice.amountPaid} />
         <StatsCard title="Balance Due" value={invoice.balanceDue} />

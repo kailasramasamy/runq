@@ -71,19 +71,21 @@ export function CAPortalSettingsPage() {
 
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/30">
             <label className="block text-xs font-medium text-zinc-500 mb-1">Portal Link</label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-white px-3 py-2 text-sm font-mono text-zinc-900 border border-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 truncate">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <code className="min-w-0 flex-1 rounded bg-white px-3 py-2 text-sm font-mono text-zinc-900 border border-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 truncate">
                 {fullUrl}
               </code>
-              <Button variant="outline" size="sm" onClick={copyLink}>
-                {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              <a href={fullUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="ghost" size="sm" type="button">
-                  <ExternalLink size={14} /> Open
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={copyLink}>
+                  {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                  {copied ? 'Copied' : 'Copy'}
                 </Button>
-              </a>
+                <a href={fullUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="ghost" size="sm" type="button">
+                    <ExternalLink size={14} /> Open
+                  </Button>
+                </a>
+              </div>
             </div>
           </div>
 

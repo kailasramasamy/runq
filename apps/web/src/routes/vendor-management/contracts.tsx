@@ -51,7 +51,7 @@ function ViewModal({ contract, onClose, onEdit }: { contract: VendorContract; on
           </button>
         </div>
         <dl className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Contract Number</dt>
               <dd className="mt-0.5 font-mono text-zinc-900 dark:text-zinc-100">{contract.contractNumber}</dd>
@@ -69,7 +69,7 @@ function ViewModal({ contract, onClose, onEdit }: { contract: VendorContract; on
             <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Vendor</dt>
             <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">{contract.vendorName ?? contract.vendorId}</dd>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Start Date</dt>
               <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">{contract.startDate}</dd>
@@ -154,7 +154,7 @@ function EditModal({ contract, onClose }: { contract: VendorContract; onClose: (
             <X size={16} />
           </button>
         </div>
-        <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Contract Number</span>
             <p className="mt-0.5 font-mono text-zinc-900 dark:text-zinc-100">{contract.contractNumber}</p>
@@ -166,11 +166,11 @@ function EditModal({ contract, onClose }: { contract: VendorContract; onClose: (
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DateInput label="Start Date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required className="dark:[color-scheme:dark]" />
             <DateInput label="End Date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required className="dark:[color-scheme:dark]" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Value" type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Contract value" />
             <DateInput label="Renewal Date" value={renewalDate} onChange={(e) => setRenewalDate(e.target.value)} className="dark:[color-scheme:dark]" />
           </div>
@@ -315,7 +315,7 @@ export function VendorContractsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Contracts' }]}
         description="Track vendor contracts, expiry dates, and renewal schedules."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('vendor-contracts.csv', ['Contract Number', 'Title', 'Vendor', 'Start Date', 'End Date', 'Value', 'Status'], contracts.map(c => [c.contractNumber, c.title, c.vendorName ?? c.vendorId, c.startDate, c.endDate, c.value != null ? String(c.value) : '', c.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -329,20 +329,21 @@ export function VendorContractsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Input
-          placeholder="Search by number or title…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-56"
-        />
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div className="col-span-2 sm:w-56">
+          <Input
+            placeholder="Search by number or title…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           options={STATUS_OPTIONS}
-          className="w-40"
+          className="sm:w-40"
         />
-        <div className="w-56">
+        <div className="sm:w-56">
           <Combobox
             options={vendorOptions}
             value={vendorFilter}
@@ -352,73 +353,110 @@ export function VendorContractsPage() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Number</Th>
-                <Th>Title</Th>
-                <Th>Vendor</Th>
-                <Th>Start</Th>
-                <Th>End</Th>
-                <Th>Status</Th>
-                <Th align="right">Value</Th>
-                <Th />
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={8} />
-              ) : contracts.length === 0 ? (
-                <TableEmpty colSpan={8} message="No vendor contracts found." />
-              ) : (
-                contracts.map((c) => (
-                  <TableRow
-                    key={c.id}
-                    className="cursor-pointer"
-                    onClick={() => setViewContract(c)}
-                  >
-                    <TableCell className="font-mono text-xs">{c.contractNumber}</TableCell>
-                    <TableCell className="font-medium">{c.title}</TableCell>
-                    <TableCell className="text-zinc-600 dark:text-zinc-400">{c.vendorName ?? c.vendorId}</TableCell>
-                    <TableCell>{c.startDate}</TableCell>
-                    <TableCell>{c.endDate}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
-                    </TableCell>
-                    <TableCell align="right" numeric>
-                      {c.value != null ? (
-                        <span className="font-mono tabular-nums">{formatINR(c.value)}</span>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          title="View"
-                          onClick={() => setViewContract(c)}
-                          className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          title="Edit"
-                          onClick={() => setEditContract(c)}
-                          className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : contracts.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No vendor contracts found.</p>
+        ) : (
+          contracts.map((c) => (
+            <div
+              key={c.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => setViewContract(c)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{c.title}</p>
+                  <p className="font-mono text-xs text-zinc-500">{c.contractNumber}</p>
+                </div>
+                <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{c.vendorName ?? c.vendorId}</span>
+                <span>{c.startDate} → {c.endDate}</span>
+                {c.value != null && (
+                  <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{formatINR(c.value)}</span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Number</Th>
+                  <Th>Title</Th>
+                  <Th>Vendor</Th>
+                  <Th>Start</Th>
+                  <Th>End</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Value</Th>
+                  <Th />
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={8} />
+                ) : contracts.length === 0 ? (
+                  <TableEmpty colSpan={8} message="No vendor contracts found." />
+                ) : (
+                  contracts.map((c) => (
+                    <TableRow
+                      key={c.id}
+                      className="cursor-pointer"
+                      onClick={() => setViewContract(c)}
+                    >
+                      <TableCell className="font-mono text-xs">{c.contractNumber}</TableCell>
+                      <TableCell className="font-medium">{c.title}</TableCell>
+                      <TableCell className="text-zinc-600 dark:text-zinc-400">{c.vendorName ?? c.vendorId}</TableCell>
+                      <TableCell>{c.startDate}</TableCell>
+                      <TableCell>{c.endDate}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
+                      </TableCell>
+                      <TableCell align="right" numeric>
+                        {c.value != null ? (
+                          <span className="font-mono tabular-nums">{formatINR(c.value)}</span>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            title="View"
+                            onClick={() => setViewContract(c)}
+                            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Edit"
+                            onClick={() => setEditContract(c)}
+                            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
       {viewContract && (
         <ViewModal

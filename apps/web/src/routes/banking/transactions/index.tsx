@@ -40,6 +40,40 @@ const RECON_LABELS: Record<ReconStatus, string> = {
   excluded: 'Excluded',
 };
 
+const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
+function TxnCard({ txn }: { txn: BankTransaction }) {
+  const isCredit = txn.type === 'credit';
+  return (
+    <div className={CARD_BASE}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {txn.narration ?? '—'}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{txn.transactionDate}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className={`text-sm font-semibold tabular-nums ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+            {isCredit ? '+' : '-'}{formatINR(txn.amount)}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+            {isCredit ? 'Credit' : 'Debit'}
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Badge variant={RECON_VARIANT[txn.reconStatus]}>
+          {RECON_LABELS[txn.reconStatus]}
+        </Badge>
+        {txn.glAccountName && (
+          <span className="truncate text-xs text-zinc-400 dark:text-zinc-500">{txn.glAccountName}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // FE-03: Virtual scrolling needed here — add @tanstack/react-virtual when list grows large.
 const TxnRow = memo(function TxnRow({ txn }: { txn: BankTransaction }) {
   const isCredit = txn.type === 'credit';
@@ -162,7 +196,7 @@ export function TransactionsPage() {
         title="Transactions"
         description="Bank statement entries and reconciliation status."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => accountId && sync.mutate({ accountId })}
@@ -190,8 +224,8 @@ export function TransactionsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="w-48">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <div className="col-span-2 sm:w-48">
           <Select
             label="Account"
             options={accountOptions}
@@ -199,7 +233,7 @@ export function TransactionsPage() {
             onChange={(e) => { setAccountId(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-36">
+        <div className="sm:w-36">
           <Select
             label="Type"
             options={typeOptions}
@@ -207,7 +241,7 @@ export function TransactionsPage() {
             onChange={(e) => { setType(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-44">
+        <div className="sm:w-44">
           <Select
             label="Recon Status"
             options={reconOptions}
@@ -215,14 +249,14 @@ export function TransactionsPage() {
             onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-40">
+        <div className="sm:w-40">
           <DateInput
             label="From"
             value={dateFrom}
             onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-40">
+        <div className="sm:w-40">
           <DateInput
             label="To"
             value={dateTo}
@@ -231,45 +265,74 @@ export function TransactionsPage() {
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <tr>
-            <Th>Date</Th>
-            <Th>Description</Th>
-            <Th>Reference</Th>
-            <Th align="right">Debit</Th>
-            <Th align="right">Credit</Th>
-            <Th align="right">Balance</Th>
-            <Th>Category</Th>
-            <Th>Status</Th>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableSkeleton rows={8} cols={8} />
-          ) : transactions.length === 0 ? (
+      {/* Mobile card list */}
+      <div className="md:hidden">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))}
+          </div>
+        ) : transactions.length === 0 ? (
+          <EmptyState
+            icon={ArrowUpDown}
+            title="No transactions found"
+            description="Import a bank statement to view transactions here."
+            action={
+              <Button size="sm" onClick={() => navigate({ to: '/banking/transactions/import' })}>
+                <Upload size={14} /> Import CSV
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            {transactions.map((txn) => <TxnCard key={txn.id} txn={txn} />)}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
             <tr>
-              <td colSpan={8}>
-                <EmptyState
-                  icon={ArrowUpDown}
-                  title="No transactions found"
-                  description="Import a bank statement to view transactions here."
-                  action={
-                    <Button
-                      size="sm"
-                      onClick={() => navigate({ to: '/banking/transactions/import' })}
-                    >
-                      <Upload size={14} /> Import CSV
-                    </Button>
-                  }
-                />
-              </td>
+              <Th>Date</Th>
+              <Th>Description</Th>
+              <Th>Reference</Th>
+              <Th align="right">Debit</Th>
+              <Th align="right">Credit</Th>
+              <Th align="right">Balance</Th>
+              <Th>Category</Th>
+              <Th>Status</Th>
             </tr>
-          ) : (
-            transactions.map((txn) => <TxnRow key={txn.id} txn={txn} />)
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton rows={8} cols={8} />
+            ) : transactions.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <EmptyState
+                    icon={ArrowUpDown}
+                    title="No transactions found"
+                    description="Import a bank statement to view transactions here."
+                    action={
+                      <Button
+                        size="sm"
+                        onClick={() => navigate({ to: '/banking/transactions/import' })}
+                      >
+                        <Upload size={14} /> Import CSV
+                      </Button>
+                    }
+                  />
+                </td>
+              </tr>
+            ) : (
+              transactions.map((txn) => <TxnRow key={txn.id} txn={txn} />)
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

@@ -73,7 +73,7 @@ export function ApprovalPanel({ entityType, entityId, amount }: ApprovalPanelPro
       <CardHeader>Approval Status</CardHeader>
       <CardContent>
         {notFound && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-zinc-500">No approval required yet.</p>
             <Button size="sm" loading={submit.isPending} onClick={handleSubmit}>
               Submit for Approval
@@ -108,7 +108,7 @@ export function ApprovalPanel({ entityType, entityId, amount }: ApprovalPanelPro
                   key={step.id}
                   className="rounded border border-zinc-200 p-3 dark:border-zinc-700"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                         {step.stepOrder}

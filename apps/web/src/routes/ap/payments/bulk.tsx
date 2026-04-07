@@ -110,11 +110,11 @@ function ManualBatchTab() {
     <div className="space-y-4">
       <Card>
         <CardHeader title="Batch Details" />
-        <CardContent className="flex flex-wrap gap-4">
-          <div className="w-64">
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="w-full sm:w-64">
             <Select label="Bank Account" required options={bankAccountOptions} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} />
           </div>
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <DateInput label="Payment Date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
           </div>
         </CardContent>
@@ -124,17 +124,17 @@ function ManualBatchTab() {
         <CardHeader title="Payment Rows" />
         <CardContent className="space-y-2">
           {rows.map((row, i) => (
-            <div key={i} className="flex flex-wrap items-end gap-2">
-              <div className="w-52">
+            <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_8rem_9rem_1fr]">
+              <div>
                 <Combobox label={i === 0 ? 'Vendor' : undefined} options={vendorOptions} value={row.vendorId} placeholder="Search vendor…" onChange={(value) => updateRow(i, 'vendorId', value)} />
               </div>
-              <div className="w-32">
+              <div>
                 <Input label={i === 0 ? 'Amount' : undefined} type="number" placeholder="0.00" value={row.amount} onChange={(e) => updateRow(i, 'amount', e.target.value)} />
               </div>
-              <div className="w-36">
+              <div>
                 <Input label={i === 0 ? 'Reference' : undefined} placeholder="UTR / Ref" value={row.referenceNumber} onChange={(e) => updateRow(i, 'referenceNumber', e.target.value)} />
               </div>
-              <div className="flex-1 min-w-[160px]">
+              <div>
                 <Input label={i === 0 ? 'Notes' : undefined} placeholder="Optional notes" value={row.notes} onChange={(e) => updateRow(i, 'notes', e.target.value)} />
               </div>
               <button
@@ -148,7 +148,7 @@ function ManualBatchTab() {
             </div>
           ))}
         </CardContent>
-        <CardFooter className="flex items-center justify-between">
+        <CardFooter className="flex flex-wrap gap-2 items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={addRow}>
               <Plus size={16} /> Add Row
@@ -226,11 +226,11 @@ function CsvImportTab() {
     <div className="space-y-4">
       <Card>
         <CardHeader title="1. Select Bank Account & Date" />
-        <CardContent className="flex flex-wrap gap-4">
-          <div className="w-64">
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="w-full sm:w-64">
             <Select label="Bank Account" required options={bankAccountOptions} value={bankAccountId} onChange={(e) => { setBankAccountId(e.target.value); if (step < 2) setStep(2); }} />
           </div>
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <DateInput label="Payment Date" required value={paymentDate} onChange={(e) => { setPaymentDate(e.target.value); if (step < 2) setStep(2); }} />
           </div>
         </CardContent>
@@ -287,7 +287,7 @@ function CsvImportTab() {
               <p className="px-4 py-2 text-xs text-zinc-400">… and {preview.length - 20} more rows</p>
             )}
           </CardContent>
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-wrap gap-2 items-center justify-between">
             <Button variant="outline" onClick={() => { setStep(2); setPreview([]); }}>Back</Button>
             <Button onClick={handleImport} loading={importBatch.isPending}>
               <Upload size={16} /> Import {preview.length} Rows
@@ -321,7 +321,7 @@ function CsvImportTab() {
           {/* Stats */}
           <Card>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{result.created}</p>
                   <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-500">Created</p>

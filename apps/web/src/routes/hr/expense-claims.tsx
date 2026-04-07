@@ -97,13 +97,17 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-2">
             {items.map((item, idx) => (
-              <div key={idx} className="flex items-end gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-                <DateInput label="Date" value={item.expenseDate} onChange={(e) => updateItem(idx, 'expenseDate', e.target.value)} required />
-                <Select label="Category" value={item.category} onChange={(e) => updateItem(idx, 'category', e.target.value)} options={CATEGORY_OPTIONS} />
-                <Input label="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} required placeholder="What was the expense?" />
-                <Input label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(idx, 'amount', e.target.value)} required placeholder="0.00" />
+              <div key={idx} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-[8rem_1fr_1fr_7rem]">
+                  <DateInput label="Date" value={item.expenseDate} onChange={(e) => updateItem(idx, 'expenseDate', e.target.value)} required />
+                  <Select label="Category" value={item.category} onChange={(e) => updateItem(idx, 'category', e.target.value)} options={CATEGORY_OPTIONS} />
+                  <Input label="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} required placeholder="What was the expense?" />
+                  <Input label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(idx, 'amount', e.target.value)} required placeholder="0.00" />
+                </div>
                 {items.length > 1 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500"><Trash2 size={14} /></Button>
+                  <div className="mt-1 flex justify-end">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500"><Trash2 size={14} /></Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -120,9 +124,9 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Detail View ─────────────────────────────────────────────────────────────
+// ─── Detail View (table row) ────────────────────────────────────────────────
 
-function InlineDetail({ claimId, onClose }: { claimId: string; onClose: () => void }) {
+function InlineDetail({ claimId }: { claimId: string }) {
   const { data, isLoading } = useExpenseClaim(claimId);
   const items = data?.data?.items ?? data?.data?.lineItems ?? [];
 
@@ -149,6 +153,42 @@ function InlineDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
         )}
       </td>
     </tr>
+  );
+}
+
+// ─── Detail View (mobile card) ──────────────────────────────────────────────
+
+function MobileDetail({ claimId }: { claimId: string }) {
+  const { data, isLoading } = useExpenseClaim(claimId);
+  const items = data?.data?.items ?? data?.data?.lineItems ?? [];
+
+  return (
+    <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+      {isLoading ? (
+        <div className="space-y-2">
+          {[0, 1].map((i) => <div key={i} className="h-10 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />)}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="py-2 text-sm text-zinc-400">No expense items recorded</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((li, i) => (
+            <div key={i} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{li.description}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+                    <span>{li.expenseDate}</span>
+                    <Badge variant="outline">{li.category}</Badge>
+                  </div>
+                </div>
+                <span className="shrink-0 font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatINR(li.amount)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -179,7 +219,7 @@ export function ExpenseClaimsPage() {
         breadcrumbs={[{ label: 'Expenses' }, { label: 'Claims' }]}
         description="Submit, approve, and reimburse employee expense claims."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('expense-claims.csv', ['Claim#', 'Date', 'Description', 'Amount', 'Status'], claims.map(c => [c.claimNumber, c.claimDate, c.description, String(c.totalAmount), c.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -190,52 +230,105 @@ export function ExpenseClaimsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr><Th>Claim#</Th><Th>Date</Th><Th>Description</Th><Th align="right">Amount</Th><Th>Status</Th><Th align="right">Actions</Th></tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={6} />
-              ) : claims.length === 0 ? (
-                <TableEmpty colSpan={6} message="No expense claims yet." />
-              ) : (
-                claims.map((c) => {
-                  const si = STATUS_BADGE[c.status];
-                  const isExpanded = selectedId === c.id;
-                  return (
-                    <React.Fragment key={c.id}>
-                      <TableRow className={`cursor-pointer ${isExpanded ? 'bg-zinc-50 dark:bg-zinc-800/50' : ''}`} onClick={() => setSelectedId(isExpanded ? null : c.id)}>
-                        <TableCell className="font-mono text-xs">{c.claimNumber}</TableCell>
-                        <TableCell className="text-zinc-500">{c.claimDate}</TableCell>
-                        <TableCell className="max-w-[200px] truncate font-medium">{c.description}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(c.totalAmount)}</TableCell>
-                        <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
-                        <TableCell align="right">
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                            {c.status === 'draft' && (
-                              <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'submit')}><Send size={14} /> Submit</Button>
-                            )}
-                            {c.status === 'submitted' && (
-                              <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
-                            )}
-                            {c.status === 'approved' && (
-                              <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && <InlineDetail claimId={c.id} onClose={() => setSelectedId(null)} />}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Mobile card view */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : claims.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No expense claims yet.</p>
+        ) : (
+          claims.map((c) => {
+            const si = STATUS_BADGE[c.status];
+            const isExpanded = selectedId === c.id;
+            return (
+              <div key={c.id}>
+                <div
+                  className={`cursor-pointer rounded-lg border bg-white p-3 active:bg-zinc-50 dark:bg-zinc-900 dark:active:bg-zinc-800 ${isExpanded ? 'border-indigo-300 dark:border-indigo-700' : 'border-zinc-200 dark:border-zinc-700'}`}
+                  onClick={() => setSelectedId(isExpanded ? null : c.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{c.description}</p>
+                      <p className="font-mono text-xs text-zinc-500">{c.claimNumber}</p>
+                    </div>
+                    <Badge variant={si.variant}>{si.label}</Badge>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">{c.claimDate}</span>
+                    <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{formatINR(c.totalAmount)}</span>
+                  </div>
+                  {(c.status === 'draft' || c.status === 'submitted' || c.status === 'approved') && (
+                    <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                      {c.status === 'draft' && (
+                        <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'submit')}><Send size={14} /> Submit</Button>
+                      )}
+                      {c.status === 'submitted' && (
+                        <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
+                      )}
+                      {c.status === 'approved' && (
+                        <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {isExpanded && <MobileDetail claimId={c.id} />}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr><Th>Claim#</Th><Th>Date</Th><Th>Description</Th><Th align="right">Amount</Th><Th>Status</Th><Th align="right">Actions</Th></tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={6} />
+                ) : claims.length === 0 ? (
+                  <TableEmpty colSpan={6} message="No expense claims yet." />
+                ) : (
+                  claims.map((c) => {
+                    const si = STATUS_BADGE[c.status];
+                    const isExpanded = selectedId === c.id;
+                    return (
+                      <React.Fragment key={c.id}>
+                        <TableRow className={`cursor-pointer ${isExpanded ? 'bg-zinc-50 dark:bg-zinc-800/50' : ''}`} onClick={() => setSelectedId(isExpanded ? null : c.id)}>
+                          <TableCell className="font-mono text-xs">{c.claimNumber}</TableCell>
+                          <TableCell className="text-zinc-500">{c.claimDate}</TableCell>
+                          <TableCell className="max-w-[200px] truncate font-medium">{c.description}</TableCell>
+                          <TableCell align="right" numeric>{formatINR(c.totalAmount)}</TableCell>
+                          <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
+                          <TableCell align="right">
+                            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                              {c.status === 'draft' && (
+                                <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'submit')}><Send size={14} /> Submit</Button>
+                              )}
+                              {c.status === 'submitted' && (
+                                <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
+                              )}
+                              {c.status === 'approved' && (
+                                <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && <InlineDetail claimId={c.id} />}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

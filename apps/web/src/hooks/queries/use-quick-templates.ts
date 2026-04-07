@@ -48,7 +48,7 @@ export interface CreateQuickTemplateInput {
 
 export interface GenerateFromTemplateInput {
   invoiceDate: string;
-  quantities: Array<{ itemId: string; quantity: number }>;
+  quantities: Record<string, number>;
 }
 
 export function useQuickTemplates() {

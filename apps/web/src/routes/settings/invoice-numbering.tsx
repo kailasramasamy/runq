@@ -109,7 +109,7 @@ export function InvoiceNumberingPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Hash size={14} />
               <span>Applies to all new invoices going forward.</span>

@@ -25,15 +25,12 @@ function useBankBalances() {
   });
 }
 
-function AccountTypeLabel({ type }: { type: string }) {
-  const labels: Record<string, string> = {
-    current: 'Current',
-    savings: 'Savings',
-    overdraft: 'Overdraft',
-    cash_credit: 'Cash Credit',
-  };
-  return <span>{labels[type] ?? type}</span>;
-}
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  current: 'Current',
+  savings: 'Savings',
+  overdraft: 'Overdraft',
+  cash_credit: 'Cash Credit',
+};
 
 export function CashPositionWidget() {
   const { data, isLoading } = useBankBalances();
@@ -67,40 +64,74 @@ export function CashPositionWidget() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No bank accounts configured</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  <th className="pb-2 text-left text-xs font-medium text-zinc-500">Account</th>
-                  <th className="pb-2 text-left text-xs font-medium text-zinc-500">Bank</th>
-                  <th className="pb-2 text-left text-xs font-medium text-zinc-500">Type</th>
-                  <th className="pb-2 text-right text-xs font-medium text-zinc-500">Balance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {balances.accounts.map((acct) => (
-                  <tr key={acct.id}>
-                    <td className="py-2 text-zinc-900 dark:text-zinc-100">{acct.name}</td>
-                    <td className="py-2 text-zinc-500 dark:text-zinc-400">{acct.bankName}</td>
-                    <td className="py-2 text-zinc-500 dark:text-zinc-400">
-                      <AccountTypeLabel type={acct.accountType} />
-                    </td>
-                    <td className="py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
-                      {formatINR(parseFloat(acct.currentBalance) || 0)}
+          <>
+            {/* Mobile: card view */}
+            <div className="grid grid-cols-1 gap-3 sm:hidden">
+              {balances.accounts.map((acct) => {
+                const bal = parseFloat(acct.currentBalance) || 0;
+                return (
+                  <div
+                    key={acct.id}
+                    className="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        {acct.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        {acct.bankName} &middot; {ACCOUNT_TYPE_LABELS[acct.accountType] ?? acct.accountType}
+                      </p>
+                    </div>
+                    <span className={`ml-3 shrink-0 font-mono text-sm font-semibold ${bal >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {formatINR(bal)}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="flex justify-between border-t border-zinc-200 pt-2 dark:border-zinc-700">
+                <span className="text-xs font-medium text-zinc-500">Total</span>
+                <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {formatINR(parseFloat(balances.total) || 0)}
+                </span>
+              </div>
+            </div>
+
+            {/* Desktop: table view */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                    <th className="pb-2 text-left text-xs font-medium text-zinc-500">Account</th>
+                    <th className="pb-2 text-left text-xs font-medium text-zinc-500">Bank</th>
+                    <th className="pb-2 text-left text-xs font-medium text-zinc-500">Type</th>
+                    <th className="pb-2 text-right text-xs font-medium text-zinc-500">Balance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {balances.accounts.map((acct) => (
+                    <tr key={acct.id}>
+                      <td className="py-2 text-zinc-900 dark:text-zinc-100">{acct.name}</td>
+                      <td className="py-2 text-zinc-500 dark:text-zinc-400">{acct.bankName}</td>
+                      <td className="py-2 text-zinc-500 dark:text-zinc-400">
+                        {ACCOUNT_TYPE_LABELS[acct.accountType] ?? acct.accountType}
+                      </td>
+                      <td className="py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
+                        {formatINR(parseFloat(acct.currentBalance) || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-zinc-300 dark:border-zinc-700">
+                    <td colSpan={3} className="py-2 text-xs font-medium text-zinc-500">Total</td>
+                    <td className="py-2 text-right font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                      {formatINR(parseFloat(balances.total) || 0)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-zinc-300 dark:border-zinc-700">
-                  <td colSpan={3} className="py-2 text-xs font-medium text-zinc-500">Total</td>
-                  <td className="py-2 text-right font-mono font-semibold text-zinc-900 dark:text-zinc-100">
-                    {formatINR(parseFloat(balances.total) || 0)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                </tfoot>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

@@ -136,7 +136,7 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
       <Card>
         <CardHeader title="Invoice Info" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             <Combobox
               label="Customer"
               required
@@ -181,14 +181,14 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
           <Table noOverflow>
             <TableHeader>
               <tr>
-                <Th className="min-w-[200px]">Item</Th>
-                <Th className="min-w-[180px]">Description</Th>
-                <Th className="min-w-[150px]">HSN/SAC</Th>
-                <Th className="min-w-[100px]">Qty</Th>
-                <Th className="min-w-[120px]">Unit Price</Th>
-                <Th align="right" className="min-w-[100px]">Amount</Th>
-                <Th className="min-w-[130px]">Tax Category</Th>
-                <Th className="min-w-[90px]">GST Rate</Th>
+                <Th className="min-w-[140px]">Item</Th>
+                <Th className="min-w-[120px]">Description</Th>
+                <Th className="min-w-[90px]">HSN/SAC</Th>
+                <Th className="min-w-[70px]">Qty</Th>
+                <Th className="min-w-[90px]">Unit Price</Th>
+                <Th align="right" className="min-w-[80px]">Amount</Th>
+                <Th className="min-w-[100px]">Tax Category</Th>
+                <Th className="min-w-[70px]">GST Rate</Th>
                 <Th className="w-10" />
               </tr>
             </TableHeader>

@@ -63,7 +63,7 @@ interface SummaryProps {
 
 function BatchSummary({ totalCount, totalAmount, approvedCount, approvedAmount }: SummaryProps) {
   return (
-    <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
       <StatsCard title="Total Count" value={totalCount} formatValue={(v) => String(v)} />
       <StatsCard title="Total Amount" value={totalAmount} />
       <StatsCard title="Approved Count" value={approvedCount} formatValue={(v) => String(v)} />
@@ -169,7 +169,7 @@ function QuickVendorForm({ vendorName, onCreated, onCancel }: { vendorName: stri
         <UserPlus size={14} className="mr-1 inline" />
         Quick Vendor Creation — {vendorName}
       </p>
-      <form onSubmit={handleSubmit} className="grid grid-cols-5 gap-3">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-2 sm:grid-cols-5 sm:gap-3">
         <Input label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
         <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" />
         <Input label="Bank A/C No" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
@@ -372,48 +372,108 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
         />
       )}
 
-      <Table>
-        <TableHeader>
-          <tr>
-            <Th>
-              {pendingIds.length > 0 ? (
-                <input
-                  type="checkbox"
-                  checked={selected.length === pendingIds.length && pendingIds.length > 0}
-                  onChange={() => toggleAll(pendingIds)}
-                  className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
-                />
-              ) : null}
-            </Th>
-            <Th>Vendor Name</Th>
-            <Th>Match</Th>
-            <Th align="right">Amount</Th>
-            <Th>Reference</Th>
-            <Th>Reason</Th>
-            <Th>Due Date</Th>
-            <Th>Status</Th>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableSkeleton rows={6} cols={8} />
-          ) : (batch?.instructions ?? []).length === 0 ? (
+      {/* Mobile instruction cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 animate-pulse h-20" />
+        ) : (batch?.instructions ?? []).length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No instructions found</p>
+        ) : (
+          (batch?.instructions ?? []).map((ins) => {
+            const isMatched = ins.vendorId !== null;
+            const isPending = ins.status === 'pending';
+            return (
+              <div key={ins.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {isPending && (
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(ins.id)}
+                        onChange={() => toggleOne(ins.id)}
+                        className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+                      />
+                    )}
+                    <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{ins.vendorName}</span>
+                  </div>
+                  <Badge variant={INSTRUCTION_STATUS_VARIANT[ins.status]} className="capitalize">
+                    {ins.status}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xs">
+                  {isMatched ? (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 size={12} /> Matched
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-red-500">
+                      <XCircle size={12} /> Unmatched
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1.5 text-base font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {formatINR(ins.amount)}
+                </p>
+                {ins.reference && (
+                  <p className="mt-1 font-mono text-xs text-zinc-400">{ins.reference}</p>
+                )}
+                {ins.reason && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{ins.reason}</p>
+                )}
+                {ins.dueDate && (
+                  <p className="mt-1 text-xs text-zinc-400">Due: {ins.dueDate}</p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
             <tr>
-              <td colSpan={8} className="py-8 text-center text-sm text-zinc-500">No instructions found</td>
+              <Th>
+                {pendingIds.length > 0 ? (
+                  <input
+                    type="checkbox"
+                    checked={selected.length === pendingIds.length && pendingIds.length > 0}
+                    onChange={() => toggleAll(pendingIds)}
+                    className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+                  />
+                ) : null}
+              </Th>
+              <Th>Vendor Name</Th>
+              <Th>Match</Th>
+              <Th align="right">Amount</Th>
+              <Th>Reference</Th>
+              <Th>Reason</Th>
+              <Th>Due Date</Th>
+              <Th>Status</Th>
             </tr>
-          ) : (
-            (batch?.instructions ?? []).map((ins) => (
-              <InstructionRow
-                key={ins.id}
-                instruction={ins}
-                checked={selected.includes(ins.id)}
-                onToggle={toggleOne}
-                onVendorCreated={() => {/* batch will be refetched on next query invalidation */}}
-              />
-            ))
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton rows={6} cols={8} />
+            ) : (batch?.instructions ?? []).length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-sm text-zinc-500">No instructions found</td>
+              </tr>
+            ) : (
+              (batch?.instructions ?? []).map((ins) => (
+                <InstructionRow
+                  key={ins.id}
+                  instruction={ins}
+                  checked={selected.includes(ins.id)}
+                  onToggle={toggleOne}
+                  onVendorCreated={() => {/* batch will be refetched on next query invalidation */}}
+                />
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {batch?.source && (
         <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-600">

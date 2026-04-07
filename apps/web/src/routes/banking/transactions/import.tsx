@@ -207,7 +207,7 @@ export function ImportTransactionsPage() {
         <Card>
           <CardHeader title="4. Import Results" />
           <CardContent>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
                 <Check className="mx-auto mb-1 text-emerald-600 dark:text-emerald-400" size={20} />
                 <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">

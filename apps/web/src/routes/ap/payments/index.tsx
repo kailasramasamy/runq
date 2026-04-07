@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { CreditCard, Plus, Download, CheckCircle, XCircle } from 'lucide-react';
 import { useVendorPayments, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
 import { useVendors } from '../../../hooks/queries/use-vendors';
@@ -92,6 +92,7 @@ function PaymentRow({
 }
 
 export function PaymentListPage() {
+  const navigate = useNavigate();
   const [vendorId, setVendorId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -133,7 +134,7 @@ export function PaymentListPage() {
         title="Payments"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Payments' }]}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => window.open(getExportUrl(), '_blank')}
               className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
@@ -162,13 +163,13 @@ export function PaymentListPage() {
                 New Payment
               </button>
             </Link>
-          </>
+          </div>
         }
       />
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 py-3">
-          <div className="w-52">
+        <CardContent className="grid grid-cols-2 gap-3 py-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="col-span-2 sm:w-52">
             <Select
               label="Vendor"
               options={vendorOptions}
@@ -176,14 +177,14 @@ export function PaymentListPage() {
               onChange={(e) => { setVendorId(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <DateInput
               label="From"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <DateInput
               label="To"
               value={dateTo}
@@ -193,6 +194,43 @@ export function PaymentListPage() {
         </CardContent>
       </Card>
 
+      {/* Mobile cards */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : payments.length === 0 ? (
+          <EmptyState
+            icon={CreditCard}
+            title="No payments found"
+            description="Record a new payment against vendor invoices or log an advance payment."
+          />
+        ) : (
+          payments.map((p) => (
+            <div
+              key={p.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => navigate({ to: '/ap/payments/$paymentId', params: { paymentId: p.id } })}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300">{p.id.slice(0, 8)}…</span>
+                <Badge variant={STATUS_VARIANT[p.status]} className="capitalize">{p.status}</Badge>
+              </div>
+              <div className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {p.vendorName ?? p.vendorId.slice(0, 8)}
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{p.paymentDate}</span>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(p.amount)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
@@ -231,6 +269,7 @@ export function PaymentListPage() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       <ConfirmationDialog
         open={!!rejectingId}

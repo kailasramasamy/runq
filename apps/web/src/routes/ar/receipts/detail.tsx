@@ -89,8 +89,8 @@ export function ReceiptDetailPage({ receiptId }: Props) {
       />
 
       {/* Amount hero */}
-      <div className="mb-4 grid grid-cols-3 gap-4">
-        <Card className="col-span-2">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="sm:col-span-2">
           <CardContent className="flex items-center gap-4 py-5">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
               <ArrowDownToLine size={22} className="text-emerald-600 dark:text-emerald-400" />
@@ -140,22 +140,45 @@ export function ReceiptDetailPage({ receiptId }: Props) {
           <Card>
             <CardHeader title="Invoice Allocations" />
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <Th>Invoice #</Th>
-                    <Th align="right">Allocated</Th>
-                    <Th align="right">Invoice Total</Th>
-                    <Th align="right">Invoice Balance</Th>
-                    <Th>Status</Th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {receipt.allocations.map((alloc) => (
-                    <AllocationRow key={alloc.id} alloc={alloc} />
-                  ))}
-                </TableBody>
-              </Table>
+              {/* Mobile cards */}
+              <div className="flex flex-col gap-2 md:hidden p-3">
+                {receipt.allocations.map((alloc) => {
+                  const status = alloc.invoiceStatus ?? 'unknown';
+                  const variant = STATUS_VARIANT[status] ?? 'outline';
+                  return (
+                    <div key={alloc.id} className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300">{alloc.invoiceNumber}</span>
+                        <Badge variant={variant} className="capitalize">{status.replace(/_/g, ' ')}</Badge>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                        <span>Allocated: <span className="font-mono text-zinc-700 dark:text-zinc-300">{formatINR(alloc.amount)}</span></span>
+                        <span>Balance: <span className="font-mono text-zinc-700 dark:text-zinc-300">{formatINR(alloc.invoiceBalanceDue)}</span></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th>Invoice #</Th>
+                      <Th align="right">Allocated</Th>
+                      <Th align="right">Invoice Total</Th>
+                      <Th align="right">Invoice Balance</Th>
+                      <Th>Status</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {receipt.allocations.map((alloc) => (
+                      <AllocationRow key={alloc.id} alloc={alloc} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         )}

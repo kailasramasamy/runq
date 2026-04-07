@@ -116,17 +116,19 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-2">
             {rules.map((rule, idx) => (
-              <div key={idx} className="flex items-end gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <div key={idx} className="grid grid-cols-1 gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900 sm:grid-cols-[2rem_1fr_1fr_1fr_2rem]">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400">
                   {rule.stepOrder}
                 </span>
                 <Select label="Role" value={rule.approverRole} onChange={(e) => updateRule(idx, 'approverRole', e.target.value)} options={ROLE_OPTIONS} required />
                 <Input label="Min Amount" type="number" value={rule.minAmount} onChange={(e) => updateRule(idx, 'minAmount', e.target.value)} placeholder="0" />
                 <Input label="Max Amount" type="number" value={rule.maxAmount} onChange={(e) => updateRule(idx, 'maxAmount', e.target.value)} placeholder="No limit" />
-                {rules.length > 1 && (
+                {rules.length > 1 ? (
                   <Button type="button" variant="ghost" size="sm" onClick={() => removeRule(idx)} className="text-red-500">
                     <Trash2 size={14} />
                   </Button>
+                ) : (
+                  <span />
                 )}
               </div>
             ))}
@@ -189,7 +191,56 @@ export function WorkflowsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
+      {/* Mobile cards */}
+      <div className="space-y-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : workflows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No workflows configured yet.</p>
+        ) : (
+          workflows.map((w) => (
+            <div key={w.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{w.name}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="info">{w.entityType}</Badge>
+                    <Badge variant={w.isActive ? 'success' : 'default'}>
+                      {w.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    <span className="text-xs text-zinc-500">{w.rules?.length ?? 0} step(s)</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={toggle.isPending}
+                    onClick={() => handleToggle(w.id)}
+                    title={w.isActive ? 'Deactivate' : 'Activate'}
+                  >
+                    <Power size={14} className={w.isActive ? 'text-green-600' : 'text-zinc-400'} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDeleteId(w.id)}
+                    title="Delete"
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

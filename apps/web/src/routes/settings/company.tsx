@@ -142,7 +142,7 @@ export function CompanySettingsPage() {
             />
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Building2 size={14} />
               <span>Changes apply to all new documents.</span>
@@ -203,7 +203,7 @@ export function CompanySettingsPage() {
               placeholder="Area, landmark"
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="City"
                 value={city}
@@ -220,7 +220,7 @@ export function CompanySettingsPage() {
 
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Building2 size={14} />
               <span>Changes apply to all new documents.</span>
@@ -248,7 +248,7 @@ export function CompanySettingsPage() {
             />
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Building2 size={14} />
               <span>Appears on invoices and customer portal.</span>

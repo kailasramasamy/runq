@@ -106,56 +106,94 @@ export function FiscalPeriodsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Name</Th>
-                <Th>Start Date</Th>
-                <Th>End Date</Th>
-                <Th>Status</Th>
-                <Th align="right">Actions</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={4} cols={5} />
-              ) : periods.length === 0 ? (
-                <TableEmpty colSpan={5} message="No fiscal periods configured." />
-              ) : (
-                periods.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell>{p.startDate}</TableCell>
-                    <TableCell>{p.endDate}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
-                    </TableCell>
-                    <TableCell align="right">
-                      {p.status === 'open' && (
-                        <div className="flex justify-end gap-1">
-                          <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'closed')} disabled={closePeriod.isPending}>
-                            Close
-                          </Button>
+      {/* Mobile card view */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : periods.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No fiscal periods configured.</p>
+        ) : (
+          periods.map((p) => (
+            <div key={p.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-zinc-900 dark:text-zinc-100">{p.name}</p>
+                <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {p.startDate} — {p.endDate}
+              </p>
+              {(p.status === 'open' || p.status === 'closed') && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {p.status === 'open' && (
+                    <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'closed')} disabled={closePeriod.isPending}>
+                      Close
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'locked')} disabled={closePeriod.isPending}>
+                    <Lock size={12} /> Lock
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Start Date</Th>
+                  <Th>End Date</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Actions</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={4} cols={5} />
+                ) : periods.length === 0 ? (
+                  <TableEmpty colSpan={5} message="No fiscal periods configured." />
+                ) : (
+                  periods.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell>{p.startDate}</TableCell>
+                      <TableCell>{p.endDate}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+                      </TableCell>
+                      <TableCell align="right">
+                        {p.status === 'open' && (
+                          <div className="flex justify-end gap-1">
+                            <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'closed')} disabled={closePeriod.isPending}>
+                              Close
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'locked')} disabled={closePeriod.isPending}>
+                              <Lock size={12} /> Lock
+                            </Button>
+                          </div>
+                        )}
+                        {p.status === 'closed' && (
                           <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'locked')} disabled={closePeriod.isPending}>
                             <Lock size={12} /> Lock
                           </Button>
-                        </div>
-                      )}
-                      {p.status === 'closed' && (
-                        <Button variant="outline" size="sm" onClick={() => handleClose(p.id, 'locked')} disabled={closePeriod.isPending}>
-                          <Lock size={12} /> Lock
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

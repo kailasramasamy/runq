@@ -61,7 +61,7 @@ export function ChequeForm({ onSubmit, isLoading, onCancel }: Props) {
       <Card>
         <CardHeader title="New Cheque" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Cheque Number"
               required

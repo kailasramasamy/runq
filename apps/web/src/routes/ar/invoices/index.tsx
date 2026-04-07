@@ -35,6 +35,34 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
+function InvoiceCard({
+  invoice,
+  onView,
+}: {
+  invoice: SalesInvoiceWithDetails;
+  onView: (id: string) => void;
+}) {
+  const statusInfo = STATUS_BADGE[invoice.status];
+  return (
+    <div
+      className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+      onClick={() => onView(invoice.id)}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{invoice.invoiceNumber}</span>
+        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+      </div>
+      <div className="mt-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        {invoice.customerName}
+      </div>
+      <div className="mt-1 flex items-center text-xs text-zinc-500 dark:text-zinc-400">
+        <span>{invoice.invoiceDate}</span>
+        <span className="ml-auto font-mono text-zinc-900 dark:text-zinc-100">{formatINR(invoice.balanceDue)}</span>
+      </div>
+    </div>
+  );
+}
+
 function InvoiceRow({
   invoice,
   onView,
@@ -101,7 +129,7 @@ export function InvoiceListPage() {
         title="Invoices"
         description="Track sales invoices, payments, and outstanding balances."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('invoices.csv', ['Invoice #', 'Date', 'Due Date', 'Customer', 'Amount', 'Received', 'Balance', 'Status'], invoices.map(inv => [inv.invoiceNumber, inv.invoiceDate, inv.dueDate, inv.customerName, inv.totalAmount, inv.amountReceived, inv.balanceDue, inv.status]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -113,8 +141,8 @@ export function InvoiceListPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative w-48">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
+        <div className="relative col-span-2 sm:w-48">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
@@ -124,7 +152,7 @@ export function InvoiceListPage() {
             className="block w-full rounded-md border border-zinc-300 bg-white py-2 pl-8 pr-3 text-sm text-zinc-900 placeholder-zinc-400 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-indigo-400"
           />
         </div>
-        <div className="w-52">
+        <div className="sm:w-52">
           <Combobox
             options={customerOptions}
             value={customerFilter}
@@ -132,21 +160,21 @@ export function InvoiceListPage() {
             placeholder="All Customers"
           />
         </div>
-        <div className="w-44">
+        <div className="sm:w-44">
           <Select
             options={STATUS_OPTIONS}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-40">
+        <div className="sm:w-40">
           <DateInput
             placeholder="From date"
             value={dateFrom}
             onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="w-40">
+        <div className="sm:w-40">
           <DateInput
             placeholder="To date"
             value={dateTo}
@@ -155,50 +183,83 @@ export function InvoiceListPage() {
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <tr>
-            <Th>Invoice #</Th>
-            <Th>Customer</Th>
-            <Th>Date</Th>
-            <Th>Due Date</Th>
-            <Th align="right">Amount</Th>
-            <Th align="right">Received</Th>
-            <Th align="right">Balance</Th>
-            <Th>Status</Th>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableSkeleton rows={6} cols={8} />
-          ) : invoices.length === 0 ? (
+      {/* Mobile card view */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : invoices.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
+            description={
+              statusFilter || customerFilter
+                ? 'Try adjusting your filters.'
+                : 'Create your first invoice to get started.'
+            }
+            action={
+              !statusFilter && !customerFilter ? (
+                <Button size="sm" onClick={() => navigate({ to: '/ar/invoices/new' })}>
+                  <Plus size={14} /> New Invoice
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          invoices.map((inv) => (
+            <InvoiceCard key={inv.id} invoice={inv} onView={handleView} />
+          ))
+        )}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
             <tr>
-              <td colSpan={8}>
-                <EmptyState
-                  icon={FileText}
-                  title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
-                  description={
-                    statusFilter || customerFilter
-                      ? 'Try adjusting your filters.'
-                      : 'Create your first invoice to get started.'
-                  }
-                  action={
-                    !statusFilter && !customerFilter ? (
-                      <Button size="sm" onClick={() => navigate({ to: '/ar/invoices/new' })}>
-                        <Plus size={14} /> New Invoice
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              </td>
+              <Th>Invoice #</Th>
+              <Th>Customer</Th>
+              <Th>Date</Th>
+              <Th>Due Date</Th>
+              <Th align="right">Amount</Th>
+              <Th align="right">Received</Th>
+              <Th align="right">Balance</Th>
+              <Th>Status</Th>
             </tr>
-          ) : (
-            invoices.map((inv) => (
-              <InvoiceRow key={inv.id} invoice={inv} onView={handleView} />
-            ))
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton rows={6} cols={8} />
+            ) : invoices.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <EmptyState
+                    icon={FileText}
+                    title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
+                    description={
+                      statusFilter || customerFilter
+                        ? 'Try adjusting your filters.'
+                        : 'Create your first invoice to get started.'
+                    }
+                    action={
+                      !statusFilter && !customerFilter ? (
+                        <Button size="sm" onClick={() => navigate({ to: '/ar/invoices/new' })}>
+                          <Plus size={14} /> New Invoice
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                </td>
+              </tr>
+            ) : (
+              invoices.map((inv) => (
+                <InvoiceRow key={inv.id} invoice={inv} onView={handleView} />
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

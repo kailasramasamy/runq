@@ -155,31 +155,27 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-2">
             {items.map((item, idx) => (
-              <div key={idx} className="flex items-end gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-                <div className="w-48 shrink-0">
+              <div key={idx} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Combobox label="Item" options={itemOptions} value={item.itemId} onChange={(v) => selectItem(idx, v)} placeholder="Search item…" />
-                </div>
-                <Input label="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} required placeholder="Description" />
-                <div className="w-36 shrink-0">
+                  <Input label="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} required placeholder="Description" />
                   <HsnSacCombobox label="HSN/SAC" value={item.hsnSacCode} onChange={(code, rate) => {
                     setItems((p) => p.map((it, i) => i === idx ? { ...it, hsnSacCode: code, taxRate: rate != null ? String(rate) : it.taxRate } : it));
                   }} placeholder="HSN…" />
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input label="Qty" type="number" value={item.qty} onChange={(e) => updateItem(idx, 'qty', e.target.value)} required />
+                    <Input label="Unit Price" type="number" value={item.unitPrice} onChange={(e) => updateItem(idx, 'unitPrice', e.target.value)} required placeholder="0.00" />
+                    <Input label="GST%" type="number" value={item.taxRate} onChange={(e) => updateItem(idx, 'taxRate', e.target.value)} placeholder="0" />
+                  </div>
                 </div>
-                <div className="w-20 shrink-0">
-                  <Input label="Qty" type="number" value={item.qty} onChange={(e) => updateItem(idx, 'qty', e.target.value)} required />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                    {formatINR(Number(item.qty || 0) * Number(item.unitPrice || 0))}
+                  </div>
+                  {items.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500"><Trash2 size={14} /></Button>
+                  )}
                 </div>
-                <div className="w-28 shrink-0">
-                  <Input label="Unit Price" type="number" value={item.unitPrice} onChange={(e) => updateItem(idx, 'unitPrice', e.target.value)} required placeholder="0.00" />
-                </div>
-                <div className="w-20 shrink-0">
-                  <Input label="GST%" type="number" value={item.taxRate} onChange={(e) => updateItem(idx, 'taxRate', e.target.value)} placeholder="0" />
-                </div>
-                <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400 whitespace-nowrap pb-2">
-                  {formatINR(Number(item.qty || 0) * Number(item.unitPrice || 0))}
-                </div>
-                {items.length > 1 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500"><Trash2 size={14} /></Button>
-                )}
               </div>
             ))}
           </div>
@@ -306,6 +302,32 @@ function DetailView({ quote, onClose }: { quote: Quote; onClose: () => void }) {
   );
 }
 
+// ─── Quote Card (mobile) ─────────────────────────────────────────────────────
+
+const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
+function QuoteCard({ q, onClick }: { q: Quote; onClick: () => void }) {
+  const si = STATUS_BADGE[q.status];
+  return (
+    <div className={CARD_BASE} onClick={onClick}>
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-zinc-500">{q.quoteNumber}</span>
+        <Badge variant={si.variant}>{si.label}</Badge>
+      </div>
+      <p className="mt-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{q.customerName}</p>
+      <div className="mt-1 flex items-center">
+        <span className="text-xs text-zinc-500">{q.quoteDate}</span>
+        <span className="ml-auto font-mono text-sm">{formatINR(q.totalAmount)}</span>
+      </div>
+      {q.status === 'accepted' && (
+        <div className="mt-1">
+          <Badge variant="success">Ready to convert</Badge>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Quotes Page ─────────────────────────────────────────────────────────────
 
 export function QuotesPage() {
@@ -343,43 +365,58 @@ export function QuotesPage() {
         {selected && <DetailView quote={selected} onClose={() => setSelectedId(null)} />}
       </Modal>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr><Th>Quote#</Th><Th>Date</Th><Th>Customer</Th><Th align="right">Amount</Th><Th>Status</Th><Th>Expiry</Th><Th align="right">Actions</Th></tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={7} />
-              ) : quotes.length === 0 ? (
-                <TableEmpty colSpan={7} message="No quotes yet." />
-              ) : (
-                quotes.map((q) => {
-                  const si = STATUS_BADGE[q.status];
-                  return (
-                    <TableRow key={q.id} className="cursor-pointer" onClick={() => setSelectedId(q.id)}>
-                      <TableCell className="font-mono text-xs">{q.quoteNumber}</TableCell>
-                      <TableCell className="text-zinc-500">{q.quoteDate}</TableCell>
-                      <TableCell className="font-medium">{q.customerName}</TableCell>
-                      <TableCell align="right" numeric>{formatINR(q.totalAmount)}</TableCell>
-                      <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
-                      <TableCell className="text-zinc-500">{q.expiryDate ?? '-'}</TableCell>
-                      <TableCell align="right">
-                        {q.status === 'accepted' && (
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                            <Badge variant="success">Ready to convert</Badge>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Mobile */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))
+          : quotes.length === 0
+            ? <p className="py-8 text-center text-sm text-zinc-500">No quotes yet.</p>
+            : quotes.map((q) => <QuoteCard key={q.id} q={q} onClick={() => setSelectedId(q.id)} />)
+        }
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr><Th>Quote#</Th><Th>Date</Th><Th>Customer</Th><Th align="right">Amount</Th><Th>Status</Th><Th>Expiry</Th><Th align="right">Actions</Th></tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={7} />
+                ) : quotes.length === 0 ? (
+                  <TableEmpty colSpan={7} message="No quotes yet." />
+                ) : (
+                  quotes.map((q) => {
+                    const si = STATUS_BADGE[q.status];
+                    return (
+                      <TableRow key={q.id} className="cursor-pointer" onClick={() => setSelectedId(q.id)}>
+                        <TableCell className="font-mono text-xs">{q.quoteNumber}</TableCell>
+                        <TableCell className="text-zinc-500">{q.quoteDate}</TableCell>
+                        <TableCell className="font-medium">{q.customerName}</TableCell>
+                        <TableCell align="right" numeric>{formatINR(q.totalAmount)}</TableCell>
+                        <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
+                        <TableCell className="text-zinc-500">{q.expiryDate ?? '-'}</TableCell>
+                        <TableCell align="right">
+                          {q.status === 'accepted' && (
+                            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                              <Badge variant="success">Ready to convert</Badge>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

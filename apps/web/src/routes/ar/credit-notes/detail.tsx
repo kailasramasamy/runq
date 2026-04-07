@@ -102,8 +102,8 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
       />
 
       {/* Amount hero */}
-      <div className="mb-4 grid grid-cols-3 gap-4">
-        <Card className="col-span-2">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="sm:col-span-2">
           <CardContent className="flex items-center gap-4 py-5">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30">
               <FileMinus size={22} className="text-violet-600 dark:text-violet-400" />
@@ -134,13 +134,21 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
         <CardHeader title="Credit Note Information" />
         <CardContent>
           <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
-            <DetailRow label="Customer" value={cn.customerId} />
+            <DetailRow label="Customer" value={(cn as any).customerName ?? cn.customerId} />
             <DetailRow label="Issue Date" value={cn.issueDate} />
             <DetailRow label="Status" value={cn.status} />
-            <DetailRow
-              label="Linked Invoice"
-              value={cn.invoiceId ? cn.invoiceId.slice(0, 8) + '…' : undefined}
-            />
+            {cn.invoiceId && (
+              <div>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Linked Invoice</p>
+                <a
+                  href={`/ar/invoices/${cn.invoiceId}`}
+                  className="mt-0.5 text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  View Invoice
+                </a>
+              </div>
+            )}
+            {!cn.invoiceId && <DetailRow label="Linked Invoice" value={undefined} />}
             <div className="col-span-2 sm:col-span-3">
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Reason</p>
               <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{cn.reason}</p>

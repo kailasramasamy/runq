@@ -85,8 +85,8 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <Card>
         <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Input label="Customer Name" required placeholder="Acme Corp Pvt Ltd" {...field('name')} />
           </div>
           <Select
@@ -105,7 +105,7 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
 
       <Card>
         <CardHeader title="Tax Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="GSTIN" placeholder="27AAPFU0939F1ZV" className="uppercase" {...field('gstin')} />
           <Input label="PAN" placeholder="AAPFU0939F" className="uppercase" {...field('pan')} />
         </CardContent>
@@ -113,11 +113,11 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
 
       <Card>
         <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Input label="Address Line 1" placeholder="Building, Street" {...field('addressLine1')} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Input label="Address Line 2" placeholder="Area, Landmark" {...field('addressLine2')} />
           </div>
           <Input label="City" placeholder="Mumbai" {...field('city')} />
@@ -128,7 +128,7 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
 
       <Card>
         <CardHeader title="Payment Terms" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Payment Terms"
             options={PAYMENT_TERMS_OPTIONS}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Inbox } from 'lucide-react';
 import { usePaymentBatches } from '../../../hooks/queries/use-payment-queue';
 import type { PaymentBatch, PaymentBatchStatus } from '@runq/types';
@@ -92,6 +92,7 @@ function BatchRow({ batch }: { batch: PaymentBatch }) {
 }
 
 export function PaymentQueuePage() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
   const [page, setPage] = useState(1);
@@ -114,8 +115,8 @@ export function PaymentQueuePage() {
       />
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 py-3">
-          <div className="w-52">
+        <CardContent className="grid grid-cols-2 gap-3 py-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="sm:w-52">
             <Select
               label="Status"
               options={STATUS_OPTIONS}
@@ -123,7 +124,7 @@ export function PaymentQueuePage() {
               onChange={(e) => { setStatus(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="w-52">
+          <div className="sm:w-52">
             <Input
               label="Source"
               placeholder="e.g. vrindavan-dairy-ops"
@@ -134,6 +135,41 @@ export function PaymentQueuePage() {
         </CardContent>
       </Card>
 
+      {/* Mobile cards */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : batches.length === 0 ? (
+          <EmptyState
+            icon={Inbox}
+            title="No payment batches found"
+            description="External systems will submit payment batches here for Finance approval."
+          />
+        ) : (
+          batches.map((b) => (
+            <div
+              key={b.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => navigate({ to: '/ap/queue/$batchId', params: { batchId: b.id } })}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{b.source}</span>
+                <Badge variant={STATUS_VARIANT[b.status]}>{STATUS_LABEL[b.status]}</Badge>
+              </div>
+              <div className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-400">{b.batchId}</div>
+              <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{b.totalCount} item{b.totalCount !== 1 ? 's' : ''}</span>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(b.totalAmount)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
@@ -166,6 +202,7 @@ export function PaymentQueuePage() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

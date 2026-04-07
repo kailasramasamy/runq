@@ -102,7 +102,7 @@ function ScheduleDetail({ id, onBack }: { id: string; onBack: () => void }) {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         <InfoCard label="Scheduled Date" value={schedule.scheduledDate} />
         <InfoCard label="Status">
           <Badge variant={statusVariant(schedule.status)}>{schedule.status}</Badge>
@@ -361,7 +361,7 @@ export function PaymentSchedulesPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Payment Schedules' }]}
         description="Batch vendor payments into scheduled runs for approval and execution."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('payment-schedules.csv', ['Name', 'Scheduled Date', 'Status', 'Total Amount'], schedules.map(s => [s.name, s.scheduledDate, s.status, String(s.totalAmount ?? 0)]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -375,50 +375,88 @@ export function PaymentSchedulesPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Name</Th>
-                <Th>Scheduled Date</Th>
-                <Th>Status</Th>
-                <Th align="right">Total Amount</Th>
-                <Th align="right">Actions</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={5} />
-              ) : schedules.length === 0 ? (
-                <TableEmpty colSpan={5} message="No payment schedules yet." />
-              ) : (
-                schedules.map((s) => (
-                  <TableRow key={s.id} className="cursor-pointer" onClick={() => setViewingId(s.id)}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>{s.scheduledDate}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
-                    </TableCell>
-                    <TableCell align="right" numeric>
-                      {formatINR(Number(s.totalAmount ?? 0))}
-                    </TableCell>
-                    <TableCell align="right">
-                      <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                        {s.status === 'draft' && (
-                          <Button variant="outline" size="sm" onClick={() => handleApprove(s.id)} disabled={approve.isPending}>
-                            <CheckCircle size={14} /> Approve
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : schedules.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No payment schedules yet.</p>
+        ) : (
+          schedules.map((s) => (
+            <div
+              key={s.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => setViewingId(s.id)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{s.name}</p>
+                <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{s.scheduledDate}</span>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{formatINR(Number(s.totalAmount ?? 0))}</span>
+              </div>
+              {s.status === 'draft' && (
+                <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="outline" size="sm" onClick={() => handleApprove(s.id)} disabled={approve.isPending}>
+                    <CheckCircle size={14} /> Approve
+                  </Button>
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Scheduled Date</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Total Amount</Th>
+                  <Th align="right">Actions</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={5} />
+                ) : schedules.length === 0 ? (
+                  <TableEmpty colSpan={5} message="No payment schedules yet." />
+                ) : (
+                  schedules.map((s) => (
+                    <TableRow key={s.id} className="cursor-pointer" onClick={() => setViewingId(s.id)}>
+                      <TableCell className="font-medium">{s.name}</TableCell>
+                      <TableCell>{s.scheduledDate}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
+                      </TableCell>
+                      <TableCell align="right" numeric>
+                        {formatINR(Number(s.totalAmount ?? 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                          {s.status === 'draft' && (
+                            <Button variant="outline" size="sm" onClick={() => handleApprove(s.id)} disabled={approve.isPending}>
+                              <CheckCircle size={14} /> Approve
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

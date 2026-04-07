@@ -42,6 +42,34 @@ const RECON_LABELS: Record<string, string> = {
   excluded: 'Excluded',
 };
 
+const CARD_BASE = 'rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
+function RecentTxnCard({ txn }: { txn: BankTransaction }) {
+  const isCredit = txn.type === 'credit';
+  return (
+    <div className={CARD_BASE}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {txn.narration ?? '—'}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{txn.transactionDate}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className={`text-sm font-semibold tabular-nums ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+            {isCredit ? '+' : '-'}{formatINR(txn.amount)}
+          </p>
+        </div>
+      </div>
+      <div className="mt-2">
+        <Badge variant={RECON_VARIANT[txn.reconStatus] ?? 'default'}>
+          {RECON_LABELS[txn.reconStatus] ?? txn.reconStatus}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
 function RecentTxnRow({ txn }: { txn: BankTransaction }) {
   const isCredit = txn.type === 'credit';
   return (
@@ -140,7 +168,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
       <Card>
         <CardHeader title="Account Information" />
         <CardContent>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Bank Name
@@ -194,31 +222,47 @@ export function BankAccountDetailPage({ accountId }: Props) {
         />
         <CardContent className="p-0">
           {txnLoading ? (
-            <div className="p-4">
-              <TableSkeleton rows={5} cols={6} />
-            </div>
+            <>
+              <div className="space-y-2 p-4 md:hidden">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+                ))}
+              </div>
+              <div className="hidden p-4 md:block">
+                <TableSkeleton rows={5} cols={6} />
+              </div>
+            </>
           ) : recentTxns.length === 0 ? (
             <p className="px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400">
               No transactions yet. Import a bank statement to get started.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <tr>
-                  <Th>Date</Th>
-                  <Th>Narration</Th>
-                  <Th>Reference</Th>
-                  <Th align="right">Debit</Th>
-                  <Th align="right">Credit</Th>
-                  <Th>Status</Th>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {recentTxns.map((txn) => (
-                  <RecentTxnRow key={txn.id} txn={txn} />
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              {/* Mobile card list */}
+              <div className="space-y-2 p-4 md:hidden">
+                {recentTxns.map((txn) => <RecentTxnCard key={txn.id} txn={txn} />)}
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th>Date</Th>
+                      <Th>Narration</Th>
+                      <Th>Reference</Th>
+                      <Th align="right">Debit</Th>
+                      <Th align="right">Credit</Th>
+                      <Th>Status</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {recentTxns.map((txn) => (
+                      <RecentTxnRow key={txn.id} txn={txn} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

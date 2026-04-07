@@ -29,7 +29,7 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Name" value={customer.name} />
           <DetailField
             label="Type"
@@ -49,7 +49,7 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
 
       <Card>
         <CardHeader title="Tax Info" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="GSTIN" value={customer.gstin} />
           <DetailField label="PAN" value={customer.pan} />
         </CardContent>
@@ -57,7 +57,7 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
 
       <Card>
         <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <DetailField
               label="Address"

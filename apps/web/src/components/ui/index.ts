@@ -12,3 +12,4 @@ export { ToastProvider, useToast } from './toast';
 export { StatsCard } from './stats-card';
 export { Combobox } from './combobox';
 export { HsnSacCombobox } from './hsn-sac-combobox';
+export { Modal } from './modal';

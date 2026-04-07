@@ -321,7 +321,7 @@ export function PriceListsPage() {
         breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists' }]}
         description="Manage selling and buying price lists for different customer/vendor groups."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('price-lists.csv', ['Name', 'Type', 'Currency', 'Apply To', 'Valid From', 'Valid To', 'Items', 'Status'], priceLists.map(p => [p.name, p.type, p.currency, p.applyTo, p.validFrom ?? '', p.validTo ?? '', String(p.itemCount ?? 0), p.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -335,7 +335,39 @@ export function PriceListsPage() {
       {showCreate && !editingId && <PriceListForm onClose={() => setShowCreate(false)} />}
       {editingId && editingPriceList && <PriceListForm priceList={editingPriceList} onClose={() => setEditingId(null)} />}
 
-      <Card>
+      {/* Mobile cards */}
+      {isLoading ? (
+        <div className="space-y-2 md:hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2 md:hidden">
+          {priceLists.map((pl) => (
+            <div
+              key={pl.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => { setShowCreate(false); setEditingId(pl.id); }}
+            >
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{pl.name}</p>
+                <div className="flex gap-1 shrink-0">
+                  <Badge variant={pl.type === 'selling' ? 'success' : 'info'}>{pl.type}</Badge>
+                  <Badge variant={statusVariant(pl.isActive)}>{pl.isActive ? 'Active' : 'Inactive'}</Badge>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-zinc-500">
+                <span>{applyToLabel(pl.applyTo, pl.applyToValue, pl.customerName, pl.vendorName)}</span>
+                <span>{pl.itemCount ?? 0} items</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

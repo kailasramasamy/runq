@@ -32,6 +32,8 @@ import {
 import { PettyCashAccountForm } from '@/components/forms/petty-cash-account-form';
 import { PettyCashTransactionForm } from '@/components/forms/petty-cash-transaction-form';
 
+const CARD_BASE = 'rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
+
 const TXN_TYPE_VARIANT: Record<string, 'danger' | 'success'> = {
   expense: 'danger',
   replenishment: 'success',
@@ -68,6 +70,65 @@ function UtilizationBar({ balance, limit }: { balance: number; limit: number }) 
           )}
           style={{ width: `${pct}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+function TxnCard({
+  txn,
+  accountId,
+  onApprove,
+  onReject,
+}: {
+  txn: PettyCashTransaction;
+  accountId: string;
+  onApprove: (accountId: string, txnId: string) => void;
+  onReject: (accountId: string, txnId: string) => void;
+}) {
+  const isPending = !txn.approvedBy;
+  return (
+    <div className={CARD_BASE}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {txn.description}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+            {txn.transactionDate}
+            {txn.category ? ` · ${CATEGORY_LABELS[txn.category] ?? txn.category}` : ''}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className={`text-sm font-semibold tabular-nums ${txn.type === 'expense' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            {formatINR(txn.amount)}
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <Badge variant={TXN_TYPE_VARIANT[txn.type] ?? 'default'}>
+          {txn.type === 'expense' ? 'Expense' : 'Replenishment'}
+        </Badge>
+        {isPending ? (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onApprove(accountId, txn.id)}
+              className="rounded p-1.5 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400"
+              aria-label="Approve"
+            >
+              <Check size={14} />
+            </button>
+            <button
+              onClick={() => onReject(accountId, txn.id)}
+              className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+              aria-label="Reject"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <Badge variant="success">Approved</Badge>
+        )}
       </div>
     </div>
   );
@@ -236,38 +297,35 @@ function AccountPanel({ account }: { account: PettyCashAccount }) {
           )}
 
           {txnLoading ? (
-            <div className="p-4">
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex gap-4">
-                    <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                    <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                    <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                    <div className="h-4 flex-1 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                  </div>
+            <>
+              <div className="space-y-2 p-4 md:hidden">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
                 ))}
               </div>
-            </div>
+              <div className="hidden p-4 md:block">
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="h-4 flex-1 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : txns.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-zinc-500 dark:text-zinc-400">
               No transactions yet.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <tr>
-                  <Th>Date</Th>
-                  <Th>Type</Th>
-                  <Th align="right">Amount</Th>
-                  <Th>Description</Th>
-                  <Th>Category</Th>
-                  <Th>Actions</Th>
-                </tr>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile card list */}
+              <div className="space-y-2 p-4 md:hidden">
                 {txns.map((txn) => (
-                  <TxnRow
+                  <TxnCard
                     key={txn.id}
                     txn={txn}
                     accountId={account.id}
@@ -275,9 +333,34 @@ function AccountPanel({ account }: { account: PettyCashAccount }) {
                     onReject={handleReject}
                   />
                 ))}
-              </TableBody>
-            </Table>
-            </div>
+              </div>
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th>Date</Th>
+                      <Th>Type</Th>
+                      <Th align="right">Amount</Th>
+                      <Th>Description</Th>
+                      <Th>Category</Th>
+                      <Th>Actions</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {txns.map((txn) => (
+                      <TxnRow
+                        key={txn.id}
+                        txn={txn}
+                        accountId={account.id}
+                        onApprove={handleApprove}
+                        onReject={handleReject}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -310,7 +393,7 @@ export function PettyCashPage() {
         title="Petty Cash"
         description="Manage petty cash funds across locations."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('petty-cash.csv', ['Account', 'Balance', 'Limit', 'Location', 'Status'], accounts.map(a => [a.name, a.currentBalance, a.cashLimit, a.location ?? '', a.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>

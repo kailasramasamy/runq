@@ -60,7 +60,7 @@ export function EarlyDiscountsPage() {
       />
 
       {!isLoading && payments.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
           <SummaryCard label="Discount Opportunities" value={String(withDiscount.length)} variant={withDiscount.length > 0 ? 'success' : 'default'} />
           <SummaryCard label="Potential Savings" value={formatINR(totalSavings)} variant={totalSavings > 0 ? 'success' : 'default'} />
           <SummaryCard label="Total Due (30d)" value={formatINR(totalDue)} />
@@ -75,45 +75,71 @@ export function EarlyDiscountsPage() {
             <BadgePercent size={14} className="mr-1 inline" />
             Active Discount Windows ({withDiscount.length})
           </h3>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <Th>Invoice</Th>
-                    <Th>Vendor</Th>
-                    <Th>Discount Terms</Th>
-                    <Th>Discount Window</Th>
-                    <Th align="right">Balance Due</Th>
-                    <Th align="right">Savings</Th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {withDiscount.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs">{p.invoiceNumber}</TableCell>
-                      <TableCell className="font-medium">{p.vendorName}</TableCell>
-                      <TableCell>
-                        <span className="text-sm">{p.discountPercent}% if paid within {p.discountDays}d</span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={urgencyVariant(p.discountDaysRemaining!)}>
-                          <Clock size={12} className="mr-1" />
-                          {p.discountDaysRemaining}d left
-                        </Badge>
-                      </TableCell>
-                      <TableCell align="right" numeric>{formatINR(p.balanceDue)}</TableCell>
-                      <TableCell align="right" numeric>
-                        <span className="font-semibold text-green-600 dark:text-green-400">
-                          {formatINR(p.savingsAmount!)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          {/* Mobile cards — active discount windows */}
+          <div className="md:hidden space-y-2">
+            {withDiscount.map((p) => (
+              <div key={p.id} className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{p.vendorName}</p>
+                    <p className="font-mono text-xs text-zinc-500">{p.invoiceNumber}</p>
+                  </div>
+                  <Badge variant={urgencyVariant(p.discountDaysRemaining!)}>
+                    <Clock size={12} className="mr-1" />
+                    {p.discountDaysRemaining}d left
+                  </Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>{p.discountPercent}% if paid within {p.discountDays}d</span>
+                  <span className="font-mono text-zinc-700 dark:text-zinc-300">{formatINR(p.balanceDue)}</span>
+                  <span className="font-semibold text-green-600 dark:text-green-400">Save {formatINR(p.savingsAmount!)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table — active discount windows */}
+          <div className="hidden md:block">
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <Th>Invoice</Th>
+                      <Th>Vendor</Th>
+                      <Th>Discount Terms</Th>
+                      <Th>Discount Window</Th>
+                      <Th align="right">Balance Due</Th>
+                      <Th align="right">Savings</Th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {withDiscount.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-mono text-xs">{p.invoiceNumber}</TableCell>
+                        <TableCell className="font-medium">{p.vendorName}</TableCell>
+                        <TableCell>
+                          <span className="text-sm">{p.discountPercent}% if paid within {p.discountDays}d</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={urgencyVariant(p.discountDaysRemaining!)}>
+                            <Clock size={12} className="mr-1" />
+                            {p.discountDaysRemaining}d left
+                          </Badge>
+                        </TableCell>
+                        <TableCell align="right" numeric>{formatINR(p.balanceDue)}</TableCell>
+                        <TableCell align="right" numeric>
+                          <span className="font-semibold text-green-600 dark:text-green-400">
+                            {formatINR(p.savingsAmount!)}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -121,47 +147,81 @@ export function EarlyDiscountsPage() {
       <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
         All Upcoming Payments ({isLoading ? '...' : payments.length})
       </h3>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Invoice</Th>
-                <Th>Vendor</Th>
-                <Th>Due Date</Th>
-                <Th>Status</Th>
-                <Th align="right">Balance Due</Th>
-                <Th>Urgency</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={6} />
-              ) : payments.length === 0 ? (
-                <TableEmpty colSpan={6} message="No unpaid invoices due in the next 30 days." />
-              ) : (
-                payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs">{p.invoiceNumber}</TableCell>
-                    <TableCell className="font-medium">{p.vendorName}</TableCell>
-                    <TableCell className="text-sm">{p.dueDate}</TableCell>
-                    <TableCell>
-                      <Badge variant="default">{p.status.replace('_', ' ')}</Badge>
-                    </TableCell>
-                    <TableCell align="right" numeric>{formatINR(p.balanceDue)}</TableCell>
-                    <TableCell>
-                      <Badge variant={urgencyVariant(p.daysRemaining)}>
-                        {p.daysRemaining < 0 ? <AlertTriangle size={12} className="mr-1" /> : <Clock size={12} className="mr-1" />}
-                        {urgencyLabel(p.daysRemaining)}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Mobile cards — all upcoming payments */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : payments.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No unpaid invoices due in the next 30 days.</p>
+        ) : (
+          payments.map((p) => (
+            <div key={p.id} className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{p.vendorName}</p>
+                  <p className="font-mono text-xs text-zinc-500">{p.invoiceNumber}</p>
+                </div>
+                <Badge variant={urgencyVariant(p.daysRemaining)}>
+                  {p.daysRemaining < 0 ? <AlertTriangle size={12} className="mr-1" /> : <Clock size={12} className="mr-1" />}
+                  {urgencyLabel(p.daysRemaining)}
+                </Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>{p.dueDate}</span>
+                <Badge variant="default">{p.status.replace('_', ' ')}</Badge>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{formatINR(p.balanceDue)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table — all upcoming payments */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>Invoice</Th>
+                  <Th>Vendor</Th>
+                  <Th>Due Date</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Balance Due</Th>
+                  <Th>Urgency</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={6} />
+                ) : payments.length === 0 ? (
+                  <TableEmpty colSpan={6} message="No unpaid invoices due in the next 30 days." />
+                ) : (
+                  payments.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs">{p.invoiceNumber}</TableCell>
+                      <TableCell className="font-medium">{p.vendorName}</TableCell>
+                      <TableCell className="text-sm">{p.dueDate}</TableCell>
+                      <TableCell>
+                        <Badge variant="default">{p.status.replace('_', ' ')}</Badge>
+                      </TableCell>
+                      <TableCell align="right" numeric>{formatINR(p.balanceDue)}</TableCell>
+                      <TableCell>
+                        <Badge variant={urgencyVariant(p.daysRemaining)}>
+                          {p.daysRemaining < 0 ? <AlertTriangle size={12} className="mr-1" /> : <Clock size={12} className="mr-1" />}
+                          {urgencyLabel(p.daysRemaining)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

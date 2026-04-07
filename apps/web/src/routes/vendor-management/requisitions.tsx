@@ -111,7 +111,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-2">
             {items.map((item, idx) => (
-              <div key={idx} className="flex items-end gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <div key={idx} className="flex flex-col gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900 sm:flex-row sm:items-end">
                 <Input label="Item Name" value={item.itemName} onChange={(e) => updateItem(idx, 'itemName', e.target.value)} required placeholder="Item" />
                 <Input label="Qty" type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} required />
                 <Input label="Unit Price" type="number" value={item.estimatedUnitPrice} onChange={(e) => updateItem(idx, 'estimatedUnitPrice', e.target.value)} placeholder="TBD" />
@@ -210,7 +210,7 @@ function EditForm({ requisition, onClose }: { requisition: PurchaseRequisition; 
           </div>
           <div className="space-y-2">
             {items.map((item, idx) => (
-              <div key={idx} className="flex items-end gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <div key={idx} className="flex flex-col gap-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900 sm:flex-row sm:items-end">
                 <Input label="Item Name" value={item.itemName} onChange={(e) => updateItem(idx, 'itemName', e.target.value)} required placeholder="Item" />
                 <Input label="Qty" type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} required />
                 <Input label="Unit Price" type="number" value={item.estimatedUnitPrice} onChange={(e) => updateItem(idx, 'estimatedUnitPrice', e.target.value)} required placeholder="0.00" />
@@ -248,7 +248,7 @@ function DetailView({ requisition, onClose }: { requisition: PurchaseRequisition
         </button>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+      <div className="mb-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-4">
         <div>
           <p className="text-xs text-zinc-500">Vendor</p>
           <p className="font-medium text-zinc-900 dark:text-zinc-100">{requisition.vendorName ?? requisition.vendorId ?? '-'}</p>
@@ -324,7 +324,7 @@ export function RequisitionsPage() {
         breadcrumbs={[{ label: 'Vendor Management' }, { label: 'Requisitions' }]}
         description="Create and approve purchase requisitions before vendor orders."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('purchase-requisitions.csv', ['PR Number', 'Description', 'Vendor', 'Amount', 'Status', 'Requested By'], requisitions.map(r => [r.requisitionNumber, r.description, r.vendorName ?? r.vendorId ?? '', String(r.totalAmount ?? 0), r.status, r.requestedByName ?? r.requestedBy.slice(0, 8)]))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -338,67 +338,121 @@ export function RequisitionsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      {selected && editable && (
-        <EditForm requisition={selected} onClose={() => setSelectedId(null)} />
-      )}
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : requisitions.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No purchase requisitions yet.</p>
+        ) : (
+          requisitions.map((pr) => {
+            const isEditable = pr.status === 'draft' || pr.status === 'pending_approval';
+            const isSelected = selectedId === pr.id;
+            return (
+              <div key={pr.id}>
+                <div
+                  className={`cursor-pointer rounded-lg border bg-white p-3 active:bg-zinc-50 dark:bg-zinc-900 dark:active:bg-zinc-800 ${isSelected ? 'border-indigo-300 dark:border-indigo-700' : 'border-zinc-200 dark:border-zinc-700'}`}
+                  onClick={() => setSelectedId(isSelected ? null : pr.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{pr.description}</p>
+                      <p className="font-mono text-xs text-zinc-500">{pr.requisitionNumber}</p>
+                    </div>
+                    <Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {(pr.vendorName ?? pr.vendorId) && <span>{pr.vendorName ?? pr.vendorId}</span>}
+                    <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{formatINR(Number(pr.totalAmount ?? 0))}</span>
+                    <span>{pr.requestedByName ?? pr.requestedBy.slice(0, 8)}</span>
+                  </div>
+                  {isEditable && (
+                    <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="outline" size="sm" onClick={() => handleApprove(pr.id)} disabled={approve.isPending}>
+                        <CheckCircle size={14} /> Approve
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {isSelected && isEditable && (
+                  <EditForm requisition={pr} onClose={() => setSelectedId(null)} />
+                )}
+                {isSelected && !isEditable && (
+                  <DetailView requisition={pr} onClose={() => setSelectedId(null)} />
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
 
-      {selected && !editable && (
-        <DetailView requisition={selected} onClose={() => setSelectedId(null)} />
-      )}
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <tr>
+                  <Th>PR Number</Th>
+                  <Th>Description</Th>
+                  <Th>Vendor</Th>
+                  <Th align="right">Amount</Th>
+                  <Th>Status</Th>
+                  <Th>Requested By</Th>
+                  <Th align="right">Actions</Th>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={7} />
+                ) : requisitions.length === 0 ? (
+                  <TableEmpty colSpan={7} message="No purchase requisitions yet." />
+                ) : (
+                  requisitions.map((pr) => {
+                    const isEditable = pr.status === 'draft' || pr.status === 'pending_approval';
+                    const isSelected = selectedId === pr.id;
+                    return (
+                      <TableRow
+                        key={pr.id}
+                        className={`cursor-pointer ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
+                        onClick={() => setSelectedId(isSelected ? null : pr.id)}
+                      >
+                        <TableCell className="font-mono text-xs">{pr.requisitionNumber}</TableCell>
+                        <TableCell className="max-w-[200px] truncate font-medium">{pr.description}</TableCell>
+                        <TableCell className="text-zinc-600 dark:text-zinc-400">{pr.vendorName ?? pr.vendorId ?? '-'}</TableCell>
+                        <TableCell align="right" numeric>{formatINR(Number(pr.totalAmount ?? 0))}</TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-zinc-600 dark:text-zinc-400">{pr.requestedByName ?? pr.requestedBy.slice(0, 8)}</TableCell>
+                        <TableCell align="right">
+                          {isEditable && (
+                            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="outline" size="sm" onClick={() => handleApprove(pr.id)} disabled={approve.isPending}>
+                                <CheckCircle size={14} /> Approve
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>PR Number</Th>
-                <Th>Description</Th>
-                <Th>Vendor</Th>
-                <Th align="right">Amount</Th>
-                <Th>Status</Th>
-                <Th>Requested By</Th>
-                <Th align="right">Actions</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={7} />
-              ) : requisitions.length === 0 ? (
-                <TableEmpty colSpan={7} message="No purchase requisitions yet." />
-              ) : (
-                requisitions.map((pr) => {
-                  const isEditable = pr.status === 'draft' || pr.status === 'pending_approval';
-                  return (
-                    <TableRow
-                      key={pr.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelectedId(pr.id)}
-                    >
-                      <TableCell className="font-mono text-xs">{pr.requisitionNumber}</TableCell>
-                      <TableCell className="max-w-[200px] truncate font-medium">{pr.description}</TableCell>
-                      <TableCell className="text-zinc-600 dark:text-zinc-400">{pr.vendorName ?? pr.vendorId ?? '-'}</TableCell>
-                      <TableCell align="right" numeric>{formatINR(Number(pr.totalAmount ?? 0))}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-zinc-600 dark:text-zinc-400">{pr.requestedByName ?? pr.requestedBy.slice(0, 8)}</TableCell>
-                      <TableCell align="right">
-                        {isEditable && (
-                          <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="outline" size="sm" onClick={() => handleApprove(pr.id)} disabled={approve.isPending}>
-                              <CheckCircle size={14} /> Approve
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        {/* Inline detail/edit below table for desktop */}
+        {selected && editable && (
+          <EditForm requisition={selected} onClose={() => setSelectedId(null)} />
+        )}
+        {selected && !editable && (
+          <DetailView requisition={selected} onClose={() => setSelectedId(null)} />
+        )}
+      </div>
     </div>
   );
 }

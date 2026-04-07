@@ -60,7 +60,7 @@ export function BankAccountForm({ onSubmit, isLoading }: Props) {
       <Card>
         <CardHeader title="Account Details" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Account Name"
               required

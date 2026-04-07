@@ -105,7 +105,7 @@ export function VendorListPage() {
         title="Vendors"
         description="Manage your supplier and vendor relationships."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('vendors.csv', ['Name', 'Email', 'Phone', 'GSTIN', 'Category', 'Payment Terms', 'Status'], vendors.map(v => [v.name, v.email ?? '', v.phone ?? '', v.gstin ?? '', formatCategory(v.category), `Net ${v.paymentTermsDays}d`, v.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -121,8 +121,8 @@ export function VendorListPage() {
         }
       />
 
-      <div className="mb-4 flex items-end gap-3">
-        <div className="w-72">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <div className="relative col-span-2 sm:w-72">
           <Input
             placeholder="Search vendors…"
             value={search}
@@ -131,7 +131,7 @@ export function VendorListPage() {
           />
           <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
         </div>
-        <div className="w-48">
+        <div className="col-span-2 sm:w-48">
           <Select
             label=""
             options={CATEGORY_OPTIONS}
@@ -141,6 +141,64 @@ export function VendorListPage() {
         </div>
       </div>
 
+      {/* Mobile cards */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : vendors.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={search ? 'No vendors match your search' : 'No vendors yet'}
+            description={search ? 'Try a different search term.' : 'Add your first vendor to get started.'}
+            action={
+              !search ? (
+                <Button size="sm" onClick={() => navigate({ to: '/ap/vendors/new' })}>
+                  <Plus size={14} /> New Vendor
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          vendors.map((v) => (
+            <div
+              key={v.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => handleView(v.id)}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{v.name}</span>
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleView(v.id)}
+                    className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    aria-label="View vendor"
+                  >
+                    <Eye size={15} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteId(v.id)}
+                    className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                    aria-label="Delete vendor"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+              <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{v.email ?? '—'}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Badge variant={v.isActive ? 'success' : 'default'}>{v.isActive ? 'Active' : 'Inactive'}</Badge>
+                {v.category && <Badge variant="outline">{formatCategory(v.category)}</Badge>}
+                <span>Net {v.paymentTermsDays}d</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
@@ -181,6 +239,7 @@ export function VendorListPage() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       {totalPages > 1 && (
         <div className="mt-4">

@@ -29,11 +29,26 @@ export function WebhooksPage() {
       {showForm && <CreateForm onDone={() => setShowForm(false)} />}
 
       {isLoading ? (
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))}
+        </div>
       ) : endpoints.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-sm text-zinc-400">No webhook endpoints configured.</CardContent></Card>
       ) : (
-        <EndpointsTable endpoints={endpoints} />
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {endpoints.map((ep) => (
+              <MobileEndpointCard key={ep.id} ep={ep} />
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <EndpointsTable endpoints={endpoints} />
+          </div>
+        </>
       )}
     </div>
   );
@@ -89,7 +104,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <label className="text-sm font-medium mb-2 block">Events</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {EVENT_TYPES.map((et) => (
                 <label key={et} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={events.includes(et)} onChange={() => toggle(et)} className="rounded border-zinc-300" />
@@ -102,6 +117,52 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function MobileEndpointCard({ ep }: { ep: WebhookEndpoint }) {
+  const del = useDeleteWebhookEndpoint();
+  const test = useTestWebhook();
+  const { toast } = useToast();
+
+  function handleTest() {
+    test.mutate(ep.id, {
+      onSuccess: () => toast('Test ping sent', 'success'),
+      onError: () => toast('Test failed', 'error'),
+    });
+  }
+
+  function handleDelete() {
+    if (!confirm('Delete this webhook endpoint?')) return;
+    del.mutate(ep.id);
+  }
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-mono text-xs break-all text-zinc-900 dark:text-zinc-100">{ep.url}</p>
+          {ep.description && <p className="text-xs text-zinc-400 mt-0.5">{ep.description}</p>}
+          <div className="mt-1 flex flex-wrap gap-1">
+            {ep.events.slice(0, 3).map((e) => (
+              <Badge key={e} variant="secondary" className="text-[10px] font-mono">{e}</Badge>
+            ))}
+            {ep.events.length > 3 && <Badge variant="secondary" className="text-[10px]">+{ep.events.length - 3}</Badge>}
+          </div>
+        </div>
+        <Badge variant={ep.isActive ? 'default' : 'secondary'} className="shrink-0">
+          {ep.isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      </div>
+      <div className="mt-2 flex justify-end gap-1">
+        <Button variant="ghost" size="sm" onClick={handleTest} title="Send test ping">
+          <Play className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={handleDelete} title="Delete">
+          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+        </Button>
+      </div>
+    </div>
   );
 }
 

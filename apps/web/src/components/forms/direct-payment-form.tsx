@@ -86,8 +86,8 @@ export function DirectPaymentForm({ onSubmit, isLoading }: Props) {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Card>
         <CardHeader title="Payment Details" />
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <Combobox
               label="Vendor"
               required
@@ -137,7 +137,7 @@ export function DirectPaymentForm({ onSubmit, isLoading }: Props) {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Textarea
               label="Notes"
               placeholder="Optional notes"

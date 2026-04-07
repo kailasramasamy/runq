@@ -98,37 +98,50 @@ export function CollectionsPage() {
 
       {showForm && <AssignForm onSuccess={() => { setShowForm(false); toast('Assignment created.', 'success'); }} />}
 
-      <Table>
-        <TableHeader>
-          <tr>
-            <Th>Invoice</Th>
-            <Th>Customer</Th>
-            <Th align="right">Balance Due</Th>
-            <Th>Assigned To</Th>
-            <Th>Status</Th>
-            <Th>Follow-up</Th>
-            <Th>Notes</Th>
-            <Th>Actions</Th>
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableSkeleton rows={4} cols={8} />
-          ) : assignments.length === 0 ? (
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))
+          : assignments.length === 0
+            ? <EmptyState icon={ClipboardList} title="No collection assignments" description="Assign overdue invoices to your team for follow-up." />
+            : assignments.map((a) => <AssignmentCard key={a.id} assignment={a} />)
+        }
+      </div>
+
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
             <tr>
-              <td colSpan={8}>
-                <EmptyState
-                  icon={ClipboardList}
-                  title="No collection assignments"
-                  description="Assign overdue invoices to your team for follow-up."
-                />
-              </td>
+              <Th>Invoice</Th>
+              <Th>Customer</Th>
+              <Th align="right">Balance Due</Th>
+              <Th>Assigned To</Th>
+              <Th>Status</Th>
+              <Th>Follow-up</Th>
+              <Th>Notes</Th>
+              <Th>Actions</Th>
             </tr>
-          ) : (
-            assignments.map((a) => <AssignmentRow key={a.id} assignment={a} />)
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton rows={4} cols={8} />
+            ) : assignments.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <EmptyState
+                    icon={ClipboardList}
+                    title="No collection assignments"
+                    description="Assign overdue invoices to your team for follow-up."
+                  />
+                </td>
+              </tr>
+            ) : (
+              assignments.map((a) => <AssignmentRow key={a.id} assignment={a} />)
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -171,7 +184,7 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
       <CardHeader title="Assign Invoice for Collection" />
       <form onSubmit={handleSubmit}>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Combobox
               label="Overdue Invoice"
               options={invoiceOptions}
@@ -214,11 +227,10 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function AssignmentRow({ assignment }: { assignment: CollectionAssignment }) {
+function useAssignmentActions(assignment: CollectionAssignment) {
   const navigate = useNavigate();
   const updateMutation = useUpdateAssignment();
   const { toast } = useToast();
-  const badge = STATUS_BADGE[assignment.status] ?? STATUS_BADGE.open;
 
   function handleStatusChange(newStatus: string) {
     updateMutation.mutate(
@@ -230,11 +242,57 @@ function AssignmentRow({ assignment }: { assignment: CollectionAssignment }) {
     );
   }
 
+  function goToInvoice() {
+    navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } });
+  }
+
+  return { handleStatusChange, goToInvoice };
+}
+
+function AssignmentCard({ assignment }: { assignment: CollectionAssignment }) {
+  const { handleStatusChange, goToInvoice } = useAssignmentActions(assignment);
+  const badge = STATUS_BADGE[assignment.status] ?? STATUS_BADGE.open;
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={goToInvoice}
+          className="flex items-center gap-1 font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+        >
+          {assignment.invoiceNumber}
+          <ExternalLink size={12} />
+        </button>
+        <Badge variant={badge.variant}>{badge.label}</Badge>
+      </div>
+      <div className="mt-1 text-sm text-zinc-800 dark:text-zinc-200">{assignment.customerName}</div>
+      <div className="mt-0.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+        <span>{assignment.assigneeName}</span>
+        <span>{assignment.followUpDate ?? '—'}</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <span className="font-mono text-sm font-medium text-red-600 dark:text-red-400">
+          {formatINR(assignment.balanceDue)}
+        </span>
+        <Select
+          options={STATUS_OPTIONS}
+          value={assignment.status}
+          onChange={(e) => handleStatusChange(e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AssignmentRow({ assignment }: { assignment: CollectionAssignment }) {
+  const { handleStatusChange, goToInvoice } = useAssignmentActions(assignment);
+  const badge = STATUS_BADGE[assignment.status] ?? STATUS_BADGE.open;
+
   return (
     <TableRow>
       <TableCell>
         <button
-          onClick={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } })}
+          onClick={goToInvoice}
           className="flex items-center gap-1 font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
         >
           {assignment.invoiceNumber}

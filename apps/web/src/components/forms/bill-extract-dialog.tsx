@@ -227,7 +227,7 @@ function PreviewState({ result, onUse, onCancel }: {
       <ConfidenceBadge confidence={extracted.confidence} />
 
       <Card>
-        <CardContent className="grid grid-cols-2 gap-3 text-sm">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Field label="Vendor" value={extracted.vendorName} />
           <Field label="GSTIN" value={extracted.vendorGstin} />
           <Field label="Invoice #" value={extracted.invoiceNumber} />

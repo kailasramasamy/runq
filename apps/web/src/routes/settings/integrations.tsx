@@ -62,8 +62,8 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           <X size={14} />
         </button>
       </div>
-      <form onSubmit={handleSubmit} className="flex items-end gap-3">
-        <div className="w-64">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="w-full sm:w-64">
           <Select label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)} options={PROVIDER_OPTIONS} required />
         </div>
         <Button type="submit" loading={create.isPending} size="sm"><Plus size={14} /> Add</Button>
@@ -118,7 +118,59 @@ export function IntegrationsPage() {
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
-      <Card>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))
+        ) : integrations.length === 0 ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 text-sm text-zinc-500 text-center">
+            No integrations configured yet.
+          </div>
+        ) : (
+          integrations.map((int) => (
+            <div key={int.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium capitalize text-zinc-900 dark:text-zinc-100">
+                    {int.provider.replace('_', ' ')}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Last sync: {int.lastSyncAt ? new Date(int.lastSyncAt).toLocaleString() : 'Never'}
+                  </p>
+                </div>
+                <Badge variant={int.isActive ? 'success' : 'default'}>
+                  {int.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+              <div className="mt-2 flex justify-end gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleToggle(int.id, int.isActive)}
+                  disabled={updateIntegration.isPending}
+                >
+                  {int.isActive ? 'Deactivate' : 'Activate'}
+                </Button>
+                {int.isActive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSync(int.id)}
+                    disabled={triggerSync.isPending}
+                  >
+                    <RefreshCw size={14} /> Sync
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

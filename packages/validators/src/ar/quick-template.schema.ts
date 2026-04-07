@@ -7,7 +7,7 @@ const quickTemplateItemSchema = z.object({
   unitPrice: z.number().nonnegative(),
   taxRate: z.number().min(0).max(100).nullish(),
   taxCategory: z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated']).nullish(),
-  defaultQuantity: z.number().positive(),
+  defaultQuantity: z.number().nonnegative(),
 });
 
 export const createQuickTemplateSchema = z.object({

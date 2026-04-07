@@ -64,7 +64,7 @@ export function TallyExportPage() {
               Download a Tally-compatible XML file containing sales invoices, purchase invoices, vendor payments, and customer receipts for the selected date range.
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="From Date"
                 type="date"
@@ -84,7 +84,7 @@ export function TallyExportPage() {
             )}
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Download size={14} />
               <span>Downloads as XML. Import into Tally after importing ledgers.</span>
@@ -104,7 +104,7 @@ export function TallyExportPage() {
             </p>
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between">
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <FileDown size={14} />
               <span>Import ledgers before vouchers to avoid import errors.</span>

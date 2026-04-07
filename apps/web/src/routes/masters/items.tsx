@@ -146,7 +146,7 @@ function ItemForm({ item, onClose }: { item?: Item; onClose: () => void }) {
       {/* Pricing */}
       <fieldset className="space-y-3">
         <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Pricing</legend>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
           <Input label="Selling Price" type="number" value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="0.00" />
           <Input label="Purchase Price" type="number" value={defaultPurchasePrice} onChange={(e) => setDefaultPurchasePrice(e.target.value)} placeholder="0.00" />
           <Input label="MRP" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="0.00" />
@@ -216,7 +216,7 @@ export function ItemsPage() {
         breadcrumbs={[{ label: 'Masters' }, { label: 'Items' }]}
         description="Manage products and services used across invoices and bills."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('items.csv', ['Name', 'SKU', 'Type', 'HSN/SAC', 'Unit', 'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'GST%', 'Category', 'Subcategory', 'Status'], items.map(i => [i.name, i.sku ?? '', i.type, i.hsnSacCode ?? '', i.unit ?? '', String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''), String(i.mrp ?? ''), String(i.costPrice ?? ''), String(i.gstRate ?? ''), i.category ?? '', i.subcategory ?? '', i.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -237,7 +237,42 @@ export function ItemsPage() {
         {editingItem && <ItemForm key={editingItem.id} item={editingItem} onClose={() => setEditingId(null)} />}
       </Modal>
 
-      <Card>
+      {/* Mobile cards */}
+      {isLoading ? (
+        <div className="space-y-2 md:hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2 md:hidden">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
+              onClick={() => setEditingId(item.id)}
+            >
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.name}</p>
+                  {item.sku && <p className="font-mono text-xs text-zinc-400">{item.sku}</p>}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
+                  <Badge variant={statusVariant(item.isActive)}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-zinc-500">
+                <span>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '—'}</span>
+                {item.gstRate != null && <span>GST {item.gstRate}%</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Desktop table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

@@ -110,12 +110,12 @@ export function EmailProviderPage() {
           )}
 
           {provider === 'smtp' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="SMTP Host" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required placeholder="smtp.gmail.com" />
               <Input label="Port" type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} required />
               <Input label="Username" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="user@example.com" />
               <Input label="Password" type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
-              <label className="col-span-2 flex items-center gap-2 text-sm">
+              <label className="sm:col-span-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="rounded" />
                 Use SSL/TLS (port 465)
               </label>
@@ -127,7 +127,7 @@ export function EmailProviderPage() {
       {provider && (
         <Card>
           <CardHeader title="Sender Details" />
-          <CardContent className="grid grid-cols-2 gap-4">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="From Email" type="email" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="billing@yourcompany.com" />
             <Input label="From Name" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Your Company Name" />
           </CardContent>
@@ -142,7 +142,7 @@ export function EmailProviderPage() {
         <Card>
           <CardHeader title="Test Configuration" />
           <CardContent>
-            <div className="flex gap-2 items-end">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <Input
                 label="Send test email to"
                 type="email"

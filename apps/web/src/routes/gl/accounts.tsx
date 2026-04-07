@@ -111,7 +111,7 @@ function CreateAccountModal({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Modal open={open} onClose={onClose} title="New Account">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Code" required placeholder="e.g. 5010" value={code} onChange={(e) => setCode(e.target.value)} />
           <Select label="Type" value={type} onChange={(e) => setType(e.target.value)} options={TYPE_OPTIONS} />
         </div>
@@ -185,7 +185,7 @@ export function ChartOfAccountsPage() {
         title="Chart of Accounts"
         description="Indian COA based on Schedule III of Companies Act."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('chart-of-accounts.csv', ['Code', 'Name', 'Type', 'Status'], accountList.map(a => [a.code, a.name, a.type, a.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>
@@ -197,26 +197,62 @@ export function ChartOfAccountsPage() {
       />
 
       {isLoading ? (
-        <table className="w-full"><tbody><TableSkeleton rows={10} /></tbody></table>
+        <>
+          <div className="space-y-2 md:hidden">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <table className="w-full"><tbody><TableSkeleton rows={10} /></tbody></table>
+          </div>
+        </>
       ) : accountList.length === 0 ? (
         <EmptyState icon={BookOpen} title="No accounts found" description="Seed the chart of accounts to get started." />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <Th>Code</Th>
-              <Th>Name</Th>
-              <Th>Type</Th>
-              <Th>Description</Th>
-              <Th className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          {/* Mobile cards */}
+          <div className="space-y-2 md:hidden">
             {accountList.map((account) => (
-              <AccountRow key={account.id} account={account} onEdit={setEditAccount} />
+              <div
+                key={account.id}
+                className={`cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800 ${!account.isActive ? 'opacity-50' : ''}`}
+                onClick={() => !account.isSystemAccount && setEditAccount(account)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-zinc-400">{account.code}</p>
+                    <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">{account.name}</p>
+                    {account.description && (
+                      <p className="text-xs text-zinc-400 truncate mt-0.5">{account.description}</p>
+                    )}
+                  </div>
+                  <Badge variant={TYPE_VARIANT[account.type]}>{account.type}</Badge>
+                </div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Code</Th>
+                  <Th>Name</Th>
+                  <Th>Type</Th>
+                  <Th>Description</Th>
+                  <Th className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountList.map((account) => (
+                  <AccountRow key={account.id} account={account} onEdit={setEditAccount} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
 
       <CreateAccountModal open={showCreate} onClose={() => setShowCreate(false)} />
