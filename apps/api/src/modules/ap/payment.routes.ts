@@ -17,6 +17,7 @@ import { payments } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { PaymentService } from './payment.service';
+import { GLService } from '../gl/gl.service';
 import { PrioritizeService } from './prioritize.service';
 import { getBankFeedProvider } from '../../utils/banking';
 
@@ -93,6 +94,14 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const service = new PaymentService(request.server.db, request.tenantId);
       const payment = await service.createPayment(input, request.user.userId);
 
+      const gl = new GLService(request.server.db, request.tenantId);
+      void gl.postPayment({
+        amount: payment.amount,
+        date: payment.paymentDate,
+        id: payment.id,
+        vendorName: payment.vendorName,
+      });
+
       const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
       void webhooks.deliver('payment.created', {
         paymentId: payment.id,
@@ -112,6 +121,15 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const input = createDirectPaymentSchema.parse(request.body);
       const service = new PaymentService(request.server.db, request.tenantId);
       const payment = await service.createDirectPayment(input);
+
+      const gl = new GLService(request.server.db, request.tenantId);
+      void gl.postPayment({
+        amount: payment.amount,
+        date: payment.paymentDate,
+        id: payment.id,
+        vendorName: payment.vendorName,
+      });
+
       return reply.status(201).send({ data: payment });
     },
   );
