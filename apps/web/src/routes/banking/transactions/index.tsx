@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Upload, Sparkles, RefreshCw } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
@@ -40,7 +40,8 @@ const RECON_LABELS: Record<ReconStatus, string> = {
   excluded: 'Excluded',
 };
 
-function TxnRow({ txn }: { txn: BankTransaction }) {
+// FE-03: Virtual scrolling needed here — add @tanstack/react-virtual when list grows large.
+const TxnRow = memo(function TxnRow({ txn }: { txn: BankTransaction }) {
   const isCredit = txn.type === 'credit';
   return (
     <TableRow>
@@ -91,7 +92,7 @@ function TxnRow({ txn }: { txn: BankTransaction }) {
       </TableCell>
     </TableRow>
   );
-}
+});
 
 export function TransactionsPage() {
   const navigate = useNavigate();

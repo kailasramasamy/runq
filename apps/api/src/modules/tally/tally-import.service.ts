@@ -1,5 +1,5 @@
 import { eq, and } from 'drizzle-orm';
-import { accounts, vendors, customers, bankAccounts } from '@runq/db';
+import { accounts, vendors, customers, bankAccounts, salesInvoices, purchaseInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
 
@@ -198,7 +198,6 @@ export class TallyImportService {
 
         // Create sales invoice as "sent" with the outstanding balance
         try {
-          const { salesInvoices } = await import('@runq/db');
           const invNum = invoiceNumber || `TALLY-AR-${String(created + 1).padStart(4, '0')}`;
           const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
           const due = this.parseDate(dueDate) || invDate;
@@ -284,7 +283,6 @@ export class TallyImportService {
         }
 
         try {
-          const { purchaseInvoices } = await import('@runq/db');
           const invNum = invoiceNumber || `TALLY-AP-${String(created + 1).padStart(4, '0')}`;
           const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
           const due = this.parseDate(dueDate) || invDate;

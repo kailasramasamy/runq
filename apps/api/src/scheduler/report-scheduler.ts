@@ -1,19 +1,37 @@
 import { eq, and, lte, sql } from 'drizzle-orm';
-import { scheduledReports, tenants } from '@runq/db';
+import { scheduledReports, recurringInvoiceTemplates, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
+import type { Redis } from 'ioredis';
 import type { TenantSettings } from '@runq/types';
 import { createEmailProvider } from '../utils/email-provider';
 import { sendEmail } from '../utils/email';
 import { ReportRenderer } from '../modules/reports/report-renderer';
 import { computeNextRun } from '../utils/schedule';
+import { RecurringInvoiceService } from '../modules/ar/recurring.service';
+
+interface Logger {
+  info(msg: string, ...args: unknown[]): void;
+  warn(msg: string, ...args: unknown[]): void;
+  error(msg: string, ...args: unknown[]): void;
+}
 
 const INTERVAL_MS = 60_000; // check every minute
 
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
+let recurringHandle: ReturnType<typeof setInterval> | null = null;
 
-export function startReportScheduler(db: Db): void {
-  console.log('Report scheduler: started (checking every 60s)');
-  schedulerHandle = setInterval(() => runDueReports(db).catch((err) => console.error('Scheduler error:', err)), INTERVAL_MS);
+export function startReportScheduler(db: Db, redis: Redis, logger: Logger = console): void {
+  logger.info('Report scheduler: started (checking every 60s)');
+  schedulerHandle = setInterval(
+    () => runDueReports(db, redis, logger).catch((err) => logger.error('Scheduler error:', err)),
+    INTERVAL_MS,
+  );
+
+  logger.info('Recurring invoices: started (checking every 60s)');
+  recurringHandle = setInterval(
+    () => runDueRecurringInvoices(db, logger).catch((err) => logger.error('Recurring invoices error:', err)),
+    INTERVAL_MS,
+  );
 }
 
 export function stopReportScheduler(): void {
@@ -21,9 +39,13 @@ export function stopReportScheduler(): void {
     clearInterval(schedulerHandle);
     schedulerHandle = null;
   }
+  if (recurringHandle) {
+    clearInterval(recurringHandle);
+    recurringHandle = null;
+  }
 }
 
-async function runDueReports(db: Db): Promise<void> {
+async function runDueReports(db: Db, redis: Redis, logger: Logger): Promise<void> {
   const now = new Date();
 
   const dueReports = await db
@@ -37,11 +59,15 @@ async function runDueReports(db: Db): Promise<void> {
     );
 
   for (const report of dueReports) {
+    const lockKey = `lock:scheduler:${report.id}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 120, 'NX');
+    if (!acquired) continue;
+
     try {
-      await executeReport(db, report);
+      await executeReport(db, report, logger);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Scheduler: failed report ${report.id} (${report.name}):`, msg);
+      logger.error(`Scheduler: failed report ${report.id} (${report.name}): ${msg}`);
       await db.update(scheduledReports).set({
         lastRunStatus: 'failed',
         lastError: msg.slice(0, 2000),
@@ -52,11 +78,39 @@ async function runDueReports(db: Db): Promise<void> {
   }
 }
 
+async function runDueRecurringInvoices(db: Db, logger: Logger): Promise<void> {
+  const today = new Date().toISOString().split('T')[0]!;
+
+  const dueTenants = await db
+    .selectDistinct({ tenantId: recurringInvoiceTemplates.tenantId })
+    .from(recurringInvoiceTemplates)
+    .where(and(
+      eq(recurringInvoiceTemplates.status, 'active'),
+      lte(recurringInvoiceTemplates.nextRunDate, today),
+    ));
+
+  for (const { tenantId } of dueTenants) {
+    try {
+      const service = new RecurringInvoiceService(db, tenantId);
+      const { generated, errors } = await service.generateDueInvoices();
+      if (generated > 0) {
+        logger.info(`Recurring invoices: generated ${generated} for tenant ${tenantId}`);
+      }
+      for (const errMsg of errors) {
+        logger.error(`Recurring invoices tenant ${tenantId}: ${errMsg}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`Recurring invoices: failed tenant ${tenantId}: ${msg}`);
+    }
+  }
+}
+
 async function executeReport(
   db: Db,
   report: typeof scheduledReports.$inferSelect,
+  logger: Logger,
 ): Promise<void> {
-  // Get tenant info for email config and company name
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, report.tenantId)).limit(1);
   if (!tenant) throw new Error('Tenant not found');
 
@@ -66,11 +120,9 @@ async function executeReport(
 
   if (recipients.length === 0) throw new Error('No recipients configured');
 
-  // Generate report
   const renderer = new ReportRenderer(db, report.tenantId, companyName);
   const { subject, html, text } = await renderer.render(report.reportType, report.frequency);
 
-  // Send to all recipients
   const provider = createEmailProvider(settings);
   let sentCount = 0;
 
@@ -79,18 +131,16 @@ async function executeReport(
       if (provider) {
         await provider.send({ to, subject, html, text });
       } else {
-        // Fall back to global SMTP from env
         await sendEmail({ to, subject, html, text, fromName: companyName });
       }
       sentCount++;
     } catch (err) {
-      console.error(`Scheduler: failed to send to ${to}:`, err);
+      logger.error(`Scheduler: failed to send to ${to}: ${err}`);
     }
   }
 
   if (sentCount === 0) throw new Error(`Failed to send to all ${recipients.length} recipients`);
 
-  // Mark success and schedule next run
   await db.update(scheduledReports).set({
     lastSentAt: new Date(),
     lastRunStatus: 'success',
@@ -99,7 +149,7 @@ async function executeReport(
     updatedAt: new Date(),
   }).where(eq(scheduledReports.id, report.id));
 
-  console.log(`Scheduler: sent "${report.name}" to ${sentCount}/${recipients.length} recipients`);
+  logger.info(`Scheduler: sent "${report.name}" to ${sentCount}/${recipients.length} recipients`);
 }
 
 // Exported for the "Run Now" API endpoint
@@ -114,5 +164,5 @@ export async function runReportNow(
     .where(and(eq(scheduledReports.id, reportId), eq(scheduledReports.tenantId, tenantId)));
 
   if (!report) throw new Error('Report not found');
-  await executeReport(db, report);
+  await executeReport(db, report, console);
 }

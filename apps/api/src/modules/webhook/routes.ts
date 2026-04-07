@@ -55,7 +55,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
 
     // Try legacy vendor format first (backward compat)
     if ('event' in body && 'vendor' in body) {
-      return handleLegacyVendor(request.server.db, body, reply);
+      return handleLegacyVendor(request.server.db, body, reply, app.log);
     }
 
     // Parse generic envelope
@@ -144,10 +144,12 @@ async function handleLegacyVendor(
   db: Parameters<typeof handlePoCreated>[0],
   body: Record<string, unknown>,
   reply: any,
+  logger: { warn(obj: unknown, msg: string): void },
 ) {
   const parsed = legacyVendorSchema.safeParse(body);
   if (!parsed.success) {
-    return reply.status(202).send({ data: { status: 'accepted' } });
+    logger.warn({ issues: parsed.error.issues }, 'Legacy vendor webhook: invalid payload');
+    return reply.status(422).send({ error: 'Invalid legacy vendor payload', details: parsed.error.issues });
   }
 
   const { tenantId, vendor } = parsed.data;

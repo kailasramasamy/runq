@@ -13,7 +13,7 @@ async function main() {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     app.log.info(`Server running on port ${env.PORT}`);
-    startReportScheduler(app.db);
+    startReportScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

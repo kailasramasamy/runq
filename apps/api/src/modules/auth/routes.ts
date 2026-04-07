@@ -5,6 +5,8 @@ import { loginSchema, registerSchema } from '@runq/validators';
 import argon2 from 'argon2';
 import { UnauthorizedError, ConflictError } from '../../utils/errors';
 
+const DUMMY_HASH = '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJObG';
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', async (request, reply) => {
     const { email, password, tenant: tenantSlug } = loginSchema.parse(request.body);
@@ -18,7 +20,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       .where(and(eq(users.email, email), eq(users.tenantId, tenant.id)))
       .limit(1);
 
-    if (!user || !user.isActive) throw new UnauthorizedError('Invalid credentials');
+    if (!user || !user.isActive) {
+      await argon2.verify(DUMMY_HASH, password);
+      throw new UnauthorizedError('Invalid credentials');
+    }
 
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) throw new UnauthorizedError('Invalid credentials');
@@ -87,7 +92,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post('/logout', async (_request, reply) => {
+  app.post('/logout', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      await request.server.redis.set(`bl:${token}`, '1', 'EX', 86400);
+    }
     return reply.send({ data: { success: true } });
   });
 

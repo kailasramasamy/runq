@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createCustomerSchema,
   updateCustomerSchema,
@@ -8,6 +9,8 @@ import {
   syncCustomersSchema,
   importCustomersCSVSchema,
 } from '@runq/validators';
+
+const verifyGstinBodySchema = z.object({ gstin: z.string().length(15) });
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { CustomerService } from './customer.service';
@@ -96,8 +99,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     '/verify-gstin',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
-      const { gstin } = request.body as { gstin: string };
-      if (!gstin) return { data: null, error: 'GSTIN is required' };
+      const { gstin } = verifyGstinBodySchema.parse(request.body);
 
       const validation = validateGSTIN(gstin);
       if (!validation.valid) return { data: null, error: validation.error };

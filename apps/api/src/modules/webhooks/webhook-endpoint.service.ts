@@ -6,6 +6,10 @@ import { NotFoundError } from '../../utils/errors';
 
 type EndpointRow = typeof webhookEndpoints.$inferSelect;
 
+interface Logger {
+  error(msg: string, ...args: unknown[]): void;
+}
+
 interface CreateInput {
   url: string;
   events: string[];
@@ -24,6 +28,7 @@ export class WebhookEndpointService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
+    private readonly logger: Logger = console,
   ) {}
 
   async list() {
@@ -134,7 +139,7 @@ export class WebhookEndpointService {
         }
       })
       .catch(async (err) => {
-        console.error(`Webhook delivery failed for ${ep.id}:`, err);
+        this.logger.error(`Webhook delivery failed for ${ep.id}:`, err);
         await this.db
           .update(webhookEndpoints)
           .set({ failureCount: (ep.failureCount ?? 0) + 1 })

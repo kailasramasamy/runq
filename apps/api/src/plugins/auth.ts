@@ -24,6 +24,14 @@ export const authPlugin = fp(async (app: FastifyInstance) => {
   app.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const blacklisted = await app.redis.get(`bl:${token}`);
+        if (blacklisted) {
+          return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Token has been invalidated' });
+        }
+      }
     } catch (err) {
       reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Invalid or expired token' });
     }

@@ -52,7 +52,9 @@ export const advancePayments = pgTable('advance_payments', {
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_adv_pay_tenant_vendor').on(t.tenantId, t.vendorId),
+]);
 
 export const advanceAdjustments = pgTable('advance_adjustments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -62,4 +64,7 @@ export const advanceAdjustments = pgTable('advance_adjustments', {
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   adjustedAt: timestamp('adjusted_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_adv_adj_advance').on(t.advanceId),
+  index('idx_adv_adj_invoice').on(t.invoiceId),
+]);

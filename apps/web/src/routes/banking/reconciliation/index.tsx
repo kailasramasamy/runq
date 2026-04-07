@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { RefreshCw, Check, X } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
@@ -316,6 +316,12 @@ export function ReconciliationPage() {
 
   const canMatch = !!(selectedBankTxn && selectedPaymentId);
 
+  // FE-06: O(1) lookup map — avoids O(N²) .find() inside .map()
+  const matchMap = useMemo(
+    () => new Map(suggestedMatches.map((s: any) => [s.transactionId, s])),
+    [suggestedMatches],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -413,7 +419,7 @@ export function ReconciliationPage() {
                   </TableHeader>
                   <TableBody>
                     {unreconciledTxns.map((txn) => {
-                      const txnSuggestions = suggestedMatches.find((s: any) => s.transactionId === txn.id)?.suggestions ?? [];
+                      const txnSuggestions = matchMap.get(txn.id)?.suggestions ?? [];
                       return (
                       <BankTxnRow
                         key={txn.id}

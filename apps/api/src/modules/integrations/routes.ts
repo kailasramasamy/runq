@@ -1,10 +1,19 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createIntegrationSchema,
   updateIntegrationSchema,
   triggerSyncSchema,
   uuidParamSchema,
 } from '@runq/validators';
+
+const tallyImportBodySchema = z.object({
+  company: z.string().min(1).max(255),
+  fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  ledgers: z.array(z.record(z.unknown())).optional(),
+  vouchers: z.array(z.record(z.unknown())).optional(),
+});
 import { rbacHook } from '../../hooks/rbac';
 import { IntegrationService } from './integration.service';
 
@@ -83,10 +92,9 @@ export const integrationRoutes: FastifyPluginAsync = async (app) => {
     '/tally/import',
     { preHandler: [rbacHook([...OWNER_ROLES])] },
     async (request) => {
+      const input = tallyImportBodySchema.parse(request.body);
       const svc = new IntegrationService(request.server.db, request.tenantId);
-      const data = await svc.tallyImport(
-        request.body as Record<string, unknown>,
-      );
+      const data = await svc.tallyImport(input);
       return { data };
     },
   );

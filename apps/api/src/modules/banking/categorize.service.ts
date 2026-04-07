@@ -200,7 +200,8 @@ export class CategorizeService {
         eq(bankTransactions.tenantId, this.tenantId),
         eq(bankTransactions.bankAccountId, bankAccountId),
         isNull(bankTransactions.glAccountId),
-      ));
+      ))
+      .limit(500);
   }
 
   private async fetchGlAccounts(): Promise<GlAccount[]> {
