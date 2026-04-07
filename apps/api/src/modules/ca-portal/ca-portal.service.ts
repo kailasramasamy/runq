@@ -17,7 +17,7 @@ import { ReportsService } from '../reports/reports.service';
 import { TallyService } from '../tally/tally.service';
 import { toNumber } from '../../utils/decimal';
 
-const CA_SECRET = process.env.CA_PORTAL_SECRET || process.env.JWT_SECRET || 'ca-portal-secret';
+const CA_SECRET = process.env.CA_PORTAL_SECRET || process.env.JWT_SECRET!;
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 interface CAPayload {

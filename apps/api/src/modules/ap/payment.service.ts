@@ -268,46 +268,45 @@ export class PaymentService {
   }
 
   async approvePayment(paymentId: string, approvedBy: string): Promise<VendorPayment> {
-    const [payment] = await this.db
-      .select()
-      .from(payments)
-      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
-      .limit(1);
-
-    if (!payment) throw new NotFoundError('Payment');
-    if (payment.status !== 'pending') throw new ConflictError('Only pending payments can be approved');
-
     // Check workflow approval if configured
     const wfSvc = new WorkflowService(this.db, this.tenantId);
     const approved = await wfSvc.isApproved('payment', paymentId);
     if (!approved) throw new ConflictError('Payment requires workflow approval before it can be completed');
 
+    // Atomic status transition: only succeeds if status is currently 'pending'
     const [updated] = await this.db
       .update(payments)
       .set({ status: 'completed', approvedBy, approvedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
+      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId), eq(payments.status, 'pending')))
       .returning();
+
+    if (!updated) {
+      // Either not found or already approved/rejected
+      const [payment] = await this.db.select().from(payments).where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId))).limit(1);
+      if (!payment) throw new NotFoundError('Payment');
+      throw new ConflictError('Only pending payments can be approved');
+    }
 
     await this.audit().log({ userId: approvedBy, action: 'approved', entityType: 'payment', entityId: paymentId });
 
-    const result = this.toPayment(updated!);
+    const result = this.toPayment(updated);
 
     // Post to GL
     const [vendorRow] = await this.db
       .select({ name: vendors.name })
       .from(vendors)
-      .where(eq(vendors.id, payment.vendorId))
+      .where(eq(vendors.id, updated.vendorId))
       .limit(1);
 
     const gl = new GLService(this.db, this.tenantId);
-    void gl.postPayment({
+    await gl.postPayment({
       amount: result.amount,
       date: result.paymentDate,
       id: result.id,
       vendorName: vendorRow?.name ?? '',
     });
 
-    void this.sendPaymentConfirmationEmail(result, payment.vendorId);
+    void this.sendPaymentConfirmationEmail(result, updated.vendorId);
     return result;
   }
 

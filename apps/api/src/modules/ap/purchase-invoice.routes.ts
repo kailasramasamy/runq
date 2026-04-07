@@ -64,7 +64,7 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const invoice = await service.create(input);
 
       const gl = new GLService(request.server.db, request.tenantId);
-      void gl.postPurchaseInvoice({
+      await gl.postPurchaseInvoice({
         totalAmount: invoice.totalAmount,
         date: invoice.invoiceDate,
         id: invoice.id,

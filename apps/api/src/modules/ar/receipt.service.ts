@@ -165,7 +165,7 @@ export class ReceiptService {
 
     // Post to GL
     const gl = new GLService(this.db, this.tenantId);
-    void gl.postReceipt({
+    await gl.postReceipt({
       amount: receiptWithAllocations.amount,
       date: receiptWithAllocations.receiptDate,
       id: receiptWithAllocations.id,

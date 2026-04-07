@@ -143,7 +143,7 @@ export class CreditNoteService {
       .limit(1);
 
     const gl = new GLService(this.db, this.tenantId);
-    void gl.postCreditNote({
+    await gl.postCreditNote({
       amount: toNumber(existing.amount),
       date: row.createdAt.toISOString().split('T')[0],
       id,

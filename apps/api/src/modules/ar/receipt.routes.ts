@@ -40,7 +40,7 @@ export const receiptRoutes: FastifyPluginAsync = async (app) => {
       const receipt = await service.create(input);
 
       const gl = new GLService(request.server.db, request.tenantId);
-      void gl.postReceipt({
+      await gl.postReceipt({
         amount: receipt.amount,
         date: receipt.receiptDate,
         id: receipt.id,

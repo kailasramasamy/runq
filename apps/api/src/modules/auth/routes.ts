@@ -23,7 +23,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) throw new UnauthorizedError('Invalid credentials');
 
-    const token = app.jwt.sign({ userId: user.id, tenantId: tenant.id, role: user.role });
+    const token = app.jwt.sign(
+      { userId: user.id, tenantId: tenant.id, role: user.role },
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+    );
 
     return reply.send({
       data: {
@@ -70,7 +73,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     // Seed standard chart of accounts
     await seedCoaForTenant(app.db, tenant!.id);
 
-    const token = app.jwt.sign({ userId: user!.id, tenantId: tenant!.id, role: 'owner' });
+    const token = app.jwt.sign(
+      { userId: user!.id, tenantId: tenant!.id, role: 'owner' },
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+    );
 
     return reply.status(201).send({
       data: {

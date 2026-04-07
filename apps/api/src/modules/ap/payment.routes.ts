@@ -95,7 +95,7 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const payment = await service.createPayment(input, request.user.userId);
 
       const gl = new GLService(request.server.db, request.tenantId);
-      void gl.postPayment({
+      await gl.postPayment({
         amount: payment.amount,
         date: payment.paymentDate,
         id: payment.id,
@@ -123,7 +123,7 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const payment = await service.createDirectPayment(input);
 
       const gl = new GLService(request.server.db, request.tenantId);
-      void gl.postPayment({
+      await gl.postPayment({
         amount: payment.amount,
         date: payment.paymentDate,
         id: payment.id,

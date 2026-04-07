@@ -33,7 +33,10 @@ export async function buildApp() {
   const app = Fastify({ logger: true });
 
   // CORS
-  await app.register(cors, { origin: true });
+  const corsOrigin = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
+    : true; // Allow all in dev when CORS_ORIGIN is not set
+  await app.register(cors, { origin: corsOrigin, credentials: true });
 
   // Infrastructure plugins
   await app.register(errorHandlerPlugin);

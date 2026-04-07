@@ -4,7 +4,7 @@ import { salesInvoices, customers, receiptAllocations, paymentReceipts, tenants 
 import type { Db } from '@runq/db';
 import { NotFoundError, UnauthorizedError } from '../../utils/errors';
 
-const PORTAL_SECRET = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET || 'portal-secret';
+const PORTAL_SECRET = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET!;
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface PortalPayload {

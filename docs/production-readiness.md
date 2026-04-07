@@ -7,13 +7,13 @@
 
 ## P0 — CRITICAL (Fix before production)
 
-- [ ] **SEC-01** Hardcoded fallback portal secrets (`'portal-secret'`, `'ca-portal-secret'`) — `portal.service.ts:7`, `vendor-portal.service.ts:7`, `ca-portal.service.ts:20` — Remove literal fallbacks, add to env.ts validation
-- [ ] **SEC-02** JWT tokens have no expiry — `auth/routes.ts:26` — Add `expiresIn: '24h'` to JWT sign, implement refresh token flow
-- [ ] **SEC-03** Inbound webhook endpoint has no authentication — `webhook/routes.ts:41-81` — Add HMAC signature verification or shared secret header
-- [ ] **SEC-04** Invoice print accepts arbitrary tenantId from query string — `invoice-print.routes.ts:10-19` — Use authenticated user's tenantId, not query param
-- [ ] **SEC-05** CORS allows all origins (`origin: true`) — `app.ts:36` — Restrict to `CORS_ORIGIN` env var in production
-- [ ] **DATA-01** GL posting is fire-and-forget, failures silently lost — `payment.routes.ts`, `invoice.routes.ts` — Await GL posting inside transaction, or use retry queue
-- [ ] **DATA-02** Double GL posting race condition on concurrent approvals — `payment.service.ts:270-311` — Use `UPDATE ... WHERE status='pending' RETURNING id` atomic pattern
+- [x] **SEC-01** Hardcoded fallback portal secrets (`'portal-secret'`, `'ca-portal-secret'`) — `portal.service.ts:7`, `vendor-portal.service.ts:7`, `ca-portal.service.ts:20` — Remove literal fallbacks, add to env.ts validation
+- [x] **SEC-02** JWT tokens have no expiry — `auth/routes.ts:26` — Add `expiresIn: '24h'` to JWT sign, implement refresh token flow
+- [x] **SEC-03** Inbound webhook endpoint has no authentication — `webhook/routes.ts:41-81` — Add HMAC signature verification or shared secret header
+- [x] **SEC-04** Invoice print accepts arbitrary tenantId from query string — `invoice-print.routes.ts:10-19` — Use authenticated user's tenantId, not query param
+- [x] **SEC-05** CORS allows all origins (`origin: true`) — `app.ts:36` — Restrict to `CORS_ORIGIN` env var in production
+- [x] **DATA-01** GL posting is fire-and-forget, failures silently lost — `payment.routes.ts`, `invoice.routes.ts` — Await GL posting inside transaction, or use retry queue
+- [x] **DATA-02** Double GL posting race condition on concurrent approvals — `payment.service.ts:270-311` — Use `UPDATE ... WHERE status='pending' RETURNING id` atomic pattern
 
 ---
 
@@ -121,3 +121,10 @@ _Move items here as they are fixed._
 
 - [x] **DATA-00** Accrual accounting — GL not posted for payments/receipts/bills (fixed 2026-04-07)
 - [x] **SEC-00** Webhook dispatch wired for all 9 event types (fixed 2026-04-07)
+- [x] **SEC-01** Hardcoded fallback portal secrets removed, env validation added (fixed 2026-04-07)
+- [x] **SEC-02** JWT tokens now expire (24h default, configurable via JWT_EXPIRES_IN) (fixed 2026-04-07)
+- [x] **SEC-03** Inbound webhook endpoint requires X-Webhook-Secret header in production (fixed 2026-04-07)
+- [x] **SEC-04** Invoice print validates tenantId from auth, not query string (fixed 2026-04-07)
+- [x] **SEC-05** CORS restricted to CORS_ORIGIN env var in production (fixed 2026-04-07)
+- [x] **DATA-01** GL postings now awaited (not fire-and-forget) across all routes and services (fixed 2026-04-07)
+- [x] **DATA-02** Payment approval uses atomic UPDATE WHERE status='pending' — no double GL posting (fixed 2026-04-07)

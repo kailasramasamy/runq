@@ -38,8 +38,19 @@ const legacyVendorSchema = z.object({
   }),
 });
 
+function verifyWebhookAuth(request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) {
+  const secret = process.env.WEBHOOK_SHARED_SECRET;
+  if (!secret) return; // No secret configured — skip auth (dev mode)
+  const provided = request.headers['x-webhook-secret'] as string | undefined;
+  if (!provided || provided !== secret) {
+    reply.status(401).send({ error: 'Invalid or missing X-Webhook-Secret header' });
+    throw new Error('Webhook auth failed');
+  }
+}
+
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
   app.post('/wms', async (request, reply) => {
+    verifyWebhookAuth(request, reply);
     const body = request.body as Record<string, unknown>;
 
     // Try legacy vendor format first (backward compat)
