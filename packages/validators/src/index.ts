@@ -27,6 +27,7 @@ export * from './common/attachment.schema';
 export * from './ar/quote.schema';
 export * from './ar/sales-order.schema';
 export * from './ar/recurring.schema';
+export * from './ar/quick-template.schema';
 export * from './banking/cheque.schema';
 export * from './reports/report.schema';
 export * from './workflows/workflow.schema';

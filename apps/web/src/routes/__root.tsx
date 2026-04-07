@@ -89,6 +89,7 @@ import { SalesOrdersPage } from './ar/sales-orders/index';
 import { ExpenseClaimsPage } from './hr/expense-claims';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
+import { QuickTemplatesPage } from './ar/quick-templates';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -347,6 +348,7 @@ const AR_TABS: Array<{ label: string; path: string | null }> = [
   { label: 'Credit Notes', path: '/ar/credit-notes' },
   { label: 'Dunning', path: '/ar/dunning' },
   { label: 'Collections', path: '/ar/collections' },
+  { label: 'Quick Templates', path: '/ar/quick-templates' },
 ];
 
 function ArNav() {
@@ -363,7 +365,7 @@ function ArNav() {
           path ? (
             <Link
               key={label}
-              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning' | '/ar/collections'}
+              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning' | '/ar/collections' | '/ar/quick-templates'}
               className={[
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
                 current.startsWith(path)
@@ -523,6 +525,12 @@ const salesOrdersRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/sales-orders',
   component: SalesOrdersPage,
+});
+
+const quickTemplatesRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quick-templates',
+  component: QuickTemplatesPage,
 });
 
 // ─── Banking Sub-navigation ───────────────────────────────────────────────────
@@ -1312,6 +1320,7 @@ export const routeTree = rootRoute.addChildren([
       quotesRoute,
       salesOrdersRoute,
       collectionsRoute,
+      quickTemplatesRoute,
     ]),
     bankingRoute.addChildren([
       bankingIndexRoute,

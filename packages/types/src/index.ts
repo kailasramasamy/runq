@@ -28,6 +28,7 @@ export * from './common/attachment';
 export * from './ar/quote';
 export * from './ar/sales-order';
 export * from './ar/recurring-invoice';
+export * from './ar/quick-template';
 export * from './banking/cheque';
 export * from './reports';
 export * from './workflow';

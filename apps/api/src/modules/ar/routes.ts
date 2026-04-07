@@ -8,6 +8,7 @@ import { recurringRoutes } from './recurring.routes';
 import { collectionRoutes } from './collection.routes';
 import { quoteRoutes } from './quote.routes';
 import { salesOrderRoutes } from './sales-order.routes';
+import { quickTemplateRoutes } from './quick-template.routes';
 
 export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(customerRoutes, { prefix: '/customers' });
@@ -19,4 +20,5 @@ export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(collectionRoutes, { prefix: '/collections' });
   await app.register(quoteRoutes, { prefix: '/quotes' });
   await app.register(salesOrderRoutes, { prefix: '/sales-orders' });
+  await app.register(quickTemplateRoutes, { prefix: '/quick-templates' });
 };
