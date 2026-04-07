@@ -17,9 +17,14 @@ export function WebhooksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Webhook Endpoints" icon={Zap}>
-        <Button onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancel' : 'Add Endpoint'}</Button>
-      </PageHeader>
+      <PageHeader
+        title="Webhook Endpoints"
+        breadcrumbs={[{ label: 'Settings' }, { label: 'Webhooks' }]}
+        description="Configure endpoints to receive real-time event notifications."
+        actions={
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancel' : '+ Add Endpoint'}</Button>
+        }
+      />
 
       {showForm && <CreateForm onDone={() => setShowForm(false)} />}
 
@@ -52,8 +57,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     create.mutate({ url: url.trim(), description: desc.trim() || undefined, events }, {
       onSuccess: (res) => {
         const s = res.data?.secret;
-        if (s) { setSecret(s); toast({ title: 'Endpoint created. Copy your secret now -- it won\'t be shown again.' }); }
-        else { toast({ title: 'Webhook endpoint created' }); onDone(); }
+        if (s) { setSecret(s); toast('Endpoint created. Copy your secret now — it won\'t be shown again.', 'success'); }
+        else { toast('Webhook endpoint created', 'success'); onDone(); }
       },
     });
   }
@@ -107,8 +112,8 @@ function EndpointsTable({ endpoints }: { endpoints: WebhookEndpoint[] }) {
 
   function handleTest(id: string) {
     test.mutate(id, {
-      onSuccess: () => toast({ title: 'Test ping sent' }),
-      onError: () => toast({ title: 'Test failed', variant: 'destructive' }),
+      onSuccess: () => toast('Test ping sent', 'success'),
+      onError: () => toast('Test failed', 'error'),
     });
   }
 

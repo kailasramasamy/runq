@@ -93,6 +93,16 @@ export class WebhookEndpointService {
     }
   }
 
+  async deliverToEndpoint(id: string, eventType: string, payload: unknown) {
+    const [ep] = await this.db
+      .select()
+      .from(webhookEndpoints)
+      .where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.tenantId, this.tenantId)))
+      .limit(1);
+    if (!ep) throw new NotFoundError('Webhook endpoint');
+    this.fireWebhook(ep, eventType, payload);
+  }
+
   private fireWebhook(ep: EndpointRow, eventType: string, payload: unknown) {
     const body = JSON.stringify({
       event: eventType,

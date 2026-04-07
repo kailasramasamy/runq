@@ -21,6 +21,8 @@ export * from './webhook/wms';
 export * from './gl';
 export * from './masters/hsn-sac';
 export * from './masters/item';
+export * from './masters/price-list';
+export * from './masters/category';
 export * from './common/gst';
 export * from './common/attachment';
 export * from './ar/quote';

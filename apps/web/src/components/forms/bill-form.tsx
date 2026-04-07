@@ -3,6 +3,7 @@ import { Plus, Trash2, Sparkles } from 'lucide-react';
 import { createPurchaseInvoiceSchema } from '@runq/validators';
 import type { CreatePurchaseInvoiceInput } from '@runq/validators';
 import { useVendors } from '../../hooks/queries/use-vendors';
+import { useItems } from '../../hooks/queries/use-items';
 import { formatINR } from '../../lib/utils';
 import { api } from '../../lib/api-client';
 import { DuplicateWarning } from './duplicate-warning';
@@ -35,6 +36,7 @@ interface Props {
 }
 
 interface LineItem {
+  itemId: string;
   itemName: string;
   sku: string;
   quantity: string;
@@ -47,7 +49,7 @@ interface LineItem {
 }
 
 const EMPTY_LINE: LineItem = {
-  itemName: '', sku: '', quantity: '', unitPrice: '',
+  itemId: '', itemName: '', sku: '', quantity: '', unitPrice: '',
   hsnSacCode: '', taxRate: '0', taxCategory: 'taxable',
   tdsSection: '', tdsRate: '0',
 };
@@ -85,6 +87,9 @@ function lineAmount(line: LineItem): number {
 export function BillForm({ onSubmit, isLoading, initialData }: Props) {
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data?.filter((v) => v.isActive) ?? [];
+  const { data: itemsData } = useItems({ limit: 100 });
+  const allItems = itemsData?.data?.filter((i) => i.isActive) ?? [];
+  const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
 
   const [vendorId, setVendorId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -291,16 +296,16 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Line Items" />
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0 overflow-visible">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
           )}
-          <Table className="min-w-[1400px]">
+          <Table noOverflow>
             <TableHeader>
               <tr>
-                <Th className="w-[16%]">Item Name</Th>
+                <Th className="w-[14%]">Item</Th>
                 <Th className="w-[11%]">HSN/SAC</Th>
                 <Th className="w-[6%]">SKU</Th>
                 <Th align="right" className="w-[9%]">Qty</Th>
@@ -317,10 +322,22 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
               {lines.map((line, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
-                    <Input
-                      value={line.itemName}
-                      onChange={(e) => updateLine(idx, 'itemName', e.target.value)}
-                      placeholder="Item name"
+                    <Combobox
+                      options={itemOptions}
+                      value={line.itemId}
+                      onChange={(itemId) => {
+                        const item = allItems.find((i) => i.id === itemId);
+                        setLines((prev) => prev.map((l, i) => i === idx ? {
+                          ...l,
+                          itemId,
+                          itemName: item?.name ?? l.itemName,
+                          sku: item?.sku ?? l.sku,
+                          hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
+                          unitPrice: item?.defaultPurchasePrice != null ? String(item.defaultPurchasePrice) : l.unitPrice,
+                          taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
+                        } : l));
+                      }}
+                      placeholder="Search item…"
                     />
                   </TableCell>
                   <TableCell>
@@ -337,6 +354,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
                       value={line.sku}
                       onChange={(e) => updateLine(idx, 'sku', e.target.value)}
                       placeholder="SKU"
+                      disabled={!!line.itemId}
                     />
                   </TableCell>
                   <TableCell align="right">

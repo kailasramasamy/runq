@@ -24,7 +24,8 @@ export interface ExpenseClaim {
   claimDate: string;
   description: string;
   status: ClaimStatus;
-  lineItems: ClaimLineItem[];
+  lineItems?: ClaimLineItem[];
+  items?: ClaimLineItem[];
   totalAmount: number;
   claimantName: string | null;
   createdAt: string;
@@ -52,10 +53,18 @@ export function useExpenseClaims(filters?: ClaimFilters) {
   });
 }
 
+export function useExpenseClaim(id: string | null) {
+  return useQuery({
+    queryKey: EC_KEYS.detail(id!),
+    queryFn: () => api.get<{ data: ExpenseClaim }>(`/hr/expense-claims/${id}`),
+    enabled: !!id,
+  });
+}
+
 export interface CreateClaimInput {
   claimDate: string;
   description: string;
-  lineItems: { expenseDate: string; category: ExpenseCategory; description: string; amount: number }[];
+  items: { expenseDate: string; category: ExpenseCategory; description: string; amount: number }[];
 }
 
 export function useCreateExpenseClaim() {
@@ -80,7 +89,7 @@ export function useApproveClaim() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      api.put<ApiSuccess<ExpenseClaim>>(`/hr/expense-claims/${id}/approve`, {}),
+      api.put<ApiSuccess<ExpenseClaim>>(`/hr/expense-claims/${id}/approve`, { approved: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: EC_KEYS.all }),
   });
 }

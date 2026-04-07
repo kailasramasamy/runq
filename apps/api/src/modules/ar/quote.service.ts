@@ -44,7 +44,7 @@ export class QuoteService {
           customerName: customers.name,
         })
         .from(salesQuotes)
-        .innerJoin(customers, eq(salesQuotes.customerId, customers.id))
+        .leftJoin(customers, eq(salesQuotes.customerId, customers.id))
         .where(baseWhere)
         .orderBy(sql`${salesQuotes.createdAt} desc`)
         .limit(limit)
@@ -54,7 +54,7 @@ export class QuoteService {
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => ({ ...this.toQuote(r.quote), customerName: r.customerName })),
+      data: rows.map((r) => ({ ...this.toQuote(r.quote), customerName: r.customerName ?? r.quote.prospectName ?? '' })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -63,7 +63,7 @@ export class QuoteService {
     const [row] = await this.db
       .select({ quote: salesQuotes, customerName: customers.name })
       .from(salesQuotes)
-      .innerJoin(customers, eq(salesQuotes.customerId, customers.id))
+      .leftJoin(customers, eq(salesQuotes.customerId, customers.id))
       .where(and(eq(salesQuotes.id, id), eq(salesQuotes.tenantId, this.tenantId)))
       .limit(1);
 
@@ -76,7 +76,7 @@ export class QuoteService {
 
     return {
       ...this.toQuote(row.quote),
-      customerName: row.customerName,
+      customerName: row.customerName ?? row.quote.prospectName ?? '',
       items: itemRows.map((i) => this.toQuoteItem(i)),
     };
   }
@@ -88,7 +88,10 @@ export class QuoteService {
       .insert(salesQuotes)
       .values({
         tenantId: this.tenantId,
-        customerId: input.customerId,
+        customerId: input.customerId ?? null,
+        prospectName: input.prospectName ?? null,
+        prospectEmail: input.prospectEmail ?? null,
+        prospectPhone: input.prospectPhone ?? null,
         quoteNumber,
         quoteDate: input.quoteDate,
         expiryDate: input.expiryDate ?? null,
@@ -120,7 +123,8 @@ export class QuoteService {
 
   async update(id: string, input: UpdateQuoteInput): Promise<SalesQuoteWithDetails> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft' && existing.status !== 'sent') {
+    const isCustomerLinkOnly = input.customerId && Object.keys(input).length === 1;
+    if (!isCustomerLinkOnly && existing.status !== 'draft' && existing.status !== 'sent') {
       throw new ConflictError('Only draft or sent quotes can be updated');
     }
 
@@ -282,6 +286,9 @@ export class QuoteService {
       id: row.id,
       tenantId: row.tenantId,
       customerId: row.customerId,
+      prospectName: row.prospectName,
+      prospectEmail: row.prospectEmail,
+      prospectPhone: row.prospectPhone,
       quoteNumber: row.quoteNumber,
       quoteDate: row.quoteDate,
       expiryDate: row.expiryDate,

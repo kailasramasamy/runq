@@ -71,10 +71,9 @@ export const webhookEndpointRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new WebhookEndpointService(request.server.db, request.tenantId);
-      const endpoint = await service.getById(id);
-      await service.deliver('test.ping', {
+      await service.deliverToEndpoint(id, 'test.ping', {
         message: 'This is a test webhook delivery',
-        endpointId: endpoint.id,
+        timestamp: new Date().toISOString(),
       });
       return { data: { message: 'Test webhook dispatched' } };
     },

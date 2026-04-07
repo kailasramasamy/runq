@@ -10,6 +10,7 @@ import {
   uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { ThreeWayMatchService } from './three-way-match.service';
 import { DuplicateService } from './duplicate.service';
@@ -60,6 +61,15 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const input = createPurchaseInvoiceSchema.parse(request.body);
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
       const invoice = await service.create(input);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('bill.created', {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        vendorName: invoice.vendorName,
+        totalAmount: invoice.totalAmount,
+      });
+
       return reply.status(201).send({ data: invoice });
     },
   );

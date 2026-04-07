@@ -82,6 +82,8 @@ import { CAPortalSettingsPage } from './settings/ca-portal';
 import { TallyImportPage } from './settings/tally-import';
 import { CAPortalPage } from './ca-portal/index';
 import { ItemsPage } from './masters/items';
+import { PriceListsPage } from './masters/price-lists';
+import { CategoriesPage } from './masters/categories';
 import { QuotesPage } from './ar/quotes/index';
 import { SalesOrdersPage } from './ar/sales-orders/index';
 import { ExpenseClaimsPage } from './hr/expense-claims';
@@ -338,6 +340,8 @@ const debitNoteDetailRoute = createRoute({
 
 const AR_TABS: Array<{ label: string; path: string | null }> = [
   { label: 'Customers', path: '/ar/customers' },
+  { label: 'Quotes', path: '/ar/quotes' },
+  { label: 'Sales Orders', path: '/ar/sales-orders' },
   { label: 'Invoices', path: '/ar/invoices' },
   { label: 'Receipts', path: '/ar/receipts' },
   { label: 'Credit Notes', path: '/ar/credit-notes' },
@@ -1149,10 +1153,63 @@ const settingsWebhooksRoute = createRoute({
   component: WebhooksPage,
 });
 
+// ─── Masters Sub-navigation ──────────────────────────────────────────────────
+
+const MASTERS_TABS = [
+  { label: 'Items', path: '/masters/items' },
+  { label: 'Categories', path: '/masters/categories' },
+  { label: 'Price Lists', path: '/masters/price-lists' },
+];
+
+function MastersNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold">Masters</h1>
+      </div>
+      <nav className="flex gap-1">
+        {MASTERS_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/masters/items'}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function MastersLayout() {
+  return (
+    <div>
+      <MastersNav />
+      <Outlet />
+    </div>
+  );
+}
+
 // Masters routes
 const mastersRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/masters',
+  component: MastersLayout,
+});
+
+const mastersIndexRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/',
+  component: () => <Navigate to="/masters/items" />,
 });
 
 const mastersItemsRoute = createRoute({
@@ -1161,15 +1218,34 @@ const mastersItemsRoute = createRoute({
   component: ItemsPage,
 });
 
-// HR routes
-const hrRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
-  path: '/hr',
+const mastersCategoriesRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/categories',
+  component: CategoriesPage,
 });
 
-const hrExpenseClaimsRoute = createRoute({
-  getParentRoute: () => hrRoute,
-  path: '/expense-claims',
+const mastersPriceListsRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/price-lists',
+  component: PriceListsPage,
+});
+
+// Expenses routes
+const expensesRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/expenses',
+  component: () => <Outlet />,
+});
+
+const expensesIndexRoute = createRoute({
+  getParentRoute: () => expensesRoute,
+  path: '/',
+  component: () => <Navigate to="/expenses/claims" />,
+});
+
+const expenseClaimsRoute = createRoute({
+  getParentRoute: () => expensesRoute,
+  path: '/claims',
   component: ExpenseClaimsPage,
 });
 
@@ -1296,10 +1372,14 @@ export const routeTree = rootRoute.addChildren([
       settingsWebhooksRoute,
     ]),
     mastersRoute.addChildren([
+      mastersIndexRoute,
       mastersItemsRoute,
+      mastersCategoriesRoute,
+      mastersPriceListsRoute,
     ]),
-    hrRoute.addChildren([
-      hrExpenseClaimsRoute,
+    expensesRoute.addChildren([
+      expensesIndexRoute,
+      expenseClaimsRoute,
     ]),
   ]),
 ]);

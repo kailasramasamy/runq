@@ -20,12 +20,15 @@ export interface QuoteLineItem {
 export interface Quote {
   id: string;
   quoteNumber: string;
-  customerId: string;
+  customerId: string | null;
   customerName: string;
+  prospectName: string | null;
+  prospectEmail: string | null;
+  prospectPhone: string | null;
   quoteDate: string;
   expiryDate: string | null;
   status: QuoteStatus;
-  lineItems: QuoteLineItem[];
+  items: QuoteLineItem[];
   totalAmount: number;
   notes: string | null;
   terms: string | null;
@@ -56,11 +59,33 @@ export function useQuotes(filters?: QuoteFilters) {
   });
 }
 
+export function useQuote(id: string | null) {
+  return useQuery({
+    queryKey: QUOTE_KEYS.detail(id!),
+    queryFn: () => api.get<{ data: Quote }>(`/ar/quotes/${id}`),
+    enabled: !!id,
+  });
+}
+
 export interface CreateQuoteInput {
-  customerId: string;
+  customerId?: string;
+  prospectName?: string;
+  prospectEmail?: string;
+  prospectPhone?: string;
   quoteDate: string;
   expiryDate?: string;
-  lineItems: { description: string; quantity: number; unitPrice: number }[];
+  items: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    hsnSacCode?: string;
+    taxRate?: number;
+    itemId?: string;
+  }[];
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
   notes?: string;
   terms?: string;
 }
@@ -70,6 +95,24 @@ export function useCreateQuote() {
   return useMutation({
     mutationFn: (data: CreateQuoteInput) =>
       api.post<ApiSuccess<Quote>>('/ar/quotes', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUOTE_KEYS.all }),
+  });
+}
+
+export function useUpdateQuote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      api.put<ApiSuccess<Quote>>(`/ar/quotes/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUOTE_KEYS.all }),
+  });
+}
+
+export function useUpdateQuoteStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: QuoteStatus }) =>
+      api.put<ApiSuccess<Quote>>(`/ar/quotes/${id}/status`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUOTE_KEYS.all }),
   });
 }

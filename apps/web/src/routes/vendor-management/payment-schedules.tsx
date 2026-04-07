@@ -165,7 +165,7 @@ interface ScheduleItemRow {
 function CreateForm({ onClose }: { onClose: () => void }) {
   const create = useCreatePaymentSchedule();
   const { toast } = useToast();
-  const { data: vendorsData } = useVendors({ limit: 200 });
+  const { data: vendorsData } = useVendors({ limit: 100 });
   const [name, setName] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [items, setItems] = useState<ScheduleItemRow[]>([]);

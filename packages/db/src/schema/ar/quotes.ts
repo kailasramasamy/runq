@@ -9,7 +9,10 @@ export const quoteStatusEnum = pgEnum('quote_status', [
 export const salesQuotes = pgTable('sales_quotes', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  customerId: uuid('customer_id').references(() => customers.id),
+  prospectName: varchar('prospect_name', { length: 255 }),
+  prospectEmail: varchar('prospect_email', { length: 255 }),
+  prospectPhone: varchar('prospect_phone', { length: 20 }),
   quoteNumber: varchar('quote_number', { length: 50 }).notNull(),
   quoteDate: date('quote_date').notNull(),
   expiryDate: date('expiry_date'),

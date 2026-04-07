@@ -15,6 +15,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { payments } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { PaymentService } from './payment.service';
 import { PrioritizeService } from './prioritize.service';
 import { getBankFeedProvider } from '../../utils/banking';
@@ -91,6 +92,15 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const input = createVendorPaymentSchema.parse(request.body);
       const service = new PaymentService(request.server.db, request.tenantId);
       const payment = await service.createPayment(input, request.user.userId);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('payment.created', {
+        paymentId: payment.id,
+        vendorName: payment.vendorName,
+        amount: payment.amount,
+        paymentDate: payment.paymentDate,
+      });
+
       return reply.status(201).send({ data: payment });
     },
   );

@@ -9,7 +9,10 @@ export const createItemSchema = z.object({
   defaultSellingPrice: z.number().min(0).nullish(),
   defaultPurchasePrice: z.number().min(0).nullish(),
   gstRate: z.number().min(0).max(100).nullish(),
+  mrp: z.number().min(0).nullish(),
+  costPrice: z.number().min(0).nullish(),
   category: z.string().max(50).nullish(),
+  subcategory: z.string().max(50).nullish(),
   description: z.string().max(2000).nullish(),
 });
 
@@ -19,6 +22,7 @@ export const itemFilterSchema = z.object({
   search: z.string().optional(),
   type: z.enum(['product', 'service']).optional(),
   category: z.string().optional(),
+  subcategory: z.string().optional(),
 });
 
 export type CreateItemInput = z.infer<typeof createItemSchema>;

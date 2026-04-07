@@ -130,11 +130,11 @@ export function DashboardPage() {
         </p>
       </div>
 
-      {/* AI Insights + Chat */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AIInsightsWidget />
-        <AIChatWidget />
-      </div>
+      {/* AI Snapshot — full width */}
+      <AIInsightsWidget />
+
+      {/* AI Chat */}
+      <AIChatWidget />
 
       {/* Row 1: Stats */}
       {isLoading ? (

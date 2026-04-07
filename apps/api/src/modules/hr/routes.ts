@@ -6,6 +6,7 @@ import {
   uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { ExpenseClaimService } from './expense-claim.service';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -31,7 +32,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const input = createExpenseClaimSchema.parse(request.body);
       const service = new ExpenseClaimService(request.server.db, request.tenantId);
-      const data = await service.create(input, request.user!.id);
+      const data = await service.create(input, request.user!.userId);
       return reply.status(201).send({ data });
     },
   );
@@ -54,6 +55,14 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new ExpenseClaimService(request.server.db, request.tenantId);
       const data = await service.submit(id);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('expense_claim.submitted', {
+        claimId: data.id,
+        claimNumber: data.claimNumber,
+        totalAmount: data.totalAmount,
+      });
+
       return { data };
     },
   );
@@ -65,7 +74,15 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = approveClaimSchema.parse(request.body);
       const service = new ExpenseClaimService(request.server.db, request.tenantId);
-      const data = await service.approve(id, request.user!.id, input.approved, input.rejectionReason);
+      const data = await service.approve(id, request.user!.userId, input.approved, input.rejectionReason);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('expense_claim.approved', {
+        claimId: data.id,
+        claimNumber: data.claimNumber,
+        totalAmount: data.totalAmount,
+      });
+
       return { data };
     },
   );

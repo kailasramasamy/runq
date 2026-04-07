@@ -34,6 +34,7 @@ export class ItemService {
       filters.search ? ilike(items.name, `%${filters.search}%`) : undefined,
       filters.type ? eq(items.type, filters.type) : undefined,
       filters.category ? eq(items.category, filters.category) : undefined,
+      filters.subcategory ? eq(items.subcategory, filters.subcategory) : undefined,
     );
 
     const [rows, countResult] = await Promise.all([
@@ -66,6 +67,8 @@ export class ItemService {
       defaultSellingPrice: input.defaultSellingPrice?.toString() ?? null,
       defaultPurchasePrice: input.defaultPurchasePrice?.toString() ?? null,
       gstRate: input.gstRate?.toString() ?? null,
+      mrp: input.mrp?.toString() ?? null,
+      costPrice: input.costPrice?.toString() ?? null,
     };
 
     const [row] = await this.db.insert(items).values(values).returning();
@@ -82,6 +85,12 @@ export class ItemService {
     }
     if (input.gstRate !== undefined) {
       set.gstRate = input.gstRate?.toString() ?? null;
+    }
+    if (input.mrp !== undefined) {
+      set.mrp = input.mrp?.toString() ?? null;
+    }
+    if (input.costPrice !== undefined) {
+      set.costPrice = input.costPrice?.toString() ?? null;
     }
 
     const [row] = await this.db
@@ -118,7 +127,10 @@ export class ItemService {
       defaultSellingPrice: row.defaultSellingPrice ? toNumber(row.defaultSellingPrice) : null,
       defaultPurchasePrice: row.defaultPurchasePrice ? toNumber(row.defaultPurchasePrice) : null,
       gstRate: row.gstRate ? toNumber(row.gstRate) : null,
+      mrp: row.mrp ? toNumber(row.mrp) : null,
+      costPrice: row.costPrice ? toNumber(row.costPrice) : null,
       category: row.category,
+      subcategory: row.subcategory,
       description: row.description,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),

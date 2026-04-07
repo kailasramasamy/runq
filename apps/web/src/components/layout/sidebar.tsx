@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
+import { useAuth } from '../../providers/auth-provider';
+import { useCompanySettings } from '../../hooks/queries/use-settings';
 
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -25,7 +27,7 @@ const navItems = [
   { label: 'General Ledger', path: '/gl', icon: BookOpen },
   { label: 'Masters', path: '/masters', icon: Package },
   { label: 'Reports', path: '/reports', icon: BarChart3 },
-  { label: 'Expenses', path: '/hr', icon: Receipt },
+  { label: 'Expenses', path: '/expenses', icon: Receipt },
   { label: 'Workflows', path: '/workflows', icon: GitBranch },
   { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
   { label: 'Settings', path: '/settings', icon: Settings },
@@ -35,6 +37,9 @@ export function Sidebar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const { data: companyData } = useCompanySettings();
+  const companyName = companyData?.data?.name;
 
   return (
     <aside className="flex h-screen w-60 flex-col bg-zinc-900 text-zinc-100">
@@ -82,8 +87,8 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-zinc-800 p-4">
-        <p className="text-xs text-zinc-500">Demo Company Pvt Ltd</p>
-        <p className="text-xs text-zinc-600">admin@demo.com</p>
+        <p className="truncate text-xs text-zinc-500">{companyName ?? 'Loading...'}</p>
+        <p className="truncate text-xs text-zinc-600">{user?.email ?? ''}</p>
       </div>
     </aside>
   );

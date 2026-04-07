@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { tenants } from '@runq/db';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import {
   createSalesInvoiceSchema,
   updateSalesInvoiceSchema,
@@ -58,6 +59,15 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
         date: invoice.invoiceDate,
         id: invoice.id,
         customerName: invoice.customerName,
+      });
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('invoice.created', {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customerName,
+        totalAmount: invoice.totalAmount,
+        invoiceDate: invoice.invoiceDate,
       });
 
       return reply.status(201).send({ data: invoice });
@@ -118,6 +128,15 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const input = markPaidSchema.parse(request.body);
       const service = new InvoiceService(request.server.db, request.tenantId);
       const invoice = await service.markPaid(id, input);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('invoice.paid', {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        amountPaid: invoice.totalAmount,
+        paidDate: invoice.invoiceDate,
+      });
+
       return { data: invoice };
     },
   );

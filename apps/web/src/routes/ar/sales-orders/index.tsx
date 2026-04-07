@@ -30,7 +30,7 @@ interface LineItemRow { description: string; qty: string; unitPrice: string }
 function CreateForm({ onClose }: { onClose: () => void }) {
   const create = useCreateSalesOrder();
   const { toast } = useToast();
-  const { data: customersData } = useCustomers({ limit: 200 });
+  const { data: customersData } = useCustomers({ limit: 100 });
   const customerOptions = (customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   const [customerId, setCustomerId] = useState('');

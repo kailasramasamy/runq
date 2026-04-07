@@ -27,7 +27,10 @@ export interface Item {
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
   gstRate: number | null;
+  mrp: number | null;
+  costPrice: number | null;
   category: string | null;
+  subcategory: string | null;
   description: string | null;
   isActive: boolean;
   createdAt: string;
@@ -58,7 +61,10 @@ export interface CreateItemInput {
   defaultSellingPrice?: number;
   defaultPurchasePrice?: number;
   gstRate?: number;
+  mrp?: number;
+  costPrice?: number;
   category?: string;
+  subcategory?: string;
   description?: string;
 }
 

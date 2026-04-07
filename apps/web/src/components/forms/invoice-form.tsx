@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { createSalesInvoiceSchema } from '@runq/validators';
 import type { CreateSalesInvoiceInput } from '@runq/validators';
 import { useCustomers } from '../../hooks/queries/use-customers';
+import { useItems } from '../../hooks/queries/use-items';
 import { formatINR } from '../../lib/utils';
 import {
   Button,
@@ -30,6 +31,7 @@ interface Props {
 }
 
 interface LineItem {
+  itemId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -38,7 +40,7 @@ interface LineItem {
   taxCategory: string;
 }
 
-const EMPTY_LINE: LineItem = { description: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
+const EMPTY_LINE: LineItem = { itemId: '', description: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
 
 const TAX_RATE_OPTIONS = [
   { value: '0', label: '0%' },
@@ -62,6 +64,9 @@ function lineAmount(line: LineItem): number {
 export function InvoiceForm({ onSubmit, isLoading }: Props) {
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data?.filter((c) => c.isActive) ?? [];
+  const { data: itemsData } = useItems({ limit: 100 });
+  const allItems = itemsData?.data?.filter((i) => i.isActive) ?? [];
+  const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
 
   const [customerId, setCustomerId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
@@ -167,19 +172,20 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Line Items" />
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0 overflow-visible">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
           )}
-          <Table className="min-w-[900px]">
+          <Table noOverflow>
             <TableHeader>
               <tr>
-                <Th className="min-w-[240px]">Description</Th>
-                <Th className="min-w-[180px]">HSN/SAC</Th>
-                <Th className="min-w-[120px]">Qty</Th>
-                <Th className="min-w-[150px]">Unit Price</Th>
+                <Th className="min-w-[200px]">Item</Th>
+                <Th className="min-w-[180px]">Description</Th>
+                <Th className="min-w-[150px]">HSN/SAC</Th>
+                <Th className="min-w-[100px]">Qty</Th>
+                <Th className="min-w-[120px]">Unit Price</Th>
                 <Th align="right" className="min-w-[100px]">Amount</Th>
                 <Th className="min-w-[130px]">Tax Category</Th>
                 <Th className="min-w-[90px]">GST Rate</Th>
@@ -190,10 +196,28 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
               {lines.map((line, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
+                    <Combobox
+                      options={itemOptions}
+                      value={line.itemId}
+                      onChange={(itemId) => {
+                        const item = allItems.find((i) => i.id === itemId);
+                        setLines((prev) => prev.map((l, i) => i === idx ? {
+                          ...l,
+                          itemId,
+                          description: item?.name ?? l.description,
+                          hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
+                          unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
+                          taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
+                        } : l));
+                      }}
+                      placeholder="Search item…"
+                    />
+                  </TableCell>
+                  <TableCell>
                     <Input
                       value={line.description}
                       onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      placeholder="Description of service or product"
+                      placeholder="Description"
                     />
                   </TableCell>
                   <TableCell>

@@ -15,6 +15,13 @@
       "when": 1775359812302,
       "tag": "0001_last_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775446750258,
+      "tag": "0002_petite_wasp",
+      "breakpoints": true
     }
   ]
 }

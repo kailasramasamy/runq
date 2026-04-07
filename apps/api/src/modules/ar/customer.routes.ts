@@ -9,6 +9,7 @@ import {
   importCustomersCSVSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { CustomerService } from './customer.service';
 import { CreditScoreService } from './credit-score.service';
 import { PortalService } from './portal.service';
@@ -56,6 +57,14 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const input = createCustomerSchema.parse(request.body);
       const service = new CustomerService(request.server.db, request.tenantId);
       const customer = await service.create(input);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('customer.created', {
+        customerId: customer.id,
+        name: customer.name,
+        email: customer.email,
+      });
+
       return reply.status(201).send({ data: customer });
     },
   );

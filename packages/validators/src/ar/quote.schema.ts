@@ -10,8 +10,11 @@ const quoteItemSchema = z.object({
   itemId: z.string().uuid().nullish(),
 });
 
-export const createQuoteSchema = z.object({
-  customerId: z.string().uuid(),
+const createQuoteBase = z.object({
+  customerId: z.string().uuid().nullish(),
+  prospectName: z.string().max(255).nullish(),
+  prospectEmail: z.string().email().max(255).nullish(),
+  prospectPhone: z.string().max(20).nullish(),
   quoteDate: z.string().date(),
   expiryDate: z.string().date().nullish(),
   items: z.array(quoteItemSchema).min(1, 'At least one line item required'),
@@ -22,7 +25,12 @@ export const createQuoteSchema = z.object({
   terms: z.string().nullish(),
 });
 
-export const updateQuoteSchema = createQuoteSchema.partial();
+export const createQuoteSchema = createQuoteBase.refine(
+  (d) => d.customerId || d.prospectName,
+  { message: 'Either select a customer or enter prospect name', path: ['customerId'] },
+);
+
+export const updateQuoteSchema = createQuoteBase.partial();
 
 export const quoteFilterSchema = z.object({
   customerId: z.string().uuid().optional(),

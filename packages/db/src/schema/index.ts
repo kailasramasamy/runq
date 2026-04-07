@@ -23,6 +23,8 @@ export * from './gl/accounts';
 export * from './gl/journal-entries';
 export * from './masters/hsn-sac';
 export * from './masters/items';
+export * from './masters/price-lists';
+export * from './masters/categories';
 export * from './common/attachments';
 export * from './ar/recurring-invoices';
 export * from './banking/cheques';

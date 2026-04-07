@@ -3,7 +3,10 @@ export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
 export interface SalesQuote {
   id: string;
   tenantId: string;
-  customerId: string;
+  customerId: string | null;
+  prospectName: string | null;
+  prospectEmail: string | null;
+  prospectPhone: string | null;
   quoteNumber: string;
   quoteDate: string;
   expiryDate: string | null;

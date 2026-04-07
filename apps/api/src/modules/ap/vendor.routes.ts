@@ -10,7 +10,9 @@ import {
   importVendorsCSVSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { VendorService } from './vendor.service';
+import { VendorPortalService } from './vendor-portal.service';
 import { validateGSTIN } from '@runq/validators';
 import { lookupGSTIN } from '../../utils/gstin-lookup';
 
@@ -49,6 +51,14 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
       const input = createVendorSchema.parse(request.body);
       const service = new VendorService(request.server.db, request.tenantId);
       const vendor = await service.create(input);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('vendor.created', {
+        vendorId: vendor.id,
+        name: vendor.name,
+        email: vendor.email,
+      });
+
       return reply.status(201).send({ data: vendor });
     },
   );
@@ -128,6 +138,17 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
       const service = new VendorService(request.server.db, request.tenantId);
       const result = await service.importFromCSV(csvData);
       return { data: result };
+    },
+  );
+
+  app.post(
+    '/:id/portal-slug',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new VendorPortalService(request.server.db, request.tenantId);
+      const slug = await service.getOrCreateSlug(id);
+      return { data: { slug } };
     },
   );
 };

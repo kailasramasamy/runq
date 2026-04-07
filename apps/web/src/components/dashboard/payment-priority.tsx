@@ -79,8 +79,11 @@ function SummaryBar({ overdue, dueWeek, total }: { overdue: number; dueWeek: num
 }
 
 export function PaymentPriorityWidget() {
+  const navigate = useNavigate();
   const { data, isLoading } = usePaymentPriority(8);
-  const payments = data?.data ?? [];
+  const allPayments = data?.data ?? [];
+  const payments = allPayments.slice(0, 5);
+  const hasMore = allPayments.length > 5;
   const summary = data?.summary;
 
   const overdue = parseFloat(summary?.totalOverdue ?? '0') || 0;
@@ -114,6 +117,14 @@ export function PaymentPriorityWidget() {
               <PaymentRow key={item.invoiceId} item={item} />
             ))}
           </div>
+        )}
+        {hasMore && (
+          <button
+            onClick={() => navigate({ to: '/ap/bills' as '/' })}
+            className="mt-3 w-full text-center text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            View all {allPayments.length} payments &rarr;
+          </button>
         )}
       </CardContent>
     </Card>

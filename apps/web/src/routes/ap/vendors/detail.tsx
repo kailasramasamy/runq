@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Building2, MapPin, CreditCard, FileText, Trash2, Pencil, X } from 'lucide-react';
+import { Building2, MapPin, CreditCard, FileText, Trash2, Pencil, X, ExternalLink, Copy, Check } from 'lucide-react';
 import { useVendor, useDeleteVendor, useUpdateVendor } from '@/hooks/queries/use-vendors';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { Vendor } from '@runq/types';
 import {
@@ -68,6 +70,66 @@ function VendorCards({ vendor }: { vendor: Vendor }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function VendorPortalCard({ vendorId }: { vendorId: string }) {
+  const [portalUrl, setPortalUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateSlug = useMutation({
+    mutationFn: () =>
+      api.post<{ data: { slug: string } }>(`/ap/vendors/${vendorId}/portal-slug`),
+    onSuccess: (res) => {
+      const slug = res.data.slug;
+      setPortalUrl(`${window.location.origin}/vendor-portal/s/${slug}`);
+    },
+  });
+
+  function handleCopy() {
+    if (!portalUrl) return;
+    navigator.clipboard.writeText(portalUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Vendor Portal" />
+      <CardContent>
+        {portalUrl ? (
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Share this link with the vendor. They can view POs, bills, and payment history without logging in.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {portalUrl}
+              </code>
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => window.open(portalUrl, '_blank')}>
+                <ExternalLink size={14} /> Open
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => generateSlug.mutate()} loading={generateSlug.isPending}>
+              Regenerate Link
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Generate a portal link so this vendor can view their purchase orders, outstanding bills, and payment history.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => generateSlug.mutate()} loading={generateSlug.isPending}>
+              <ExternalLink size={14} /> Generate Portal Link
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -259,6 +321,7 @@ export function VendorDetailPage({ vendorId }: Props) {
       </div>
 
       <VendorCards vendor={vendor} />
+      <VendorPortalCard vendorId={vendorId} />
 
       <div className="mt-6 flex flex-col gap-4">
         <Card>

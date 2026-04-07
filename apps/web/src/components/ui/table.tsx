@@ -8,9 +8,13 @@ const alignClasses: Record<Align, string> = {
   right: 'text-right',
 };
 
-export function Table({ className, children, ...props }: HTMLAttributes<HTMLTableElement>) {
+interface TableProps extends HTMLAttributes<HTMLTableElement> {
+  noOverflow?: boolean;
+}
+
+export function Table({ className, noOverflow, children, ...props }: TableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <div className={cn('rounded-lg border border-zinc-200 dark:border-zinc-800', noOverflow ? 'overflow-visible' : 'overflow-x-auto')}>
       <table className={cn('w-full border-collapse text-sm', className)} {...props}>
         {children}
       </table>

@@ -59,8 +59,11 @@ function AnomalyRow({ item }: { item: Anomaly }) {
 }
 
 export function ExpenseAlertsWidget() {
+  const navigate = useNavigate();
   const { data, isLoading } = useExpenseAnomalies();
-  const anomalies = data?.data ?? [];
+  const allAnomalies = data?.data ?? [];
+  const anomalies = allAnomalies.slice(0, 5);
+  const hasMore = allAnomalies.length > 5;
 
   return (
     <Card>
@@ -96,6 +99,14 @@ export function ExpenseAlertsWidget() {
               <AnomalyRow key={item.invoiceId} item={item} />
             ))}
           </div>
+        )}
+        {hasMore && (
+          <button
+            onClick={() => navigate({ to: '/ap/bills' as '/' })}
+            className="mt-3 w-full text-center text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            View all {allAnomalies.length} alerts &rarr;
+          </button>
         )}
       </CardContent>
     </Card>

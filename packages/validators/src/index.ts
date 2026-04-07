@@ -20,6 +20,8 @@ export * from './gl/gl.schema';
 export * from './tally/tally.schema';
 export * from './masters/hsn-sac.schema';
 export * from './masters/item.schema';
+export * from './masters/price-list.schema';
+export * from './masters/category.schema';
 export * from './utils/gstin';
 export * from './common/attachment.schema';
 export * from './ar/quote.schema';
