@@ -164,8 +164,8 @@ export class GLService {
     if (!acct) throw new NotFoundError('Account');
 
     const where = asOfDate
-      ? and(eq(journalLines.accountId, accountId), lte(journalEntries.date, asOfDate))
-      : eq(journalLines.accountId, accountId);
+      ? and(eq(journalLines.accountId, accountId), eq(journalEntries.tenantId, this.tenantId), lte(journalEntries.date, asOfDate))
+      : and(eq(journalLines.accountId, accountId), eq(journalEntries.tenantId, this.tenantId));
 
     const [result] = await this.db
       .select({ totalDebit: sum(journalLines.debit), totalCredit: sum(journalLines.credit) })

@@ -36,7 +36,10 @@ export const paymentAllocations = pgTable('payment_allocations', {
   invoiceId: uuid('invoice_id').notNull().references(() => purchaseInvoices.id),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_pa_payment_id').on(t.paymentId),
+  index('idx_pa_invoice_id').on(t.invoiceId),
+]);
 
 export const advancePayments = pgTable('advance_payments', {
   id: uuid('id').primaryKey().defaultRandom(),

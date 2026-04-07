@@ -1,12 +1,14 @@
 import { loadEnv } from './config/env';
 import { buildApp } from './app';
 import { initEmailTransport } from './utils/email';
-import { startReportScheduler } from './scheduler/report-scheduler';
+import { startReportScheduler, stopReportScheduler } from './scheduler/report-scheduler';
 
 async function main() {
   const env = loadEnv();
   initEmailTransport();
   const app = await buildApp();
+
+  app.addHook('onClose', () => stopReportScheduler());
 
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });

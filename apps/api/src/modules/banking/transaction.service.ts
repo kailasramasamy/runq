@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm';
 import { bankTransactions, bankAccounts, accounts, cheques } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
@@ -87,22 +87,41 @@ export class TransactionService {
     if (!account) throw new NotFoundError('Bank account');
 
     const { rows, errors } = this.parseCSV(csvData);
+    if (rows.length === 0) {
+      return { imported: 0, duplicatesSkipped: 0, errors };
+    }
+
+    const existingKeys = await this.loadExistingKeys(bankAccountId);
     const importBatchId = randomUUID();
-    let imported = 0;
+    const newRows: typeof bankTransactions.$inferInsert[] = [];
     let duplicatesSkipped = 0;
     let lastBalance: number | null = null;
 
     for (const row of rows) {
-      const isDuplicate = await this.checkDuplicate(bankAccountId, row);
-      if (isDuplicate) {
+      if (this.isDuplicateRow(existingKeys, row)) {
         duplicatesSkipped++;
         continue;
       }
 
-      await this.insertTransaction(bankAccountId, row, importBatchId);
+      newRows.push({
+        tenantId: this.tenantId,
+        bankAccountId,
+        transactionDate: row.transactionDate,
+        valueDate: row.valueDate ?? null,
+        type: row.type,
+        amount: row.amount.toString(),
+        reference: row.reference,
+        narration: row.narration,
+        runningBalance: row.runningBalance?.toString() ?? null,
+        reconStatus: 'unreconciled',
+        importBatchId,
+      });
 
-      imported++;
       if (row.runningBalance !== null) lastBalance = row.runningBalance;
+    }
+
+    if (newRows.length > 0) {
+      await this.db.insert(bankTransactions).values(newRows);
     }
 
     if (lastBalance !== null) {
@@ -111,7 +130,7 @@ export class TransactionService {
 
     await this.autoClearCheques(bankAccountId);
 
-    return { imported, duplicatesSkipped, errors };
+    return { imported: newRows.length, duplicatesSkipped, errors };
   }
 
   async syncFromFeed(bankAccountId: string): Promise<{ imported: number; duplicatesSkipped: number }> {
@@ -128,8 +147,11 @@ export class TransactionService {
     const fromDate = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
     const feedTxns = await provider.fetchTransactions(bankAccountId, fromDate, toDate);
 
+    if (feedTxns.length === 0) return { imported: 0, duplicatesSkipped: 0 };
+
+    const existingKeys = await this.loadExistingKeys(bankAccountId);
     const importBatchId = randomUUID();
-    let imported = 0;
+    const newRows: typeof bankTransactions.$inferInsert[] = [];
     let duplicatesSkipped = 0;
     let lastBalance: number | null = null;
 
@@ -144,12 +166,30 @@ export class TransactionService {
         runningBalance: txn.runningBalance,
       };
 
-      const isDuplicate = await this.checkDuplicate(bankAccountId, row);
-      if (isDuplicate) { duplicatesSkipped++; continue; }
+      if (this.isDuplicateRow(existingKeys, row)) {
+        duplicatesSkipped++;
+        continue;
+      }
 
-      await this.insertTransaction(bankAccountId, row, importBatchId);
-      imported++;
+      newRows.push({
+        tenantId: this.tenantId,
+        bankAccountId,
+        transactionDate: row.transactionDate,
+        valueDate: row.valueDate ?? null,
+        type: row.type,
+        amount: row.amount.toString(),
+        reference: row.reference,
+        narration: row.narration,
+        runningBalance: row.runningBalance?.toString() ?? null,
+        reconStatus: 'unreconciled',
+        importBatchId,
+      });
+
       if (row.runningBalance !== null) lastBalance = row.runningBalance;
+    }
+
+    if (newRows.length > 0) {
+      await this.db.insert(bankTransactions).values(newRows);
     }
 
     if (lastBalance !== null) {
@@ -158,13 +198,13 @@ export class TransactionService {
 
     await this.autoClearCheques(bankAccountId);
 
-    return { imported, duplicatesSkipped };
+    return { imported: newRows.length, duplicatesSkipped };
   }
 
   /**
    * Match deposited cheques against credit bank transactions by amount + date range.
-   * If a credit transaction matches a deposited cheque's amount (within the cheque date
-   * to cheque date + 30 days window), auto-clear the cheque.
+   * Fetches all candidate credit transactions in one query, then matches in JS to
+   * avoid N+1 queries per cheque.
    */
   private async autoClearCheques(bankAccountId: string): Promise<void> {
     const depositedCheques = await this.db
@@ -180,50 +220,43 @@ export class TransactionService {
 
     if (depositedCheques.length === 0) return;
 
+    // Single query: fetch all unmatched credit transactions for this account
+    const creditTxns = await this.db
+      .select({ id: bankTransactions.id, amount: bankTransactions.amount, transactionDate: bankTransactions.transactionDate })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, bankAccountId),
+          eq(bankTransactions.type, 'credit'),
+        ),
+      );
+
+    const clearedIds: string[] = [];
+
     for (const cheque of depositedCheques) {
       const chequeAmount = parseFloat(cheque.amount);
-      const fromDate = cheque.chequeDate;
-      const toDate = new Date(new Date(cheque.chequeDate).getTime() + 30 * 86400_000)
-        .toISOString().slice(0, 10);
+      const fromMs = new Date(cheque.chequeDate).getTime();
+      const toMs = fromMs + 30 * 86400_000;
 
-      const [matchingTxn] = await this.db
-        .select({ id: bankTransactions.id })
-        .from(bankTransactions)
-        .where(
-          and(
-            eq(bankTransactions.tenantId, this.tenantId),
-            eq(bankTransactions.bankAccountId, bankAccountId),
-            eq(bankTransactions.type, 'credit'),
-            sql`ABS(${bankTransactions.amount}::numeric - ${chequeAmount}) < 0.01`,
-            gte(bankTransactions.transactionDate, fromDate),
-            lte(bankTransactions.transactionDate, toDate),
-          ),
-        )
-        .limit(1);
+      const match = creditTxns.find((txn) => {
+        const txnMs = new Date(txn.transactionDate).getTime();
+        return (
+          Math.abs(parseFloat(txn.amount) - chequeAmount) < 0.01 &&
+          txnMs >= fromMs &&
+          txnMs <= toMs
+        );
+      });
 
-      if (matchingTxn) {
-        await this.db
-          .update(cheques)
-          .set({ status: 'cleared', updatedAt: new Date() })
-          .where(eq(cheques.id, cheque.id));
-      }
+      if (match) clearedIds.push(cheque.id);
     }
-  }
 
-  private async insertTransaction(bankAccountId: string, row: ParsedRow, importBatchId: string): Promise<void> {
-    await this.db.insert(bankTransactions).values({
-      tenantId: this.tenantId,
-      bankAccountId,
-      transactionDate: row.transactionDate,
-      valueDate: row.valueDate ?? null,
-      type: row.type,
-      amount: row.amount.toString(),
-      reference: row.reference,
-      narration: row.narration,
-      runningBalance: row.runningBalance?.toString() ?? null,
-      reconStatus: 'unreconciled',
-      importBatchId,
-    });
+    if (clearedIds.length > 0) {
+      await this.db
+        .update(cheques)
+        .set({ status: 'cleared', updatedAt: new Date() })
+        .where(inArray(cheques.id, clearedIds));
+    }
   }
 
   private async updateAccountBalance(bankAccountId: string, balance: number): Promise<void> {
@@ -233,38 +266,51 @@ export class TransactionService {
       .where(eq(bankAccounts.id, bankAccountId));
   }
 
-  private async checkDuplicate(bankAccountId: string, row: ParsedRow): Promise<boolean> {
-    // If UTR/reference is present, it's globally unique — dedup by bankAccountId + reference only
-    if (row.reference) {
-      const [result] = await this.db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(bankTransactions)
-        .where(and(
-          eq(bankTransactions.tenantId, this.tenantId),
-          eq(bankTransactions.bankAccountId, bankAccountId),
-          eq(bankTransactions.reference, row.reference),
-        ));
-      return (result?.count ?? 0) > 0;
-    }
-
-    // No reference: dedup by date + type + amount + narration to avoid false positives
-    const narrationCondition = row.narration
-      ? eq(bankTransactions.narration, row.narration)
-      : sql`${bankTransactions.narration} IS NULL`;
-
-    const [result] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
+  /**
+   * Pre-load all existing dedup keys for a bank account in a single query.
+   * Returns two sets: one for references (UTR), one for composite no-reference rows.
+   */
+  private async loadExistingKeys(bankAccountId: string): Promise<{
+    refs: Set<string>;
+    composites: Set<string>;
+  }> {
+    const existing = await this.db
+      .select({
+        reference: bankTransactions.reference,
+        transactionDate: bankTransactions.transactionDate,
+        type: bankTransactions.type,
+        amount: bankTransactions.amount,
+        narration: bankTransactions.narration,
+      })
       .from(bankTransactions)
       .where(and(
         eq(bankTransactions.tenantId, this.tenantId),
         eq(bankTransactions.bankAccountId, bankAccountId),
-        eq(bankTransactions.transactionDate, row.transactionDate),
-        eq(bankTransactions.type, row.type),
-        sql`${bankTransactions.amount}::numeric = ${row.amount}`,
-        narrationCondition,
       ));
 
-    return (result?.count ?? 0) > 0;
+    const refs = new Set<string>();
+    const composites = new Set<string>();
+
+    for (const row of existing) {
+      if (row.reference) {
+        refs.add(row.reference);
+      } else {
+        composites.add(`${row.transactionDate}|${row.type}|${row.amount}|${row.narration ?? ''}`);
+      }
+    }
+
+    return { refs, composites };
+  }
+
+  private isDuplicateRow(
+    existingKeys: { refs: Set<string>; composites: Set<string> },
+    row: ParsedRow,
+  ): boolean {
+    if (row.reference) {
+      return existingKeys.refs.has(row.reference);
+    }
+    const key = `${row.transactionDate}|${row.type}|${row.amount}|${row.narration ?? ''}`;
+    return existingKeys.composites.has(key);
   }
 
   private parseCSV(csvData: string): { rows: ParsedRow[]; errors: { row: number; message: string }[] } {

@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull, inArray } from 'drizzle-orm';
 import {
   bankTransactions,
   bankAccounts,
@@ -20,6 +20,13 @@ import { TdsMatchService } from './tds-match.service';
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
 type ReceiptRow = typeof paymentReceipts.$inferSelect;
+
+interface PendingMatch {
+  bankTransactionId: string;
+  paymentId: string | null;
+  receiptId: string | null;
+  matchType: 'auto_utr' | 'auto_amount_date';
+}
 
 export interface UnreconciledResult {
   unreconciledBankTxns: BankTxnRow[];
@@ -100,12 +107,18 @@ export class ReconciliationService {
     const [allPayments, allReceipts] = await this.fetchBookItems(bankAccountId);
 
     const matched: AutoReconciliationResult['matched'] = [];
+    const pendingMatches: PendingMatch[] = [];
     const matchedTxnIds = new Set<string>();
     const matchedPaymentIds = new Set<string>();
     const matchedReceiptIds = new Set<string>();
 
-    await this.matchByUTR(txns, allPayments, allReceipts, matched, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
-    await this.matchByAmountDate(txns, allPayments, allReceipts, matched, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
+    this.matchByUTR(txns, allPayments, allReceipts, matched, pendingMatches, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
+    this.matchByAmountDate(txns, allPayments, allReceipts, matched, pendingMatches, matchedTxnIds, matchedPaymentIds, matchedReceiptIds);
+
+    // Bulk-insert all matches and bulk-update txn statuses in one transaction
+    if (pendingMatches.length > 0) {
+      await this.flushMatches(pendingMatches);
+    }
 
     // Auto-clear deposited cheques that match reconciled credit transactions
     const matchedCreditTxns = txns.filter((t) => matchedTxnIds.has(t.id) && t.type === 'credit');
@@ -247,11 +260,12 @@ export class ReconciliationService {
     ]);
   }
 
-  private async matchByUTR(
+  private matchByUTR(
     txns: BankTxnRow[],
     allPayments: PaymentRow[],
     allReceipts: ReceiptRow[],
     matched: AutoReconciliationResult['matched'],
+    pendingMatches: PendingMatch[],
     matchedTxnIds: Set<string>,
     matchedPaymentIds: Set<string>,
     matchedReceiptIds: Set<string>,
@@ -263,7 +277,7 @@ export class ReconciliationService {
         (p) => !matchedPaymentIds.has(p.id) && p.utrNumber === txn.reference,
       );
       if (payment) {
-        await this.insertMatch(txn.id, payment.id, null, 'auto_utr');
+        pendingMatches.push({ bankTransactionId: txn.id, paymentId: payment.id, receiptId: null, matchType: 'auto_utr' });
         matchedTxnIds.add(txn.id);
         matchedPaymentIds.add(payment.id);
         matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'vendor_payment', id: payment.id }, strategy: 'utr', amount: toNumber(txn.amount), confidence: 'exact' });
@@ -274,7 +288,7 @@ export class ReconciliationService {
         (r) => !matchedReceiptIds.has(r.id) && r.referenceNumber === txn.reference,
       );
       if (receipt) {
-        await this.insertMatch(txn.id, null, receipt.id, 'auto_utr');
+        pendingMatches.push({ bankTransactionId: txn.id, paymentId: null, receiptId: receipt.id, matchType: 'auto_utr' });
         matchedTxnIds.add(txn.id);
         matchedReceiptIds.add(receipt.id);
         matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'payment_receipt', id: receipt.id }, strategy: 'utr', amount: toNumber(txn.amount), confidence: 'exact' });
@@ -282,11 +296,12 @@ export class ReconciliationService {
     }
   }
 
-  private async matchByAmountDate(
+  private matchByAmountDate(
     txns: BankTxnRow[],
     allPayments: PaymentRow[],
     allReceipts: ReceiptRow[],
     matched: AutoReconciliationResult['matched'],
+    pendingMatches: PendingMatch[],
     matchedTxnIds: Set<string>,
     matchedPaymentIds: Set<string>,
     matchedReceiptIds: Set<string>,
@@ -305,7 +320,7 @@ export class ReconciliationService {
           return diff < 0.01 && dayDiff <= 1;
         });
         if (candidates.length === 1) {
-          await this.insertMatch(txn.id, candidates[0]!.id, null, 'auto_amount_date');
+          pendingMatches.push({ bankTransactionId: txn.id, paymentId: candidates[0]!.id, receiptId: null, matchType: 'auto_amount_date' });
           matchedTxnIds.add(txn.id);
           matchedPaymentIds.add(candidates[0]!.id);
           matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'vendor_payment', id: candidates[0]!.id }, strategy: 'amount_date', amount, confidence: 'high' });
@@ -318,7 +333,7 @@ export class ReconciliationService {
           return diff < 0.01 && dayDiff <= 1;
         });
         if (candidates.length === 1) {
-          await this.insertMatch(txn.id, null, candidates[0]!.id, 'auto_amount_date');
+          pendingMatches.push({ bankTransactionId: txn.id, paymentId: null, receiptId: candidates[0]!.id, matchType: 'auto_amount_date' });
           matchedTxnIds.add(txn.id);
           matchedReceiptIds.add(candidates[0]!.id);
           matched.push({ bankTransactionId: txn.id, matchedTo: { type: 'payment_receipt', id: candidates[0]!.id }, strategy: 'amount_date', amount, confidence: 'high' });
@@ -327,24 +342,27 @@ export class ReconciliationService {
     }
   }
 
-  private async insertMatch(
-    bankTransactionId: string,
-    paymentId: string | null,
-    receiptId: string | null,
-    matchType: 'auto_utr' | 'auto_amount_date' | 'manual',
-  ) {
+  /**
+   * Bulk-insert all pending reconciliation matches and update transaction statuses
+   * in a single database transaction — eliminates N+1 writes from the match loops.
+   */
+  private async flushMatches(pendingMatches: PendingMatch[]): Promise<void> {
+    const now = new Date();
     await this.db.transaction(async (tx) => {
-      await tx.insert(reconciliationMatches).values({
-        tenantId: this.tenantId,
-        bankTransactionId,
-        paymentId,
-        receiptId,
-        matchType,
-      });
+      await tx.insert(reconciliationMatches).values(
+        pendingMatches.map((m) => ({
+          tenantId: this.tenantId,
+          bankTransactionId: m.bankTransactionId,
+          paymentId: m.paymentId,
+          receiptId: m.receiptId,
+          matchType: m.matchType,
+        })),
+      );
+
       await tx
         .update(bankTransactions)
-        .set({ reconStatus: matchType === 'manual' ? 'manually_matched' : 'matched', updatedAt: new Date() })
-        .where(eq(bankTransactions.id, bankTransactionId));
+        .set({ reconStatus: 'matched', updatedAt: now })
+        .where(inArray(bankTransactions.id, pendingMatches.map((m) => m.bankTransactionId)));
     });
   }
 

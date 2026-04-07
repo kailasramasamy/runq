@@ -1,4 +1,4 @@
-import { pgTable, uuid, date, decimal, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, date, decimal, boolean, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { bankAccounts } from './bank-accounts';
 import { bankTransactions } from './bank-transactions';
@@ -34,4 +34,8 @@ export const reconciliationMatches = pgTable('reconciliation_matches', {
   matchedBy: uuid('matched_by').references(() => users.id),
   matchedAt: timestamp('matched_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_rm_bank_transaction_id').on(t.bankTransactionId),
+  index('idx_rm_payment_id').on(t.paymentId),
+  index('idx_rm_receipt_id').on(t.receiptId),
+]);

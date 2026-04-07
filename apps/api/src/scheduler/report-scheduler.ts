@@ -9,9 +9,18 @@ import { computeNextRun } from '../utils/schedule';
 
 const INTERVAL_MS = 60_000; // check every minute
 
+let schedulerHandle: ReturnType<typeof setInterval> | null = null;
+
 export function startReportScheduler(db: Db): void {
   console.log('Report scheduler: started (checking every 60s)');
-  setInterval(() => runDueReports(db).catch((err) => console.error('Scheduler error:', err)), INTERVAL_MS);
+  schedulerHandle = setInterval(() => runDueReports(db).catch((err) => console.error('Scheduler error:', err)), INTERVAL_MS);
+}
+
+export function stopReportScheduler(): void {
+  if (schedulerHandle) {
+    clearInterval(schedulerHandle);
+    schedulerHandle = null;
+  }
 }
 
 async function runDueReports(db: Db): Promise<void> {

@@ -166,62 +166,64 @@ export class TallyImportService {
       .from(customers).where(eq(customers.tenantId, this.tenantId));
     const customerByName = new Map(existingCustomers.map((c) => [c.name.toLowerCase(), c.id]));
 
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]!;
-      const customerName = row[custIdx]?.trim();
-      if (!customerName) { skipped++; continue; }
+    await this.db.transaction(async (tx) => {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]!;
+        const customerName = row[custIdx]?.trim();
+        if (!customerName) { skipped++; continue; }
 
-      const amount = parseFloat(row[amtIdx] || '0');
-      const balance = balIdx >= 0 ? parseFloat(row[balIdx] || '0') : amount;
-      if (amount <= 0) { skipped++; continue; }
+        const amount = parseFloat(row[amtIdx] || '0');
+        const balance = balIdx >= 0 ? parseFloat(row[balIdx] || '0') : amount;
+        if (amount <= 0) { skipped++; continue; }
 
-      const invoiceNumber = invIdx >= 0 ? row[invIdx]?.trim() : undefined;
-      const invoiceDate = dateIdx >= 0 ? row[dateIdx]?.trim() : undefined;
-      const dueDate = dueIdx >= 0 ? row[dueIdx]?.trim() : undefined;
+        const invoiceNumber = invIdx >= 0 ? row[invIdx]?.trim() : undefined;
+        const invoiceDate = dateIdx >= 0 ? row[dateIdx]?.trim() : undefined;
+        const dueDate = dueIdx >= 0 ? row[dueIdx]?.trim() : undefined;
 
-      // Auto-create customer if not exists
-      let customerId = customerByName.get(customerName.toLowerCase());
-      if (!customerId) {
+        // Auto-create customer if not exists
+        let customerId = customerByName.get(customerName.toLowerCase());
+        if (!customerId) {
+          try {
+            const [newCust] = await tx.insert(customers).values({
+              tenantId: this.tenantId,
+              name: customerName,
+            }).returning();
+            customerId = newCust!.id;
+            customerByName.set(customerName.toLowerCase(), customerId);
+          } catch (err) {
+            errors.push({ row: i + 1, message: `Failed to create customer "${customerName}"` });
+            continue;
+          }
+        }
+
+        // Create sales invoice as "sent" with the outstanding balance
         try {
-          const [newCust] = await this.db.insert(customers).values({
+          const { salesInvoices } = await import('@runq/db');
+          const invNum = invoiceNumber || `TALLY-AR-${String(created + 1).padStart(4, '0')}`;
+          const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
+          const due = this.parseDate(dueDate) || invDate;
+
+          await tx.insert(salesInvoices).values({
             tenantId: this.tenantId,
-            name: customerName,
-          }).returning();
-          customerId = newCust!.id;
-          customerByName.set(customerName.toLowerCase(), customerId);
+            customerId,
+            invoiceNumber: invNum,
+            invoiceDate: invDate,
+            dueDate: due,
+            subtotal: String(amount),
+            taxAmount: '0',
+            totalAmount: String(amount),
+            amountReceived: String(amount - balance),
+            balanceDue: String(balance),
+            status: balance > 0 ? 'sent' : 'paid',
+            createdBy: createdBy ?? null,
+          });
+          created++;
         } catch (err) {
-          errors.push({ row: i + 1, message: `Failed to create customer "${customerName}"` });
-          continue;
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push({ row: i + 1, message: `Failed to create invoice: ${msg}` });
         }
       }
-
-      // Create sales invoice as "sent" with the outstanding balance
-      try {
-        const { salesInvoices } = await import('@runq/db');
-        const invNum = invoiceNumber || `TALLY-AR-${String(created + 1).padStart(4, '0')}`;
-        const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
-        const due = this.parseDate(dueDate) || invDate;
-
-        await this.db.insert(salesInvoices).values({
-          tenantId: this.tenantId,
-          customerId,
-          invoiceNumber: invNum,
-          invoiceDate: invDate,
-          dueDate: due,
-          subtotal: String(amount),
-          taxAmount: '0',
-          totalAmount: String(amount),
-          amountReceived: String(amount - balance),
-          balanceDue: String(balance),
-          status: balance > 0 ? 'sent' : 'paid',
-          createdBy: createdBy ?? null,
-        });
-        created++;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push({ row: i + 1, message: `Failed to create invoice: ${msg}` });
-      }
-    }
+    });
 
     return { created, skipped, errors };
   }
@@ -252,59 +254,61 @@ export class TallyImportService {
       .from(vendors).where(eq(vendors.tenantId, this.tenantId));
     const vendorByName = new Map(existingVendors.map((v) => [v.name.toLowerCase(), v.id]));
 
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]!;
-      const vendorName = row[vendorIdx]?.trim();
-      if (!vendorName) { skipped++; continue; }
+    await this.db.transaction(async (tx) => {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]!;
+        const vendorName = row[vendorIdx]?.trim();
+        if (!vendorName) { skipped++; continue; }
 
-      const amount = parseFloat(row[amtIdx] || '0');
-      const balance = balIdx >= 0 ? parseFloat(row[balIdx] || '0') : amount;
-      if (amount <= 0) { skipped++; continue; }
+        const amount = parseFloat(row[amtIdx] || '0');
+        const balance = balIdx >= 0 ? parseFloat(row[balIdx] || '0') : amount;
+        if (amount <= 0) { skipped++; continue; }
 
-      const invoiceNumber = invIdx >= 0 ? row[invIdx]?.trim() : undefined;
-      const invoiceDate = dateIdx >= 0 ? row[dateIdx]?.trim() : undefined;
-      const dueDate = dueIdx >= 0 ? row[dueIdx]?.trim() : undefined;
+        const invoiceNumber = invIdx >= 0 ? row[invIdx]?.trim() : undefined;
+        const invoiceDate = dateIdx >= 0 ? row[dateIdx]?.trim() : undefined;
+        const dueDate = dueIdx >= 0 ? row[dueIdx]?.trim() : undefined;
 
-      let vendorId = vendorByName.get(vendorName.toLowerCase());
-      if (!vendorId) {
+        let vendorId = vendorByName.get(vendorName.toLowerCase());
+        if (!vendorId) {
+          try {
+            const [newVendor] = await tx.insert(vendors).values({
+              tenantId: this.tenantId,
+              name: vendorName,
+            }).returning();
+            vendorId = newVendor!.id;
+            vendorByName.set(vendorName.toLowerCase(), vendorId);
+          } catch (err) {
+            errors.push({ row: i + 1, message: `Failed to create vendor "${vendorName}"` });
+            continue;
+          }
+        }
+
         try {
-          const [newVendor] = await this.db.insert(vendors).values({
+          const { purchaseInvoices } = await import('@runq/db');
+          const invNum = invoiceNumber || `TALLY-AP-${String(created + 1).padStart(4, '0')}`;
+          const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
+          const due = this.parseDate(dueDate) || invDate;
+
+          await tx.insert(purchaseInvoices).values({
             tenantId: this.tenantId,
-            name: vendorName,
-          }).returning();
-          vendorId = newVendor!.id;
-          vendorByName.set(vendorName.toLowerCase(), vendorId);
+            vendorId,
+            invoiceNumber: invNum,
+            invoiceDate: invDate,
+            dueDate: due,
+            subtotal: String(amount),
+            taxAmount: '0',
+            totalAmount: String(amount),
+            amountPaid: String(amount - balance),
+            balanceDue: String(balance),
+            status: balance > 0 ? 'approved' : 'paid',
+          });
+          created++;
         } catch (err) {
-          errors.push({ row: i + 1, message: `Failed to create vendor "${vendorName}"` });
-          continue;
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push({ row: i + 1, message: `Failed to create bill: ${msg}` });
         }
       }
-
-      try {
-        const { purchaseInvoices } = await import('@runq/db');
-        const invNum = invoiceNumber || `TALLY-AP-${String(created + 1).padStart(4, '0')}`;
-        const invDate = this.parseDate(invoiceDate) || new Date().toISOString().slice(0, 10);
-        const due = this.parseDate(dueDate) || invDate;
-
-        await this.db.insert(purchaseInvoices).values({
-          tenantId: this.tenantId,
-          vendorId,
-          invoiceNumber: invNum,
-          invoiceDate: invDate,
-          dueDate: due,
-          subtotal: String(amount),
-          taxAmount: '0',
-          totalAmount: String(amount),
-          amountPaid: String(amount - balance),
-          balanceDue: String(balance),
-          status: balance > 0 ? 'approved' : 'paid',
-        });
-        created++;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push({ row: i + 1, message: `Failed to create bill: ${msg}` });
-      }
-    }
+    });
 
     return { created, skipped, errors };
   }

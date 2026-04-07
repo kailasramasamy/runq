@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenant';
 import { users } from './user';
 
@@ -13,4 +13,7 @@ export const auditLog = pgTable('audit_log', {
   metadata: jsonb('metadata'),
   ipAddress: varchar('ip_address', { length: 45 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_audit_tenant_entity').on(t.tenantId, t.entityType, t.entityId),
+  index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
+]);

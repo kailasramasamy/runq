@@ -77,4 +77,6 @@ export const purchaseInvoiceItems = pgTable('purchase_invoice_items', {
   tdsAmount: decimal('tds_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_pii_invoice_id').on(t.invoiceId),
+]);

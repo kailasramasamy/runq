@@ -156,8 +156,8 @@ export class InvoiceService {
   }
 
   async create(input: CreateSalesInvoiceInput, userId?: string): Promise<SalesInvoiceWithDetails> {
-    await this.checkCreditLimit(input.customerId, input.totalAmount);
     return this.db.transaction(async (tx) => {
+      await this.checkCreditLimit(input.customerId, input.totalAmount);
       const invoiceNumber = await this.resolveInvoiceNumber(tx);
       const gst = await this.computeGstForInvoice(tx, input.customerId, input.items, input.reverseCharge);
 

@@ -78,4 +78,6 @@ export const salesInvoiceItems = pgTable('sales_invoice_items', {
   cessAmount: decimal('cess_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index('idx_sii_invoice_id').on(t.invoiceId),
+]);

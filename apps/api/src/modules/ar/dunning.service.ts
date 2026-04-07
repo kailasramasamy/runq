@@ -95,7 +95,9 @@ export class DunningService {
           lt(salesInvoices.dueDate, today),
           inArray(salesInvoices.status, ['sent', 'partially_paid']),
         ),
-      );
+      )
+      .orderBy(salesInvoices.dueDate)
+      .limit(500);
 
     const todayMs = new Date(today).getTime();
     return rows.map((r) => ({
