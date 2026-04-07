@@ -141,8 +141,8 @@ export function VendorPortalPage() {
       <div className="border-t border-zinc-200 bg-white mt-8 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="mx-auto max-w-3xl px-4 py-4 flex items-center justify-center gap-1.5 text-xs text-zinc-400">
           Powered by
-          <span className="inline-flex items-center rounded bg-zinc-900 px-1.5 py-0.5 dark:bg-zinc-100">
-            <img src="/logo.svg" alt="runQ" className="h-3.5 dark:invert" />
+          <span className="inline-flex items-center rounded bg-zinc-900 px-1.5 py-0.5">
+            <img src="/runq-light.png" alt="runQ" className="h-3.5" />
           </span>
         </div>
       </div>

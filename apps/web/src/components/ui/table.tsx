@@ -14,7 +14,7 @@ interface TableProps extends HTMLAttributes<HTMLTableElement> {
 
 export function Table({ className, noOverflow, children, ...props }: TableProps) {
   return (
-    <div className={cn('rounded-lg border border-zinc-200 dark:border-zinc-800', noOverflow ? 'overflow-visible' : 'overflow-x-auto')}>
+    <div className={cn('rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900', noOverflow ? 'overflow-visible' : 'overflow-x-auto')}>
       <table className={cn('w-full border-collapse text-sm', className)} {...props}>
         {children}
       </table>

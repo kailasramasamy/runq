@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import { dbPlugin } from './plugins/db';
 import { redisPlugin } from './plugins/redis';
@@ -38,6 +40,15 @@ export async function buildApp() {
     : true; // Allow all in dev when CORS_ORIGIN is not set
   await app.register(cors, { origin: corsOrigin, credentials: true });
 
+  // Security
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // Disable CSP for API — frontend handles its own
+  });
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+  });
+
   // Infrastructure plugins
   await app.register(errorHandlerPlugin);
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
@@ -47,7 +58,11 @@ export async function buildApp() {
   await app.register(tenantContextPlugin);
 
   // Public routes (no auth required)
-  await app.register(authRoutes, { prefix: '/api/v1/auth' });
+  await app.register(async (authScope) => {
+    // Stricter rate limit on auth: 10 attempts per minute
+    await authScope.register(rateLimit, { max: 10, timeWindow: '1 minute' });
+    await authScope.register(authRoutes);
+  }, { prefix: '/api/v1/auth' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   await app.register(portalRoutes, { prefix: '/api/v1/ar' });

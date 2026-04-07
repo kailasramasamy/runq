@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Dev auto-login: skip the login page during development
     if (import.meta.env.DEV) {
-      doLogin('admin@demo.com', 'admin123', 'demo-company')
+      doLogin('vaidehi@vrindavandairy.com', 'Vrindavan@2026', 'demo-company')
         .catch(() => {})
         .finally(() => setIsLoading(false));
     } else {

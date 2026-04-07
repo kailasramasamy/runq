@@ -5,7 +5,6 @@ import { useAuth } from '@/providers/auth-provider';
 
 export function LoginPage() {
   const { login } = useAuth();
-  const [tenant, setTenant] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,13 +13,9 @@ export function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!tenant.trim()) {
-      setError('Workspace slug is required.');
-      return;
-    }
     setLoading(true);
     try {
-      await login(email, password, tenant.trim().toLowerCase());
+      await login(email, password, '');
       window.location.href = '/';
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err
@@ -37,7 +32,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <img src="/logo.svg" alt="runQ" className="h-10 w-auto" />
+          <img src="/runq-light.png" alt="runQ" className="h-10 w-auto" />
           <div className="text-center">
             <h1 className="text-xl font-semibold text-zinc-100">Sign in to runQ</h1>
             <p className="mt-1 text-sm text-zinc-400">Finance & Accounting ERP</p>
@@ -47,22 +42,6 @@ export function LoginPage() {
         {/* Card */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-2xl backdrop-blur-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Tenant */}
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-zinc-300">
-                Workspace
-              </label>
-              <input
-                type="text"
-                placeholder="your-company"
-                value={tenant}
-                onChange={(e) => setTenant(e.target.value)}
-                autoComplete="organization"
-                autoFocus
-                className="block w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-
             {/* Email */}
             <div className="space-y-1">
               <label className="block text-sm font-medium text-zinc-300">
@@ -74,6 +53,7 @@ export function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                autoFocus
                 required
                 className="block w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
@@ -117,7 +97,7 @@ export function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-600">
-          runQ Finance v1 &mdash; Internal use only
+          runQ Finance v1
         </p>
       </div>
     </div>

@@ -11,14 +11,21 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', async (request, reply) => {
     const { email, password, tenant: tenantSlug } = loginSchema.parse(request.body);
 
-    const [tenant] = await app.db.select({ id: tenants.id, name: tenants.name }).from(tenants).where(eq(tenants.slug, tenantSlug)).limit(1);
-    if (!tenant) throw new UnauthorizedError('Invalid credentials');
+    let tenant: { id: string; name: string } | undefined;
+    let user: typeof users.$inferSelect | undefined;
 
-    const [user] = await app.db
-      .select()
-      .from(users)
-      .where(and(eq(users.email, email), eq(users.tenantId, tenant.id)))
-      .limit(1);
+    if (tenantSlug) {
+      // Explicit tenant slug provided
+      [tenant] = await app.db.select({ id: tenants.id, name: tenants.name }).from(tenants).where(eq(tenants.slug, tenantSlug)).limit(1);
+      if (!tenant) throw new UnauthorizedError('Invalid credentials');
+      [user] = await app.db.select().from(users).where(and(eq(users.email, email), eq(users.tenantId, tenant.id))).limit(1);
+    } else {
+      // Resolve tenant from email
+      [user] = await app.db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (user) {
+        [tenant] = await app.db.select({ id: tenants.id, name: tenants.name }).from(tenants).where(eq(tenants.id, user.tenantId)).limit(1);
+      }
+    }
 
     if (!user || !user.isActive) {
       await argon2.verify(DUMMY_HASH, password);
