@@ -5,6 +5,7 @@ import { useCompanySettings, useUpdateCompanySettings, useUpdateInvoiceNumbering
 import { useCreateBankAccount } from '@/hooks/queries/use-bank-accounts';
 import { useCreateCustomer } from '@/hooks/queries/use-customers';
 import { useCreateItem } from '@/hooks/queries/use-items';
+import { INDIAN_STATE_OPTIONS } from '@/lib/indian-states';
 
 // ─── Step Type ───────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ const FY_MONTH_OPTIONS = [
   { value: '10', label: 'October' },
 ];
 
+const STATE_SELECT_OPTIONS = [{ value: '', label: 'Select state' }, ...INDIAN_STATE_OPTIONS];
+
 export function CompanyProfileStep({ onComplete }: StepProps) {
   const { data: settings } = useCompanySettings();
   const update = useUpdateCompanySettings();
@@ -56,20 +59,35 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
     setFyMonth(String(s.financialYearStartMonth ?? 4));
   }, [settings]);
 
+  const selectedState = INDIAN_STATE_OPTIONS.find((s) => s.value === stateCode);
+
   async function handleNext(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (!legalName.trim()) return setError('Legal name is required');
+
+    const gstinTrimmed = gstin.trim().toUpperCase();
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (gstinTrimmed && !gstinRegex.test(gstinTrimmed)) {
+      return setError('GSTIN format is invalid. Leave blank if you don\'t have one yet.');
+    }
+
+    const pincodeTrimmed = pincode.trim();
+    if (pincodeTrimmed && !/^[1-9][0-9]{5}$/.test(pincodeTrimmed)) {
+      return setError('Pincode must be 6 digits.');
+    }
+
     try {
       await update.mutateAsync({
         currency: 'INR',
         financialYearStartMonth: Number(fyMonth),
         defaultPaymentTermsDays: settings?.data.defaultPaymentTermsDays ?? 30,
         legalName: legalName || null,
-        gstin: gstin || null,
+        gstin: gstinTrimmed || null,
+        state: selectedState?.label ?? null,
         stateCode: stateCode || null,
-        city: city || null,
-        pincode: pincode || null,
+        city: city.trim() || null,
+        pincode: pincodeTrimmed || null,
       });
       onComplete();
     } catch {
@@ -85,7 +103,7 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
         <Input label="PAN" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" helper="10 characters" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Input label="State code" value={stateCode} onChange={(e) => setStateCode(e.target.value)} placeholder="29" />
+        <Select label="State" options={STATE_SELECT_OPTIONS} value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
         <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bengaluru" />
         <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} placeholder="560001" />
       </div>
