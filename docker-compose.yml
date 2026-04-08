@@ -1,0 +1,51 @@
+services:
+  # PostgreSQL
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: runq_dev
+      POSTGRES_USER: runq_app
+      POSTGRES_PASSWORD: runq_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # API
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: postgresql://runq_app:runq_dev_pass@db:5432/runq_dev
+      REDIS_URL: redis://redis:6379
+      PORT: 3003
+      JWT_SECRET: change-me-in-production
+      NODE_ENV: production
+    depends_on:
+      - db
+      - redis
+
+  # Frontend (Caddy serving web + www)
+  frontend:
+    build:
+      context: .
+      target: frontend
+    ports:
+      - "8080:8080"
+    environment:
+      SITE_ADDRESS: ":8080"
+      API_URL: "api:3003"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

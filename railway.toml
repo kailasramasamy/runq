@@ -1,0 +1,23 @@
+# Railway deployment config
+# Create two services in Railway pointing to this repo:
+#
+# Service 1: "api" — target: api
+# Service 2: "frontend" — target: frontend
+#
+# Plus managed PostgreSQL and Redis add-ons.
+#
+# Environment variables needed for API service:
+#   DATABASE_URL     — from Railway PostgreSQL add-on
+#   REDIS_URL        — from Railway Redis add-on
+#   JWT_SECRET       — generate a strong random string
+#   SMTP_HOST        — e.g., smtp.zoho.com
+#   SMTP_PORT        — e.g., 465
+#   SMTP_USER        — email sender address
+#   SMTP_PASS        — email sender password
+#   SMTP_SECURE      — true
+#   MAIL_FROM        — sender email address
+#   CORS_ORIGIN      — https://runq.in
+#
+# Environment variables needed for Frontend service:
+#   SITE_ADDRESS     — runq.in (Railway provides this via custom domain)
+#   API_URL          — internal Railway URL for the API service (e.g., api.railway.internal:3003)

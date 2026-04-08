@@ -218,7 +218,7 @@ export function PaymentListPage() {
                 <Badge variant={STATUS_VARIANT[p.status]} className="capitalize">{p.status}</Badge>
               </div>
               <div className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                {p.vendorName ?? p.vendorId.slice(0, 8)}
+                {(p as any).vendorName ?? p.vendorId.slice(0, 8)}
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
                 <span>{p.paymentDate}</span>

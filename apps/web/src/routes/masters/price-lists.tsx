@@ -211,7 +211,7 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
           <Select
             label="Apply To"
             value={applyTo}
-            onChange={(e) => setApplyTo(e.target.value as CreatePriceListInput['applyTo'])}
+            onChange={(e) => setApplyTo(e.target.value as 'all' | 'customer_group' | 'vendor_group' | 'customer' | 'vendor')}
             options={[
               { value: 'all', label: 'All' },
               { value: 'customer_group', label: 'Customer Group' },

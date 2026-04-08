@@ -85,7 +85,7 @@ function ScheduleDetail({ id, onBack }: { id: string; onBack: () => void }) {
         title={schedule.name}
         breadcrumbs={[
           { label: 'Vendor Management' },
-          { label: 'Payment Schedules', onClick: onBack },
+          { label: 'Payment Schedules' },
           { label: schedule.name },
         ]}
         actions={

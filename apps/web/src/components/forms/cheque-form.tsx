@@ -16,8 +16,8 @@ export function ChequeForm({ onSubmit, isLoading, onCancel }: Props) {
   const [form, setForm] = useState({
     chequeNumber: '',
     bankAccountId: '',
-    type: 'received' as const,
-    partyType: 'customer' as const,
+    type: 'received' as 'issued' | 'received',
+    partyType: 'customer' as 'customer' | 'vendor',
     partyId: '',
     amount: '',
     chequeDate: '',

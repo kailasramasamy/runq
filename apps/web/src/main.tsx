@@ -9,7 +9,8 @@ import { AuthProvider } from './providers/auth-provider';
 import { ToastProvider } from './components/ui/toast';
 import './app.css';
 
-const router = createRouter({ routeTree });
+const basepath = import.meta.env.PROD ? '/finance' : '/';
+const router = createRouter({ routeTree, basepath });
 
 declare module '@tanstack/react-router' {
   interface Register {

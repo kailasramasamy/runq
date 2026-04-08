@@ -33,7 +33,7 @@ export function NewCustomerPage() {
             toast('Customer created and linked to quote', 'success');
             navigate({ to: '/ar/quotes' });
           } catch {
-            toast('Customer created but failed to link to quote', 'warning');
+            toast('Customer created but failed to link to quote', 'error');
             navigate({ to: '/ar/customers' });
           }
         } else {

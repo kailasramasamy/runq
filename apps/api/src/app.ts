@@ -30,6 +30,8 @@ import { vendorManagementRoutes } from './modules/vendor-management/routes';
 import { caPortalRoutes } from './modules/ca-portal/routes';
 import { hrRoutes } from './modules/hr/routes';
 import { webhookEndpointRoutes } from './modules/webhooks/webhook-endpoint.routes';
+import { contactRoutes } from './modules/public/contact.routes';
+import { otpRoutes } from './modules/public/otp.routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -63,6 +65,11 @@ export async function buildApp() {
     await authScope.register(rateLimit, { max: 10, timeWindow: '1 minute' });
     await authScope.register(authRoutes);
   }, { prefix: '/api/v1/auth' });
+  await app.register(async (publicScope) => {
+    await publicScope.register(rateLimit, { max: 5, timeWindow: '1 minute' });
+    await publicScope.register(contactRoutes);
+    await publicScope.register(otpRoutes);
+  }, { prefix: '/api/v1/public' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   await app.register(portalRoutes, { prefix: '/api/v1/ar' });

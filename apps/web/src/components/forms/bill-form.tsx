@@ -112,6 +112,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
     if (initialData.notes) setNotes(initialData.notes);
     if (initialData.items?.length) {
       setLines(initialData.items.map((item) => ({
+        itemId: '',
         itemName: item.itemName || '',
         sku: item.sku || '',
         quantity: String(item.quantity || ''),
@@ -238,6 +239,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
           if (e.dueDate) setDueDate(e.dueDate);
           if (e.items?.length) {
             setLines(e.items.map((item) => ({
+              itemId: '',
               itemName: item.itemName || '',
               sku: '',
               quantity: String(item.quantity || ''),

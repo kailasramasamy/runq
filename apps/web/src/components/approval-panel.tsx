@@ -16,7 +16,7 @@ interface ApprovalPanelProps {
 const STEP_STATUS_VARIANT = {
   pending: 'warning' as const,
   approved: 'success' as const,
-  rejected: 'error' as const,
+  rejected: 'danger' as const,
   skipped: 'default' as const,
 };
 
@@ -90,7 +90,7 @@ export function ApprovalPanel({ entityType, entityId, amount }: ApprovalPanelPro
 
         {instance?.status === 'rejected' && (
           <div>
-            <Badge variant="error">Rejected</Badge>
+            <Badge variant="danger">Rejected</Badge>
             {instance.steps.find((s) => s.status === 'rejected' && s.comment) && (
               <p className="mt-1 text-sm text-zinc-500">
                 {instance.steps.find((s) => s.status === 'rejected')?.comment}

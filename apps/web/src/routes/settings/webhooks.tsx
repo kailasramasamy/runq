@@ -145,12 +145,12 @@ function MobileEndpointCard({ ep }: { ep: WebhookEndpoint }) {
           {ep.description && <p className="text-xs text-zinc-400 mt-0.5">{ep.description}</p>}
           <div className="mt-1 flex flex-wrap gap-1">
             {ep.events.slice(0, 3).map((e) => (
-              <Badge key={e} variant="secondary" className="text-[10px] font-mono">{e}</Badge>
+              <Badge key={e} variant="outline" className="text-[10px] font-mono">{e}</Badge>
             ))}
-            {ep.events.length > 3 && <Badge variant="secondary" className="text-[10px]">+{ep.events.length - 3}</Badge>}
+            {ep.events.length > 3 && <Badge variant="outline" className="text-[10px]">+{ep.events.length - 3}</Badge>}
           </div>
         </div>
-        <Badge variant={ep.isActive ? 'default' : 'secondary'} className="shrink-0">
+        <Badge variant={ep.isActive ? 'default' : 'outline'} className="shrink-0">
           {ep.isActive ? 'Active' : 'Inactive'}
         </Badge>
       </div>
@@ -205,13 +205,13 @@ function EndpointsTable({ endpoints }: { endpoints: WebhookEndpoint[] }) {
             <TableCell>
               <div className="flex flex-wrap gap-1">
                 {ep.events.slice(0, 3).map((e) => (
-                  <Badge key={e} variant="secondary" className="text-[10px] font-mono">{e}</Badge>
+                  <Badge key={e} variant="outline" className="text-[10px] font-mono">{e}</Badge>
                 ))}
-                {ep.events.length > 3 && <Badge variant="secondary" className="text-[10px]">+{ep.events.length - 3}</Badge>}
+                {ep.events.length > 3 && <Badge variant="outline" className="text-[10px]">+{ep.events.length - 3}</Badge>}
               </div>
             </TableCell>
             <TableCell>
-              <Badge variant={ep.isActive ? 'default' : 'secondary'}>{ep.isActive ? 'Active' : 'Inactive'}</Badge>
+              <Badge variant={ep.isActive ? 'default' : 'outline'}>{ep.isActive ? 'Active' : 'Inactive'}</Badge>
             </TableCell>
             <TableCell className="tabular-nums">{ep.failureCount}</TableCell>
             <TableCell className="text-xs text-zinc-500">{ep.lastDeliveredAt ?? '--'}</TableCell>

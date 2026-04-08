@@ -289,7 +289,7 @@ function RulesTab() {
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     createMutation.mutate(
-      { name, daysAfterDue: Number(daysAfterDue), channel, action, bodyTemplate, isActive: true },
+      { name, daysAfterDue: Number(daysAfterDue), channel, action, bodyTemplate, isActive: true, escalationLevel: 1 },
       {
         onSuccess: () => {
           toast('Dunning rule created.', 'success');

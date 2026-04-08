@@ -94,7 +94,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Combobox label="Customer" options={customerOptions} value={customerId} onChange={setCustomerId} placeholder="Select customer..." required />
-          <DateInput label="Order Date" value={orderDate} onChange={setOrderDate} required />
+          <DateInput label="Order Date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
         </div>
 
         <div>
