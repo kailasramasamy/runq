@@ -90,6 +90,7 @@ import { ExpenseClaimsPage } from './hr/expense-claims';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
 import { QuickTemplatesPage } from './ar/quick-templates';
+import { SetupPage } from './settings/setup';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -752,6 +753,7 @@ const glTrialBalanceRoute = createRoute({
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
 
 const SETTINGS_TABS = [
+  { label: 'Setup', path: '/settings/setup' },
   { label: 'Company', path: '/settings/company' },
   { label: 'Invoice Numbering', path: '/settings/invoice-numbering' },
   { label: 'Users', path: '/settings/users' },
@@ -814,7 +816,13 @@ const settingsRoute = createRoute({
 const settingsIndexRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/',
-  component: () => <Navigate to="/settings/company" />,
+  component: () => <Navigate to="/settings/setup" />,
+});
+
+const settingsSetupRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/setup',
+  component: SetupPage,
 });
 
 const settingsCompanyRoute = createRoute({
@@ -1370,6 +1378,7 @@ export const routeTree = rootRoute.addChildren([
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,
+      settingsSetupRoute,
       settingsCompanyRoute,
       settingsInvoiceNumberingRoute,
       settingsUsersRoute,
