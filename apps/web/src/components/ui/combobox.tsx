@@ -144,7 +144,11 @@ export function Combobox({
     }
   }
 
-  const displayValue = open ? query : (selectedOption?.label ?? '');
+  // Fall back to the raw value when it isn't in the options list — this
+  // happens for items whose category was created outside the master (e.g.
+  // legacy data, or items imported with a category not yet in the tree).
+  // Without this fallback the field renders empty even though a value is set.
+  const displayValue = open ? query : (selectedOption?.label ?? value ?? '');
 
   return (
     <FieldWrapper label={label} error={error} required={required}>
@@ -169,7 +173,7 @@ export function Combobox({
             error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500',
           )}
         />
-        {selectedOption && !disabled && (
+        {value && !disabled && (
           <button
             type="button"
             onClick={clearSelection}

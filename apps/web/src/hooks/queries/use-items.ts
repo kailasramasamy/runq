@@ -97,3 +97,76 @@ export function useToggleItem() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ITEM_KEYS.all }),
   });
 }
+
+export function useDeleteItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/masters/items/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ITEM_KEYS.all }),
+  });
+}
+
+// ─── AI Smart Import ─────────────────────────────────────────────────────────
+
+export interface ExtractedItem {
+  name: string;
+  sku: string | null;
+  type: 'product' | 'service';
+  hsnSacCode: string | null;
+  unit: string | null;
+  defaultSellingPrice: number | null;
+  defaultPurchasePrice: number | null;
+  mrp: number | null;
+  costPrice: number | null;
+  gstRate: number | null;
+  category: string | null;
+  subcategory: string | null;
+  description: string | null;
+}
+
+export interface ExtractionResult {
+  items: ExtractedItem[];
+  notes: string;
+  confidence: number;
+}
+
+export interface BulkImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: Array<{ row: number; name: string; message: string }>;
+}
+
+export function useExtractItemsFromFile() {
+  return useMutation<ApiSuccess<ExtractionResult>, Error, File>({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = localStorage.getItem('runq-token');
+      const res = await fetch('/api/v1/masters/items/extract', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Extraction failed' }));
+        throw new Error(err.message ?? 'Extraction failed');
+      }
+      return res.json();
+    },
+  });
+}
+
+export function useBulkCreateItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { items: CreateItemInput[]; mode: 'skip' | 'overwrite' }) =>
+      api.post<ApiSuccess<BulkImportResult>>('/masters/items/bulk-create', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ITEM_KEYS.all });
+      // Bulk import auto-creates any referenced categories/subcategories,
+      // so refresh the category tree the edit dialog uses.
+      qc.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}

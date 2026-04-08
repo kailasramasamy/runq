@@ -92,13 +92,14 @@ export async function extractFromImage(
 export async function analyze(
   systemPrompt: string,
   userPrompt: string,
+  maxTokens = 2048,
 ): Promise<string | null> {
   const ai = getClient();
   if (!ai) return null;
 
   const response = await ai.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });

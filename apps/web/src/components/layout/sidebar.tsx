@@ -37,7 +37,6 @@ const navItems = [
   { label: 'Workflows', path: '/workflows', icon: GitBranch },
   { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
   { label: 'Settings', path: '/settings', icon: Settings },
-  { label: 'User Guide', path: '/help', icon: HelpCircle },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -91,12 +90,24 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+        {/* User guide — discoverable but visually subordinate to Sign out */}
+        <Link
+          to="/help"
+          onClick={onNavigate}
+          className="mb-3 flex w-full items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/70"
+        >
+          <HelpCircle size={16} strokeWidth={2} />
+          <span className="flex-1 text-left">User Guide</span>
+          <span aria-hidden="true" className="text-indigo-400 dark:text-indigo-500">→</span>
+        </Link>
+
         <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
           {companyName ?? 'Loading...'}
         </p>
         <p className="mb-3 truncate text-xs text-zinc-500 dark:text-zinc-500">
           {user?.email ?? ''}
         </p>
+
         <button
           onClick={logout}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300"

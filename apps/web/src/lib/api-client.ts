@@ -44,6 +44,12 @@ class ApiClient {
       throw error;
     }
 
+    // 204 No Content has no body — calling .json() on it throws
+    // "Unexpected end of JSON input". DELETE endpoints use this.
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return response.json();
   }
 

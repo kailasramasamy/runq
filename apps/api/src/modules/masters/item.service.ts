@@ -1,11 +1,11 @@
-import { eq, and, ilike, sql } from 'drizzle-orm';
-import { items } from '@runq/db';
+import { eq, and, ilike, or, sql } from 'drizzle-orm';
+import { items, priceListItems } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Item } from '@runq/types';
 import type { CreateItemInput, UpdateItemInput, ItemFilterInput } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
-import { NotFoundError } from '../../utils/errors';
+import { ConflictError, NotFoundError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
 export interface ItemListParams {
@@ -31,7 +31,12 @@ export class ItemService {
 
     const baseWhere = and(
       eq(items.tenantId, this.tenantId),
-      filters.search ? ilike(items.name, `%${filters.search}%`) : undefined,
+      filters.search
+        ? or(
+            ilike(items.name, `%${filters.search}%`),
+            ilike(items.sku, `%${filters.search}%`),
+          )
+        : undefined,
       filters.type ? eq(items.type, filters.type) : undefined,
       filters.category ? eq(items.category, filters.category) : undefined,
       filters.subcategory ? eq(items.subcategory, filters.subcategory) : undefined,
@@ -113,6 +118,34 @@ export class ItemService {
 
     if (!row) throw new NotFoundError('Item');
     return this.toItem(row);
+  }
+
+  async remove(id: string): Promise<void> {
+    // Confirm the item belongs to this tenant before doing anything else.
+    await this.getById(id);
+
+    // Pre-check the only strict FK reference (price_list_items.item_id) so we
+    // can return a useful 409 instead of a generic FK violation. Other tables
+    // (quotes, sales_orders) store item_id without an FK constraint and don't
+    // block delete — they'd just leave a dangling reference, which is the same
+    // as today when an item is deactivated.
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(priceListItems)
+      .where(eq(priceListItems.itemId, id));
+
+    if ((count ?? 0) > 0) {
+      throw new ConflictError(
+        `Cannot delete — this item is on ${count} price list${count === 1 ? '' : 's'}. Remove it from the price list(s) first, or deactivate the item instead.`,
+      );
+    }
+
+    const result = await this.db
+      .delete(items)
+      .where(and(eq(items.id, id), eq(items.tenantId, this.tenantId)))
+      .returning({ id: items.id });
+
+    if (result.length === 0) throw new NotFoundError('Item');
   }
 
   private toItem(row: typeof items.$inferSelect): Item {

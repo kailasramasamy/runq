@@ -84,6 +84,7 @@ import { CAPortalSettingsPage } from './settings/ca-portal';
 import { TallyImportPage } from './settings/tally-import';
 import { CAPortalPage } from './ca-portal/index';
 import { ItemsPage } from './masters/items';
+import { ImportItemsPage } from './masters/items/import';
 import { PriceListsPage } from './masters/price-lists';
 import { CategoriesPage } from './masters/categories';
 import { QuotesPage } from './ar/quotes/index';
@@ -1258,6 +1259,12 @@ const mastersItemsRoute = createRoute({
   component: ItemsPage,
 });
 
+const mastersItemsImportRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/import',
+  component: ImportItemsPage,
+});
+
 const mastersCategoriesRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/categories',
@@ -1443,6 +1450,7 @@ export const routeTree = rootRoute.addChildren([
     mastersRoute.addChildren([
       mastersIndexRoute,
       mastersItemsRoute,
+      mastersItemsImportRoute,
       mastersCategoriesRoute,
       mastersPriceListsRoute,
     ]),

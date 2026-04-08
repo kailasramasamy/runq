@@ -25,6 +25,12 @@ export const itemFilterSchema = z.object({
   subcategory: z.string().optional(),
 });
 
+export const bulkCreateItemsSchema = z.object({
+  items: z.array(createItemSchema).min(1).max(500),
+  mode: z.enum(['skip', 'overwrite']).default('skip'),
+});
+
 export type CreateItemInput = z.infer<typeof createItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
 export type ItemFilterInput = z.infer<typeof itemFilterSchema>;
+export type BulkCreateItemsInput = z.infer<typeof bulkCreateItemsSchema>;

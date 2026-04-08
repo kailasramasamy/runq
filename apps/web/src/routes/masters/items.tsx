@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Pencil, Download, Power } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Plus, X, Pencil, Download, Power, Sparkles, Trash2, Search } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
-  TableSkeleton, useToast,
+  TableSkeleton, useToast, ConfirmationDialog,
 } from '@/components/ui';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
 import { Combobox } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import {
-  useItems, useCreateItem, useUpdateItem, useToggleItem,
+  useItems, useCreateItem, useUpdateItem, useToggleItem, useDeleteItem,
   type Item, type CreateItemInput,
 } from '@/hooks/queries/use-items';
 import { useCategoryTree } from '@/hooks/queries/use-categories';
@@ -56,7 +57,7 @@ function Modal({ open, onClose, title, children }: {
 
 // ─── Item Form (used inside modal) ──────────────────────────────────────────
 
-function ItemForm({ item, onClose }: { item?: Item; onClose: () => void }) {
+function ItemForm({ item, onClose, onDelete }: { item?: Item; onClose: () => void; onDelete?: () => void }) {
   const create = useCreateItem();
   const update = useUpdateItem();
   const { toast } = useToast();
@@ -178,11 +179,26 @@ function ItemForm({ item, onClose }: { item?: Item; onClose: () => void }) {
       </fieldset>
 
       {/* Actions */}
-      <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button type="submit" loading={create.isPending || update.isPending} size="sm">
-          {isEdit ? <><Pencil size={14} /> Save Changes</> : <><Plus size={14} /> Create Item</>}
-        </Button>
+      <div className="flex items-center justify-between gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <div>
+          {isEdit && onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+            >
+              <Trash2 size={14} /> Delete
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={create.isPending || update.isPending} size="sm">
+            {isEdit ? <><Pencil size={14} /> Save Changes</> : <><Plus size={14} /> Create Item</>}
+          </Button>
+        </div>
       </div>
     </form>
   );
@@ -191,14 +207,19 @@ function ItemForm({ item, onClose }: { item?: Item; onClose: () => void }) {
 // ─── Items Page ──────────────────────────────────────────────────────────────
 
 export function ItemsPage() {
-  const { data, isLoading } = useItems();
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const { data, isLoading } = useItems(search ? { search } : undefined);
   const toggle = useToggleItem();
+  const remove = useDeleteItem();
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const items = data?.data ?? [];
   const editingItem = editingId ? items.find((i) => i.id === editingId) : null;
+  const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
 
   async function handleToggle(id: string) {
     try {
@@ -206,6 +227,24 @@ export function ItemsPage() {
       toast('Item status toggled', 'success');
     } catch {
       toast('Failed to toggle item status', 'error');
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingId) return;
+    try {
+      await remove.mutateAsync(deletingId);
+      toast('Item deleted', 'success');
+      // Close the edit dialog if it was open for this item
+      if (editingId === deletingId) setEditingId(null);
+      setDeletingId(null);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Failed to delete item';
+      toast(msg, 'error');
+      setDeletingId(null);
     }
   }
 
@@ -219,6 +258,9 @@ export function ItemsPage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('items.csv', ['Name', 'SKU', 'Type', 'HSN/SAC', 'Unit', 'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'GST%', 'Category', 'Subcategory', 'Status'], items.map(i => [i.name, i.sku ?? '', i.type, i.hsnSacCode ?? '', i.unit ?? '', String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''), String(i.mrp ?? ''), String(i.costPrice ?? ''), String(i.gstRate ?? ''), i.category ?? '', i.subcategory ?? '', i.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/import' })}>
+              <Sparkles size={14} /> Smart Import
             </Button>
             <Button size="sm" onClick={() => setShowCreate(true)}>
               <Plus size={14} /> New Item
@@ -234,8 +276,44 @@ export function ItemsPage() {
 
       {/* Edit modal */}
       <Modal open={!!editingItem} onClose={() => setEditingId(null)} title={editingItem ? `Edit — ${editingItem.name}` : ''}>
-        {editingItem && <ItemForm key={editingItem.id} item={editingItem} onClose={() => setEditingId(null)} />}
+        {editingItem && (
+          <ItemForm
+            key={editingItem.id}
+            item={editingItem}
+            onClose={() => setEditingId(null)}
+            onDelete={() => setDeletingId(editingItem.id)}
+          />
+        )}
       </Modal>
+
+      {/* Delete confirmation */}
+      <ConfirmationDialog
+        open={!!deletingItem}
+        onClose={() => setDeletingId(null)}
+        onConfirm={handleDelete}
+        title="Delete item?"
+        description={
+          deletingItem
+            ? `"${deletingItem.name}" will be permanently deleted. This cannot be undone. If the item is referenced by a price list, deletion will be blocked.`
+            : ''
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={remove.isPending}
+      />
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative sm:w-80">
+          <Input
+            placeholder="Search by name or SKU…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+          <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
+        </div>
+      </div>
 
       {/* Mobile cards */}
       {isLoading ? (
@@ -296,7 +374,10 @@ export function ItemsPage() {
               {isLoading ? (
                 <TableSkeleton rows={5} cols={13} />
               ) : items.length === 0 ? (
-                <TableEmpty colSpan={13} message="No items yet. Click 'New Item' to get started." />
+                <TableEmpty
+                  colSpan={13}
+                  message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
+                />
               ) : (
                 items.map((item) => (
                   <TableRow key={item.id} className="cursor-pointer" onClick={() => setEditingId(item.id)}>
@@ -316,6 +397,15 @@ export function ItemsPage() {
                       <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                         <Button variant="outline" size="sm" onClick={() => handleToggle(item.id)} disabled={toggle.isPending}>
                           <Power size={14} /> {item.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeletingId(item.id)}
+                          aria-label={`Delete ${item.name}`}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 size={14} />
                         </Button>
                       </div>
                     </TableCell>
