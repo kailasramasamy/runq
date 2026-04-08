@@ -178,6 +178,7 @@ export class QuoteService {
   async convertToInvoice(id: string): Promise<{ invoiceId: string }> {
     const quote = await this.getById(id);
     if (quote.status === 'converted') throw new ConflictError('Quote already converted');
+    if (!quote.customerId) throw new ConflictError('Quote has no customer — convert prospect to customer first');
 
     const today = new Date().toISOString().split('T')[0]!;
     const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]!;
@@ -220,6 +221,7 @@ export class QuoteService {
   async convertToOrder(id: string): Promise<{ orderId: string }> {
     const quote = await this.getById(id);
     if (quote.status === 'converted') throw new ConflictError('Quote already converted');
+    if (!quote.customerId) throw new ConflictError('Quote has no customer — convert prospect to customer first');
 
     const orderNumber = await this.generateOrderNumber();
     const today = new Date().toISOString().split('T')[0]!;

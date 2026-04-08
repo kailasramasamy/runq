@@ -79,20 +79,32 @@ export class CustomerService {
   }
 
   async create(input: CreateCustomerInput): Promise<Customer> {
-    const { creditLimit, ...rest } = input;
+    const { creditLimit, overdueInterestRate, ...rest } = input;
     const [row] = await this.db
       .insert(customers)
-      .values({ ...rest, creditLimit: creditLimit != null ? String(creditLimit) : null, tenantId: this.tenantId })
+      .values({
+        ...rest,
+        creditLimit: creditLimit != null ? String(creditLimit) : null,
+        overdueInterestRate: overdueInterestRate != null ? String(overdueInterestRate) : undefined,
+        tenantId: this.tenantId,
+      })
       .returning();
 
     return this.toCustomer(row!);
   }
 
   async update(id: string, input: UpdateCustomerInput): Promise<Customer> {
-    const { creditLimit, ...rest } = input;
+    const { creditLimit, overdueInterestRate, ...rest } = input;
     const [row] = await this.db
       .update(customers)
-      .set({ ...rest, creditLimit: creditLimit != null ? String(creditLimit) : null, updatedAt: new Date() })
+      .set({
+        ...rest,
+        creditLimit: creditLimit != null ? String(creditLimit) : null,
+        ...(overdueInterestRate !== undefined && {
+          overdueInterestRate: overdueInterestRate != null ? String(overdueInterestRate) : null,
+        }),
+        updatedAt: new Date(),
+      })
       .where(and(eq(customers.id, id), eq(customers.tenantId, this.tenantId), isNull(customers.deletedAt)))
       .returning();
 

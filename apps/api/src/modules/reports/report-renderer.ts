@@ -108,13 +108,13 @@ export class ReportRenderer {
     rows += tableRow('Opening Cash Balance', data.openingBalance);
     rows += sectionHeader('Operating Activities');
     for (const r of data.operating) rows += tableRow(r.description, r.amount);
-    rows += tableRow('Net Operating', data.netOperating, true);
+    rows += tableRow('Net Operating', data.totalOperating, true);
     rows += sectionHeader('Investing Activities');
     for (const r of data.investing) rows += tableRow(r.description, r.amount);
-    rows += tableRow('Net Investing', data.netInvesting, true);
+    rows += tableRow('Net Investing', data.totalInvesting, true);
     rows += sectionHeader('Financing Activities');
     for (const r of data.financing) rows += tableRow(r.description, r.amount);
-    rows += tableRow('Net Financing', data.netFinancing, true);
+    rows += tableRow('Net Financing', data.totalFinancing, true);
     rows += tableRow('Closing Cash Balance', data.closingBalance, true);
 
     const body = `<table style="width:100%;border-collapse:collapse;">${rows}</table>`;
@@ -130,15 +130,15 @@ export class ReportRenderer {
 
     let rows = sectionHeader('By Category');
     for (const c of data.byCategory) rows += tableRow(c.category, c.amount);
-    rows += tableRow('Total Expenses', data.totalExpenses, true);
+    rows += tableRow('Total Expenses', data.total, true);
 
-    if (data.topVendors.length > 0) {
+    if (data.byVendor.length > 0) {
       rows += sectionHeader('Top Vendors');
-      for (const v of data.topVendors.slice(0, 10)) rows += tableRow(v.vendorName, v.amount);
+      for (const v of data.byVendor.slice(0, 10)) rows += tableRow(v.vendorName, v.amount);
     }
 
     const body = `<table style="width:100%;border-collapse:collapse;">${rows}</table>`;
-    const text = `Expenses (${from} to ${to}): Total ${formatINR(data.totalExpenses)}`;
+    const text = `Expenses (${from} to ${to}): Total ${formatINR(data.total)}`;
 
     return { subject: title, html: layout(this.companyName, title, body), text };
   }
@@ -148,17 +148,17 @@ export class ReportRenderer {
     const data = await this.svc.getRevenueAnalytics(from, to);
     const title = `Revenue Analytics — ${from} to ${to}`;
 
-    let rows = sectionHeader('By Category');
-    for (const c of data.byCategory) rows += tableRow(c.category, c.amount);
-    rows += tableRow('Total Revenue', data.totalRevenue, true);
+    let rows = sectionHeader('By Customer');
+    for (const c of data.byCustomer.slice(0, 10)) rows += tableRow(c.customerName, c.amount);
+    rows += tableRow('Total Revenue', data.total, true);
 
-    if (data.topCustomers.length > 0) {
-      rows += sectionHeader('Top Customers');
-      for (const c of data.topCustomers.slice(0, 10)) rows += tableRow(c.customerName, c.amount);
+    if (data.byMonth.length > 0) {
+      rows += sectionHeader('By Month');
+      for (const m of data.byMonth) rows += tableRow(m.month, m.amount);
     }
 
     const body = `<table style="width:100%;border-collapse:collapse;">${rows}</table>`;
-    const text = `Revenue (${from} to ${to}): Total ${formatINR(data.totalRevenue)}`;
+    const text = `Revenue (${from} to ${to}): Total ${formatINR(data.total)}`;
 
     return { subject: title, html: layout(this.companyName, title, body), text };
   }

@@ -90,18 +90,34 @@ export class VendorService {
   }
 
   async create(input: CreateVendorInput): Promise<Vendor> {
+    const { earlyPaymentDiscountPercent, ...rest } = input;
     const [row] = await this.db
       .insert(vendors)
-      .values({ ...input, tenantId: this.tenantId })
+      .values({
+        ...rest,
+        tenantId: this.tenantId,
+        earlyPaymentDiscountPercent: earlyPaymentDiscountPercent != null
+          ? String(earlyPaymentDiscountPercent)
+          : undefined,
+      })
       .returning();
 
     return this.toVendor(row!);
   }
 
   async update(id: string, input: UpdateVendorInput): Promise<Vendor> {
+    const { earlyPaymentDiscountPercent, ...rest } = input;
     const [row] = await this.db
       .update(vendors)
-      .set({ ...input, updatedAt: new Date() })
+      .set({
+        ...rest,
+        updatedAt: new Date(),
+        ...(earlyPaymentDiscountPercent !== undefined && {
+          earlyPaymentDiscountPercent: earlyPaymentDiscountPercent != null
+            ? String(earlyPaymentDiscountPercent)
+            : null,
+        }),
+      })
       .where(and(eq(vendors.id, id), eq(vendors.tenantId, this.tenantId), isNull(vendors.deletedAt)))
       .returning();
 

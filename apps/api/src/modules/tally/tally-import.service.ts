@@ -214,7 +214,6 @@ export class TallyImportService {
             amountReceived: String(amount - balance),
             balanceDue: String(balance),
             status: balance > 0 ? 'sent' : 'paid',
-            createdBy: createdBy ?? null,
           });
           created++;
         } catch (err) {

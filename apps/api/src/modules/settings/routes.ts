@@ -106,7 +106,7 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
       const svc = new CAPortalService(request.server.db, request.tenantId);
       const settingsSvc = new SettingsService(request.server.db, request.tenantId);
       const tenant = await settingsSvc.getCompanySettings();
-      const settings = { ...(tenant.settings as Record<string, unknown>), caPortalSlug: undefined };
+      const settings = { ...(tenant.settings as unknown as Record<string, unknown>), caPortalSlug: undefined };
       await request.server.db.update(tenants).set({ settings, updatedAt: new Date() }).where(eq(tenants.id, request.tenantId));
       const slug = await svc.getOrCreateSlug();
       return { data: { slug, portalUrl: `/ca/${slug}` } };

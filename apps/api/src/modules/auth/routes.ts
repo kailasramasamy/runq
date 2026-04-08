@@ -173,7 +173,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || !tenant) {
       await argon2.verify(DUMMY_HASH, password);
       throw new UnauthorizedError('Invalid credentials');
     }

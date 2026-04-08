@@ -13,7 +13,7 @@ import {
   importBatchPaymentSchema,
 } from '@runq/validators';
 import { eq } from 'drizzle-orm';
-import { payments } from '@runq/db';
+import { payments, vendors } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { PaymentService } from './payment.service';
@@ -122,12 +122,18 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       const service = new PaymentService(request.server.db, request.tenantId);
       const payment = await service.createDirectPayment(input);
 
+      const [vendorRow] = await request.server.db
+        .select({ name: vendors.name })
+        .from(vendors)
+        .where(eq(vendors.id, payment.vendorId))
+        .limit(1);
+
       const gl = new GLService(request.server.db, request.tenantId);
       await gl.postPayment({
         amount: payment.amount,
         date: payment.paymentDate,
         id: payment.id,
-        vendorName: payment.vendorName,
+        vendorName: vendorRow?.name ?? '',
       });
 
       return reply.status(201).send({ data: payment });

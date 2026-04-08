@@ -128,8 +128,8 @@ export class CAPortalService {
         name: accounts.name,
         type: accounts.type,
         balance: sql<string>`coalesce(sum(
-          case when ${journalEntries.entryDate} <= ${date}
-          then ${journalLines.debitAmount} - ${journalLines.creditAmount}
+          case when ${journalEntries.date} <= ${date}
+          then ${journalLines.debit} - ${journalLines.credit}
           else 0 end
         ), 0)`,
       })
@@ -161,25 +161,25 @@ export class CAPortalService {
       .select({
         id: journalEntries.id,
         entryNumber: journalEntries.entryNumber,
-        entryDate: journalEntries.entryDate,
-        narration: journalEntries.narration,
+        entryDate: journalEntries.date,
+        narration: journalEntries.description,
         status: journalEntries.status,
       })
       .from(journalEntries)
       .where(and(
         eq(journalEntries.tenantId, this.tenantId),
-        gte(journalEntries.entryDate, dateFrom),
-        lte(journalEntries.entryDate, dateTo),
+        gte(journalEntries.date, dateFrom),
+        lte(journalEntries.date, dateTo),
       ))
-      .orderBy(desc(journalEntries.entryDate));
+      .orderBy(desc(journalEntries.date));
 
     return Promise.all(entries.map(async (e) => {
       const lines = await this.db
         .select({
           accountCode: accounts.code,
           accountName: accounts.name,
-          debit: journalLines.debitAmount,
-          credit: journalLines.creditAmount,
+          debit: journalLines.debit,
+          credit: journalLines.credit,
         })
         .from(journalLines)
         .innerJoin(accounts, eq(journalLines.accountId, accounts.id))

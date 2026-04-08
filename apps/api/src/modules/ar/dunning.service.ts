@@ -299,6 +299,8 @@ export class DunningService {
       name: row.name,
       daysAfterDue: row.daysAfterDue,
       channel: row.channel,
+      action: row.action,
+      escalationLevel: row.escalationLevel,
       subjectTemplate: row.subjectTemplate ?? null,
       bodyTemplate: row.bodyTemplate,
       isActive: row.isActive,
