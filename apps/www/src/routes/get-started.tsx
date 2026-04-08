@@ -427,7 +427,7 @@ function SuccessScreen({ name, email, plan }: { name: string; email: string; pla
         )}
 
         <div className="mt-8">
-          <Button size="lg" onClick={() => window.location.href = window.location.hostname === 'localhost' ? 'http://localhost:4003' : 'https://runq.in/finance'}>
+          <Button size="lg" onClick={() => window.location.href = `${window.location.origin}/finance/`}>
             Open your dashboard <ArrowRight className="size-4" />
           </Button>
         </div>
