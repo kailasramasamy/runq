@@ -4,7 +4,7 @@ import { Check, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, type AccordionItem } from '@/components/ui/accordion';
-import { NavLink } from '@/lib/router.tsx';
+import { NavLink } from '@/lib/router';
 import { cn } from '@/lib/utils';
 
 const fadeUp = {
@@ -12,7 +12,7 @@ const fadeUp = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: 'easeOut' },
+    transition: { delay: i * 0.1, duration: 0.5, ease: 'easeOut' as const },
   }),
 };
 

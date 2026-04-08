@@ -1,1 +1,1 @@
-export { Router, useRouter, NavLink } from './router.ts';
+export { Router, useRouter, NavLink } from './router';

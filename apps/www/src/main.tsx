@@ -4,7 +4,7 @@ import './app.css';
 
 import { Router, useRouter } from '@/lib/router';
 import MarketingLayout from '@/components/layout/marketing-layout';
-import { HomePage } from '@/routes/index.tsx';
+import { HomePage } from '@/routes/index';
 import Finance from '@/routes/finance';
 import HR from '@/routes/hr';
 import BI from '@/routes/bi';

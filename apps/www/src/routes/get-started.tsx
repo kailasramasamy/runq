@@ -64,7 +64,7 @@ const INITIAL: FormData = {
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 48 : -48, opacity: 0 }),
-  center: { x: 0, opacity: 1, transition: { duration: 0.3, ease: 'easeOut' } },
+  center: { x: 0, opacity: 1, transition: { duration: 0.3, ease: 'easeOut' as const } },
   exit: (dir: number) => ({ x: dir > 0 ? -48 : 48, opacity: 0, transition: { duration: 0.2 } }),
 };
 
@@ -92,7 +92,7 @@ function ProgressBar({ step }: { step: number }) {
         <motion.div
           className="h-full bg-gradient-to-r from-primary-600 to-violet-600 rounded-full"
           animate={{ width: `${((step) / (STEPS.length - 1)) * 100}%` }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          transition={{ duration: 0.4, ease: 'easeOut' as const }}
         />
       </div>
     </div>
