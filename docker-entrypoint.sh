@@ -2,8 +2,8 @@
 set -e
 
 echo "Running database setup (schema push + seeding)..."
-cd /app/packages/db && npx drizzle-kit push && npx tsx seeds/setup.ts
+cd /app/packages/db && npx drizzle-kit migrate && npx tsx seeds/setup.ts
 echo "Database setup complete."
 
 echo "Starting API server..."
-exec node /app/apps/api/dist/index.js
+cd /app/apps/api && exec npx tsx src/index.ts

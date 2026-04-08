@@ -68,6 +68,9 @@ importers:
       pg:
         specifier: ^8.13.0
         version: 8.20.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
       zod:
         specifier: ^3.24.0
         version: 3.25.76
@@ -81,9 +84,6 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
