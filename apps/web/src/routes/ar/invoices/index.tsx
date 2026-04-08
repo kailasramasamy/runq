@@ -205,6 +205,7 @@ export function InvoiceListPage() {
                 </Button>
               ) : undefined
             }
+            helpHref={!statusFilter && !customerFilter ? '/help/recipes/03-create-invoice' : undefined}
           />
         ) : (
           invoices.map((inv) => (

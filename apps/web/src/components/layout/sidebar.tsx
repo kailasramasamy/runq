@@ -18,6 +18,7 @@ import {
   X,
   Zap,
   LogOut,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -36,6 +37,7 @@ const navItems = [
   { label: 'Workflows', path: '/workflows', icon: GitBranch },
   { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
   { label: 'Settings', path: '/settings', icon: Settings },
+  { label: 'User Guide', path: '/help', icon: HelpCircle },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -50,7 +52,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <div className="flex h-14 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
-          <img src={theme === 'dark' ? '/runq-light.png' : '/runq-dark.png'} alt="runQ" className="h-7" />
+          <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
           <span className="rounded border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">Finance</span>
         </Link>
         <button
@@ -140,7 +142,7 @@ export function MobileHeader() {
       {/* Top bar */}
       <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
         <Link to="/" className="flex items-center gap-2">
-          <img src={theme === 'dark' ? '/runq-light.png' : '/runq-dark.png'} alt="runQ" className="h-6" />
+          <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-6" />
         </Link>
         <button
           onClick={() => setOpen(true)}

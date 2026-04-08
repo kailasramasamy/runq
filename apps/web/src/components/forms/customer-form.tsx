@@ -30,6 +30,7 @@ function buildInitial(c?: Customer): FormState {
     creditLimit: c.creditLimit ?? undefined,
     paymentTermsDays: c.paymentTermsDays,
     contactPerson: c.contactPerson ?? undefined,
+    overdueInterestRate: c.overdueInterestRate ?? undefined,
   };
 }
 
@@ -144,6 +145,17 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             value={form.creditLimit != null ? String(form.creditLimit) : ''}
             onChange={(e) => set('creditLimit', e.target.value === '' ? (undefined as unknown as number) : Number(e.target.value))}
             error={errors.creditLimit}
+          />
+          <Input
+            label="Overdue Interest Rate (% p.a.)"
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            placeholder="e.g. 18"
+            value={form.overdueInterestRate != null ? String(form.overdueInterestRate) : ''}
+            onChange={(e) => set('overdueInterestRate', e.target.value === '' ? (undefined as unknown as number) : Number(e.target.value))}
+            error={errors.overdueInterestRate}
           />
         </CardContent>
       </Card>

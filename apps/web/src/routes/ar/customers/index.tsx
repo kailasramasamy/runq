@@ -212,6 +212,7 @@ export function CustomerListPage() {
                 </Button>
               ) : undefined
             }
+            helpHref={!search ? '/help/recipes/02-add-customer' : undefined}
           />
         ) : (
           customers.map((c) => (

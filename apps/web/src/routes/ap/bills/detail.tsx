@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, X, AlertTriangle, FileWarning } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Check, X, AlertTriangle, FileWarning, Pencil } from 'lucide-react';
 import {
   usePurchaseInvoice,
   useThreeWayMatch,
@@ -737,6 +738,13 @@ export function BillDetailPage({ billId }: { billId: string }) {
             <Badge variant={MATCH_BADGE_VARIANT[invoice.matchStatus]}>
               {invoice.matchStatus.replace('_', ' ')}
             </Badge>
+            {invoice.status === 'draft' && (
+              <Link to="/ap/bills/$billId/edit" params={{ billId }}>
+                <Button variant="outline" size="sm">
+                  <Pencil size={14} /> Edit
+                </Button>
+              </Link>
+            )}
           </div>
         }
       />

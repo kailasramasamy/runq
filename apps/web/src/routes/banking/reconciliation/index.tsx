@@ -403,6 +403,7 @@ export function ReconciliationPage() {
                 icon={GitCompare}
                 title="All transactions reconciled"
                 description="No unmatched bank transactions."
+                helpHref="/help/recipes/09-reconcile-bank"
               />
             ) : (
               <div className="overflow-x-auto">
@@ -451,6 +452,7 @@ export function ReconciliationPage() {
                 icon={GitCompare}
                 title="No unreconciled items"
                 description="Payments and receipts pending reconciliation will appear here."
+                helpHref="/help/recipes/09-reconcile-bank"
               />
             ) : (
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">

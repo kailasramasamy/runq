@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowUpDown, Landmark } from 'lucide-react';
-import { useBankAccount } from '@/hooks/queries/use-bank-accounts';
+import { ArrowUpDown, Landmark, Pencil } from 'lucide-react';
+import { useBankAccount, useUpdateBankAccount } from '@/hooks/queries/use-bank-accounts';
 import { useBankTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
+import { BankAccountForm } from '@/components/forms/bank-account-form';
 import {
   PageHeader,
   Badge,
@@ -18,8 +20,11 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  Modal,
+  useToast,
 } from '@/components/ui';
-import type { BankTransaction } from '@runq/types';
+import type { BankAccount, BankTransaction } from '@runq/types';
+import type { CreateBankAccountInput } from '@runq/validators';
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   current: 'Current',
@@ -100,12 +105,50 @@ function RecentTxnRow({ txn }: { txn: BankTransaction }) {
   );
 }
 
+function EditBankAccountModal({
+  account,
+  open,
+  onClose,
+}: {
+  account: BankAccount;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const updateMutation = useUpdateBankAccount();
+  const { toast } = useToast();
+
+  function handleSubmit(data: CreateBankAccountInput) {
+    updateMutation.mutate(
+      { id: account.id, data },
+      {
+        onSuccess: () => {
+          toast('Bank account updated.', 'success');
+          onClose();
+        },
+        onError: () => toast('Failed to update bank account.', 'error'),
+      },
+    );
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Bank Account" wide>
+      <BankAccountForm
+        initialData={account}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+        isLoading={updateMutation.isPending}
+      />
+    </Modal>
+  );
+}
+
 interface Props {
   accountId: string;
 }
 
 export function BankAccountDetailPage({ accountId }: Props) {
   const navigate = useNavigate();
+  const [showEdit, setShowEdit] = useState(false);
   const { data: accountData, isLoading } = useBankAccount(accountId);
   const { data: txnData, isLoading: txnLoading } = useBankTransactions({
     accountId,
@@ -143,15 +186,23 @@ export function BankAccountDetailPage({ accountId }: Props) {
         title={account.name}
         description={`${account.bankName} — ${account.ifscCode}`}
         actions={
-          <Button
-            variant="outline"
-            onClick={() => navigate({ to: '/banking/transactions' })}
-          >
-            <ArrowUpDown size={16} />
-            View Transactions
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setShowEdit(true)}>
+              <Pencil size={14} />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: '/banking/transactions' })}
+            >
+              <ArrowUpDown size={16} />
+              View Transactions
+            </Button>
+          </>
         }
       />
+
+      <EditBankAccountModal account={account} open={showEdit} onClose={() => setShowEdit(false)} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatsCard

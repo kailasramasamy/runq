@@ -159,6 +159,7 @@ export function VendorListPage() {
                 </Button>
               ) : undefined
             }
+            helpHref={!search ? '/help/recipes/05-add-vendor' : undefined}
           />
         ) : (
           vendors.map((v) => (

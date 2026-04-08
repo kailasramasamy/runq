@@ -33,6 +33,10 @@ interface Props {
   onSubmit: (data: CreatePurchaseInvoiceInput) => void;
   isLoading: boolean;
   initialData?: Partial<CreatePurchaseInvoiceInput>;
+  /** When set, the form is in edit mode: duplicate detection is suppressed
+   *  (a bill always "matches" itself) and the submit label changes. */
+  editingId?: string;
+  submitLabel?: string;
 }
 
 interface LineItem {
@@ -84,7 +88,7 @@ function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
 }
 
-export function BillForm({ onSubmit, isLoading, initialData }: Props) {
+export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLabel }: Props) {
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data?.filter((v) => v.isActive) ?? [];
   const { data: itemsData } = useItems({ limit: 100 });
@@ -127,6 +131,12 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
   }, [initialData]);
 
   const checkDuplicates = useCallback(async (vid: string, invNum: string) => {
+    // Skip duplicate detection in edit mode — the bill being edited would
+    // always match itself and permanently disable the save button.
+    if (editingId) {
+      setDuplicateMatches([]);
+      return;
+    }
     if (!vid || !invNum) {
       setDuplicateMatches([]);
       return;
@@ -142,7 +152,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
     } catch {
       setDuplicateMatches([]);
     }
-  }, [lines, invoiceDate]);
+  }, [lines, invoiceDate, editingId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -476,7 +486,7 @@ export function BillForm({ onSubmit, isLoading, initialData }: Props) {
 
       <div className="flex justify-end">
         <Button type="submit" variant="primary" loading={isLoading} disabled={hasExactDuplicate}>
-          Save Bill
+          {submitLabel ?? (editingId ? 'Save Changes' : 'Save Bill')}
         </Button>
       </div>
     </form>

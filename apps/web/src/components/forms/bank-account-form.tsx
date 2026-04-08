@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createBankAccountSchema } from '@runq/validators';
 import type { CreateBankAccountInput } from '@runq/validators';
+import type { BankAccount } from '@runq/types';
 import {
   Button,
   Card,
@@ -18,18 +19,27 @@ const ACCOUNT_TYPE_OPTIONS = [
   { value: 'cash_credit', label: 'Cash Credit' },
 ];
 
+type AccountType = 'current' | 'savings' | 'overdraft' | 'cash_credit';
+
 interface Props {
   onSubmit: (data: CreateBankAccountInput) => void;
   isLoading: boolean;
+  initialData?: BankAccount;
+  onCancel?: () => void;
+  submitLabel?: string;
 }
 
-export function BankAccountForm({ onSubmit, isLoading }: Props) {
-  const [name, setName] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
-  const [accountType, setAccountType] = useState<'current' | 'savings' | 'overdraft' | 'cash_credit'>('current');
-  const [openingBalance, setOpeningBalance] = useState('0');
+export function BankAccountForm({ onSubmit, isLoading, initialData, onCancel, submitLabel }: Props) {
+  const [name, setName] = useState(initialData?.name ?? '');
+  const [bankName, setBankName] = useState(initialData?.bankName ?? '');
+  const [accountNumber, setAccountNumber] = useState(initialData?.accountNumber ?? '');
+  const [ifscCode, setIfscCode] = useState(initialData?.ifscCode ?? '');
+  const [accountType, setAccountType] = useState<AccountType>(
+    (initialData?.accountType as AccountType) ?? 'current',
+  );
+  const [openingBalance, setOpeningBalance] = useState(
+    initialData ? String(initialData.openingBalance) : '0',
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function handleSubmit(e: React.FormEvent) {
@@ -117,9 +127,14 @@ export function BankAccountForm({ onSubmit, isLoading }: Props) {
             />
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
+        <CardFooter className="flex justify-end gap-2">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+              Cancel
+            </Button>
+          )}
           <Button type="submit" loading={isLoading}>
-            Create Account
+            {submitLabel ?? (initialData ? 'Save Changes' : 'Create Account')}
           </Button>
         </CardFooter>
       </Card>

@@ -6,11 +6,13 @@ import { useCustomer, useDeleteCustomer, useUpdateCustomer } from '@/hooks/queri
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
+import type { CreateCustomerInput } from '@runq/validators';
 import { CreditScoreBadge } from '@/components/ar/credit-score-badge';
+import { CustomerForm } from '@/components/forms/customer-form';
 import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
   StatsCard, EmptyState, ConfirmationDialog, CardSkeleton,
-  Input, useToast,
+  Modal, useToast,
 } from '@/components/ui';
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
@@ -164,27 +166,10 @@ function EditCustomerDialog({
 }) {
   const updateMutation = useUpdateCustomer();
   const { toast } = useToast();
-  const [paymentTermsDays, setPaymentTermsDays] = useState(String(customer.paymentTermsDays));
-  const [creditLimit, setCreditLimit] = useState(customer.creditLimit ? String(customer.creditLimit) : '');
-  const [overdueInterestRate, setOverdueInterestRate] = useState(
-    customer.overdueInterestRate ? String(customer.overdueInterestRate) : '',
-  );
-  const [contactPerson, setContactPerson] = useState(customer.contactPerson ?? '');
 
-  if (!open) return null;
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  function handleSubmit(data: CreateCustomerInput) {
     updateMutation.mutate(
-      {
-        id: customer.id,
-        data: {
-          paymentTermsDays: Number(paymentTermsDays) || 30,
-          creditLimit: creditLimit ? Number(creditLimit) : null,
-          overdueInterestRate: overdueInterestRate ? Number(overdueInterestRate) : null,
-          contactPerson: contactPerson || null,
-        },
-      },
+      { id: customer.id, data },
       {
         onSuccess: () => {
           toast('Customer updated.', 'success');
@@ -196,54 +181,14 @@ function EditCustomerDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <Card className="w-full max-w-md">
-        <CardHeader title="Edit Customer" />
-        <form onSubmit={handleSave}>
-          <CardContent className="space-y-4">
-            <Input
-              label="Payment Terms (days)"
-              type="number"
-              min={0}
-              max={365}
-              value={paymentTermsDays}
-              onChange={(e) => setPaymentTermsDays(e.target.value)}
-            />
-            <Input
-              label="Credit Limit"
-              type="number"
-              min={0}
-              placeholder="No limit"
-              value={creditLimit}
-              onChange={(e) => setCreditLimit(e.target.value)}
-            />
-            <Input
-              label="Overdue Interest Rate (% p.a.)"
-              type="number"
-              min={0}
-              max={100}
-              step="0.5"
-              placeholder="e.g. 18"
-              value={overdueInterestRate}
-              onChange={(e) => setOverdueInterestRate(e.target.value)}
-            />
-            <Input
-              label="Contact Person"
-              value={contactPerson}
-              onChange={(e) => setContactPerson(e.target.value)}
-            />
-          </CardContent>
-          <div className="flex justify-end gap-2 px-6 pb-4">
-            <Button variant="outline" size="sm" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button size="sm" type="submit" loading={updateMutation.isPending}>
-              Save
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </div>
+    <Modal open={open} onClose={onClose} title="Edit Customer" wide>
+      <CustomerForm
+        initialData={customer}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+        isLoading={updateMutation.isPending}
+      />
+    </Modal>
   );
 }
 

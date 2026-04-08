@@ -17,6 +17,7 @@ import { DebitNoteDetailPage } from './ap/debit-notes/detail';
 import { BillListPage } from './ap/bills/index';
 import { NewBillPage } from './ap/bills/new';
 import { BillDetailPage } from './ap/bills/detail';
+import { EditBillPage } from './ap/bills/edit';
 import { PaymentListPage } from './ap/payments/index';
 import { NewPaymentPage } from './ap/payments/new';
 import { AdvancePaymentPage } from './ap/payments/advance';
@@ -32,6 +33,7 @@ import { ImportCustomersPage } from './ar/customers/import';
 import { InvoiceListPage } from './ar/invoices/index';
 import { NewInvoicePage } from './ar/invoices/new';
 import { InvoiceDetailPage } from './ar/invoices/detail';
+import { EditInvoicePage } from './ar/invoices/edit';
 import { ReceiptListPage } from './ar/receipts/index';
 import { NewReceiptPage } from './ar/receipts/new';
 import { ReceiptDetailPage } from './ar/receipts/detail';
@@ -91,6 +93,8 @@ import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
 import { QuickTemplatesPage } from './ar/quick-templates';
 import { SetupPage } from './settings/setup';
+import { HelpIndexPage } from './help/index';
+import { HelpTopicPage } from './help/topic';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -262,6 +266,15 @@ const billDetailRoute = createRoute({
   component: () => {
     const { billId } = billDetailRoute.useParams();
     return <BillDetailPage billId={billId} />;
+  },
+});
+
+const billEditRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/bills/$billId/edit',
+  component: () => {
+    const { billId } = billEditRoute.useParams();
+    return <EditBillPage billId={billId} />;
   },
 });
 
@@ -461,6 +474,15 @@ const invoiceDetailRoute = createRoute({
   component: () => {
     const { invoiceId } = invoiceDetailRoute.useParams();
     return <InvoiceDetailPage invoiceId={invoiceId} />;
+  },
+});
+
+const invoiceEditRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/invoices/$invoiceId/edit',
+  component: () => {
+    const { invoiceId } = invoiceEditRoute.useParams();
+    return <EditInvoicePage invoiceId={invoiceId} />;
   },
 });
 
@@ -1267,6 +1289,31 @@ const expenseClaimsRoute = createRoute({
   component: ExpenseClaimsPage,
 });
 
+// ─── Help / User Guide Routes ────────────────────────────────────────────────
+
+// Parent is a pure layout (Outlet) so the exact `/help` URL hits the index
+// child instead of being captured by the splat.
+const helpRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/help',
+  component: () => <Outlet />,
+});
+
+const helpIndexRoute = createRoute({
+  getParentRoute: () => helpRoute,
+  path: '/',
+  component: HelpIndexPage,
+});
+
+const helpTopicRoute = createRoute({
+  getParentRoute: () => helpRoute,
+  path: '$',
+  component: () => {
+    const params = helpTopicRoute.useParams() as { _splat?: string };
+    return <HelpTopicPage slug={params._splat ?? ''} />;
+  },
+});
+
 // Public portals
 const caPortalRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -1299,6 +1346,7 @@ export const routeTree = rootRoute.addChildren([
       billsRoute,
       billNewRoute,
       billDetailRoute,
+      billEditRoute,
       paymentsRoute,
       paymentNewRoute,
       paymentAdvanceRoute,
@@ -1320,6 +1368,7 @@ export const routeTree = rootRoute.addChildren([
       invoicesRoute,
       invoiceNewRoute,
       invoiceDetailRoute,
+      invoiceEditRoute,
       receiptsRoute,
       receiptNewRoute,
       receiptDetailRoute,
@@ -1400,6 +1449,10 @@ export const routeTree = rootRoute.addChildren([
     expensesRoute.addChildren([
       expensesIndexRoute,
       expenseClaimsRoute,
+    ]),
+    helpRoute.addChildren([
+      helpIndexRoute,
+      helpTopicRoute,
     ]),
   ]),
 ]);

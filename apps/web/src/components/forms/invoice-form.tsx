@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { createSalesInvoiceSchema } from '@runq/validators';
 import type { CreateSalesInvoiceInput } from '@runq/validators';
+import type { SalesInvoiceWithDetails } from '@runq/types';
 import { useCustomers } from '../../hooks/queries/use-customers';
 import { useItems } from '../../hooks/queries/use-items';
 import { formatINR } from '../../lib/utils';
@@ -28,6 +29,8 @@ import {
 interface Props {
   onSubmit: (data: CreateSalesInvoiceInput) => void;
   isLoading: boolean;
+  initialData?: SalesInvoiceWithDetails;
+  submitLabel?: string;
 }
 
 interface LineItem {
@@ -61,7 +64,7 @@ function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
 }
 
-export function InvoiceForm({ onSubmit, isLoading }: Props) {
+export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'Save Invoice' }: Props) {
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data?.filter((c) => c.isActive) ?? [];
   const { data: itemsData } = useItems({ limit: 100 });
@@ -74,6 +77,27 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Hydrate state from initialData (used for the edit flow). Fires when the
+  // invoice query resolves; safe to re-run because the deps include the id.
+  useEffect(() => {
+    if (!initialData) return;
+    setCustomerId(initialData.customerId);
+    setInvoiceDate(initialData.invoiceDate);
+    setDueDate(initialData.dueDate);
+    setNotes(initialData.notes ?? '');
+    if (initialData.items.length > 0) {
+      setLines(initialData.items.map((item) => ({
+        itemId: '',
+        description: item.description,
+        quantity: String(item.quantity),
+        unitPrice: String(item.unitPrice),
+        hsnSacCode: item.hsnSacCode ?? '',
+        taxRate: String(item.taxRate ?? 0),
+        taxCategory: item.taxCategory ?? 'taxable',
+      })));
+    }
+  }, [initialData]);
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
   const tax = lines.reduce((sum, l) => {
@@ -329,7 +353,7 @@ export function InvoiceForm({ onSubmit, isLoading }: Props) {
 
       <div className="flex justify-end">
         <Button type="submit" variant="primary" loading={isLoading}>
-          Save Invoice
+          {submitLabel}
         </Button>
       </div>
     </form>

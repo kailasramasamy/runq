@@ -116,6 +116,8 @@ export function BankAccountListPage() {
               <Plus size={14} /> New Account
             </Button>
           }
+          helpHref="/help/recipes/08-import-bank-statement"
+          helpLabel="Read: Import your bank statement"
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

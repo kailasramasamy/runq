@@ -123,7 +123,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate({ to: '/ar/invoices/new' })}
+            onClick={() => navigate({ to: '/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
           >
             Edit
           </Button>

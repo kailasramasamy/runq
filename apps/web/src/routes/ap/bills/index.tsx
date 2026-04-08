@@ -184,6 +184,7 @@ export function BillListPage() {
                 </Button>
               ) : undefined
             }
+            helpHref={!hasFilters ? '/help/recipes/06-enter-vendor-bill' : undefined}
           />
         ) : (
           bills.map((bill) => (

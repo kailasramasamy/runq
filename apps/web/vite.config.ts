@@ -27,6 +27,10 @@ export default defineConfig({
   },
   server: {
     port: 4003,
+    fs: {
+      // Allow reading user-guide markdown files from the monorepo root (../../docs)
+      allow: [path.resolve(__dirname, '../..')],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3003',
