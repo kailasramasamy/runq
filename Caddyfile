@@ -1,5 +1,12 @@
 {$SITE_ADDRESS:localhost:8080}
 
+# Login page (shared, served from web app)
+handle /login {
+	root * /srv/web
+	rewrite * /index.html
+	file_server
+}
+
 # Finance app (SPA)
 handle /finance/* {
 	uri strip_prefix /finance

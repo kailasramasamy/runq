@@ -16,7 +16,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(email, password, '');
-      window.location.href = '/';
+      window.location.href = import.meta.env.BASE_URL;
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)
@@ -32,7 +32,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <img src="/runq-light.png" alt="runQ" className="h-10 w-auto" />
+          <img src={`${import.meta.env.BASE_URL}runq-light.png`} alt="runQ" className="h-10 w-auto" />
           <div className="text-center">
             <h1 className="text-xl font-semibold text-zinc-100">Sign in to runQ</h1>
             <p className="mt-1 text-sm text-zinc-400">Finance & Accounting ERP</p>

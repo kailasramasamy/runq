@@ -7,9 +7,10 @@ import { routeTree } from './routes/__root';
 import { ThemeProvider } from './providers/theme-provider';
 import { AuthProvider } from './providers/auth-provider';
 import { ToastProvider } from './components/ui/toast';
+import { LoginPage } from './routes/login';
 import './app.css';
 
-const basepath = import.meta.env.PROD ? '/finance' : '/';
+const basepath = '/finance';
 const router = createRouter({ routeTree, basepath });
 
 declare module '@tanstack/react-router' {
@@ -41,7 +42,7 @@ class ErrorBoundary extends Component<
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/'; }}
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = import.meta.env.BASE_URL; }}
               className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Go to Dashboard
@@ -54,15 +55,22 @@ class ErrorBoundary extends Component<
   }
 }
 
+// Standalone login page — served at /login (outside the /finance basepath)
+const isLoginPath = window.location.pathname === '/login' || window.location.pathname === '/login/';
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <QueryClientProvider client={queryClient}>
-              <RouterProvider router={router} />
-            </QueryClientProvider>
+            {isLoginPath ? (
+              <LoginPage />
+            ) : (
+              <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+              </QueryClientProvider>
+            )}
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>

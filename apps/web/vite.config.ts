@@ -3,11 +3,23 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
-const isProd = process.env.NODE_ENV === 'production';
-
 export default defineConfig({
-  base: isProd ? '/finance/' : '/',
-  plugins: [react(), tailwindcss()],
+  base: '/finance/',
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: 'login-redirect',
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url === '/login' || req.url === '/login/') {
+            req.url = '/finance/index.html';
+          }
+          next();
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

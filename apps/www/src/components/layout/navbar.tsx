@@ -237,7 +237,7 @@ export function Navbar() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => navigate('/contact')}
+                onClick={() => window.location.href = '/login'}
               >
                 Sign In
               </Button>
