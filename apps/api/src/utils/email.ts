@@ -2,11 +2,18 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
 let transporter: Transporter | null = null;
+let useResend = false;
 
 export function initEmailTransport(): void {
+  if (process.env.RESEND_API_KEY) {
+    useResend = true;
+    console.log('Email: Resend HTTP API configured');
+    return;
+  }
+
   const host = process.env.SMTP_HOST;
   if (!host) {
-    console.log('Email: SMTP not configured, emails will be logged only');
+    console.log('Email: not configured, emails will be logged only');
     return;
   }
 
@@ -23,6 +30,40 @@ export function initEmailTransport(): void {
   console.log(`Email: SMTP configured (${host}:${process.env.SMTP_PORT})`);
 }
 
+async function sendViaResend(params: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  from: string;
+}): Promise<boolean> {
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: params.from,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Resend send failed: ${res.status} ${body}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Resend send failed:', err);
+    return false;
+  }
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;
@@ -32,6 +73,10 @@ export async function sendEmail(params: {
 }): Promise<boolean> {
   const senderName = params.fromName || process.env.SMTP_FROM_NAME || 'runQ';
   const from = `${senderName} <${process.env.MAIL_FROM || 'noreply@example.com'}>`;
+
+  if (useResend) {
+    return sendViaResend({ ...params, from });
+  }
 
   if (!transporter) {
     if (process.env.EMAIL_DEBUG === 'true') {
