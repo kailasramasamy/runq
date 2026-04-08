@@ -10,10 +10,39 @@ const INDUSTRIES = [
   'Food & Beverage', 'Healthcare', 'Hospitality', 'Education', 'IT / Software', 'Other',
 ];
 
-const STATES = [
-  'Andhra Pradesh', 'Delhi', 'Gujarat', 'Haryana', 'Karnataka', 'Kerala',
-  'Madhya Pradesh', 'Maharashtra', 'Punjab', 'Rajasthan', 'Tamil Nadu',
-  'Telangana', 'Uttar Pradesh', 'West Bengal', 'Other',
+const STATES: { name: string; code: string }[] = [
+  { name: 'Andhra Pradesh', code: '37' },
+  { name: 'Arunachal Pradesh', code: '12' },
+  { name: 'Assam', code: '18' },
+  { name: 'Bihar', code: '10' },
+  { name: 'Chhattisgarh', code: '22' },
+  { name: 'Delhi', code: '07' },
+  { name: 'Goa', code: '30' },
+  { name: 'Gujarat', code: '24' },
+  { name: 'Haryana', code: '06' },
+  { name: 'Himachal Pradesh', code: '02' },
+  { name: 'Jammu & Kashmir', code: '01' },
+  { name: 'Jharkhand', code: '20' },
+  { name: 'Karnataka', code: '29' },
+  { name: 'Kerala', code: '32' },
+  { name: 'Ladakh', code: '38' },
+  { name: 'Madhya Pradesh', code: '23' },
+  { name: 'Maharashtra', code: '27' },
+  { name: 'Manipur', code: '14' },
+  { name: 'Meghalaya', code: '17' },
+  { name: 'Mizoram', code: '15' },
+  { name: 'Nagaland', code: '13' },
+  { name: 'Odisha', code: '21' },
+  { name: 'Puducherry', code: '34' },
+  { name: 'Punjab', code: '03' },
+  { name: 'Rajasthan', code: '08' },
+  { name: 'Sikkim', code: '11' },
+  { name: 'Tamil Nadu', code: '33' },
+  { name: 'Telangana', code: '36' },
+  { name: 'Tripura', code: '16' },
+  { name: 'Uttar Pradesh', code: '09' },
+  { name: 'Uttarakhand', code: '05' },
+  { name: 'West Bengal', code: '19' },
 ];
 
 const PLANS = [
@@ -118,7 +147,7 @@ function Step1({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
         <select value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
           className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500">
           <option value="">Select state…</option>
-          {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATES.map((s) => <option key={s.code} value={s.name}>{s.name}</option>)}
         </select>
       </div>
       <Input label="GSTIN (optional)" placeholder="22AAAAA0000A1Z5" value={form.gstin}
@@ -489,6 +518,7 @@ export default function GetStarted() {
     setError('');
     setLoading(true);
     try {
+      const stateCode = STATES.find((s) => s.name === form.state)?.code;
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -498,6 +528,10 @@ export default function GetStarted() {
           name: form.name.trim(),
           email: form.email.trim().toLowerCase(),
           password: form.password,
+          state: form.state || undefined,
+          stateCode: stateCode || undefined,
+          gstin: form.gstin.trim().toUpperCase() || undefined,
+          industry: form.industry || undefined,
         }),
       });
       const data = await res.json();

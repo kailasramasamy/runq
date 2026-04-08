@@ -213,7 +213,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       .limit(1);
     if (existing) throw new ConflictError('Company slug already taken');
 
-    // Create tenant
+    // Mark company step as auto-completed if user provided GSTIN + state at signup
+    const onboardingSteps: Record<string, boolean> = {};
+    if (input.gstin && input.stateCode) {
+      onboardingSteps.company = true;
+    }
+
+    // Create tenant — preserve fields captured during signup
     const [tenant] = await app.db.insert(tenants).values({
       name: input.companyName,
       slug: input.slug,
@@ -223,6 +229,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         financialYearStartMonth: 4,
         defaultPaymentTermsDays: 30,
         currency: 'INR',
+        legalName: input.companyName,
+        gstin: input.gstin || null,
+        state: input.state || null,
+        stateCode: input.stateCode || null,
+        industry: input.industry || null,
+        onboardingSteps,
       },
     }).returning();
 

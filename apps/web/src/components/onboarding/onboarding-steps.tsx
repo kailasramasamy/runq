@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Landmark, FileText, Users, Package } from 'lucide-react';
+import { Building2, Landmark, FileText, Users, Package, CheckCircle2 } from 'lucide-react';
 import { Button, Input, Select } from '@/components/ui';
 import { useCompanySettings, useUpdateCompanySettings, useUpdateInvoiceNumbering, useInvoiceNumbering } from '@/hooks/queries/use-settings';
 import { useCreateBankAccount } from '@/hooks/queries/use-bank-accounts';
@@ -15,7 +15,7 @@ export interface StepProps {
 }
 
 export const STEP_META = [
-  { key: 'company', label: 'Company profile', icon: Building2, optional: false, description: 'GSTIN, address, fiscal year' },
+  { key: 'company', label: 'Company profile', icon: Building2, optional: false, description: 'Confirm your company details and fiscal year' },
   { key: 'bank', label: 'Bank account', icon: Landmark, optional: false, description: 'Add your primary bank account' },
   { key: 'invoice', label: 'Invoice settings', icon: FileText, optional: false, description: 'Number format and payment terms' },
   { key: 'customer', label: 'First customer', icon: Users, optional: true, description: 'Add a customer to start invoicing' },
@@ -95,19 +95,53 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
     }
   }
 
+  const hasSignupData = !!(legalName && (gstin || stateCode));
+  const summaryItems = [
+    legalName && { label: 'Company', value: legalName },
+    gstin && { label: 'GSTIN', value: gstin },
+    selectedState && { label: 'State', value: selectedState.label },
+  ].filter(Boolean) as { label: string; value: string }[];
+
   return (
     <form onSubmit={handleNext} className="space-y-5">
-      <Input label="Legal company name" required value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Acme Pvt Ltd" />
+      {hasSignupData && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-950/20">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-green-900 dark:text-green-100">From your registration</p>
+              <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+                {summaryItems.map((item) => (
+                  <div key={item.label} className="text-xs">
+                    <dt className="inline text-green-700 dark:text-green-300">{item.label}: </dt>
+                    <dd className="inline font-medium text-green-900 dark:text-green-100">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!hasSignupData && (
+        <>
+          <Input label="Legal company name" required value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Acme Pvt Ltd" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} placeholder="22AAAAA0000A1Z5" helper="15 characters" />
+            <Select label="State" options={STATE_SELECT_OPTIONS} value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
+          </div>
+        </>
+      )}
+
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">A few more details to complete your profile:</p>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input label="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} placeholder="22AAAAA0000A1Z5" helper="15 characters" />
-        <Input label="PAN" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" helper="10 characters" />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Select label="State" options={STATE_SELECT_OPTIONS} value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
+        <Input label="PAN" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" helper="Optional · 10 characters" />
         <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bengaluru" />
         <Input label="Pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} placeholder="560001" />
+        <Select label="Financial year starts in" options={FY_MONTH_OPTIONS} value={fyMonth} onChange={(e) => setFyMonth(e.target.value)} />
       </div>
-      <Select label="Financial year starts in" options={FY_MONTH_OPTIONS} value={fyMonth} onChange={(e) => setFyMonth(e.target.value)} />
+
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={update.isPending}>Save & continue</Button>

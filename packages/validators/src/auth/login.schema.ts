@@ -12,6 +12,11 @@ export const registerSchema = z.object({
   name: z.string().min(2).max(255),
   email: z.string().email(),
   password: z.string().min(8),
+  // Optional captured-at-signup profile fields
+  state: z.string().max(100).optional(),
+  stateCode: z.string().max(2).optional(),
+  gstin: z.string().max(15).optional(),
+  industry: z.string().max(100).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
