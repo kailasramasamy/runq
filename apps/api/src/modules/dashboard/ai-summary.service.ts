@@ -19,6 +19,13 @@ export class AISummaryService {
   ) {}
 
   async getSummary(refresh = false): Promise<AISummaryResult> {
+    if (!isAIEnabled()) {
+      return {
+        summary: 'AI insights are not configured. Set ANTHROPIC_API_KEY to enable.',
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
     const cacheKey = `ai-summary:${this.tenantId}`;
 
     if (!refresh) {
@@ -26,17 +33,25 @@ export class AISummaryService {
       if (cached) return cached;
     }
 
-    const data = await this.aggregateFinancials();
-    const userPrompt = FINANCIAL_SUMMARY_USER_PROMPT(data);
-    const result = await analyze(FINANCIAL_SUMMARY_SYSTEM_PROMPT, userPrompt);
+    try {
+      const data = await this.aggregateFinancials();
+      const userPrompt = FINANCIAL_SUMMARY_USER_PROMPT(data);
+      const result = await analyze(FINANCIAL_SUMMARY_SYSTEM_PROMPT, userPrompt);
 
-    const summary: AISummaryResult = {
-      summary: result ?? 'Unable to generate summary. Please try again later.',
-      generatedAt: new Date().toISOString(),
-    };
+      const summary: AISummaryResult = {
+        summary: result ?? 'Unable to generate summary. Please try again later.',
+        generatedAt: new Date().toISOString(),
+      };
 
-    await this.setCache(cacheKey, summary);
-    return summary;
+      await this.setCache(cacheKey, summary);
+      return summary;
+    } catch (err) {
+      console.error('AI summary failed:', err);
+      return {
+        summary: 'AI insights temporarily unavailable.',
+        generatedAt: new Date().toISOString(),
+      };
+    }
   }
 
   private async aggregateFinancials() {
