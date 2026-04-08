@@ -9,6 +9,7 @@ import type {
 } from '@runq/types';
 import type {
   CreatePaymentRunInput,
+  CreateRunFromBillsInput,
   ApproveLinesInput,
   RejectLinesInput,
   PaymentRunFilter,
@@ -51,6 +52,18 @@ export function useCreatePaymentRun() {
     mutationFn: (data: CreatePaymentRunInput) =>
       api.post<ApiSuccess<PaymentRunWithLines>>('/ap/payment-runs', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: RUN_KEYS.all }),
+  });
+}
+
+export function useCreateRunFromBills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateRunFromBillsInput) =>
+      api.post<ApiSuccess<PaymentRunWithLines>>('/ap/payment-runs/from-bills', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: RUN_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+    },
   });
 }
 

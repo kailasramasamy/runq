@@ -1,8 +1,8 @@
 import { eq, and, sql, inArray, ilike, desc } from 'drizzle-orm';
-import { paymentRuns, paymentRunLines, vendors, payments } from '@runq/db';
+import { paymentRuns, paymentRunLines, vendors, payments, paymentAllocations, purchaseInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { PaymentRun, PaymentRunWithLines, PaymentRunLine, ExecuteRunResult } from '@runq/types';
-import type { CreatePaymentRunInput, ApproveLinesInput, RejectLinesInput, PaymentRunFilter } from '@runq/validators';
+import type { CreatePaymentRunInput, CreateRunFromBillsInput, ApproveLinesInput, RejectLinesInput, PaymentRunFilter } from '@runq/validators';
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -64,6 +64,77 @@ export class PaymentRunService {
           reason: item.reason ?? null,
           dueDate: item.dueDate ?? null,
           purchaseInvoiceId: item.purchaseInvoiceId ?? null,
+        })),
+      );
+
+      return run!;
+    });
+
+    return this.getRun(run.id);
+  }
+
+  async createRunFromBills(input: CreateRunFromBillsInput): Promise<PaymentRunWithLines> {
+    // Load the bills, validate they're approved/partially_paid and have a non-zero balance.
+    const bills = await this.db
+      .select({
+        id: purchaseInvoices.id,
+        invoiceNumber: purchaseInvoices.invoiceNumber,
+        vendorId: purchaseInvoices.vendorId,
+        balanceDue: purchaseInvoices.balanceDue,
+        dueDate: purchaseInvoices.dueDate,
+        status: purchaseInvoices.status,
+        vendorName: vendors.name,
+      })
+      .from(purchaseInvoices)
+      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+      .where(
+        and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          inArray(purchaseInvoices.id, input.billIds),
+        ),
+      );
+
+    if (bills.length === 0) throw new NotFoundError('Bills');
+    if (bills.length !== input.billIds.length) {
+      throw new NotFoundError('One or more bills not found');
+    }
+
+    const ineligible = bills.filter(
+      (b) => (b.status !== 'approved' && b.status !== 'partially_paid') || parseFloat(b.balanceDue) <= 0,
+    );
+    if (ineligible.length > 0) {
+      throw new ConflictError(
+        `${ineligible.length} bill(s) are not eligible for a pay run (must be approved with balance due).`,
+      );
+    }
+
+    const totalAmount = bills.reduce((s, b) => s + parseFloat(b.balanceDue), 0);
+    const runIdentifier = `RUN-${Date.now()}`;
+
+    const run = await this.db.transaction(async (tx) => {
+      const [run] = await tx
+        .insert(paymentRuns)
+        .values({
+          tenantId: this.tenantId,
+          runId: runIdentifier,
+          source: 'bills',
+          description: input.description ?? `${bills.length} bill(s) selected for payment`,
+          totalCount: bills.length,
+          totalAmount: totalAmount.toString(),
+        })
+        .returning();
+
+      await tx.insert(paymentRunLines).values(
+        bills.map((b) => ({
+          tenantId: this.tenantId,
+          runId: run!.id,
+          vendorId: b.vendorId,
+          vendorName: b.vendorName,
+          amount: b.balanceDue,
+          reference: b.invoiceNumber,
+          reason: `Bill ${b.invoiceNumber}`,
+          dueDate: b.dueDate,
+          purchaseInvoiceId: b.id,
         })),
       );
 
@@ -306,29 +377,89 @@ export class PaymentRunService {
         continue;
       }
 
-      const today = new Date().toISOString().split('T')[0]!;
-      const [payment] = await this.db
-        .insert(payments)
-        .values({
-          tenantId: this.tenantId,
-          vendorId: row.vendorId,
-          bankAccountId,
-          paymentDate: today,
-          amount: row.amount,
-          paymentMethod: 'bank_transfer',
-          utrNumber: row.reference ?? null,
-          status: 'completed',
-          notes: row.reason ?? null,
-        })
-        .returning();
+      // Each line is processed in its own transaction. If a line linked to a
+      // bill fails mid-way (e.g. allocation insert), the payment + allocation +
+      // bill update either all succeed or all roll back, but other lines in the
+      // run keep going.
+      try {
+        await this.db.transaction(async (tx) => {
+          const today = new Date().toISOString().split('T')[0]!;
 
-      await this.db
-        .update(paymentRunLines)
-        .set({ status: 'paid', paymentId: payment!.id, updatedAt: new Date() })
-        .where(eq(paymentRunLines.id, row.id));
+          // If this line is linked to a bill, lock and validate the bill first.
+          if (row.purchaseInvoiceId) {
+            await tx.execute(
+              sql`SELECT id FROM purchase_invoices WHERE id = ${row.purchaseInvoiceId} FOR UPDATE`,
+            );
+          }
 
-      paid++;
-      totalPaid += parseFloat(row.amount);
+          const [payment] = await tx
+            .insert(payments)
+            .values({
+              tenantId: this.tenantId,
+              vendorId: row.vendorId!,
+              bankAccountId,
+              paymentDate: today,
+              amount: row.amount,
+              paymentMethod: 'bank_transfer',
+              utrNumber: row.reference ?? null,
+              status: 'completed',
+              notes: row.reason ?? null,
+            })
+            .returning();
+
+          // Settle the linked bill: write the allocation row and recalc
+          // amountPaid / balanceDue / status.
+          if (row.purchaseInvoiceId) {
+            const [bill] = await tx
+              .select()
+              .from(purchaseInvoices)
+              .where(eq(purchaseInvoices.id, row.purchaseInvoiceId))
+              .limit(1);
+
+            if (!bill) throw new NotFoundError(`Bill ${row.purchaseInvoiceId}`);
+
+            const allocAmount = parseFloat(row.amount);
+            const newAmountPaid = parseFloat(bill.amountPaid) + allocAmount;
+            const newBalanceDue = parseFloat(bill.balanceDue) - allocAmount;
+            const newStatus = newBalanceDue <= 0 ? 'paid' : 'partially_paid';
+
+            await tx.insert(paymentAllocations).values({
+              tenantId: this.tenantId,
+              paymentId: payment!.id,
+              invoiceId: row.purchaseInvoiceId,
+              amount: row.amount,
+            });
+
+            await tx
+              .update(purchaseInvoices)
+              .set({
+                amountPaid: newAmountPaid.toString(),
+                balanceDue: newBalanceDue.toString(),
+                status: newStatus,
+                updatedAt: new Date(),
+              })
+              .where(eq(purchaseInvoices.id, row.purchaseInvoiceId));
+          }
+
+          await tx
+            .update(paymentRunLines)
+            .set({ status: 'paid', paymentId: payment!.id, updatedAt: new Date() })
+            .where(eq(paymentRunLines.id, row.id));
+        });
+
+        paid++;
+        totalPaid += parseFloat(row.amount);
+      } catch (err) {
+        await this.db
+          .update(paymentRunLines)
+          .set({
+            status: 'failed',
+            errorMessage: err instanceof Error ? err.message : 'Unknown error during execution',
+            updatedAt: new Date(),
+          })
+          .where(eq(paymentRunLines.id, row.id));
+        failed++;
+      }
     }
 
     return { paid, failed, totalPaid };

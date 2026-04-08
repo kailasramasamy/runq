@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import {
   createPaymentRunSchema,
+  createRunFromBillsSchema,
   approveLinesSchema,
   rejectLinesSchema,
   paymentRunFilterSchema,
@@ -27,6 +28,17 @@ export const paymentRunRoutes: FastifyPluginAsync = async (app) => {
       const input = createPaymentRunSchema.parse(request.body);
       const service = new PaymentRunService(request.server.db, request.tenantId);
       const run = await service.createRun(input);
+      return reply.status(201).send({ data: run });
+    },
+  );
+
+  app.post(
+    '/from-bills',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const input = createRunFromBillsSchema.parse(request.body);
+      const service = new PaymentRunService(request.server.db, request.tenantId);
+      const run = await service.createRunFromBills(input);
       return reply.status(201).send({ data: run });
     },
   );

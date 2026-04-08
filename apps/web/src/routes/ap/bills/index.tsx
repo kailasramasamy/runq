@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Download } from 'lucide-react';
+import { Plus, FileText, Download, Send } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
+import { useCreateRunFromBills } from '../../../hooks/queries/use-payment-runs';
 import type { PurchaseInvoice, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
@@ -24,7 +25,14 @@ import {
   EmptyState,
   Pagination,
   ConfirmationDialog,
+  useToast,
 } from '@/components/ui';
+
+// A bill is eligible to be added to a pay run if it's been approved
+// (or partially paid) and still has a non-zero balance.
+function isEligibleForPayRun(bill: PurchaseInvoice): boolean {
+  return (bill.status === 'approved' || bill.status === 'partially_paid') && Number(bill.balanceDue) > 0;
+}
 
 const STATUS_BADGE_VARIANT: Record<PurchaseInvoiceStatus, React.ComponentProps<typeof Badge>['variant']> = {
   draft: 'default',
@@ -67,11 +75,13 @@ const LIMIT = 20;
 
 export function BillListPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [vendorId, setVendorId] = useState('');
   const [status, setStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const filters = {
     vendorId: vendorId || undefined,
@@ -83,6 +93,7 @@ export function BillListPage() {
   const { data, isLoading } = usePurchaseInvoices(filters);
   const { data: vendorsData } = useVendors({ limit: 100 });
   const deleteMutation = useDeletePurchaseInvoice();
+  const createRunFromBills = useCreateRunFromBills();
 
   const bills = data?.data ?? [];
   const total = data?.meta.total ?? 0;
@@ -96,6 +107,42 @@ export function BillListPage() {
   ];
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  // Bulk-selection plumbing
+  const eligibleBills = useMemo(() => bills.filter(isEligibleForPayRun), [bills]);
+  const selectedBills = useMemo(
+    () => eligibleBills.filter((b) => selectedIds.includes(b.id)),
+    [eligibleBills, selectedIds],
+  );
+  const selectedTotal = selectedBills.reduce((s, b) => s + Number(b.balanceDue), 0);
+  const allEligibleSelected =
+    eligibleBills.length > 0 && selectedBills.length === eligibleBills.length;
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function toggleAllEligible() {
+    setSelectedIds((prev) =>
+      prev.length === eligibleBills.length ? [] : eligibleBills.map((b) => b.id),
+    );
+  }
+
+  function handleAddToPayRun() {
+    if (selectedIds.length === 0) return;
+    createRunFromBills.mutate(
+      { billIds: selectedIds },
+      {
+        onSuccess: (res) => {
+          const run = (res as { data: { id: string; runId: string } }).data;
+          toast(`Created pay run ${run.runId} with ${selectedIds.length} bill(s)`, 'success');
+          setSelectedIds([]);
+          navigate({ to: '/ap/pay-runs/$runId', params: { runId: run.id } });
+        },
+        onError: () => toast('Failed to create pay run', 'error'),
+      },
+    );
+  }
 
   function handleDelete(id: string) {
     setDeleteTarget(id);
@@ -165,6 +212,27 @@ export function BillListPage() {
         </CardContent>
       </Card>
 
+      {selectedIds.length > 0 && (
+        <Card className="mb-4 border-indigo-200 bg-indigo-50/50 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+          <CardContent className="flex flex-wrap items-center gap-3 py-3">
+            <span className="text-sm text-zinc-700 dark:text-zinc-300">
+              <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                {selectedIds.length} bill{selectedIds.length === 1 ? '' : 's'} selected
+              </span>
+              <span className="ml-2 font-mono">{formatINR(selectedTotal)}</span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+                Clear
+              </Button>
+              <Button size="sm" onClick={handleAddToPayRun} loading={createRunFromBills.isPending}>
+                <Send size={14} /> Add to pay run
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Mobile cards */}
       <div className="flex flex-col gap-2 md:hidden">
         {isLoading ? (
@@ -219,6 +287,17 @@ export function BillListPage() {
       <Table>
         <TableHeader>
           <tr>
+            <Th>
+              {eligibleBills.length > 0 ? (
+                <input
+                  type="checkbox"
+                  checked={allEligibleSelected}
+                  onChange={toggleAllEligible}
+                  className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+                  aria-label="Select all eligible bills"
+                />
+              ) : null}
+            </Th>
             <Th>Bill #</Th>
             <Th>Vendor</Th>
             <Th>Date</Th>
@@ -233,10 +312,10 @@ export function BillListPage() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={6} cols={10} />
+            <TableSkeleton rows={6} cols={11} />
           ) : bills.length === 0 ? (
             <tr>
-              <td colSpan={10}>
+              <td colSpan={11}>
                 <EmptyState
                   icon={FileText}
                   title={hasFilters ? 'No bills match your filters' : 'No bills yet'}
@@ -259,6 +338,17 @@ export function BillListPage() {
                 className="cursor-pointer"
                 onClick={() => handleRowClick(bill)}
               >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {isEligibleForPayRun(bill) ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(bill.id)}
+                      onChange={() => toggleOne(bill.id)}
+                      className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+                      aria-label={`Select bill ${bill.invoiceNumber}`}
+                    />
+                  ) : null}
+                </TableCell>
                 <TableCell>
                   <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
                     {bill.invoiceNumber}

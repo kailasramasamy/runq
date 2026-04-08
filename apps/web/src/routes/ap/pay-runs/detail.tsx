@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Download, Play, UserPlus } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { CheckCircle2, XCircle, Download, Play, UserPlus, FileText } from 'lucide-react';
 import { usePaymentRun, useApproveLines, useRejectLines, useExecuteRun } from '../../../hooks/queries/use-payment-runs';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import { useCreateVendor } from '../../../hooks/queries/use-vendors';
@@ -117,7 +118,19 @@ function LineRow({ line, checked, onToggle, onVendorCreated }: LineRowProps & { 
           )}
         </TableCell>
         <TableCell align="right" numeric>{formatINR(line.amount)}</TableCell>
-        <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{line.reference ?? '—'}</TableCell>
+        <TableCell className="font-mono text-xs">
+          {line.purchaseInvoiceId ? (
+            <Link
+              to="/ap/bills/$billId"
+              params={{ billId: line.purchaseInvoiceId }}
+              className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              <FileText size={11} /> {line.reference ?? 'Bill'}
+            </Link>
+          ) : (
+            <span className="text-zinc-500 dark:text-zinc-400">{line.reference ?? '—'}</span>
+          )}
+        </TableCell>
         <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{line.reason ?? '—'}</TableCell>
         <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{line.dueDate ?? '—'}</TableCell>
         <TableCell>
@@ -360,6 +373,16 @@ export function PayRunDetailPage({ runId }: { runId: string }) {
           approvedCount={run.approvedCount}
           approvedAmount={run.approvedAmount}
         />
+      )}
+
+      {run?.source === 'bills' && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-200">
+          <FileText size={14} />
+          <span>
+            Created from {run.totalCount} approved bill{run.totalCount === 1 ? '' : 's'}.
+            Executing this run will settle each linked bill automatically.
+          </span>
+        </div>
       )}
 
       {run && (
