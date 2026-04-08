@@ -33,8 +33,9 @@ export interface InvoiceListResult {
 interface TenantSettings {
   invoicePrefix?: string;
   invoiceFormat?: string;
-  financialYearStartMonth?: number;
+  invoiceStartSequence?: number;
   invoiceSequencePadding?: number;
+  financialYearStartMonth?: number;
 }
 
 export class InvoiceService {
@@ -279,9 +280,12 @@ export class InvoiceService {
     const settings = (tenantRow?.settings ?? {}) as TenantSettings;
     const fy = this.getCurrentFY(settings.financialYearStartMonth ?? 4);
 
+    // First invoice in a new FY uses the tenant-configured start sequence
+    // (defaulting to 1). On conflict the existing counter just increments.
+    const startSeq = settings.invoiceStartSequence ?? 1;
     const [seqRow] = await tx
       .insert(invoiceSequences)
-      .values({ tenantId: this.tenantId, financialYear: fy, lastSequence: 1 })
+      .values({ tenantId: this.tenantId, financialYear: fy, lastSequence: startSeq })
       .onConflictDoUpdate({
         target: [invoiceSequences.tenantId, invoiceSequences.financialYear],
         set: { lastSequence: sql`${invoiceSequences.lastSequence} + 1`, updatedAt: new Date() },
@@ -532,8 +536,12 @@ export class InvoiceService {
     const format = settings.invoiceFormat ?? '{prefix}-{fy}-{seq}';
     const padding = settings.invoiceSequencePadding ?? 4;
     const paddedSeq = String(seq).padStart(padding, '0');
+    // {fy2} is the 2-digit FY start year, e.g. "26" for FY 2026-27.
+    // {fy} stays as the 4-digit form ("2627") for backwards compatibility.
+    const fy2 = fy.slice(0, 2);
     return format
       .replace('{prefix}', prefix)
+      .replace('{fy2}', fy2)
       .replace('{fy}', fy)
       .replace('{seq}', paddedSeq);
   }

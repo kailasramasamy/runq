@@ -15,9 +15,12 @@ function buildPreview(prefix: string, format: string, seq: number): string {
   const now = new Date();
   const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   const fyShort = `${String(fyStart).slice(2)}${String(fyStart + 1).slice(2)}`;
+  const fy2 = String(fyStart).slice(2);
   const seqStr = String(seq).padStart(4, '0');
+  // {fy2} must be replaced before {fy}, otherwise {fy} matches the prefix.
   return format
     .replace('{prefix}', prefix || 'INV')
+    .replace('{fy2}', fy2)
     .replace('{fy}', fyShort)
     .replace('{seq}', seqStr);
 }
@@ -85,7 +88,7 @@ export function InvoiceNumberingPage() {
               value={format}
               onChange={(e) => setFormat(e.target.value)}
               placeholder="{prefix}-{fy}-{seq}"
-              helper="Available tokens: {prefix}, {fy} (financial year, e.g. 2526), {seq} (padded sequence)."
+              helper="Tokens: {prefix}, {fy} (4-digit FY, e.g. 2627), {fy2} (2-digit FY start year, e.g. 26), {seq} (padded sequence)."
             />
 
             <Input

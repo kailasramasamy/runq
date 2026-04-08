@@ -12,6 +12,8 @@ export interface Tenant {
 export interface TenantSettings {
   invoicePrefix: string;
   invoiceFormat: string;
+  invoiceStartSequence?: number;
+  invoiceSequencePadding?: number;
   financialYearStartMonth: number;
   defaultPaymentTermsDays: number;
   currency: string;
