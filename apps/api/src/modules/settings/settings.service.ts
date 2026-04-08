@@ -126,6 +126,52 @@ export class SettingsService {
     if (!sent) throw new Error('Failed to send test email');
   }
 
+  // ─── Onboarding ────────────────────────────────────────────────────────────
+
+  async getOnboarding(): Promise<{ steps: Record<string, boolean>; completed: boolean; dismissed: boolean }> {
+    const [row] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
+    if (!row) throw new NotFoundError('Tenant');
+    const s = (row.settings ?? {}) as Partial<TenantSettings> & {
+      onboardingSteps?: Record<string, boolean>;
+      onboardingCompleted?: boolean;
+      onboardingDismissed?: boolean;
+    };
+    return {
+      steps: s.onboardingSteps ?? {},
+      completed: s.onboardingCompleted ?? false,
+      dismissed: s.onboardingDismissed ?? false,
+    };
+  }
+
+  async completeOnboardingStep(step: string): Promise<{ steps: Record<string, boolean>; completed: boolean; dismissed: boolean }> {
+    const [existing] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
+    if (!existing) throw new NotFoundError('Tenant');
+
+    const current = (existing.settings ?? {}) as Record<string, unknown>;
+    const currentSteps = (current.onboardingSteps ?? {}) as Record<string, boolean>;
+    const newSteps = { ...currentSteps, [step]: true };
+
+    await this.db
+      .update(tenants)
+      .set({ settings: { ...current, onboardingSteps: newSteps }, updatedAt: new Date() })
+      .where(eq(tenants.id, this.tenantId));
+
+    return this.getOnboarding();
+  }
+
+  async dismissOnboarding(): Promise<{ steps: Record<string, boolean>; completed: boolean; dismissed: boolean }> {
+    const [existing] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
+    if (!existing) throw new NotFoundError('Tenant');
+
+    const current = (existing.settings ?? {}) as Record<string, unknown>;
+    await this.db
+      .update(tenants)
+      .set({ settings: { ...current, onboardingDismissed: true }, updatedAt: new Date() })
+      .where(eq(tenants.id, this.tenantId));
+
+    return this.getOnboarding();
+  }
+
   private toTenant(row: typeof tenants.$inferSelect): Tenant {
     return {
       id: row.id,

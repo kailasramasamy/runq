@@ -113,6 +113,39 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Onboarding
+  app.get(
+    '/onboarding',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new SettingsService(request.server.db, request.tenantId);
+      const data = await service.getOnboarding();
+      return { data };
+    },
+  );
+
+  app.post(
+    '/onboarding/complete-step',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { step } = request.body as { step: string };
+      if (!step || typeof step !== 'string') throw new Error('step is required');
+      const service = new SettingsService(request.server.db, request.tenantId);
+      const data = await service.completeOnboardingStep(step);
+      return { data };
+    },
+  );
+
+  app.post(
+    '/onboarding/dismiss',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const service = new SettingsService(request.server.db, request.tenantId);
+      const data = await service.dismissOnboarding();
+      return { data };
+    },
+  );
+
   await app.register(userRoutes, { prefix: '/users' });
   await app.register(auditRoutes, { prefix: '/audit-log' });
 };

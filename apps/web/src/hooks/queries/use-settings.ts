@@ -9,7 +9,40 @@ const SETTINGS_KEYS = {
   company: ['settings', 'company'] as const,
   invoiceNumbering: ['settings', 'invoice-numbering'] as const,
   users: ['settings', 'users'] as const,
+  onboarding: ['settings', 'onboarding'] as const,
 };
+
+// ─── Onboarding ──────────────────────────────────────────────────────────────
+
+export interface OnboardingStatus {
+  steps: Record<string, boolean>;
+  completed: boolean;
+  dismissed: boolean;
+}
+
+export function useOnboarding() {
+  return useQuery({
+    queryKey: SETTINGS_KEYS.onboarding,
+    queryFn: () => api.get<{ data: OnboardingStatus }>('/settings/onboarding'),
+  });
+}
+
+export function useCompleteOnboardingStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (step: string) =>
+      api.post<{ data: OnboardingStatus }>('/settings/onboarding/complete-step', { step }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SETTINGS_KEYS.onboarding }),
+  });
+}
+
+export function useDismissOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ data: OnboardingStatus }>('/settings/onboarding/dismiss'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SETTINGS_KEYS.onboarding }),
+  });
+}
 
 // ─── Company Settings ────────────────────────────────────────────────────────
 

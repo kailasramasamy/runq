@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   TrendingDown,
@@ -9,6 +10,8 @@ import {
   Landmark,
   ArrowRight,
 } from 'lucide-react';
+import { OnboardingWizard, OnboardingProgressWidget } from '@/components/onboarding/onboarding-wizard';
+import { useOnboarding } from '@/hooks/queries/use-settings';
 import {
   Card,
   CardHeader,
@@ -117,12 +120,28 @@ export function DashboardPage() {
   const summary = useDashboardSummary();
   const payablesAging = usePayablesAging();
   const receivablesAging = useReceivablesAging();
+  const { data: onboarding } = useOnboarding();
+
+  const completedSteps = onboarding?.data.steps ?? {};
+  const completedCount = Object.values(completedSteps).filter(Boolean).length;
+  const onboardingDismissed = onboarding?.data.dismissed ?? false;
+  const onboardingComplete = onboarding?.data.completed ?? false;
+  const shouldAutoOpen = !onboardingDismissed && !onboardingComplete && completedCount === 0;
+
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Auto-open for brand new tenants (only when onboarding query has resolved with empty steps)
+  if (shouldAutoOpen && !wizardOpen) {
+    setWizardOpen(true);
+  }
 
   const isLoading = summary.isLoading;
   const s = summary.data?.data;
 
   return (
     <div className="space-y-6">
+      <OnboardingWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
@@ -130,6 +149,9 @@ export function DashboardPage() {
           Finance & Accounting overview
         </p>
       </div>
+
+      {/* Onboarding progress (until 100% complete) */}
+      <OnboardingProgressWidget onResume={() => setWizardOpen(true)} />
 
       {/* AI Snapshot — full width */}
       <AIInsightsWidget />
