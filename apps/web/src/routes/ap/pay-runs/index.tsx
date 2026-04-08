@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Inbox } from 'lucide-react';
-import { usePaymentBatches } from '../../../hooks/queries/use-payment-queue';
-import type { PaymentBatch, PaymentBatchStatus } from '@runq/types';
+import { usePaymentRuns } from '../../../hooks/queries/use-payment-runs';
+import type { PaymentRun, PaymentRunStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
@@ -24,7 +24,7 @@ import {
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'outline' | 'default' | 'cyan' | 'info';
 
-const STATUS_VARIANT: Record<PaymentBatchStatus, BadgeVariant> = {
+const STATUS_VARIANT: Record<PaymentRunStatus, BadgeVariant> = {
   pending_approval: 'warning',
   partially_approved: 'cyan',
   approved: 'success',
@@ -32,7 +32,7 @@ const STATUS_VARIANT: Record<PaymentBatchStatus, BadgeVariant> = {
   executed: 'info',
 };
 
-const STATUS_LABEL: Record<PaymentBatchStatus, string> = {
+const STATUS_LABEL: Record<PaymentRunStatus, string> = {
   pending_approval: 'Pending Approval',
   partially_approved: 'Partially Approved',
   approved: 'Approved',
@@ -49,39 +49,39 @@ const STATUS_OPTIONS = [
   { value: 'executed', label: 'Executed' },
 ];
 
-function BatchRow({ batch }: { batch: PaymentBatch }) {
+function RunRow({ run }: { run: PaymentRun }) {
   return (
     <TableRow>
       <TableCell>
         <Link
-          to="/ap/queue/$batchId"
-          params={{ batchId: batch.id }}
+          to="/ap/pay-runs/$runId"
+          params={{ runId: run.id }}
           className="font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400"
         >
-          {batch.batchId}
+          {run.runId}
         </Link>
       </TableCell>
-      <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">{batch.source}</TableCell>
-      <TableCell className="text-sm text-zinc-500 dark:text-zinc-500">{batch.description ?? '—'}</TableCell>
-      <TableCell align="right" numeric>{batch.totalCount}</TableCell>
-      <TableCell align="right" numeric>{formatINR(batch.totalAmount)}</TableCell>
+      <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">{run.source}</TableCell>
+      <TableCell className="text-sm text-zinc-500 dark:text-zinc-500">{run.description ?? '—'}</TableCell>
+      <TableCell align="right" numeric>{run.totalCount}</TableCell>
+      <TableCell align="right" numeric>{formatINR(run.totalAmount)}</TableCell>
       <TableCell align="right" numeric>
-        {batch.approvedCount > 0 ? (
-          <span className="text-emerald-600 dark:text-emerald-400">{formatINR(batch.approvedAmount)}</span>
+        {run.approvedCount > 0 ? (
+          <span className="text-emerald-600 dark:text-emerald-400">{formatINR(run.approvedAmount)}</span>
         ) : '—'}
       </TableCell>
       <TableCell>
-        <Badge variant={STATUS_VARIANT[batch.status]}>
-          {STATUS_LABEL[batch.status]}
+        <Badge variant={STATUS_VARIANT[run.status]}>
+          {STATUS_LABEL[run.status]}
         </Badge>
       </TableCell>
       <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
-        {new Date(batch.createdAt).toLocaleDateString('en-IN')}
+        {new Date(run.createdAt).toLocaleDateString('en-IN')}
       </TableCell>
       <TableCell>
         <Link
-          to="/ap/queue/$batchId"
-          params={{ batchId: batch.id }}
+          to="/ap/pay-runs/$runId"
+          params={{ runId: run.id }}
           className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
         >
           View
@@ -91,18 +91,18 @@ function BatchRow({ batch }: { batch: PaymentBatch }) {
   );
 }
 
-export function PaymentQueuePage() {
+export function PayRunsListPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = usePaymentBatches({
-    status: status as PaymentBatchStatus || undefined,
+  const { data, isLoading } = usePaymentRuns({
+    status: status as PaymentRunStatus || undefined,
     source: source || undefined,
   });
 
-  const batches = data?.data ?? [];
+  const runs = data?.data ?? [];
   const meta = data?.meta;
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
@@ -110,8 +110,8 @@ export function PaymentQueuePage() {
   return (
     <div>
       <PageHeader
-        title="Payment Queue"
-        breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Payment Queue' }]}
+        title="Pay Runs"
+        breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Pay Runs' }]}
       />
 
       <Card className="mb-4">
@@ -127,7 +127,7 @@ export function PaymentQueuePage() {
           <div className="sm:w-52">
             <Input
               label="Source"
-              placeholder="e.g. vrindavan-dairy-ops"
+              placeholder="e.g. bills, vrindavan-dairy-ops"
               value={source}
               onChange={(e) => { setSource(e.target.value); setPage(1); }}
             />
@@ -141,27 +141,27 @@ export function PaymentQueuePage() {
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))
-        ) : batches.length === 0 ? (
+        ) : runs.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="No payment batches found"
-            description="External systems will submit payment batches here for Finance approval."
+            title="No pay runs found"
+            description="Pay runs are batches of bills (or external payment instructions) waiting for finance approval and execution."
           />
         ) : (
-          batches.map((b) => (
+          runs.map((r) => (
             <div
-              key={b.id}
+              key={r.id}
               className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => navigate({ to: '/ap/queue/$batchId', params: { batchId: b.id } })}
+              onClick={() => navigate({ to: '/ap/pay-runs/$runId', params: { runId: r.id } })}
             >
               <div className="flex items-center justify-between">
-                <span className="font-medium text-zinc-800 dark:text-zinc-200">{b.source}</span>
-                <Badge variant={STATUS_VARIANT[b.status]}>{STATUS_LABEL[b.status]}</Badge>
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{r.source}</span>
+                <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
               </div>
-              <div className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-400">{b.batchId}</div>
+              <div className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-400">{r.runId}</div>
               <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                <span>{b.totalCount} item{b.totalCount !== 1 ? 's' : ''}</span>
-                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(b.totalAmount)}</span>
+                <span>{r.totalCount} item{r.totalCount !== 1 ? 's' : ''}</span>
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(r.totalAmount)}</span>
               </div>
             </div>
           ))
@@ -173,7 +173,7 @@ export function PaymentQueuePage() {
       <Table>
         <TableHeader>
           <tr>
-            <Th>Batch ID</Th>
+            <Th>Run ID</Th>
             <Th>Source</Th>
             <Th>Description</Th>
             <Th align="right">Count</Th>
@@ -187,18 +187,18 @@ export function PaymentQueuePage() {
         <TableBody>
           {isLoading ? (
             <TableSkeleton rows={8} cols={9} />
-          ) : batches.length === 0 ? (
+          ) : runs.length === 0 ? (
             <tr>
               <td colSpan={9}>
                 <EmptyState
                   icon={Inbox}
-                  title="No payment batches found"
-                  description="External systems will submit payment batches here for Finance approval."
+                  title="No pay runs found"
+                  description="Pay runs are batches of bills (or external payment instructions) waiting for finance approval and execution."
                 />
               </td>
             </tr>
           ) : (
-            batches.map((b) => <BatchRow key={b.id} batch={b} />)
+            runs.map((r) => <RunRow key={r.id} run={r} />)
           )}
         </TableBody>
       </Table>

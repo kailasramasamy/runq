@@ -1,8 +1,8 @@
 import { eq, and, sql, inArray, ilike, desc } from 'drizzle-orm';
-import { paymentBatches, paymentInstructions, vendors, payments } from '@runq/db';
+import { paymentRuns, paymentRunLines, vendors, payments } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { PaymentBatch, PaymentBatchWithInstructions, PaymentInstruction, ExecuteBatchResult } from '@runq/types';
-import type { CreatePaymentBatchInput, ApproveInstructionsInput, RejectInstructionsInput, PaymentBatchFilter } from '@runq/validators';
+import type { PaymentRun, PaymentRunWithLines, PaymentRunLine, ExecuteRunResult } from '@runq/types';
+import type { CreatePaymentRunInput, ApproveLinesInput, RejectLinesInput, PaymentRunFilter } from '@runq/validators';
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -11,195 +11,196 @@ import { batchPaymentSummary } from '../../utils/email-templates';
 import { tenants } from '@runq/db';
 import { getTenantName } from '../../utils/tenant-name';
 
-export interface BatchListParams extends PaymentBatchFilter {
+export interface RunListParams extends PaymentRunFilter {
   page: number;
   limit: number;
 }
 
-export interface BatchListResult {
-  data: PaymentBatch[];
+export interface RunListResult {
+  data: PaymentRun[];
   meta: PaginationMeta;
 }
 
-export class PaymentInstructionService {
+export class PaymentRunService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
 
-  async createBatch(input: CreatePaymentBatchInput): Promise<PaymentBatchWithInstructions> {
+  async createRun(input: CreatePaymentRunInput): Promise<PaymentRunWithLines> {
     const existing = await this.db
-      .select({ id: paymentBatches.id })
-      .from(paymentBatches)
-      .where(and(eq(paymentBatches.tenantId, this.tenantId), eq(paymentBatches.batchId, input.batchId)))
+      .select({ id: paymentRuns.id })
+      .from(paymentRuns)
+      .where(and(eq(paymentRuns.tenantId, this.tenantId), eq(paymentRuns.runId, input.runId)))
       .limit(1);
 
-    if (existing.length > 0) throw new ConflictError(`Batch '${input.batchId}' already exists for this tenant`);
+    if (existing.length > 0) throw new ConflictError(`Run '${input.runId}' already exists for this tenant`);
 
-    const matchedInstructions = await this.matchVendors(input.instructions);
+    const matchedLines = await this.matchVendors(input.lines);
 
-    const totalAmount = input.instructions.reduce((s, i) => s + i.amount, 0);
+    const totalAmount = input.lines.reduce((s, i) => s + i.amount, 0);
 
-    const batch = await this.db.transaction(async (tx) => {
-      const [batch] = await tx
-        .insert(paymentBatches)
+    const run = await this.db.transaction(async (tx) => {
+      const [run] = await tx
+        .insert(paymentRuns)
         .values({
           tenantId: this.tenantId,
-          batchId: input.batchId,
+          runId: input.runId,
           source: input.source,
           description: input.description ?? null,
-          totalCount: input.instructions.length,
+          totalCount: input.lines.length,
           totalAmount: totalAmount.toString(),
         })
         .returning();
 
-      await tx.insert(paymentInstructions).values(
-        matchedInstructions.map((item) => ({
+      await tx.insert(paymentRunLines).values(
+        matchedLines.map((item) => ({
           tenantId: this.tenantId,
-          batchId: batch!.id,
+          runId: run!.id,
           vendorId: item.vendorId ?? null,
           vendorName: item.vendorName,
           amount: item.amount.toString(),
           reference: item.reference ?? null,
           reason: item.reason ?? null,
           dueDate: item.dueDate ?? null,
+          purchaseInvoiceId: item.purchaseInvoiceId ?? null,
         })),
       );
 
-      return batch!;
+      return run!;
     });
 
-    return this.getBatch(batch.id);
+    return this.getRun(run.id);
   }
 
-  async listBatches(params: BatchListParams): Promise<BatchListResult> {
+  async listRuns(params: RunListParams): Promise<RunListResult> {
     const { page, limit, status, source } = params;
     const { offset } = applyPagination(page, limit);
 
     const baseWhere = and(
-      eq(paymentBatches.tenantId, this.tenantId),
-      status ? eq(paymentBatches.status, status) : undefined,
-      source ? ilike(paymentBatches.source, `%${source}%`) : undefined,
+      eq(paymentRuns.tenantId, this.tenantId),
+      status ? eq(paymentRuns.status, status) : undefined,
+      source ? ilike(paymentRuns.source, `%${source}%`) : undefined,
     );
 
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(paymentBatches).where(baseWhere).orderBy(desc(paymentBatches.createdAt)).limit(limit).offset(offset),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(paymentBatches).where(baseWhere),
+      this.db.select().from(paymentRuns).where(baseWhere).orderBy(desc(paymentRuns.createdAt)).limit(limit).offset(offset),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(paymentRuns).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map(this.toBatch),
+      data: rows.map(this.toRun),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
 
-  async getBatch(id: string): Promise<PaymentBatchWithInstructions> {
-    const [batch] = await this.db
+  async getRun(id: string): Promise<PaymentRunWithLines> {
+    const [run] = await this.db
       .select()
-      .from(paymentBatches)
-      .where(and(eq(paymentBatches.id, id), eq(paymentBatches.tenantId, this.tenantId)))
+      .from(paymentRuns)
+      .where(and(eq(paymentRuns.id, id), eq(paymentRuns.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!batch) throw new NotFoundError('Payment batch');
+    if (!run) throw new NotFoundError('Payment run');
 
-    const instructions = await this.db
+    const lines = await this.db
       .select()
-      .from(paymentInstructions)
-      .where(and(eq(paymentInstructions.batchId, id), eq(paymentInstructions.tenantId, this.tenantId)))
-      .orderBy(paymentInstructions.createdAt);
+      .from(paymentRunLines)
+      .where(and(eq(paymentRunLines.runId, id), eq(paymentRunLines.tenantId, this.tenantId)))
+      .orderBy(paymentRunLines.createdAt);
 
     return {
-      ...this.toBatch(batch),
-      instructions: instructions.map(this.toInstruction),
+      ...this.toRun(run),
+      lines: lines.map(this.toLine),
     };
   }
 
-  async approveInstructions(batchId: string, input: ApproveInstructionsInput): Promise<PaymentBatchWithInstructions> {
-    await this.assertBatchExists(batchId);
+  async approveLines(runId: string, input: ApproveLinesInput): Promise<PaymentRunWithLines> {
+    await this.assertRunExists(runId);
 
     await this.db
-      .update(paymentInstructions)
+      .update(paymentRunLines)
       .set({ status: 'approved', updatedAt: new Date() })
       .where(
         and(
-          eq(paymentInstructions.batchId, batchId),
-          eq(paymentInstructions.tenantId, this.tenantId),
-          inArray(paymentInstructions.id, input.instructionIds),
+          eq(paymentRunLines.runId, runId),
+          eq(paymentRunLines.tenantId, this.tenantId),
+          inArray(paymentRunLines.id, input.lineIds),
         ),
       );
 
-    await this.syncBatchCounts(batchId);
-    return this.getBatch(batchId);
+    await this.syncRunCounts(runId);
+    return this.getRun(runId);
   }
 
-  async rejectInstructions(batchId: string, input: RejectInstructionsInput): Promise<PaymentBatchWithInstructions> {
-    await this.assertBatchExists(batchId);
+  async rejectLines(runId: string, input: RejectLinesInput): Promise<PaymentRunWithLines> {
+    await this.assertRunExists(runId);
 
     await this.db
-      .update(paymentInstructions)
+      .update(paymentRunLines)
       .set({ status: 'rejected', updatedAt: new Date() })
       .where(
         and(
-          eq(paymentInstructions.batchId, batchId),
-          eq(paymentInstructions.tenantId, this.tenantId),
-          inArray(paymentInstructions.id, input.instructionIds),
+          eq(paymentRunLines.runId, runId),
+          eq(paymentRunLines.tenantId, this.tenantId),
+          inArray(paymentRunLines.id, input.lineIds),
         ),
       );
 
-    await this.syncBatchCounts(batchId);
-    return this.getBatch(batchId);
+    await this.syncRunCounts(runId);
+    return this.getRun(runId);
   }
 
-  async executeBatch(batchId: string, bankAccountId: string): Promise<ExecuteBatchResult> {
-    const batch = await this.assertBatchExists(batchId);
+  async executeRun(runId: string, bankAccountId: string): Promise<ExecuteRunResult> {
+    const run = await this.assertRunExists(runId);
 
-    if (batch.status !== 'approved' && batch.status !== 'partially_approved') {
-      throw new ConflictError('Batch must be approved or partially approved to execute');
+    if (run.status !== 'approved' && run.status !== 'partially_approved') {
+      throw new ConflictError('Run must be approved or partially approved to execute');
     }
 
     const approvedRows = await this.db
       .select()
-      .from(paymentInstructions)
+      .from(paymentRunLines)
       .where(
         and(
-          eq(paymentInstructions.batchId, batchId),
-          eq(paymentInstructions.tenantId, this.tenantId),
-          eq(paymentInstructions.status, 'approved'),
+          eq(paymentRunLines.runId, runId),
+          eq(paymentRunLines.tenantId, this.tenantId),
+          eq(paymentRunLines.status, 'approved'),
         ),
       );
 
-    const result = await this.processApprovedInstructions(approvedRows, bankAccountId, batchId);
+    const result = await this.processApprovedLines(approvedRows, bankAccountId);
 
     await this.db
-      .update(paymentBatches)
+      .update(paymentRuns)
       .set({ status: 'executed', updatedAt: new Date() })
-      .where(eq(paymentBatches.id, batchId));
+      .where(eq(paymentRuns.id, runId));
 
-    void this.sendBatchSummaryEmail(approvedRows, result.totalPaid);
+    void this.sendRunSummaryEmail(approvedRows, result.totalPaid);
     return result;
   }
 
-  async exportBatchCSV(batchId: string): Promise<string> {
-    await this.assertBatchExists(batchId);
+  async exportRunCSV(runId: string): Promise<string> {
+    await this.assertRunExists(runId);
 
     const rows = await this.db
       .select({
-        vendorName: paymentInstructions.vendorName,
-        amount: paymentInstructions.amount,
-        reference: paymentInstructions.reference,
-        reason: paymentInstructions.reason,
+        vendorName: paymentRunLines.vendorName,
+        amount: paymentRunLines.amount,
+        reference: paymentRunLines.reference,
+        reason: paymentRunLines.reason,
         bankAccountName: vendors.bankAccountName,
         bankAccountNumber: vendors.bankAccountNumber,
         bankIfsc: vendors.bankIfsc,
       })
-      .from(paymentInstructions)
-      .leftJoin(vendors, eq(paymentInstructions.vendorId, vendors.id))
+      .from(paymentRunLines)
+      .leftJoin(vendors, eq(paymentRunLines.vendorId, vendors.id))
       .where(
         and(
-          eq(paymentInstructions.batchId, batchId),
-          eq(paymentInstructions.tenantId, this.tenantId),
-          eq(paymentInstructions.status, 'approved'),
+          eq(paymentRunLines.runId, runId),
+          eq(paymentRunLines.tenantId, this.tenantId),
+          eq(paymentRunLines.status, 'approved'),
         ),
       );
 
@@ -207,10 +208,10 @@ export class PaymentInstructionService {
   }
 
   private async matchVendors(
-    instructions: CreatePaymentBatchInput['instructions'],
-  ): Promise<(CreatePaymentBatchInput['instructions'][number] & { vendorId?: string | null })[]> {
-    const unmatched = instructions.filter((i) => !i.vendorId);
-    if (unmatched.length === 0) return instructions;
+    lines: CreatePaymentRunInput['lines'],
+  ): Promise<(CreatePaymentRunInput['lines'][number] & { vendorId?: string | null })[]> {
+    const unmatched = lines.filter((i) => !i.vendorId);
+    if (unmatched.length === 0) return lines;
 
     const results = await Promise.all(
       unmatched.map((item) => this.resolveVendorId(item.vendorName)),
@@ -218,7 +219,7 @@ export class PaymentInstructionService {
 
     const resolvedMap = new Map(unmatched.map((item, idx) => [item.vendorName, results[idx]]));
 
-    return instructions.map((item) => {
+    return lines.map((item) => {
       if (item.vendorId) return item;
       return { ...item, vendorId: resolvedMap.get(item.vendorName) ?? null };
     });
@@ -255,8 +256,8 @@ export class PaymentInstructionService {
     return null;
   }
 
-  private async sendBatchSummaryEmail(
-    rows: (typeof paymentInstructions.$inferSelect)[],
+  private async sendRunSummaryEmail(
+    rows: (typeof paymentRunLines.$inferSelect)[],
     totalPaid: number,
   ): Promise<void> {
     const [tenantRow] = await this.db
@@ -283,15 +284,14 @@ export class PaymentInstructionService {
     });
 
     sendEmail({ to: ownerEmail, fromName: companyName, ...template }).catch((err) =>
-      console.error('Batch summary email failed:', err),
+      console.error('Run summary email failed:', err),
     );
   }
 
-  private async processApprovedInstructions(
-    rows: (typeof paymentInstructions.$inferSelect)[],
+  private async processApprovedLines(
+    rows: (typeof paymentRunLines.$inferSelect)[],
     bankAccountId: string,
-    batchId: string,
-  ): Promise<ExecuteBatchResult> {
+  ): Promise<ExecuteRunResult> {
     let paid = 0;
     let failed = 0;
     let totalPaid = 0;
@@ -299,9 +299,9 @@ export class PaymentInstructionService {
     for (const row of rows) {
       if (!row.vendorId) {
         await this.db
-          .update(paymentInstructions)
+          .update(paymentRunLines)
           .set({ status: 'failed', errorMessage: 'Vendor not matched — no vendor_id', updatedAt: new Date() })
-          .where(eq(paymentInstructions.id, row.id));
+          .where(eq(paymentRunLines.id, row.id));
         failed++;
         continue;
       }
@@ -323,43 +323,42 @@ export class PaymentInstructionService {
         .returning();
 
       await this.db
-        .update(paymentInstructions)
+        .update(paymentRunLines)
         .set({ status: 'paid', paymentId: payment!.id, updatedAt: new Date() })
-        .where(eq(paymentInstructions.id, row.id));
+        .where(eq(paymentRunLines.id, row.id));
 
       paid++;
       totalPaid += parseFloat(row.amount);
     }
 
-    void batchId;
     return { paid, failed, totalPaid };
   }
 
-  private async syncBatchCounts(batchId: string): Promise<void> {
+  private async syncRunCounts(runId: string): Promise<void> {
     const allRows = await this.db
-      .select({ status: paymentInstructions.status, amount: paymentInstructions.amount })
-      .from(paymentInstructions)
-      .where(and(eq(paymentInstructions.batchId, batchId), eq(paymentInstructions.tenantId, this.tenantId)));
+      .select({ status: paymentRunLines.status, amount: paymentRunLines.amount })
+      .from(paymentRunLines)
+      .where(and(eq(paymentRunLines.runId, runId), eq(paymentRunLines.tenantId, this.tenantId)));
 
     const approvedRows = allRows.filter((r) => r.status === 'approved');
     const pendingCount = allRows.filter((r) => r.status === 'pending').length;
     const approvedCount = approvedRows.length;
     const approvedAmount = approvedRows.reduce((s, r) => s + parseFloat(r.amount), 0);
 
-    const newStatus = this.deriveBatchStatus(approvedCount, pendingCount, allRows.length);
+    const newStatus = this.deriveRunStatus(approvedCount, pendingCount, allRows.length);
 
     await this.db
-      .update(paymentBatches)
+      .update(paymentRuns)
       .set({
         approvedCount,
         approvedAmount: approvedAmount.toString(),
         status: newStatus,
         updatedAt: new Date(),
       })
-      .where(eq(paymentBatches.id, batchId));
+      .where(eq(paymentRuns.id, runId));
   }
 
-  private deriveBatchStatus(
+  private deriveRunStatus(
     approvedCount: number,
     pendingCount: number,
     totalCount: number,
@@ -370,15 +369,15 @@ export class PaymentInstructionService {
     return 'pending_approval';
   }
 
-  private async assertBatchExists(batchId: string): Promise<typeof paymentBatches.$inferSelect> {
-    const [batch] = await this.db
+  private async assertRunExists(runId: string): Promise<typeof paymentRuns.$inferSelect> {
+    const [run] = await this.db
       .select()
-      .from(paymentBatches)
-      .where(and(eq(paymentBatches.id, batchId), eq(paymentBatches.tenantId, this.tenantId)))
+      .from(paymentRuns)
+      .where(and(eq(paymentRuns.id, runId), eq(paymentRuns.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!batch) throw new NotFoundError('Payment batch');
-    return batch;
+    if (!run) throw new NotFoundError('Payment run');
+    return run;
   }
 
   private buildCSV(
@@ -407,11 +406,11 @@ export class PaymentInstructionService {
     return [header, ...lines].join('\n');
   }
 
-  private toBatch(row: typeof paymentBatches.$inferSelect): PaymentBatch {
+  private toRun(row: typeof paymentRuns.$inferSelect): PaymentRun {
     return {
       id: row.id,
       tenantId: row.tenantId,
-      batchId: row.batchId,
+      runId: row.runId,
       source: row.source,
       description: row.description,
       status: row.status,
@@ -426,11 +425,11 @@ export class PaymentInstructionService {
     };
   }
 
-  private toInstruction(row: typeof paymentInstructions.$inferSelect): PaymentInstruction {
+  private toLine(row: typeof paymentRunLines.$inferSelect): PaymentRunLine {
     return {
       id: row.id,
       tenantId: row.tenantId,
-      batchId: row.batchId,
+      runId: row.runId,
       vendorId: row.vendorId,
       vendorName: row.vendorName,
       amount: parseFloat(row.amount),
@@ -439,6 +438,7 @@ export class PaymentInstructionService {
       dueDate: row.dueDate,
       status: row.status,
       paymentId: row.paymentId,
+      purchaseInvoiceId: row.purchaseInvoiceId,
       errorMessage: row.errorMessage,
       createdAt: row.createdAt.toISOString(),
     };

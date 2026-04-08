@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, Download, Play, UserPlus } from 'lucide-react';
-import { usePaymentBatch, useApproveInstructions, useRejectInstructions, useExecuteBatch } from '../../../hooks/queries/use-payment-queue';
+import { usePaymentRun, useApproveLines, useRejectLines, useExecuteRun } from '../../../hooks/queries/use-payment-runs';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import { useCreateVendor } from '../../../hooks/queries/use-vendors';
-import type { PaymentBatchStatus, InstructionStatus, PaymentInstruction } from '@runq/types';
+import type { PaymentRunStatus, PaymentRunLineStatus, PaymentRunLine } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
@@ -28,7 +28,7 @@ import {
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'outline' | 'default' | 'cyan' | 'info';
 
-const BATCH_STATUS_VARIANT: Record<PaymentBatchStatus, BadgeVariant> = {
+const RUN_STATUS_VARIANT: Record<PaymentRunStatus, BadgeVariant> = {
   pending_approval: 'warning',
   partially_approved: 'cyan',
   approved: 'success',
@@ -36,7 +36,7 @@ const BATCH_STATUS_VARIANT: Record<PaymentBatchStatus, BadgeVariant> = {
   executed: 'info',
 };
 
-const BATCH_STATUS_LABEL: Record<PaymentBatchStatus, string> = {
+const RUN_STATUS_LABEL: Record<PaymentRunStatus, string> = {
   pending_approval: 'Pending Approval',
   partially_approved: 'Partially Approved',
   approved: 'Approved',
@@ -44,7 +44,7 @@ const BATCH_STATUS_LABEL: Record<PaymentBatchStatus, string> = {
   executed: 'Executed',
 };
 
-const INSTRUCTION_STATUS_VARIANT: Record<InstructionStatus, BadgeVariant> = {
+const LINE_STATUS_VARIANT: Record<PaymentRunLineStatus, BadgeVariant> = {
   pending: 'warning',
   approved: 'success',
   rejected: 'danger',
@@ -61,7 +61,7 @@ interface SummaryProps {
   approvedAmount: number;
 }
 
-function BatchSummary({ totalCount, totalAmount, approvedCount, approvedAmount }: SummaryProps) {
+function RunSummary({ totalCount, totalAmount, approvedCount, approvedAmount }: SummaryProps) {
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
       <StatsCard title="Total Count" value={totalCount} formatValue={(v) => String(v)} />
@@ -72,17 +72,17 @@ function BatchSummary({ totalCount, totalAmount, approvedCount, approvedAmount }
   );
 }
 
-// ─── Instruction row ──────────────────────────────────────────────────────────
+// ─── Line row ─────────────────────────────────────────────────────────────────
 
-interface InstructionRowProps {
-  instruction: PaymentInstruction;
+interface LineRowProps {
+  line: PaymentRunLine;
   checked: boolean;
   onToggle: (id: string) => void;
 }
 
-function InstructionRow({ instruction: ins, checked, onToggle, onVendorCreated }: InstructionRowProps & { onVendorCreated: () => void }) {
-  const isMatched = ins.vendorId !== null;
-  const isPending = ins.status === 'pending';
+function LineRow({ line, checked, onToggle, onVendorCreated }: LineRowProps & { onVendorCreated: () => void }) {
+  const isMatched = line.vendorId !== null;
+  const isPending = line.status === 'pending';
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   return (
@@ -93,12 +93,12 @@ function InstructionRow({ instruction: ins, checked, onToggle, onVendorCreated }
             <input
               type="checkbox"
               checked={checked}
-              onChange={() => onToggle(ins.id)}
+              onChange={() => onToggle(line.id)}
               className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
             />
           ) : null}
         </TableCell>
-        <TableCell className="font-medium">{ins.vendorName}</TableCell>
+        <TableCell className="font-medium">{line.vendorName}</TableCell>
         <TableCell>
           {isMatched ? (
             <CheckCircle2 size={16} className="text-emerald-500" aria-label="Matched" />
@@ -116,13 +116,13 @@ function InstructionRow({ instruction: ins, checked, onToggle, onVendorCreated }
             </div>
           )}
         </TableCell>
-        <TableCell align="right" numeric>{formatINR(ins.amount)}</TableCell>
-        <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{ins.reference ?? '—'}</TableCell>
-        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.reason ?? '—'}</TableCell>
-        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{ins.dueDate ?? '—'}</TableCell>
+        <TableCell align="right" numeric>{formatINR(line.amount)}</TableCell>
+        <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{line.reference ?? '—'}</TableCell>
+        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{line.reason ?? '—'}</TableCell>
+        <TableCell className="text-sm text-zinc-500 dark:text-zinc-400">{line.dueDate ?? '—'}</TableCell>
         <TableCell>
-          <Badge variant={INSTRUCTION_STATUS_VARIANT[ins.status]} className="capitalize">
-            {ins.status}
+          <Badge variant={LINE_STATUS_VARIANT[line.status]} className="capitalize">
+            {line.status}
           </Badge>
         </TableCell>
       </TableRow>
@@ -130,7 +130,7 @@ function InstructionRow({ instruction: ins, checked, onToggle, onVendorCreated }
         <tr>
           <td colSpan={8}>
             <QuickVendorForm
-              vendorName={ins.vendorName}
+              vendorName={line.vendorName}
               onCreated={() => { setShowCreateForm(false); onVendorCreated(); }}
               onCancel={() => setShowCreateForm(false)}
             />
@@ -157,7 +157,7 @@ function QuickVendorForm({ vendorName, onCreated, onCancel }: { vendorName: stri
     createVendor.mutate(
       { name, phone: phone || undefined, bankAccountNumber: bankAccount || undefined, bankIfsc: ifsc || undefined, bankName: bankName || undefined, paymentTermsDays: 15 },
       {
-        onSuccess: () => { toast(`Vendor "${name}" created. Re-submit the batch to re-match.`, 'success'); onCreated(); },
+        onSuccess: () => { toast(`Vendor "${name}" created. Re-submit the run to re-match.`, 'success'); onCreated(); },
         onError: () => toast('Failed to create vendor', 'error'),
       },
     );
@@ -187,49 +187,49 @@ function QuickVendorForm({ vendorName, onCreated, onCancel }: { vendorName: stri
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
 interface ActionBarProps {
-  batchId: string;
-  batchStatus: PaymentBatchStatus;
+  runId: string;
+  runStatus: PaymentRunStatus;
   selected: string[];
-  instructions: PaymentInstruction[];
+  lines: PaymentRunLine[];
   onClearSelection: () => void;
 }
 
-function ActionBar({ batchId, batchStatus, selected, instructions, onClearSelection }: ActionBarProps) {
+function ActionBar({ runId, runStatus, selected, lines, onClearSelection }: ActionBarProps) {
   const { toast } = useToast();
   const [bankAccountId, setBankAccountId] = useState('');
   const { data: bankData } = useBankAccounts();
-  const approve = useApproveInstructions();
-  const reject = useRejectInstructions();
-  const execute = useExecuteBatch();
+  const approve = useApproveLines();
+  const reject = useRejectLines();
+  const execute = useExecuteRun();
 
   const bankOptions = [
     { value: '', label: 'Select bank account…' },
     ...(bankData?.data ?? []).map((a) => ({ value: a.id, label: a.name })),
   ];
 
-  const pendingInstructions = instructions.filter((i) => i.status === 'pending');
-  const allPendingIds = pendingInstructions.map((i) => i.id);
-  const hasApproved = instructions.some((i) => i.status === 'approved');
-  const canExecute = (batchStatus === 'approved' || batchStatus === 'partially_approved') && hasApproved;
-  const isExecuted = batchStatus === 'executed';
+  const pendingLines = lines.filter((i) => i.status === 'pending');
+  const allPendingIds = pendingLines.map((i) => i.id);
+  const hasApproved = lines.some((i) => i.status === 'approved');
+  const canExecute = (runStatus === 'approved' || runStatus === 'partially_approved') && hasApproved;
+  const isExecuted = runStatus === 'executed';
 
   function handleApprove(ids: string[]) {
-    if (ids.length === 0) { toast('No instructions selected', 'error'); return; }
+    if (ids.length === 0) { toast('No lines selected', 'error'); return; }
     approve.mutate(
-      { batchId, data: { instructionIds: ids } },
+      { runId, data: { lineIds: ids } },
       {
-        onSuccess: () => { toast(`Approved ${ids.length} instruction(s)`, 'success'); onClearSelection(); },
+        onSuccess: () => { toast(`Approved ${ids.length} line(s)`, 'success'); onClearSelection(); },
         onError: () => toast('Approve failed', 'error'),
       },
     );
   }
 
   function handleReject(ids: string[]) {
-    if (ids.length === 0) { toast('No instructions selected', 'error'); return; }
+    if (ids.length === 0) { toast('No lines selected', 'error'); return; }
     reject.mutate(
-      { batchId, data: { instructionIds: ids } },
+      { runId, data: { lineIds: ids } },
       {
-        onSuccess: () => { toast(`Rejected ${ids.length} instruction(s)`, 'success'); onClearSelection(); },
+        onSuccess: () => { toast(`Rejected ${ids.length} line(s)`, 'success'); onClearSelection(); },
         onError: () => toast('Reject failed', 'error'),
       },
     );
@@ -238,7 +238,7 @@ function ActionBar({ batchId, batchStatus, selected, instructions, onClearSelect
   function handleExecute() {
     if (!bankAccountId) { toast('Select a bank account first', 'error'); return; }
     execute.mutate(
-      { batchId, bankAccountId },
+      { runId, bankAccountId },
       {
         onSuccess: (res) => {
           const d = (res as any).data;
@@ -250,7 +250,7 @@ function ActionBar({ batchId, batchStatus, selected, instructions, onClearSelect
   }
 
   function handleExportCSV() {
-    window.open(`/api/v1/ap/payment-queue/${batchId}/export-csv`, '_blank');
+    window.open(`/api/v1/ap/payment-runs/${runId}/export-csv`, '_blank');
   }
 
   if (isExecuted) return null;
@@ -320,10 +320,10 @@ function ActionBar({ batchId, batchStatus, selected, instructions, onClearSelect
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
+export function PayRunDetailPage({ runId }: { runId: string }) {
   const [selected, setSelected] = useState<string[]>([]);
-  const { data, isLoading } = usePaymentBatch(batchId);
-  const batch = data?.data;
+  const { data, isLoading } = usePaymentRun(runId);
+  const run = data?.data;
 
   function toggleOne(id: string) {
     setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -333,71 +333,71 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
     setSelected((prev) => prev.length === ids.length ? [] : ids);
   }
 
-  const pendingIds = (batch?.instructions ?? []).filter((i) => i.status === 'pending').map((i) => i.id);
+  const pendingIds = (run?.lines ?? []).filter((i) => i.status === 'pending').map((i) => i.id);
 
   return (
     <div>
       <PageHeader
-        title={batch?.batchId ?? 'Loading…'}
+        title={run?.runId ?? 'Loading…'}
         breadcrumbs={[
           { label: 'AP', href: '/ap' },
-          { label: 'Payment Queue', href: '/ap/queue' },
-          { label: batch?.batchId ?? '…' },
+          { label: 'Pay Runs', href: '/ap/pay-runs' },
+          { label: run?.runId ?? '…' },
         ]}
         actions={
-          batch && (
-            <Badge variant={BATCH_STATUS_VARIANT[batch.status]}>
-              {BATCH_STATUS_LABEL[batch.status]}
+          run && (
+            <Badge variant={RUN_STATUS_VARIANT[run.status]}>
+              {RUN_STATUS_LABEL[run.status]}
             </Badge>
           )
         }
       />
 
-      {batch && (
-        <BatchSummary
-          totalCount={batch.totalCount}
-          totalAmount={batch.totalAmount}
-          approvedCount={batch.approvedCount}
-          approvedAmount={batch.approvedAmount}
+      {run && (
+        <RunSummary
+          totalCount={run.totalCount}
+          totalAmount={run.totalAmount}
+          approvedCount={run.approvedCount}
+          approvedAmount={run.approvedAmount}
         />
       )}
 
-      {batch && (
+      {run && (
         <ActionBar
-          batchId={batchId}
-          batchStatus={batch.status}
+          runId={runId}
+          runStatus={run.status}
           selected={selected}
-          instructions={batch.instructions}
+          lines={run.lines}
           onClearSelection={() => setSelected([])}
         />
       )}
 
-      {/* Mobile instruction cards */}
+      {/* Mobile line cards */}
       <div className="md:hidden space-y-2">
         {isLoading ? (
           <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 animate-pulse h-20" />
-        ) : (batch?.instructions ?? []).length === 0 ? (
-          <p className="py-8 text-center text-sm text-zinc-500">No instructions found</p>
+        ) : (run?.lines ?? []).length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No lines found</p>
         ) : (
-          (batch?.instructions ?? []).map((ins) => {
-            const isMatched = ins.vendorId !== null;
-            const isPending = ins.status === 'pending';
+          (run?.lines ?? []).map((line) => {
+            const isMatched = line.vendorId !== null;
+            const isPending = line.status === 'pending';
             return (
-              <div key={ins.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div key={line.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {isPending && (
                       <input
                         type="checkbox"
-                        checked={selected.includes(ins.id)}
-                        onChange={() => toggleOne(ins.id)}
+                        checked={selected.includes(line.id)}
+                        onChange={() => toggleOne(line.id)}
                         className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
                       />
                     )}
-                    <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{ins.vendorName}</span>
+                    <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{line.vendorName}</span>
                   </div>
-                  <Badge variant={INSTRUCTION_STATUS_VARIANT[ins.status]} className="capitalize">
-                    {ins.status}
+                  <Badge variant={LINE_STATUS_VARIANT[line.status]} className="capitalize">
+                    {line.status}
                   </Badge>
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-xs">
@@ -412,16 +412,16 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
                   )}
                 </div>
                 <p className="mt-1.5 text-base font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {formatINR(ins.amount)}
+                  {formatINR(line.amount)}
                 </p>
-                {ins.reference && (
-                  <p className="mt-1 font-mono text-xs text-zinc-400">{ins.reference}</p>
+                {line.reference && (
+                  <p className="mt-1 font-mono text-xs text-zinc-400">{line.reference}</p>
                 )}
-                {ins.reason && (
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{ins.reason}</p>
+                {line.reason && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{line.reason}</p>
                 )}
-                {ins.dueDate && (
-                  <p className="mt-1 text-xs text-zinc-400">Due: {ins.dueDate}</p>
+                {line.dueDate && (
+                  <p className="mt-1 text-xs text-zinc-400">Due: {line.dueDate}</p>
                 )}
               </div>
             );
@@ -456,18 +456,18 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
           <TableBody>
             {isLoading ? (
               <TableSkeleton rows={6} cols={8} />
-            ) : (batch?.instructions ?? []).length === 0 ? (
+            ) : (run?.lines ?? []).length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-sm text-zinc-500">No instructions found</td>
+                <td colSpan={8} className="py-8 text-center text-sm text-zinc-500">No lines found</td>
               </tr>
             ) : (
-              (batch?.instructions ?? []).map((ins) => (
-                <InstructionRow
-                  key={ins.id}
-                  instruction={ins}
-                  checked={selected.includes(ins.id)}
+              (run?.lines ?? []).map((line) => (
+                <LineRow
+                  key={line.id}
+                  line={line}
+                  checked={selected.includes(line.id)}
                   onToggle={toggleOne}
-                  onVendorCreated={() => {/* batch will be refetched on next query invalidation */}}
+                  onVendorCreated={() => {/* run will be refetched on next query invalidation */}}
                 />
               ))
             )}
@@ -475,10 +475,10 @@ export function PaymentQueueDetailPage({ batchId }: { batchId: string }) {
         </Table>
       </div>
 
-      {batch?.source && (
+      {run?.source && (
         <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-600">
-          Source: <span className="font-mono">{batch.source}</span>
-          {batch.description && <> — {batch.description}</>}
+          Source: <span className="font-mono">{run.source}</span>
+          {run.description && <> — {run.description}</>}
         </p>
       )}
     </div>

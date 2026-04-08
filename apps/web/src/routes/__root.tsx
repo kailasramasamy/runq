@@ -24,8 +24,8 @@ import { AdvancePaymentPage } from './ap/payments/advance';
 import { DirectPaymentPage } from './ap/payments/direct';
 import { PaymentDetailPage } from './ap/payments/detail';
 import { BulkPaymentPage } from './ap/payments/bulk';
-import { PaymentQueuePage } from './ap/queue/index';
-import { PaymentQueueDetailPage } from './ap/queue/detail';
+import { PayRunsListPage } from './ap/pay-runs/index';
+import { PayRunDetailPage } from './ap/pay-runs/detail';
 import { CustomerListPage } from './ar/customers/index';
 import { NewCustomerPage } from './ar/customers/new';
 import { CustomerDetailPage } from './ar/customers/detail';
@@ -155,8 +155,8 @@ const dashboardRoute = createRoute({
 const AP_TABS = [
   { label: 'Vendors', path: '/ap/vendors' },
   { label: 'Bills', path: '/ap/bills' },
+  { label: 'Pay Runs', path: '/ap/pay-runs' },
   { label: 'Payments', path: '/ap/payments' },
-  { label: 'Queue', path: '/ap/queue' },
   { label: 'Debit Notes', path: '/ap/debit-notes' },
 ];
 
@@ -318,18 +318,34 @@ const paymentBulkRoute = createRoute({
   component: BulkPaymentPage,
 });
 
-const paymentQueueRoute = createRoute({
+const payRunsRoute = createRoute({
   getParentRoute: () => apRoute,
-  path: '/queue',
-  component: PaymentQueuePage,
+  path: '/pay-runs',
+  component: PayRunsListPage,
 });
 
-const paymentQueueDetailRoute = createRoute({
+const payRunDetailRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/pay-runs/$runId',
+  component: () => {
+    const { runId } = payRunDetailRoute.useParams();
+    return <PayRunDetailPage runId={runId} />;
+  },
+});
+
+// Legacy redirect — old /ap/queue links keep working
+const paymentQueueRedirectRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/queue',
+  component: () => <Navigate to="/ap/pay-runs" />,
+});
+
+const paymentQueueDetailRedirectRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/queue/$batchId',
   component: () => {
-    const { batchId } = paymentQueueDetailRoute.useParams();
-    return <PaymentQueueDetailPage batchId={batchId} />;
+    const { batchId } = paymentQueueDetailRedirectRoute.useParams();
+    return <Navigate to="/ap/pay-runs/$runId" params={{ runId: batchId }} />;
   },
 });
 
@@ -1360,8 +1376,10 @@ export const routeTree = rootRoute.addChildren([
       paymentDirectRoute,
       paymentBulkRoute,
       paymentDetailRoute,
-      paymentQueueRoute,
-      paymentQueueDetailRoute,
+      payRunsRoute,
+      payRunDetailRoute,
+      paymentQueueRedirectRoute,
+      paymentQueueDetailRedirectRoute,
       debitNotesRoute,
       debitNoteNewRoute,
       debitNoteDetailRoute,

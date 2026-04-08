@@ -1,13 +1,13 @@
-export type PaymentBatchStatus = 'pending_approval' | 'partially_approved' | 'approved' | 'rejected' | 'executed';
-export type InstructionStatus = 'pending' | 'approved' | 'rejected' | 'paid' | 'failed';
+export type PaymentRunStatus = 'pending_approval' | 'partially_approved' | 'approved' | 'rejected' | 'executed';
+export type PaymentRunLineStatus = 'pending' | 'approved' | 'rejected' | 'paid' | 'failed';
 
-export interface PaymentBatch {
+export interface PaymentRun {
   id: string;
   tenantId: string;
-  batchId: string;
+  runId: string;
   source: string;
   description: string | null;
-  status: PaymentBatchStatus;
+  status: PaymentRunStatus;
   totalCount: number;
   totalAmount: number;
   approvedCount: number;
@@ -18,27 +18,28 @@ export interface PaymentBatch {
   updatedAt: string;
 }
 
-export interface PaymentInstruction {
+export interface PaymentRunLine {
   id: string;
   tenantId: string;
-  batchId: string;
+  runId: string;
   vendorId: string | null;
   vendorName: string;
   amount: number;
   reference: string | null;
   reason: string | null;
   dueDate: string | null;
-  status: InstructionStatus;
+  status: PaymentRunLineStatus;
   paymentId: string | null;
+  purchaseInvoiceId: string | null;
   errorMessage: string | null;
   createdAt: string;
 }
 
-export interface PaymentBatchWithInstructions extends PaymentBatch {
-  instructions: PaymentInstruction[];
+export interface PaymentRunWithLines extends PaymentRun {
+  lines: PaymentRunLine[];
 }
 
-export interface ExecuteBatchResult {
+export interface ExecuteRunResult {
   paid: number;
   failed: number;
   totalPaid: number;

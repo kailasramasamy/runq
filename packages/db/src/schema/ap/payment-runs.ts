@@ -3,8 +3,9 @@ import { tenants } from '../tenant';
 import { users } from '../user';
 import { vendors } from './vendors';
 import { payments } from './payments';
+import { purchaseInvoices } from './purchase-invoices';
 
-export const paymentBatchStatusEnum = pgEnum('payment_batch_status', [
+export const paymentRunStatusEnum = pgEnum('payment_run_status', [
   'pending_approval',
   'partially_approved',
   'approved',
@@ -12,7 +13,7 @@ export const paymentBatchStatusEnum = pgEnum('payment_batch_status', [
   'executed',
 ]);
 
-export const instructionStatusEnum = pgEnum('instruction_status', [
+export const paymentRunLineStatusEnum = pgEnum('payment_run_line_status', [
   'pending',
   'approved',
   'rejected',
@@ -20,15 +21,15 @@ export const instructionStatusEnum = pgEnum('instruction_status', [
   'failed',
 ]);
 
-export const paymentBatches = pgTable(
-  'payment_batches',
+export const paymentRuns = pgTable(
+  'payment_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-    batchId: varchar('batch_id', { length: 100 }).notNull(),
+    runId: varchar('run_id', { length: 100 }).notNull(),
     source: varchar('source', { length: 100 }).notNull(),
     description: text('description'),
-    status: paymentBatchStatusEnum('status').notNull().default('pending_approval'),
+    status: paymentRunStatusEnum('status').notNull().default('pending_approval'),
     totalCount: integer('total_count').notNull(),
     totalAmount: decimal('total_amount', { precision: 15, scale: 2 }).notNull(),
     approvedCount: integer('approved_count').notNull().default(0),
@@ -39,31 +40,33 @@ export const paymentBatches = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    tenantBatchUniq: uniqueIndex('payment_batches_tenant_batch_id_uniq').on(t.tenantId, t.batchId),
-    tenantStatusIdx: index('payment_batches_tenant_status_idx').on(t.tenantId, t.status),
+    tenantRunUniq: uniqueIndex('payment_runs_tenant_run_id_uniq').on(t.tenantId, t.runId),
+    tenantStatusIdx: index('payment_runs_tenant_status_idx').on(t.tenantId, t.status),
   }),
 );
 
-export const paymentInstructions = pgTable(
-  'payment_instructions',
+export const paymentRunLines = pgTable(
+  'payment_run_lines',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-    batchId: uuid('batch_id').notNull().references(() => paymentBatches.id),
+    runId: uuid('run_id').notNull().references(() => paymentRuns.id),
     vendorId: uuid('vendor_id').references(() => vendors.id),
     vendorName: varchar('vendor_name', { length: 255 }).notNull(),
     amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
     reference: varchar('reference', { length: 100 }),
     reason: text('reason'),
     dueDate: date('due_date'),
-    status: instructionStatusEnum('status').notNull().default('pending'),
+    status: paymentRunLineStatusEnum('status').notNull().default('pending'),
     paymentId: uuid('payment_id').references(() => payments.id),
+    purchaseInvoiceId: uuid('purchase_invoice_id').references(() => purchaseInvoices.id),
     errorMessage: text('error_message'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    tenantBatchIdx: index('payment_instructions_tenant_batch_idx').on(t.tenantId, t.batchId),
-    tenantStatusIdx: index('payment_instructions_tenant_status_idx').on(t.tenantId, t.status),
+    tenantRunIdx: index('payment_run_lines_tenant_run_idx').on(t.tenantId, t.runId),
+    tenantStatusIdx: index('payment_run_lines_tenant_status_idx').on(t.tenantId, t.status),
+    invoiceIdx: index('payment_run_lines_invoice_idx').on(t.purchaseInvoiceId),
   }),
 );

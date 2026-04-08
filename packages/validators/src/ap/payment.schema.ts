@@ -70,40 +70,47 @@ export const importBatchPaymentSchema = z.object({
   csvData: z.string().min(1, 'CSV data required'),
 });
 
-const paymentInstructionItemSchema = z.object({
+const paymentRunLineItemSchema = z.object({
   vendorName: z.string().min(1),
   vendorId: z.string().uuid().nullish(),
   amount: z.number().positive(),
   reference: z.string().max(100).nullish(),
   reason: z.string().nullish(),
   dueDate: z.string().date().nullish(),
+  purchaseInvoiceId: z.string().uuid().nullish(),
 });
 
-export const createPaymentBatchSchema = z.object({
-  batchId: z.string().min(1).max(100),
+export const createPaymentRunSchema = z.object({
+  runId: z.string().min(1).max(100),
   source: z.string().min(1).max(100),
   description: z.string().nullish(),
-  instructions: z.array(paymentInstructionItemSchema).min(1),
+  lines: z.array(paymentRunLineItemSchema).min(1),
 });
 
-export const approveInstructionsSchema = z.object({
-  instructionIds: z.array(z.string().uuid()).min(1),
+export const createRunFromBillsSchema = z.object({
+  billIds: z.array(z.string().uuid()).min(1, 'Select at least one bill'),
+  description: z.string().nullish(),
 });
 
-export const rejectInstructionsSchema = z.object({
-  instructionIds: z.array(z.string().uuid()).min(1),
+export const approveLinesSchema = z.object({
+  lineIds: z.array(z.string().uuid()).min(1),
+});
+
+export const rejectLinesSchema = z.object({
+  lineIds: z.array(z.string().uuid()).min(1),
   reason: z.string().nullish(),
 });
 
-export const paymentBatchFilterSchema = z.object({
+export const paymentRunFilterSchema = z.object({
   status: z.enum(['pending_approval', 'partially_approved', 'approved', 'rejected', 'executed']).optional(),
   source: z.string().optional(),
 });
 
-export type CreatePaymentBatchInput = z.infer<typeof createPaymentBatchSchema>;
-export type ApproveInstructionsInput = z.infer<typeof approveInstructionsSchema>;
-export type RejectInstructionsInput = z.infer<typeof rejectInstructionsSchema>;
-export type PaymentBatchFilter = z.infer<typeof paymentBatchFilterSchema>;
+export type CreatePaymentRunInput = z.infer<typeof createPaymentRunSchema>;
+export type CreateRunFromBillsInput = z.infer<typeof createRunFromBillsSchema>;
+export type ApproveLinesInput = z.infer<typeof approveLinesSchema>;
+export type RejectLinesInput = z.infer<typeof rejectLinesSchema>;
+export type PaymentRunFilter = z.infer<typeof paymentRunFilterSchema>;
 
 export type CreateVendorPaymentInput = z.infer<typeof createVendorPaymentSchema>;
 export type CreateAdvancePaymentInput = z.infer<typeof createAdvancePaymentSchema>;
