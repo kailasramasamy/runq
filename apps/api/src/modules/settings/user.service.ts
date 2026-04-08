@@ -4,6 +4,9 @@ import type { Db } from '@runq/db';
 import type { User } from '@runq/types';
 import argon2 from 'argon2';
 import { NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
+import { sendEmail } from '../../utils/email';
+import { userInvite } from '../../utils/email-templates';
+import { getTenantName } from '../../utils/tenant-name';
 
 export interface CreateUserInput {
   email: string;
@@ -30,7 +33,7 @@ export class UserService {
     return rows.map((r) => this.toUser(r));
   }
 
-  async create(input: CreateUserInput): Promise<User> {
+  async create(input: CreateUserInput, invitedByUserId?: string): Promise<User> {
     const [existing] = await this.db
       .select({ id: users.id })
       .from(users)
@@ -45,7 +48,37 @@ export class UserService {
       .values({ tenantId: this.tenantId, email: input.email, name: input.name, role: input.role, passwordHash })
       .returning();
 
+    this.sendInviteEmail(input, invitedByUserId).catch((err) =>
+      console.error('Invite email failed:', err),
+    );
+
     return this.toUser(row!);
+  }
+
+  private async sendInviteEmail(input: CreateUserInput, invitedByUserId?: string): Promise<void> {
+    const companyName = await getTenantName(this.db, this.tenantId);
+
+    let invitedBy = companyName;
+    if (invitedByUserId) {
+      const [inviter] = await this.db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, invitedByUserId))
+        .limit(1);
+      if (inviter) invitedBy = inviter.name;
+    }
+
+    const loginUrl = process.env.CORS_ORIGIN || 'http://localhost:4003';
+    const template = userInvite({
+      userName: input.name,
+      email: input.email,
+      role: input.role,
+      invitedBy,
+      companyName,
+      loginUrl,
+    });
+
+    await sendEmail({ to: input.email, fromName: companyName, ...template });
   }
 
   async update(id: string, input: UpdateUserInput): Promise<User> {

@@ -151,6 +151,33 @@ export function overdueReminder(p: OverdueReminderParams): EmailTemplate {
   return { subject, html: layout(p.companyName, 'Payment Reminder', bodyHtml), text };
 }
 
+export interface UserInviteParams {
+  userName: string;
+  email: string;
+  role: string;
+  invitedBy: string;
+  companyName: string;
+  loginUrl: string;
+}
+
+export function userInvite(p: UserInviteParams): EmailTemplate {
+  const subject = `You've been invited to ${p.companyName} on runQ`;
+  const bodyHtml = `
+    <p style="color:#18181b;font-size:15px">Hi ${p.userName},</p>
+    <p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.invitedBy}</strong> has invited you to join <strong>${p.companyName}</strong> on runQ as <strong>${p.role}</strong>.</p>
+    <table cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e4e4e7;border-radius:6px;width:100%">
+      <tr style="background:#f4f4f5"><td style="padding:10px 16px;color:#71717a;font-size:13px;width:40%">Email</td><td style="padding:10px 16px;color:#18181b;font-size:13px;font-weight:600">${p.email}</td></tr>
+      <tr><td style="padding:10px 16px;color:#71717a;font-size:13px">Role</td><td style="padding:10px 16px;color:#18181b;font-size:13px">${p.role}</td></tr>
+    </table>
+    <p style="color:#3f3f46;font-size:14px;line-height:1.6">Your login credentials have been set by your admin. Please contact them for your password, then sign in at the link below.</p>
+    <p style="margin:24px 0;text-align:center">
+      <a href="${p.loginUrl}" style="display:inline-block;padding:12px 32px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">Sign In to runQ</a>
+    </p>
+    <p style="color:#71717a;font-size:12px">Or copy this link: ${p.loginUrl}</p>`;
+  const text = `Hi ${p.userName}, ${p.invitedBy} has invited you to ${p.companyName} on runQ as ${p.role}. Sign in at: ${p.loginUrl}`;
+  return { subject, html: layout(p.companyName, 'Team Invitation', bodyHtml), text };
+}
+
 export interface BatchPaymentSummaryParams {
   count: number;
   totalAmount: number;

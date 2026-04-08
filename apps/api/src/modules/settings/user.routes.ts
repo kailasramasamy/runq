@@ -37,7 +37,7 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const input = createUserBodySchema.parse(request.body);
       const service = new UserService(request.server.db, request.tenantId);
-      const data = await service.create(input);
+      const data = await service.create(input, request.user.userId);
       return reply.status(201).send({ data });
     },
   );

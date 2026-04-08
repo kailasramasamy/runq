@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte, notInArray } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, notInArray, desc } from 'drizzle-orm';
 import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants, paymentReceipts, receiptAllocations } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -59,6 +59,7 @@ export class InvoiceService {
         .from(salesInvoices)
         .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
         .where(baseWhere)
+        .orderBy(desc(salesInvoices.createdAt))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(baseWhere),
