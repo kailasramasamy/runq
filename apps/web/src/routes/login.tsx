@@ -9,6 +9,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const sessionExpired =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('session') === 'expired';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +41,15 @@ export function LoginPage() {
             <p className="mt-1 text-sm text-zinc-400">Finance & Accounting ERP</p>
           </div>
         </div>
+
+        {/* Session expired banner */}
+        {sessionExpired && !error && (
+          <div className="mb-4 rounded-md border border-amber-800 bg-amber-950/50 px-3 py-2">
+            <p className="text-xs text-amber-300">
+              Your session has expired. Please sign in again.
+            </p>
+          </div>
+        )}
 
         {/* Card */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-2xl backdrop-blur-sm">

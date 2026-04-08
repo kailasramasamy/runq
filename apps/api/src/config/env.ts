@@ -4,7 +4,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_EXPIRES_IN: z.string().default('24h'),
   SERVICE_JWT_SECRET: z.string().min(32),
   PORTAL_JWT_SECRET: z.string().min(32).optional(),
   CA_PORTAL_SECRET: z.string().min(32).optional(),
@@ -24,11 +24,15 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+let cached: Env | undefined;
+
 export function loadEnv(): Env {
+  if (cached) return cached;
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     console.error('Invalid environment variables:', result.error.flatten().fieldErrors);
     process.exit(1);
   }
-  return result.data;
+  cached = result.data;
+  return cached;
 }

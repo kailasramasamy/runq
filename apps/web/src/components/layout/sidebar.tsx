@@ -91,17 +91,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
-        <p className="truncate text-xs text-zinc-500">{companyName ?? 'Loading...'}</p>
-        <div className="flex items-center justify-between">
-          <p className="truncate text-xs text-zinc-400 dark:text-zinc-600">{user?.email ?? ''}</p>
-          <button
-            onClick={logout}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-            title="Sign out"
-          >
-            <LogOut size={14} />
-          </button>
-        </div>
+        <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          {companyName ?? 'Loading...'}
+        </p>
+        <p className="mb-3 truncate text-xs text-zinc-500 dark:text-zinc-500">
+          {user?.email ?? ''}
+        </p>
+        <button
+          onClick={logout}
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+        >
+          <LogOut size={16} strokeWidth={2} />
+          Sign out
+        </button>
       </div>
     </>
   );

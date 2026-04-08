@@ -5,6 +5,9 @@ import { loginSchema, registerSchema } from '@runq/validators';
 import argon2 from 'argon2';
 import { UnauthorizedError, ConflictError } from '../../utils/errors';
 import { sendEmail } from '../../utils/email';
+import { loadEnv } from '../../config/env';
+
+const env = loadEnv();
 
 const DUMMY_HASH = '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJObG';
 
@@ -183,7 +186,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const token = app.jwt.sign(
       { userId: user.id, tenantId: tenant.id, role: user.role },
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+      { expiresIn: env.JWT_EXPIRES_IN },
     );
 
     return reply.send({
@@ -262,7 +265,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const token = app.jwt.sign(
       { userId: user!.id, tenantId: tenant!.id, role: 'owner' },
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+      { expiresIn: env.JWT_EXPIRES_IN },
     );
 
     return reply.status(201).send({

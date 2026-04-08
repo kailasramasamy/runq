@@ -4,9 +4,14 @@ const BASE_URL = '/api/v1';
 
 class ApiClient {
   private token: string | null = null;
+  private onUnauthorized: (() => void) | null = null;
 
   setToken(token: string | null) {
     this.token = token;
+  }
+
+  setOnUnauthorized(cb: (() => void) | null) {
+    this.onUnauthorized = cb;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -18,14 +23,21 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const sentToken = this.token;
+    if (sentToken) {
+      headers['Authorization'] = `Bearer ${sentToken}`;
     }
 
     const response = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers,
     });
+
+    // Only fire global logout if we actually sent a token — wrong-password
+    // login attempts return 401 too and shouldn't kick the user out.
+    if (response.status === 401 && sentToken && this.onUnauthorized) {
+      this.onUnauthorized();
+    }
 
     if (!response.ok) {
       const error: ApiError = await response.json();
