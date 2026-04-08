@@ -42,6 +42,8 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
   const [gstin, setGstin] = useState('');
   const [pan, setPan] = useState('');
   const [stateCode, setStateCode] = useState('');
+  const [addressLine1, setAddressLine1] = useState('');
+  const [addressLine2, setAddressLine2] = useState('');
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
   const [fyMonth, setFyMonth] = useState('4');
@@ -54,6 +56,8 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
     setGstin(s.gstin ?? '');
     setPan((s as { pan?: string }).pan ?? '');
     setStateCode(s.stateCode ?? '');
+    setAddressLine1(s.addressLine1 ?? '');
+    setAddressLine2(s.addressLine2 ?? '');
     setCity(s.city ?? '');
     setPincode(s.pincode ?? '');
     setFyMonth(String(s.financialYearStartMonth ?? 4));
@@ -86,6 +90,8 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
         gstin: gstinTrimmed || null,
         state: selectedState?.label ?? null,
         stateCode: stateCode || null,
+        addressLine1: addressLine1.trim() || null,
+        addressLine2: addressLine2.trim() || null,
         city: city.trim() || null,
         pincode: pincodeTrimmed || null,
       });
@@ -134,6 +140,9 @@ export function CompanyProfileStep({ onComplete }: StepProps) {
       )}
 
       <p className="text-sm text-zinc-500 dark:text-zinc-400">A few more details to complete your profile:</p>
+
+      <Input label="Address line 1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} placeholder="Building, street" />
+      <Input label="Address line 2" value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} placeholder="Area, landmark" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="PAN" value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="AAAAA0000A" helper="Optional · 10 characters" />
