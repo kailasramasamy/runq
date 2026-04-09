@@ -307,6 +307,7 @@ export function ItemProfitabilityPage() {
                 <tr>
                   <Th>Tier</Th>
                   <Th>Name</Th>
+                  <Th>UOM</Th>
                   <Th>Brand</Th>
                   <Th align="right">MRP</Th>
                   <Th align="right">COGM</Th>
@@ -317,9 +318,9 @@ export function ItemProfitabilityPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableSkeleton rows={6} cols={8} />
+                  <TableSkeleton rows={6} cols={9} />
                 ) : filtered.length === 0 ? (
-                  <TableEmpty colSpan={8} message="No items match these filters." />
+                  <TableEmpty colSpan={9} message="No items match these filters." />
                 ) : (
                   filtered.map((c) => (
                     <TableRow
@@ -336,6 +337,7 @@ export function ItemProfitabilityPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">{c.item.name}</TableCell>
+                      <TableCell className="text-zinc-500">{c.item.grammage ?? c.item.unit ?? '-'}</TableCell>
                       <TableCell className="text-zinc-500">{c.item.brand ?? '-'}</TableCell>
                       <TableCell align="right" numeric>
                         {c.item.mrp != null ? formatINR(c.item.mrp) : '-'}
