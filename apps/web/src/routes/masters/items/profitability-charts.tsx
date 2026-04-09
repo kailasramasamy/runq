@@ -123,7 +123,7 @@ export function ProfitList({
                   <span className="shrink-0 text-zinc-500">· {c.item.unit}</span>
                 )}
                 {(() => {
-                  const brand = (c.item.attributes?.brand as string | undefined) ?? c.item.brand;
+                  const brand = c.item.attributes?.brand as string | undefined;
                   return brand ? (
                     <span className="shrink-0 text-zinc-400">· {brand}</span>
                   ) : null;

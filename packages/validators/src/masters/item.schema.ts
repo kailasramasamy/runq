@@ -5,9 +5,6 @@ import { z } from 'zod';
  * ItemAttributeField type in @runq/types — kept in sync by hand.
  *
  * `key` uses camelCase / snake_case ASCII so JSONB keys stay portable.
- * `fmcgColumn` is a legacy mapping written by the backend on the FMCG
- * preset only; we accept it on update so round-trips don't drop it,
- * but validate it loosely.
  */
 export const itemAttributeFieldSchema = z.object({
   key: z
@@ -28,20 +25,6 @@ export const itemAttributeFieldSchema = z.object({
       }),
     )
     .max(50)
-    .optional(),
-  fmcgColumn: z
-    .enum([
-      'brand',
-      'productType',
-      'grammage',
-      'packingType',
-      'vendorPackSize',
-      'packagingDimension',
-      'shelfLifeDays',
-      'temperature',
-      'cutoffTime',
-      'rtvAllowed',
-    ])
     .optional(),
 });
 
@@ -73,24 +56,14 @@ export const createItemSchema = z.object({
   category: z.string().max(50).nullish(),
   subcategory: z.string().max(50).nullish(),
   description: z.string().max(2000).nullish(),
-  // Extended supplier-catalogue attributes
+  // Universal supplier-catalogue attributes.
   ean: z.string().max(20).nullish(),
   margin: z.number().min(0).max(100).nullish(),
-  brand: z.string().max(100).nullish(),
-  grammage: z.string().max(50).nullish(),
-  packingType: z.string().max(50).nullish(),
   basicPrice: z.number().min(0).nullish(),
   gstValue: z.number().min(0).nullish(),
-  shelfLifeDays: z.number().int().min(0).nullish(),
-  rtvAllowed: z.boolean().nullish(),
-  vendorPackSize: z.string().max(50).nullish(),
-  packagingDimension: z.string().max(100).nullish(),
-  temperature: z.string().max(20).nullish(),
-  cutoffTime: z.string().max(20).nullish(),
-  productType: z.string().max(50).nullish(),
-  // Flexible industry-specific catalogue attributes. Shape is validated
-  // loosely here — the backend maps fmcg-specific keys to their dedicated
-  // columns and persists the whole object to items.attributes.
+  // Industry-specific catalogue attributes keyed by the tenant's schema.
+  // Shape is validated loosely here — the backend persists it verbatim
+  // to items.attributes jsonb.
   attributes: z.record(z.unknown()).nullish(),
   cogmBreakdown: z
     .array(

@@ -127,12 +127,14 @@ export function ItemProfitabilityPage() {
     if (tierFilter !== 'all') rows = rows.filter((c) => c.tier === tierFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      rows = rows.filter(
-        (c) =>
+      rows = rows.filter((c) => {
+        const brand = (c.item.attributes?.brand as string | undefined) ?? '';
+        return (
           c.item.name.toLowerCase().includes(q) ||
-          (c.item.brand ?? '').toLowerCase().includes(q) ||
-          (c.item.sku ?? '').toLowerCase().includes(q),
-      );
+          brand.toLowerCase().includes(q) ||
+          (c.item.sku ?? '').toLowerCase().includes(q)
+        );
+      });
     }
     // Default sort: tier severity (loss → marginal → unclassified → healthy),
     // then net margin asc within tier so worst-first.
@@ -339,7 +341,7 @@ export function ItemProfitabilityPage() {
                       <TableCell className="font-medium">{c.item.name}</TableCell>
                       <TableCell className="text-zinc-500">{c.item.unit ?? '-'}</TableCell>
                       <TableCell className="text-zinc-500">
-                        {(c.item.attributes?.brand as string | undefined) ?? c.item.brand ?? '-'}
+                        {(c.item.attributes?.brand as string | undefined) ?? '-'}
                       </TableCell>
                       <TableCell align="right" numeric>
                         {c.item.mrp != null ? formatINR(c.item.mrp) : '-'}

@@ -92,7 +92,7 @@ export function ItemEditPage({
     : isCreate
       ? 'Create a new product or service for invoices, bills, and price lists.'
       : (() => {
-          const brand = (item!.attributes?.brand as string | undefined) ?? item!.brand;
+          const brand = item!.attributes?.brand as string | undefined;
           return `${brand ? brand + ' · ' : ''}${item!.unit ?? ''}${item!.ean ? ' · EAN ' + item!.ean : ''}`;
         })();
 

@@ -190,7 +190,7 @@ export function ItemAnalysisPage({
           { label: 'Analysis' },
         ]}
         description={(() => {
-          const brand = (item.attributes?.brand as string | undefined) ?? item.brand;
+          const brand = item.attributes?.brand as string | undefined;
           return `${brand ? brand + ' · ' : ''}${item.unit ?? ''}${item.ean ? ' · EAN ' + item.ean : ''}`;
         })()}
         actions={

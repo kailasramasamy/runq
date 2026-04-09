@@ -238,51 +238,13 @@ export class ItemService {
       description: row.description,
       ean: row.ean,
       margin: row.margin ? toNumber(row.margin) : null,
-      brand: row.brand,
-      grammage: row.grammage,
-      packingType: row.packingType,
       basicPrice: row.basicPrice ? toNumber(row.basicPrice) : null,
       gstValue: row.gstValue ? toNumber(row.gstValue) : null,
-      shelfLifeDays: row.shelfLifeDays,
-      rtvAllowed: row.rtvAllowed,
-      vendorPackSize: row.vendorPackSize,
-      packagingDimension: row.packagingDimension,
-      temperature: row.temperature,
-      cutoffTime: row.cutoffTime,
-      productType: row.productType,
-      // Prefer the JSONB payload when present. For legacy rows that were
-      // written before Phase 1, synthesize an attributes object from the
-      // dedicated FMCG columns so the form renders them correctly.
-      attributes: row.attributes ?? synthesizeLegacyAttributes(row),
+      attributes: row.attributes ?? null,
       cogmBreakdown: row.cogmBreakdown ?? null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
-}
-
-/**
- * For items created before the attributes column existed, return an
- * `attributes` object populated from the legacy FMCG columns. Used by
- * `toItem` as a read-time fallback so the dynamic form sees the same
- * shape for every row, old and new.
- *
- * Returns null (not an empty object) when every legacy field is blank,
- * so clients can distinguish "no attributes set" from "all attributes
- * are empty strings".
- */
-function synthesizeLegacyAttributes(row: typeof items.$inferSelect): Record<string, unknown> | null {
-  const attrs: Record<string, unknown> = {};
-  if (row.brand != null) attrs.brand = row.brand;
-  if (row.productType != null) attrs.productType = row.productType;
-  if (row.grammage != null) attrs.grammage = row.grammage;
-  if (row.packingType != null) attrs.packingType = row.packingType;
-  if (row.vendorPackSize != null) attrs.vendorPackSize = row.vendorPackSize;
-  if (row.packagingDimension != null) attrs.packagingDimension = row.packagingDimension;
-  if (row.shelfLifeDays != null) attrs.shelfLifeDays = row.shelfLifeDays;
-  if (row.temperature != null) attrs.temperature = row.temperature;
-  if (row.cutoffTime != null) attrs.cutoffTime = row.cutoffTime;
-  if (row.rtvAllowed != null) attrs.rtvAllowed = row.rtvAllowed;
-  return Object.keys(attrs).length > 0 ? attrs : null;
 }

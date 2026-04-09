@@ -39,21 +39,12 @@ export interface Item {
   category: string | null;
   subcategory: string | null;
   description: string | null;
-  // Extended supplier-catalogue attributes
+  // Universal supplier-catalogue attributes.
   ean: string | null;
   margin: number | null;
-  brand: string | null;
-  grammage: string | null;
-  packingType: string | null;
   basicPrice: number | null;
   gstValue: number | null;
-  shelfLifeDays: number | null;
-  rtvAllowed: boolean | null;
-  vendorPackSize: string | null;
-  packagingDimension: string | null;
-  temperature: string | null;
-  cutoffTime: string | null;
-  productType: string | null;
+  // Industry-specific attributes keyed by the tenant's attribute schema.
   attributes: Record<string, unknown> | null;
   cogmBreakdown: CogmComponent[] | null;
   isActive: boolean;
@@ -98,21 +89,11 @@ export interface CreateItemInput {
   category?: string | null;
   subcategory?: string | null;
   description?: string | null;
-  // Extended supplier-catalogue attributes
+  // Universal supplier-catalogue attributes.
   ean?: string | null;
   margin?: number | null;
-  brand?: string | null;
-  grammage?: string | null;
-  packingType?: string | null;
   basicPrice?: number | null;
   gstValue?: number | null;
-  shelfLifeDays?: number | null;
-  rtvAllowed?: boolean | null;
-  vendorPackSize?: string | null;
-  packagingDimension?: string | null;
-  temperature?: string | null;
-  cutoffTime?: string | null;
-  productType?: string | null;
   attributes?: Record<string, unknown> | null;
   cogmBreakdown?: CogmComponent[] | null;
 }
