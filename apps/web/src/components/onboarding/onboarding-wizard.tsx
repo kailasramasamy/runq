@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Check, ArrowLeft, X, Sparkles } from 'lucide-react';
+import { Check, ArrowLeft, X, Sparkles, ArrowRight } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui';
 import { useOnboarding, useCompleteOnboardingStep, useDismissOnboarding } from '@/hooks/queries/use-settings';
 import {
@@ -202,43 +203,73 @@ function StepBody({ stepKey, onComplete, onSkip }: { stepKey: StepKey; onComplet
   }
 }
 
-// ─── Persistent progress widget for dashboard ────────────────────────────────
+// ─── Persistent setup strip for the dashboard ────────────────────────────────
+//
+// Always rendered. Two states:
+//   - Incomplete: indigo strip with progress bar + "Resume" — opens wizard.
+//   - Complete:   emerald strip with checkmark + "Review" — links to
+//                 /settings/setup so the user can edit anytime.
 
 export function OnboardingProgressWidget({ onResume }: { onResume: () => void }) {
+  const navigate = useNavigate();
   const { data } = useOnboarding();
   const completedSteps = data?.data.steps ?? {};
   const completedCount = Object.values(completedSteps).filter(Boolean).length;
   const totalSteps = STEP_META.length;
-  const progressPct = Math.round((completedCount / totalSteps) * 100);
+  const progressPct = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+  const isComplete = data?.data.completed || completedCount === totalSteps;
 
-  if (data?.data.completed || completedCount === totalSteps) return null;
+  if (isComplete) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate({ to: '/settings/setup' })}
+        className="group flex w-full items-center justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:hover:border-emerald-800/60"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+            <Check size={14} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Setup complete</p>
+            <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">All {totalSteps} steps done — review or edit anytime</p>
+          </div>
+        </div>
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 group-hover:text-emerald-900 dark:text-emerald-300 dark:group-hover:text-emerald-100">
+          Review <ArrowRight size={12} />
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
       type="button"
       onClick={onResume}
-      className="group block w-full rounded-xl border border-zinc-200 bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:from-indigo-950/30 dark:via-zinc-900 dark:to-purple-950/30 dark:hover:border-indigo-700"
+      className="group flex w-full items-center justify-between gap-4 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-purple-50 px-4 py-2.5 text-left transition hover:border-indigo-300 hover:shadow-sm dark:border-indigo-900/40 dark:from-indigo-950/30 dark:via-zinc-900 dark:to-purple-950/30 dark:hover:border-indigo-700"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Finish setting up runQ</h3>
-            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{completedCount} of {totalSteps} steps complete · ~2 min left</p>
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+          <Sparkles size={14} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            Finish setting up runQ
+            <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+              {completedCount}/{totalSteps} complete · ~2 min left
+            </span>
+          </p>
+          <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/70 dark:bg-zinc-800">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
           </div>
         </div>
-        <span className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm group-hover:bg-indigo-700 dark:bg-indigo-500 dark:group-hover:bg-indigo-600">
-          Resume
-        </span>
       </div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/60 dark:bg-zinc-800">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-500"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
+      <span className="shrink-0 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm group-hover:bg-indigo-700 dark:bg-indigo-500 dark:group-hover:bg-indigo-600">
+        Resume
+      </span>
     </button>
   );
 }

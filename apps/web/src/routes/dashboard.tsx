@@ -142,6 +142,9 @@ export function DashboardPage() {
     <div className="space-y-6">
       <OnboardingWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
 
+      {/* Setup strip — pinned at the very top, always visible */}
+      <OnboardingProgressWidget onResume={() => setWizardOpen(true)} />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
@@ -149,9 +152,6 @@ export function DashboardPage() {
           Finance & Accounting overview
         </p>
       </div>
-
-      {/* Onboarding progress (until 100% complete) */}
-      <OnboardingProgressWidget onResume={() => setWizardOpen(true)} />
 
       {/* AI Snapshot — full width */}
       <AIInsightsWidget />
