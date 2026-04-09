@@ -166,11 +166,6 @@ export function ItemAttributesPage() {
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{f.label}</span>
                       <Badge variant="default">{fieldTypeLabel(f.type)}</Badge>
                       {f.required && <Badge variant="warning">Required</Badge>}
-                      {f.fmcgColumn && (
-                        <Badge variant="info" title="Dual-writes to a legacy FMCG column">
-                          Legacy
-                        </Badge>
-                      )}
                     </div>
                     <p className="mt-0.5 truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
                       {f.key}
@@ -329,10 +324,6 @@ function FieldEditor({
       ...(help.trim() ? { help: help.trim() } : {}),
       ...(required ? { required: true } : {}),
       ...(type === 'select' ? { options } : {}),
-      // Preserve the legacy column mapping on FMCG preset fields so a
-      // Food & Beverage tenant editing the label doesn't silently break
-      // dual-write into the dedicated column.
-      ...(initial.fmcgColumn ? { fmcgColumn: initial.fmcgColumn } : {}),
     };
     onSave(field);
   };

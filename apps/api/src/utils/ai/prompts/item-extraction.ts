@@ -1,12 +1,12 @@
 import type { ItemAttributeField, ItemAttributeSchema } from '@runq/types';
 
 /**
- * High-quality column-name synonyms for the known FMCG attribute keys,
- * preserved from the original FMCG-specific prompt. Used as *extra*
- * hints when the tenant's schema contains one of these keys (identified
- * by the `fmcgColumn` marker on the preset). For custom attribute keys
- * that aren't in this map, Claude falls back to fuzzy-matching the
- * field label.
+ * High-quality column-name synonyms for the well-known FMCG attribute
+ * keys, preserved from the original FMCG-specific prompt. Used as
+ * *extra* hints when the tenant's schema contains one of these keys
+ * (identified by exact key match). For custom attribute keys that
+ * aren't in this map, Claude falls back to fuzzy-matching the field
+ * label.
  */
 const FMCG_COLUMN_SYNONYMS: Record<string, string> = {
   brand: '"Brand", "Brand Name", "Manufacturer", "Maker"',

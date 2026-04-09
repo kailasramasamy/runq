@@ -10,28 +10,24 @@ import type { ItemAttributeSchema } from '@runq/types';
  *   Tenants can extend the schema in Settings once we ship Phase 2.
  * - Field keys are camelCase, stable identifiers. They become keys in the
  *   `items.attributes` JSONB, so renaming them later is a data migration.
- * - Only Food & Beverage carries `fmcgColumn` mappings, because only the
- *   existing FMCG columns on `items` have dedicated storage. Everything
- *   else lives in `attributes` JSONB.
+ * - All industry-specific attributes live in `items.attributes` JSONB —
+ *   there's no dedicated column for any catalogue field anymore.
  * - Select options are short and common. If a tenant needs more, they edit
  *   in Settings (Phase 2). We do NOT try to be exhaustive here.
  */
 
 const FMCG_PRESET: ItemAttributeSchema = [
-  { key: 'brand', label: 'Brand', type: 'text', placeholder: 'e.g. Vrindavan', fmcgColumn: 'brand' },
-  { key: 'productType', label: 'Product Type', type: 'text', placeholder: 'e.g. Food', fmcgColumn: 'productType' },
+  { key: 'brand', label: 'Brand', type: 'text', placeholder: 'e.g. Vrindavan' },
+  { key: 'productType', label: 'Product Type', type: 'text', placeholder: 'e.g. Food' },
   // NOTE: `grammage` is intentionally NOT in the preset. The top-level
   // `unit` field on items (used on invoices, price lists, reports)
-  // already captures pack size like "200ml" or "1kg". The
-  // items.grammage legacy column is kept for backward compat with
-  // previously-imported rows (profitability page still falls back to
-  // it), but new tenants don't get a dedicated grammage field on the
-  // form because it duplicates `unit`. Phase 3 cleanup will drop the
-  // column entirely.
-  { key: 'packingType', label: 'Packing Type', type: 'text', placeholder: 'e.g. PET', fmcgColumn: 'packingType' },
-  { key: 'vendorPackSize', label: 'Vendor Pack Size', type: 'text', placeholder: 'Carton', fmcgColumn: 'vendorPackSize' },
-  { key: 'packagingDimension', label: 'Packaging Dimension', type: 'text', placeholder: 'L x B x H', fmcgColumn: 'packagingDimension' },
-  { key: 'shelfLifeDays', label: 'Shelf Life (days)', type: 'number', placeholder: '180', fmcgColumn: 'shelfLifeDays' },
+  // already captures pack size like "200ml" or "1kg" — having a
+  // separate grammage field would force users to fill the same value
+  // twice.
+  { key: 'packingType', label: 'Packing Type', type: 'text', placeholder: 'e.g. PET' },
+  { key: 'vendorPackSize', label: 'Vendor Pack Size', type: 'text', placeholder: 'Carton' },
+  { key: 'packagingDimension', label: 'Packaging Dimension', type: 'text', placeholder: 'L x B x H' },
+  { key: 'shelfLifeDays', label: 'Shelf Life (days)', type: 'number', placeholder: '180' },
   {
     key: 'temperature',
     label: 'Temperature',
@@ -42,15 +38,13 @@ const FMCG_PRESET: ItemAttributeSchema = [
       { value: 'Chilled', label: 'Chilled (2-8°C)' },
       { value: 'Frozen', label: 'Frozen (-18°C or below)' },
     ],
-    fmcgColumn: 'temperature',
   },
-  { key: 'cutoffTime', label: 'Cut-off Time', type: 'text', placeholder: '20:00:00', fmcgColumn: 'cutoffTime' },
+  { key: 'cutoffTime', label: 'Cut-off Time', type: 'text', placeholder: '20:00:00' },
   {
     key: 'rtvAllowed',
     label: 'RTV Allowed',
     type: 'boolean',
     help: 'Returnable to vendor',
-    fmcgColumn: 'rtvAllowed',
   },
 ];
 
