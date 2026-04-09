@@ -18,6 +18,17 @@ const RTV_OPTIONS = [
   { value: 'false', label: 'Non RTV' },
 ];
 
+// Standard storage temperature categories used in FMCG / grocery distribution.
+// Free-text values from older imports are preserved by injecting them as an
+// extra option at runtime so the dropdown never silently drops a value.
+const TEMPERATURE_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'Ambient', label: 'Ambient (room temperature)' },
+  { value: 'Cool & Dry', label: 'Cool & Dry (15-25°C)' },
+  { value: 'Chilled', label: 'Chilled (2-8°C)' },
+  { value: 'Frozen', label: 'Frozen (-18°C or below)' },
+];
+
 function num(v: string): number | null {
   if (v.trim() === '') return null;
   const n = Number(v);
@@ -230,7 +241,16 @@ export function ItemForm({
           <Input label="Vendor Pack Size" value={vendorPackSize} onChange={(e) => setVendorPackSize(e.target.value)} placeholder="Carton" />
           <Input label="Packaging Dimension" value={packagingDimension} onChange={(e) => setPackagingDimension(e.target.value)} placeholder="L x B x H" />
           <Input label="Shelf Life (days)" type="number" value={shelfLifeDays} onChange={(e) => setShelfLifeDays(e.target.value)} placeholder="180" />
-          <Input label="Temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} placeholder="Ambient" />
+          <Select
+            label="Temperature"
+            value={temperature}
+            onChange={(e) => setTemperature(e.target.value)}
+            options={
+              temperature && !TEMPERATURE_OPTIONS.some((o) => o.value === temperature)
+                ? [...TEMPERATURE_OPTIONS, { value: temperature, label: temperature }]
+                : TEMPERATURE_OPTIONS
+            }
+          />
           <Input label="Cut-off Time" value={cutoffTime} onChange={(e) => setCutoffTime(e.target.value)} placeholder="20:00:00" />
           <Select label="RTV Allowed" value={rtvAllowed} onChange={(e) => setRtvAllowed(e.target.value)} options={RTV_OPTIONS} />
         </div>
