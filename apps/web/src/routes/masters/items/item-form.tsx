@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { Calculator, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Select, Textarea, Combobox, useToast } from '@/components/ui';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
+import type { ItemAttributeField } from '@runq/types';
 import {
   useCreateItem,
   useUpdateItem,
+  useItemAttributeSchema,
   type Item,
   type CreateItemInput,
 } from '@/hooks/queries/use-items';
@@ -12,32 +14,10 @@ import { useCategoryTree } from '@/hooks/queries/use-categories';
 import { calculatePricing } from '@/lib/item-pricing';
 import { formatINR } from '@/lib/utils';
 
-const RTV_OPTIONS = [
-  { value: '', label: '—' },
-  { value: 'true', label: 'RTV (returnable)' },
-  { value: 'false', label: 'Non RTV' },
-];
-
-// Standard storage temperature categories used in FMCG / grocery distribution.
-// Free-text values from older imports are preserved by injecting them as an
-// extra option at runtime so the dropdown never silently drops a value.
-const TEMPERATURE_OPTIONS = [
-  { value: '', label: '—' },
-  { value: 'Ambient', label: 'Ambient (room temperature)' },
-  { value: 'Cool & Dry', label: 'Cool & Dry (15-25°C)' },
-  { value: 'Chilled', label: 'Chilled (2-8°C)' },
-  { value: 'Frozen', label: 'Frozen (-18°C or below)' },
-];
-
 function num(v: string): number | null {
   if (v.trim() === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
-}
-
-function int(v: string): number | null {
-  const n = num(v);
-  return n === null ? null : Math.trunc(n);
 }
 
 export function ItemForm({
@@ -90,19 +70,17 @@ export function ItemForm({
   const [gstValue, setGstValue] = useState(source?.gstValue?.toString() ?? '');
   const [margin, setMargin] = useState(source?.margin?.toString() ?? '');
 
-  // Catalogue
-  const [brand, setBrand] = useState(source?.brand ?? '');
-  const [productType, setProductType] = useState(source?.productType ?? '');
-  const [grammage, setGrammage] = useState(source?.grammage ?? '');
-  const [packingType, setPackingType] = useState(source?.packingType ?? '');
-  const [vendorPackSize, setVendorPackSize] = useState(source?.vendorPackSize ?? '');
-  const [packagingDimension, setPackagingDimension] = useState(source?.packagingDimension ?? '');
-  const [shelfLifeDays, setShelfLifeDays] = useState(source?.shelfLifeDays?.toString() ?? '');
-  const [temperature, setTemperature] = useState(source?.temperature ?? '');
-  const [cutoffTime, setCutoffTime] = useState(source?.cutoffTime ?? '');
-  const [rtvAllowed, setRtvAllowed] = useState<string>(
-    source?.rtvAllowed == null ? '' : source.rtvAllowed ? 'true' : 'false',
+  // Catalogue — dynamic attributes driven by the tenant's schema. One flat
+  // record keyed by schema field.key. Values are strings for text/number/
+  // select fields and booleans for boolean fields; never `undefined` so we
+  // can distinguish "cleared" from "never set".
+  const { data: schemaRes } = useItemAttributeSchema();
+  const attributeSchema = schemaRes?.data ?? [];
+  const [attributes, setAttributes] = useState<Record<string, unknown>>(
+    () => (source?.attributes as Record<string, unknown> | null) ?? {},
   );
+  const setAttribute = (key: string, value: unknown) =>
+    setAttributes((prev) => ({ ...prev, [key]: value }));
 
   // Classification
   const [category, setCategory] = useState(source?.category ?? '');
@@ -152,16 +130,10 @@ export function ItemForm({
       basicPrice: num(basicPrice),
       gstValue: num(gstValue),
       margin: num(margin),
-      brand: brand || null,
-      productType: productType || null,
-      grammage: grammage || null,
-      packingType: packingType || null,
-      vendorPackSize: vendorPackSize || null,
-      packagingDimension: packagingDimension || null,
-      shelfLifeDays: int(shelfLifeDays),
-      temperature: temperature || null,
-      cutoffTime: cutoffTime || null,
-      rtvAllowed: rtvAllowed === '' ? null : rtvAllowed === 'true',
+      // Catalogue attributes — the backend maps any FMCG-mapped keys
+      // (grammage, packingType, …) into the legacy dedicated columns,
+      // and stores the whole object in items.attributes.
+      attributes: normalizeAttributesForSubmit(attributes, attributeSchema),
       category: category || null,
       subcategory: subcategory || null,
       description: description || null,
@@ -253,31 +225,25 @@ export function ItemForm({
         )}
       </fieldset>
 
-      {/* Catalogue details */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Catalogue Details</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Input label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Vrindavan" />
-          <Input label="Product Type" value={productType} onChange={(e) => setProductType(e.target.value)} placeholder="e.g. Food" />
-          <Input label="Grammage" value={grammage} onChange={(e) => setGrammage(e.target.value)} placeholder="e.g. 200ml" />
-          <Input label="Packing Type" value={packingType} onChange={(e) => setPackingType(e.target.value)} placeholder="e.g. PET" />
-          <Input label="Vendor Pack Size" value={vendorPackSize} onChange={(e) => setVendorPackSize(e.target.value)} placeholder="Carton" />
-          <Input label="Packaging Dimension" value={packagingDimension} onChange={(e) => setPackagingDimension(e.target.value)} placeholder="L x B x H" />
-          <Input label="Shelf Life (days)" type="number" value={shelfLifeDays} onChange={(e) => setShelfLifeDays(e.target.value)} placeholder="180" />
-          <Select
-            label="Temperature"
-            value={temperature}
-            onChange={(e) => setTemperature(e.target.value)}
-            options={
-              temperature && !TEMPERATURE_OPTIONS.some((o) => o.value === temperature)
-                ? [...TEMPERATURE_OPTIONS, { value: temperature, label: temperature }]
-                : TEMPERATURE_OPTIONS
-            }
-          />
-          <Input label="Cut-off Time" value={cutoffTime} onChange={(e) => setCutoffTime(e.target.value)} placeholder="20:00:00" />
-          <Select label="RTV Allowed" value={rtvAllowed} onChange={(e) => setRtvAllowed(e.target.value)} options={RTV_OPTIONS} />
-        </div>
-      </fieldset>
+      {/* Catalogue details — dynamic, driven by the tenant's industry-specific
+          attribute schema (seeded at signup from an industry preset). */}
+      {attributeSchema.length > 0 && (
+        <fieldset className="space-y-3">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Catalogue Details
+          </legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {attributeSchema.map((field) => (
+              <DynamicAttributeField
+                key={field.key}
+                field={field}
+                value={attributes[field.key]}
+                onChange={(v) => setAttribute(field.key, v)}
+              />
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       {/* Classification */}
       <fieldset className="space-y-3">
@@ -373,4 +339,123 @@ function Stat({ label, value, className }: { label: string; value: string; class
       <p className={`font-mono text-sm font-semibold ${className ?? 'text-zinc-900 dark:text-zinc-100'}`}>{value}</p>
     </div>
   );
+}
+
+/**
+ * Renders a single catalogue attribute field based on its schema definition.
+ * Values are always stored as the user-facing primitive (string / number /
+ * boolean) and normalized at submit time. Select fields preserve unknown
+ * legacy values by appending them as an extra option — matches the old
+ * Temperature handling so imported rows never silently drop a value.
+ */
+function DynamicAttributeField({
+  field,
+  value,
+  onChange,
+}: {
+  field: ItemAttributeField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const common = {
+    label: field.label,
+    required: field.required,
+    helper: field.help,
+  };
+
+  if (field.type === 'textarea') {
+    return (
+      <div className="sm:col-span-3">
+        <Textarea
+          {...common}
+          value={(value as string) ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          rows={3}
+        />
+      </div>
+    );
+  }
+
+  if (field.type === 'boolean') {
+    const str = value === true ? 'true' : value === false ? 'false' : '';
+    return (
+      <Select
+        {...common}
+        value={str}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === '' ? null : v === 'true');
+        }}
+        options={[
+          { value: '', label: '—' },
+          { value: 'true', label: 'Yes' },
+          { value: 'false', label: 'No' },
+        ]}
+      />
+    );
+  }
+
+  if (field.type === 'select') {
+    const base = [{ value: '', label: '—' }, ...(field.options ?? [])];
+    // Preserve unknown legacy values (from imports or older presets) by
+    // appending them as an extra option, so the dropdown never silently
+    // drops the current value.
+    const current = typeof value === 'string' ? value : '';
+    const options =
+      current && !base.some((o) => o.value === current)
+        ? [...base, { value: current, label: current }]
+        : base;
+    return (
+      <Select
+        {...common}
+        value={current}
+        onChange={(e) => onChange(e.target.value || null)}
+        options={options}
+      />
+    );
+  }
+
+  // text | number
+  return (
+    <Input
+      {...common}
+      type={field.type === 'number' ? 'number' : 'text'}
+      value={(value as string | number | undefined)?.toString() ?? ''}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (field.type === 'number') {
+          if (raw.trim() === '') {
+            onChange(null);
+            return;
+          }
+          const n = Number(raw);
+          onChange(Number.isFinite(n) ? n : raw);
+          return;
+        }
+        onChange(raw);
+      }}
+      placeholder={field.placeholder}
+    />
+  );
+}
+
+/**
+ * Strips empty strings/nulls from the attributes payload and returns null
+ * if nothing is left. Sending `null` (rather than `{}`) lets the backend
+ * know to clear the attributes column cleanly.
+ */
+function normalizeAttributesForSubmit(
+  attributes: Record<string, unknown>,
+  schema: ItemAttributeField[],
+): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  // Only persist keys that are in the schema — keeps items.attributes
+  // clean when schemas change and drops any stale legacy keys.
+  for (const field of schema) {
+    const v = attributes[field.key];
+    if (v === '' || v === null || v === undefined) continue;
+    out[field.key] = v;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }

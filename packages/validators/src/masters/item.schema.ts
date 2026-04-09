@@ -1,5 +1,64 @@
 import { z } from 'zod';
 
+/**
+ * Zod validator for a single catalogue attribute field. Mirrors the
+ * ItemAttributeField type in @runq/types — kept in sync by hand.
+ *
+ * `key` uses camelCase / snake_case ASCII so JSONB keys stay portable.
+ * `fmcgColumn` is a legacy mapping written by the backend on the FMCG
+ * preset only; we accept it on update so round-trips don't drop it,
+ * but validate it loosely.
+ */
+export const itemAttributeFieldSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, 'Key must start with a letter and contain only letters, digits, and underscores'),
+  label: z.string().min(1).max(80),
+  type: z.enum(['text', 'number', 'textarea', 'boolean', 'select']),
+  placeholder: z.string().max(120).optional(),
+  help: z.string().max(200).optional(),
+  required: z.boolean().optional(),
+  options: z
+    .array(
+      z.object({
+        value: z.string().min(1).max(80),
+        label: z.string().min(1).max(80),
+      }),
+    )
+    .max(50)
+    .optional(),
+  fmcgColumn: z
+    .enum([
+      'brand',
+      'productType',
+      'grammage',
+      'packingType',
+      'vendorPackSize',
+      'packagingDimension',
+      'shelfLifeDays',
+      'temperature',
+      'cutoffTime',
+      'rtvAllowed',
+    ])
+    .optional(),
+});
+
+export const itemAttributeSchemaInput = z
+  .array(itemAttributeFieldSchema)
+  .max(20)
+  .refine(
+    (fields) => new Set(fields.map((f) => f.key)).size === fields.length,
+    { message: 'Field keys must be unique' },
+  );
+
+export const updateItemAttributeSchemaInput = z.object({
+  schema: itemAttributeSchemaInput,
+});
+
+export type UpdateItemAttributeSchemaInput = z.infer<typeof updateItemAttributeSchemaInput>;
+
 export const createItemSchema = z.object({
   name: z.string().min(1).max(255),
   sku: z.string().max(50).nullish(),
@@ -29,6 +88,10 @@ export const createItemSchema = z.object({
   temperature: z.string().max(20).nullish(),
   cutoffTime: z.string().max(20).nullish(),
   productType: z.string().max(50).nullish(),
+  // Flexible industry-specific catalogue attributes. Shape is validated
+  // loosely here — the backend maps fmcg-specific keys to their dedicated
+  // columns and persists the whole object to items.attributes.
+  attributes: z.record(z.unknown()).nullish(),
   cogmBreakdown: z
     .array(
       z.object({

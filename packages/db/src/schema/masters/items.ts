@@ -39,6 +39,11 @@ export const items = pgTable(
     temperature: varchar('temperature', { length: 20 }),
     cutoffTime: varchar('cutoff_time', { length: 20 }),
     productType: varchar('product_type', { length: 50 }),
+    // Flexible industry-specific attributes. Shape: { [key: string]: string | number | boolean }.
+    // Populated from the tenant's itemAttributeSchema (seeded from their
+    // industry preset at signup). For FMCG tenants the service layer
+    // dual-writes a few keys into the legacy dedicated columns above.
+    attributes: jsonb('attributes').$type<Record<string, unknown>>(),
     // Per-item COGM build-up: array of { label, amount, note }. The sum is
     // mirrored into cost_price so existing reads remain accurate.
     cogmBreakdown: jsonb('cogm_breakdown').$type<Array<{ label: string; amount: number; note?: string }>>(),

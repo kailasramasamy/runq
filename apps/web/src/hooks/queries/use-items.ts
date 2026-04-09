@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { ApiSuccess, PaginatedResponse } from '@runq/types';
+import type { ApiSuccess, PaginatedResponse, ItemAttributeSchema } from '@runq/types';
 
 const ITEM_KEYS = {
   all: ['items'] as const,
   list: (filters?: Record<string, unknown>) => ['items', 'list', filters] as const,
   detail: (id: string) => ['items', 'detail', id] as const,
+  attributeSchema: ['items', 'attribute-schema'] as const,
 };
 
 interface ItemFilters {
@@ -53,6 +54,7 @@ export interface Item {
   temperature: string | null;
   cutoffTime: string | null;
   productType: string | null;
+  attributes: Record<string, unknown> | null;
   cogmBreakdown: CogmComponent[] | null;
   isActive: boolean;
   createdAt: string;
@@ -111,7 +113,36 @@ export interface CreateItemInput {
   temperature?: string | null;
   cutoffTime?: string | null;
   productType?: string | null;
+  attributes?: Record<string, unknown> | null;
   cogmBreakdown?: CogmComponent[] | null;
+}
+
+/**
+ * Fetches the tenant's catalogue attribute schema — the list of fields
+ * that drive the dynamic Catalogue Details section on the item form.
+ * Backend lazy-seeds this from the industry preset on first call, so
+ * the result is stable until the tenant edits it in Settings.
+ */
+export function useItemAttributeSchema() {
+  return useQuery({
+    queryKey: ITEM_KEYS.attributeSchema,
+    queryFn: () => api.get<ApiSuccess<ItemAttributeSchema>>('/masters/items/attribute-schema'),
+    staleTime: 10 * 60 * 1000, // 10 minutes — schema rarely changes
+  });
+}
+
+export function useUpdateItemAttributeSchema() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (schema: ItemAttributeSchema) =>
+      api.put<ApiSuccess<ItemAttributeSchema>>('/masters/items/attribute-schema', { schema }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ITEM_KEYS.attributeSchema });
+      // The list view and item form both key off the schema; invalidate
+      // item queries too so cached forms re-fetch next time they open.
+      qc.invalidateQueries({ queryKey: ITEM_KEYS.all });
+    },
+  });
 }
 
 export function useCreateItem() {
@@ -161,7 +192,6 @@ export interface ExtractedItem {
   type: 'product' | 'service';
   hsnSacCode: string | null;
   unit: string | null;
-  grammage: string | null;
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
   basicPrice: number | null;
@@ -170,18 +200,10 @@ export interface ExtractedItem {
   gstRate: number | null;
   gstValue: number | null;
   margin: number | null;
-  brand: string | null;
-  packingType: string | null;
-  shelfLifeDays: number | null;
-  rtvAllowed: boolean | null;
-  vendorPackSize: string | null;
-  packagingDimension: string | null;
-  temperature: string | null;
-  cutoffTime: string | null;
-  productType: string | null;
   category: string | null;
   subcategory: string | null;
   description: string | null;
+  attributes: Record<string, unknown> | null;
 }
 
 export interface ExtractionResult {

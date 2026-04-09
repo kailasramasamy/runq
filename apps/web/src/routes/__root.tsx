@@ -4,6 +4,7 @@ import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { CompanySettingsPage } from './settings/company';
 import { InvoiceNumberingPage } from './settings/invoice-numbering';
+import { ItemAttributesPage } from './settings/item-attributes';
 import { UsersPage } from './settings/users';
 import { TallyExportPage } from './settings/tally-export';
 import { NotificationsPage } from './settings/notifications';
@@ -816,6 +817,7 @@ const SETTINGS_TABS = [
   { label: 'Setup', path: '/settings/setup' },
   { label: 'Company', path: '/settings/company' },
   { label: 'Invoice Numbering', path: '/settings/invoice-numbering' },
+  { label: 'Catalogue Attributes', path: '/settings/item-attributes' },
   { label: 'Users', path: '/settings/users' },
   { label: 'Tally Export', path: '/settings/tally-export' },
   { label: 'Notifications', path: '/settings/notifications' },
@@ -895,6 +897,12 @@ const settingsInvoiceNumberingRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/invoice-numbering',
   component: InvoiceNumberingPage,
+});
+
+const settingsItemAttributesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/item-attributes',
+  component: ItemAttributesPage,
 });
 
 const settingsUsersRoute = createRoute({
@@ -1518,6 +1526,7 @@ export const routeTree = rootRoute.addChildren([
       settingsSetupRoute,
       settingsCompanyRoute,
       settingsInvoiceNumberingRoute,
+      settingsItemAttributesRoute,
       settingsUsersRoute,
       settingsTallyExportRoute,
       settingsNotificationsRoute,

@@ -1,3 +1,5 @@
+import type { ItemAttributeSchema } from './masters/item';
+
 export type TenantId = string;
 
 export interface Tenant {
@@ -31,6 +33,14 @@ export interface TenantSettings {
   // Default margin (%) applied to imported items when the source has no
   // margin column or the row's margin cell is blank.
   defaultMarginPercent?: number;
+  // Chosen at signup from a fixed list (Manufacturing, Trading / Distribution,
+  // Retail, Services, Construction, Food & Beverage, Healthcare, Hospitality,
+  // Education, IT / Software, Other). Drives catalogue attribute seeding.
+  industry?: string;
+  // Catalogue attribute schema for the items master. Seeded from the industry
+  // preset on first access (lazy) and persisted so tenants get a consistent
+  // set of catalogue fields. Phase 2 will let tenants edit this in Settings.
+  itemAttributeSchema?: ItemAttributeSchema;
   // Email provider
   emailProvider?: 'resend' | 'sendgrid' | 'smtp' | null;
   emailConfig?: {

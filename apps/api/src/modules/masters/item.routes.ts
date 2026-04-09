@@ -6,6 +6,7 @@ import {
   paginationSchema,
   uuidParamSchema,
   bulkCreateItemsSchema,
+  updateItemAttributeSchemaInput,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { isAIEnabled } from '../../utils/ai/claude.service';
@@ -25,6 +26,30 @@ export const itemRoutes: FastifyPluginAsync = async (app) => {
       const filters = itemFilterSchema.parse(request.query);
       const service = new ItemService(request.server.db, request.tenantId);
       return service.list({ page: pagination.page, limit: pagination.limit, filters });
+    },
+  );
+
+  // Tenant catalogue attribute schema — lazy-seeded from the industry
+  // preset on first access and stored in tenants.settings. Registered
+  // before `/:id` so the literal path matches ahead of the param route.
+  app.get(
+    '/attribute-schema',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new ItemService(request.server.db, request.tenantId);
+      const schema = await service.getAttributeSchema();
+      return { data: schema };
+    },
+  );
+
+  app.put(
+    '/attribute-schema',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { schema } = updateItemAttributeSchemaInput.parse(request.body);
+      const service = new ItemService(request.server.db, request.tenantId);
+      const updated = await service.updateAttributeSchema(schema);
+      return { data: updated };
     },
   );
 

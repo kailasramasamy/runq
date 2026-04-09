@@ -3,12 +3,9 @@ import { and, eq, ilike } from 'drizzle-orm';
 import { categories, items, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateItemInput } from '@runq/validators';
-import type { TenantSettings } from '@runq/types';
+import type { ItemAttributeSchema, TenantSettings } from '@runq/types';
 import { analyze, isAIEnabled } from '../../utils/ai/claude.service';
-import {
-  ITEM_EXTRACTION_SYSTEM_PROMPT,
-  ITEM_EXTRACTION_USER_PROMPT,
-} from '../../utils/ai/prompts/item-extraction';
+import { buildItemExtractionPrompts } from '../../utils/ai/prompts/item-extraction';
 import { AppError } from '../../utils/errors';
 import { ItemService } from './item.service';
 
@@ -23,7 +20,6 @@ export interface ExtractedItem {
   type: 'product' | 'service';
   hsnSacCode: string | null;
   unit: string | null;
-  grammage: string | null;
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
   basicPrice: number | null;
@@ -32,18 +28,13 @@ export interface ExtractedItem {
   gstRate: number | null;
   gstValue: number | null;
   margin: number | null;
-  brand: string | null;
-  packingType: string | null;
-  shelfLifeDays: number | null;
-  rtvAllowed: boolean | null;
-  vendorPackSize: string | null;
-  packagingDimension: string | null;
-  temperature: string | null;
-  cutoffTime: string | null;
-  productType: string | null;
   category: string | null;
   subcategory: string | null;
   description: string | null;
+  // Tenant-specific catalogue attributes, keyed by the tenant's
+  // attribute schema. Shape is free-form — the frontend review table
+  // renders values dynamically from the schema.
+  attributes: Record<string, unknown> | null;
 }
 
 export interface ExtractionResult {
@@ -57,6 +48,50 @@ export interface BulkImportResult {
   updated: number;
   skipped: number;
   errors: Array<{ row: number; name: string; message: string }>;
+}
+
+/**
+ * Coerce a raw attributes object (from the AI response) into the tenant's
+ * schema. For each schema field, we look first in the nested `attributes`
+ * object, then fall back to a top-level key on the raw item — this keeps
+ * older prompt responses compatible if a replay ever lands.
+ *
+ * Values are coerced by type: numbers via Number(), booleans via a small
+ * set of string aliases (yes/no/true/false/1/0), everything else stringified.
+ * Fields absent in the response are omitted from the result.
+ */
+function normalizeAttributes(
+  rawAttrs: Record<string, unknown>,
+  rawItem: Record<string, unknown>,
+  schema: ItemAttributeSchema,
+): Record<string, unknown> | null {
+  if (schema.length === 0) return null;
+
+  const out: Record<string, unknown> = {};
+  for (const field of schema) {
+    const v = rawAttrs[field.key] ?? rawItem[field.key];
+    if (v === null || v === undefined || v === '') continue;
+
+    if (field.type === 'number') {
+      const n = typeof v === 'number' ? v : Number(String(v).replace(/[^\d.-]/g, ''));
+      if (Number.isFinite(n)) out[field.key] = n;
+      continue;
+    }
+    if (field.type === 'boolean') {
+      if (typeof v === 'boolean') {
+        out[field.key] = v;
+        continue;
+      }
+      const s = String(v).trim().toLowerCase();
+      if (['true', 'yes', 'y', '1', 'rtv', 'returnable'].includes(s)) out[field.key] = true;
+      else if (['false', 'no', 'n', '0', 'non rtv', 'non-rtv', 'non returnable', 'non-returnable'].includes(s)) out[field.key] = false;
+      continue;
+    }
+    // text / textarea / select — always store as trimmed string
+    const s = String(v).trim();
+    if (s.length > 0) out[field.key] = s;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 const CSV_MIMES = new Set([
@@ -92,17 +127,20 @@ export class ItemImportService {
       throw new AppError(400, 'File is empty or could not be parsed');
     }
 
-    const raw = await analyze(
-      ITEM_EXTRACTION_SYSTEM_PROMPT,
-      `${ITEM_EXTRACTION_USER_PROMPT}${text}`,
-      EXTRACTION_MAX_TOKENS,
-    );
+    // Fetch the tenant's schema so the prompt asks Claude to map source
+    // columns to their specific attributes (e.g. size/color for retail,
+    // grammage/packingType for FMCG). Without this the extraction would
+    // still work for FMCG but be useless for any other industry.
+    const schema = await this.getItemAttributeSchema();
+    const { system, user } = buildItemExtractionPrompts(schema);
+
+    const raw = await analyze(system, `${user}${text}`, EXTRACTION_MAX_TOKENS);
 
     if (!raw) {
       throw new AppError(502, 'AI returned empty response. Try again.');
     }
 
-    const result = this.parseResponse(raw);
+    const result = this.parseResponse(raw, schema);
 
     // Backfill margin from tenant default when the source row didn't carry one.
     const defaultMargin = await this.getDefaultMarginPercent();
@@ -113,6 +151,14 @@ export class ItemImportService {
     }
 
     return result;
+  }
+
+  private async getItemAttributeSchema(): Promise<ItemAttributeSchema> {
+    // Delegates to ItemService so seed-on-first-access logic lives in
+    // one place. Note this incurs a second tenant read, but extraction
+    // is a rare operation (clicked ~once per import) so it's fine.
+    const service = new ItemService(this.db, this.tenantId);
+    return service.getAttributeSchema();
   }
 
   private async getDefaultMarginPercent(): Promise<number | null> {
@@ -261,7 +307,7 @@ export class ItemImportService {
     return parts.join('\n\n');
   }
 
-  private parseResponse(raw: string): ExtractionResult {
+  private parseResponse(raw: string, schema: ItemAttributeSchema): ExtractionResult {
     const jsonText = this.extractJsonObject(raw);
     if (!jsonText) {
       this.logRawForDebug(raw, 'no JSON object found in response');
@@ -303,7 +349,7 @@ export class ItemImportService {
     };
 
     return {
-      items: obj.items.map((it) => this.normalizeItem(it)),
+      items: obj.items.map((it) => this.normalizeItem(it, schema)),
       notes: typeof obj.notes === 'string' ? obj.notes : '',
       confidence:
         typeof obj.confidence === 'number'
@@ -330,7 +376,7 @@ export class ItemImportService {
     );
   }
 
-  private normalizeItem(raw: unknown): ExtractedItem {
+  private normalizeItem(raw: unknown, schema: ItemAttributeSchema): ExtractedItem {
     const r = (raw ?? {}) as Record<string, unknown>;
     const str = (v: unknown): string | null => {
       if (v === null || v === undefined) return null;
@@ -342,19 +388,16 @@ export class ItemImportService {
       const n = typeof v === 'number' ? v : Number(String(v).replace(/[^\d.-]/g, ''));
       return Number.isFinite(n) ? n : null;
     };
-    const int = (v: unknown): number | null => {
-      const n = num(v);
-      return n === null ? null : Math.trunc(n);
-    };
-    const bool = (v: unknown): boolean | null => {
-      if (v === null || v === undefined || v === '') return null;
-      if (typeof v === 'boolean') return v;
-      const s = String(v).trim().toLowerCase();
-      if (['true', 'yes', 'y', '1', 'rtv', 'returnable'].includes(s)) return true;
-      if (['false', 'no', 'n', '0', 'non rtv', 'non-rtv', 'non returnable', 'non-returnable'].includes(s)) return false;
-      return null;
-    };
     const type = r.type === 'service' ? 'service' : 'product';
+
+    // Attributes come back as a nested object keyed by the schema. Per
+    // field, coerce to the schema's declared type. Legacy top-level
+    // keys from older prompts are accepted as a fallback so re-runs on
+    // cached responses still work.
+    const rawAttrs = (r.attributes && typeof r.attributes === 'object' && !Array.isArray(r.attributes))
+      ? r.attributes as Record<string, unknown>
+      : {};
+    const attributes = normalizeAttributes(rawAttrs, r, schema);
 
     return {
       name: str(r.name) ?? '',
@@ -363,7 +406,6 @@ export class ItemImportService {
       type,
       hsnSacCode: str(r.hsnSacCode),
       unit: str(r.unit),
-      grammage: str(r.grammage),
       defaultSellingPrice: num(r.defaultSellingPrice),
       defaultPurchasePrice: num(r.defaultPurchasePrice),
       basicPrice: num(r.basicPrice),
@@ -372,18 +414,10 @@ export class ItemImportService {
       gstRate: num(r.gstRate),
       gstValue: num(r.gstValue),
       margin: num(r.margin),
-      brand: str(r.brand),
-      packingType: str(r.packingType),
-      shelfLifeDays: int(r.shelfLifeDays),
-      rtvAllowed: bool(r.rtvAllowed),
-      vendorPackSize: str(r.vendorPackSize),
-      packagingDimension: str(r.packagingDimension),
-      temperature: str(r.temperature),
-      cutoffTime: str(r.cutoffTime),
-      productType: str(r.productType),
       category: str(r.category),
       subcategory: str(r.subcategory),
       description: str(r.description),
+      attributes,
     };
   }
 

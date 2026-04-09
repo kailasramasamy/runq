@@ -14,12 +14,14 @@ import {
 import {
   useExtractItemsFromFile,
   useBulkCreateItems,
+  useItemAttributeSchema,
   type ExtractedItem,
   type ExtractionResult,
   type BulkImportResult,
   type CreateItemInput,
 } from '@/hooks/queries/use-items';
-import { EditableRow, REVIEW_HEADERS } from './import-editable-row';
+import type { ItemAttributeField } from '@runq/types';
+import { EditableRow, buildReviewHeaders } from './import-editable-row';
 
 type Step = 'upload' | 'review' | 'result';
 type Mode = 'skip' | 'overwrite';
@@ -42,6 +44,8 @@ export function ImportItemsPage() {
 
   const extract = useExtractItemsFromFile();
   const commit = useBulkCreateItems();
+  const { data: schemaRes } = useItemAttributeSchema();
+  const schema: ItemAttributeField[] = schemaRes?.data ?? [];
 
   function handleFile(file: File) {
     if (file.size > MAX_BYTES) {
@@ -99,7 +103,6 @@ export function ImportItemsPage() {
       ean: r.ean ?? null,
       hsnSacCode: r.hsnSacCode ?? null,
       unit: r.unit ?? null,
-      grammage: r.grammage ?? null,
       defaultSellingPrice: r.defaultSellingPrice ?? null,
       defaultPurchasePrice: r.defaultPurchasePrice ?? null,
       basicPrice: r.basicPrice ?? null,
@@ -108,18 +111,13 @@ export function ImportItemsPage() {
       gstRate: r.gstRate ?? null,
       gstValue: r.gstValue ?? null,
       margin: r.margin ?? null,
-      brand: r.brand ?? null,
-      packingType: r.packingType ?? null,
-      shelfLifeDays: r.shelfLifeDays ?? null,
-      rtvAllowed: r.rtvAllowed ?? null,
-      vendorPackSize: r.vendorPackSize ?? null,
-      packagingDimension: r.packagingDimension ?? null,
-      temperature: r.temperature ?? null,
-      cutoffTime: r.cutoffTime ?? null,
-      productType: r.productType ?? null,
       category: r.category ?? null,
       subcategory: r.subcategory ?? null,
       description: r.description ?? null,
+      // The backend dual-writes any FMCG-mapped keys in `attributes` to
+      // their legacy columns automatically, so this one field replaces
+      // the old set of top-level keys (grammage, packingType, …).
+      attributes: r.attributes,
     }));
 
     commit.mutate(
@@ -175,6 +173,7 @@ export function ImportItemsPage() {
         <ReviewStep
           extraction={extraction}
           rows={rows}
+          schema={schema}
           fileName={fileName}
           mode={mode}
           setMode={setMode}
@@ -285,6 +284,7 @@ function UploadStep({
 function ReviewStep({
   extraction,
   rows,
+  schema,
   fileName,
   mode,
   setMode,
@@ -296,6 +296,7 @@ function ReviewStep({
 }: {
   extraction: ExtractionResult;
   rows: ExtractedItem[];
+  schema: ItemAttributeField[];
   fileName: string;
   mode: Mode;
   setMode: (m: Mode) => void;
@@ -307,6 +308,7 @@ function ReviewStep({
 }) {
   const lowConfidence = extraction.confidence < 0.5;
   const validCount = rows.filter((r) => r.name.trim().length > 0).length;
+  const headers = buildReviewHeaders(schema);
 
   return (
     <>
@@ -365,7 +367,7 @@ function ReviewStep({
             <table className="w-full text-xs">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  {REVIEW_HEADERS.map((h, idx) => (
+                  {headers.map((h, idx) => (
                     <th
                       key={h || `col-${idx}`}
                       className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
@@ -377,11 +379,18 @@ function ReviewStep({
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <EditableRow key={i} row={row} index={i} onUpdate={onUpdateRow} onDelete={onDeleteRow} />
+                  <EditableRow
+                    key={i}
+                    row={row}
+                    index={i}
+                    schema={schema}
+                    onUpdate={onUpdateRow}
+                    onDelete={onDeleteRow}
+                  />
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={REVIEW_HEADERS.length} className="px-4 py-6 text-center text-xs text-zinc-400">
+                    <td colSpan={headers.length} className="px-4 py-6 text-center text-xs text-zinc-400">
                       All rows deleted. Go back and re-upload to try again.
                     </td>
                   </tr>

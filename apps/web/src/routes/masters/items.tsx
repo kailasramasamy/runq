@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
@@ -8,11 +8,29 @@ import {
   TableSkeleton, useToast, ConfirmationDialog, Pagination,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import type { Item } from '@/hooks/queries/use-items';
+import type { ItemAttributeField } from '@runq/types';
 import {
-  useItems, useToggleItem, useDeleteItem,
+  useItems, useToggleItem, useDeleteItem, useItemAttributeSchema,
 } from '@/hooks/queries/use-items';
 
 const LIMIT = 20;
+
+/**
+ * Render an attribute value from items.attributes in a way that's safe for
+ * a table cell — coerces booleans to Yes/No, numbers to their string form,
+ * objects/arrays to JSON, and null/undefined to an em-dash.
+ */
+function formatAttributeValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number' || typeof value === 'string') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '-';
+  }
+}
 
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
@@ -27,6 +45,7 @@ export function ItemsPage() {
     limit: LIMIT,
     ...(search ? { search } : {}),
   });
+  const { data: schemaRes } = useItemAttributeSchema();
   const toggle = useToggleItem();
   const remove = useDeleteItem();
   const { toast } = useToast();
@@ -37,6 +56,15 @@ export function ItemsPage() {
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
   const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
+
+  // Pick up to 2 short-form schema fields for the desktop table — textarea
+  // fields are too long, so skip them. The rest of the schema still shows
+  // up in the CSV export so power users can get every attribute.
+  const schema: ItemAttributeField[] = schemaRes?.data ?? [];
+  const tableAttributeFields = useMemo(
+    () => schema.filter((f) => f.type !== 'textarea').slice(0, 2),
+    [schema],
+  );
 
   const openEdit = (id: string) =>
     navigate({ to: '/masters/items/$itemId/edit', params: { itemId: id } });
@@ -80,27 +108,7 @@ export function ItemsPage() {
         description="Manage products and services used across invoices and bills."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV(
-              'items.csv',
-              [
-                'Name', 'SKU', 'EAN', 'Brand', 'Product Type', 'Type', 'HSN/SAC', 'Unit', 'Grammage', 'Packing Type',
-                'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'Basic Price', 'GST%', 'GST Value', 'Margin %',
-                'Vendor Pack Size', 'Packaging Dimension', 'Shelf Life Days', 'RTV', 'Temperature', 'Cut-off Time',
-                'Category', 'Subcategory', 'Description', 'Status',
-              ],
-              items.map((i) => [
-                i.name, i.sku ?? '', i.ean ?? '', i.brand ?? '', i.productType ?? '', i.type, i.hsnSacCode ?? '',
-                i.unit ?? '', i.grammage ?? '', i.packingType ?? '',
-                String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''), String(i.mrp ?? ''),
-                String(i.costPrice ?? ''), String(i.basicPrice ?? ''), String(i.gstRate ?? ''),
-                String(i.gstValue ?? ''), String(i.margin ?? ''),
-                i.vendorPackSize ?? '', i.packagingDimension ?? '', String(i.shelfLifeDays ?? ''),
-                i.rtvAllowed == null ? '' : i.rtvAllowed ? 'RTV' : 'Non RTV',
-                i.temperature ?? '', i.cutoffTime ?? '',
-                i.category ?? '', i.subcategory ?? '', i.description ?? '',
-                i.isActive ? 'Active' : 'Inactive',
-              ]),
-            )}>
+            <Button variant="outline" size="sm" onClick={() => exportItemsCsv(items, schema)}>
               <Download size={14} /> Export CSV
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/profitability' })}>
@@ -191,7 +199,9 @@ export function ItemsPage() {
                 <Th>Name</Th>
                 <Th>SKU</Th>
                 <Th>EAN</Th>
-                <Th>Brand</Th>
+                {tableAttributeFields.map((f) => (
+                  <Th key={f.key}>{f.label}</Th>
+                ))}
                 <Th>Type</Th>
                 <Th>HSN/SAC</Th>
                 <Th>Unit</Th>
@@ -206,10 +216,10 @@ export function ItemsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={5} cols={14} />
+                <TableSkeleton rows={5} cols={14 + tableAttributeFields.length} />
               ) : items.length === 0 ? (
                 <TableEmpty
-                  colSpan={14}
+                  colSpan={14 + tableAttributeFields.length}
                   message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
                 />
               ) : (
@@ -218,7 +228,11 @@ export function ItemsPage() {
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="font-mono text-xs">{item.sku ?? '-'}</TableCell>
                     <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
-                    <TableCell className="text-zinc-500">{item.brand ?? '-'}</TableCell>
+                    {tableAttributeFields.map((f) => (
+                      <TableCell key={f.key} className="text-zinc-500">
+                        {formatAttributeValue(item.attributes?.[f.key])}
+                      </TableCell>
+                    ))}
                     <TableCell><Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge></TableCell>
                     <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
                     <TableCell>{item.unit ?? '-'}</TableCell>
@@ -283,4 +297,38 @@ export function ItemsPage() {
       )}
     </div>
   );
+}
+
+/**
+ * CSV export with a dynamic columns section driven by the tenant's
+ * attribute schema. Universal columns (identity, pricing, category,
+ * status) are fixed; every schema attribute becomes its own column so
+ * the export stays complete regardless of industry.
+ */
+function exportItemsCsv(items: Item[], schema: ItemAttributeField[]): void {
+  const fixedHeaders = [
+    'Name', 'SKU', 'EAN', 'Type', 'HSN/SAC', 'Unit',
+    'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'Basic Price',
+    'GST%', 'GST Value', 'Margin %',
+    'Category', 'Subcategory', 'Description', 'Status',
+  ];
+  const headers = [...fixedHeaders, ...schema.map((f) => f.label)];
+  const rows = items.map((i) => {
+    const fixed = [
+      i.name, i.sku ?? '', i.ean ?? '', i.type, i.hsnSacCode ?? '', i.unit ?? '',
+      String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''),
+      String(i.mrp ?? ''), String(i.costPrice ?? ''), String(i.basicPrice ?? ''),
+      String(i.gstRate ?? ''), String(i.gstValue ?? ''), String(i.margin ?? ''),
+      i.category ?? '', i.subcategory ?? '', i.description ?? '',
+      i.isActive ? 'Active' : 'Inactive',
+    ];
+    const dynamic = schema.map((f) => {
+      const v = i.attributes?.[f.key];
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+      return String(v);
+    });
+    return [...fixed, ...dynamic];
+  });
+  downloadCSV('items.csv', headers, rows);
 }
