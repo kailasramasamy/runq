@@ -82,21 +82,30 @@ async function smokeTest(client: Client): Promise<void> {
   // Set a non-existent tenant UUID so the query should return 0 rows
   const fakeTenantId = '00000000-0000-0000-0000-000000000000';
 
-  // SET does not accept $N parameter bindings — use set_config() which is a
-  // regular function call inside a SELECT and does.
-  await client.query(`SELECT set_config('app.current_tenant_id', $1, false)`, [
-    fakeTenantId,
-  ]);
-  const { rows } = await client.query(
-    `SELECT count(*) AS n FROM ${testTable}`,
-  );
-  await client.query(`RESET app.current_tenant_id`);
-
-  const count = parseInt(rows[0]?.n ?? '0', 10);
-  if (count !== 0) {
-    throw new Error(
-      `RLS smoke test FAILED: ${testTable} returned ${count} rows for a fake tenant`,
+  // The migration connection is a superuser, which bypasses RLS even with
+  // FORCE ROW LEVEL SECURITY. SET ROLE to runq_app (the non-bypass app role)
+  // so the policy actually filters during the smoke test.
+  await client.query(`SET ROLE runq_app`);
+  try {
+    // SET does not accept $N parameter bindings — use set_config() which is
+    // a regular function call inside a SELECT and does.
+    await client.query(
+      `SELECT set_config('app.current_tenant_id', $1, false)`,
+      [fakeTenantId],
     );
+    const { rows } = await client.query(
+      `SELECT count(*) AS n FROM ${testTable}`,
+    );
+
+    const count = parseInt(rows[0]?.n ?? '0', 10);
+    if (count !== 0) {
+      throw new Error(
+        `RLS smoke test FAILED: ${testTable} returned ${count} rows for a fake tenant`,
+      );
+    }
+  } finally {
+    await client.query(`RESET ROLE`);
+    await client.query(`RESET app.current_tenant_id`);
   }
   console.log(`  Smoke test passed: ${testTable} returned 0 rows for fake tenant`);
 }
