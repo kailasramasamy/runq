@@ -36,9 +36,11 @@ async function createRole(client: Client): Promise<void> {
     return;
   }
 
+  // Postgres does not support parameter bindings ($1) for DDL — the password
+  // has to be inlined. client.escapeLiteral() handles SQL-safe quoting.
+  const escapedPassword = client.escapeLiteral(APP_ROLE_PASSWORD!);
   await client.query(
-    `CREATE ROLE runq_app WITH LOGIN PASSWORD $1`,
-    [APP_ROLE_PASSWORD],
+    `CREATE ROLE runq_app WITH LOGIN PASSWORD ${escapedPassword}`,
   );
   console.log('  Created runq_app role');
 }

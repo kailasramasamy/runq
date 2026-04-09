@@ -124,7 +124,7 @@ export class PriceListService {
         rate: li.rate.toString(),
         marginPercent: li.marginPercent?.toString() ?? null,
         discountPercent: li.discountPercent?.toString() ?? null,
-        minQuantity: li.minQuantity?.toString() ?? null,
+        minQuantity: li.minQuantity?.toString() ?? '0',
       }));
 
       await tx.insert(priceListItems).values(lineValues);
@@ -162,7 +162,7 @@ export class PriceListService {
           rate: li.rate.toString(),
           marginPercent: li.marginPercent?.toString() ?? null,
           discountPercent: li.discountPercent?.toString() ?? null,
-          minQuantity: li.minQuantity?.toString() ?? null,
+          minQuantity: li.minQuantity?.toString() ?? '0',
         }));
         await tx.insert(priceListItems).values(lineValues);
       }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, decimal, timestamp, pgEnum, index, boolean, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, decimal, timestamp, pgEnum, index, uniqueIndex, boolean, date } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { items } from './items';
 import { customers } from '../ar/customers';
@@ -53,15 +53,20 @@ export const priceListItems = pgTable(
     rate: decimal('rate', { precision: 15, scale: 2 }).notNull(),
     marginPercent: decimal('margin_percent', { precision: 5, scale: 2 }),
     discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }),
-    minQuantity: decimal('min_quantity', { precision: 12, scale: 3 }),
+    minQuantity: decimal('min_quantity', { precision: 12, scale: 3 }).notNull().default('0'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    // The (price_list_id, item_id, COALESCE(min_quantity, 0)) unique index that
-    // allows multiple qty tiers per item is created in
-    // packages/db/migrations/0002_price_list_enhancements.sql — drizzle-kit
-    // can't express the COALESCE so we let the SQL migration own it.
     index('idx_price_list_items_item').on(table.itemId),
+    // The base tier sits at min_quantity = 0; additional tiers use positive
+    // quantities. Migration 0008 enforces NOT NULL DEFAULT 0 so this plain
+    // column index works (the prior COALESCE expression index broke
+    // drizzle-kit push introspection).
+    uniqueIndex('uq_price_list_items_list_item_qty').on(
+      table.priceListId,
+      table.itemId,
+      table.minQuantity,
+    ),
   ],
 );
