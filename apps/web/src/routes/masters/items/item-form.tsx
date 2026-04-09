@@ -219,7 +219,7 @@ export function ItemForm({
           Pricing — flows from COGM → Basic Price → GST → Landing Price → MRP
         </legend>
         {isEdit && (
-          <div className="flex items-start justify-between gap-3 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+          <div className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
             <div className="flex items-start gap-2">
               <Lock size={14} className="mt-0.5 shrink-0" />
               <p>
@@ -228,7 +228,7 @@ export function ItemForm({
               </p>
             </div>
             {onOpenAnalysis && (
-              <Button type="button" variant="outline" size="sm" onClick={onOpenAnalysis}>
+              <Button type="button" variant="outline" size="sm" onClick={onOpenAnalysis} className="w-full sm:w-auto">
                 <Calculator size={14} /> Open Calculator
               </Button>
             )}
