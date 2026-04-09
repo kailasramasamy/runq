@@ -259,7 +259,7 @@ export function ItemForm({
       {/* Classification */}
       <fieldset className="space-y-3">
         <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Classification</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Combobox
             label="Category"
             options={categoryOptions}
@@ -275,8 +275,14 @@ export function ItemForm({
             placeholder={category ? 'Search subcategories…' : 'Select category first'}
             disabled={!category}
           />
-          <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" rows={1} />
         </div>
+        <Textarea
+          label="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+          rows={4}
+        />
       </fieldset>
 
       {/* Actions */}
