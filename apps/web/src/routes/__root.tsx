@@ -89,6 +89,7 @@ import { ItemsPage } from './masters/items';
 import { ImportItemsPage } from './masters/items/import';
 import { ItemAnalysisPage } from './masters/items/analysis';
 import { ItemEditPage } from './masters/items/edit';
+import { ItemProfitabilityPage } from './masters/items/profitability';
 import { PriceListsPage } from './masters/price-lists';
 import { CategoriesPage } from './masters/categories';
 import { QuotesPage } from './ar/quotes/index';
@@ -1301,6 +1302,12 @@ const mastersItemsImportRoute = createRoute({
   component: ImportItemsPage,
 });
 
+const mastersItemsProfitabilityRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/profitability',
+  component: ItemProfitabilityPage,
+});
+
 const mastersItemsAnalysisRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/items/$itemId/analysis',
@@ -1525,6 +1532,7 @@ export const routeTree = rootRoute.addChildren([
       mastersIndexRoute,
       mastersItemsRoute,
       mastersItemsImportRoute,
+      mastersItemsProfitabilityRoute,
       mastersItemsNewRoute,
       mastersItemsEditRoute,
       mastersItemsAnalysisRoute,

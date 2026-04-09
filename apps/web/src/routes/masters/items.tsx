@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy } from 'lucide-react';
+import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input,
@@ -102,6 +102,9 @@ export function ItemsPage() {
               ]),
             )}>
               <Download size={14} /> Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/profitability' })}>
+              <TrendingUp size={14} /> Profitability
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/import' })}>
               <Sparkles size={14} /> Smart Import
