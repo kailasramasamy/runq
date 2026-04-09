@@ -129,8 +129,8 @@ export class ItemImportService {
 
     // Fetch the tenant's schema so the prompt asks Claude to map source
     // columns to their specific attributes (e.g. size/color for retail,
-    // grammage/packingType for FMCG). Without this the extraction would
-    // still work for FMCG but be useless for any other industry.
+    // grammage/packingType for food & beverage). Without this the
+    // extraction would only work for one industry at a time.
     const schema = await this.getItemAttributeSchema();
     const { system, user } = buildItemExtractionPrompts(schema);
 

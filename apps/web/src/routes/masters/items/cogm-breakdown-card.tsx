@@ -3,19 +3,18 @@ import { Card, CardContent, CardHeader, Button } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import type { CogmComponent } from '@/hooks/queries/use-items';
 
-// Generic suggested cost components — these aren't industry-locked, they're
-// just one-click presets that cover the most common COGM line items in
-// FMCG / grocery / light manufacturing AND in trading/reselling. Click adds
-// a row with a 0 amount.
+// Generic suggested cost components — industry-neutral one-click presets
+// that cover the most common cost line items across manufacturing,
+// trading, retail, and construction. Click adds a row with a 0 amount.
 const SUGGESTED_COMPONENTS = [
   'Purchase cost (vendor)',
   'Raw material',
-  'Inbound transport',
-  'Chilling / cold storage',
-  'Processing',
-  'Packaging',
+  'Inbound freight',
   'Direct labour',
+  'Overhead',
+  'Packaging',
   'Utilities (power, water)',
+  'Storage',
   'Quality testing',
   'Wastage / shrinkage',
   'Outbound logistics',
@@ -36,12 +35,12 @@ export function CogmBreakdownCard({
 }) {
   return (
     <Card>
-      <CardHeader title="COGM Breakdown — build your manufacturing cost line by line" />
+      <CardHeader title="Cost Breakdown — build your cost per unit line by line" />
       <CardContent className="space-y-3">
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Add every cost that goes into one finished unit. Total auto-fills the COGM
-          input above and is saved with the item, so next time you open this page
-          you see exactly how you arrived at the number.
+          Add every cost that goes into one finished unit. Total auto-fills the
+          Cost Price input above and is saved with the item, so next time you
+          open this page you see exactly how you arrived at the number.
         </p>
 
         <div className="overflow-x-auto">
@@ -69,7 +68,7 @@ export function CogmBreakdownCard({
                       className={CELL}
                       value={row.label}
                       onChange={(e) => onUpdate(i, { label: e.target.value })}
-                      placeholder="e.g. Raw milk @ ₹42/ltr"
+                      placeholder="e.g. Raw material @ ₹42/unit"
                     />
                   </td>
                   <td className="px-2 py-1.5">
@@ -104,7 +103,7 @@ export function CogmBreakdownCard({
               {rows.length > 0 && (
                 <tr className="border-t-2 border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40">
                   <td className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300">
-                    Total COGM
+                    Total Cost
                   </td>
                   <td className="px-2 py-2 text-right font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
                     {formatINR(total)}

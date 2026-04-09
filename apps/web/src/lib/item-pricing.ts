@@ -1,13 +1,14 @@
 /**
- * FMCG manufacturer pricing math.
+ * Product pricing math (MRP-anchored flow).
  *
- * The model:
+ * Used for physical products that carry a printed MRP — FMCG, retail,
+ * pharma, construction materials, etc. The model:
  *
- *   COGM ── manufacturer's cost (already includes sourcing & overhead)
+ *   Cost (COGM) ── manufacturer/seller's cost (sourcing + overhead)
  *     │
  *     ▼
- *   Basic Price ── what the manufacturer invoices the seller (excl. GST)
- *     │            also called "taxable value" on the invoice
+ *   Basic Price ── taxable value invoiced to the buyer (excl. GST)
+ *     │
  *     ▼
  *   + GST ─── tax collected on behalf of govt (not income)
  *     │
@@ -15,20 +16,24 @@
  *   Landing Price ── total invoice value (incl. GST). What the seller pays.
  *     │
  *     ▼
- *   Seller Margin ── retailer/distributor's cut, applied as a discount off MRP
+ *   Seller Margin ── retailer/distributor's cut, applied as discount off MRP
  *     │
  *     ▼
  *   MRP ── consumer-printed price (always GST-inclusive in India)
  *
- * Industry convention: seller margin is calculated on MRP excl. GST, i.e.
+ * Convention: seller margin is calculated on MRP, i.e.
  *
  *     Landing Price = MRP × (1 − sellerMarginPct/100)
  *     Basic Price   = Landing Price / (1 + gstRatePct/100)
  *     GST Value     = Basic Price × gstRatePct/100
- *     Profit/unit   = Basic Price × (1 − schemePct/100) − COGM × (1 + freightPct/100)
+ *     Profit/unit   = Basic Price × (1 − schemePct/100) − Cost × (1 + freightPct/100)
  *
- * Trade scheme reduces the manufacturer's effective revenue.
- * Freight/damages inflate the manufacturer's effective cost.
+ * Trade scheme reduces the seller's effective revenue.
+ * Freight/damages inflate the effective cost.
+ *
+ * For service items (consulting, hourly work, fixed-fee projects) use
+ * calculateServicePricing instead — a simpler cost → selling price model
+ * that doesn't involve MRP or seller margin.
  */
 
 export interface PricingInputs {
@@ -130,10 +135,11 @@ export function solveBreakevenMrp(
 }
 
 /**
- * Round MRP up to a "psychological" FMCG price ending in 9 (49, 99, 149, …).
- * Useful for translating a calculated number into a print-worthy price.
+ * Round a price up to a "psychological" retail price ending in 9
+ * (49, 99, 149, …). Useful for translating a calculated MRP into a
+ * print-worthy number.
  */
-export function roundUpToFmcgPrice(mrp: number): number {
+export function roundUpToPsychologicalPrice(mrp: number): number {
   if (mrp <= 0) return 0;
   // Find the next number ending in 9 at or above mrp.
   const ceil = Math.ceil(mrp);
@@ -151,4 +157,51 @@ export interface CogmRow {
 export function sumCogmBreakdown(rows: CogmRow[] | null | undefined): number {
   if (!rows || rows.length === 0) return 0;
   return round2(rows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0));
+}
+
+/**
+ * Service pricing math — simpler than the product MRP flow.
+ *
+ * Services don't carry an MRP, don't have a seller margin discount,
+ * and don't go through a COGM → Basic → Landing chain. They have a
+ * single negotiable selling price (hourly rate, project fee, monthly
+ * retainer), an internal cost (labour + overhead), and GST.
+ *
+ *     Basic Price     = Selling Price / (1 + gstRatePct/100)
+ *     GST Value       = Basic Price × gstRatePct/100
+ *     Profit per unit = Basic Price − Cost
+ *     Net margin %    = Profit / Basic Price × 100
+ *
+ * "Per unit" here means per delivered unit of service (one hour, one
+ * session, one retainer month), consistent with whatever `unit` the
+ * tenant set on the item.
+ */
+export interface ServicePricingInputs {
+  sellingPrice: number;
+  cost: number;
+  gstRatePct: number;
+}
+
+export interface ServicePricingResult {
+  basicPrice: number;
+  gstValue: number;
+  profitPerUnit: number;
+  netMarginPct: number;
+  markupOnCostPct: number;
+}
+
+export function calculateServicePricing(inputs: ServicePricingInputs): ServicePricingResult {
+  const { sellingPrice, cost, gstRatePct } = inputs;
+  const basicPrice = sellingPrice / (1 + gstRatePct / 100);
+  const gstValue = basicPrice * (gstRatePct / 100);
+  const profitPerUnit = basicPrice - cost;
+  const netMarginPct = basicPrice > 0 ? (profitPerUnit / basicPrice) * 100 : 0;
+  const markupOnCostPct = cost > 0 ? (profitPerUnit / cost) * 100 : 0;
+  return {
+    basicPrice: round2(basicPrice),
+    gstValue: round2(gstValue),
+    profitPerUnit: round2(profitPerUnit),
+    netMarginPct: round2(netMarginPct),
+    markupOnCostPct: round2(markupOnCostPct),
+  };
 }

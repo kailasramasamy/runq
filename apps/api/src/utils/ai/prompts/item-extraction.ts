@@ -1,14 +1,14 @@
 import type { ItemAttributeField, ItemAttributeSchema } from '@runq/types';
 
 /**
- * High-quality column-name synonyms for the well-known FMCG attribute
- * keys, preserved from the original FMCG-specific prompt. Used as
- * *extra* hints when the tenant's schema contains one of these keys
- * (identified by exact key match). For custom attribute keys that
- * aren't in this map, Claude falls back to fuzzy-matching the field
- * label.
+ * Curated column-name synonyms for well-known catalogue attribute keys
+ * (mostly Food & Beverage / distribution heritage, where spreadsheet
+ * column naming is most variable). Used as *extra* hints when the
+ * tenant's schema contains one of these keys — beats label-based
+ * fuzzy-matching. For attribute keys not in this map, the prompt
+ * falls back to fuzzy-matching the field label.
  */
-const FMCG_COLUMN_SYNONYMS: Record<string, string> = {
+const ATTRIBUTE_COLUMN_SYNONYMS: Record<string, string> = {
   brand: '"Brand", "Brand Name", "Manufacturer", "Maker"',
   packingType: '"Packing Type", "Packaging", "Pack Type", "Container Type" (e.g. "PET", "Glass", "Tetra Pak", "Pouch")',
   grammage: '"Grammage", "Pack Size", "Net Weight", "Net Wt", "Weight", "Volume". Raw verbatim value, e.g. "200ml", "1 litre", "5 Litre"',
@@ -37,10 +37,9 @@ function renderFieldHint(field: ItemAttributeField): string {
   const type = field.type;
   const bits: string[] = [];
 
-  // Start with any curated FMCG synonyms for this key — they're
-  // battle-tested and produce better results than Claude fuzzy-matching
-  // against the label alone.
-  const synonyms = FMCG_COLUMN_SYNONYMS[field.key];
+  // Start with any curated synonyms for this key — they're battle-tested
+  // and produce better results than Claude fuzzy-matching the label alone.
+  const synonyms = ATTRIBUTE_COLUMN_SYNONYMS[field.key];
   if (synonyms) {
     bits.push(`Source columns: ${synonyms}`);
   } else {
@@ -90,7 +89,7 @@ export function buildItemExtractionPrompts(schema: ItemAttributeSchema): {
         schema.map((f) => `        "${f.key}": ${renderJsonType(f)}`).join(',\n') +
         '\n      }';
 
-  const system = `You are an expert at extracting product/service master data from arbitrary spreadsheets exported by Indian SMEs (Tally, Zoho, supplier price lists, distributor sheets, NPD/NPI catalogs, tender documents, etc).
+  const system = `You are an expert at extracting product/service master data from arbitrary spreadsheets exported by Indian SMEs (Tally, Zoho, supplier price lists, internal catalogues, tender documents, service rate cards, etc).
 
 The input is the textual content of a CSV or Excel file. It may contain:
 - Header rows, column titles, footer rows, page numbers

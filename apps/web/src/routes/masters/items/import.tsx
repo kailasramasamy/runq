@@ -114,9 +114,7 @@ export function ImportItemsPage() {
       category: r.category ?? null,
       subcategory: r.subcategory ?? null,
       description: r.description ?? null,
-      // The backend dual-writes any FMCG-mapped keys in `attributes` to
-      // their legacy columns automatically, so this one field replaces
-      // the old set of top-level keys (grammage, packingType, …).
+      // Industry-specific catalogue attributes extracted by the AI.
       attributes: r.attributes,
     }));
 
@@ -149,7 +147,7 @@ export function ImportItemsPage() {
           { label: 'Smart Import' },
         ]}
         title="Smart Import Items"
-        description="Upload a CSV or Excel file. AI extracts product data — even from messy distributor sheets."
+        description="Upload a CSV or Excel file. AI extracts item data from any source — supplier price lists, internal catalogues, tender documents, or messy spreadsheets."
         actions={
           <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items' })}>
             <ArrowLeft size={14} /> Back to Items
