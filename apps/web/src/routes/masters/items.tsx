@@ -1,210 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, X, Pencil, Download, Power, Sparkles, Trash2, Search } from 'lucide-react';
+import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
-  Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea,
+  Card, CardContent, PageHeader, Button, Badge, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
   TableSkeleton, useToast, ConfirmationDialog,
 } from '@/components/ui';
-import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
-import { Combobox } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import {
-  useItems, useCreateItem, useUpdateItem, useToggleItem, useDeleteItem,
-  type Item, type CreateItemInput,
+  useItems, useToggleItem, useDeleteItem,
 } from '@/hooks/queries/use-items';
-import { useCategoryTree } from '@/hooks/queries/use-categories';
 
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
 }
-
-// ─── Modal Shell ────────────────────────────────────────────────────────────
-
-function Modal({ open, onClose, title, children }: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-[8vh]" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-2xl rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Item Form (used inside modal) ──────────────────────────────────────────
-
-function ItemForm({ item, onClose, onDelete }: { item?: Item; onClose: () => void; onDelete?: () => void }) {
-  const create = useCreateItem();
-  const update = useUpdateItem();
-  const { toast } = useToast();
-  const { data: treeData } = useCategoryTree();
-  const categoryTree = treeData?.data ?? [];
-  const isEdit = !!item;
-
-  const [name, setName] = useState(item?.name ?? '');
-  const [sku, setSku] = useState(item?.sku ?? '');
-  const [type, setType] = useState<'product' | 'service'>(item?.type ?? 'product');
-  const [hsnSacCode, setHsnSacCode] = useState(item?.hsnSacCode ?? '');
-  const [unit, setUnit] = useState(item?.unit ?? '');
-  const [defaultSellingPrice, setDefaultSellingPrice] = useState(item?.defaultSellingPrice?.toString() ?? '');
-  const [defaultPurchasePrice, setDefaultPurchasePrice] = useState(item?.defaultPurchasePrice?.toString() ?? '');
-  const [gstRate, setGstRate] = useState(item?.gstRate?.toString() ?? '');
-  const [mrp, setMrp] = useState(item?.mrp?.toString() ?? '');
-  const [costPrice, setCostPrice] = useState(item?.costPrice?.toString() ?? '');
-  const [category, setCategory] = useState(item?.category ?? '');
-  const [subcategory, setSubcategory] = useState(item?.subcategory ?? '');
-  const [description, setDescription] = useState(item?.description ?? '');
-
-  const categoryOptions = categoryTree
-    .filter((c) => c.isActive)
-    .map((c) => ({ value: c.name, label: c.name }));
-
-  const selectedCat = categoryTree.find((c) => c.name === category);
-  const subcategoryOptions = (selectedCat?.subcategories ?? [])
-    .filter((s) => s.isActive)
-    .map((s) => ({ value: s.name, label: s.name }));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const data: CreateItemInput = {
-      name,
-      type,
-      ...(sku ? { sku } : {}),
-      ...(hsnSacCode ? { hsnSacCode } : {}),
-      ...(unit ? { unit } : {}),
-      ...(defaultSellingPrice ? { defaultSellingPrice: Number(defaultSellingPrice) } : {}),
-      ...(defaultPurchasePrice ? { defaultPurchasePrice: Number(defaultPurchasePrice) } : {}),
-      ...(gstRate ? { gstRate: Number(gstRate) } : {}),
-      ...(mrp ? { mrp: Number(mrp) } : {}),
-      ...(costPrice ? { costPrice: Number(costPrice) } : {}),
-      ...(category ? { category } : {}),
-      ...(subcategory ? { subcategory } : {}),
-      ...(description ? { description } : {}),
-    };
-    try {
-      if (isEdit) {
-        await update.mutateAsync({ id: item.id, data });
-        toast('Item updated', 'success');
-      } else {
-        await create.mutateAsync(data);
-        toast('Item created', 'success');
-      }
-      onClose();
-    } catch {
-      toast(`Failed to ${isEdit ? 'update' : 'create'} item`, 'error');
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Basic info */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Basic Info</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Item name" />
-          <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU code" />
-          <Select label="Type" value={type} onChange={(e) => setType(e.target.value as 'product' | 'service')} options={[{ value: 'product', label: 'Product' }, { value: 'service', label: 'Service' }]} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <HsnSacCombobox
-            label="HSN/SAC Code"
-            value={hsnSacCode}
-            type={type === 'service' ? 'sac' : 'hsn'}
-            onChange={(code, rate) => {
-              setHsnSacCode(code);
-              if (rate != null) setGstRate(String(rate));
-            }}
-          />
-          <Input label="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="e.g. nos, kg, hrs" />
-          <Input label="GST Rate (%)" type="number" value={gstRate} onChange={(e) => setGstRate(e.target.value)} placeholder="18" />
-        </div>
-      </fieldset>
-
-      {/* Pricing */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Pricing</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-          <Input label="Selling Price" type="number" value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="0.00" />
-          <Input label="Purchase Price" type="number" value={defaultPurchasePrice} onChange={(e) => setDefaultPurchasePrice(e.target.value)} placeholder="0.00" />
-          <Input label="MRP" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="0.00" />
-          <Input label="Cost Price (COGM)" type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0.00" />
-        </div>
-      </fieldset>
-
-      {/* Classification */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Classification</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Combobox
-            label="Category"
-            options={categoryOptions}
-            value={category}
-            onChange={(v) => { setCategory(v); setSubcategory(''); }}
-            placeholder="Search categories…"
-          />
-          <Combobox
-            label="Subcategory"
-            options={subcategoryOptions}
-            value={subcategory}
-            onChange={setSubcategory}
-            placeholder={category ? 'Search subcategories…' : 'Select category first'}
-            disabled={!category}
-          />
-          <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" rows={1} />
-        </div>
-      </fieldset>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <div>
-          {isEdit && onDelete && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onDelete}
-              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
-            >
-              <Trash2 size={14} /> Delete
-            </Button>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={create.isPending || update.isPending} size="sm">
-            {isEdit ? <><Pencil size={14} /> Save Changes</> : <><Plus size={14} /> Create Item</>}
-          </Button>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-// ─── Items Page ──────────────────────────────────────────────────────────────
 
 export function ItemsPage() {
   const navigate = useNavigate();
@@ -213,13 +23,19 @@ export function ItemsPage() {
   const toggle = useToggleItem();
   const remove = useDeleteItem();
   const { toast } = useToast();
-  const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const items = data?.data ?? [];
-  const editingItem = editingId ? items.find((i) => i.id === editingId) : null;
   const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
+
+  const openEdit = (id: string) =>
+    navigate({ to: '/masters/items/$itemId/edit', params: { itemId: id } });
+  const openAnalysis = (id: string) =>
+    navigate({
+      to: '/masters/items/$itemId/analysis',
+      params: { itemId: id },
+      search: { from: 'list' },
+    });
 
   async function handleToggle(id: string) {
     try {
@@ -235,8 +51,6 @@ export function ItemsPage() {
     try {
       await remove.mutateAsync(deletingId);
       toast('Item deleted', 'success');
-      // Close the edit dialog if it was open for this item
-      if (editingId === deletingId) setEditingId(null);
       setDeletingId(null);
     } catch (err: unknown) {
       const msg =
@@ -256,35 +70,38 @@ export function ItemsPage() {
         description="Manage products and services used across invoices and bills."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('items.csv', ['Name', 'SKU', 'Type', 'HSN/SAC', 'Unit', 'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'GST%', 'Category', 'Subcategory', 'Status'], items.map(i => [i.name, i.sku ?? '', i.type, i.hsnSacCode ?? '', i.unit ?? '', String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''), String(i.mrp ?? ''), String(i.costPrice ?? ''), String(i.gstRate ?? ''), i.category ?? '', i.subcategory ?? '', i.isActive ? 'Active' : 'Inactive']))}>
+            <Button variant="outline" size="sm" onClick={() => downloadCSV(
+              'items.csv',
+              [
+                'Name', 'SKU', 'EAN', 'Brand', 'Product Type', 'Type', 'HSN/SAC', 'Unit', 'Grammage', 'Packing Type',
+                'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'Basic Price', 'GST%', 'GST Value', 'Margin %',
+                'Vendor Pack Size', 'Packaging Dimension', 'Shelf Life Days', 'RTV', 'Temperature', 'Cut-off Time',
+                'Category', 'Subcategory', 'Description', 'Status',
+              ],
+              items.map((i) => [
+                i.name, i.sku ?? '', i.ean ?? '', i.brand ?? '', i.productType ?? '', i.type, i.hsnSacCode ?? '',
+                i.unit ?? '', i.grammage ?? '', i.packingType ?? '',
+                String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''), String(i.mrp ?? ''),
+                String(i.costPrice ?? ''), String(i.basicPrice ?? ''), String(i.gstRate ?? ''),
+                String(i.gstValue ?? ''), String(i.margin ?? ''),
+                i.vendorPackSize ?? '', i.packagingDimension ?? '', String(i.shelfLifeDays ?? ''),
+                i.rtvAllowed == null ? '' : i.rtvAllowed ? 'RTV' : 'Non RTV',
+                i.temperature ?? '', i.cutoffTime ?? '',
+                i.category ?? '', i.subcategory ?? '', i.description ?? '',
+                i.isActive ? 'Active' : 'Inactive',
+              ]),
+            )}>
               <Download size={14} /> Export CSV
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/import' })}>
               <Sparkles size={14} /> Smart Import
             </Button>
-            <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Button size="sm" onClick={() => navigate({ to: '/masters/items/new' })}>
               <Plus size={14} /> New Item
             </Button>
           </div>
         }
       />
-
-      {/* Create modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Item">
-        <ItemForm onClose={() => setShowCreate(false)} />
-      </Modal>
-
-      {/* Edit modal */}
-      <Modal open={!!editingItem} onClose={() => setEditingId(null)} title={editingItem ? `Edit — ${editingItem.name}` : ''}>
-        {editingItem && (
-          <ItemForm
-            key={editingItem.id}
-            item={editingItem}
-            onClose={() => setEditingId(null)}
-            onDelete={() => setDeletingId(editingItem.id)}
-          />
-        )}
-      </Modal>
 
       {/* Delete confirmation */}
       <ConfirmationDialog
@@ -328,7 +145,7 @@ export function ItemsPage() {
             <div
               key={item.id}
               className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => setEditingId(item.id)}
+              onClick={() => openEdit(item.id)}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="min-w-0">
@@ -357,14 +174,15 @@ export function ItemsPage() {
               <tr>
                 <Th>Name</Th>
                 <Th>SKU</Th>
+                <Th>EAN</Th>
+                <Th>Brand</Th>
                 <Th>Type</Th>
                 <Th>HSN/SAC</Th>
                 <Th>Unit</Th>
                 <Th align="right">Selling Price</Th>
-                <Th align="right">Purchase Price</Th>
                 <Th align="right">MRP</Th>
-                <Th align="right">Cost Price</Th>
                 <Th align="right">GST%</Th>
+                <Th align="right">Margin%</Th>
                 <Th>Category</Th>
                 <Th>Status</Th>
                 <Th align="right">Actions</Th>
@@ -372,29 +190,39 @@ export function ItemsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={5} cols={13} />
+                <TableSkeleton rows={5} cols={14} />
               ) : items.length === 0 ? (
                 <TableEmpty
-                  colSpan={13}
+                  colSpan={14}
                   message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
                 />
               ) : (
                 items.map((item) => (
-                  <TableRow key={item.id} className="cursor-pointer" onClick={() => setEditingId(item.id)}>
+                  <TableRow key={item.id} className="cursor-pointer" onClick={() => openEdit(item.id)}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="font-mono text-xs">{item.sku ?? '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
+                    <TableCell className="text-zinc-500">{item.brand ?? '-'}</TableCell>
                     <TableCell><Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge></TableCell>
                     <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
                     <TableCell>{item.unit ?? '-'}</TableCell>
                     <TableCell align="right" numeric>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.defaultPurchasePrice != null ? formatINR(item.defaultPurchasePrice) : '-'}</TableCell>
                     <TableCell align="right" numeric>{item.mrp != null ? formatINR(item.mrp) : '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.costPrice != null ? formatINR(item.costPrice) : '-'}</TableCell>
                     <TableCell align="right" numeric>{item.gstRate != null ? `${item.gstRate}%` : '-'}</TableCell>
+                    <TableCell align="right" numeric>{item.margin != null ? `${item.margin}%` : '-'}</TableCell>
                     <TableCell className="text-zinc-500">{item.category ?? '-'}{item.subcategory ? ` / ${item.subcategory}` : ''}</TableCell>
                     <TableCell><Badge variant={statusVariant(item.isActive)}>{item.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
                     <TableCell align="right">
                       <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openAnalysis(item.id)}
+                          aria-label={`Analyse ${item.name}`}
+                          title="Cost & profit analysis"
+                        >
+                          <Calculator size={14} />
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleToggle(item.id)} disabled={toggle.isPending}>
                           <Power size={14} /> {item.isActive ? 'Deactivate' : 'Activate'}
                         </Button>

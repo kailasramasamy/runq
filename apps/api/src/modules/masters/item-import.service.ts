@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
 import { and, eq, ilike } from 'drizzle-orm';
-import { categories, items } from '@runq/db';
+import { categories, items, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateItemInput } from '@runq/validators';
+import type { TenantSettings } from '@runq/types';
 import { analyze, isAIEnabled } from '../../utils/ai/claude.service';
 import {
   ITEM_EXTRACTION_SYSTEM_PROMPT,
@@ -18,14 +19,28 @@ const EXTRACTION_MAX_TOKENS = 8192;
 export interface ExtractedItem {
   name: string;
   sku: string | null;
+  ean: string | null;
   type: 'product' | 'service';
   hsnSacCode: string | null;
   unit: string | null;
+  grammage: string | null;
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
+  basicPrice: number | null;
   mrp: number | null;
   costPrice: number | null;
   gstRate: number | null;
+  gstValue: number | null;
+  margin: number | null;
+  brand: string | null;
+  packingType: string | null;
+  shelfLifeDays: number | null;
+  rtvAllowed: boolean | null;
+  vendorPackSize: string | null;
+  packagingDimension: string | null;
+  temperature: string | null;
+  cutoffTime: string | null;
+  productType: string | null;
   category: string | null;
   subcategory: string | null;
   description: string | null;
@@ -87,7 +102,28 @@ export class ItemImportService {
       throw new AppError(502, 'AI returned empty response. Try again.');
     }
 
-    return this.parseResponse(raw);
+    const result = this.parseResponse(raw);
+
+    // Backfill margin from tenant default when the source row didn't carry one.
+    const defaultMargin = await this.getDefaultMarginPercent();
+    if (defaultMargin !== null) {
+      for (const it of result.items) {
+        if (it.margin === null) it.margin = defaultMargin;
+      }
+    }
+
+    return result;
+  }
+
+  private async getDefaultMarginPercent(): Promise<number | null> {
+    const [row] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+    const settings = (row?.settings ?? {}) as Partial<TenantSettings>;
+    const v = settings.defaultMarginPercent;
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
   }
 
   async bulkCreate(
@@ -111,7 +147,11 @@ export class ItemImportService {
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i]!;
       try {
-        const existing = await this.findExisting(input.sku ?? null, input.name);
+        const existing = await this.findExisting(
+          input.ean ?? null,
+          input.sku ?? null,
+          input.name,
+        );
         if (existing) {
           if (mode === 'overwrite') {
             await itemService.update(existing.id, input);
@@ -302,19 +342,45 @@ export class ItemImportService {
       const n = typeof v === 'number' ? v : Number(String(v).replace(/[^\d.-]/g, ''));
       return Number.isFinite(n) ? n : null;
     };
+    const int = (v: unknown): number | null => {
+      const n = num(v);
+      return n === null ? null : Math.trunc(n);
+    };
+    const bool = (v: unknown): boolean | null => {
+      if (v === null || v === undefined || v === '') return null;
+      if (typeof v === 'boolean') return v;
+      const s = String(v).trim().toLowerCase();
+      if (['true', 'yes', 'y', '1', 'rtv', 'returnable'].includes(s)) return true;
+      if (['false', 'no', 'n', '0', 'non rtv', 'non-rtv', 'non returnable', 'non-returnable'].includes(s)) return false;
+      return null;
+    };
     const type = r.type === 'service' ? 'service' : 'product';
 
     return {
       name: str(r.name) ?? '',
       sku: str(r.sku),
+      ean: str(r.ean),
       type,
       hsnSacCode: str(r.hsnSacCode),
       unit: str(r.unit),
+      grammage: str(r.grammage),
       defaultSellingPrice: num(r.defaultSellingPrice),
       defaultPurchasePrice: num(r.defaultPurchasePrice),
+      basicPrice: num(r.basicPrice),
       mrp: num(r.mrp),
       costPrice: num(r.costPrice),
       gstRate: num(r.gstRate),
+      gstValue: num(r.gstValue),
+      margin: num(r.margin),
+      brand: str(r.brand),
+      packingType: str(r.packingType),
+      shelfLifeDays: int(r.shelfLifeDays),
+      rtvAllowed: bool(r.rtvAllowed),
+      vendorPackSize: str(r.vendorPackSize),
+      packagingDimension: str(r.packagingDimension),
+      temperature: str(r.temperature),
+      cutoffTime: str(r.cutoffTime),
+      productType: str(r.productType),
       category: str(r.category),
       subcategory: str(r.subcategory),
       description: str(r.description),
@@ -322,9 +388,18 @@ export class ItemImportService {
   }
 
   private async findExisting(
+    ean: string | null,
     sku: string | null,
     name: string,
   ): Promise<{ id: string } | null> {
+    if (ean) {
+      const [byEan] = await this.db
+        .select({ id: items.id })
+        .from(items)
+        .where(and(eq(items.tenantId, this.tenantId), eq(items.ean, ean)))
+        .limit(1);
+      if (byEan) return byEan;
+    }
     if (sku) {
       const [bySku] = await this.db
         .select({ id: items.id })

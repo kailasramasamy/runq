@@ -54,6 +54,7 @@ export function CompanySettingsPage() {
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
   const [upiId, setUpiId] = useState('');
+  const [defaultMargin, setDefaultMargin] = useState('');
 
   useEffect(() => {
     if (data?.data) {
@@ -68,6 +69,11 @@ export function CompanySettingsPage() {
       setCity(data.data.city ?? '');
       setPincode(data.data.pincode ?? '');
       setUpiId(data.data.upiId ?? '');
+      setDefaultMargin(
+        data.data.defaultMarginPercent != null
+          ? String(data.data.defaultMarginPercent)
+          : '',
+      );
     }
   }, [data]);
 
@@ -87,6 +93,8 @@ export function CompanySettingsPage() {
         city: city || null,
         pincode: pincode || null,
         upiId: upiId || null,
+        defaultMarginPercent:
+          defaultMargin.trim() === '' ? null : Number(defaultMargin),
       });
       toast('Settings saved', 'success');
     } catch {
@@ -139,6 +147,19 @@ export function CompanySettingsPage() {
               onChange={(e) => setPaymentTerms(e.target.value)}
               options={PAYMENT_TERMS_OPTIONS}
               helper="Applied to new bills and invoices by default."
+            />
+
+            {/* Default Margin % — used by Items Smart Import */}
+            <Input
+              label="Default Margin %"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={defaultMargin}
+              onChange={(e) => setDefaultMargin(e.target.value)}
+              placeholder="e.g. 30"
+              helper="Used by Items › Smart Import when the source row has no margin value. Leave blank to skip."
             />
           </CardContent>
 

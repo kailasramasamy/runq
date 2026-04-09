@@ -28,6 +28,9 @@ export interface TenantSettings {
   pincode?: string;
   // UPI collection
   upiId?: string;
+  // Default margin (%) applied to imported items when the source has no
+  // margin column or the row's margin cell is blank.
+  defaultMarginPercent?: number;
   // Email provider
   emailProvider?: 'resend' | 'sendgrid' | 'smtp' | null;
   emailConfig?: {

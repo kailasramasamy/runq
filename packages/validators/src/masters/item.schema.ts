@@ -14,6 +14,31 @@ export const createItemSchema = z.object({
   category: z.string().max(50).nullish(),
   subcategory: z.string().max(50).nullish(),
   description: z.string().max(2000).nullish(),
+  // Extended supplier-catalogue attributes
+  ean: z.string().max(20).nullish(),
+  margin: z.number().min(0).max(100).nullish(),
+  brand: z.string().max(100).nullish(),
+  grammage: z.string().max(50).nullish(),
+  packingType: z.string().max(50).nullish(),
+  basicPrice: z.number().min(0).nullish(),
+  gstValue: z.number().min(0).nullish(),
+  shelfLifeDays: z.number().int().min(0).nullish(),
+  rtvAllowed: z.boolean().nullish(),
+  vendorPackSize: z.string().max(50).nullish(),
+  packagingDimension: z.string().max(100).nullish(),
+  temperature: z.string().max(20).nullish(),
+  cutoffTime: z.string().max(20).nullish(),
+  productType: z.string().max(50).nullish(),
+  cogmBreakdown: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(100),
+        amount: z.number().min(0),
+        note: z.string().max(200).optional(),
+      }),
+    )
+    .max(50)
+    .nullish(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

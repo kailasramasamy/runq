@@ -74,6 +74,9 @@ export class ItemService {
       gstRate: input.gstRate?.toString() ?? null,
       mrp: input.mrp?.toString() ?? null,
       costPrice: input.costPrice?.toString() ?? null,
+      margin: input.margin?.toString() ?? null,
+      basicPrice: input.basicPrice?.toString() ?? null,
+      gstValue: input.gstValue?.toString() ?? null,
     };
 
     const [row] = await this.db.insert(items).values(values).returning();
@@ -82,20 +85,21 @@ export class ItemService {
 
   async update(id: string, input: UpdateItemInput): Promise<Item> {
     const set: Record<string, unknown> = { ...input, updatedAt: new Date() };
-    if (input.defaultSellingPrice !== undefined) {
-      set.defaultSellingPrice = input.defaultSellingPrice?.toString() ?? null;
-    }
-    if (input.defaultPurchasePrice !== undefined) {
-      set.defaultPurchasePrice = input.defaultPurchasePrice?.toString() ?? null;
-    }
-    if (input.gstRate !== undefined) {
-      set.gstRate = input.gstRate?.toString() ?? null;
-    }
-    if (input.mrp !== undefined) {
-      set.mrp = input.mrp?.toString() ?? null;
-    }
-    if (input.costPrice !== undefined) {
-      set.costPrice = input.costPrice?.toString() ?? null;
+    // Decimal columns must round-trip as strings; null clears the field.
+    const decimalKeys = [
+      'defaultSellingPrice',
+      'defaultPurchasePrice',
+      'gstRate',
+      'mrp',
+      'costPrice',
+      'margin',
+      'basicPrice',
+      'gstValue',
+    ] as const;
+    for (const key of decimalKeys) {
+      if (input[key] !== undefined) {
+        set[key] = input[key]?.toString() ?? null;
+      }
     }
 
     const [row] = await this.db
@@ -165,6 +169,21 @@ export class ItemService {
       category: row.category,
       subcategory: row.subcategory,
       description: row.description,
+      ean: row.ean,
+      margin: row.margin ? toNumber(row.margin) : null,
+      brand: row.brand,
+      grammage: row.grammage,
+      packingType: row.packingType,
+      basicPrice: row.basicPrice ? toNumber(row.basicPrice) : null,
+      gstValue: row.gstValue ? toNumber(row.gstValue) : null,
+      shelfLifeDays: row.shelfLifeDays,
+      rtvAllowed: row.rtvAllowed,
+      vendorPackSize: row.vendorPackSize,
+      packagingDimension: row.packagingDimension,
+      temperature: row.temperature,
+      cutoffTime: row.cutoffTime,
+      productType: row.productType,
+      cogmBreakdown: row.cogmBreakdown ?? null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

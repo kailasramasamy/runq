@@ -87,6 +87,8 @@ import { TallyImportPage } from './settings/tally-import';
 import { CAPortalPage } from './ca-portal/index';
 import { ItemsPage } from './masters/items';
 import { ImportItemsPage } from './masters/items/import';
+import { ItemAnalysisPage } from './masters/items/analysis';
+import { ItemEditPage } from './masters/items/edit';
 import { PriceListsPage } from './masters/price-lists';
 import { CategoriesPage } from './masters/categories';
 import { QuotesPage } from './ar/quotes/index';
@@ -1299,6 +1301,34 @@ const mastersItemsImportRoute = createRoute({
   component: ImportItemsPage,
 });
 
+const mastersItemsAnalysisRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/$itemId/analysis',
+  validateSearch: (search: Record<string, unknown>): { from?: 'list' | 'edit' } => ({
+    from: search.from === 'edit' ? 'edit' : search.from === 'list' ? 'list' : undefined,
+  }),
+  component: () => {
+    const { itemId } = mastersItemsAnalysisRoute.useParams();
+    const { from } = mastersItemsAnalysisRoute.useSearch();
+    return <ItemAnalysisPage itemId={itemId} from={from} />;
+  },
+});
+
+const mastersItemsNewRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/new',
+  component: () => <ItemEditPage />,
+});
+
+const mastersItemsEditRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/$itemId/edit',
+  component: () => {
+    const { itemId } = mastersItemsEditRoute.useParams();
+    return <ItemEditPage itemId={itemId} />;
+  },
+});
+
 const mastersCategoriesRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/categories',
@@ -1489,6 +1519,9 @@ export const routeTree = rootRoute.addChildren([
       mastersIndexRoute,
       mastersItemsRoute,
       mastersItemsImportRoute,
+      mastersItemsNewRoute,
+      mastersItemsEditRoute,
+      mastersItemsAnalysisRoute,
       mastersCategoriesRoute,
       mastersPriceListsRoute,
     ]),

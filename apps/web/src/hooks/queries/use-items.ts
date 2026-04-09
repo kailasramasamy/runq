@@ -17,6 +17,12 @@ interface ItemFilters {
   [key: string]: unknown;
 }
 
+export interface CogmComponent {
+  label: string;
+  amount: number;
+  note?: string;
+}
+
 export interface Item {
   id: string;
   name: string;
@@ -32,9 +38,33 @@ export interface Item {
   category: string | null;
   subcategory: string | null;
   description: string | null;
+  // Extended supplier-catalogue attributes
+  ean: string | null;
+  margin: number | null;
+  brand: string | null;
+  grammage: string | null;
+  packingType: string | null;
+  basicPrice: number | null;
+  gstValue: number | null;
+  shelfLifeDays: number | null;
+  rtvAllowed: boolean | null;
+  vendorPackSize: string | null;
+  packagingDimension: string | null;
+  temperature: string | null;
+  cutoffTime: string | null;
+  productType: string | null;
+  cogmBreakdown: CogmComponent[] | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export function useItem(id: string | undefined) {
+  return useQuery({
+    queryKey: ITEM_KEYS.detail(id ?? ''),
+    queryFn: () => api.get<ApiSuccess<Item>>(`/masters/items/${id}`),
+    enabled: !!id,
+  });
 }
 
 export function useItems(filters?: ItemFilters) {
@@ -54,18 +84,34 @@ export function useItems(filters?: ItemFilters) {
 
 export interface CreateItemInput {
   name: string;
-  sku?: string;
+  sku?: string | null;
   type: 'product' | 'service';
-  hsnSacCode?: string;
-  unit?: string;
-  defaultSellingPrice?: number;
-  defaultPurchasePrice?: number;
-  gstRate?: number;
-  mrp?: number;
-  costPrice?: number;
-  category?: string;
-  subcategory?: string;
-  description?: string;
+  hsnSacCode?: string | null;
+  unit?: string | null;
+  defaultSellingPrice?: number | null;
+  defaultPurchasePrice?: number | null;
+  gstRate?: number | null;
+  mrp?: number | null;
+  costPrice?: number | null;
+  category?: string | null;
+  subcategory?: string | null;
+  description?: string | null;
+  // Extended supplier-catalogue attributes
+  ean?: string | null;
+  margin?: number | null;
+  brand?: string | null;
+  grammage?: string | null;
+  packingType?: string | null;
+  basicPrice?: number | null;
+  gstValue?: number | null;
+  shelfLifeDays?: number | null;
+  rtvAllowed?: boolean | null;
+  vendorPackSize?: string | null;
+  packagingDimension?: string | null;
+  temperature?: string | null;
+  cutoffTime?: string | null;
+  productType?: string | null;
+  cogmBreakdown?: CogmComponent[] | null;
 }
 
 export function useCreateItem() {
@@ -111,14 +157,28 @@ export function useDeleteItem() {
 export interface ExtractedItem {
   name: string;
   sku: string | null;
+  ean: string | null;
   type: 'product' | 'service';
   hsnSacCode: string | null;
   unit: string | null;
+  grammage: string | null;
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
+  basicPrice: number | null;
   mrp: number | null;
   costPrice: number | null;
   gstRate: number | null;
+  gstValue: number | null;
+  margin: number | null;
+  brand: string | null;
+  packingType: string | null;
+  shelfLifeDays: number | null;
+  rtvAllowed: boolean | null;
+  vendorPackSize: string | null;
+  packagingDimension: string | null;
+  temperature: string | null;
+  cutoffTime: string | null;
+  productType: string | null;
   category: string | null;
   subcategory: string | null;
   description: string | null;

@@ -17,6 +17,8 @@ export const companySettingsSchema = z.object({
   pincode: z.string().regex(/^[1-9][0-9]{5}$/, 'Invalid pincode').nullish(),
   // UPI collection
   upiId: z.string().max(100).nullish(),
+  // Default margin (%) used by smart-import when source rows lack margin
+  defaultMarginPercent: z.number().min(0).max(100).nullish(),
 });
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;

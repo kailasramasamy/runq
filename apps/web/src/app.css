@@ -35,6 +35,21 @@ body {
   display: none;
 }
 
+/* Hide the native browser stepper (up/down spin buttons) on number inputs.
+   The steppers add visual noise, are easy to misclick on prices, and force
+   integer increments that don't match decimal fields. Users still type the
+   value directly. Applies app-wide. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 @keyframes slide-in-left {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }

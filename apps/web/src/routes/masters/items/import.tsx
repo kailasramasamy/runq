@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload, Sparkles, Check, X, Trash2, AlertTriangle, FileSpreadsheet, ArrowLeft } from 'lucide-react';
+import { Upload, Sparkles, Check, X, AlertTriangle, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 import {
   PageHeader,
   Button,
@@ -19,6 +19,7 @@ import {
   type BulkImportResult,
   type CreateItemInput,
 } from '@/hooks/queries/use-items';
+import { EditableRow, REVIEW_HEADERS } from './import-editable-row';
 
 type Step = 'upload' | 'review' | 'result';
 type Mode = 'skip' | 'overwrite';
@@ -94,17 +95,31 @@ export function ImportItemsPage() {
     const payload: CreateItemInput[] = valid.map((r) => ({
       name: r.name.trim(),
       type: r.type,
-      ...(r.sku ? { sku: r.sku } : {}),
-      ...(r.hsnSacCode ? { hsnSacCode: r.hsnSacCode } : {}),
-      ...(r.unit ? { unit: r.unit } : {}),
-      ...(r.defaultSellingPrice != null ? { defaultSellingPrice: r.defaultSellingPrice } : {}),
-      ...(r.defaultPurchasePrice != null ? { defaultPurchasePrice: r.defaultPurchasePrice } : {}),
-      ...(r.mrp != null ? { mrp: r.mrp } : {}),
-      ...(r.costPrice != null ? { costPrice: r.costPrice } : {}),
-      ...(r.gstRate != null ? { gstRate: r.gstRate } : {}),
-      ...(r.category ? { category: r.category } : {}),
-      ...(r.subcategory ? { subcategory: r.subcategory } : {}),
-      ...(r.description ? { description: r.description } : {}),
+      sku: r.sku ?? null,
+      ean: r.ean ?? null,
+      hsnSacCode: r.hsnSacCode ?? null,
+      unit: r.unit ?? null,
+      grammage: r.grammage ?? null,
+      defaultSellingPrice: r.defaultSellingPrice ?? null,
+      defaultPurchasePrice: r.defaultPurchasePrice ?? null,
+      basicPrice: r.basicPrice ?? null,
+      mrp: r.mrp ?? null,
+      costPrice: r.costPrice ?? null,
+      gstRate: r.gstRate ?? null,
+      gstValue: r.gstValue ?? null,
+      margin: r.margin ?? null,
+      brand: r.brand ?? null,
+      packingType: r.packingType ?? null,
+      shelfLifeDays: r.shelfLifeDays ?? null,
+      rtvAllowed: r.rtvAllowed ?? null,
+      vendorPackSize: r.vendorPackSize ?? null,
+      packagingDimension: r.packagingDimension ?? null,
+      temperature: r.temperature ?? null,
+      cutoffTime: r.cutoffTime ?? null,
+      productType: r.productType ?? null,
+      category: r.category ?? null,
+      subcategory: r.subcategory ?? null,
+      description: r.description ?? null,
     }));
 
     commit.mutate(
@@ -350,9 +365,9 @@ function ReviewStep({
             <table className="w-full text-xs">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  {['Name', 'SKU', 'Type', 'HSN/SAC', 'Unit', 'Sell', 'Purchase', 'MRP', 'Cost', 'GST%', 'Category', ''].map((h) => (
+                  {REVIEW_HEADERS.map((h, idx) => (
                     <th
-                      key={h}
+                      key={h || `col-${idx}`}
                       className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
                     >
                       {h}
@@ -366,7 +381,7 @@ function ReviewStep({
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="px-4 py-6 text-center text-xs text-zinc-400">
+                    <td colSpan={REVIEW_HEADERS.length} className="px-4 py-6 text-center text-xs text-zinc-400">
                       All rows deleted. Go back and re-upload to try again.
                     </td>
                   </tr>
@@ -385,90 +400,6 @@ function ReviewStep({
         </CardFooter>
       </Card>
     </>
-  );
-}
-
-function EditableRow({
-  row,
-  index,
-  onUpdate,
-  onDelete,
-}: {
-  row: ExtractedItem;
-  index: number;
-  onUpdate: (index: number, patch: Partial<ExtractedItem>) => void;
-  onDelete: (index: number) => void;
-}) {
-  const cellInput = 'w-full rounded border border-zinc-200 bg-white px-1.5 py-1 text-xs focus:border-indigo-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800';
-  const numCell = `${cellInput} text-right font-mono`;
-  const nameMissing = !row.name.trim();
-
-  const setNum = (key: keyof ExtractedItem) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    onUpdate(index, { [key]: v === '' ? null : Number(v) } as Partial<ExtractedItem>);
-  };
-  const setStr = (key: keyof ExtractedItem) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    onUpdate(index, { [key]: v === '' ? null : v } as Partial<ExtractedItem>);
-  };
-
-  return (
-    <tr className={`border-b border-zinc-100 last:border-0 dark:border-zinc-800 ${nameMissing ? 'bg-red-50/40 dark:bg-red-950/20' : ''}`}>
-      <td className="px-2 py-1.5">
-        <input
-          className={`${cellInput} font-medium ${nameMissing ? 'border-red-300' : ''}`}
-          value={row.name}
-          onChange={(e) => onUpdate(index, { name: e.target.value })}
-          placeholder="Required"
-        />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={`${cellInput} font-mono`} value={row.sku ?? ''} onChange={setStr('sku')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <select
-          className={cellInput}
-          value={row.type}
-          onChange={(e) => onUpdate(index, { type: e.target.value as 'product' | 'service' })}
-        >
-          <option value="product">Product</option>
-          <option value="service">Service</option>
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={`${cellInput} font-mono`} value={row.hsnSacCode ?? ''} onChange={setStr('hsnSacCode')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={cellInput} value={row.unit ?? ''} onChange={setStr('unit')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="number" step="0.01" className={numCell} value={row.defaultSellingPrice ?? ''} onChange={setNum('defaultSellingPrice')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="number" step="0.01" className={numCell} value={row.defaultPurchasePrice ?? ''} onChange={setNum('defaultPurchasePrice')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="number" step="0.01" className={numCell} value={row.mrp ?? ''} onChange={setNum('mrp')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="number" step="0.01" className={numCell} value={row.costPrice ?? ''} onChange={setNum('costPrice')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="number" step="0.01" className={numCell} value={row.gstRate ?? ''} onChange={setNum('gstRate')} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={cellInput} value={row.category ?? ''} onChange={setStr('category')} />
-      </td>
-      <td className="px-2 py-1.5 text-right">
-        <button
-          onClick={() => onDelete(index)}
-          className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-          aria-label="Delete row"
-        >
-          <Trash2 size={14} />
-        </button>
-      </td>
-    </tr>
   );
 }
 
