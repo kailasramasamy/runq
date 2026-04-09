@@ -128,7 +128,7 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
           <Input label="Contact Person" placeholder="Ravi Kumar" {...field('contactPerson')} />
           <Input
             label="Customer Group"
-            placeholder="e.g. Wholesale, Retail, Distributor"
+            placeholder="e.g. Wholesale, Retail, Enterprise, Walk-in"
             helper="Used to apply group-level price lists. Leave blank if not used."
             {...field('customerGroup')}
           />

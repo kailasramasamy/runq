@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Landmark, FileText, Users, Package, CheckCircle2 } from 'lucide-react';
+import { Building2, Landmark, FileText, Users, Tag, Briefcase, CheckCircle2, type LucideIcon } from 'lucide-react';
 import { Button, Input, Select } from '@/components/ui';
 import { useCompanySettings, useUpdateCompanySettings, useUpdateInvoiceNumbering, useInvoiceNumbering } from '@/hooks/queries/use-settings';
 import { useCreateBankAccount } from '@/hooks/queries/use-bank-accounts';
@@ -14,15 +14,64 @@ export interface StepProps {
   onSkip?: () => void;
 }
 
-export const STEP_META = [
-  { key: 'company', label: 'Company profile', icon: Building2, optional: false, description: 'Confirm your company details and fiscal year' },
-  { key: 'bank', label: 'Bank account', icon: Landmark, optional: false, description: 'Add your primary bank account' },
-  { key: 'invoice', label: 'Invoice settings', icon: FileText, optional: false, description: 'Number format and payment terms' },
-  { key: 'customer', label: 'First customer', icon: Users, optional: true, description: 'Add a customer to start invoicing' },
-  { key: 'item', label: 'First item', icon: Package, optional: true, description: 'Add a product or service' },
-] as const;
+export type StepKey = 'company' | 'bank' | 'invoice' | 'customer' | 'item';
 
-export type StepKey = typeof STEP_META[number]['key'];
+export interface StepMetaEntry {
+  key: StepKey;
+  label: string;
+  icon: LucideIcon;
+  optional: boolean;
+  description: string;
+}
+
+/**
+ * Industries where the tenant primarily sells services rather than goods.
+ * Drives the wording on the "First item" onboarding step so a consulting
+ * firm sees "First service" instead of the generic product wording.
+ */
+const SERVICE_INDUSTRIES = new Set([
+  'Services',
+  'IT / Software',
+  'Education',
+  'Healthcare',
+  'Hospitality',
+]);
+
+/**
+ * Returns the onboarding step list customized for the tenant's industry.
+ * Most steps are universal — only the "item" step gets tweaked because
+ * "Add a product or service" is misleading for a services-only tenant
+ * (and vice versa). The Tag icon is intentionally generic; we drop the
+ * Package icon entirely because it implies physical goods.
+ */
+export function getOnboardingSteps(industry: string | null | undefined): StepMetaEntry[] {
+  const isServices = !!industry && SERVICE_INDUSTRIES.has(industry);
+  const isProduct = !!industry && !isServices && industry !== 'Other';
+
+  return [
+    { key: 'company', label: 'Company profile', icon: Building2, optional: false, description: 'Confirm your company details and fiscal year' },
+    { key: 'bank', label: 'Bank account', icon: Landmark, optional: false, description: 'Add your primary bank account' },
+    { key: 'invoice', label: 'Invoice settings', icon: FileText, optional: false, description: 'Number format and payment terms' },
+    { key: 'customer', label: 'First customer', icon: Users, optional: true, description: 'Add a customer to start invoicing' },
+    {
+      key: 'item',
+      label: isServices ? 'First service' : isProduct ? 'First product' : 'First item',
+      icon: isServices ? Briefcase : Tag,
+      optional: true,
+      description: isServices
+        ? 'Add a service to start invoicing'
+        : isProduct
+        ? 'Add a product to start invoicing'
+        : 'Add a product or service to start invoicing',
+    },
+  ];
+}
+
+/**
+ * Static fallback for callers that don't have industry context yet.
+ * Equivalent to getOnboardingSteps(null) — universal wording.
+ */
+export const STEP_META: StepMetaEntry[] = getOnboardingSteps(null);
 
 // ─── Company Profile Step ────────────────────────────────────────────────────
 
@@ -306,7 +355,7 @@ export function FirstCustomerStep({ onComplete, onSkip }: StepProps) {
 
   return (
     <form onSubmit={handleNext} className="space-y-5">
-      <Input label="Customer name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Distributors" />
+      <Input label="Customer name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Pvt Ltd" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="billing@acme.com" />
         <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
@@ -330,12 +379,28 @@ const ITEM_TYPE_OPTIONS = [
 
 export function FirstItemStep({ onComplete, onSkip }: StepProps) {
   const create = useCreateItem();
+  const { data: companyData } = useCompanySettings();
+  const industry = companyData?.data?.industry ?? null;
+  const isServices = !!industry && SERVICE_INDUSTRIES.has(industry);
+
   const [name, setName] = useState('');
-  const [type, setType] = useState<'product' | 'service'>('product');
+  // Default the type to 'service' for service-oriented industries so a
+  // consulting firm doesn't have to flip a dropdown on their first item.
+  const [type, setType] = useState<'product' | 'service'>(isServices ? 'service' : 'product');
   const [hsnSacCode, setHsnSacCode] = useState('');
   const [defaultSellingPrice, setDefaultSellingPrice] = useState('');
   const [gstRate, setGstRate] = useState('18');
   const [error, setError] = useState('');
+
+  // The companyData query is async — when it resolves after first paint,
+  // sync the type default to match the industry. Only fires once because
+  // the user might toggle the dropdown manually after that.
+  useEffect(() => {
+    if (companyData?.data?.industry && SERVICE_INDUSTRIES.has(companyData.data.industry)) {
+      setType('service');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyData?.data?.industry]);
 
   async function handleNext(e: React.FormEvent) {
     e.preventDefault();
@@ -357,11 +422,17 @@ export function FirstItemStep({ onComplete, onSkip }: StepProps) {
 
   return (
     <form onSubmit={handleNext} className="space-y-5">
-      <Input label="Item / service name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Consulting Hour" />
+      <Input
+        label={isServices ? 'Service name' : 'Item / service name'}
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={isServices ? 'Consulting Hour' : 'Product or service name'}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select label="Type" options={ITEM_TYPE_OPTIONS} value={type} onChange={(e) => setType(e.target.value as 'product')} />
-        <Input label="HSN / SAC code" value={hsnSacCode} onChange={(e) => setHsnSacCode(e.target.value)} placeholder="998311" />
-        <Input label="Default selling price (₹)" type="number" min={0} step={0.01} value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="1000" />
+        <Input label="HSN / SAC code" value={hsnSacCode} onChange={(e) => setHsnSacCode(e.target.value)} placeholder={type === 'service' ? '998311' : '04012010'} />
+        <Input label={type === 'service' ? 'Selling price (₹)' : 'Default selling price (₹)'} type="number" min={0} step={0.01} value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="1000" />
         <Input label="GST rate (%)" type="number" min={0} max={28} step={0.01} value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
