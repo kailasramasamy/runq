@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INDUSTRY_LIST } from '../masters/industry-presets';
 
 const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
@@ -6,6 +7,10 @@ export const companySettingsSchema = z.object({
   defaultPaymentTermsDays: z.number().int().min(0).max(365).optional(),
   currency: z.literal('INR').default('INR'),
   financialYearStartMonth: z.number().int().min(1).max(12).default(4),
+  // Industry — drives the catalogue attribute preset seed. Changing this
+  // after the fact also clears the stored itemAttributeSchema so the
+  // next access re-seeds from the new preset (handled in the service).
+  industry: z.enum(INDUSTRY_LIST).nullish(),
   // Company GST profile
   gstin: z.string().regex(gstinRegex, 'Invalid GSTIN format').nullish(),
   legalName: z.string().max(255).nullish(),

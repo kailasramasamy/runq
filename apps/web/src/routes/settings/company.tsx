@@ -12,6 +12,8 @@ import {
 import { useCompanySettings, useUpdateCompanySettings } from '@/hooks/queries/use-settings';
 import { useToast } from '@/components/ui';
 import { INDIAN_STATE_OPTIONS } from '@/lib/indian-states';
+import { INDUSTRY_LIST, type Industry } from '@runq/validators';
+import { useQueryClient } from '@tanstack/react-query';
 
 const MONTH_OPTIONS = [
   { value: '1', label: 'January' },
@@ -28,6 +30,11 @@ const MONTH_OPTIONS = [
   { value: '12', label: 'December' },
 ];
 
+const INDUSTRY_OPTIONS = [
+  { value: '', label: 'Select industry…' },
+  ...INDUSTRY_LIST.map((i) => ({ value: i, label: i })),
+];
+
 const PAYMENT_TERMS_OPTIONS = [
   { value: '0', label: 'Due immediately' },
   { value: '7', label: 'Net 7 days' },
@@ -42,9 +49,12 @@ export function CompanySettingsPage() {
   const { data, isLoading } = useCompanySettings();
   const update = useUpdateCompanySettings();
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   const [fyMonth, setFyMonth] = useState('4');
   const [paymentTerms, setPaymentTerms] = useState('30');
+  const [industry, setIndustry] = useState<string>('');
+  const [savedIndustry, setSavedIndustry] = useState<string>('');
   const [gstin, setGstin] = useState('');
   const [legalName, setLegalName] = useState('');
   const [state, setState] = useState('');
@@ -60,6 +70,8 @@ export function CompanySettingsPage() {
     if (data?.data) {
       setFyMonth(String(data.data.financialYearStartMonth ?? 4));
       setPaymentTerms(String(data.data.defaultPaymentTermsDays ?? 30));
+      setIndustry(data.data.industry ?? '');
+      setSavedIndustry(data.data.industry ?? '');
       setGstin(data.data.gstin ?? '');
       setLegalName(data.data.legalName ?? '');
       setState(data.data.state ?? '');
@@ -79,11 +91,22 @@ export function CompanySettingsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    // Warn before wiping a customized catalogue schema. We can't tell from
+    // here whether the tenant has customized, so any real industry change
+    // shows the warning — better too many prompts than silent data loss.
+    const industryChanging = industry !== savedIndustry;
+    if (industryChanging && savedIndustry) {
+      const ok = window.confirm(
+        `Changing industry from "${savedIndustry}" to "${industry || 'None'}" will reset your Catalogue Attributes to the new industry's defaults. Any custom fields you've added will be removed. Continue?`,
+      );
+      if (!ok) return;
+    }
     try {
       await update.mutateAsync({
         currency: 'INR',
         financialYearStartMonth: Number(fyMonth),
         defaultPaymentTermsDays: Number(paymentTerms),
+        industry: industry ? (industry as Industry) : null,
         gstin: gstin || null,
         legalName: legalName || null,
         state: state || null,
@@ -96,6 +119,13 @@ export function CompanySettingsPage() {
         defaultMarginPercent:
           defaultMargin.trim() === '' ? null : Number(defaultMargin),
       });
+      // If industry changed, the backend wiped itemAttributeSchema server-side.
+      // Invalidate the frontend cache for both the schema query and any cached
+      // items so the new preset shows up immediately on the item form / list.
+      if (industryChanging) {
+        qc.invalidateQueries({ queryKey: ['items'] });
+      }
+      setSavedIndustry(industry);
       toast('Settings saved', 'success');
     } catch {
       toast('Failed to save settings', 'error');
@@ -147,6 +177,15 @@ export function CompanySettingsPage() {
               onChange={(e) => setPaymentTerms(e.target.value)}
               options={PAYMENT_TERMS_OPTIONS}
               helper="Applied to new bills and invoices by default."
+            />
+
+            {/* Industry — drives the Catalogue Attributes preset on the items master. */}
+            <Select
+              label="Industry"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              options={INDUSTRY_OPTIONS}
+              helper="Determines the default fields under Catalogue Details on each item. Changing this resets your Catalogue Attributes to the new industry's defaults."
             />
 
             {/* Default Margin % — used by Items Smart Import */}

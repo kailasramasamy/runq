@@ -22,7 +22,21 @@ export class SettingsService {
     const [existing] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
     if (!existing) throw new NotFoundError('Tenant');
 
-    const merged = { ...(existing.settings as object), ...data };
+    const prev = (existing.settings ?? {}) as Partial<TenantSettings> & Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...prev, ...data };
+
+    // If the tenant is actually changing their industry, wipe the stored
+    // itemAttributeSchema so the next GET /attribute-schema re-seeds from
+    // the new industry's preset. We only clear on a REAL change — a noop
+    // save (same industry, different GSTIN) must not touch the schema
+    // because the tenant may have customized it via Settings → Catalogue
+    // Attributes.
+    const industryProvided = Object.prototype.hasOwnProperty.call(data, 'industry');
+    const industryChanged = industryProvided && data.industry !== prev.industry;
+    if (industryChanged) {
+      delete (merged as { itemAttributeSchema?: unknown }).itemAttributeSchema;
+    }
+
     const [row] = await this.db
       .update(tenants)
       .set({ settings: merged, updatedAt: new Date() })
