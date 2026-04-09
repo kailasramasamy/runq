@@ -134,13 +134,22 @@ export function ItemAnalysisPage({
       const cleanBreakdown = breakdown
         .filter((r) => r.label.trim() && Number(r.amount) > 0)
         .map((r) => ({ label: r.label.trim(), amount: Number(r.amount), ...(r.note ? { note: r.note } : {}) }));
+
+      // Treat empty string as null, but preserve "0" — GST can legitimately
+      // be 0% for exempt items, and `Number('0') || null` would corrupt it.
+      const numOrNull = (v: string): number | null => {
+        if (v === '' || v.trim() === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+
       await update.mutateAsync({
         id: item.id,
         data: {
           costPrice: effectiveCogm || null,
-          gstRate: Number(gstRate) || null,
-          margin: Number(sellerMargin) || null,
-          mrp: Number(mrp) || null,
+          gstRate: numOrNull(gstRate),
+          margin: numOrNull(sellerMargin),
+          mrp: numOrNull(mrp),
           basicPrice: result.basicPrice || null,
           gstValue: result.gstValue || null,
           defaultSellingPrice: result.landingPrice || null,
