@@ -5,12 +5,14 @@ import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
-  TableSkeleton, useToast, ConfirmationDialog,
+  TableSkeleton, useToast, ConfirmationDialog, Pagination,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import {
   useItems, useToggleItem, useDeleteItem,
 } from '@/hooks/queries/use-items';
+
+const LIMIT = 20;
 
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
@@ -19,13 +21,21 @@ function statusVariant(active: boolean) {
 export function ItemsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const { data, isLoading } = useItems(search ? { search } : undefined);
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useItems({
+    page,
+    limit: LIMIT,
+    ...(search ? { search } : {}),
+  });
   const toggle = useToggleItem();
   const remove = useDeleteItem();
   const { toast } = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const items = data?.data ?? [];
+  const meta = data?.meta;
+  const totalPages = meta?.totalPages ?? 1;
+  const total = meta?.total ?? 0;
   const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
 
   const openEdit = (id: string) =>
@@ -125,7 +135,10 @@ export function ItemsPage() {
           <Input
             placeholder="Search by name or SKU…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="pl-9"
           />
           <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
@@ -244,6 +257,18 @@ export function ItemsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            limit={LIMIT}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { ApiSuccess } from '@runq/types';
+import type { ApiSuccess, PaginatedResponse } from '@runq/types';
 
 const ITEM_KEYS = {
   all: ['items'] as const,
@@ -78,7 +78,7 @@ export function useItems(filters?: ItemFilters) {
 
   return useQuery({
     queryKey: ITEM_KEYS.list(filters),
-    queryFn: () => api.get<ApiSuccess<Item[]>>(`/masters/items${qs ? `?${qs}` : ''}`),
+    queryFn: () => api.get<PaginatedResponse<Item>>(`/masters/items${qs ? `?${qs}` : ''}`),
   });
 }
 
