@@ -88,7 +88,7 @@ export function ItemEditPage({
       : `Edit — ${item!.name}`;
 
   const headerDescription = isDuplicate
-    ? 'Adjust the fields that differ for this variant (typically grammage, MRP, EAN, SKU). Pricing & COGM breakdown are inherited and can be tuned in the calculator after save.'
+    ? 'Adjust the fields that differ for this variant (typically unit, MRP, EAN, SKU). Pricing & COGM breakdown are inherited and can be tuned in the calculator after save.'
     : isCreate
       ? 'Create a new product or service for invoices, bills, and price lists.'
       : `${item!.brand ? item!.brand + ' · ' : ''}${item!.grammage ?? item!.unit ?? ''}${item!.ean ? ' · EAN ' + item!.ean : ''}`;
