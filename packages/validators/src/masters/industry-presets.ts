@@ -20,7 +20,14 @@ import type { ItemAttributeSchema } from '@runq/types';
 const FMCG_PRESET: ItemAttributeSchema = [
   { key: 'brand', label: 'Brand', type: 'text', placeholder: 'e.g. Vrindavan', fmcgColumn: 'brand' },
   { key: 'productType', label: 'Product Type', type: 'text', placeholder: 'e.g. Food', fmcgColumn: 'productType' },
-  { key: 'grammage', label: 'Grammage', type: 'text', placeholder: 'e.g. 200ml', fmcgColumn: 'grammage' },
+  // NOTE: `grammage` is intentionally NOT in the preset. The top-level
+  // `unit` field on items (used on invoices, price lists, reports)
+  // already captures pack size like "200ml" or "1kg". The
+  // items.grammage legacy column is kept for backward compat with
+  // previously-imported rows (profitability page still falls back to
+  // it), but new tenants don't get a dedicated grammage field on the
+  // form because it duplicates `unit`. Phase 3 cleanup will drop the
+  // column entirely.
   { key: 'packingType', label: 'Packing Type', type: 'text', placeholder: 'e.g. PET', fmcgColumn: 'packingType' },
   { key: 'vendorPackSize', label: 'Vendor Pack Size', type: 'text', placeholder: 'Carton', fmcgColumn: 'vendorPackSize' },
   { key: 'packagingDimension', label: 'Packaging Dimension', type: 'text', placeholder: 'L x B x H', fmcgColumn: 'packagingDimension' },
