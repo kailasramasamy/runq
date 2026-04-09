@@ -1,0 +1,50 @@
+{
+  "name": "runq Finance",
+  "short_name": "runq",
+  "description": "ERP for Indian SMEs — finance, accounting, and the PO Inbox",
+  "start_url": "/finance/",
+  "scope": "/finance/",
+  "id": "/finance/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/finance/runq-favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/finance/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "share_target": {
+    "action": "/finance/share-receive",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "text/csv",
+            "text/plain",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ]
+        }
+      ]
+    }
+  }
+}

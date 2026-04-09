@@ -1,5 +1,5 @@
 import { eq, and, sql, gte, lte, notInArray, desc } from 'drizzle-orm';
-import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants, paymentReceipts, receiptAllocations } from '@runq/db';
+import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants, paymentReceipts, receiptAllocations, bankAccounts, items } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
@@ -81,16 +81,36 @@ export class InvoiceService {
 
     if (!row) throw new NotFoundError('SalesInvoice');
 
-    const itemRows = await this.db
-      .select()
-      .from(salesInvoiceItems)
-      .where(and(eq(salesInvoiceItems.invoiceId, id), eq(salesInvoiceItems.tenantId, this.tenantId)));
+    const itemRows = await this.queryInvoiceItemsWithMaster(id);
 
     return {
       ...this.toInvoice(row.invoice),
       customerName: row.customerName,
-      items: itemRows.map(this.toInvoiceItem),
+      items: itemRows,
     };
+  }
+
+  /**
+   * Loads invoice line items with the linked items-master name + sku via
+   * LEFT JOIN. Centralised so getById, getForPrint, and any future caller
+   * all return a consistent shape.
+   */
+  private async queryInvoiceItemsWithMaster(invoiceId: string): Promise<SalesInvoiceItem[]> {
+    const rows = await this.db
+      .select({ line: salesInvoiceItems, itemName: items.name, itemSku: items.sku })
+      .from(salesInvoiceItems)
+      .leftJoin(items, eq(items.id, salesInvoiceItems.itemId))
+      .where(
+        and(
+          eq(salesInvoiceItems.invoiceId, invoiceId),
+          eq(salesInvoiceItems.tenantId, this.tenantId),
+        ),
+      );
+    return rows.map((r) => ({
+      ...this.toInvoiceItem(r.line),
+      itemName: r.itemName ?? null,
+      itemSku: r.itemSku ?? null,
+    }));
   }
 
   async getForPrint(id: string): Promise<{
@@ -98,6 +118,12 @@ export class InvoiceService {
     items: SalesInvoiceItem[];
     customer: typeof customers.$inferSelect;
     tenant: typeof tenants.$inferSelect;
+    bankAccounts: Array<{
+      name: string;
+      bankName: string;
+      accountNumber: string;
+      ifscCode: string;
+    }>;
   }> {
     const [row] = await this.db
       .select({ invoice: salesInvoices, customer: customers })
@@ -114,16 +140,53 @@ export class InvoiceService {
       .where(eq(tenants.id, this.tenantId))
       .limit(1);
 
-    const itemRows = await this.db
-      .select()
-      .from(salesInvoiceItems)
-      .where(and(eq(salesInvoiceItems.invoiceId, id), eq(salesInvoiceItems.tenantId, this.tenantId)));
+    const itemRows = await this.queryInvoiceItemsWithMaster(id);
+
+    // Resolve which bank account to render. Priority:
+    //   1. Customer's designated default_bank_account_id
+    //   2. Tenant-level default (tenant.settings.defaultInvoiceBankAccountId)
+    //   3. Nothing — better than auto-leaking ALL bank accounts to the buyer
+    //
+    // We deliberately do NOT fall back to "first active bank account" — that
+    // would expose accounts the seller didn't intend to share (e.g. petty
+    // cash, internal sweep accounts).
+    const tenantSettings = (tenantRow?.settings ?? {}) as Record<string, unknown>;
+    const settingsDefault = typeof tenantSettings.defaultInvoiceBankAccountId === 'string'
+      ? (tenantSettings.defaultInvoiceBankAccountId as string)
+      : null;
+    const chosenBankId = row.customer.defaultBankAccountId ?? settingsDefault;
+
+    let bankRows: Array<{
+      name: string;
+      bankName: string;
+      accountNumber: string;
+      ifscCode: string;
+    }> = [];
+    if (chosenBankId) {
+      bankRows = await this.db
+        .select({
+          name: bankAccounts.name,
+          bankName: bankAccounts.bankName,
+          accountNumber: bankAccounts.accountNumber,
+          ifscCode: bankAccounts.ifscCode,
+        })
+        .from(bankAccounts)
+        .where(
+          and(
+            eq(bankAccounts.tenantId, this.tenantId),
+            eq(bankAccounts.id, chosenBankId),
+            eq(bankAccounts.isActive, true),
+          ),
+        )
+        .limit(1);
+    }
 
     return {
       invoice: this.toInvoice(row.invoice),
-      items: itemRows.map(this.toInvoiceItem),
+      items: itemRows,
       customer: row.customer,
       tenant: tenantRow!,
+      bankAccounts: bankRows,
     };
   }
 
@@ -196,7 +259,9 @@ export class InvoiceService {
             return {
               tenantId: this.tenantId,
               invoiceId: invoice!.id,
+              itemId: item.itemId ?? null,
               description: item.description,
+              uom: item.uom ?? null,
               quantity: String(item.quantity),
               unitPrice: String(item.unitPrice),
               amount: String(item.amount),
@@ -301,28 +366,61 @@ export class InvoiceService {
       throw new ConflictError('Invoice can only be updated in draft status');
     }
 
-    await this.db
-      .update(salesInvoices)
-      .set({
-        ...(input.customerId !== undefined && { customerId: input.customerId }),
-        ...(input.invoiceDate !== undefined && { invoiceDate: input.invoiceDate }),
-        ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
-        ...(input.subtotal !== undefined && { subtotal: String(input.subtotal) }),
-        ...(input.taxAmount !== undefined && { taxAmount: String(input.taxAmount) }),
-        ...(input.totalAmount !== undefined && {
-          totalAmount: String(input.totalAmount),
-          balanceDue: String(input.totalAmount),
-        }),
-        ...(input.notes !== undefined && { notes: input.notes ?? null }),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
+    return this.db.transaction(async (tx) => {
+      // If line items were sent, recompute GST server-side from authoritative
+      // tax data (place of supply + per-line tax rate). Never trust the
+      // client-provided subtotal/taxAmount/totalAmount when items change —
+      // they don't include the per-line CGST/SGST/IGST breakdown the print
+      // template + GL postings need.
+      let gst: Awaited<ReturnType<typeof this.computeGstForInvoice>> | null = null;
+      if (input.items && input.items.length > 0) {
+        const customerId = input.customerId ?? existing.customerId;
+        gst = await this.computeGstForInvoice(
+          tx,
+          customerId,
+          input.items,
+          input.reverseCharge ?? existing.reverseCharge,
+        );
+      }
 
-    if (input.items && input.items.length > 0) {
-      await this.replaceLineItems(id, input.items);
-    }
+      await tx
+        .update(salesInvoices)
+        .set({
+          ...(input.customerId !== undefined && { customerId: input.customerId }),
+          ...(input.invoiceDate !== undefined && { invoiceDate: input.invoiceDate }),
+          ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
+          ...(input.notes !== undefined && { notes: input.notes ?? null }),
+          // GST recompute path — only when items were sent
+          ...(gst && {
+            subtotal: String(gst.summary.subtotal),
+            taxAmount: String(gst.summary.taxAmount),
+            totalAmount: String(gst.summary.totalAmount),
+            balanceDue: String(gst.summary.totalAmount),
+            cgstAmount: String(gst.summary.cgstAmount),
+            sgstAmount: String(gst.summary.sgstAmount),
+            igstAmount: String(gst.summary.igstAmount),
+            cessAmount: String(gst.summary.cessAmount),
+            placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
+            placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,
+            isInterState: gst.placeOfSupply?.isInterState ?? null,
+          }),
+          // Header-only edit path — fall back to client-provided totals
+          ...(!gst && input.subtotal !== undefined && { subtotal: String(input.subtotal) }),
+          ...(!gst && input.taxAmount !== undefined && { taxAmount: String(input.taxAmount) }),
+          ...(!gst && input.totalAmount !== undefined && {
+            totalAmount: String(input.totalAmount),
+            balanceDue: String(input.totalAmount),
+          }),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
 
-    return this.getById(id);
+      if (input.items && input.items.length > 0 && gst) {
+        await this.replaceLineItemsWithGst(tx, id, input.items, gst.itemTaxes);
+      }
+
+      return this.getById(id);
+    });
   }
 
   async cancel(id: string): Promise<SalesInvoice> {
@@ -558,7 +656,9 @@ export class InvoiceService {
       items.map((item) => ({
         tenantId: this.tenantId,
         invoiceId,
+        itemId: item.itemId ?? null,
         description: item.description!,
+        uom: item.uom ?? null,
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
         amount: String(item.amount),
@@ -566,6 +666,50 @@ export class InvoiceService {
         taxCategory: (item.taxCategory as TaxCategory) ?? null,
         taxRate: item.taxRate != null ? String(item.taxRate) : null,
       })),
+    );
+  }
+
+  /**
+   * Like replaceLineItems but ALSO writes the per-line CGST/SGST/IGST/Cess
+   * columns from the server-computed itemTaxes. Used by update() so editing
+   * an invoice doesn't silently zero out the line-level GST breakdown that
+   * the print template + HSN summary depend on.
+   */
+  private async replaceLineItemsWithGst(
+    tx: AnyTx,
+    invoiceId: string,
+    items: NonNullable<UpdateSalesInvoiceInput['items']>,
+    itemTaxes: TaxBreakdown[],
+  ): Promise<void> {
+    await tx
+      .delete(salesInvoiceItems)
+      .where(and(eq(salesInvoiceItems.invoiceId, invoiceId), eq(salesInvoiceItems.tenantId, this.tenantId)));
+
+    await tx.insert(salesInvoiceItems).values(
+      items.map((item, i) => {
+        const tax = itemTaxes[i]!;
+        return {
+          tenantId: this.tenantId,
+          invoiceId,
+          itemId: item.itemId ?? null,
+          description: item.description!,
+          uom: item.uom ?? null,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice),
+          amount: String(item.amount),
+          hsnSacCode: item.hsnSacCode ?? null,
+          taxCategory: (item.taxCategory as TaxCategory) ?? null,
+          taxRate: item.taxRate != null ? String(item.taxRate) : null,
+          cgstRate: String(tax.cgstRate),
+          cgstAmount: String(tax.cgstAmount),
+          sgstRate: String(tax.sgstRate),
+          sgstAmount: String(tax.sgstAmount),
+          igstRate: String(tax.igstRate),
+          igstAmount: String(tax.igstAmount),
+          cessRate: String(tax.cessRate),
+          cessAmount: String(tax.cessAmount),
+        };
+      }),
     );
   }
 
@@ -635,7 +779,13 @@ export class InvoiceService {
       id: row.id,
       tenantId: row.tenantId,
       invoiceId: row.invoiceId,
+      itemId: row.itemId ?? null,
+      // Plain row mapper has no JOIN data — callers that need name/sku
+      // should use queryInvoiceItemsWithMaster() instead.
+      itemName: null,
+      itemSku: null,
       description: row.description,
+      uom: row.uom ?? null,
       quantity: Number(row.quantity),
       unitPrice: Number(row.unitPrice),
       amount: Number(row.amount),

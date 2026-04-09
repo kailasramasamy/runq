@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Check, ArrowLeft, X, Sparkles, ArrowRight } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
+import { Check, ArrowLeft, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { useOnboarding, useCompleteOnboardingStep, useDismissOnboarding } from '@/hooks/queries/use-settings';
 import {
@@ -211,7 +210,6 @@ function StepBody({ stepKey, onComplete, onSkip }: { stepKey: StepKey; onComplet
 //                 /settings/setup so the user can edit anytime.
 
 export function OnboardingProgressWidget({ onResume }: { onResume: () => void }) {
-  const navigate = useNavigate();
   const { data } = useOnboarding();
   const completedSteps = data?.data.steps ?? {};
   const completedCount = Object.values(completedSteps).filter(Boolean).length;
@@ -219,27 +217,12 @@ export function OnboardingProgressWidget({ onResume }: { onResume: () => void })
   const progressPct = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
   const isComplete = data?.data.completed || completedCount === totalSteps;
 
+  // Once everything is set up, the strip has done its job. Hiding entirely
+  // (rather than turning into a permanent green pill) keeps the dashboard
+  // clean. Users can still re-enter the setup flow from the sidebar nav
+  // (Settings → Setup) or directly at /settings/setup.
   if (isComplete) {
-    return (
-      <button
-        type="button"
-        onClick={() => navigate({ to: '/settings/setup' })}
-        className="group flex w-full items-center justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:hover:border-emerald-800/60"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
-            <Check size={14} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Setup complete</p>
-            <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">All {totalSteps} steps done — review or edit anytime</p>
-          </div>
-        </div>
-        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 group-hover:text-emerald-900 dark:text-emerald-300 dark:group-hover:text-emerald-100">
-          Review <ArrowRight size={12} />
-        </span>
-      </button>
-    );
+    return null;
   }
 
   return (

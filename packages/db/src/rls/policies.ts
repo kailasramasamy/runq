@@ -45,6 +45,10 @@ export const RLS_TABLES = [
   'journal_sequences',
   'journal_entries',
   'journal_lines',
+  'po_uploads',
+  'po_drafts',
+  'po_draft_lines',
+  'customer_sku_aliases',
 ];
 
 export function generateRLSSQL(): string {

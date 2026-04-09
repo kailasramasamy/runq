@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { tenants } from '@runq/db';
+import { eq, and, isNull, sql } from 'drizzle-orm';
+import { tenants, customers, items, bankAccounts } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Tenant, TenantSettings } from '@runq/types';
 import type { CompanySettingsInput, InvoiceNumberingInput, EmailProviderConfigInput } from '@runq/validators';
@@ -128,6 +128,18 @@ export class SettingsService {
 
   // ─── Onboarding ────────────────────────────────────────────────────────────
 
+  /**
+   * Returns the onboarding wizard state for the dashboard. The `steps` map is
+   * the union of:
+   *   1. What the user clicked through in the wizard (stored in tenant.settings.onboardingSteps)
+   *   2. What's actually present in the DB (derived live)
+   *
+   * The (2) backfill handles tenants who set things up via direct settings
+   * routes BEFORE the wizard existed, or who skip the wizard entirely. Without
+   * it, the dashboard auto-opens the wizard for any tenant whose explicit map
+   * is empty — even when their company profile, bank accounts, etc. already
+   * exist.
+   */
   async getOnboarding(): Promise<{ steps: Record<string, boolean>; completed: boolean; dismissed: boolean }> {
     const [row] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
     if (!row) throw new NotFoundError('Tenant');
@@ -136,10 +148,68 @@ export class SettingsService {
       onboardingCompleted?: boolean;
       onboardingDismissed?: boolean;
     };
+
+    const explicit = s.onboardingSteps ?? {};
+    const derived = await this.deriveOnboardingFromState(s);
+
+    // Union: a step counts as done if either source says so
+    const merged: Record<string, boolean> = {
+      company: explicit.company || derived.company,
+      bank: explicit.bank || derived.bank,
+      invoice: explicit.invoice || derived.invoice,
+      customer: explicit.customer || derived.customer,
+      item: explicit.item || derived.item,
+    };
+
     return {
-      steps: s.onboardingSteps ?? {},
+      steps: merged,
       completed: s.onboardingCompleted ?? false,
       dismissed: s.onboardingDismissed ?? false,
+    };
+  }
+
+  /**
+   * Derive each onboarding step's "done" state from real DB state.
+   * Cheap — three count queries + a settings shape check.
+   */
+  private async deriveOnboardingFromState(s: Partial<TenantSettings>): Promise<{
+    company: boolean;
+    bank: boolean;
+    invoice: boolean;
+    customer: boolean;
+    item: boolean;
+  }> {
+    // Company profile is "done" once GSTIN OR a state code is filled —
+    // both are non-default fields the wizard's CompanyProfileStep writes.
+    const company = !!(s.gstin || s.stateCode || s.legalName);
+
+    // Invoice settings is "done" once the tenant has customized the prefix
+    // or format beyond the empty default. We check explicit presence rather
+    // than equality with the default so any user touch counts.
+    const invoice = !!(s.invoicePrefix && s.invoicePrefix.length > 0)
+      || !!(s.invoiceFormat && s.invoiceFormat.length > 0);
+
+    const [bankCount, customerCount, itemCount] = await Promise.all([
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(bankAccounts)
+        .where(and(eq(bankAccounts.tenantId, this.tenantId), eq(bankAccounts.isActive, true))),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(customers)
+        .where(and(eq(customers.tenantId, this.tenantId), isNull(customers.deletedAt))),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(items)
+        .where(and(eq(items.tenantId, this.tenantId), eq(items.isActive, true))),
+    ]);
+
+    return {
+      company,
+      bank: (bankCount[0]?.n ?? 0) > 0,
+      invoice,
+      customer: (customerCount[0]?.n ?? 0) > 0,
+      item: (itemCount[0]?.n ?? 0) > 0,
     };
   }
 

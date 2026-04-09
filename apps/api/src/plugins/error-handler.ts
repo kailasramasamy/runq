@@ -1,18 +1,24 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
-import { AppError } from '../utils/errors';
+import { AppError, ConflictError } from '../utils/errors';
 
 export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
 
     if (error instanceof AppError) {
-      return reply.status(error.statusCode).send({
+      const body: Record<string, unknown> = {
         statusCode: error.statusCode,
         error: error.name,
         message: error.message,
-      });
+      };
+      // ConflictError carries optional structured details (e.g. duplicate
+      // upload id) so the frontend can render an "Open existing" link.
+      if (error instanceof ConflictError && error.details) {
+        body.details = error.details;
+      }
+      return reply.status(error.statusCode).send(body);
     }
 
     if (error instanceof ZodError) {

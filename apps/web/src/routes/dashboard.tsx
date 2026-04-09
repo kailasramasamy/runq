@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   TrendingDown,
@@ -122,18 +122,34 @@ export function DashboardPage() {
   const receivablesAging = useReceivablesAging();
   const { data: onboarding } = useOnboarding();
 
-  const completedSteps = onboarding?.data.steps ?? {};
-  const completedCount = Object.values(completedSteps).filter(Boolean).length;
-  const onboardingDismissed = onboarding?.data.dismissed ?? false;
-  const onboardingComplete = onboarding?.data.completed ?? false;
-  const shouldAutoOpen = !onboardingDismissed && !onboardingComplete && completedCount === 0;
-
   const [wizardOpen, setWizardOpen] = useState(false);
-
-  // Auto-open for brand new tenants (only when onboarding query has resolved with empty steps)
-  if (shouldAutoOpen && !wizardOpen) {
-    setWizardOpen(true);
-  }
+  // Auto-open the wizard exactly once for brand-new tenants. Two correctness
+  // requirements that the previous render-phase version got wrong:
+  //   1. Wait until the onboarding query has actually resolved — `?? false`
+  //      defaults made the "should auto-open" condition trip on every page
+  //      load *before* the data arrived.
+  //   2. Run the open-decision in an effect, not during render. Calling
+  //      setState during render is a React anti-pattern.
+  // The `autoOpenedRef` guards against re-opening if the user closes the
+  // wizard without dismissing or completing — without it, an effect re-run
+  // would just slam the modal back open.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (!onboarding?.data) return; // query still loading
+    const steps = onboarding.data.steps ?? {};
+    const count = Object.values(steps).filter(Boolean).length;
+    const isFreshTenant =
+      !onboarding.data.dismissed && !onboarding.data.completed && count === 0;
+    if (isFreshTenant) {
+      autoOpenedRef.current = true;
+      setWizardOpen(true);
+    } else {
+      // Even if we don't open, mark as "decided" so we don't re-evaluate
+      // on subsequent query refetches.
+      autoOpenedRef.current = true;
+    }
+  }, [onboarding]);
 
   const isLoading = summary.isLoading;
   const s = summary.data?.data;
@@ -153,11 +169,14 @@ export function DashboardPage() {
         </p>
       </div>
 
-      {/* AI Snapshot — full width */}
-      <AIInsightsWidget />
-
-      {/* AI Chat */}
-      <AIChatWidget />
+      {/* AI Snapshot + AI Finance Assistant — side-by-side on desktop,
+          stacked on mobile/tablet so neither widget gets squeezed below
+          its usable width. items-stretch keeps both columns the same
+          height (the chat widget will fill the space the snapshot leaves). */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+        <AIInsightsWidget />
+        <AIChatWidget />
+      </div>
 
       {/* Row 1: Stats */}
       {isLoading ? (

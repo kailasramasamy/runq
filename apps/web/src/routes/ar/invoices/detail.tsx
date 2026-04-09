@@ -60,9 +60,10 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     retry: false,
   });
 
-  function getPrintUrl() {
+  function getPrintUrl(format?: 'pdf') {
     const tenantId = user?.tenantId ?? '';
-    return `/api/v1/ar/invoices/${invoiceId}/print?tenantId=${tenantId}`;
+    const fmt = format ? `&format=${format}` : '';
+    return `/api/v1/ar/invoices/${invoiceId}/print?tenantId=${tenantId}${fmt}`;
   }
 
   function handleSend() {
@@ -93,6 +94,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const statusInfo = STATUS_BADGE[invoice.status];
 
   const printUrl = getPrintUrl();
+  const pdfUrl = getPrintUrl('pdf');
 
   function PrintButtons() {
     if (invoice!.status === 'cancelled') return null;
@@ -101,7 +103,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         <Button variant="outline" size="sm" onClick={() => window.open(printUrl, '_blank')}>
           <Printer size={14} /> Print Invoice
         </Button>
-        <Button variant="outline" size="sm" onClick={() => window.open(printUrl, '_blank')}>
+        <Button variant="outline" size="sm" onClick={() => window.open(pdfUrl, '_blank')}>
           Download PDF
         </Button>
       </>
@@ -285,14 +287,23 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 <div className="flex flex-col gap-2 md:hidden p-3">
                   {invoice.items.map((item) => {
                     const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+                    const primary = item.itemName ?? item.description;
                     return (
                       <div key={item.id} className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 text-sm">
-                        <p className="font-medium truncate text-zinc-900 dark:text-zinc-100">{item.description}</p>
+                        <p className="font-medium truncate text-zinc-900 dark:text-zinc-100">{primary}</p>
+                        {item.itemSku && (
+                          <p className="truncate font-mono text-xs text-zinc-400 dark:text-zinc-500">{item.itemSku}</p>
+                        )}
                         <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                           {item.hsnSacCode && (
                             <span className="font-mono">{item.hsnSacCode}</span>
                           )}
-                          <span>{item.quantity} × {formatINR(item.unitPrice)}</span>
+                          <span>
+                            {item.quantity}
+                            {item.uom && <span className="ml-0.5">{item.uom}</span>}
+                            {' × '}
+                            {formatINR(item.unitPrice)}
+                          </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs">
                           <span className="text-zinc-500 dark:text-zinc-400">
@@ -345,7 +356,8 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                   <Table>
                     <TableHeader>
                       <tr>
-                        <Th>Description</Th>
+                        <Th>Item</Th>
+                        <Th>UOM</Th>
                         <Th>HSN/SAC</Th>
                         <Th>Qty</Th>
                         <Th align="right">Unit Price</Th>
@@ -357,9 +369,19 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                     <TableBody>
                       {invoice.items.map((item) => {
                         const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
+                        const primary = item.itemName ?? item.description;
                         return (
                           <TableRow key={item.id}>
-                            <TableCell>{item.description}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{primary}</div>
+                              {item.itemSku && (
+                                <div className="font-mono text-xs text-zinc-400 dark:text-zinc-500">{item.itemSku}</div>
+                              )}
+                              {item.itemName && item.description !== item.itemName && (
+                                <div className="text-xs text-zinc-500 dark:text-zinc-400">{item.description}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">{item.uom ?? '—'}</TableCell>
                             <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
                             <TableCell>{item.quantity}</TableCell>
                             <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
@@ -370,14 +392,14 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                         );
                       })}
                       <TableRow>
-                        <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                        <TableCell colSpan={7} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                           Subtotal
                         </TableCell>
                         <TableCell align="right" numeric className="font-mono">{formatINR(invoice.subtotal)}</TableCell>
                       </TableRow>
                       {invoice.cgstAmount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                          <TableCell colSpan={7} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                             CGST
                           </TableCell>
                           <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cgstAmount)}</TableCell>
@@ -385,7 +407,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                       )}
                       {invoice.sgstAmount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                          <TableCell colSpan={7} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                             SGST
                           </TableCell>
                           <TableCell align="right" numeric className="font-mono">{formatINR(invoice.sgstAmount)}</TableCell>
@@ -393,7 +415,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                       )}
                       {invoice.igstAmount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                          <TableCell colSpan={7} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                             IGST
                           </TableCell>
                           <TableCell align="right" numeric className="font-mono">{formatINR(invoice.igstAmount)}</TableCell>
@@ -401,14 +423,14 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                       )}
                       {invoice.cessAmount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
+                          <TableCell colSpan={7} align="right" className="text-sm text-zinc-500 dark:text-zinc-400">
                             Cess
                           </TableCell>
                           <TableCell align="right" numeric className="font-mono">{formatINR(invoice.cessAmount)}</TableCell>
                         </TableRow>
                       )}
                       <TableRow>
-                        <TableCell colSpan={6} align="right" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        <TableCell colSpan={7} align="right" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                           Total
                         </TableCell>
                         <TableCell align="right" numeric className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">

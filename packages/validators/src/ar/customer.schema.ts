@@ -5,6 +5,7 @@ const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
+  nickname: z.string().max(100).nullish(),
   type: z.enum(['b2b', 'payment_gateway']).default('b2b'),
   email: z.string().email().nullish(),
   phone: z.string().max(20).nullish(),
@@ -20,6 +21,7 @@ export const createCustomerSchema = z.object({
   contactPerson: z.string().max(255).nullish(),
   customerGroup: z.string().max(50).nullish(),
   overdueInterestRate: z.number().min(0).max(100).nullish(),
+  defaultBankAccountId: z.string().uuid().nullish(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();

@@ -46,3 +46,4 @@ export * from './ap/payment-schedules';
 export * from './hr/expense-claims';
 export * from './common/webhook-endpoints';
 export * from './ar/quick-templates';
+export * from './ar/po-inbox';

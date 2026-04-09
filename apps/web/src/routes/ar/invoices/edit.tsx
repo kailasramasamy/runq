@@ -60,7 +60,7 @@ export function EditInvoicePage({ invoiceId }: Props) {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-7xl">
       <PageHeader
         title={`Edit ${invoice.invoiceNumber}`}
         description="Editing a draft invoice. Once sent, it cannot be edited — only adjusted via credit notes."

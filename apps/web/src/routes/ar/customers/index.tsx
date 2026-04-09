@@ -36,6 +36,9 @@ function CustomerCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{customer.name}</p>
+          {customer.nickname && (
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{customer.nickname}</p>
+          )}
           {customer.email && (
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{customer.email}</p>
           )}
@@ -84,7 +87,12 @@ function CustomerRow({
 }) {
   return (
     <TableRow className="cursor-pointer" onClick={() => onView(customer.id)}>
-      <TableCell className="font-medium">{customer.name}</TableCell>
+      <TableCell>
+        <p className="font-medium">{customer.name}</p>
+        {customer.nickname && (
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">{customer.nickname}</p>
+        )}
+      </TableCell>
       <TableCell>
         <Badge variant={customer.type === 'b2b' ? 'info' : 'primary'}>
           {customer.type === 'b2b' ? 'B2B' : 'Payment Gateway'}

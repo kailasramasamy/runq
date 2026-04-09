@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { createCustomerSchema } from '@runq/validators';
 import type { Customer } from '@runq/types';
 import type { CreateCustomerInput } from '@runq/validators';
 import { Card, CardHeader, CardContent, Input, Select, Button } from '@/components/ui';
+import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 
 interface Props {
   initialData?: Customer;
@@ -17,6 +18,7 @@ function buildInitial(c?: Customer): FormState {
   if (!c) return { name: '', type: 'b2b', paymentTermsDays: 30 };
   return {
     name: c.name,
+    nickname: c.nickname ?? undefined,
     type: c.type,
     email: c.email ?? undefined,
     phone: c.phone ?? undefined,
@@ -32,6 +34,7 @@ function buildInitial(c?: Customer): FormState {
     contactPerson: c.contactPerson ?? undefined,
     customerGroup: c.customerGroup ?? undefined,
     overdueInterestRate: c.overdueInterestRate ?? undefined,
+    defaultBankAccountId: c.defaultBankAccountId ?? undefined,
   };
 }
 
@@ -53,6 +56,23 @@ const PAYMENT_TERMS_OPTIONS = [
 export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Props) {
   const [form, setForm] = useState<FormState>(buildInitial(initialData));
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Bank account picker — used to designate which account appears on this
+  // customer's invoices. Without this, the print template falls back to the
+  // tenant default and otherwise shows nothing (we never auto-list all banks).
+  const { data: banksData } = useBankAccounts();
+  const bankOptions = useMemo(() => {
+    const banks = banksData?.data ?? [];
+    return [
+      { value: '', label: '— Use tenant default —' },
+      ...banks
+        .filter((b) => b.isActive)
+        .map((b) => ({
+          value: b.id,
+          label: `${b.bankName} · ${b.accountNumber}${b.name && b.name !== b.bankName ? ` (${b.name})` : ''}`,
+        })),
+    ];
+  }, [banksData]);
 
   function set(field: keyof FormState, value: string | number) {
     setForm((prev) => ({ ...prev, [field]: value === '' ? undefined : value }));
@@ -91,6 +111,12 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
           <div className="sm:col-span-2">
             <Input label="Customer Name" required placeholder="Acme Corp Pvt Ltd" {...field('name')} />
           </div>
+          <Input
+            label="Nickname"
+            placeholder="e.g. Acme"
+            helper="Optional shorthand for fast lookup. Used by search and the PO Inbox parser."
+            {...field('nickname')}
+          />
           <Select
             label="Type"
             required
@@ -164,6 +190,21 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             onChange={(e) => set('overdueInterestRate', e.target.value === '' ? (undefined as unknown as number) : Number(e.target.value))}
             error={errors.overdueInterestRate}
           />
+          <div className="sm:col-span-2">
+            <Select
+              label="Bank Account on Invoices"
+              options={bankOptions}
+              value={(form.defaultBankAccountId as string) ?? ''}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  defaultBankAccountId: e.target.value === '' ? undefined : e.target.value,
+                }))
+              }
+              helper="Only this bank account will be shown on invoices for this customer. Leave blank to use the tenant default."
+              error={errors.defaultBankAccountId}
+            />
+          </div>
         </CardContent>
       </Card>
 

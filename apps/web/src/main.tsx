@@ -8,10 +8,30 @@ import { ThemeProvider } from './providers/theme-provider';
 import { AuthProvider } from './providers/auth-provider';
 import { ToastProvider } from './components/ui/toast';
 import { LoginPage } from './routes/login';
+import { initInstallPromptCapture } from './lib/pwa-install';
 import './app.css';
 
 const basepath = '/finance';
 const router = createRouter({ routeTree, basepath });
+
+// Capture beforeinstallprompt as early as possible — the browser only fires
+// this event once, very soon after page load, so we have to be ready before
+// the inbox page mounts.
+initInstallPromptCapture();
+
+// Register the share-target service worker. The SW only intercepts POSTs
+// to /finance/share-receive — it does NOT cache app assets, so it won't
+// interfere with Vite HMR in dev. Safe to register in both dev and prod.
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/finance/sw.js', { scope: '/finance/' })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[runq] SW registration failed:', err);
+      });
+  });
+}
 
 declare module '@tanstack/react-router' {
   interface Register {

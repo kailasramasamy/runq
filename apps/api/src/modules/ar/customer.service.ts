@@ -1,4 +1,4 @@
-import { eq, and, ilike, isNull, sql, notInArray } from 'drizzle-orm';
+import { eq, and, or, ilike, isNull, sql, notInArray } from 'drizzle-orm';
 import { customers, salesInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Customer, CustomerWithOutstanding, PaginationMeta } from '@runq/types';
@@ -50,7 +50,14 @@ export class CustomerService {
     const baseWhere = and(
       eq(customers.tenantId, this.tenantId),
       isNull(customers.deletedAt),
-      search ? ilike(customers.name, `%${search}%`) : undefined,
+      // Search matches against either the legal name or the nickname so the
+      // accountant can find a customer by their mental shorthand.
+      search
+        ? or(
+            ilike(customers.name, `%${search}%`),
+            ilike(customers.nickname, `%${search}%`),
+          )
+        : undefined,
       type ? eq(customers.type, type) : undefined,
     );
 
@@ -317,6 +324,7 @@ export class CustomerService {
       id: row.id,
       tenantId: row.tenantId,
       name: row.name,
+      nickname: row.nickname ?? null,
       type: row.type,
       email: row.email ?? null,
       phone: row.phone ?? null,
@@ -332,6 +340,7 @@ export class CustomerService {
       contactPerson: row.contactPerson ?? null,
       customerGroup: row.customerGroup ?? null,
       overdueInterestRate: row.overdueInterestRate != null ? Number(row.overdueInterestRate) : null,
+      defaultBankAccountId: row.defaultBankAccountId ?? null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

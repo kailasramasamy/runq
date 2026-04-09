@@ -7,6 +7,10 @@ export const customers = pgTable('customers', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   name: varchar('name', { length: 255 }).notNull(),
+  // Optional shorthand for the accountant — used as a quick mental handle
+  // ("KC Mart") for full legal names ("Krishna Cooperative Mart Pvt Ltd").
+  // Searched alongside `name` and used by the PO parser for customer matching.
+  nickname: varchar('nickname', { length: 100 }),
   type: customerTypeEnum('type').notNull().default('b2b'),
   email: varchar('email', { length: 255 }),
   phone: varchar('phone', { length: 20 }),
@@ -22,6 +26,11 @@ export const customers = pgTable('customers', {
   contactPerson: varchar('contact_person', { length: 255 }),
   customerGroup: varchar('customer_group', { length: 50 }),
   overdueInterestRate: decimal('overdue_interest_rate', { precision: 5, scale: 2 }),
+  // Designated bank account that appears on this customer's invoice PDFs.
+  // Nullable: when null, the print template falls back to the tenant-level
+  // default (tenant.settings.defaultInvoiceBankAccountId), or shows nothing
+  // if neither is set — never auto-exposes ALL bank accounts.
+  defaultBankAccountId: uuid('default_bank_account_id'),
   portalSlug: varchar('portal_slug', { length: 32 }).unique(),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

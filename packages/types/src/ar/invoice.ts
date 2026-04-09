@@ -39,7 +39,13 @@ export interface SalesInvoiceItem {
   id: string;
   tenantId: string;
   invoiceId: string;
+  itemId: string | null;
+  /** Pulled from items master via JOIN when itemId is set; null for ad-hoc lines. */
+  itemName: string | null;
+  /** Pulled from items master via JOIN when itemId is set; null otherwise. */
+  itemSku: string | null;
   description: string;
+  uom: string | null;
   quantity: number;
   unitPrice: number;
   amount: number;

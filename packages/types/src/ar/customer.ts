@@ -4,6 +4,7 @@ export interface Customer {
   id: string;
   tenantId: string;
   name: string;
+  nickname: string | null;
   type: CustomerType;
   email: string | null;
   phone: string | null;
@@ -19,6 +20,7 @@ export interface Customer {
   contactPerson: string | null;
   customerGroup: string | null;
   overdueInterestRate: number | null;
+  defaultBankAccountId: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

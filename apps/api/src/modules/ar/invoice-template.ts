@@ -13,11 +13,19 @@ interface CustomerInfo {
   state?: string | null;
   pincode?: string | null;
   gstin?: string | null;
+  paymentTermsDays?: number | null;
 }
 
 interface TenantInfo {
   name: string;
   settings: Record<string, unknown>;
+}
+
+export interface BankAccountInfo {
+  name: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
 }
 
 interface TenantSettings {
@@ -50,6 +58,7 @@ function buildItemRowsSimple(items: SalesInvoiceItem[]): string {
     <tr>
       <td class="cell center">${i + 1}</td>
       <td class="cell">${item.description}</td>
+      <td class="cell center">${item.uom ?? ''}</td>
       <td class="cell right">${fmtINR(item.quantity)}</td>
       <td class="cell right">${fmtINR(item.unitPrice)}</td>
       <td class="cell right">${fmtINR(item.amount)}</td>
@@ -67,6 +76,7 @@ function buildItemRowsGst(items: SalesInvoiceItem[]): string {
     <tr>
       <td class="cell center">${i + 1}</td>
       <td class="cell">${item.description}</td>
+      <td class="cell center">${item.uom ?? ''}</td>
       ${hsnCell}
       <td class="cell right">${fmtINR(item.quantity)}</td>
       <td class="cell right">${fmtINR(item.unitPrice)}</td>
@@ -78,24 +88,25 @@ function buildItemRowsGst(items: SalesInvoiceItem[]): string {
 }
 
 function buildSimpleTotals(invoice: SalesInvoice): string {
+  // Simple table: # | Desc | UOM | Qty | Rate | Amount = 6 cols
   return `
       <tr class="totals-row">
-        <td colspan="3" class="totals-label">Subtotal</td>
+        <td colspan="4" class="totals-label">Subtotal</td>
         <td colspan="2" class="right">${fmtINR(invoice.subtotal)}</td>
       </tr>
       <tr class="totals-row">
-        <td colspan="3" class="totals-label">Tax</td>
+        <td colspan="4" class="totals-label">Tax</td>
         <td colspan="2" class="right">${fmtINR(invoice.taxAmount)}</td>
       </tr>
       <tr class="totals-row grand-total">
-        <td colspan="3" class="totals-label">TOTAL</td>
+        <td colspan="4" class="totals-label">TOTAL</td>
         <td colspan="2" class="right">\u20B9 ${fmtINR(invoice.totalAmount)}</td>
       </tr>`;
 }
 
 function buildGstTotals(invoice: SalesInvoice, colSpan: number): string {
   const labelSpan = colSpan - 1;
-  const taxRows = formatTaxBreakdownRows(invoice);
+  const taxRows = formatTaxBreakdownRows(invoice, colSpan);
   const fallbackTax = !taxRows
     ? `<tr class="totals-row">
         <td colspan="${labelSpan}" class="totals-label">Tax</td>
@@ -127,12 +138,67 @@ function buildGstHeaderFields(invoice: SalesInvoice): string {
   return `<div style="font-size:11px;color:#444;margin-top:4px">${rows.join('')}</div>`;
 }
 
+/**
+ * Resolve which payment-terms-days value to print on the invoice. The
+ * customer's configured terms take priority — that's the contractual default
+ * the seller has agreed with this specific buyer. The invoice-date math is
+ * a defensive fallback for invoices created before the customer field existed,
+ * and the tenant setting is the legacy fallback.
+ */
+function resolvePaymentTermsDays(
+  invoice: SalesInvoice,
+  customer: CustomerInfo,
+  settings: TenantSettings,
+): number {
+  if (customer.paymentTermsDays != null && customer.paymentTermsDays >= 0) {
+    return customer.paymentTermsDays;
+  }
+  try {
+    const issued = new Date(invoice.invoiceDate + 'T00:00:00Z').getTime();
+    const due = new Date(invoice.dueDate + 'T00:00:00Z').getTime();
+    if (Number.isFinite(issued) && Number.isFinite(due) && due >= issued) {
+      return Math.round((due - issued) / (1000 * 60 * 60 * 24));
+    }
+  } catch {
+    // Fall through
+  }
+  return settings.paymentTermsDays ?? 30;
+}
+
+/**
+ * Renders the bank details section. Prefers real bank_accounts rows over the
+ * legacy `tenant.settings.bankName` fallback. If multiple accounts exist, all
+ * are shown so the customer can pay to whichever they prefer.
+ */
+function buildBankSection(banks: BankAccountInfo[], settings: TenantSettings): string {
+  if (banks.length > 0) {
+    const rows = banks.map((b) => `
+      <p style="margin-bottom:4px">
+        <strong>${b.bankName}</strong>
+        ${b.name && b.name !== b.bankName ? ` (${b.name})` : ''}
+        &nbsp;|&nbsp; <strong>A/C:</strong> ${b.accountNumber}
+        &nbsp;|&nbsp; <strong>IFSC:</strong> ${b.ifscCode}
+      </p>`).join('');
+    return rows;
+  }
+
+  // Legacy fallback for tenants that haven't migrated to bank_accounts.
+  if (settings.bankName || settings.bankAccount) {
+    return `<p><strong>Bank:</strong> ${settings.bankName ?? ''} &nbsp;|&nbsp;
+       <strong>A/C:</strong> ${settings.bankAccount ?? ''} &nbsp;|&nbsp;
+       <strong>IFSC:</strong> ${settings.bankIfsc ?? ''}</p>`;
+  }
+
+  return '<p><em>Bank details not configured.</em></p>';
+}
+
 function buildGstItemTableHeader(items: SalesInvoiceItem[]): string {
   const showHsn = hasHsnCodes(items);
   const hsnTh = showHsn ? '<th style="text-align:left;width:80px">HSN/SAC</th>' : '';
   return `<tr>
         <th style="width:32px">#</th>
         <th style="text-align:left">Description</th>
+        <th style="text-align:center;width:50px">UOM</th>
         ${hsnTh}
         <th style="text-align:right;width:60px">Qty</th>
         <th style="text-align:right;width:80px">Rate (\u20B9)</th>
@@ -147,19 +213,21 @@ export function renderInvoiceHTML(
   items: SalesInvoiceItem[],
   customer: CustomerInfo,
   tenant: TenantInfo,
+  banks: BankAccountInfo[] = [],
 ): string {
   const settings = tenant.settings as TenantSettings;
   const tenantAddr = buildTenantAddress(settings);
-  const paymentTerms = settings.paymentTermsDays ?? 30;
+  // Resolve payment terms with this priority:
+  //   1. Customer's configured paymentTermsDays — what the customer agreed to
+  //   2. Computed from this invoice's own dueDate - invoiceDate
+  //   3. Tenant default in settings (legacy)
+  //   4. Hardcoded 30 (last resort)
+  const paymentTerms = resolvePaymentTermsDays(invoice, customer, settings);
   const amountWords = numToWords(invoice.totalAmount);
   const custAddr = buildAddress(customer);
   const gst = hasGstData(invoice);
 
-  const bankSection = (settings.bankName || settings.bankAccount)
-    ? `<p><strong>Bank:</strong> ${settings.bankName ?? ''} &nbsp;|&nbsp;
-       <strong>A/C:</strong> ${settings.bankAccount ?? ''} &nbsp;|&nbsp;
-       <strong>IFSC:</strong> ${settings.bankIfsc ?? ''}</p>`
-    : '<p><em>Bank details not configured in settings.</em></p>';
+  const bankSection = buildBankSection(banks, settings);
 
   const gstHeaderFields = gst ? buildGstHeaderFields(invoice) : '';
   const irnSection = gst ? renderIrnSection(invoice) : '';
@@ -170,6 +238,7 @@ export function renderInvoiceHTML(
     : `<tr>
         <th style="width:32px">#</th>
         <th style="text-align:left">Description</th>
+        <th style="text-align:center;width:50px">UOM</th>
         <th style="text-align:right;width:70px">Qty</th>
         <th style="text-align:right;width:90px">Rate (\u20B9)</th>
         <th style="text-align:right;width:90px">Amount (\u20B9)</th>
@@ -177,7 +246,9 @@ export function renderInvoiceHTML(
 
   const itemRows = gst ? buildItemRowsGst(items) : buildItemRowsSimple(items);
   const showHsn = gst && hasHsnCodes(items);
-  const totalCols = gst ? (showHsn ? 8 : 7) : 5;
+  // GST table: # | Desc | UOM | (HSN) | Qty | Rate | Amount | Tax% | Tax = 9 (or 8 without HSN)
+  // Simple table: # | Desc | UOM | Qty | Rate | Amount = 6
+  const totalCols = gst ? (showHsn ? 9 : 8) : 6;
   const totalsRows = gst
     ? buildGstTotals(invoice, totalCols)
     : buildSimpleTotals(invoice);

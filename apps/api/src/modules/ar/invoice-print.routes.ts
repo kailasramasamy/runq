@@ -18,7 +18,7 @@ export const invoicePrintRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const service = new InvoiceService(request.server.db, tenantId);
-    const { invoice, items, customer, tenant } = await service.getForPrint(id);
+    const { invoice, items, customer, tenant, bankAccounts } = await service.getForPrint(id);
 
     // Verify the invoice belongs to this tenant
     if (invoice.tenantId !== tenantId) {
@@ -26,7 +26,20 @@ export const invoicePrintRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const tenantInfo = { ...tenant, settings: (tenant.settings ?? {}) as Record<string, unknown> };
-    const html = renderInvoiceHTML(invoice, items, customer, tenantInfo);
+    const html = renderInvoiceHTML(invoice, items, customer, tenantInfo, bankAccounts);
+
+    // Render-to-PDF when ?format=pdf is set. Lazy-imports puppeteer so the
+    // 300MB Chromium download is only required when PDF is actually used.
+    const format = (request.query as { format?: string } | undefined)?.format;
+    if (format === 'pdf') {
+      const { renderHtmlToPdf } = await import('./invoice-pdf');
+      const pdf = await renderHtmlToPdf(html);
+      return reply
+        .type('application/pdf')
+        .header('Content-Disposition', `inline; filename="${invoice.invoiceNumber}.pdf"`)
+        .send(pdf);
+    }
+
     return reply.type('text/html').send(html);
   });
 };

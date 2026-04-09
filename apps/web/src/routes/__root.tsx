@@ -40,6 +40,8 @@ import { ReceiptDetailPage } from './ar/receipts/detail';
 import { CreditNoteListPage } from './ar/credit-notes/index';
 import { NewCreditNotePage } from './ar/credit-notes/new';
 import { CreditNoteDetailPage } from './ar/credit-notes/detail';
+import { PoInboxPage } from './ar/po-inbox/index';
+import { PoDraftReviewPage } from './ar/po-inbox/detail';
 import { DunningPage } from './ar/dunning/index';
 import { CollectionsPage } from './ar/collections/index';
 import { BankAccountListPage } from './banking/accounts/index';
@@ -379,6 +381,7 @@ const AR_TABS: Array<{ label: string; path: string | null }> = [
   { label: 'Invoices', path: '/ar/invoices' },
   { label: 'Receipts', path: '/ar/receipts' },
   { label: 'Credit Notes', path: '/ar/credit-notes' },
+  { label: 'PO Inbox', path: '/ar/po-inbox' },
   { label: 'Dunning', path: '/ar/dunning' },
   { label: 'Collections', path: '/ar/collections' },
   { label: 'Quick Templates', path: '/ar/quick-templates' },
@@ -398,7 +401,7 @@ function ArNav() {
           path ? (
             <Link
               key={label}
-              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/dunning' | '/ar/collections' | '/ar/quick-templates'}
+              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/po-inbox' | '/ar/dunning' | '/ar/collections' | '/ar/quick-templates'}
               className={[
                 'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 current.startsWith(path)
@@ -542,6 +545,21 @@ const creditNoteDetailRoute = createRoute({
   component: () => {
     const { creditNoteId } = creditNoteDetailRoute.useParams();
     return <CreditNoteDetailPage creditNoteId={creditNoteId} />;
+  },
+});
+
+const poInboxRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/po-inbox',
+  component: PoInboxPage,
+});
+
+const poInboxDetailRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/po-inbox/$uploadId',
+  component: () => {
+    const { uploadId } = poInboxDetailRoute.useParams();
+    return <PoDraftReviewPage uploadId={uploadId} />;
   },
 });
 
@@ -1400,6 +1418,8 @@ export const routeTree = rootRoute.addChildren([
       creditNotesRoute,
       creditNoteNewRoute,
       creditNoteDetailRoute,
+      poInboxRoute,
+      poInboxDetailRoute,
       dunningRoute,
       quotesRoute,
       salesOrdersRoute,

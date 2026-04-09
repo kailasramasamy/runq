@@ -113,45 +113,78 @@ export function buildHsnSummary(items: SalesInvoiceItem[]): HsnSummaryRow[] {
   return Array.from(map.values());
 }
 
-/** Returns HTML table rows for GST tax breakdown in the totals section */
-export function formatTaxBreakdownRows(invoice: SalesInvoice): string {
+/**
+ * Returns HTML table rows for GST tax breakdown in the totals section.
+ * Takes the parent table's column count so the label/value cells span the
+ * same width as the rest of the totals rows above and below it.
+ */
+export function formatTaxBreakdownRows(invoice: SalesInvoice, colSpan: number): string {
   const rows: string[] = [];
+  const labelSpan = colSpan - 1;
 
   if (invoice.cgstAmount > 0) {
-    rows.push(taxRow('CGST', invoice.cgstAmount));
+    rows.push(taxRow('CGST', invoice.cgstAmount, labelSpan));
   }
   if (invoice.sgstAmount > 0) {
-    rows.push(taxRow('SGST', invoice.sgstAmount));
+    rows.push(taxRow('SGST', invoice.sgstAmount, labelSpan));
   }
   if (invoice.igstAmount > 0) {
-    rows.push(taxRow('IGST', invoice.igstAmount));
+    rows.push(taxRow('IGST', invoice.igstAmount, labelSpan));
   }
   if (invoice.cessAmount > 0) {
-    rows.push(taxRow('Cess', invoice.cessAmount));
+    rows.push(taxRow('Cess', invoice.cessAmount, labelSpan));
   }
 
   return rows.join('');
 }
 
-function taxRow(label: string, amount: number): string {
+function taxRow(label: string, amount: number, labelSpan: number): string {
   return `<tr class="totals-row">
-        <td colspan="5" class="totals-label">${label}</td>
-        <td colspan="3" class="right">${fmtINR(amount)}</td>
+        <td colspan="${labelSpan}" class="totals-label">${label}</td>
+        <td colspan="1" class="right">${fmtINR(amount)}</td>
       </tr>`;
 }
 
-/** Renders the HSN-wise summary table (required by GST when 2+ distinct HSN codes) */
+/**
+ * Renders the HSN-wise summary table required by Indian GST. Standard format:
+ *   HSN/SAC | Taxable Value | Rate% | (CGST+SGST | IGST) | Total Tax
+ *
+ * Renders for any invoice with at least 1 HSN code (not just 2+) so the user
+ * can see the per-HSN breakdown even on single-HSN invoices. Includes a grand
+ * total row at the bottom.
+ */
 export function renderHsnSummaryTable(items: SalesInvoiceItem[]): string {
   const summary = buildHsnSummary(items);
-  const uniqueHsn = summary.length;
-  if (uniqueHsn < 2) return '';
+  if (summary.length === 0) return '';
+
+  // Pull a representative tax rate per HSN from the line items.
+  const rateByHsn = new Map<string, number>();
+  for (const it of items) {
+    if (it.hsnSacCode && !rateByHsn.has(it.hsnSacCode) && it.taxRate != null) {
+      rateByHsn.set(it.hsnSacCode, it.taxRate);
+    }
+  }
 
   const isInterState = items.some((i) => i.igstAmount > 0);
-  const headerCols = isInterState
-    ? '<th style="text-align:right">IGST</th>'
-    : '<th style="text-align:right">CGST</th><th style="text-align:right">SGST</th>';
+  const headerTaxCols = isInterState
+    ? '<th style="text-align:right">IGST (\u20B9)</th>'
+    : '<th style="text-align:right">CGST (\u20B9)</th><th style="text-align:right">SGST (\u20B9)</th>';
+
+  let totalTaxable = 0;
+  let totalCgst = 0;
+  let totalSgst = 0;
+  let totalIgst = 0;
+  let totalTax = 0;
 
   const bodyRows = summary.map((row) => {
+    totalTaxable += row.taxableValue;
+    totalCgst += row.cgstAmount;
+    totalSgst += row.sgstAmount;
+    totalIgst += row.igstAmount;
+    totalTax += row.totalTax;
+
+    const rate = rateByHsn.get(row.hsnSacCode);
+    const rateCell = `<td class="cell center">${rate != null ? `${rate}%` : '\u2014'}</td>`;
     const taxCols = isInterState
       ? `<td class="cell right">${fmtINR(row.igstAmount)}</td>`
       : `<td class="cell right">${fmtINR(row.cgstAmount)}</td>
@@ -159,10 +192,24 @@ export function renderHsnSummaryTable(items: SalesInvoiceItem[]): string {
     return `<tr>
         <td class="cell">${row.hsnSacCode}</td>
         <td class="cell right">${fmtINR(row.taxableValue)}</td>
+        ${rateCell}
         ${taxCols}
         <td class="cell right">${fmtINR(row.totalTax)}</td>
       </tr>`;
   }).join('');
+
+  const totalTaxCols = isInterState
+    ? `<td class="cell right"><strong>${fmtINR(totalIgst)}</strong></td>`
+    : `<td class="cell right"><strong>${fmtINR(totalCgst)}</strong></td>
+       <td class="cell right"><strong>${fmtINR(totalSgst)}</strong></td>`;
+
+  const totalRow = `<tr style="background:#f4f6f8">
+        <td class="cell"><strong>Total</strong></td>
+        <td class="cell right"><strong>${fmtINR(totalTaxable)}</strong></td>
+        <td class="cell"></td>
+        ${totalTaxCols}
+        <td class="cell right"><strong>${fmtINR(totalTax)}</strong></td>
+      </tr>`;
 
   return `
   <div style="margin-top:12px">
@@ -171,12 +218,13 @@ export function renderHsnSummaryTable(items: SalesInvoiceItem[]): string {
       <thead>
         <tr>
           <th style="text-align:left">HSN/SAC</th>
-          <th style="text-align:right">Taxable Value</th>
-          ${headerCols}
-          <th style="text-align:right">Total Tax</th>
+          <th style="text-align:right">Taxable Value (\u20B9)</th>
+          <th style="text-align:center">Rate</th>
+          ${headerTaxCols}
+          <th style="text-align:right">Total Tax (\u20B9)</th>
         </tr>
       </thead>
-      <tbody>${bodyRows}</tbody>
+      <tbody>${bodyRows}${totalRow}</tbody>
     </table>
   </div>`;
 }

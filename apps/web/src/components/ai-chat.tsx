@@ -4,10 +4,25 @@ import { Card, CardHeader, CardContent, Button } from '@/components/ui';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 
+// Curated quick-start prompts spanning the main angles a SME owner cares
+// about: cash, receivables, payables, spending, profitability, customer mix.
+// Wrapped into 2-3 rows in the side-by-side dashboard layout to fill the
+// chat column without scrolling.
 const EXAMPLES = [
-  'How much did we spend last month?',
+  // Cash & runway
   "What's our cash position?",
+  'Bills due this week?',
+  // Receivables / collections
   'Top 5 overdue invoices?',
+  'Which customers are most overdue?',
+  // Spending
+  'How much did we spend last month?',
+  'Top 3 expense categories?',
+  // Performance
+  'Profit this month vs last?',
+  'Revenue trend last 6 months?',
+  // Customer mix
+  'Top 5 customers by revenue?',
 ];
 
 function renderInline(text: string): React.ReactNode[] {

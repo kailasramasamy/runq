@@ -3,7 +3,9 @@ import { z } from 'zod';
 const taxCategorySchema = z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated', 'reverse_charge']);
 
 const invoiceItemSchema = z.object({
+  itemId: z.string().uuid().nullish(),
   description: z.string().min(1).max(500),
+  uom: z.string().max(20).nullish(),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().nonnegative('Unit price must be non-negative'),
   amount: z.number().positive('Amount must be positive'),

@@ -60,7 +60,14 @@ export const salesInvoiceItems = pgTable('sales_invoice_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   invoiceId: uuid('invoice_id').notNull().references(() => salesInvoices.id, { onDelete: 'cascade' }),
+  // Optional link back to the items master. Nullable because invoices can
+  // also have ad-hoc lines that don't correspond to a stocked item.
+  // ON DELETE SET NULL so deleting a master item leaves history intact.
+  itemId: uuid('item_id'),
   description: varchar('description', { length: 500 }).notNull(),
+  // Unit of measure (kg, L, pcs, packets, etc) — copied from items.unit at
+  // invoice creation time for line items linked to the items master.
+  uom: varchar('uom', { length: 20 }),
   quantity: decimal('quantity', { precision: 12, scale: 3 }).notNull(),
   unitPrice: decimal('unit_price', { precision: 15, scale: 2 }).notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),

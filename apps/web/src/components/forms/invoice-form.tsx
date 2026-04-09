@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { createSalesInvoiceSchema } from '@runq/validators';
 import type { CreateSalesInvoiceInput } from '@runq/validators';
@@ -37,6 +37,7 @@ interface Props {
 interface LineItem {
   itemId: string;
   description: string;
+  uom: string;
   quantity: string;
   unitPrice: string;
   hsnSacCode: string;
@@ -46,7 +47,7 @@ interface LineItem {
   priceListName?: string | null;
 }
 
-const EMPTY_LINE: LineItem = { itemId: '', description: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
+const EMPTY_LINE: LineItem = { itemId: '', description: '', uom: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
 
 const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
   customer: 'Customer pricing',
@@ -88,26 +89,61 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Hydrate state from initialData (used for the edit flow). Fires when the
-  // invoice query resolves; safe to re-run because the deps include the id.
+  // Hydrate state from initialData (used for the edit flow). We wait for the
+  // items master to load too so we can auto-link any line whose `description`
+  // matches an item by name — this self-heals invoices created before the
+  // `item_id` column existed (where description was stored as items.name but
+  // the link wasn't persisted). The hydratedRef guard ensures we only run
+  // this once per page load so the user's manual edits aren't clobbered.
+  const hydratedRef = useRef(false);
   useEffect(() => {
     if (!initialData) return;
+    if (hydratedRef.current) return;
+    // Wait for the items query to settle so name-matching is reliable. Once
+    // it has, hydrate exactly once.
+    if (itemsData === undefined) return;
+    hydratedRef.current = true;
+
     setCustomerId(initialData.customerId);
     setInvoiceDate(initialData.invoiceDate);
     setDueDate(initialData.dueDate);
     setNotes(initialData.notes ?? '');
+
     if (initialData.items.length > 0) {
-      setLines(initialData.items.map((item) => ({
-        itemId: '',
-        description: item.description,
-        quantity: String(item.quantity),
-        unitPrice: String(item.unitPrice),
-        hsnSacCode: item.hsnSacCode ?? '',
-        taxRate: String(item.taxRate ?? 0),
-        taxCategory: item.taxCategory ?? 'taxable',
-      })));
+      // Build a name → item lookup for auto-linking. Case-insensitive +
+      // trimmed so " Fresh natural cow milk " matches "Fresh natural cow milk".
+      const byName = new Map<string, (typeof allItems)[number]>();
+      for (const it of allItems) {
+        byName.set(it.name.trim().toLowerCase(), it);
+      }
+
+      setLines(initialData.items.map((item) => {
+        let itemId = item.itemId ?? '';
+        let uom = item.uom ?? '';
+        if (!itemId && item.description) {
+          const matched = byName.get(item.description.trim().toLowerCase());
+          if (matched) {
+            itemId = matched.id;
+            // Also borrow UOM from the master if the line didn't carry one
+            if (!uom && matched.unit) uom = matched.unit;
+          }
+        }
+        return {
+          itemId,
+          description: item.description,
+          uom,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice),
+          hsnSacCode: item.hsnSacCode ?? '',
+          taxRate: String(item.taxRate ?? 0),
+          taxCategory: item.taxCategory ?? 'taxable',
+        };
+      }));
     }
-  }, [initialData]);
+    // Intentionally exclude allItems/setLines from deps — we want this to fire
+    // exactly once when both initialData and the items query are first ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, itemsData]);
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
   const tax = lines.reduce((sum, l) => {
@@ -145,7 +181,9 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
       totalAmount: total,
       notes: notes || null,
       items: lines.map((l) => ({
+        itemId: l.itemId || null,
         description: l.description,
+        uom: l.uom || null,
         quantity: parseFloat(l.quantity) || 0,
         unitPrice: parseFloat(l.unitPrice) || 0,
         amount: lineAmount(l),
@@ -217,6 +255,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
               <tr>
                 <Th className="min-w-[140px]">Item</Th>
                 <Th className="min-w-[120px]">Description</Th>
+                <Th className="min-w-[70px]">UOM</Th>
                 <Th className="min-w-[90px]">HSN/SAC</Th>
                 <Th className="min-w-[70px]">Qty</Th>
                 <Th className="min-w-[90px]">Unit Price</Th>
@@ -239,6 +278,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                           ...l,
                           itemId,
                           description: item?.name ?? l.description,
+                          uom: item?.unit ?? l.uom,
                           hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
                           unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
                           taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
@@ -281,6 +321,14 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                       value={line.description}
                       onChange={(e) => updateLine(idx, 'description', e.target.value)}
                       placeholder="Description"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={line.uom}
+                      onChange={(e) => updateLine(idx, 'uom', e.target.value)}
+                      placeholder="kg, L, pcs"
+                      className="w-20"
                     />
                   </TableCell>
                   <TableCell>
