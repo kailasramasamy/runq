@@ -189,7 +189,10 @@ export function ItemAnalysisPage({
           { label: item.name },
           { label: 'Analysis' },
         ]}
-        description={`${item.brand ? item.brand + ' · ' : ''}${item.grammage ?? item.unit ?? ''}${item.ean ? ' · EAN ' + item.ean : ''}`}
+        description={(() => {
+          const brand = (item.attributes?.brand as string | undefined) ?? item.brand;
+          return `${brand ? brand + ' · ' : ''}${item.unit ?? ''}${item.ean ? ' · EAN ' + item.ean : ''}`;
+        })()}
         actions={
           <Button variant="outline" size="sm" onClick={goBack}>
             <ArrowLeft size={14} /> {backLabel}

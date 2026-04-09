@@ -119,12 +119,15 @@ export function ProfitList({
                 <span className="truncate font-medium text-zinc-700 dark:text-zinc-300">
                   {c.item.name}
                 </span>
-                {(c.item.grammage || c.item.unit) && (
-                  <span className="shrink-0 text-zinc-500">· {c.item.grammage ?? c.item.unit}</span>
+                {c.item.unit && (
+                  <span className="shrink-0 text-zinc-500">· {c.item.unit}</span>
                 )}
-                {c.item.brand && (
-                  <span className="shrink-0 text-zinc-400">· {c.item.brand}</span>
-                )}
+                {(() => {
+                  const brand = (c.item.attributes?.brand as string | undefined) ?? c.item.brand;
+                  return brand ? (
+                    <span className="shrink-0 text-zinc-400">· {brand}</span>
+                  ) : null;
+                })()}
               </div>
               <span className={`font-mono font-semibold ${TIER_META[c.tier].text}`}>
                 {margin.toFixed(1)}%

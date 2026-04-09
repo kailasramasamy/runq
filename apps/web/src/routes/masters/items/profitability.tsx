@@ -337,8 +337,10 @@ export function ItemProfitabilityPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">{c.item.name}</TableCell>
-                      <TableCell className="text-zinc-500">{c.item.grammage ?? c.item.unit ?? '-'}</TableCell>
-                      <TableCell className="text-zinc-500">{c.item.brand ?? '-'}</TableCell>
+                      <TableCell className="text-zinc-500">{c.item.unit ?? '-'}</TableCell>
+                      <TableCell className="text-zinc-500">
+                        {(c.item.attributes?.brand as string | undefined) ?? c.item.brand ?? '-'}
+                      </TableCell>
                       <TableCell align="right" numeric>
                         {c.item.mrp != null ? formatINR(c.item.mrp) : '-'}
                       </TableCell>
