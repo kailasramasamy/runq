@@ -112,6 +112,42 @@ export function useItemAttributeSchema() {
   });
 }
 
+export interface SalesAnalyticsRow {
+  itemId: string;
+  name: string;
+  type: 'product' | 'service';
+  unit: string | null;
+  revenue: number;
+  quantity: number;
+  profit: number | null;
+  marginPct: number | null;
+}
+
+export interface SalesAnalyticsResult {
+  periodDays: number;
+  from: string;
+  to: string;
+  revenueMix: { product: number; service: number };
+  topByRevenue: SalesAnalyticsRow[];
+  topByMargin: SalesAnalyticsRow[];
+}
+
+/**
+ * Sales-driven analytics rolled up by item over the last N days. Drives
+ * the "Sales Analytics" panel on the Profitability page — uses real
+ * invoice line data, not the static item-master pricing math.
+ */
+export function useItemSalesAnalytics(periodDays = 90) {
+  return useQuery({
+    queryKey: ['items', 'sales-analytics', periodDays] as const,
+    queryFn: () =>
+      api.get<ApiSuccess<SalesAnalyticsResult>>(
+        `/masters/items/sales-analytics?days=${periodDays}`,
+      ),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
 export function useUpdateItemAttributeSchema() {
   const qc = useQueryClient();
   return useMutation({

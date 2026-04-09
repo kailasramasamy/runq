@@ -27,7 +27,11 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import { useItems, type Item } from '@/hooks/queries/use-items';
+import {
+  useItems,
+  useItemSalesAnalytics,
+  type Item,
+} from '@/hooks/queries/use-items';
 import { calculatePricing, calculateServicePricing } from '@/lib/item-pricing';
 import {
   DistributionBar,
@@ -37,6 +41,7 @@ import {
   type ItemProfitability,
   type Tier,
 } from './profitability-charts';
+import { SalesAnalyticsCard } from './profitability-sales-card';
 
 /**
  * Compute a unified profitability result for any item — service or
@@ -95,6 +100,10 @@ export function ItemProfitabilityPage() {
     () => (data?.data ?? []).filter((i) => i.isActive),
     [data],
   );
+
+  const [salesPeriodDays, setSalesPeriodDays] = useState(90);
+  const { data: salesAnalyticsRes } = useItemSalesAnalytics(salesPeriodDays);
+  const salesAnalytics = salesAnalyticsRes?.data ?? null;
 
   const [healthyMin, setHealthyMin] = useState(10);
   const [marginalMin, setMarginalMin] = useState(0);
@@ -298,6 +307,17 @@ export function ItemProfitabilityPage() {
         </Card>
       </div>
 
+      {/* Sales Analytics — pulls realised invoice data instead of the
+          static item-master math the rest of this page uses. Renders only
+          when the tenant has actual invoice line activity in the period;
+          otherwise the empty state hints at why. */}
+      <SalesAnalyticsCard
+        analytics={salesAnalytics}
+        periodDays={salesPeriodDays}
+        onPeriodChange={setSalesPeriodDays}
+        onOpenItem={openItemAnalysis}
+      />
+
       {/* Filterable table */}
       <Card>
         <CardHeader title={`All Items (${filtered.length} of ${summary.total})`} />
@@ -405,4 +425,5 @@ export function ItemProfitabilityPage() {
     </div>
   );
 }
+
 

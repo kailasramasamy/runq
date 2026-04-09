@@ -53,6 +53,20 @@ export const itemRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Sales-driven analytics rolled up by item over a recent period.
+  // Optional query string ?days=N (default 90, max 366).
+  app.get(
+    '/sales-analytics',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const q = request.query as { days?: string };
+      const days = q.days ? Number.parseInt(q.days, 10) : 90;
+      const service = new ItemService(request.server.db, request.tenantId);
+      const result = await service.getSalesAnalytics(days);
+      return { data: result };
+    },
+  );
+
   app.get(
     '/:id',
     { preHandler: [rbacHook([...READ_ROLES])] },

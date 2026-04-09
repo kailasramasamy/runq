@@ -1,5 +1,5 @@
-import { eq, and, ilike, or, sql } from 'drizzle-orm';
-import { items, priceListItems, tenants } from '@runq/db';
+import { eq, and, ilike, or, sql, gte, lte } from 'drizzle-orm';
+import { items, priceListItems, salesInvoices, salesInvoiceItems, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Item, ItemAttributeSchema, TenantSettings } from '@runq/types';
 import type { CreateItemInput, UpdateItemInput, ItemFilterInput } from '@runq/validators';
@@ -18,6 +18,26 @@ export interface ItemListParams {
 export interface ItemListResult {
   data: Item[];
   meta: PaginationMeta;
+}
+
+export interface SalesAnalyticsRow {
+  itemId: string;
+  name: string;
+  type: 'product' | 'service';
+  unit: string | null;
+  revenue: number;
+  quantity: number;
+  profit: number | null;
+  marginPct: number | null;
+}
+
+export interface SalesAnalyticsResult {
+  periodDays: number;
+  from: string;
+  to: string;
+  revenueMix: { product: number; service: number };
+  topByRevenue: SalesAnalyticsRow[];
+  topByMargin: SalesAnalyticsRow[];
 }
 
 export class ItemService {
@@ -189,6 +209,109 @@ export class ItemService {
       .where(eq(tenants.id, this.tenantId));
 
     return schema;
+  }
+
+  /**
+   * Sales-driven analytics rolled up by item over a recent date window.
+   * Joins sales_invoice_items → sales_invoices (for the date filter) →
+   * items (for type, name, and cost), then groups by item.
+   *
+   * Returns three views:
+   *   - revenueMix: total revenue split by item.type (product vs service)
+   *   - topByRevenue: top 10 items by gross revenue
+   *   - topByMargin: top 10 items by margin %, where the item has a
+   *                  costPrice set (otherwise we can't compute margin)
+   *
+   * Profit math is intentionally simple: revenue − (costPrice × qty).
+   * This treats item.costPrice as a per-unit cost snapshot at "today",
+   * not a historical cost — close enough for a quick analytics view
+   * and deliberately doesn't try to be a full COGS engine.
+   *
+   * Excludes draft and cancelled invoices so the numbers reflect
+   * realised sales, not in-progress quotes.
+   */
+  async getSalesAnalytics(periodDays: number): Promise<SalesAnalyticsResult> {
+    const safeDays = Number.isFinite(periodDays) && periodDays > 0 ? Math.min(periodDays, 366) : 90;
+    const fromDate = new Date();
+    fromDate.setUTCDate(fromDate.getUTCDate() - safeDays);
+    const fromIso = fromDate.toISOString().slice(0, 10);
+    const toIso = new Date().toISOString().slice(0, 10);
+
+    // Aggregate revenue + qty per item, joined via the invoice for date filter
+    // and item type. ad-hoc invoice lines (item_id IS NULL) are excluded —
+    // they have no master record so we can't classify or compute margin.
+    const rows = await this.db
+      .select({
+        itemId: salesInvoiceItems.itemId,
+        itemName: items.name,
+        itemType: items.type,
+        itemCostPrice: items.costPrice,
+        unit: items.unit,
+        revenue: sql<string>`COALESCE(SUM(${salesInvoiceItems.amount}), 0)`,
+        quantity: sql<string>`COALESCE(SUM(${salesInvoiceItems.quantity}), 0)`,
+      })
+      .from(salesInvoiceItems)
+      .innerJoin(salesInvoices, eq(salesInvoiceItems.invoiceId, salesInvoices.id))
+      .innerJoin(items, eq(salesInvoiceItems.itemId, items.id))
+      .where(
+        and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          gte(salesInvoices.invoiceDate, fromIso),
+          lte(salesInvoices.invoiceDate, toIso),
+          // Only count realised sales — drafts and cancellations don't
+          // represent actual revenue.
+          sql`${salesInvoices.status} NOT IN ('draft', 'cancelled')`,
+        ),
+      )
+      .groupBy(salesInvoiceItems.itemId, items.name, items.type, items.costPrice, items.unit);
+
+    // Coerce decimal-strings → numbers and compute profit/margin per item.
+    // costPrice can be null for items where the user hasn't set it; we leave
+    // those out of the margin ranking but keep them in the revenue ranking.
+    const enriched = rows.map((r) => {
+      const revenue = toNumber(r.revenue);
+      const qty = toNumber(r.quantity);
+      const costPerUnit = r.itemCostPrice ? toNumber(r.itemCostPrice) : null;
+      const totalCost = costPerUnit != null ? costPerUnit * qty : null;
+      const profit = totalCost != null ? revenue - totalCost : null;
+      const marginPct = profit != null && revenue > 0 ? (profit / revenue) * 100 : null;
+      return {
+        itemId: r.itemId!,
+        name: r.itemName,
+        type: r.itemType as 'product' | 'service',
+        unit: r.unit,
+        revenue,
+        quantity: qty,
+        profit,
+        marginPct,
+      };
+    });
+
+    // Revenue mix by item type — sum across the entire enriched set so the
+    // ratio matches the top-by-revenue list.
+    const revenueMix = { product: 0, service: 0 };
+    for (const row of enriched) {
+      if (row.type === 'service') revenueMix.service += row.revenue;
+      else revenueMix.product += row.revenue;
+    }
+
+    const topByRevenue = [...enriched]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    const topByMargin = enriched
+      .filter((r) => r.marginPct != null)
+      .sort((a, b) => (b.marginPct ?? 0) - (a.marginPct ?? 0))
+      .slice(0, 10);
+
+    return {
+      periodDays: safeDays,
+      from: fromIso,
+      to: toIso,
+      revenueMix,
+      topByRevenue,
+      topByMargin,
+    };
   }
 
   async remove(id: string): Promise<void> {
