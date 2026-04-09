@@ -1,9 +1,14 @@
 import { useState, useMemo } from 'react';
 import { Check, ArrowLeft, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { useOnboarding, useCompleteOnboardingStep, useDismissOnboarding } from '@/hooks/queries/use-settings';
 import {
-  STEP_META,
+  useOnboarding,
+  useCompleteOnboardingStep,
+  useDismissOnboarding,
+  useCompanySettings,
+} from '@/hooks/queries/use-settings';
+import {
+  getOnboardingSteps,
   type StepKey,
   CompanyProfileStep,
   BankAccountStep,
@@ -19,15 +24,22 @@ interface Props {
 
 export function OnboardingWizard({ open, onClose }: Props) {
   const { data } = useOnboarding();
+  const { data: companyData } = useCompanySettings();
   const completeStep = useCompleteOnboardingStep();
   const dismiss = useDismissOnboarding();
   const completedSteps = data?.data.steps ?? {};
+
+  // Industry-aware step list — drives label/icon/wording on the "item" step.
+  const STEP_META = useMemo(
+    () => getOnboardingSteps(companyData?.data?.industry ?? null),
+    [companyData?.data?.industry],
+  );
 
   // Start at the first incomplete step
   const initialIndex = useMemo(() => {
     const idx = STEP_META.findIndex((s) => !completedSteps[s.key]);
     return idx === -1 ? 0 : idx;
-  }, [completedSteps]);
+  }, [completedSteps, STEP_META]);
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const activeStep = STEP_META[activeIndex];
@@ -211,9 +223,14 @@ function StepBody({ stepKey, onComplete, onSkip }: { stepKey: StepKey; onComplet
 
 export function OnboardingProgressWidget({ onResume }: { onResume: () => void }) {
   const { data } = useOnboarding();
+  const { data: companyData } = useCompanySettings();
   const completedSteps = data?.data.steps ?? {};
   const completedCount = Object.values(completedSteps).filter(Boolean).length;
-  const totalSteps = STEP_META.length;
+  const stepList = useMemo(
+    () => getOnboardingSteps(companyData?.data?.industry ?? null),
+    [companyData?.data?.industry],
+  );
+  const totalSteps = stepList.length;
   const progressPct = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
   const isComplete = data?.data.completed || completedCount === totalSteps;
 

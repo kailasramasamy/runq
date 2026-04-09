@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Sparkles, CheckCircle2 } from 'lucide-react';
 import { Button, Card, CardContent } from '@/components/ui';
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard';
-import { useOnboarding } from '@/hooks/queries/use-settings';
-import { STEP_META } from '@/components/onboarding/onboarding-steps';
+import { useOnboarding, useCompanySettings } from '@/hooks/queries/use-settings';
+import { getOnboardingSteps } from '@/components/onboarding/onboarding-steps';
 
 export function SetupPage() {
   const navigate = useNavigate();
   const { data } = useOnboarding();
+  const { data: companyData } = useCompanySettings();
   const [wizardOpen, setWizardOpen] = useState(false);
+
+  const STEP_META = useMemo(
+    () => getOnboardingSteps(companyData?.data?.industry ?? null),
+    [companyData?.data?.industry],
+  );
 
   const completedSteps = data?.data.steps ?? {};
   const completedCount = Object.values(completedSteps).filter(Boolean).length;
