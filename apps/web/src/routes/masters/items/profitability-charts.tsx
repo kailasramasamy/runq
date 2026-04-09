@@ -1,12 +1,25 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import type { Item } from '@/hooks/queries/use-items';
-import type { PricingResult } from '@/lib/item-pricing';
 
 export type Tier = 'healthy' | 'marginal' | 'loss' | 'unclassified';
 
+/**
+ * Unified profitability result shape used by the profitability page.
+ * Covers both the product MRP flow (computed via calculatePricing) and
+ * the service flow (computed via calculateServicePricing). Only the
+ * three fields this page actually displays are in the shape — other
+ * product-specific metrics (landing price, seller earnings, effective
+ * COGM) live on the analysis page where they belong.
+ */
+export interface ItemProfitability {
+  basicPrice: number;
+  profitPerUnit: number;
+  netMarginPct: number;
+}
+
 export interface ClassifiedItem {
   item: Item;
-  result: PricingResult | null;
+  result: ItemProfitability | null;
   tier: Tier;
 }
 

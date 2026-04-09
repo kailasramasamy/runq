@@ -15,9 +15,10 @@ import { formatINR } from '@/lib/utils';
 import { useItem, useUpdateItem, type CogmComponent } from '@/hooks/queries/use-items';
 import {
   calculatePricing,
+  calculateServicePricing,
   solveMrpForTargetMargin,
   solveBreakevenMrp,
-  roundUpToFmcgPrice,
+  roundUpToPsychologicalPrice,
   sumCogmBreakdown,
 } from '@/lib/item-pricing';
 import { CogmBreakdownCard } from './cogm-breakdown-card';
@@ -47,6 +48,9 @@ export function ItemAnalysisPage({
   const item = data?.data;
 
   // Knobs — initialised from the saved item once it loads.
+  // Product path uses: cogm, gstRate, sellerMargin, mrp, scheme, freight.
+  // Service path uses: cogm, gstRate, servicePrice.
+  // Both share the cost breakdown and gstRate state.
   const [cogm, setCogm] = useState('');
   const [gstRate, setGstRate] = useState('5');
   const [sellerMargin, setSellerMargin] = useState('20');
@@ -54,15 +58,19 @@ export function ItemAnalysisPage({
   const [scheme, setScheme] = useState('0');
   const [freight, setFreight] = useState('0');
   const [targetMargin, setTargetMargin] = useState('10');
+  const [servicePrice, setServicePrice] = useState('');
   const [breakdown, setBreakdown] = useState<CogmComponent[]>([]);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+
+  const isService = item?.type === 'service';
 
   useEffect(() => {
     if (!item) return;
     setCogm(item.costPrice?.toString() ?? '');
-    setGstRate(item.gstRate?.toString() ?? '5');
+    setGstRate(item.gstRate?.toString() ?? (item.type === 'service' ? '18' : '5'));
     setSellerMargin(item.margin?.toString() ?? '20');
     setMrp(item.mrp?.toString() ?? '');
+    setServicePrice(item.defaultSellingPrice?.toString() ?? '');
     setBreakdown(item.cogmBreakdown ?? []);
   }, [item]);
 
@@ -97,6 +105,17 @@ export function ItemAnalysisPage({
         freightPct: Number(freight) || 0,
       }),
     [mrp, sellerMargin, gstRate, effectiveCogm, scheme, freight],
+  );
+
+  // Service pricing result — simpler math, used only when item.type === 'service'.
+  const serviceResult = useMemo(
+    () =>
+      calculateServicePricing({
+        sellingPrice: Number(servicePrice) || 0,
+        cost: effectiveCogm,
+        gstRatePct: Number(gstRate) || 0,
+      }),
+    [servicePrice, effectiveCogm, gstRate],
   );
 
   const solvedMrp = useMemo(() => {
@@ -143,19 +162,33 @@ export function ItemAnalysisPage({
         return Number.isFinite(n) ? n : null;
       };
 
-      await update.mutateAsync({
-        id: item.id,
-        data: {
-          costPrice: effectiveCogm || null,
-          gstRate: numOrNull(gstRate),
-          margin: numOrNull(sellerMargin),
-          mrp: numOrNull(mrp),
-          basicPrice: result.basicPrice || null,
-          gstValue: result.gstValue || null,
-          defaultSellingPrice: result.landingPrice || null,
-          cogmBreakdown: cleanBreakdown.length > 0 ? cleanBreakdown : null,
-        },
-      });
+      // Services persist a simpler slice of the pricing fields: no MRP, no
+      // seller margin, no landing price derived from a chain — just cost,
+      // GST, and selling price. MRP/margin are explicitly nulled so an
+      // item flipped from product → service leaves no stale values.
+      const data = isService
+        ? {
+            costPrice: effectiveCogm || null,
+            gstRate: numOrNull(gstRate),
+            defaultSellingPrice: numOrNull(servicePrice),
+            basicPrice: serviceResult.basicPrice || null,
+            gstValue: serviceResult.gstValue || null,
+            mrp: null,
+            margin: null,
+            cogmBreakdown: cleanBreakdown.length > 0 ? cleanBreakdown : null,
+          }
+        : {
+            costPrice: effectiveCogm || null,
+            gstRate: numOrNull(gstRate),
+            margin: numOrNull(sellerMargin),
+            mrp: numOrNull(mrp),
+            basicPrice: result.basicPrice || null,
+            gstValue: result.gstValue || null,
+            defaultSellingPrice: result.landingPrice || null,
+            cogmBreakdown: cleanBreakdown.length > 0 ? cleanBreakdown : null,
+          };
+
+      await update.mutateAsync({ id: item.id, data });
       toast('Saved to item master', 'success');
     } catch {
       toast('Failed to save', 'error');
@@ -164,8 +197,11 @@ export function ItemAnalysisPage({
 
   function applySolved() {
     if (solvedMrp == null) return;
-    setMrp(roundUpToFmcgPrice(solvedMrp).toString());
+    setMrp(roundUpToPsychologicalPrice(solvedMrp).toString());
   }
+
+  const isLossService = serviceResult.profitPerUnit < 0;
+  const lowMarginService = !isLossService && serviceResult.netMarginPct < 5;
 
   if (isLoading || !item) {
     return (
@@ -182,7 +218,7 @@ export function ItemAnalysisPage({
   return (
     <div className="max-w-6xl space-y-4">
       <PageHeader
-        title={`Cost & Profit Analysis — ${item.name}`}
+        title={isService ? `Service Pricing — ${item.name}` : `Cost & Profit Analysis — ${item.name}`}
         breadcrumbs={[
           { label: 'Masters' },
           { label: 'Items', href: '/masters/items' },
@@ -203,13 +239,13 @@ export function ItemAnalysisPage({
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ── KNOBS ─────────────────────────────────────────────── */}
         <Card>
-          <CardHeader title="Inputs — adjust any value to recalculate live" />
+          <CardHeader title={isService ? 'Inputs — selling price, cost & GST' : 'Inputs — adjust any value to recalculate live'} />
           <CardContent className="space-y-4">
-            {/* COGM is always derived from the breakdown — single source of truth.
+            {/* Cost is always derived from the breakdown — single source of truth.
                 The input is disabled; clicking the button below opens the dialog. */}
             <div>
               <Input
-                label="COGM (₹)"
+                label="Cost Price (₹)"
                 type="number"
                 step="0.01"
                 value={cogm}
@@ -230,7 +266,7 @@ export function ItemAnalysisPage({
               >
                 {breakdown.length === 0 ? (
                   <>
-                    <Plus size={14} /> Build COGM
+                    <Plus size={14} /> Build Cost
                   </>
                 ) : (
                   <>
@@ -240,48 +276,69 @@ export function ItemAnalysisPage({
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="GST Rate (%)"
-                type="number"
-                step="0.01"
-                value={gstRate}
-                onChange={(e) => setGstRate(e.target.value)}
-                helper="0, 5, 12, 18, or 28"
-              />
-              <Input
-                label="Seller Margin (% off MRP)"
-                type="number"
-                step="0.01"
-                value={sellerMargin}
-                onChange={(e) => setSellerMargin(e.target.value)}
-                helper="What the retailer earns"
-              />
-              <Input
-                label="MRP (₹)"
-                type="number"
-                step="0.01"
-                value={mrp}
-                onChange={(e) => setMrp(e.target.value)}
-                helper="Consumer printed price"
-              />
-              <Input
-                label="Trade Scheme (% off basic)"
-                type="number"
-                step="0.01"
-                value={scheme}
-                onChange={(e) => setScheme(e.target.value)}
-                helper="Promo discount you give the seller"
-              />
-              <Input
-                label="Freight & Damages (% on cost)"
-                type="number"
-                step="0.01"
-                value={freight}
-                onChange={(e) => setFreight(e.target.value)}
-                helper="Logistics + RTV leakage"
-              />
-            </div>
+            {isService ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="GST Rate (%)"
+                  type="number"
+                  step="0.01"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(e.target.value)}
+                  helper="0, 5, 12, 18, or 28"
+                />
+                <Input
+                  label="Selling Price (₹)"
+                  type="number"
+                  step="0.01"
+                  value={servicePrice}
+                  onChange={(e) => setServicePrice(e.target.value)}
+                  helper={`What you charge per ${item.unit || 'unit'} (incl GST)`}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="GST Rate (%)"
+                  type="number"
+                  step="0.01"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(e.target.value)}
+                  helper="0, 5, 12, 18, or 28"
+                />
+                <Input
+                  label="Seller Margin (% off MRP)"
+                  type="number"
+                  step="0.01"
+                  value={sellerMargin}
+                  onChange={(e) => setSellerMargin(e.target.value)}
+                  helper="What the retailer earns"
+                />
+                <Input
+                  label="MRP (₹)"
+                  type="number"
+                  step="0.01"
+                  value={mrp}
+                  onChange={(e) => setMrp(e.target.value)}
+                  helper="Consumer printed price"
+                />
+                <Input
+                  label="Trade Scheme (% off basic)"
+                  type="number"
+                  step="0.01"
+                  value={scheme}
+                  onChange={(e) => setScheme(e.target.value)}
+                  helper="Promo discount you give the seller"
+                />
+                <Input
+                  label="Freight & Damages (% on cost)"
+                  type="number"
+                  step="0.01"
+                  value={freight}
+                  onChange={(e) => setFreight(e.target.value)}
+                  helper="Logistics + RTV leakage"
+                />
+              </div>
+            )}
             <div className="flex gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
               <Button size="sm" onClick={handleSaveToItem} loading={update.isPending}>
                 <Save size={14} /> Save to Item
@@ -294,115 +351,164 @@ export function ItemAnalysisPage({
         <Card>
           <CardHeader title="Per-unit Breakdown" />
           <CardContent>
-            <Table>
-              <Row label="MRP (consumer price)" value={mrp ? formatINR(Number(mrp)) : '—'} muted />
-              <Row label="Seller earnings" value={formatINR(result.sellerEarningsPerUnit)} muted hint={`${sellerMargin}% off MRP`} />
-              <Divider />
-              <Row label="Landing Price (incl GST)" value={formatINR(result.landingPrice)} hint="What you invoice the seller" emphasized />
-              <Row label="GST Value" value={`(${formatINR(result.gstValue)})`} muted hint={`GST ${gstRate}% — collected on behalf of govt`} />
-              <Row label="Basic Price (excl GST)" value={formatINR(result.basicPrice)} hint="Your taxable invoice value" emphasized />
-              {Number(scheme) > 0 && (
-                <Row label="Effective Basic Price (after scheme)" value={formatINR(result.effectiveBasicPrice)} hint={`After ${scheme}% trade scheme`} />
-              )}
-              <Divider />
-              <Row label="COGM" value={`(${formatINR(Number(cogm) || 0)})`} muted />
-              {Number(freight) > 0 && (
-                <Row label="Effective COGM (with freight/damages)" value={`(${formatINR(result.effectiveCogm)})`} muted hint={`+${freight}% leakage`} />
-              )}
-              <Divider />
-              <Row
-                label="Profit per unit"
-                value={formatINR(result.profitPerUnit)}
-                emphasized
-                tone={isLoss ? 'red' : lowMargin ? 'amber' : 'emerald'}
-              />
-              <Row
-                label="Net margin %"
-                value={`${result.netMarginPct.toFixed(2)}%`}
-                tone={isLoss ? 'red' : lowMargin ? 'amber' : 'emerald'}
-              />
-              <Row
-                label="Markup on cost %"
-                value={`${result.markupOnCostPct.toFixed(2)}%`}
-                muted
-              />
-            </Table>
-            {isLoss && (
-              <Alert tone="red">
-                You're losing {formatINR(Math.abs(result.profitPerUnit))} per unit at this price. Either raise MRP, drop seller margin, or cut COGM.
-              </Alert>
-            )}
-            {lowMargin && (
-              <Alert tone="amber">
-                Net margin is below 5%. After typical FMCG schemes & freight, this leaves no real profit.
-              </Alert>
+            {isService ? (
+              <>
+                <Table>
+                  <Row label="Selling Price (incl GST)" value={servicePrice ? formatINR(Number(servicePrice)) : '—'} emphasized hint={`Per ${item.unit || 'unit'}`} />
+                  <Row label="GST Value" value={`(${formatINR(serviceResult.gstValue)})`} muted hint={`GST ${gstRate}% — collected for govt`} />
+                  <Row label="Basic Price (excl GST)" value={formatINR(serviceResult.basicPrice)} hint="Your taxable invoice value" emphasized />
+                  <Divider />
+                  <Row label="Cost" value={`(${formatINR(Number(cogm) || 0)})`} muted hint="Labour + overhead per unit" />
+                  <Divider />
+                  <Row
+                    label="Profit per unit"
+                    value={formatINR(serviceResult.profitPerUnit)}
+                    emphasized
+                    tone={isLossService ? 'red' : lowMarginService ? 'amber' : 'emerald'}
+                  />
+                  <Row
+                    label="Net margin %"
+                    value={`${serviceResult.netMarginPct.toFixed(2)}%`}
+                    tone={isLossService ? 'red' : lowMarginService ? 'amber' : 'emerald'}
+                  />
+                  <Row
+                    label="Markup on cost %"
+                    value={`${serviceResult.markupOnCostPct.toFixed(2)}%`}
+                    muted
+                  />
+                </Table>
+                {isLossService && (
+                  <Alert tone="red">
+                    You're losing {formatINR(Math.abs(serviceResult.profitPerUnit))} per unit at this price. Raise the selling price or reduce the cost.
+                  </Alert>
+                )}
+                {lowMarginService && (
+                  <Alert tone="amber">
+                    Net margin is below 5%. After discounts and overheads, this leaves little real profit.
+                  </Alert>
+                )}
+              </>
+            ) : (
+              <>
+                <Table>
+                  <Row label="MRP (consumer price)" value={mrp ? formatINR(Number(mrp)) : '—'} muted />
+                  <Row label="Seller earnings" value={formatINR(result.sellerEarningsPerUnit)} muted hint={`${sellerMargin}% off MRP`} />
+                  <Divider />
+                  <Row label="Landing Price (incl GST)" value={formatINR(result.landingPrice)} hint="What you invoice the seller" emphasized />
+                  <Row label="GST Value" value={`(${formatINR(result.gstValue)})`} muted hint={`GST ${gstRate}% — collected on behalf of govt`} />
+                  <Row label="Basic Price (excl GST)" value={formatINR(result.basicPrice)} hint="Your taxable invoice value" emphasized />
+                  {Number(scheme) > 0 && (
+                    <Row label="Effective Basic Price (after scheme)" value={formatINR(result.effectiveBasicPrice)} hint={`After ${scheme}% trade scheme`} />
+                  )}
+                  <Divider />
+                  <Row label="Cost" value={`(${formatINR(Number(cogm) || 0)})`} muted />
+                  {Number(freight) > 0 && (
+                    <Row label="Effective Cost (with freight/damages)" value={`(${formatINR(result.effectiveCogm)})`} muted hint={`+${freight}% leakage`} />
+                  )}
+                  <Divider />
+                  <Row
+                    label="Profit per unit"
+                    value={formatINR(result.profitPerUnit)}
+                    emphasized
+                    tone={isLoss ? 'red' : lowMargin ? 'amber' : 'emerald'}
+                  />
+                  <Row
+                    label="Net margin %"
+                    value={`${result.netMarginPct.toFixed(2)}%`}
+                    tone={isLoss ? 'red' : lowMargin ? 'amber' : 'emerald'}
+                  />
+                  <Row
+                    label="Markup on cost %"
+                    value={`${result.markupOnCostPct.toFixed(2)}%`}
+                    muted
+                  />
+                </Table>
+                {isLoss && (
+                  <Alert tone="red">
+                    You're losing {formatINR(Math.abs(result.profitPerUnit))} per unit at this price. Either raise MRP, drop seller margin, or cut the cost.
+                  </Alert>
+                )}
+                {lowMargin && (
+                  <Alert tone="amber">
+                    Net margin is below 5%. After discounts, delivery, and overheads, this leaves no real profit.
+                  </Alert>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* ── VOLUME SCENARIOS ─────────────────────────────────────── */}
-      <Card>
-        <CardHeader title="Volume Scenarios — total profit at different unit volumes" />
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {VOLUME_TIERS.map((units) => {
-              const total = result.profitPerUnit * units;
-              return (
-                <div key={units} className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{units.toLocaleString('en-IN')} units</p>
-                  <p className={`mt-1 text-base font-bold ${total < 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                    {formatINR(total)}
+      {/* Volume scenarios and solve-for-MRP only apply to the product pricing
+          flow — services don't have an MRP or per-unit volume curve in the
+          same way, and the Phase A scope doesn't add equivalent services
+          analytics. Hide these cards for service items entirely. */}
+      {!isService && (
+        <>
+          {/* ── VOLUME SCENARIOS ─────────────────────────────────────── */}
+          <Card>
+            <CardHeader title="Volume Scenarios — total profit at different unit volumes" />
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {VOLUME_TIERS.map((units) => {
+                  const total = result.profitPerUnit * units;
+                  return (
+                    <div key={units} className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{units.toLocaleString('en-IN')} units</p>
+                      <p className={`mt-1 text-base font-bold ${total < 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                        {formatINR(total)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── SOLVE FOR ────────────────────────────────────────────── */}
+          <Card>
+            <CardHeader title="Solve For MRP — find the price that hits a target margin" />
+            <CardContent className="space-y-3">
+              <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto_1fr_auto]">
+                <Input
+                  label="Target net margin %"
+                  type="number"
+                  step="0.01"
+                  value={targetMargin}
+                  onChange={(e) => setTargetMargin(e.target.value)}
+                />
+                <div className="text-xl text-zinc-400">→</div>
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-900 dark:bg-indigo-950/40">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Required MRP</p>
+                  <p className="text-lg font-bold text-indigo-900 dark:text-indigo-200">
+                    {solvedMrp != null ? formatINR(solvedMrp) : '—'}
+                    {solvedMrp != null && (
+                      <span className="ml-2 text-xs font-normal text-indigo-600 dark:text-indigo-400">
+                        (round to ₹{roundUpToPsychologicalPrice(solvedMrp)})
+                      </span>
+                    )}
                   </p>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── SOLVE FOR ────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader title="Solve For MRP — find the price that hits a target margin" />
-        <CardContent className="space-y-3">
-          <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto_1fr_auto]">
-            <Input
-              label="Target net margin %"
-              type="number"
-              step="0.01"
-              value={targetMargin}
-              onChange={(e) => setTargetMargin(e.target.value)}
-            />
-            <div className="text-xl text-zinc-400">→</div>
-            <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-900 dark:bg-indigo-950/40">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Required MRP</p>
-              <p className="text-lg font-bold text-indigo-900 dark:text-indigo-200">
-                {solvedMrp != null ? formatINR(solvedMrp) : '—'}
-                {solvedMrp != null && (
-                  <span className="ml-2 text-xs font-normal text-indigo-600 dark:text-indigo-400">
-                    (round to ₹{roundUpToFmcgPrice(solvedMrp)})
-                  </span>
+                <Button variant="outline" size="sm" onClick={applySolved} disabled={solvedMrp == null}>
+                  <Calculator size={14} /> Apply
+                </Button>
+              </div>
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+                <Sparkles size={12} className="mr-1 inline text-indigo-500" />
+                Break-even MRP at current cost & margin: <strong>{breakeven != null ? formatINR(breakeven) : '—'}</strong>
+                {breakeven != null && Number(mrp) > 0 && Number(mrp) < breakeven && (
+                  <span className="ml-2 text-red-600 dark:text-red-400">— current MRP is below break-even</span>
                 )}
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={applySolved} disabled={solvedMrp == null}>
-              <Calculator size={14} /> Apply
-            </Button>
-          </div>
-          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-            <Sparkles size={12} className="mr-1 inline text-indigo-500" />
-            Break-even MRP at current cost & margin: <strong>{breakeven != null ? formatINR(breakeven) : '—'}</strong>
-            {breakeven != null && Number(mrp) > 0 && Number(mrp) < breakeven && (
-              <span className="ml-2 text-red-600 dark:text-red-400">— current MRP is below break-even</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-      {/* ── COGM BREAKDOWN DIALOG ───────────────────────────────── */}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+      {/* ── COST BREAKDOWN DIALOG ───────────────────────────────── */}
       <Modal
         open={breakdownOpen}
         onClose={() => setBreakdownOpen(false)}
-        title="COGM Breakdown"
+        title="Cost Breakdown"
         wide
       >
         <CogmBreakdownCard

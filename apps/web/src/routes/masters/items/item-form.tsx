@@ -11,8 +11,25 @@ import {
   type CreateItemInput,
 } from '@/hooks/queries/use-items';
 import { useCategoryTree } from '@/hooks/queries/use-categories';
-import { calculatePricing } from '@/lib/item-pricing';
+import { useCompanySettings } from '@/hooks/queries/use-settings';
+import { calculatePricing, calculateServicePricing } from '@/lib/item-pricing';
 import { formatINR } from '@/lib/utils';
+
+/**
+ * Industries where the tenant's default output is services, not goods.
+ * New items created in these industries default to `type: 'service'`
+ * so a consulting firm doesn't have to manually flip every item.
+ * Retail / Manufacturing / Trading / Construction / Food & Beverage
+ * all default to 'product'. "Other" defaults to 'product' too since
+ * we have no signal to go on.
+ */
+const SERVICE_INDUSTRIES = new Set([
+  'Services',
+  'IT / Software',
+  'Education',
+  'Healthcare',
+  'Hospitality',
+]);
 
 function num(v: string): number | null {
   if (v.trim() === '') return null;
@@ -44,11 +61,19 @@ export function ItemForm({
   const update = useUpdateItem();
   const { toast } = useToast();
   const { data: treeData } = useCategoryTree();
+  const { data: companyData } = useCompanySettings();
   const categoryTree = treeData?.data ?? [];
   const isEdit = !!item;
   // Source for initial values: item when editing, template when duplicating.
   const source = item ?? template ?? null;
   const isDuplicate = !!template && !item;
+
+  // Default item type: for pre-existing items use their saved type.
+  // For new items, use the tenant's industry to pick 'service' vs 'product'.
+  // Falls back to 'product' when the industry isn't set or isn't recognized.
+  const tenantIndustry = companyData?.data?.industry ?? null;
+  const defaultItemType: 'product' | 'service' =
+    tenantIndustry && SERVICE_INDUSTRIES.has(tenantIndustry) ? 'service' : 'product';
 
   // Basic — when duplicating, suffix the name and clear unique identifiers
   // (sku has a partial unique constraint, ean is semantically unique).
@@ -57,7 +82,7 @@ export function ItemForm({
   );
   const [sku, setSku] = useState(isDuplicate ? '' : source?.sku ?? '');
   const [ean, setEan] = useState(isDuplicate ? '' : source?.ean ?? '');
-  const [type, setType] = useState<'product' | 'service'>(source?.type ?? 'product');
+  const [type, setType] = useState<'product' | 'service'>(source?.type ?? defaultItemType);
   const [hsnSacCode, setHsnSacCode] = useState(source?.hsnSacCode ?? '');
   const [unit, setUnit] = useState(source?.unit ?? '');
   const [gstRate, setGstRate] = useState(source?.gstRate?.toString() ?? '');
@@ -95,11 +120,11 @@ export function ItemForm({
     .filter((s) => s.isActive)
     .map((s) => ({ value: s.name, label: s.name }));
 
-  // Live preview of the pricing math from current form values. The user can
-  // see profit, net margin, and the derived Basic / Landing prices update as
-  // they edit MRP / margin / GST / COGM. Falls back to nothing if any of the
-  // four required inputs are missing.
+  // Live preview of the product pricing math. Shows profit, net margin, and
+  // derived Basic / Landing prices as the user edits MRP / margin / GST / COGM.
+  // Returns null if any required input is missing.
   const livePricing = useMemo(() => {
+    if (type !== 'product') return null;
     const m = Number(mrp);
     const sm = Number(margin);
     const gr = Number(gstRate);
@@ -112,7 +137,23 @@ export function ItemForm({
       gstRatePct: gr,
       cogm: c || 0,
     });
-  }, [mrp, margin, gstRate, costPrice]);
+  }, [type, mrp, margin, gstRate, costPrice]);
+
+  // Live preview for the service pricing flow — simpler (selling price,
+  // cost, GST → margin). Returns null if selling price is missing since
+  // that's the only strictly required input.
+  const liveServicePricing = useMemo(() => {
+    if (type !== 'service') return null;
+    const sp = Number(defaultSellingPrice);
+    const c = Number(costPrice);
+    const gr = Number(gstRate);
+    if (!sp) return null;
+    return calculateServicePricing({
+      sellingPrice: sp,
+      cost: c || 0,
+      gstRatePct: gr || 0,
+    });
+  }, [type, defaultSellingPrice, costPrice, gstRate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -130,9 +171,7 @@ export function ItemForm({
       basicPrice: num(basicPrice),
       gstValue: num(gstValue),
       margin: num(margin),
-      // Catalogue attributes — the backend maps any FMCG-mapped keys
-      // (grammage, packingType, …) into the legacy dedicated columns,
-      // and stores the whole object in items.attributes.
+      // Industry-specific catalogue attributes persisted to items.attributes.
       attributes: normalizeAttributesForSubmit(attributes, attributeSchema),
       category: category || null,
       subcategory: subcategory || null,
@@ -185,45 +224,89 @@ export function ItemForm({
         </div>
       </fieldset>
 
-      {/* Pricing */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Pricing — flows from COGM → Basic Price → GST → Landing Price → MRP
-        </legend>
-        {isEdit && (
-          <div className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
-            <div className="flex items-start gap-2">
-              <Lock size={14} className="mt-0.5 shrink-0" />
-              <p>
-                Pricing is read-only here. The fields below are interrelated (MRP × margin → Landing → Basic → GST), so editing them directly risks inconsistency.
-                Use the <strong>Cost &amp; Profit Analysis</strong> calculator to change pricing — it keeps every value in sync and saves them back here.
-              </p>
+      {/* Pricing — product and service flows are different. Products run
+          through the MRP → seller margin → basic → landing chain; services
+          are just selling price, cost, GST → margin. */}
+      {type === 'product' ? (
+        <fieldset className="space-y-3">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Pricing — Cost → Basic Price → GST → Landing Price → MRP
+          </legend>
+          {isEdit && (
+            <div className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+              <div className="flex items-start gap-2">
+                <Lock size={14} className="mt-0.5 shrink-0" />
+                <p>
+                  Pricing is read-only here. The fields below are interrelated (MRP × margin → Landing → Basic → GST), so editing them directly risks inconsistency.
+                  Use the <strong>Cost &amp; Profit Analysis</strong> page to change pricing — it keeps every value in sync and saves them back here.
+                </p>
+              </div>
+              {onOpenAnalysis && (
+                <Button type="button" variant="outline" size="sm" onClick={onOpenAnalysis} className="w-full sm:w-auto">
+                  <Calculator size={14} /> Open Cost Analysis
+                </Button>
+              )}
             </div>
-            {onOpenAnalysis && (
-              <Button type="button" variant="outline" size="sm" onClick={onOpenAnalysis} className="w-full sm:w-auto">
-                <Calculator size={14} /> Open Calculator
-              </Button>
-            )}
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+            <Input label="MRP (consumer)" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="₹" disabled={isEdit} />
+            <Input label="Seller Margin (% off MRP)" type="number" value={margin} onChange={(e) => setMargin(e.target.value)} placeholder="20" disabled={isEdit} />
+            <Input label="GST Rate (%)" type="number" value={gstRate} onChange={(e) => setGstRate(e.target.value)} placeholder="5" disabled={isEdit} />
+            <Input label="Cost Price" type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="₹" disabled={isEdit} />
+            <Input label="Basic Price (excl GST)" type="number" value={basicPrice} onChange={(e) => setBasicPrice(e.target.value)} placeholder="Invoice taxable" disabled={isEdit} />
+            <Input label="GST Amount (₹)" type="number" value={gstValue} onChange={(e) => setGstValue(e.target.value)} placeholder="Tax amt" disabled={isEdit} />
+            <Input label="Landing Price (incl GST)" type="number" value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="What seller pays you" disabled={isEdit} />
           </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-          <Input label="MRP (consumer)" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="₹" disabled={isEdit} />
-          <Input label="Seller Margin (% off MRP)" type="number" value={margin} onChange={(e) => setMargin(e.target.value)} placeholder="20" disabled={isEdit} />
-          <Input label="GST Rate (%)" type="number" value={gstRate} onChange={(e) => setGstRate(e.target.value)} placeholder="5" disabled={isEdit} />
-          <Input label="COGM (mfg cost)" type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="₹" disabled={isEdit} />
-          <Input label="Basic Price (excl GST)" type="number" value={basicPrice} onChange={(e) => setBasicPrice(e.target.value)} placeholder="Invoice taxable" disabled={isEdit} />
-          <Input label="GST Amount (₹)" type="number" value={gstValue} onChange={(e) => setGstValue(e.target.value)} placeholder="Tax amt" disabled={isEdit} />
-          <Input label="Landing Price (incl GST)" type="number" value={defaultSellingPrice} onChange={(e) => setDefaultSellingPrice(e.target.value)} placeholder="What seller pays you" disabled={isEdit} />
-        </div>
-        {livePricing && (
-          <LivePricingPreview
-            basicPrice={livePricing.basicPrice}
-            landingPrice={livePricing.landingPrice}
-            profit={livePricing.profitPerUnit}
-            netMargin={livePricing.netMarginPct}
-          />
-        )}
-      </fieldset>
+          {livePricing && (
+            <LivePricingPreview
+              basicPrice={livePricing.basicPrice}
+              landingPrice={livePricing.landingPrice}
+              profit={livePricing.profitPerUnit}
+              netMargin={livePricing.netMarginPct}
+            />
+          )}
+        </fieldset>
+      ) : (
+        <fieldset className="space-y-3">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Pricing — Selling Price, Cost &amp; GST
+          </legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+            <Input
+              label="Selling Price"
+              type="number"
+              value={defaultSellingPrice}
+              onChange={(e) => setDefaultSellingPrice(e.target.value)}
+              placeholder="₹ per unit"
+              helper={`What you charge per ${unit || 'unit'} (incl GST)`}
+            />
+            <Input
+              label="Cost Price"
+              type="number"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              placeholder="₹"
+              helper="Labour + overhead per unit"
+            />
+            <Input
+              label="GST Rate (%)"
+              type="number"
+              value={gstRate}
+              onChange={(e) => setGstRate(e.target.value)}
+              placeholder="18"
+            />
+          </div>
+          {liveServicePricing && (
+            <LivePricingPreview
+              basicPrice={liveServicePricing.basicPrice}
+              landingPrice={Number(defaultSellingPrice) || 0}
+              profit={liveServicePricing.profitPerUnit}
+              netMargin={liveServicePricing.netMarginPct}
+              landingLabel="Sell Price"
+            />
+          )}
+        </fieldset>
+      )}
 
       {/* Catalogue details — dynamic, driven by the tenant's industry-specific
           attribute schema (seeded at signup from an industry preset). */}
@@ -305,11 +388,13 @@ function LivePricingPreview({
   landingPrice,
   profit,
   netMargin,
+  landingLabel = 'Landing Price',
 }: {
   basicPrice: number;
   landingPrice: number;
   profit: number;
   netMargin: number;
+  landingLabel?: string;
 }) {
   const isLoss = profit < 0;
   const tone = isLoss
@@ -325,7 +410,7 @@ function LivePricingPreview({
   return (
     <div className={`grid grid-cols-2 gap-2 rounded-md border px-3 py-2 text-xs sm:grid-cols-4 ${tone}`}>
       <Stat label="Basic Price" value={formatINR(basicPrice)} />
-      <Stat label="Landing Price" value={formatINR(landingPrice)} />
+      <Stat label={landingLabel} value={formatINR(landingPrice)} />
       <Stat label="Profit / unit" value={formatINR(profit)} className={profitColor} />
       <Stat label="Net margin" value={`${netMargin.toFixed(2)}%`} className={profitColor} />
     </div>

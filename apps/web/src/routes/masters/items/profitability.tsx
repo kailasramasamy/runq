@@ -28,16 +28,37 @@ import {
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import { useItems, type Item } from '@/hooks/queries/use-items';
-import { calculatePricing, type PricingResult } from '@/lib/item-pricing';
+import { calculatePricing, calculateServicePricing } from '@/lib/item-pricing';
 import {
   DistributionBar,
   ProfitList,
   TIER_META,
   type ClassifiedItem,
+  type ItemProfitability,
   type Tier,
 } from './profitability-charts';
 
-function computeResult(item: Item): PricingResult | null {
+/**
+ * Compute a unified profitability result for any item — service or
+ * product. Services use the simpler (sellPrice - cost) model; products
+ * use the MRP → margin → basic chain. Returns null when required
+ * inputs are missing so the item renders as "unclassified".
+ */
+function computeResult(item: Item): ItemProfitability | null {
+  if (item.type === 'service') {
+    if (item.defaultSellingPrice == null || item.costPrice == null) return null;
+    const r = calculateServicePricing({
+      sellingPrice: item.defaultSellingPrice,
+      cost: item.costPrice,
+      gstRatePct: item.gstRate ?? 0,
+    });
+    return {
+      basicPrice: r.basicPrice,
+      profitPerUnit: r.profitPerUnit,
+      netMarginPct: r.netMarginPct,
+    };
+  }
+  // Product path — needs the full MRP chain.
   if (
     item.mrp == null ||
     item.margin == null ||
@@ -46,15 +67,20 @@ function computeResult(item: Item): PricingResult | null {
   ) {
     return null;
   }
-  return calculatePricing({
+  const r = calculatePricing({
     mrp: item.mrp,
     sellerMarginPct: item.margin,
     gstRatePct: item.gstRate,
     cogm: item.costPrice,
   });
+  return {
+    basicPrice: r.basicPrice,
+    profitPerUnit: r.profitPerUnit,
+    netMarginPct: r.netMarginPct,
+  };
 }
 
-function classify(result: PricingResult | null, healthyMin: number, marginalMin: number): Tier {
+function classify(result: ItemProfitability | null, healthyMin: number, marginalMin: number): Tier {
   if (!result) return 'unclassified';
   if (result.netMarginPct < marginalMin) return 'loss';
   if (result.netMarginPct < healthyMin) return 'marginal';
@@ -158,13 +184,13 @@ export function ItemProfitabilityPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Product Profitability"
+        title="Profitability"
         breadcrumbs={[
           { label: 'Masters' },
           { label: 'Items', href: '/masters/items' },
           { label: 'Profitability' },
         ]}
-        description="Cost vs. price across the catalogue. Loss-making and marginal SKUs surface first so you can fix pricing or COGM before they bleed."
+        description="Cost vs. selling price across your catalogue. Loss-making and marginal items surface first so you can fix pricing before they bleed."
         actions={
           <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items' })}>
             <ArrowLeft size={14} /> Back to Items
@@ -182,7 +208,7 @@ export function ItemProfitabilityPage() {
               step="0.5"
               value={healthyMin}
               onChange={(e) => setHealthyMin(Number(e.target.value) || 0)}
-              helper="% — typical FMCG healthy line: 10%"
+              helper="% — adjust for your industry. 10% is a common healthy-line default."
             />
             <Input
               label="Marginal if net margin ≥"
@@ -311,8 +337,8 @@ export function ItemProfitabilityPage() {
                   <Th>Name</Th>
                   <Th>UOM</Th>
                   <Th>Brand</Th>
-                  <Th align="right">MRP</Th>
-                  <Th align="right">COGM</Th>
+                  <Th align="right">Sell Price</Th>
+                  <Th align="right">Cost</Th>
                   <Th align="right">Basic</Th>
                   <Th align="right">Profit / Unit</Th>
                   <Th align="right">Net Margin</Th>
@@ -344,7 +370,9 @@ export function ItemProfitabilityPage() {
                         {(c.item.attributes?.brand as string | undefined) ?? '-'}
                       </TableCell>
                       <TableCell align="right" numeric>
-                        {c.item.mrp != null ? formatINR(c.item.mrp) : '-'}
+                        {c.item.type === 'service'
+                          ? (c.item.defaultSellingPrice != null ? formatINR(c.item.defaultSellingPrice) : '-')
+                          : (c.item.mrp != null ? formatINR(c.item.mrp) : '-')}
                       </TableCell>
                       <TableCell align="right" numeric>
                         {c.item.costPrice != null ? formatINR(c.item.costPrice) : '-'}
