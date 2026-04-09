@@ -82,7 +82,11 @@ async function smokeTest(client: Client): Promise<void> {
   // Set a non-existent tenant UUID so the query should return 0 rows
   const fakeTenantId = '00000000-0000-0000-0000-000000000000';
 
-  await client.query(`SET app.current_tenant_id = $1`, [fakeTenantId]);
+  // SET does not accept $N parameter bindings — use set_config() which is a
+  // regular function call inside a SELECT and does.
+  await client.query(`SELECT set_config('app.current_tenant_id', $1, false)`, [
+    fakeTenantId,
+  ]);
   const { rows } = await client.query(
     `SELECT count(*) AS n FROM ${testTable}`,
   );
