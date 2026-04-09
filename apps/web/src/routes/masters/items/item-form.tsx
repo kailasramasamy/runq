@@ -42,11 +42,20 @@ function int(v: string): number | null {
 
 export function ItemForm({
   item,
+  template,
   onClose,
   onDelete,
   onOpenAnalysis,
 }: {
   item?: Item;
+  /**
+   * Pre-fill the form from another item's data when creating a new item.
+   * Used by the "Duplicate" flow to seed a variant from an existing product.
+   * Stays in create mode (not edit) so save calls create() and the source
+   * item is left untouched. The source's cogmBreakdown is forwarded into
+   * the create payload so duplicates inherit cost build-ups.
+   */
+  template?: Item;
   onClose: () => void;
   onDelete?: () => void;
   onOpenAnalysis?: () => void;
@@ -57,42 +66,48 @@ export function ItemForm({
   const { data: treeData } = useCategoryTree();
   const categoryTree = treeData?.data ?? [];
   const isEdit = !!item;
+  // Source for initial values: item when editing, template when duplicating.
+  const source = item ?? template ?? null;
+  const isDuplicate = !!template && !item;
 
-  // Basic
-  const [name, setName] = useState(item?.name ?? '');
-  const [sku, setSku] = useState(item?.sku ?? '');
-  const [ean, setEan] = useState(item?.ean ?? '');
-  const [type, setType] = useState<'product' | 'service'>(item?.type ?? 'product');
-  const [hsnSacCode, setHsnSacCode] = useState(item?.hsnSacCode ?? '');
-  const [unit, setUnit] = useState(item?.unit ?? '');
-  const [gstRate, setGstRate] = useState(item?.gstRate?.toString() ?? '');
+  // Basic — when duplicating, suffix the name and clear unique identifiers
+  // (sku has a partial unique constraint, ean is semantically unique).
+  const [name, setName] = useState(
+    isDuplicate ? `${source?.name ?? ''} (Copy)` : source?.name ?? '',
+  );
+  const [sku, setSku] = useState(isDuplicate ? '' : source?.sku ?? '');
+  const [ean, setEan] = useState(isDuplicate ? '' : source?.ean ?? '');
+  const [type, setType] = useState<'product' | 'service'>(source?.type ?? 'product');
+  const [hsnSacCode, setHsnSacCode] = useState(source?.hsnSacCode ?? '');
+  const [unit, setUnit] = useState(source?.unit ?? '');
+  const [gstRate, setGstRate] = useState(source?.gstRate?.toString() ?? '');
 
   // Pricing
-  const [defaultSellingPrice, setDefaultSellingPrice] = useState(item?.defaultSellingPrice?.toString() ?? '');
-  const [mrp, setMrp] = useState(item?.mrp?.toString() ?? '');
-  const [costPrice, setCostPrice] = useState(item?.costPrice?.toString() ?? '');
-  const [basicPrice, setBasicPrice] = useState(item?.basicPrice?.toString() ?? '');
-  const [gstValue, setGstValue] = useState(item?.gstValue?.toString() ?? '');
-  const [margin, setMargin] = useState(item?.margin?.toString() ?? '');
+  const [defaultSellingPrice, setDefaultSellingPrice] = useState(source?.defaultSellingPrice?.toString() ?? '');
+  const [mrp, setMrp] = useState(source?.mrp?.toString() ?? '');
+  const [costPrice, setCostPrice] = useState(source?.costPrice?.toString() ?? '');
+  const [basicPrice, setBasicPrice] = useState(source?.basicPrice?.toString() ?? '');
+  const [gstValue, setGstValue] = useState(source?.gstValue?.toString() ?? '');
+  const [margin, setMargin] = useState(source?.margin?.toString() ?? '');
 
   // Catalogue
-  const [brand, setBrand] = useState(item?.brand ?? '');
-  const [productType, setProductType] = useState(item?.productType ?? '');
-  const [grammage, setGrammage] = useState(item?.grammage ?? '');
-  const [packingType, setPackingType] = useState(item?.packingType ?? '');
-  const [vendorPackSize, setVendorPackSize] = useState(item?.vendorPackSize ?? '');
-  const [packagingDimension, setPackagingDimension] = useState(item?.packagingDimension ?? '');
-  const [shelfLifeDays, setShelfLifeDays] = useState(item?.shelfLifeDays?.toString() ?? '');
-  const [temperature, setTemperature] = useState(item?.temperature ?? '');
-  const [cutoffTime, setCutoffTime] = useState(item?.cutoffTime ?? '');
+  const [brand, setBrand] = useState(source?.brand ?? '');
+  const [productType, setProductType] = useState(source?.productType ?? '');
+  const [grammage, setGrammage] = useState(source?.grammage ?? '');
+  const [packingType, setPackingType] = useState(source?.packingType ?? '');
+  const [vendorPackSize, setVendorPackSize] = useState(source?.vendorPackSize ?? '');
+  const [packagingDimension, setPackagingDimension] = useState(source?.packagingDimension ?? '');
+  const [shelfLifeDays, setShelfLifeDays] = useState(source?.shelfLifeDays?.toString() ?? '');
+  const [temperature, setTemperature] = useState(source?.temperature ?? '');
+  const [cutoffTime, setCutoffTime] = useState(source?.cutoffTime ?? '');
   const [rtvAllowed, setRtvAllowed] = useState<string>(
-    item?.rtvAllowed == null ? '' : item.rtvAllowed ? 'true' : 'false',
+    source?.rtvAllowed == null ? '' : source.rtvAllowed ? 'true' : 'false',
   );
 
   // Classification
-  const [category, setCategory] = useState(item?.category ?? '');
-  const [subcategory, setSubcategory] = useState(item?.subcategory ?? '');
-  const [description, setDescription] = useState(item?.description ?? '');
+  const [category, setCategory] = useState(source?.category ?? '');
+  const [subcategory, setSubcategory] = useState(source?.subcategory ?? '');
+  const [description, setDescription] = useState(source?.description ?? '');
 
   const categoryOptions = categoryTree
     .filter((c) => c.isActive)
@@ -150,6 +165,14 @@ export function ItemForm({
       category: category || null,
       subcategory: subcategory || null,
       description: description || null,
+      // Carry the source's COGM breakdown into the new item when duplicating,
+      // so variants inherit the cost build-up. NEVER include in the edit
+      // payload — the form doesn't manage breakdowns, so sending undefined
+      // (via the spread on the API service side) leaves the existing rows
+      // alone. The breakdown is editable on the analysis page.
+      ...(isDuplicate && template?.cogmBreakdown
+        ? { cogmBreakdown: template.cogmBreakdown }
+        : {}),
     };
     try {
       if (isEdit) {
@@ -157,7 +180,7 @@ export function ItemForm({
         toast('Item updated', 'success');
       } else {
         await create.mutateAsync(data);
-        toast('Item created', 'success');
+        toast(isDuplicate ? 'Variant created from duplicate' : 'Item created', 'success');
       }
       onClose();
     } catch {

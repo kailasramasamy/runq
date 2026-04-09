@@ -1317,7 +1317,13 @@ const mastersItemsAnalysisRoute = createRoute({
 const mastersItemsNewRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/items/new',
-  component: () => <ItemEditPage />,
+  validateSearch: (search: Record<string, unknown>): { duplicateOf?: string } => ({
+    duplicateOf: typeof search.duplicateOf === 'string' ? search.duplicateOf : undefined,
+  }),
+  component: () => {
+    const { duplicateOf } = mastersItemsNewRoute.useSearch();
+    return <ItemEditPage duplicateOf={duplicateOf} />;
+  },
 });
 
 const mastersItemsEditRoute = createRoute({

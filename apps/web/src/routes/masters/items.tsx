@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator } from 'lucide-react';
+import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input,
@@ -235,6 +235,15 @@ export function ItemsPage() {
                           title="Cost & profit analysis"
                         >
                           <Calculator size={14} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate({ to: '/masters/items/new', search: { duplicateOf: item.id } })}
+                          aria-label={`Duplicate ${item.name}`}
+                          title="Duplicate to create a variant"
+                        >
+                          <Copy size={14} />
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleToggle(item.id)} disabled={toggle.isPending}>
                           <Power size={14} /> {item.isActive ? 'Deactivate' : 'Activate'}
