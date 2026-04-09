@@ -9,77 +9,6 @@ import type { PaginationMeta } from '@runq/types';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
-/**
- * Attribute keys that have dedicated legacy columns on the `items` table.
- * When the tenant's schema uses these keys (Food & Beverage preset does),
- * the service dual-writes the value into both the attributes JSONB AND the
- * legacy column so CSV export, AI extraction, and the list view keep
- * working unchanged. Other attribute keys live in JSONB only.
- *
- * Phase 2 will backfill legacy rows into JSONB and drop these columns.
- */
-const FMCG_STRING_KEYS = [
-  'brand',
-  'productType',
-  'grammage',
-  'packingType',
-  'vendorPackSize',
-  'packagingDimension',
-  'temperature',
-  'cutoffTime',
-] as const;
-type FmcgStringKey = (typeof FMCG_STRING_KEYS)[number];
-
-interface LegacyColumnWrites {
-  brand?: string | null;
-  productType?: string | null;
-  grammage?: string | null;
-  packingType?: string | null;
-  vendorPackSize?: string | null;
-  packagingDimension?: string | null;
-  temperature?: string | null;
-  cutoffTime?: string | null;
-  shelfLifeDays?: number | null;
-  rtvAllowed?: boolean | null;
-}
-
-function coerceFmcgString(value: unknown): string | null {
-  if (value === '' || value === null || value === undefined) return null;
-  return String(value);
-}
-
-function coerceFmcgInt(value: unknown): number | null {
-  if (value === '' || value === null || value === undefined) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-function coerceFmcgBool(value: unknown): boolean | null {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'boolean') return value;
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return null;
-}
-
-/**
- * Expand an attribute payload into the matching legacy column fields.
- * Only keys corresponding to dedicated FMCG columns produce column writes —
- * everything else stays in the JSONB payload untouched.
- */
-function attributesToLegacyColumns(
-  attributes: Record<string, unknown> | null | undefined,
-): LegacyColumnWrites {
-  if (!attributes) return {};
-  const out: LegacyColumnWrites = {};
-  for (const key of FMCG_STRING_KEYS) {
-    if (key in attributes) out[key] = coerceFmcgString(attributes[key]);
-  }
-  if ('shelfLifeDays' in attributes) out.shelfLifeDays = coerceFmcgInt(attributes.shelfLifeDays);
-  if ('rtvAllowed' in attributes) out.rtvAllowed = coerceFmcgBool(attributes.rtvAllowed);
-  return out;
-}
-
 export interface ItemListParams {
   page: number;
   limit: number;
@@ -138,13 +67,7 @@ export class ItemService {
   }
 
   async create(input: CreateItemInput): Promise<Item> {
-    // FMCG-mapped attribute keys flow into both the legacy columns and the
-    // JSONB. Explicit fields in `input` (from bulk-create / AI import which
-    // still uses the old shape) win over whatever's in `input.attributes`
-    // so existing ingestion keeps working.
-    const legacyFromAttrs = attributesToLegacyColumns(input.attributes);
     const values = {
-      ...legacyFromAttrs,
       ...input,
       tenantId: this.tenantId,
       attributes: input.attributes ?? null,
@@ -163,11 +86,7 @@ export class ItemService {
   }
 
   async update(id: string, input: UpdateItemInput): Promise<Item> {
-    // Start with any legacy-column writes derived from the attributes
-    // payload, then overlay the explicit `input` so direct field writes
-    // (e.g. from old callers) still win.
     const set: Record<string, unknown> = {
-      ...(input.attributes !== undefined ? attributesToLegacyColumns(input.attributes) : {}),
       ...input,
       updatedAt: new Date(),
     };
