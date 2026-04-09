@@ -10,6 +10,7 @@ import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
 import { formatINR } from '@/lib/utils';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useItems } from '@/hooks/queries/use-items';
+import { resolvePrice, type PriceSource } from '@/hooks/queries/use-price-lists';
 import { useNavigate } from '@tanstack/react-router';
 import { Send, CheckCircle, XCircle, UserPlus } from 'lucide-react';
 import {
@@ -28,7 +29,14 @@ const STATUS_BADGE: Record<QuoteStatus, { variant: BadgeVariant; label: string }
   converted: { variant: 'cyan', label: 'Converted' },
 };
 
-interface LineItemRow { itemId: string; description: string; hsnSacCode: string; qty: string; unitPrice: string; taxRate: string }
+interface LineItemRow { itemId: string; description: string; hsnSacCode: string; qty: string; unitPrice: string; taxRate: string; priceSource?: PriceSource; priceListName?: string | null }
+
+const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
+  customer: 'Customer pricing',
+  customer_group: 'Group pricing',
+  all: 'Standard pricing',
+  item_default: 'Item default',
+};
 
 // ─── Create Form ─────────────────────────────────────────────────────────────
 
@@ -58,7 +66,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   function updateItem(i: number, f: keyof LineItemRow, v: string) {
     setItems((p) => p.map((it, idx) => (idx === i ? { ...it, [f]: v } : it)));
   }
-  function selectItem(idx: number, itemId: string) {
+  async function selectItem(idx: number, itemId: string) {
     const item = allItems.find((i) => i.id === itemId);
     setItems((p) => p.map((it, i) => i === idx ? {
       ...it,
@@ -67,7 +75,28 @@ function CreateForm({ onClose }: { onClose: () => void }) {
       hsnSacCode: item?.hsnSacCode ?? it.hsnSacCode,
       unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : it.unitPrice,
       taxRate: item?.gstRate != null ? String(item.gstRate) : it.taxRate,
+      priceSource: undefined,
+      priceListName: null,
     } : it));
+
+    // Quotes can be tied to an existing customer (customerMode='existing')
+    // OR a prospect with no customerId — only resolve when we have one.
+    if (customerMode === 'existing' && customerId && itemId) {
+      try {
+        const qty = parseFloat(items[idx]?.qty ?? '1') || 1;
+        const resolved = await resolvePrice({ customerId, itemId, quantity: qty });
+        if (resolved) {
+          setItems((p) => p.map((it, i) => i === idx ? {
+            ...it,
+            unitPrice: String(resolved.effectiveRate),
+            priceSource: resolved.source,
+            priceListName: resolved.priceListName,
+          } : it));
+        }
+      } catch {
+        // ignore — keep the item default
+      }
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -169,8 +198,16 @@ function CreateForm({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                  <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                    {formatINR(Number(item.qty || 0) * Number(item.unitPrice || 0))}
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                      {formatINR(Number(item.qty || 0) * Number(item.unitPrice || 0))}
+                    </div>
+                    {item.priceSource && item.priceSource !== 'item_default' && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                        {PRICE_SOURCE_LABEL[item.priceSource]}
+                        {item.priceListName ? ` · ${item.priceListName}` : ''}
+                      </span>
+                    )}
                   </div>
                   {items.length > 1 && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-500"><Trash2 size={14} /></Button>

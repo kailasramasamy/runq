@@ -5,6 +5,7 @@ import type { CreateSalesInvoiceInput } from '@runq/validators';
 import type { SalesInvoiceWithDetails } from '@runq/types';
 import { useCustomers } from '../../hooks/queries/use-customers';
 import { useItems } from '../../hooks/queries/use-items';
+import { resolvePrice, type PriceSource } from '../../hooks/queries/use-price-lists';
 import { formatINR } from '../../lib/utils';
 import {
   Button,
@@ -41,9 +42,18 @@ interface LineItem {
   hsnSacCode: string;
   taxRate: string;
   taxCategory: string;
+  priceSource?: PriceSource;
+  priceListName?: string | null;
 }
 
 const EMPTY_LINE: LineItem = { itemId: '', description: '', quantity: '', unitPrice: '', hsnSacCode: '', taxRate: '0', taxCategory: 'taxable' };
+
+const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
+  customer: 'Customer pricing',
+  customer_group: 'Group pricing',
+  all: 'Standard pricing',
+  item_default: 'Item default',
+};
 
 const TAX_RATE_OPTIONS = [
   { value: '0', label: '0%' },
@@ -223,7 +233,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                     <Combobox
                       options={itemOptions}
                       value={line.itemId}
-                      onChange={(itemId) => {
+                      onChange={async (itemId) => {
                         const item = allItems.find((i) => i.id === itemId);
                         setLines((prev) => prev.map((l, i) => i === idx ? {
                           ...l,
@@ -232,10 +242,39 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                           hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
                           unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
                           taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
+                          priceSource: undefined,
+                          priceListName: null,
                         } : l));
+
+                        // If a customer is already chosen, ask the resolver
+                        // for the per-customer price and override the unit
+                        // price the item default just set.
+                        if (customerId && itemId) {
+                          try {
+                            const qty = parseFloat(lines[idx]?.quantity ?? '1') || 1;
+                            const resolved = await resolvePrice({ customerId, itemId, quantity: qty });
+                            if (resolved) {
+                              setLines((prev) => prev.map((l, i) => i === idx ? {
+                                ...l,
+                                unitPrice: String(resolved.effectiveRate),
+                                priceSource: resolved.source,
+                                priceListName: resolved.priceListName,
+                              } : l));
+                            }
+                          } catch {
+                            // Resolver failure is non-fatal — keep the item
+                            // default that was just populated.
+                          }
+                        }
                       }}
                       placeholder="Search item…"
                     />
+                    {line.priceSource && line.priceSource !== 'item_default' && (
+                      <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                        {PRICE_SOURCE_LABEL[line.priceSource]}
+                        {line.priceListName ? ` · ${line.priceListName}` : ''}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Input

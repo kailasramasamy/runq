@@ -330,6 +330,7 @@ export class CustomerService {
       creditLimit: row.creditLimit != null ? Number(row.creditLimit) : null,
       paymentTermsDays: row.paymentTermsDays,
       contactPerson: row.contactPerson ?? null,
+      customerGroup: row.customerGroup ?? null,
       overdueInterestRate: row.overdueInterestRate != null ? Number(row.overdueInterestRate) : null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),

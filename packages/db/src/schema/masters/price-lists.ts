@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, decimal, timestamp, pgEnum, index, uniqueIndex, boolean, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, decimal, timestamp, pgEnum, index, boolean, date } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { items } from './items';
 import { customers } from '../ar/customers';
@@ -58,7 +58,10 @@ export const priceListItems = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('uq_price_list_items_list_item').on(table.priceListId, table.itemId),
+    // The (price_list_id, item_id, COALESCE(min_quantity, 0)) unique index that
+    // allows multiple qty tiers per item is created in
+    // packages/db/migrations/0002_price_list_enhancements.sql — drizzle-kit
+    // can't express the COALESCE so we let the SQL migration own it.
     index('idx_price_list_items_item').on(table.itemId),
   ],
 );

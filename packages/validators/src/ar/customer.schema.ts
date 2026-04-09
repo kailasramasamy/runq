@@ -18,6 +18,7 @@ export const createCustomerSchema = z.object({
   creditLimit: z.number().nonnegative().nullish(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
   contactPerson: z.string().max(255).nullish(),
+  customerGroup: z.string().max(50).nullish(),
   overdueInterestRate: z.number().min(0).max(100).nullish(),
 });
 

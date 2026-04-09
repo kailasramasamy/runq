@@ -1,12 +1,34 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { createPriceListSchema, updatePriceListSchema, priceListFilterSchema, paginationSchema, uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { PriceListService } from './price-list.service';
+import { PriceResolverService } from './price-resolver.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 
+const resolveQuerySchema = z.object({
+  customerId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  quantity: z.coerce.number().positive().optional(),
+  date: z.string().date().optional(),
+});
+
 export const priceListRoutes: FastifyPluginAsync = async (app) => {
+  // Important: register /resolve BEFORE /:id so Fastify doesn't match
+  // 'resolve' as a uuid param.
+  app.get(
+    '/resolve',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const params = resolveQuerySchema.parse(request.query);
+      const service = new PriceResolverService(request.server.db, request.tenantId);
+      const result = await service.resolve(params);
+      return { data: result };
+    },
+  );
+
   app.get(
     '/',
     { preHandler: [rbacHook([...READ_ROLES])] },

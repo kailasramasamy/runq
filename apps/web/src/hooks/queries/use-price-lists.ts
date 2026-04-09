@@ -125,3 +125,34 @@ export function useTogglePriceList() {
     onSuccess: () => qc.invalidateQueries({ queryKey: PRICE_LIST_KEYS.all }),
   });
 }
+
+// ─── Price resolver ─────────────────────────────────────────────────────────
+
+export type PriceSource = 'customer' | 'customer_group' | 'all' | 'item_default';
+
+export interface ResolvedPrice {
+  rate: number;
+  effectiveRate: number;
+  discountPercent: number | null;
+  source: PriceSource;
+  priceListId: string | null;
+  priceListName: string | null;
+}
+
+/**
+ * Imperative price lookup. Returns null if either id is missing — the caller
+ * usually has them as form state and passes null until both are populated.
+ */
+export async function resolvePrice(args: {
+  customerId: string;
+  itemId: string;
+  quantity?: number;
+}): Promise<ResolvedPrice | null> {
+  if (!args.customerId || !args.itemId) return null;
+  const params = new URLSearchParams();
+  params.set('customerId', args.customerId);
+  params.set('itemId', args.itemId);
+  if (args.quantity != null) params.set('quantity', String(args.quantity));
+  const res = await api.get<ApiSuccess<ResolvedPrice>>(`/masters/price-lists/resolve?${params.toString()}`);
+  return res.data;
+}

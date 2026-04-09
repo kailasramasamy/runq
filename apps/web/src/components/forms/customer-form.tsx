@@ -30,6 +30,7 @@ function buildInitial(c?: Customer): FormState {
     creditLimit: c.creditLimit ?? undefined,
     paymentTermsDays: c.paymentTermsDays,
     contactPerson: c.contactPerson ?? undefined,
+    customerGroup: c.customerGroup ?? undefined,
     overdueInterestRate: c.overdueInterestRate ?? undefined,
   };
 }
@@ -99,6 +100,12 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             error={errors.type}
           />
           <Input label="Contact Person" placeholder="Ravi Kumar" {...field('contactPerson')} />
+          <Input
+            label="Customer Group"
+            placeholder="e.g. Wholesale, Retail, Distributor"
+            helper="Used to apply group-level price lists. Leave blank if not used."
+            {...field('customerGroup')}
+          />
           <Input label="Email" type="email" placeholder="billing@acme.com" {...field('email')} />
           <Input label="Phone" placeholder="+91 98765 43210" {...field('phone')} />
         </CardContent>

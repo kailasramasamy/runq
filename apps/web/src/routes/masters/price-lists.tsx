@@ -12,6 +12,8 @@ import {
   type PriceList, type CreatePriceListInput, type PriceListItemInput,
 } from '@/hooks/queries/use-price-lists';
 import { useItems, type Item } from '@/hooks/queries/use-items';
+import { useCustomers } from '@/hooks/queries/use-customers';
+import { useVendors } from '@/hooks/queries/use-vendors';
 
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
@@ -33,12 +35,14 @@ function applyToLabel(applyTo: string, value: string | null, customerName?: stri
 interface LineItemProps {
   line: PriceListItemInput & { _key: string };
   items: Item[];
+  listType: 'selling' | 'buying';
   onChange: (key: string, updates: Partial<PriceListItemInput>) => void;
   onRemove: (key: string) => void;
 }
 
-function LineItemRow({ line, items, onChange, onRemove }: LineItemProps) {
+function LineItemRow({ line, items, listType, onChange, onRemove }: LineItemProps) {
   const selectedItem = items.find((i) => i.id === line.itemId);
+  const showMargin = listType === 'buying';
 
   return (
     <tr className="border-b border-zinc-100 dark:border-zinc-800">
@@ -70,15 +74,17 @@ function LineItemRow({ line, items, onChange, onRemove }: LineItemProps) {
           placeholder="0.00"
         />
       </td>
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          value={line.marginPercent ?? ''}
-          onChange={(e) => onChange(line._key, { marginPercent: e.target.value ? Number(e.target.value) : null })}
-          className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          placeholder="%"
-        />
-      </td>
+      {showMargin && (
+        <td className="px-3 py-2">
+          <input
+            type="number"
+            value={line.marginPercent ?? ''}
+            onChange={(e) => onChange(line._key, { marginPercent: e.target.value ? Number(e.target.value) : null })}
+            className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            placeholder="%"
+          />
+        </td>
+      )}
       <td className="px-3 py-2">
         <input
           type="number"
@@ -118,6 +124,16 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
   const { toast } = useToast();
   const { data: itemsData } = useItems({ limit: 100 });
   const allItems = itemsData?.data ?? [];
+  const { data: customersData } = useCustomers({ limit: 200 });
+  const customerOpts = [
+    { value: '', label: 'Select customer…' },
+    ...((customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }))),
+  ];
+  const { data: vendorsData } = useVendors({ limit: 200 });
+  const vendorOpts = [
+    { value: '', label: 'Select vendor…' },
+    ...((vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }))),
+  ];
   const isEdit = !!priceList;
 
   const [name, setName] = useState(priceList?.name ?? '');
@@ -229,12 +245,24 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
         )}
         {applyTo === 'customer' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <Input label="Customer ID" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required placeholder="Customer UUID" />
+            <Select
+              label="Customer"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              options={customerOpts}
+              required
+            />
           </div>
         )}
         {applyTo === 'vendor' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <Input label="Vendor ID" value={vendorId} onChange={(e) => setVendorId(e.target.value)} required placeholder="Vendor UUID" />
+            <Select
+              label="Vendor"
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              options={vendorOpts}
+              required
+            />
           </div>
         )}
 
@@ -258,7 +286,9 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
                   <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500">Item</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500">SKU</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Rate</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Margin%</th>
+                  {type === 'buying' && (
+                    <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Margin%</th>
+                  )}
                   <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Discount%</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Min Qty</th>
                   <th className="px-3 py-2 w-10"></th>
@@ -270,6 +300,7 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
                     key={line._key}
                     line={line}
                     items={allItems}
+                    listType={type}
                     onChange={updateLine}
                     onRemove={removeLine}
                   />
