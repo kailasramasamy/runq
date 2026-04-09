@@ -2,6 +2,22 @@
 FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 
+# Install Chromium for puppeteer (used by the API to render invoice PDFs).
+# Alpine ships a working chromium package; we use it as the system browser
+# rather than letting puppeteer download its own ~300MB Chromium build,
+# which speeds up the image build and avoids glibc/musl compatibility issues.
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    font-noto
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # ─── Dependencies ────────────────────────────────────────────────────────────
 FROM base AS deps
 WORKDIR /app

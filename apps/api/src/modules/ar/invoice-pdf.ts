@@ -20,6 +20,10 @@ function getBrowser(): Promise<Browser> {
     browserPromise = puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // In production we use the Alpine-installed system Chromium (set via
+      // PUPPETEER_EXECUTABLE_PATH in the Dockerfile). In dev we let puppeteer
+      // find its own bundled binary.
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     });
   }
   return browserPromise;
