@@ -47,7 +47,7 @@ const DATE_RE =
   /(?:invoice\s+date|bill\s+date|date)\s*[:\-]?\s*([\d]{1,2}[\-\/\s.][\w]+[\-\/\s.][\d]{2,4}|[\d]{4}[\-\/][\d]{1,2}[\-\/][\d]{1,2})/i;
 
 const PO_NO_RE =
-  /(?:po|p\.\s*o\.?|purchase\s*order)\s*(?:no|#|number)?\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_]{0,49})/i;
+  /(?:po|p\.\s*o\.?|purchase\s*order|ref(?:erence)?)\s*(?:no|#|number)?\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_]{0,49})/i;
 
 /**
  * Lines that act as grand-total markers. We then take the *last* number

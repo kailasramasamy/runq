@@ -2,6 +2,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import {
   salesInvoices,
   items,
+  customers,
   invoiceImportItemAliases,
   invoiceImportCustomerAliases,
 } from '@runq/db';
@@ -157,6 +158,22 @@ export class InvoiceImportService {
     const masterHsnById = new Map(itemRows.map((r) => [r.id, r.hsnSacCode ?? null]));
     const masterUnitById = new Map(itemRows.map((r) => [r.id, r.unit ?? null]));
 
+    // Pre-fetch customer payment terms so we can compute due dates from the
+    // customer's contractual terms instead of the parser's 30-day default.
+    const customerIds = new Set(
+      payload.invoices.map((i) => i.customerMatch.resolvedId).filter(Boolean) as string[],
+    );
+    const customerRows =
+      customerIds.size > 0
+        ? await this.db
+            .select({ id: customers.id, paymentTermsDays: customers.paymentTermsDays })
+            .from(customers)
+            .where(
+              and(eq(customers.tenantId, this.tenantId), inArray(customers.id, [...customerIds])),
+            )
+        : [];
+    const customerTermsById = new Map(customerRows.map((r) => [r.id, r.paymentTermsDays ?? 30]));
+
     const invoiceService = new InvoiceService(this.db, this.tenantId);
     const persistAliases = payload.persistAliases ?? true;
 
@@ -219,10 +236,21 @@ export class InvoiceImportService {
       const taxAmount = Math.max(0, inv.sourceGrandTotal - subtotal);
       const totalAmount = inv.sourceGrandTotal > 0 ? inv.sourceGrandTotal : subtotal;
 
+      // Recompute due date from the customer's contractual payment terms
+      // instead of the parser's generic 30-day default.
+      const custTerms = inv.customerMatch.resolvedId
+        ? customerTermsById.get(inv.customerMatch.resolvedId) ?? 30
+        : 30;
+      const computedDueDate = (() => {
+        const d = new Date(inv.invoiceDate + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + custTerms);
+        return d.toISOString().slice(0, 10);
+      })();
+
       const createInput: CreateSalesInvoiceInput = {
         customerId: inv.customerMatch.resolvedId,
         invoiceDate: inv.invoiceDate,
-        dueDate: inv.dueDate,
+        dueDate: computedDueDate,
         items: lineItemsInput,
         subtotal,
         taxAmount,

@@ -335,7 +335,7 @@ function buildStyleBlock(): string {
     gap: 24px;
     padding-bottom: 14px;
     margin-bottom: 18px;
-    border-bottom: 2px solid #4f46e5;
+    border-bottom: none;
   }
   .header-left { flex: 1.4; min-width: 0; }
   .header-right { flex: 1; text-align: right; min-width: 0; }
