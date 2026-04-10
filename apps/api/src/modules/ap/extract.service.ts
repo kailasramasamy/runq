@@ -4,11 +4,15 @@ import type { Db } from '@runq/db';
 import {
   extractFromPDF,
   extractFromImage,
+  isAIEnabled,
 } from '../../utils/ai/claude.service';
 import {
   INVOICE_EXTRACTION_SYSTEM_PROMPT,
   INVOICE_EXTRACTION_USER_PROMPT,
 } from '../../utils/ai/prompts/invoice-extraction';
+import { extractPdfText } from '../ar/invoice-import/extractors/pdf-text';
+import { extractImageText } from '../ar/invoice-import/extractors/image-ocr';
+import { tryLocalExtraction } from './local-extract';
 
 interface ExtractedItem {
   itemName: string;
@@ -61,11 +65,35 @@ export class ExtractService {
     private readonly tenantId: string,
   ) {}
 
+  /**
+   * Extract invoice data from a file. Tries local extraction first
+   * (pdf-parse for text PDFs, tesseract OCR for images → regex-based
+   * parser), then falls back to Claude AI Vision for scanned PDFs,
+   * blurry images, and unrecognised layouts.
+   *
+   * The goal is to handle the common case (text-based vendor invoices)
+   * without burning AI tokens — same cascade pattern as the AR import
+   * flow.
+   */
   async extractFromFile(
     buffer: Buffer,
     mimeType: string,
     _fileName: string,
   ): Promise<ExtractionResult> {
+    // ── Layer 1: try local text extraction + heuristic parsing ────────
+    const localResult = await this.tryLocalExtraction(buffer, mimeType);
+    if (localResult) {
+      const vendorMatch = await this.matchVendor(localResult);
+      return { confidence: localResult.confidence, extracted: localResult, vendorMatch };
+    }
+
+    // ── Layer 2: fall back to Claude AI Vision ────────────────────────
+    if (!isAIEnabled()) {
+      throw new Error(
+        'Could not extract invoice data locally (text too short or no recognisable layout). ' +
+          'AI fallback requires ANTHROPIC_API_KEY to be set.',
+      );
+    }
     const base64 = buffer.toString('base64');
     const rawText = await this.callClaude(base64, mimeType);
 
@@ -77,6 +105,29 @@ export class ExtractService {
     const vendorMatch = await this.matchVendor(extracted);
 
     return { confidence: extracted.confidence, extracted, vendorMatch };
+  }
+
+  /**
+   * Attempt local extraction: pdf-parse (text PDFs) or tesseract OCR
+   * (images) → regex heuristic parser. Returns null when the extracted
+   * text is too short or the parser can't find enough fields.
+   */
+  private async tryLocalExtraction(
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<ExtractedInvoice | null> {
+    let text: string | null = null;
+
+    if (mimeType === PDF_MIME) {
+      const pdf = await extractPdfText(buffer);
+      if (pdf.hasUsableText) text = pdf.text;
+    } else if (IMAGE_MIMES[mimeType]) {
+      const ocr = await extractImageText(buffer);
+      if (ocr.hasUsableText) text = ocr.text;
+    }
+
+    if (!text) return null;
+    return tryLocalExtraction(text);
   }
 
   private async callClaude(
