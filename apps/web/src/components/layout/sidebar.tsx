@@ -123,7 +123,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 /** Desktop sidebar — hidden on mobile */
 export function Sidebar() {
   return (
-    <aside className="hidden lg:flex h-screen w-60 flex-col border-r border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+    <aside className="hidden min-[1440px]:flex h-screen w-60 flex-col border-r border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
       <SidebarContent />
     </aside>
   );
@@ -151,7 +151,7 @@ export function MobileHeader() {
   }, [open]);
 
   return (
-    <div className="lg:hidden">
+    <div className="min-[1440px]:hidden">
       {/* Top bar */}
       <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
         <Link to="/" className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export function MobileBottomNav() {
   const currentPath = routerState.location.pathname;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-zinc-800 dark:bg-zinc-900">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] min-[1440px]:hidden dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-around px-1">
         {bottomNavItems.map((item) => {
           const isActive = item.path === '/'
