@@ -138,10 +138,10 @@ const dashboardLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'dashboard-layout',
   component: () => (
-    <div className="flex h-screen flex-col md:flex-row">
+    <div className="flex h-screen flex-col lg:flex-row">
       <MobileHeader />
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:p-6 md:pb-6 text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 lg:p-6 lg:pb-6 text-zinc-900 dark:text-zinc-100">
         <Outlet />
       </main>
       <MobileBottomNav />

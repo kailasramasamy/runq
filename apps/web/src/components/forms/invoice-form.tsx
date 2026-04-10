@@ -430,7 +430,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
           </div>
 
           {/* ── Desktop table ── */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block">
             <Table noOverflow>
               <TableHeader>
                 <tr>
