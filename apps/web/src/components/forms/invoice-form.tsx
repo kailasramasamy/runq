@@ -438,11 +438,11 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                   <Th className="min-w-[120px]">Description</Th>
                   <Th className="min-w-[70px]">UOM</Th>
                   <Th className="min-w-[90px]">HSN/SAC</Th>
-                  <Th className="min-w-[70px]">Qty</Th>
-                  <Th className="min-w-[90px]">Unit Price</Th>
+                  <Th className="min-w-[55px]">Qty</Th>
+                  <Th className="min-w-[75px]">Unit Price</Th>
                   <Th align="right" className="min-w-[80px]">Amount</Th>
-                  <Th className="min-w-[100px]">Tax Category</Th>
-                  <Th className="min-w-[70px]">GST Rate</Th>
+                  <Th className="min-w-[115px]">Tax Category</Th>
+                  <Th className="min-w-[85px]">GST Rate</Th>
                   <Th className="w-10" />
                 </tr>
               </TableHeader>

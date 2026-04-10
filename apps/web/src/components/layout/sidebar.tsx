@@ -77,7 +77,7 @@ function SidebarContent({
         )}
       </div>
 
-      <nav className="mt-4 flex-1 space-y-1 px-2">
+      <nav className="mt-4 flex-1 space-y-1 overflow-y-auto px-2">
         {navItems.map((item) => {
           const isActive = item.path === '/'
             ? currentPath === '/'
@@ -286,7 +286,7 @@ export function MobileBottomNav() {
   const currentPath = routerState.location.pathname;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] min-[1440px]:hidden dark:border-zinc-800 dark:bg-zinc-900">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-around px-1">
         {bottomNavItems.map((item) => {
           const isActive = item.path === '/'

@@ -141,7 +141,7 @@ const dashboardLayoutRoute = createRoute({
     <div className="flex h-screen flex-col min-[1440px]:flex-row overflow-hidden">
       <MobileHeader />
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 min-[1440px]:p-6 min-[1440px]:pb-6 text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:pb-4 min-[1440px]:p-6 min-[1440px]:pb-6 text-zinc-900 dark:text-zinc-100">
         <Outlet />
       </main>
       <MobileBottomNav />
