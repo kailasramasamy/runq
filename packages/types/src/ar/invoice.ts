@@ -68,4 +68,5 @@ export interface SalesInvoiceItem {
 export interface SalesInvoiceWithDetails extends SalesInvoice {
   items: SalesInvoiceItem[];
   customerName: string;
+  customerNickname: string | null;
 }

@@ -52,8 +52,11 @@ function InvoiceCard({
         <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{invoice.invoiceNumber}</span>
         <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
       </div>
-      <div className="mt-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-        {invoice.customerName}
+      <div className="mt-1 flex items-center gap-2">
+        {invoice.customerNickname && (
+          <span className="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400">{invoice.customerNickname}</span>
+        )}
+        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{invoice.customerName}</span>
       </div>
       <div className="mt-1 flex items-center text-xs text-zinc-500 dark:text-zinc-400">
         <span>{invoice.invoiceDate}</span>
@@ -74,6 +77,9 @@ function InvoiceRow({
   return (
     <TableRow className="cursor-pointer" onClick={() => onView(invoice.id)}>
       <TableCell className="font-mono text-sm font-medium">{invoice.invoiceNumber}</TableCell>
+      <TableCell className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+        {invoice.customerNickname ?? ''}
+      </TableCell>
       <TableCell>{invoice.customerName}</TableCell>
       <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.invoiceDate}</TableCell>
       <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.dueDate}</TableCell>
@@ -150,7 +156,7 @@ export function InvoiceListPage() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search invoice #..."
+            placeholder="Search invoice #, customer..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="block w-full rounded-md border border-zinc-300 bg-white py-2 pl-8 pr-3 text-sm text-zinc-900 placeholder-zinc-400 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-indigo-400"
@@ -224,6 +230,7 @@ export function InvoiceListPage() {
           <TableHeader>
             <tr>
               <Th>Invoice #</Th>
+              <Th>Nickname</Th>
               <Th>Customer</Th>
               <Th>Date</Th>
               <Th>Due Date</Th>
@@ -235,10 +242,10 @@ export function InvoiceListPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={6} cols={8} />
+              <TableSkeleton rows={6} cols={9} />
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState
                     icon={FileText}
                     title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}

@@ -30,7 +30,7 @@ export interface InvoiceListParams {
 }
 
 export interface InvoiceListResult {
-  data: (SalesInvoice & { customerName: string })[];
+  data: (SalesInvoice & { customerName: string; customerNickname: string | null })[];
   meta: PaginationMeta;
 }
 
@@ -60,24 +60,36 @@ export class InvoiceService {
 
     const [rows, countResult] = await Promise.all([
       this.db
-        .select({ invoice: salesInvoices, customerName: customers.name })
+        .select({
+          invoice: salesInvoices,
+          customerName: customers.name,
+          customerNickname: customers.nickname,
+        })
         .from(salesInvoices)
         .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
         .where(baseWhere)
         .orderBy(desc(salesInvoices.createdAt))
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(baseWhere),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id)).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...this.toInvoice(r.invoice), customerName: r.customerName }));
+    const data = rows.map((r) => ({
+      ...this.toInvoice(r.invoice),
+      customerName: r.customerName,
+      customerNickname: r.customerNickname ?? null,
+    }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 
   async getById(id: string): Promise<SalesInvoiceWithDetails> {
     const [row] = await this.db
-      .select({ invoice: salesInvoices, customerName: customers.name })
+      .select({
+        invoice: salesInvoices,
+        customerName: customers.name,
+        customerNickname: customers.nickname,
+      })
       .from(salesInvoices)
       .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
       .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
@@ -90,6 +102,7 @@ export class InvoiceService {
     return {
       ...this.toInvoice(row.invoice),
       customerName: row.customerName,
+      customerNickname: row.customerNickname ?? null,
       items: itemRows,
     };
   }
@@ -309,7 +322,7 @@ export class InvoiceService {
         .returning();
 
       const [customerRow] = await tx
-        .select({ name: customers.name })
+        .select({ name: customers.name, nickname: customers.nickname })
         .from(customers)
         .where(eq(customers.id, input.customerId))
         .limit(1);
@@ -317,6 +330,7 @@ export class InvoiceService {
       const result = {
         ...this.toInvoice(invoice!),
         customerName: customerRow?.name ?? '',
+        customerNickname: customerRow?.nickname ?? null,
         items: items.map(this.toInvoiceItem),
       };
       await this.audit().log({ userId, action: 'created', entityType: 'sales_invoice', entityId: invoice!.id });
@@ -722,6 +736,7 @@ export class InvoiceService {
       return {
         ...this.toInvoice(row!),
         customerName: existing.customerName,
+        customerNickname: existing.customerNickname ?? null,
         items: itemRows.map(this.toInvoiceItem),
       };
     });
@@ -860,7 +875,9 @@ export class InvoiceService {
         ? sql`${salesInvoices.dueDate} < CURRENT_DATE AND ${salesInvoices.balanceDue} > 0`
         : undefined,
       filters.search
-        ? sql`${salesInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'}`
+        ? sql`(${salesInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'}
+            OR ${customers.name} ILIKE ${'%' + filters.search + '%'}
+            OR ${customers.nickname} ILIKE ${'%' + filters.search + '%'})`
         : undefined,
       filters.dateFrom ? gte(salesInvoices.invoiceDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(salesInvoices.invoiceDate, filters.dateTo) : undefined,
