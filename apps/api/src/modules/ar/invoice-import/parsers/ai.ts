@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { ParsedInvoice } from '@runq/types';
 import {
   analyze,
+  extractFromImage,
   extractFromPDF,
   isAIEnabled,
 } from '../../../../utils/ai/claude.service';
@@ -12,6 +13,7 @@ import {
 import {
   defaultDueDate,
   emptyMatch,
+  isImage,
   isPdf,
   isSpreadsheet,
   makeLineItem,
@@ -21,29 +23,43 @@ import {
 
 /**
  * Last-resort AI parser. Only invoked when every deterministic parser
- * in the cascade has returned null. Two paths:
+ * in the cascade has returned null. Three paths:
  *
- *   - PDF input → Claude Vision (extractFromPDF) reads the document and
- *     returns structured JSON matching the ParsedInvoice schema.
- *   - Spreadsheet input → convert to CSV text via SheetJS, then call
- *     analyze() with the same JSON schema prompt.
+ *   - extractedText present (cascade pre-extracted via pdf-parse or
+ *     tesseract OCR) → call analyze() with the text. Cheapest of the AI
+ *     paths since we send plain text rather than the binary buffer.
+ *   - PDF without usable extracted text → Claude Vision (extractFromPDF)
+ *     reads the original PDF buffer. Used for scanned PDFs where local
+ *     extraction yielded nothing.
+ *   - Image without usable OCR → Claude Vision (extractFromImage) reads
+ *     the original image buffer. Used for low-quality scans where
+ *     tesseract couldn't recover usable text.
+ *   - Spreadsheet → convert to CSV text via SheetJS, then call analyze()
+ *     with the same JSON schema prompt. Used when the deterministic
+ *     spreadsheet parsers returned null on an unrecognised format.
  *
  * Returns null when:
  *   - AI is not enabled (no ANTHROPIC_API_KEY) — the cascade falls
  *     through and the route surfaces a clear "needs AI" error.
  *   - The input is too large to fit in the prompt budget.
- *   - Claude returned no parseable JSON.
+ *   - Claude returned no parseable JSON after one retry.
  *
  * Cost guardrails baked in:
- *   - Skips files larger than MAX_AI_BYTES (~1 MB raw) — those are too
- *     large to send efficiently and probably need a smarter approach.
+ *   - Skips files larger than MAX_AI_BYTES (~8 MB raw) — accommodates
+ *     real phone-scanned invoices without burning tokens on huge files.
  *   - Spreadsheet path strips formulas + style metadata (sheet_to_csv)
  *     so the prompt only contains values.
- *   - Sequential per file (the cascade orchestrator handles parallelism
- *     by file, not within file) — keeps token spend predictable.
+ *   - Prefers extracted text over original buffer when both are
+ *     available — text is dramatically cheaper.
+ *   - max_tokens raised to 8192 so multi-line invoices don't truncate
+ *     mid-JSON.
+ *   - One retry with a stricter "JSON only, no prose" reminder when
+ *     the first response can't be parsed.
+ *   - Sequential per file — keeps token spend predictable.
  */
 
-const MAX_AI_BYTES = 1_000_000; // 1 MB raw file size
+const MAX_AI_BYTES = 8_000_000; // 8 MB raw file size — fits real phone scans
+const AI_MAX_TOKENS = 8192;
 
 interface RawAIResponse {
   invoices?: Array<{
@@ -145,6 +161,24 @@ function hydrateInvoices(
   return out;
 }
 
+/**
+ * Stricter retry prompt suffix used after a first JSON-parse failure.
+ * Sometimes Claude wraps the response in prose ("Here's the JSON:") or
+ * code fences despite the system prompt — explicitly hammering on
+ * "JSON only" usually fixes it on the second attempt.
+ */
+const STRICTER_USER_SUFFIX = `
+
+CRITICAL: Your previous response could not be parsed as JSON. Return ONLY the raw JSON object — no prose, no code fences, no commentary, no markdown. The response must start with { and end with }.`;
+
+function imageMediaType(input: ParserInput): 'image/jpeg' | 'image/png' | 'image/webp' {
+  if (input.mimeType === 'image/png') return 'image/png';
+  if (input.mimeType === 'image/webp') return 'image/webp';
+  if (/\.png$/i.test(input.fileName)) return 'image/png';
+  if (/\.webp$/i.test(input.fileName)) return 'image/webp';
+  return 'image/jpeg';
+}
+
 class AIParser implements InvoiceParser {
   readonly name = 'ai' as const;
 
@@ -152,19 +186,57 @@ class AIParser implements InvoiceParser {
     if (!isAIEnabled()) return null;
     if (input.buffer.length > MAX_AI_BYTES) return null;
 
-    let rawResponse: string | null = null;
+    // First-call attempt. If JSON fails to parse, retry once with the
+    // stricter prompt before giving up.
+    let rawResponse = await this.callAI(input, false);
+    if (!rawResponse) return null;
 
-    if (isPdf(input)) {
-      // Claude Vision reads the PDF natively.
-      const base64 = input.buffer.toString('base64');
-      rawResponse = await extractFromPDF(
-        base64,
-        SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT,
-        SALES_INVOICE_EXTRACTION_USER_PROMPT,
+    let parsed = parseAIJson(rawResponse);
+    if (!parsed) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `AI parser returned non-JSON for ${input.fileName}, retrying with stricter prompt:`,
+        rawResponse.slice(0, 200),
       );
-    } else if (isSpreadsheet(input)) {
-      // Convert the workbook to CSV text — drops formulas and style
-      // metadata so the prompt only contains values.
+      rawResponse = await this.callAI(input, true);
+      if (!rawResponse) return null;
+      parsed = parseAIJson(rawResponse);
+      if (!parsed) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `AI parser retry also returned non-JSON for ${input.fileName}:`,
+          rawResponse.slice(0, 200),
+        );
+        return null;
+      }
+    }
+
+    const invoices = hydrateInvoices(parsed, input.fileName);
+    return invoices.length > 0 ? invoices : null;
+  }
+
+  /**
+   * Picks the cheapest viable AI path for the input:
+   *   1. Pre-extracted text → analyze() with text only
+   *   2. Spreadsheet → SheetJS to CSV → analyze()
+   *   3. PDF → Claude Vision (extractFromPDF)
+   *   4. Image → Claude Vision (extractFromImage)
+   *
+   * The text path is used whenever the cascade orchestrator was able
+   * to pre-extract text via pdf-parse / tesseract — that's strictly
+   * cheaper than re-sending the binary buffer to Claude Vision.
+   */
+  private async callAI(input: ParserInput, stricter: boolean): Promise<string | null> {
+    const userPromptBase = stricter
+      ? SALES_INVOICE_EXTRACTION_USER_PROMPT + STRICTER_USER_SUFFIX
+      : SALES_INVOICE_EXTRACTION_USER_PROMPT;
+
+    if (input.extractedText && input.extractedText.length > 0) {
+      const userPrompt = `${userPromptBase}\n\nDocument content (extracted text):\n\n${input.extractedText}`;
+      return analyze(SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT, userPrompt, AI_MAX_TOKENS);
+    }
+
+    if (isSpreadsheet(input)) {
       let wb: XLSX.WorkBook;
       try {
         wb = XLSX.read(input.buffer, { type: 'buffer', cellDates: false });
@@ -179,22 +251,32 @@ class AIParser implements InvoiceParser {
         if (csv.trim()) sheets.push(`### Sheet: ${name}\n${csv}`);
       }
       if (sheets.length === 0) return null;
-      const userPrompt = `${SALES_INVOICE_EXTRACTION_USER_PROMPT}\n\nDocument content (CSV):\n\n${sheets.join('\n\n')}`;
-      rawResponse = await analyze(SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT, userPrompt, 4096);
-    } else {
-      return null;
+      const userPrompt = `${userPromptBase}\n\nDocument content (CSV):\n\n${sheets.join('\n\n')}`;
+      return analyze(SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT, userPrompt, AI_MAX_TOKENS);
     }
 
-    if (!rawResponse) return null;
-    const parsed = parseAIJson(rawResponse);
-    if (!parsed) {
-      // eslint-disable-next-line no-console
-      console.warn(`AI parser returned non-JSON for ${input.fileName}:`, rawResponse.slice(0, 200));
-      return null;
+    if (isPdf(input)) {
+      const base64 = input.buffer.toString('base64');
+      return extractFromPDF(
+        base64,
+        SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT,
+        userPromptBase,
+        AI_MAX_TOKENS,
+      );
     }
 
-    const invoices = hydrateInvoices(parsed, input.fileName);
-    return invoices.length > 0 ? invoices : null;
+    if (isImage(input)) {
+      const base64 = input.buffer.toString('base64');
+      return extractFromImage(
+        base64,
+        imageMediaType(input),
+        SALES_INVOICE_EXTRACTION_SYSTEM_PROMPT,
+        userPromptBase,
+        AI_MAX_TOKENS,
+      );
+    }
+
+    return null;
   }
 }
 

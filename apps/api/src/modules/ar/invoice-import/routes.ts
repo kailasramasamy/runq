@@ -14,6 +14,9 @@ const ALLOWED_MIMES: ReadonlySet<string> = new Set([
   'text/csv',
   'text/plain',
   'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
   // Some browsers fall back to application/octet-stream for .xlsx — accept
   // and let the parser cascade decide whether the content is recognisable.
   'application/octet-stream',
@@ -38,10 +41,10 @@ export const invoiceImportRoutes: FastifyPluginAsync = async (app) => {
       const parts = request.files();
       for await (const part of parts) {
         const mimeType = (part.mimetype || '').toLowerCase();
-        if (!ALLOWED_MIMES.has(mimeType) && !/\.(xlsx|xls|csv|pdf)$/i.test(part.filename)) {
+        if (!ALLOWED_MIMES.has(mimeType) && !/\.(xlsx|xls|csv|pdf|jpe?g|png|webp)$/i.test(part.filename)) {
           throw new AppError(
             400,
-            `File '${part.filename}' has unsupported type '${mimeType}'. Allowed: xlsx, csv, pdf.`,
+            `File '${part.filename}' has unsupported type '${mimeType}'. Allowed: xlsx, csv, pdf, jpg, png.`,
           );
         }
         const buf = await part.toBuffer();

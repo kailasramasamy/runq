@@ -285,11 +285,11 @@ export function InvoiceImportPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".xlsx,.xls,.csv,.pdf"
+                accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp"
                 hidden
                 onChange={(e) => onFilesPicked(e.target.files)}
               />
-              <p className="mt-2 text-xs text-zinc-500">xlsx, csv, or pdf · max 10 MB each</p>
+              <p className="mt-2 text-xs text-zinc-500">xlsx, csv, pdf, or image (jpg/png) · max 10 MB each</p>
             </div>
 
             {/* Picked files */}

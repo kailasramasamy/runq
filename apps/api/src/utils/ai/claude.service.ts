@@ -26,13 +26,14 @@ export async function extractFromPDF(
   pdfBase64: string,
   systemPrompt: string,
   userPrompt: string,
+  maxTokens = 4096,
 ): Promise<string | null> {
   const ai = getClient();
   if (!ai) return null;
 
   const response = await ai.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [
       {
@@ -60,13 +61,14 @@ export async function extractFromImage(
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
   systemPrompt: string,
   userPrompt: string,
+  maxTokens = 4096,
 ): Promise<string | null> {
   const ai = getClient();
   if (!ai) return null;
 
   const response = await ai.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [
       {

@@ -65,12 +65,21 @@ export function defaultDueDate(invoiceDate: string, days = 30): string {
  * mime type once and lets each parser decide whether it can handle that
  * input (xlsx/csv parsers reject PDFs by returning null, the AI parser
  * handles PDFs via Claude Vision, etc.).
+ *
+ * For PDF and image inputs the cascade pre-extracts plain text via
+ * pdf-parse / tesseract.js and stashes it on `extractedText`. The
+ * text-heuristic parser uses this directly. The AI parser also prefers
+ * `extractedText` when present (cheaper than re-sending the binary
+ * buffer to Claude) and only falls back to the original buffer for
+ * scanned PDFs / images where extraction yielded nothing usable.
  */
 export interface ParserInput {
   buffer: Buffer;
   fileName: string;
   /** Lowercase mime type, e.g. 'application/pdf'. May be empty string. */
   mimeType: string;
+  /** Plain text pre-extracted by the cascade orchestrator, if available. */
+  extractedText?: string;
 }
 
 /**
@@ -104,4 +113,10 @@ export function isSpreadsheet(input: ParserInput): boolean {
 /** True when the file is recognised as a PDF. */
 export function isPdf(input: ParserInput): boolean {
   return input.mimeType === 'application/pdf' || /\.pdf$/i.test(input.fileName);
+}
+
+/** True when the file is recognised as an image (jpg/png/webp). */
+export function isImage(input: ParserInput): boolean {
+  if (input.mimeType.startsWith('image/')) return true;
+  return /\.(jpe?g|png|webp)$/i.test(input.fileName);
 }

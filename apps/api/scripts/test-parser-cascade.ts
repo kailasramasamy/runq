@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const files = readdirSync(dir)
-    .filter((f) => f.toLowerCase().endsWith('.xlsx'))
+    .filter((f) => /\.(xlsx|xls|csv|pdf|jpe?g|png|webp)$/i.test(f))
     .map((f) => join(dir, f))
     .filter((p) => statSync(p).size > 0)
     .sort();
@@ -28,11 +28,17 @@ async function main(): Promise<void> {
   for (const f of files) {
     try {
       const buf = readFileSync(f);
+      const lower = f.toLowerCase();
+      const mime = lower.endsWith('.pdf')
+        ? 'application/pdf'
+        : lower.match(/\.(jpe?g|png|webp)$/)
+        ? `image/${lower.endsWith('.png') ? 'png' : lower.endsWith('.webp') ? 'webp' : 'jpeg'}`
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       const invoices = await invoiceImportParserService.parseBuffer(
         buf,
         f.split('/').pop()!,
         'auto',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mime,
       );
       for (const inv of invoices) {
         ok++;

@@ -1,9 +1,18 @@
 import type { ImportFormat, ParsedInvoice } from '@runq/types';
+import { extractPdfText } from './extractors/pdf-text';
+import { extractImageText } from './extractors/image-ocr';
 import { aiParser } from './parsers/ai';
 import { genericRowsParser } from './parsers/generic-rows';
 import { heuristicParser } from './parsers/heuristic';
 import { singleInvoiceTemplateParser } from './parsers/single-invoice-template';
-import { isPdf, isSpreadsheet, type InvoiceParser, type ParserInput } from './parsers/shared';
+import { textHeuristicParser } from './parsers/text-heuristic';
+import {
+  isImage,
+  isPdf,
+  isSpreadsheet,
+  type InvoiceParser,
+  type ParserInput,
+} from './parsers/shared';
 
 /**
  * Cascade orchestrator. Each parser receives a ParserInput (buffer +
@@ -23,6 +32,10 @@ const PARSER_ORDER: InvoiceParser[] = [
   genericRowsParser,
   singleInvoiceTemplateParser,
   heuristicParser,
+  // text-heuristic operates on pre-extracted text and is the cheapest
+  // path for PDFs and images. It runs *before* the AI fallback so we
+  // only burn tokens when local intelligence can't parse the document.
+  textHeuristicParser,
   aiParser,
 ];
 
@@ -46,6 +59,13 @@ export class InvoiceImportParserService {
    * Parses a buffer using the requested format. When format='auto', tries
    * each parser in order until one succeeds. Returns the parsed invoices
    * or throws when nothing in the cascade can parse the file.
+   *
+   * For PDF and image inputs the cascade pre-extracts text via pdf-parse
+   * or tesseract.js OCR before invoking the parsers. The text-heuristic
+   * parser then has a chance to handle the document locally before the
+   * AI parser is invoked. The original buffer is preserved on the input
+   * so the AI parser can still fall back to Claude Vision when local
+   * extraction yields nothing usable.
    */
   async parseBuffer(
     buffer: Buffer,
@@ -54,6 +74,20 @@ export class InvoiceImportParserService {
     mimeType = '',
   ): Promise<ParsedInvoice[]> {
     const input: ParserInput = { buffer, fileName, mimeType: mimeType.toLowerCase() };
+
+    // Pre-extract text for PDFs and images. This is the key step that
+    // lets the cheap text-heuristic parser run before AI Vision.
+    if (isPdf(input)) {
+      const pdf = await extractPdfText(buffer);
+      if (pdf.hasUsableText) {
+        input.extractedText = pdf.text;
+      }
+    } else if (isImage(input)) {
+      const ocr = await extractImageText(buffer);
+      if (ocr.hasUsableText) {
+        input.extractedText = ocr.text;
+      }
+    }
 
     if (format !== 'auto') {
       const parser = PARSERS_BY_NAME[format] ?? this.parsers.find((p) => p.name === format);
@@ -81,16 +115,21 @@ export class InvoiceImportParserService {
 
     if (isPdf(input)) {
       throw new Error(
-        `${fileName} is a PDF and no parser could handle it. PDF support requires the AI parser — set ANTHROPIC_API_KEY on the API server.`,
+        `${fileName} is a PDF and no parser could handle it. Local text extraction came up empty (likely a scanned PDF) and the AI fallback also failed. Check that ANTHROPIC_API_KEY is set on the API server.`,
+      );
+    }
+    if (isImage(input)) {
+      throw new Error(
+        `${fileName} is an image and no parser could handle it. Local OCR came up empty and the AI fallback also failed. Check that ANTHROPIC_API_KEY is set on the API server.`,
       );
     }
     if (!isSpreadsheet(input)) {
       throw new Error(
-        `${fileName} has unsupported type '${mimeType || 'unknown'}'. Supported: xlsx, csv, pdf.`,
+        `${fileName} has unsupported type '${mimeType || 'unknown'}'. Supported: xlsx, csv, pdf, jpg, png.`,
       );
     }
     throw new Error(
-      `No parser could recognise ${fileName}. Supported spreadsheet formats: generic CSV/xlsx with documented headers, single-invoice xlsx templates. For arbitrary layouts the AI fallback is coming in a follow-up.`,
+      `No parser could recognise ${fileName}. Try uploading the source as PDF or jpg/png — the AI fallback handles arbitrary layouts.`,
     );
   }
 }
