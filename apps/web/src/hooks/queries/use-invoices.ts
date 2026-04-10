@@ -134,3 +134,15 @@ export function useHardDeleteInvoice() {
     onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
   });
 }
+
+export function useBatchUpdateStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { invoiceIds: string[]; status: 'sent' | 'cancelled' }) =>
+      api.post<ApiSuccess<{ updated: number; skipped: { id: string; reason: string }[] }>>(
+        '/ar/invoices/batch-status',
+        input,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
+  });
+}

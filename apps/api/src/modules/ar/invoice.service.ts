@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte, notInArray, desc } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, inArray, notInArray, desc } from 'drizzle-orm';
 import {
   salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants,
   paymentReceipts, receiptAllocations, bankAccounts, items,
@@ -585,6 +585,48 @@ export class InvoiceService {
         .delete(salesInvoices)
         .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
     });
+  }
+
+  /**
+   * Batch status update. Transitions multiple invoices at once (e.g.
+   * draft → sent after a bulk import). Silently skips invoices whose
+   * current status doesn't allow the requested transition. Returns
+   * counts so the UI can report what happened.
+   *
+   * Allowed transitions:
+   *   draft → sent
+   *   draft → cancelled
+   */
+  async batchUpdateStatus(
+    invoiceIds: string[],
+    targetStatus: 'sent' | 'cancelled',
+  ): Promise<{ updated: number; skipped: { id: string; reason: string }[] }> {
+    const allowedFrom: SalesInvoiceStatus = 'draft';
+    const skipped: { id: string; reason: string }[] = [];
+
+    // Single UPDATE ... WHERE id IN (...) AND status = 'draft' handles
+    // the transition atomically. Anything that doesn't match the WHERE
+    // is effectively skipped.
+    const result = await this.db
+      .update(salesInvoices)
+      .set({ status: targetStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          inArray(salesInvoices.id, invoiceIds),
+          eq(salesInvoices.status, allowedFrom),
+        ),
+      )
+      .returning({ id: salesInvoices.id });
+
+    const updatedIds = new Set(result.map((r) => r.id));
+    for (const id of invoiceIds) {
+      if (!updatedIds.has(id)) {
+        skipped.push({ id, reason: `Not in '${allowedFrom}' status` });
+      }
+    }
+
+    return { updated: updatedIds.size, skipped };
   }
 
   async send(id: string, input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {

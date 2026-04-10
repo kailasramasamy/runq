@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
-import { useInvoices } from '@/hooks/queries/use-invoices';
+import { useInvoices, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
 import {
   PageHeader, Badge, Button, Select, DateInput, Combobox,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, Pagination,
+  TableSkeleton, EmptyState, Pagination, useToast,
 } from '@/components/ui';
 
 const LIMIT = 20;
@@ -69,13 +69,25 @@ function InvoiceCard({
 function InvoiceRow({
   invoice,
   onView,
+  selected,
+  onToggleSelect,
 }: {
   invoice: SalesInvoiceWithDetails;
   onView: (id: string) => void;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }) {
   const statusInfo = STATUS_BADGE[invoice.status];
   return (
     <TableRow className="cursor-pointer" onClick={() => onView(invoice.id)}>
+      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(invoice.id)}
+          className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
+        />
+      </TableCell>
       <TableCell className="font-mono text-sm font-medium">{invoice.invoiceNumber}</TableCell>
       <TableCell className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
         {invoice.customerNickname ?? ''}
@@ -95,12 +107,52 @@ function InvoiceRow({
 
 export function InvoiceListPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const batchMutation = useBatchUpdateStatus();
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(invoices: SalesInvoiceWithDetails[]) {
+    setSelected((prev) => {
+      const allOnPage = invoices.map((i) => i.id);
+      const allSelected = allOnPage.every((id) => prev.has(id));
+      if (allSelected) {
+        const next = new Set(prev);
+        allOnPage.forEach((id) => next.delete(id));
+        return next;
+      }
+      return new Set([...prev, ...allOnPage]);
+    });
+  }
+
+  async function handleBatchStatus(status: 'sent' | 'cancelled') {
+    if (selected.size === 0) return;
+    try {
+      const res = await batchMutation.mutateAsync({ invoiceIds: [...selected], status });
+      const { updated, skipped } = res.data;
+      toast(
+        `${updated} invoice${updated === 1 ? '' : 's'} marked as ${status}` +
+          (skipped.length > 0 ? ` · ${skipped.length} skipped (not draft)` : ''),
+        skipped.length > 0 ? 'info' : 'success',
+      );
+      setSelected(new Set());
+    } catch (err) {
+      toast((err as Error).message || 'Batch update failed', 'error');
+    }
+  }
 
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data ?? [];
@@ -193,6 +245,38 @@ export function InvoiceListPage() {
         </div>
       </div>
 
+      {/* Batch action bar */}
+      {selected.size > 0 && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 dark:border-indigo-900 dark:bg-indigo-950/30">
+          <span className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
+            {selected.size} selected
+          </span>
+          <Button
+            size="sm"
+            onClick={() => handleBatchStatus('sent')}
+            loading={batchMutation.isPending}
+          >
+            <Send size={14} /> Mark as Sent
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleBatchStatus('cancelled')}
+            loading={batchMutation.isPending}
+          >
+            Cancel Selected
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="ml-auto rounded p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            title="Clear selection"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Mobile card view */}
       <div className="flex flex-col gap-2 md:hidden">
         {isLoading ? (
@@ -229,6 +313,14 @@ export function InvoiceListPage() {
         <Table>
           <TableHeader>
             <tr>
+              <Th className="w-10">
+                <input
+                  type="checkbox"
+                  checked={invoices.length > 0 && invoices.every((i) => selected.has(i.id))}
+                  onChange={() => toggleSelectAll(invoices)}
+                  className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </Th>
               <Th>Invoice #</Th>
               <Th>Nickname</Th>
               <Th>Customer</Th>
@@ -242,10 +334,10 @@ export function InvoiceListPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={6} cols={9} />
+              <TableSkeleton rows={6} cols={10} />
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <EmptyState
                     icon={FileText}
                     title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
@@ -266,7 +358,13 @@ export function InvoiceListPage() {
               </tr>
             ) : (
               invoices.map((inv) => (
-                <InvoiceRow key={inv.id} invoice={inv} onView={handleView} />
+                <InvoiceRow
+                  key={inv.id}
+                  invoice={inv}
+                  onView={handleView}
+                  selected={selected.has(inv.id)}
+                  onToggleSelect={toggleSelect}
+                />
               ))
             )}
           </TableBody>

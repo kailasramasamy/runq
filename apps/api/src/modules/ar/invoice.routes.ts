@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { tenants } from '@runq/db';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
@@ -120,6 +121,24 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const service = new InvoiceService(request.server.db, request.tenantId);
       const data = await service.getReceiptsForInvoice(id);
       return { data };
+    },
+  );
+
+  // Batch status update — transitions multiple invoices at once (e.g.
+  // draft → sent after a bulk import). Skips non-draft invoices silently.
+  app.post(
+    '/batch-status',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const body = z
+        .object({
+          invoiceIds: z.array(z.string().uuid()).min(1).max(500),
+          status: z.enum(['sent', 'cancelled']),
+        })
+        .parse(request.body);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const result = await service.batchUpdateStatus(body.invoiceIds, body.status);
+      return { data: result };
     },
   );
 
