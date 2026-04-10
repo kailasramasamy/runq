@@ -14,8 +14,9 @@ export interface PriceListItemRow {
   itemId: string;
   itemName?: string;
   itemSku?: string | null;
-  rate: number;
+  rate: number | null;
   marginPercent: number | null;
+  mrp: number | null;
   discountPercent: number | null;
   minQuantity: number | null;
   createdAt: string;
@@ -45,8 +46,9 @@ export interface PriceList {
 
 export interface PriceListItemInput {
   itemId: string;
-  rate: number;
+  rate?: number | null;
   marginPercent?: number | null;
+  mrp?: number | null;
   discountPercent?: number | null;
   minQuantity?: number | null;
 }
@@ -134,6 +136,7 @@ export interface ResolvedPrice {
   rate: number;
   effectiveRate: number;
   discountPercent: number | null;
+  mrp: number | null;
   source: PriceSource;
   priceListId: string | null;
   priceListName: string | null;

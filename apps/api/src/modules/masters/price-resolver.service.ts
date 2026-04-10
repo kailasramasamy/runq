@@ -9,6 +9,12 @@ export interface ResolvedPrice {
   rate: number;
   effectiveRate: number;
   discountPercent: number | null;
+  /**
+   * Maximum retail price for this (customer, item) combination. Pulled from
+   * the price list line if it has an mrp override; otherwise falls back to
+   * items.mrp. Null if neither is set.
+   */
+  mrp: number | null;
   source: PriceSource;
   priceListId: string | null;
   priceListName: string | null;
@@ -31,9 +37,27 @@ export interface ResolveParams {
  *   4. items.defaultSellingPrice
  *
  * Within a matching list we pick the highest min_quantity row that is still
- * <= the requested quantity (qty tiers). discountPercent is applied to the
- * stored rate to produce effectiveRate. marginPercent is intentionally
- * ignored on selling lists — it's a buying-side concept.
+ * <= the requested quantity (qty tiers).
+ *
+ * A price list line can express its override three ways and any combination
+ * is allowed (CHECK constraint guarantees at least one is set):
+ *   - Absolute `rate`       → used as-is. Escape hatch for non-standard pricing.
+ *   - `margin_percent`      → seller margin (discount off MRP), items-master flow.
+ *   - `mrp`                 → MRP override.
+ *
+ * When `rate` is null we run the items-master MRP-anchored math:
+ *
+ *     effectiveMrp    = line.mrp           ?? item.mrp
+ *     effectiveMargin = line.margin_percent ?? item.margin
+ *     landingPrice    = effectiveMrp × (1 - effectiveMargin/100)
+ *     rate            = landingPrice / (1 + item.gst_rate/100)
+ *
+ * If either MRP or margin is missing on both line and item, we fall through
+ * to items.default_selling_price.
+ *
+ * `discount_percent` is then applied to the chosen rate to produce
+ * `effectiveRate`. The resolved `mrp` is the price-list override if set,
+ * otherwise the item master's mrp.
  */
 export class PriceResolverService {
   constructor(
@@ -90,9 +114,12 @@ export class PriceResolverService {
     });
     if (allLevel) return { ...allLevel, source: 'all' };
 
-    // Tier 4: fall back to the item master's default selling price
+    // Tier 4: fall back to the item master's default selling price + mrp
     const [item] = await this.db
-      .select({ defaultSellingPrice: items.defaultSellingPrice })
+      .select({
+        defaultSellingPrice: items.defaultSellingPrice,
+        mrp: items.mrp,
+      })
       .from(items)
       .where(and(eq(items.id, itemId), eq(items.tenantId, this.tenantId)))
       .limit(1);
@@ -104,6 +131,7 @@ export class PriceResolverService {
       rate: fallbackRate,
       effectiveRate: fallbackRate,
       discountPercent: null,
+      mrp: item.mrp != null ? Number(item.mrp) : null,
       source: 'item_default',
       priceListId: null,
       priceListName: null,
@@ -111,10 +139,11 @@ export class PriceResolverService {
   }
 
   /**
-   * Joins price_lists ↔ price_list_items, filters to selling lists for this
-   * tenant that are active, valid for the date, and have a row for the item
-   * with min_quantity <= quantity. Returns the row with the highest matching
-   * min_quantity (the right tier), or null if nothing matches.
+   * Joins price_lists ↔ price_list_items ↔ items, filters to selling lists
+   * for this tenant that are active, valid for the date, and have a row for
+   * the item with min_quantity <= quantity. Picks the row with the highest
+   * matching min_quantity (the right tier), then runs the items-master flow
+   * to derive the rate.
    */
   private async findBestRate(args: {
     itemId: string;
@@ -127,13 +156,20 @@ export class PriceResolverService {
     const rows = await this.db
       .select({
         rate: priceListItems.rate,
+        marginPercent: priceListItems.marginPercent,
+        mrp: priceListItems.mrp,
         discountPercent: priceListItems.discountPercent,
         minQuantity: priceListItems.minQuantity,
         priceListId: priceLists.id,
         priceListName: priceLists.name,
+        itemDefaultSellingPrice: items.defaultSellingPrice,
+        itemMrp: items.mrp,
+        itemMargin: items.margin,
+        itemGstRate: items.gstRate,
       })
       .from(priceListItems)
       .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
+      .innerJoin(items, eq(priceListItems.itemId, items.id))
       .where(
         and(
           eq(priceLists.tenantId, this.tenantId),
@@ -151,14 +187,40 @@ export class PriceResolverService {
     const best = rows[0];
     if (!best) return null;
 
-    const rate = Number(best.rate);
+    let rate: number;
+    if (best.rate != null) {
+      // Explicit absolute override — escape hatch for non-standard pricing.
+      rate = Number(best.rate);
+    } else {
+      // Items-master flow: derive basic price from effective MRP, margin, GST.
+      const effectiveMrp =
+        best.mrp != null ? Number(best.mrp) : (best.itemMrp != null ? Number(best.itemMrp) : null);
+      const effectiveMargin =
+        best.marginPercent != null
+          ? Number(best.marginPercent)
+          : (best.itemMargin != null ? Number(best.itemMargin) : null);
+      const effectiveGst = best.itemGstRate != null ? Number(best.itemGstRate) : 0;
+
+      if (effectiveMrp != null && effectiveMargin != null) {
+        const landingPrice = effectiveMrp * (1 - effectiveMargin / 100);
+        rate = landingPrice / (1 + effectiveGst / 100);
+      } else {
+        // Missing inputs for the MRP-anchored math — fall back to item default.
+        rate = best.itemDefaultSellingPrice != null ? Number(best.itemDefaultSellingPrice) : 0;
+      }
+    }
+
     const discount = best.discountPercent != null ? Number(best.discountPercent) : null;
     const effectiveRate = discount != null ? rate * (1 - discount / 100) : rate;
+    const mrp = best.mrp != null
+      ? Number(best.mrp)
+      : (best.itemMrp != null ? Number(best.itemMrp) : null);
 
     return {
-      rate,
+      rate: Math.round(rate * 100) / 100,
       effectiveRate: Math.round(effectiveRate * 100) / 100,
       discountPercent: discount,
+      mrp,
       priceListId: best.priceListId,
       priceListName: best.priceListName,
     };

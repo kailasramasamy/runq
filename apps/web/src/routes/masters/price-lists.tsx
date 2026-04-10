@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { Plus, X, Pencil, Download, Power, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, X, Pencil, Download, Power, Trash2, Calculator } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, DateInput,
-  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
+  Combobox, Modal, Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
   TableSkeleton, useToast,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { calculatePricing, solveMrpForTargetMargin } from '@/lib/item-pricing';
 import {
   usePriceLists, usePriceList, useCreatePriceList, useUpdatePriceList, useTogglePriceList,
   type PriceList, type CreatePriceListInput, type PriceListItemInput,
@@ -30,67 +31,334 @@ function applyToLabel(applyTo: string, value: string | null, customerName?: stri
   }
 }
 
+// ─── Price Calculator Dialog ────────────────────────────────────────────────
+
+function CalcStat({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className={`font-mono text-sm font-semibold ${className ?? 'text-zinc-900 dark:text-zinc-100'}`}>{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Per-row pricing calculator. Uses the items-master MRP-anchored flow to
+ * show standard data + net profit, and when the user changes the seller
+ * margin %, suggests an MRP that maintains the standard net margin %.
+ *
+ * Only meaningful for products. For services, the resolver path doesn't run
+ * the MRP chain, so the calculator is hidden in the row.
+ */
+function PriceCalculatorDialog({
+  open,
+  onClose,
+  item,
+  currentMargin,
+  currentMrp,
+  onApply,
+}: {
+  open: boolean;
+  onClose: () => void;
+  item: Item;
+  currentMargin: number | null;
+  currentMrp: number | null;
+  onApply: (margin: number | null, mrp: number | null) => void;
+}) {
+  const [marginInput, setMarginInput] = useState<string>('');
+  const [mrpInput, setMrpInput] = useState<string>('');
+
+  // Reset the editable fields each time the dialog opens for a (possibly
+  // different) row.
+  useEffect(() => {
+    if (open) {
+      setMarginInput(currentMargin != null ? String(currentMargin) : '');
+      setMrpInput(currentMrp != null ? String(currentMrp) : '');
+    }
+  }, [open, currentMargin, currentMrp]);
+
+  const cogm = item.costPrice ?? 0;
+  const gst = item.gstRate ?? 0;
+  const standardMrp = item.mrp;
+  const standardMargin = item.margin;
+
+  // Standard pricing baseline from the item master.
+  const standard = useMemo(() => {
+    if (standardMrp == null || standardMargin == null) return null;
+    return calculatePricing({
+      mrp: standardMrp,
+      sellerMarginPct: standardMargin,
+      gstRatePct: gst,
+      cogm,
+    });
+  }, [standardMrp, standardMargin, gst, cogm]);
+
+  // Effective override values fall back to standard when the input is blank
+  // — that way the override panel always renders something coherent.
+  const effectiveMargin = marginInput !== '' ? Number(marginInput) : standardMargin;
+  const effectiveMrp = mrpInput !== '' ? Number(mrpInput) : standardMrp;
+  const override = useMemo(() => {
+    if (effectiveMrp == null || effectiveMargin == null) return null;
+    return calculatePricing({
+      mrp: effectiveMrp,
+      sellerMarginPct: effectiveMargin,
+      gstRatePct: gst,
+      cogm,
+    });
+  }, [effectiveMrp, effectiveMargin, gst, cogm]);
+
+  // Suggested MRP: the price that would still hit the standard net margin %
+  // at the user's chosen seller margin %. Hidden when no margin change.
+  const suggestedMrp = useMemo(() => {
+    if (!standard || effectiveMargin == null) return null;
+    if (effectiveMargin === standardMargin) return null;
+    return solveMrpForTargetMargin(cogm, effectiveMargin, gst, standard.netMarginPct);
+  }, [standard, effectiveMargin, standardMargin, cogm, gst]);
+
+  function handleApply() {
+    onApply(
+      marginInput !== '' ? Number(marginInput) : null,
+      mrpInput !== '' ? Number(mrpInput) : null,
+    );
+    onClose();
+  }
+
+  function useSuggestedMrp() {
+    if (suggestedMrp != null) setMrpInput(String(suggestedMrp));
+  }
+
+  const profitTone = (profit: number, netMargin: number) =>
+    profit < 0
+      ? 'text-red-700 dark:text-red-400'
+      : netMargin < 5
+      ? 'text-amber-700 dark:text-amber-400'
+      : 'text-emerald-700 dark:text-emerald-400';
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Price Calculator — ${item.name}`} wide>
+      <div className="space-y-4">
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          {item.sku && <span>SKU: {item.sku}</span>}
+          {item.sku && item.unit && <span> · </span>}
+          {item.unit && <span>Unit: {item.unit}</span>}
+        </div>
+
+        {/* Standard (item master) */}
+        <fieldset className="space-y-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+          <legend className="px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            Standard (item master)
+          </legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <CalcStat label="COGM" value={item.costPrice != null ? formatINR(item.costPrice) : '—'} />
+            <CalcStat label="GST" value={`${gst}%`} />
+            <CalcStat label="MRP" value={standardMrp != null ? formatINR(standardMrp) : '—'} />
+            <CalcStat label="Seller Margin" value={standardMargin != null ? `${standardMargin}%` : '—'} />
+          </div>
+          {standard ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <CalcStat label="Basic Price" value={formatINR(standard.basicPrice)} />
+              <CalcStat label="Landing" value={formatINR(standard.landingPrice)} />
+              <CalcStat
+                label="Profit / unit"
+                value={formatINR(standard.profitPerUnit)}
+                className={profitTone(standard.profitPerUnit, standard.netMarginPct)}
+              />
+              <CalcStat
+                label="Net Margin"
+                value={`${standard.netMarginPct.toFixed(2)}%`}
+                className={profitTone(standard.profitPerUnit, standard.netMarginPct)}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Item master is missing MRP, seller margin, or COGM — can't compute the standard.
+            </p>
+          )}
+        </fieldset>
+
+        {/* Customer override */}
+        <fieldset className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+          <legend className="px-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+            Customer override
+          </legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Seller Margin (%)</label>
+              <input
+                type="number"
+                value={marginInput}
+                onChange={(e) => setMarginInput(e.target.value)}
+                placeholder={standardMargin != null ? String(standardMargin) : '—'}
+                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">MRP</label>
+              <input
+                type="number"
+                value={mrpInput}
+                onChange={(e) => setMrpInput(e.target.value)}
+                placeholder={standardMrp != null ? String(standardMrp) : '—'}
+                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              />
+              {suggestedMrp != null && standard && (
+                <button
+                  type="button"
+                  onClick={useSuggestedMrp}
+                  className="mt-1 text-left text-[10px] font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  ↳ Use {formatINR(suggestedMrp)} to hold standard net margin {standard.netMarginPct.toFixed(2)}%
+                </button>
+              )}
+            </div>
+          </div>
+          {override ? (
+            <div
+              className={`grid grid-cols-2 gap-2 rounded-md border px-2 py-2 sm:grid-cols-4 ${
+                override.profitPerUnit < 0
+                  ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30'
+                  : override.netMarginPct < 5
+                  ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30'
+                  : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'
+              }`}
+            >
+              <CalcStat label="Basic Price" value={formatINR(override.basicPrice)} />
+              <CalcStat label="Landing" value={formatINR(override.landingPrice)} />
+              <CalcStat
+                label="Profit / unit"
+                value={formatINR(override.profitPerUnit)}
+                className={profitTone(override.profitPerUnit, override.netMarginPct)}
+              />
+              <CalcStat
+                label="Net Margin"
+                value={`${override.netMarginPct.toFixed(2)}%`}
+                className={profitTone(override.profitPerUnit, override.netMarginPct)}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Enter both margin and MRP (or leave blank to inherit standard) to see the result.
+            </p>
+          )}
+        </fieldset>
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="button" size="sm" onClick={handleApply}>Apply to row</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Line Item Row ──────────────────────────────────────────────────────────
 
 interface LineItemProps {
   line: PriceListItemInput & { _key: string };
   items: Item[];
-  listType: 'selling' | 'buying';
   onChange: (key: string, updates: Partial<PriceListItemInput>) => void;
   onRemove: (key: string) => void;
+  onOpenCalc: () => void;
 }
 
-function LineItemRow({ line, items, listType, onChange, onRemove }: LineItemProps) {
+const numericInputClasses =
+  'w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+
+function LineItemRow({ line, items, onChange, onRemove, onOpenCalc }: LineItemProps) {
   const selectedItem = items.find((i) => i.id === line.itemId);
-  const showMargin = listType === 'buying';
+  const itemOptions = items
+    .filter((i) => i.isActive)
+    .map((i) => ({
+      value: i.id,
+      label: `${i.name}${i.sku ? ` (${i.sku})` : ''}${i.unit ? ` · ${i.unit}` : ''}`,
+    }));
+
+  // Items-master basic price (per unit, excluding GST). This is what the
+  // resolver returns as the rate, so both the Rate placeholder and the
+  // override preview should reference it for consistency.
+  function basicFromMaster(): number | null {
+    if (!selectedItem) return null;
+    if (selectedItem.basicPrice != null) return selectedItem.basicPrice;
+    if (selectedItem.defaultSellingPrice != null) {
+      const gst = selectedItem.gstRate ?? 0;
+      return Math.round((selectedItem.defaultSellingPrice / (1 + gst / 100)) * 100) / 100;
+    }
+    return null;
+  }
+
+  const ratePlaceholder = (() => {
+    const b = basicFromMaster();
+    return b != null ? String(b) : '0.00';
+  })();
+
+  // Live preview of the basic price the resolver will use at invoice time,
+  // computed from the items-master MRP-anchored flow:
+  //     basicPrice = effectiveMrp × (1 - margin/100) / (1 + gst/100)
+  // Only shown when rate is blank but we have enough inputs to compute it.
+  const marginPreview = (() => {
+    if (line.rate != null || !selectedItem) return null;
+    const effectiveMrp = line.mrp ?? selectedItem.mrp;
+    const effectiveMargin = line.marginPercent ?? selectedItem.margin;
+    if (effectiveMrp == null || effectiveMargin == null) return null;
+    const gst = selectedItem.gstRate ?? 0;
+    const landing = effectiveMrp * (1 - effectiveMargin / 100);
+    const basic = landing / (1 + gst / 100);
+    return Math.round(basic * 100) / 100;
+  })();
 
   return (
-    <tr className="border-b border-zinc-100 dark:border-zinc-800">
+    <tr className="border-b border-zinc-100 dark:border-zinc-800 align-top">
       <td className="px-3 py-2">
-        <select
+        <Combobox
+          options={itemOptions}
           value={line.itemId}
-          onChange={(e) => {
-            const item = items.find((i) => i.id === e.target.value);
-            onChange(line._key, {
-              itemId: e.target.value,
-              rate: item?.defaultSellingPrice ?? 0,
-            });
-          }}
-          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-        >
-          <option value="">Select item…</option>
-          {items.filter((i) => i.isActive).map((i) => (
-            <option key={i.id} value={i.id}>{i.name}{i.sku ? ` (${i.sku})` : ''}</option>
-          ))}
-        </select>
+          onChange={(value) => onChange(line._key, { itemId: value })}
+          placeholder="Search item…"
+        />
       </td>
       <td className="px-3 py-2 text-xs text-zinc-500">{selectedItem?.sku ?? '-'}</td>
       <td className="px-3 py-2">
         <input
           type="number"
-          value={line.rate || ''}
-          onChange={(e) => onChange(line._key, { rate: Number(e.target.value) })}
-          className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          placeholder="0.00"
+          value={line.rate ?? ''}
+          onChange={(e) => onChange(line._key, { rate: e.target.value ? Number(e.target.value) : null })}
+          className={numericInputClasses}
+          placeholder={ratePlaceholder}
+          title="Basic price per unit (excludes GST). Leave blank to derive from MRP × (1 - margin) / (1 + gst)."
         />
       </td>
-      {showMargin && (
-        <td className="px-3 py-2">
-          <input
-            type="number"
-            value={line.marginPercent ?? ''}
-            onChange={(e) => onChange(line._key, { marginPercent: e.target.value ? Number(e.target.value) : null })}
-            className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-            placeholder="%"
-          />
-        </td>
-      )}
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          value={line.marginPercent ?? ''}
+          onChange={(e) => onChange(line._key, { marginPercent: e.target.value ? Number(e.target.value) : null })}
+          className={numericInputClasses}
+          placeholder="%"
+        />
+        {marginPreview != null && (
+          <p
+            className="mt-1 text-right text-[10px] text-emerald-600 dark:text-emerald-400"
+            title="Basic price the resolver will compute from this margin and MRP at invoice time"
+          >
+            → rate ≈ {formatINR(marginPreview)}
+          </p>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          value={line.mrp ?? ''}
+          onChange={(e) => onChange(line._key, { mrp: e.target.value ? Number(e.target.value) : null })}
+          className={numericInputClasses}
+          placeholder={selectedItem?.mrp != null ? String(selectedItem.mrp) : '0.00'}
+        />
+      </td>
       <td className="px-3 py-2">
         <input
           type="number"
           value={line.discountPercent ?? ''}
           onChange={(e) => onChange(line._key, { discountPercent: e.target.value ? Number(e.target.value) : null })}
-          className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className={numericInputClasses}
           placeholder="%"
         />
       </td>
@@ -99,14 +367,39 @@ function LineItemRow({ line, items, listType, onChange, onRemove }: LineItemProp
           type="number"
           value={line.minQuantity ?? ''}
           onChange={(e) => onChange(line._key, { minQuantity: e.target.value ? Number(e.target.value) : null })}
-          className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-right dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className={numericInputClasses}
           placeholder="0"
         />
       </td>
-      <td className="px-3 py-2 text-right">
-        <button type="button" onClick={() => onRemove(line._key)} className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950">
-          <Trash2 size={14} />
-        </button>
+      <td className="px-3 py-2">
+        <div className="flex justify-end gap-1">
+          {/* Calculator: visible by default so users discover it, disabled
+              until an item is picked. Hidden entirely for services since the
+              MRP-anchored math doesn't apply. */}
+          {(!selectedItem || selectedItem.type === 'product') && (
+            <button
+              type="button"
+              onClick={selectedItem ? onOpenCalc : undefined}
+              disabled={!selectedItem}
+              title={selectedItem ? 'Open price calculator' : 'Select an item first'}
+              className={`rounded p-1 ${
+                selectedItem
+                  ? 'text-indigo-500 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:bg-indigo-950'
+                  : 'cursor-not-allowed text-zinc-300 dark:text-zinc-700'
+              }`}
+            >
+              <Calculator size={14} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(line._key)}
+            title="Remove line"
+            className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -152,14 +445,22 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
           itemId: li.itemId,
           rate: li.rate,
           marginPercent: li.marginPercent,
+          mrp: li.mrp,
           discountPercent: li.discountPercent,
           minQuantity: li.minQuantity,
         }))
-      : [{ _key: newLineKey(), itemId: '', rate: 0, marginPercent: null, discountPercent: null, minQuantity: null }],
+      : [{ _key: newLineKey(), itemId: '', rate: null, marginPercent: null, mrp: null, discountPercent: null, minQuantity: null }],
   );
 
+  // Per-row price calculator dialog state. Lifted up here because Modal
+  // can't render inside a <tbody> (HTML constraint), so each row just signals
+  // which line should open the calculator.
+  const [calcRowKey, setCalcRowKey] = useState<string | null>(null);
+  const calcLine = calcRowKey ? lines.find((l) => l._key === calcRowKey) ?? null : null;
+  const calcItem = calcLine ? allItems.find((i) => i.id === calcLine.itemId) ?? null : null;
+
   function addLine() {
-    setLines((prev) => [...prev, { _key: newLineKey(), itemId: '', rate: 0, marginPercent: null, discountPercent: null, minQuantity: null }]);
+    setLines((prev) => [...prev, { _key: newLineKey(), itemId: '', rate: null, marginPercent: null, mrp: null, discountPercent: null, minQuantity: null }]);
   }
 
   function updateLine(key: string, updates: Partial<PriceListItemInput>) {
@@ -175,6 +476,13 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
     const validLines = lines.filter((l) => l.itemId);
     if (validLines.length === 0) {
       toast('Add at least one item', 'error');
+      return;
+    }
+    const incompleteLine = validLines.find(
+      (l) => l.rate == null && l.marginPercent == null && l.mrp == null,
+    );
+    if (incompleteLine) {
+      toast('Each line needs at least one of rate, margin %, or MRP', 'error');
       return;
     }
 
@@ -210,7 +518,7 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
     : 'border-indigo-200 bg-indigo-50 dark:border-indigo-900/50 dark:bg-indigo-950/20';
 
   return (
-    <div className={`mb-4 rounded-lg border p-4 ${borderColor}`}>
+    <div className={`mb-4 max-w-5xl rounded-lg border p-4 ${borderColor}`}>
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           {isEdit ? `Edit — ${priceList.name}` : 'New Price List'}
@@ -274,24 +582,28 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
         {/* Line items */}
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h5 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Items</h5>
+            <div>
+              <h5 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Items</h5>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Override Rate (absolute), Seller Margin %, or MRP — any combination. Click the calculator on any product row to see the items-master breakdown and a suggested MRP.
+              </p>
+            </div>
             <Button type="button" variant="outline" size="sm" onClick={addLine}>
               <Plus size={14} /> Add Item
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+          <div className="rounded-md border border-zinc-200 dark:border-zinc-800">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-900">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500">Item</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500">SKU</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Rate</th>
-                  {type === 'buying' && (
-                    <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Margin%</th>
-                  )}
-                  <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Discount%</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-zinc-500">Min Qty</th>
-                  <th className="px-3 py-2 w-10"></th>
+                  <th className="w-20 px-3 py-2 text-left text-xs font-medium text-zinc-500">SKU</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Rate</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Margin%</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">MRP</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Discount%</th>
+                  <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Min Qty</th>
+                  <th className="w-16 px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -300,15 +612,26 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
                     key={line._key}
                     line={line}
                     items={allItems}
-                    listType={type}
                     onChange={updateLine}
                     onRemove={removeLine}
+                    onOpenCalc={() => setCalcRowKey(line._key)}
                   />
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+
+        {calcLine && calcItem && (
+          <PriceCalculatorDialog
+            open={true}
+            onClose={() => setCalcRowKey(null)}
+            item={calcItem}
+            currentMargin={calcLine.marginPercent ?? null}
+            currentMrp={calcLine.mrp ?? null}
+            onApply={(margin, mrp) => updateLine(calcLine._key, { marginPercent: margin, mrp })}
+          />
+        )}
 
         <div className="flex gap-2">
           <Button type="submit" loading={create.isPending || update.isPending} size="sm">

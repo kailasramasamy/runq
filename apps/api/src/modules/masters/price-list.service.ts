@@ -101,7 +101,11 @@ export class PriceListService {
   }
 
   async create(input: CreatePriceListInput): Promise<PriceList> {
-    return this.db.transaction(async (tx) => {
+    // Run the writes in a transaction for atomicity, then re-fetch via the
+    // pool *after* the commit. Reading via this.getById from inside the tx
+    // would use a different pool connection that can't see uncommitted rows
+    // (Postgres MVCC) and would falsely throw NotFoundError.
+    const headerId = await this.db.transaction(async (tx) => {
       const [header] = await tx
         .insert(priceLists)
         .values({
@@ -121,20 +125,23 @@ export class PriceListService {
       const lineValues = input.items.map((li) => ({
         priceListId: header!.id,
         itemId: li.itemId,
-        rate: li.rate.toString(),
+        rate: li.rate != null ? li.rate.toString() : null,
         marginPercent: li.marginPercent?.toString() ?? null,
+        mrp: li.mrp?.toString() ?? null,
         discountPercent: li.discountPercent?.toString() ?? null,
         minQuantity: li.minQuantity?.toString() ?? '0',
       }));
 
       await tx.insert(priceListItems).values(lineValues);
 
-      return this.getById(header!.id);
+      return header!.id;
     });
+    return this.getById(headerId);
   }
 
   async update(id: string, input: UpdatePriceListInput): Promise<PriceList> {
-    return this.db.transaction(async (tx) => {
+    // See create() for why getById runs after the transaction commits.
+    await this.db.transaction(async (tx) => {
       const headerSet: Record<string, unknown> = { updatedAt: new Date() };
       if (input.name !== undefined) headerSet.name = input.name;
       if (input.type !== undefined) headerSet.type = input.type;
@@ -159,16 +166,16 @@ export class PriceListService {
         const lineValues = input.items.map((li) => ({
           priceListId: id,
           itemId: li.itemId,
-          rate: li.rate.toString(),
+          rate: li.rate != null ? li.rate.toString() : null,
           marginPercent: li.marginPercent?.toString() ?? null,
+          mrp: li.mrp?.toString() ?? null,
           discountPercent: li.discountPercent?.toString() ?? null,
           minQuantity: li.minQuantity?.toString() ?? '0',
         }));
         await tx.insert(priceListItems).values(lineValues);
       }
-
-      return this.getById(id);
     });
+    return this.getById(id);
   }
 
   async toggleActive(id: string): Promise<PriceList> {
@@ -213,8 +220,9 @@ export class PriceListService {
       itemId: row.itemId,
       itemName,
       itemSku,
-      rate: toNumber(row.rate),
+      rate: row.rate != null ? toNumber(row.rate) : null,
       marginPercent: row.marginPercent ? toNumber(row.marginPercent) : null,
+      mrp: row.mrp != null ? toNumber(row.mrp) : null,
       discountPercent: row.discountPercent ? toNumber(row.discountPercent) : null,
       minQuantity: row.minQuantity ? toNumber(row.minQuantity) : null,
       createdAt: row.createdAt.toISOString(),

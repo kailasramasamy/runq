@@ -50,8 +50,12 @@ export const priceListItems = pgTable(
     itemId: uuid('item_id')
       .notNull()
       .references(() => items.id),
-    rate: decimal('rate', { precision: 15, scale: 2 }).notNull(),
+    // Nullable: a line can express *only* a margin% (rate is derived from
+    // items.cost_price at resolve time) or *only* an mrp override. Migration
+    // 0014 adds a CHECK that at least one of (rate, margin_percent, mrp) is set.
+    rate: decimal('rate', { precision: 15, scale: 2 }),
     marginPercent: decimal('margin_percent', { precision: 5, scale: 2 }),
+    mrp: decimal('mrp', { precision: 15, scale: 2 }),
     discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }),
     minQuantity: decimal('min_quantity', { precision: 12, scale: 3 }).notNull().default('0'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

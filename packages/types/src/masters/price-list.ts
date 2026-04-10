@@ -7,8 +7,11 @@ export interface PriceListItem {
   itemId: string;
   itemName?: string;
   itemSku?: string | null;
-  rate: number;
+  // Any combination of rate / marginPercent / mrp may be set; at least one is
+  // guaranteed by the price_list_items_at_least_one_value CHECK constraint.
+  rate: number | null;
   marginPercent: number | null;
+  mrp: number | null;
   discountPercent: number | null;
   minQuantity: number | null;
   createdAt: string;

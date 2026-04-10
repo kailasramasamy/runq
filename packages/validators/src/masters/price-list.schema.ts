@@ -1,12 +1,25 @@
 import { z } from 'zod';
 
-const priceListItemSchema = z.object({
-  itemId: z.string().uuid(),
-  rate: z.number().min(0),
-  marginPercent: z.number().min(0).max(100).nullish(),
-  discountPercent: z.number().min(0).max(100).nullish(),
-  minQuantity: z.number().min(0).nullish(),
-});
+const priceListItemSchema = z
+  .object({
+    itemId: z.string().uuid(),
+    // All three pricing fields are nullable. The .superRefine below requires
+    // at least one of them to be set so empty lines can't be persisted.
+    rate: z.number().min(0).nullish(),
+    marginPercent: z.number().min(0).max(100).nullish(),
+    mrp: z.number().min(0).nullish(),
+    discountPercent: z.number().min(0).max(100).nullish(),
+    minQuantity: z.number().min(0).nullish(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.rate == null && data.marginPercent == null && data.mrp == null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rate'],
+        message: 'Set at least one of rate, margin %, or MRP',
+      });
+    }
+  });
 
 export const createPriceListSchema = z
   .object({
