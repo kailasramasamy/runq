@@ -122,49 +122,60 @@ function SidebarContent({
         </div>
       )}
 
-      <div className={cn('border-t border-zinc-200 dark:border-zinc-800', collapsed ? 'p-2' : 'p-4')}>
+      <div className={cn('border-t border-zinc-200 dark:border-zinc-800', collapsed ? 'p-2 space-y-1' : 'px-3 py-3')}>
         {collapsed ? (
           <>
             <Link
               to="/help"
               onClick={onNavigate}
               title="User Guide"
-              className="mb-2 flex items-center justify-center rounded-md p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40"
+              className="flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               <HelpCircle size={18} />
             </Link>
             <button
               onClick={logout}
               title="Sign out"
-              className="flex w-full items-center justify-center rounded-md p-2 text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+              className="flex w-full items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               <LogOut size={18} />
             </button>
           </>
         ) : (
           <>
-            <Link
-              to="/help"
-              onClick={onNavigate}
-              className="mb-3 flex w-full items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/70"
-            >
-              <HelpCircle size={16} strokeWidth={2} />
-              <span className="flex-1 text-left">User Guide</span>
-              <span aria-hidden="true" className="text-indigo-400 dark:text-indigo-500">→</span>
-            </Link>
-            <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {companyName ?? 'Loading...'}
-            </p>
-            <p className="mb-3 truncate text-xs text-zinc-500 dark:text-zinc-500">
-              {user?.email ?? ''}
-            </p>
-            <button
-              onClick={logout}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-            >
-              <LogOut size={16} strokeWidth={2} />
-              Sign out
-            </button>
+            {/* Company identity — subtle, not competing with nav */}
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {(companyName ?? '?')[0]?.toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium leading-tight text-zinc-800 dark:text-zinc-200">
+                  {companyName ?? 'Loading...'}
+                </p>
+                <p className="truncate text-[11px] leading-tight text-zinc-400 dark:text-zinc-500">
+                  {user?.email ?? ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Action links — clean horizontal row */}
+            <div className="flex items-center gap-1">
+              <Link
+                to="/help"
+                onClick={onNavigate}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                <HelpCircle size={14} />
+                Help
+              </Link>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
+            </div>
           </>
         )}
       </div>
