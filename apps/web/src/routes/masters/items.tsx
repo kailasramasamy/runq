@@ -225,7 +225,7 @@ export function ItemsPage() {
                         {item.unit && <Badge variant="outline" className="ml-1 align-middle">{item.unit}</Badge>}
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
                           {item.sku && <span className="font-mono">{item.sku}</span>}
-                          <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
+                          <Badge variant="default">{item.type}</Badge>
                           {tableAttributeFields.map((f) => {
                             const v = formatAttributeValue(item.attributes?.[f.key]);
                             return v !== '-' ? <span key={f.key}>{v}</span> : null;
