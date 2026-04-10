@@ -19,6 +19,16 @@ import { InvoiceImportMatcherService } from './matcher.service';
 import { invoiceImportParserService } from './parser.service';
 
 /**
+ * Extract a UOM / size suffix from an item name. Catches trailing
+ * patterns like "500ml", "1000ml", "200g", "1kg", "1L", "500 ml".
+ * Returns null when no recognisable suffix is found.
+ */
+function extractUomFromName(name: string): string | null {
+  const m = name.match(/(\d+(?:\.\d+)?\s*(?:ml|g|kg|l|pcs|nos|ltr|litre|liter))\s*$/i);
+  return m ? m[1]!.replace(/\s+/g, '').toLowerCase() : null;
+}
+
+/**
  * Top-level service for the invoice import feature. Wires the parser
  * cascade, the matcher, and the existing InvoiceService.create() into a
  * two-phase flow:
@@ -138,13 +148,14 @@ export class InvoiceImportService {
     const itemRows =
       matchedItemIds.size > 0
         ? await this.db
-            .select({ id: items.id, hsnSacCode: items.hsnSacCode })
+            .select({ id: items.id, hsnSacCode: items.hsnSacCode, unit: items.unit })
             .from(items)
             .where(
               and(eq(items.tenantId, this.tenantId), inArray(items.id, [...matchedItemIds])),
             )
         : [];
     const masterHsnById = new Map(itemRows.map((r) => [r.id, r.hsnSacCode ?? null]));
+    const masterUnitById = new Map(itemRows.map((r) => [r.id, r.unit ?? null]));
 
     const invoiceService = new InvoiceService(this.db, this.tenantId);
     const persistAliases = payload.persistAliases ?? true;
@@ -192,6 +203,10 @@ export class InvoiceImportService {
       const lineItemsInput: CreateSalesInvoiceInput['items'] = inv.lineItems.map((li) => ({
         itemId: li.match.resolvedId!,
         description: li.match.resolvedName ?? li.sourceName,
+        uom:
+          (li.match.resolvedId ? masterUnitById.get(li.match.resolvedId) : null)
+          ?? extractUomFromName(li.sourceName)
+          ?? undefined,
         quantity: li.quantity,
         unitPrice: li.unitPrice,
         amount: li.lineTotal,
