@@ -12,6 +12,11 @@ interface BreadcrumbsProps {
   className?: string;
 }
 
+// Vite's base path, stripped of trailing slash so we can concatenate
+// cleanly with route paths that start with '/'. Falls back to '' when
+// BASE_URL is just '/' (no subpath).
+const basePath = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+
 export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
   return (
     <nav className={cn('flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400', className)}>
@@ -19,7 +24,7 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
         <span key={i} className="flex items-center gap-1">
           {i > 0 && <ChevronRight size={12} className="shrink-0" />}
           {crumb.href ? (
-            <a href={crumb.href} className="hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors duration-150">
+            <a href={`${basePath}${crumb.href}`} className="hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors duration-150">
               {crumb.label}
             </a>
           ) : (
