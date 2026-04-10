@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
@@ -61,9 +61,13 @@ function SidebarContent({
     <>
       <div className={cn('flex h-14 items-center px-4', collapsed ? 'justify-center' : 'justify-between')}>
         <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
-          <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
-          {!collapsed && (
-            <span className="rounded border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">Finance</span>
+          {collapsed ? (
+            <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-7 w-7" />
+          ) : (
+            <>
+              <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
+              <span className="rounded border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">Finance</span>
+            </>
           )}
         </Link>
         {!collapsed && (
@@ -184,15 +188,42 @@ function SidebarContent({
 }
 
 const COLLAPSED_KEY = 'runq-sidebar-collapsed';
+const WIDE_QUERY = '(min-width: 1440px)';
 
-/** Desktop sidebar — hidden below 1440px, collapsible via toggle */
+/** Tiny media-query hook — SSR-safe via useSyncExternalStore. */
+function useIsWideScreen(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const mql = window.matchMedia(WIDE_QUERY);
+      mql.addEventListener('change', cb);
+      return () => mql.removeEventListener('change', cb);
+    },
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => true, // SSR fallback: assume wide
+  );
+}
+
+/**
+ * Desktop sidebar — visible at md+ (768px).
+ *
+ *   - Below 1440px: auto-collapsed to icon-only (w-14) so the
+ *     sidebar stays visible for navigation without eating too much
+ *     space. The manual toggle is hidden since the state is forced.
+ *   - At 1440px+: user-togglable between expanded (w-60) and
+ *     collapsed (w-14), persisted in localStorage.
+ */
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(() => {
+  const isWide = useIsWideScreen();
+  const [manualCollapsed, setManualCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { return false; }
   });
 
+  // Below 1440px the sidebar is always collapsed; the manual toggle
+  // only applies on wide screens.
+  const effectiveCollapsed = !isWide || manualCollapsed;
+
   function toggle() {
-    setCollapsed((prev) => {
+    setManualCollapsed((prev) => {
       const next = !prev;
       try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0'); } catch { /* noop */ }
       return next;
@@ -202,11 +233,14 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'hidden min-[1440px]:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
-        collapsed ? 'w-14' : 'w-60',
+        'hidden md:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
+        effectiveCollapsed ? 'w-14' : 'w-60',
       )}
     >
-      <SidebarContent collapsed={collapsed} onToggleCollapse={toggle} />
+      <SidebarContent
+        collapsed={effectiveCollapsed}
+        onToggleCollapse={isWide ? toggle : undefined}
+      />
     </aside>
   );
 }
@@ -233,7 +267,7 @@ export function MobileHeader() {
   }, [open]);
 
   return (
-    <div className="min-[1440px]:hidden">
+    <div className="md:hidden">
       {/* Top bar */}
       <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
         <Link to="/" className="flex items-center gap-2">
