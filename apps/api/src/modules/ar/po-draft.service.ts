@@ -602,7 +602,13 @@ export class PoDraftService {
     const { draft } = await this.loadDraftByUploadId(uploadId);
 
     if (draft.reviewStatus === 'approved') {
-      throw new ConflictError('Draft is already approved');
+      // Idempotent: return the already-created invoice instead of 409
+      const [existing] = await this.db
+        .select({ id: salesInvoices.id, invoiceNumber: salesInvoices.invoiceNumber })
+        .from(salesInvoices)
+        .where(eq(salesInvoices.id, draft.approvedInvoiceId!));
+      if (existing) return { invoiceId: existing.id, invoiceNumber: existing.invoiceNumber };
+      throw new ConflictError('Draft is already approved but linked invoice not found');
     }
     if (draft.reviewStatus === 'rejected') {
       throw new ConflictError('Cannot approve a rejected draft');
