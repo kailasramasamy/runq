@@ -1,5 +1,5 @@
 import { eq, and, isNull, sql } from 'drizzle-orm';
-import { tenants, customers, items, bankAccounts } from '@runq/db';
+import { tenants, customers, items, bankAccounts, invoiceSequences } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Tenant, TenantSettings } from '@runq/types';
 import type { CompanySettingsInput, InvoiceNumberingInput, EmailProviderConfigInput } from '@runq/validators';
@@ -61,7 +61,8 @@ export class SettingsService {
     const [existing] = await this.db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1);
     if (!existing) throw new NotFoundError('Tenant');
 
-    const merged = { ...(existing.settings as object), invoicePrefix: data.invoicePrefix, invoiceFormat: data.invoiceFormat, invoiceStartSequence: data.invoiceStartSequence };
+    const oldSettings = (existing.settings ?? {}) as Partial<TenantSettings>;
+    const merged = { ...oldSettings, invoicePrefix: data.invoicePrefix, invoiceFormat: data.invoiceFormat, invoiceStartSequence: data.invoiceStartSequence };
     const [row] = await this.db
       .update(tenants)
       .set({ settings: merged, updatedAt: new Date() })
@@ -69,6 +70,23 @@ export class SettingsService {
       .returning();
 
     if (!row) throw new NotFoundError('Tenant');
+
+    // When the format or start sequence changes, reset the current FY's
+    // sequence counter so the next invoice starts from the new value.
+    const formatChanged = data.invoiceFormat !== (oldSettings.invoiceFormat ?? '{prefix}-{fy}-{seq}');
+    const startChanged = data.invoiceStartSequence !== (oldSettings.invoiceStartSequence ?? 1);
+    if (formatChanged || startChanged) {
+      const fy = this.getCurrentFY(oldSettings.financialYearStartMonth ?? 4);
+      await this.db
+        .delete(invoiceSequences)
+        .where(
+          and(
+            eq(invoiceSequences.tenantId, this.tenantId),
+            eq(invoiceSequences.financialYear, fy),
+          ),
+        );
+    }
+
     const s = (row.settings ?? {}) as Partial<TenantSettings>;
     return {
       invoicePrefix: s.invoicePrefix ?? 'INV',
@@ -265,5 +283,14 @@ export class SettingsService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private getCurrentFY(startMonth: number): string {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    const fyStart = month >= startMonth ? year : year - 1;
+    const fyEnd = fyStart + 1;
+    return `${String(fyStart).slice(-2)}${String(fyEnd).slice(-2)}`;
   }
 }
