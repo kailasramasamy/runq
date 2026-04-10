@@ -197,7 +197,6 @@ export function ItemsPage() {
             <TableHeader>
               <tr>
                 <Th className="w-[320px] min-w-[280px]">Name</Th>
-                <Th>Unit</Th>
                 <Th>EAN</Th>
                 <Th>HSN/SAC</Th>
                 <Th align="right">Selling Price</Th>
@@ -211,10 +210,10 @@ export function ItemsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={5} cols={11} />
+                <TableSkeleton rows={5} cols={10} />
               ) : items.length === 0 ? (
                 <TableEmpty
-                  colSpan={11}
+                  colSpan={10}
                   message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
                 />
               ) : (
@@ -223,6 +222,7 @@ export function ItemsPage() {
                     <TableCell>
                       <div>
                         <span className="font-medium">{item.name}</span>
+                        {item.unit && <Badge variant="default" className="ml-1 align-middle">{item.unit}</Badge>}
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
                           {item.sku && <span className="font-mono">{item.sku}</span>}
                           <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
@@ -233,7 +233,6 @@ export function ItemsPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{item.unit ?? '-'}</TableCell>
                     <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
                     <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
                     <TableCell align="right" numeric>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '-'}</TableCell>
