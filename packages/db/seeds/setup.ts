@@ -10,6 +10,7 @@
  *   npx tsx seeds/setup.ts
  */
 
+import { sql } from 'drizzle-orm';
 import { createDb } from '../src/client';
 import { seedHsnSacCodes } from './hsn-sac';
 import { seedCoaForTenant, STANDARD_COA } from './standard-chart-of-accounts';
@@ -25,6 +26,24 @@ async function setup() {
   const { db, pool } = createDb(dbUrl);
 
   // 1. HSN/SAC codes (global)
+  // 0. Critical constraints that drizzle-kit push sometimes drops.
+  // Belt-and-suspenders: if the constraint already exists, this is a no-op.
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'invoice_sequences'::regclass
+          AND contype = 'u'
+      ) THEN
+        ALTER TABLE invoice_sequences
+        ADD CONSTRAINT invoice_sequences_tenant_id_financial_year_unique
+        UNIQUE (tenant_id, financial_year);
+      END IF;
+    END
+    $$;
+  `);
+
   await seedHsnSacCodes(db);
 
   // 2. Chart of Accounts (per tenant)
