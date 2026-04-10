@@ -222,7 +222,7 @@ export function ItemsPage() {
                     <TableCell>
                       <div>
                         <span className="font-medium">{item.name}</span>
-                        {item.unit && <Badge variant="default" className="ml-1 align-middle">{item.unit}</Badge>}
+                        {item.unit && <Badge variant="outline" className="ml-1 align-middle">{item.unit}</Badge>}
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
                           {item.sku && <span className="font-mono">{item.sku}</span>}
                           <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
