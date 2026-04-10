@@ -691,7 +691,8 @@ export class PoDraftService {
       subtotal,
       taxAmount: 0,
       totalAmount: subtotal,
-      notes: draft.poNumberExtracted ? `From PO ${draft.poNumberExtracted}` : null,
+      notes: null,
+      poNumber: draft.poNumberExtracted ?? null,
       reverseCharge: false,
     };
 
