@@ -162,6 +162,7 @@ export class PriceResolverService {
         minQuantity: priceListItems.minQuantity,
         priceListId: priceLists.id,
         priceListName: priceLists.name,
+        applyToValue: priceLists.applyToValue,
         itemDefaultSellingPrice: items.defaultSellingPrice,
         itemMrp: items.mrp,
         itemMargin: items.margin,
@@ -222,7 +223,10 @@ export class PriceResolverService {
       discountPercent: discount,
       mrp,
       priceListId: best.priceListId,
-      priceListName: best.priceListName,
+      // For group-level price lists, show the group name ("bigbasket")
+      // rather than the price list's internal name ("BB Daily") — the
+      // group name is what the user recognises in the invoice form.
+      priceListName: best.applyToValue || best.priceListName,
     };
   }
 }
