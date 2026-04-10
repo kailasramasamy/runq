@@ -27,6 +27,8 @@ import { useTheme } from '../../providers/theme-provider';
 import { useAuth } from '../../providers/auth-provider';
 import { useCompanySettings } from '../../hooks/queries/use-settings';
 
+const ICON_SIZE = 20;
+
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
   { label: 'Accounts Payable', path: '/ap', icon: ArrowUpFromLine },
@@ -41,6 +43,15 @@ const navItems = [
   { label: 'Settings', path: '/settings', icon: Settings },
 ];
 
+const navLinkClasses = (isActive: boolean, collapsed: boolean) =>
+  cn(
+    'flex items-center rounded-md transition-colors',
+    collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2 text-sm',
+    isActive
+      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
+      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200',
+  );
+
 function SidebarContent({
   onNavigate,
   collapsed = false,
@@ -53,16 +64,20 @@ function SidebarContent({
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const { data: companyData } = useCompanySettings();
   const companyName = companyData?.data?.name;
 
+  const isActivePath = (path: string) =>
+    path === '/' ? currentPath === '/' : currentPath.startsWith(path);
+
   return (
     <>
-      <div className={cn('flex h-14 items-center px-4', collapsed ? 'justify-center' : 'justify-between')}>
+      {/* ── Logo ── */}
+      <div className={cn('flex h-14 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
         <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
           {collapsed ? (
-            <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-7 w-7" />
+            <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6" />
           ) : (
             <>
               <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
@@ -81,106 +96,68 @@ function SidebarContent({
         )}
       </div>
 
-      <nav className="mt-4 flex-1 space-y-1 overflow-y-auto px-2">
+      {/* ── Main nav ── */}
+      <nav className={cn('mt-2 flex-1 overflow-y-auto space-y-0.5', collapsed ? 'px-1.5' : 'px-2')}>
         {navItems.map((item) => {
-          const isActive = item.path === '/'
-            ? currentPath === '/'
-            : currentPath.startsWith(item.path);
           const Icon = item.icon;
-
           return (
             <Link
               key={item.path}
               to={item.path}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
-              className={cn(
-                'flex items-center rounded-md transition-colors',
-                collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5 text-sm',
-                isActive
-                  ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200',
-              )}
+              className={navLinkClasses(isActivePath(item.path), collapsed)}
             >
-              <Icon size={18} strokeWidth={1.75} />
+              <Icon size={ICON_SIZE} strokeWidth={1.75} />
               {!collapsed && item.label}
             </Link>
           );
         })}
+
+        {/* ── Bottom nav items (Help, Sign out) ── */}
+        <div className={cn('!mt-3 border-t border-zinc-200 pt-2 dark:border-zinc-800', collapsed ? 'mx-0' : 'mx-1')}>
+          <Link
+            to="/help"
+            onClick={onNavigate}
+            title={collapsed ? 'Help' : undefined}
+            className={navLinkClasses(isActivePath('/help'), collapsed)}
+          >
+            <HelpCircle size={ICON_SIZE} strokeWidth={1.75} />
+            {!collapsed && 'Help'}
+          </Link>
+          <button
+            onClick={logout}
+            title={collapsed ? 'Sign out' : undefined}
+            className={cn(
+              navLinkClasses(false, collapsed),
+              'w-full',
+            )}
+          >
+            <LogOut size={ICON_SIZE} strokeWidth={1.75} />
+            {!collapsed && 'Sign out'}
+          </button>
+        </div>
       </nav>
 
-      {/* Collapse toggle — desktop only */}
-      {onToggleCollapse && (
-        <div className="px-2 py-1">
+      {/* ── Footer: company + toggle ── */}
+      <div className={cn('shrink-0 border-t border-zinc-200 dark:border-zinc-800', collapsed ? 'p-1.5' : 'px-3 py-2.5')}>
+        {!collapsed && companyName && (
+          <p className="mb-2 truncate text-[11px] text-zinc-400 dark:text-zinc-500">
+            {companyName}
+          </p>
+        )}
+        {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={cn(
-              'flex w-full items-center rounded-md py-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200',
-              collapsed ? 'justify-center px-2' : 'gap-3 px-3 text-sm',
+              'flex w-full items-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200',
+              collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2 text-xs',
             )}
           >
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            {!collapsed && <span className="text-xs">Collapse</span>}
+            {collapsed ? <PanelLeftOpen size={ICON_SIZE} /> : <PanelLeftClose size={ICON_SIZE} />}
+            {!collapsed && 'Collapse'}
           </button>
-        </div>
-      )}
-
-      <div className={cn('border-t border-zinc-200 dark:border-zinc-800', collapsed ? 'p-2 space-y-1' : 'px-3 py-3')}>
-        {collapsed ? (
-          <>
-            <Link
-              to="/help"
-              onClick={onNavigate}
-              title="User Guide"
-              className="flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              <HelpCircle size={18} />
-            </Link>
-            <button
-              onClick={logout}
-              title="Sign out"
-              className="flex w-full items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              <LogOut size={18} />
-            </button>
-          </>
-        ) : (
-          <>
-            {/* Company identity — subtle, not competing with nav */}
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                {(companyName ?? '?')[0]?.toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium leading-tight text-zinc-800 dark:text-zinc-200">
-                  {companyName ?? 'Loading...'}
-                </p>
-                <p className="truncate text-[11px] leading-tight text-zinc-400 dark:text-zinc-500">
-                  {user?.email ?? ''}
-                </p>
-              </div>
-            </div>
-
-            {/* Action links — clean horizontal row */}
-            <div className="flex items-center gap-1">
-              <Link
-                to="/help"
-                onClick={onNavigate}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <HelpCircle size={14} />
-                Help
-              </Link>
-              <button
-                onClick={logout}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <LogOut size={14} />
-                Sign out
-              </button>
-            </div>
-          </>
         )}
       </div>
     </>
@@ -190,7 +167,6 @@ function SidebarContent({
 const COLLAPSED_KEY = 'runq-sidebar-collapsed';
 const WIDE_QUERY = '(min-width: 1440px)';
 
-/** Tiny media-query hook — SSR-safe via useSyncExternalStore. */
 function useIsWideScreen(): boolean {
   return useSyncExternalStore(
     (cb) => {
@@ -199,32 +175,34 @@ function useIsWideScreen(): boolean {
       return () => mql.removeEventListener('change', cb);
     },
     () => window.matchMedia(WIDE_QUERY).matches,
-    () => true, // SSR fallback: assume wide
+    () => true,
   );
 }
 
 /**
  * Desktop sidebar — visible at md+ (768px).
  *
- *   - Below 1440px: auto-collapsed to icon-only (w-14) so the
- *     sidebar stays visible for navigation without eating too much
- *     space. The manual toggle is hidden since the state is forced.
- *   - At 1440px+: user-togglable between expanded (w-60) and
- *     collapsed (w-14), persisted in localStorage.
+ *   - Below 1440px: defaults to collapsed (icon-only, w-16). User can
+ *     still toggle to expand if they want — it's a default, not forced.
+ *   - At 1440px+: defaults to expanded (w-60). User can collapse.
+ *   - State persisted in localStorage across sessions.
  */
 export function Sidebar() {
   const isWide = useIsWideScreen();
-  const [manualCollapsed, setManualCollapsed] = useState(() => {
-    try { return localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { return false; }
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(() => {
+    try {
+      const stored = localStorage.getItem(COLLAPSED_KEY);
+      return stored != null ? stored === '1' : null;
+    } catch { return null; }
   });
 
-  // Below 1440px the sidebar is always collapsed; the manual toggle
-  // only applies on wide screens.
-  const effectiveCollapsed = !isWide || manualCollapsed;
+  // If user has never toggled (null), auto-collapse on narrow screens.
+  // If user HAS toggled, respect their choice regardless of screen size.
+  const collapsed = userCollapsed != null ? userCollapsed : !isWide;
 
   function toggle() {
-    setManualCollapsed((prev) => {
-      const next = !prev;
+    setUserCollapsed((prev) => {
+      const next = prev != null ? !prev : isWide; // first toggle: opposite of auto-default
       try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0'); } catch { /* noop */ }
       return next;
     });
@@ -234,13 +212,10 @@ export function Sidebar() {
     <aside
       className={cn(
         'hidden md:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
-        effectiveCollapsed ? 'w-14' : 'w-60',
+        collapsed ? 'w-16' : 'w-60',
       )}
     >
-      <SidebarContent
-        collapsed={effectiveCollapsed}
-        onToggleCollapse={isWide ? toggle : undefined}
-      />
+      <SidebarContent collapsed={collapsed} onToggleCollapse={toggle} />
     </aside>
   );
 }
@@ -251,24 +226,16 @@ export function MobileHeader() {
   const { theme } = useTheme();
   const routerState = useRouterState();
 
-  // Close drawer on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [routerState.location.pathname]);
+  useEffect(() => { setOpen(false); }, [routerState.location.pathname]);
 
-  // Prevent body scroll when drawer is open
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (open) { document.body.style.overflow = 'hidden'; }
+    else { document.body.style.overflow = ''; }
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   return (
     <div className="md:hidden">
-      {/* Top bar */}
       <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
         <Link to="/" className="flex items-center gap-2">
           <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-6" />
@@ -282,14 +249,9 @@ export function MobileHeader() {
         </button>
       </header>
 
-      {/* Drawer overlay */}
       {open && (
         <div className="fixed inset-0 z-50 flex">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden="true" />
           <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-zinc-900 animate-slide-in-left">
             <button
               onClick={() => setOpen(false)}
@@ -306,7 +268,7 @@ export function MobileHeader() {
   );
 }
 
-const bottomNavItems = [
+const mobileBottomItems = [
   { label: 'Home', path: '/', icon: LayoutDashboard },
   { label: 'Receivables', path: '/ar', icon: ArrowDownToLine },
   { label: 'Invoice', path: '/ar/quick-templates', icon: Zap, primary: true },
@@ -314,7 +276,7 @@ const bottomNavItems = [
   { label: 'Banking', path: '/banking', icon: Landmark },
 ];
 
-/** Mobile bottom navigation — visible only on mobile */
+/** Mobile bottom navigation — visible only on phones */
 export function MobileBottomNav() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
@@ -322,25 +284,17 @@ export function MobileBottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-around px-1">
-        {bottomNavItems.map((item) => {
-          const isActive = item.path === '/'
-            ? currentPath === '/'
-            : currentPath.startsWith(item.path);
+        {mobileBottomItems.map((item) => {
+          const isActive = item.path === '/' ? currentPath === '/' : currentPath.startsWith(item.path);
           const Icon = item.icon;
 
           if (item.primary) {
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className="flex flex-col items-center -mt-4"
-              >
+              <Link key={item.path} to={item.path} className="flex flex-col items-center -mt-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:bg-indigo-700">
                   <Icon size={22} />
                 </div>
-                <span className="mt-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
-                  {item.label}
-                </span>
+                <span className="mt-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">{item.label}</span>
               </Link>
             );
           }
@@ -351,9 +305,7 @@ export function MobileBottomNav() {
               to={item.path}
               className={cn(
                 'flex flex-col items-center gap-0.5 py-2 px-3 text-[10px] font-medium transition-colors',
-                isActive
-                  ? 'text-indigo-600 dark:text-indigo-400'
-                  : 'text-zinc-400 dark:text-zinc-500',
+                isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500',
               )}
             >
               <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
