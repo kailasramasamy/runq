@@ -236,6 +236,9 @@ export function CustomerDetailPage({ customerId }: Props) {
           { label: customer.name },
         ]}
         title={customer.name}
+        titleBadge={
+          customer.nickname ? <Badge variant="info">{customer.nickname}</Badge> : null
+        }
         actions={
           <>
             <Badge variant={customer.isActive ? 'success' : 'default'}>

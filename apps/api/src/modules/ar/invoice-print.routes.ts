@@ -34,9 +34,21 @@ export const invoicePrintRoutes: FastifyPluginAsync = async (app) => {
     if (format === 'pdf') {
       const { renderHtmlToPdf } = await import('./invoice-pdf');
       const pdf = await renderHtmlToPdf(html);
+      // Filename: <invoice#>-<nickname or name>.pdf, sanitized for cross-OS
+      // filesystem safety. Strip path separators, control chars, and other
+      // characters Windows in particular rejects, then collapse whitespace
+      // runs to single hyphens. Falls back to just the invoice number if
+      // the customer label is somehow empty after sanitisation.
+      const customerLabel = (customer.nickname?.trim() || customer.name.trim() || '')
+        .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+        .replace(/\s+/g, '-')
+        .slice(0, 80);
+      const fileName = customerLabel
+        ? `${invoice.invoiceNumber}-${customerLabel}.pdf`
+        : `${invoice.invoiceNumber}.pdf`;
       return reply
         .type('application/pdf')
-        .header('Content-Disposition', `inline; filename="${invoice.invoiceNumber}.pdf"`)
+        .header('Content-Disposition', `inline; filename="${fileName}"`)
         .send(pdf);
     }
 

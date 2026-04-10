@@ -126,6 +126,12 @@ function buildGstTotals(invoice: SalesInvoice, colSpan: number): string {
       </tr>`;
 }
 
+/**
+ * Returns just the inner rows for the GST place-of-supply / supply type /
+ * reverse-charge block. The caller wraps it in whatever container class
+ * fits the layout — header section uses .gst-meta, other sections may use
+ * something else.
+ */
 function buildGstHeaderFields(invoice: SalesInvoice): string {
   const pos = placeOfSupplyDisplay(invoice);
   const supply = supplyTypeLabel(invoice);
@@ -135,7 +141,7 @@ function buildGstHeaderFields(invoice: SalesInvoice): string {
   if (pos) rows.push(`<div>Place of Supply: <strong>${pos}</strong></div>`);
   if (supply) rows.push(`<div>Supply Type: <strong>${supply}</strong></div>`);
   rows.push(`<div>Reverse Charge: <strong>${invoice.reverseCharge ? 'Yes' : 'No'}</strong></div>`);
-  return `<div style="font-size:11px;color:#444;margin-top:4px">${rows.join('')}</div>`;
+  return rows.join('');
 }
 
 /**
@@ -318,22 +324,98 @@ function buildStyleBlock(): string {
   return `<style>
   @page { size: A4; margin: 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
   .page { width: 100%; max-width: 180mm; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .company-name { font-size: 20px; font-weight: bold; color: #1a1a1a; }
-  .company-sub { color: #555; margin-top: 4px; font-size: 11px; }
-  .gstin-badge { font-size: 12px; font-weight: bold; color: #4f46e5; margin-top: 4px; }
-  .invoice-title { font-size: 24px; font-weight: bold; color: #4f46e5; text-align: right; }
-  .invoice-meta { text-align: right; font-size: 11px; color: #444; margin-top: 6px; }
-  .divider { border: none; border-top: 1.5px solid #ccc; margin: 12px 0; }
+
+  /* ─── Header ──────────────────────────────────────────────────────── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 24px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #4f46e5;
+  }
+  .header-left { flex: 1.4; min-width: 0; }
+  .header-right { flex: 1; text-align: right; min-width: 0; }
+  .company-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: -0.2px;
+    line-height: 1.15;
+  }
+  .company-legal {
+    font-size: 11px;
+    color: #777;
+    margin-top: 2px;
+    font-style: italic;
+  }
+  .company-address {
+    color: #555;
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .company-gstin {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4f46e5;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+  }
+  .invoice-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #4f46e5;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+  }
+  .invoice-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1.05;
+    margin-top: 2px;
+  }
+  .invoice-meta {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #444;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: #fafafa;
+    text-align: left;
+    display: inline-block;
+    min-width: 200px;
+  }
+  .invoice-meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 0;
+  }
+  .invoice-meta-row + .invoice-meta-row { border-top: 1px dashed #e5e7eb; }
+  .invoice-meta-key { color: #777; font-weight: 500; }
+  .invoice-meta-val { color: #111; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .gst-meta { margin-top: 8px; font-size: 10px; color: #444; line-height: 1.5; }
+
+  /* ─── Body ────────────────────────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
   .two-col { display: flex; gap: 24px; margin-bottom: 12px; }
   .col { flex: 1; }
-  .label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; margin-bottom: 2px; }
+  .label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; margin-bottom: 2px; letter-spacing: 0.4px; }
   .value { font-size: 12px; color: #111; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
   th { background: #f4f6f8; font-size: 11px; text-transform: uppercase; color: #555;
-       padding: 6px 8px; border: 1px solid #ddd; }
+       padding: 6px 8px; border: 1px solid #ddd; letter-spacing: 0.3px; }
   .cell { padding: 6px 8px; border: 1px solid #ddd; vertical-align: top; }
   .center { text-align: center; }
   .right { text-align: right; }
@@ -359,24 +441,61 @@ function buildHeaderSection(
   tenantAddr: string,
   gstHeaderFields: string,
 ): string {
-  const gstinLine = settings.gstin
-    ? `<div class="gstin-badge">GSTIN: ${settings.gstin}</div>`
+  // Display name takes the dba/trading name; legal name (LLP, Pvt Ltd, etc.)
+  // is shown smaller below if it differs. This matches how most B2B invoices
+  // present a brand identity even though the legal entity may be different.
+  const showLegal = settings.legalName && settings.legalName.trim() && settings.legalName !== tenantName;
+  const legalLine = showLegal
+    ? `<div class="company-legal">${settings.legalName}</div>`
     : '';
 
+  const gstinLine = settings.gstin
+    ? `<div class="company-gstin">GSTIN: ${settings.gstin}</div>`
+    : '';
+
+  // Invoice metadata as a labelled key/value list inside a soft box. The
+  // PO Number row appears only when populated.
+  const metaRows: string[] = [];
+  metaRows.push(`
+    <div class="invoice-meta-row">
+      <span class="invoice-meta-key">Invoice #</span>
+      <span class="invoice-meta-val">${invoice.invoiceNumber}</span>
+    </div>`);
+  metaRows.push(`
+    <div class="invoice-meta-row">
+      <span class="invoice-meta-key">Issued</span>
+      <span class="invoice-meta-val">${fmtDate(invoice.invoiceDate)}</span>
+    </div>`);
+  metaRows.push(`
+    <div class="invoice-meta-row">
+      <span class="invoice-meta-key">Due</span>
+      <span class="invoice-meta-val">${fmtDate(invoice.dueDate)}</span>
+    </div>`);
+  if (invoice.poNumber) {
+    metaRows.push(`
+    <div class="invoice-meta-row">
+      <span class="invoice-meta-key">PO #</span>
+      <span class="invoice-meta-val">${invoice.poNumber}</span>
+    </div>`);
+  }
+
+  // GST place-of-supply / supply type / reverse charge sit BELOW the meta
+  // box rather than inside it — they're per-invoice tax fields, not
+  // identification fields, and they crowd the box when present.
+  const gstSupplemental = gstHeaderFields ? `<div class="gst-meta">${gstHeaderFields}</div>` : '';
+
   return `<div class="header">
-    <div>
+    <div class="header-left">
       <div class="company-name">${tenantName}</div>
-      <div class="company-sub">${tenantAddr}</div>
+      ${legalLine}
+      ${tenantAddr ? `<div class="company-address">${tenantAddr}</div>` : ''}
       ${gstinLine}
     </div>
-    <div>
+    <div class="header-right">
+      <div class="invoice-label">Tax Invoice</div>
       <div class="invoice-title">INVOICE</div>
-      <div class="invoice-meta">
-        <div><strong>${invoice.invoiceNumber}</strong></div>
-        <div>Date: ${fmtDate(invoice.invoiceDate)}</div>
-        <div>Due: ${fmtDate(invoice.dueDate)}</div>
-        ${gstHeaderFields}
-      </div>
+      <div class="invoice-meta">${metaRows.join('')}</div>
+      ${gstSupplemental}
     </div>
   </div>`;
 }

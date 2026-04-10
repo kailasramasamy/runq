@@ -33,13 +33,19 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
 
 interface PageHeaderProps {
   title: string;
+  /**
+   * Optional inline content rendered immediately to the right of the title.
+   * Use for small labels/badges (e.g. customer nickname) that belong with
+   * the heading rather than in the right-aligned actions slot.
+   */
+  titleBadge?: ReactNode;
   description?: string;
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
   className?: string;
 }
 
-export function PageHeader({ title, description, breadcrumbs, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, titleBadge, description, breadcrumbs, actions, className }: PageHeaderProps) {
   return (
     <div className={cn('mb-6', className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -47,7 +53,10 @@ export function PageHeader({ title, description, breadcrumbs, actions, className
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100">{title}</h1>
+            {titleBadge}
+          </div>
           {description && (
             <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
           )}
