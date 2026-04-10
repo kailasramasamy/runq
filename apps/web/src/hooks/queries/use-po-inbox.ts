@@ -273,6 +273,14 @@ export interface BulkApproveResult {
   failed: Array<{ uploadId: string; reason: string }>;
 }
 
+export function useDiscardPoUpload() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/po-uploads/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all }),
+  });
+}
+
 export function useBulkApprovePoDrafts() {
   const qc = useQueryClient();
   return useMutation({

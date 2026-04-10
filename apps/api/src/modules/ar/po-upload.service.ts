@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { eq, and, notInArray } from 'drizzle-orm';
-import { poUploads } from '@runq/db';
+import { poUploads, poDrafts } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { StorageProvider } from '../../utils/storage';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -130,6 +130,36 @@ export class PoUploadService {
     await parser.resetForReparse(existing.id);
     this.triggerParseInBackground(existing.id);
     return this.getById(existing.id);
+  }
+
+  /**
+   * Soft-delete a PO upload: sets status to 'discarded', drops the draft
+   * + lines, and deletes the S3 file. The po_uploads row stays for audit
+   * but the duplicate-hash check skips 'discarded' rows, so re-uploading
+   * the same file is allowed.
+   */
+  async discard(uploadId: string): Promise<void> {
+    const upload = await this.getById(uploadId);
+
+    await this.db.transaction(async (tx) => {
+      // Drop the draft (lines cascade via FK)
+      await tx
+        .delete(poDrafts)
+        .where(and(eq(poDrafts.poUploadId, uploadId), eq(poDrafts.tenantId, this.tenantId)));
+
+      // Mark the upload as discarded
+      await tx
+        .update(poUploads)
+        .set({ status: 'discarded', updatedAt: new Date() })
+        .where(and(eq(poUploads.id, uploadId), eq(poUploads.tenantId, this.tenantId)));
+    });
+
+    // Delete the file from S3 (best-effort, don't fail the request if S3 is slow)
+    if (upload.storageKey) {
+      this.storage.delete(upload.storageKey).catch((err) => {
+        console.warn(`[po-upload] Failed to delete S3 file ${upload.storageKey}:`, err);
+      });
+    }
   }
 
   async getById(id: string): Promise<PoUploadRow> {

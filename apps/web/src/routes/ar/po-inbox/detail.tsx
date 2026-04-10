@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   SkipForward,
+  Trash2,
 } from 'lucide-react';
 import {
   PageHeader,
@@ -40,6 +41,7 @@ import {
   useApprovePoDraft,
   useRejectPoDraft,
   useReparsePoUpload,
+  useDiscardPoUpload,
   type PoInboxDetail,
   type PoInboxLineRaw,
 } from '@/hooks/queries/use-po-inbox';
@@ -147,6 +149,7 @@ function ReviewActions({
   const { toast } = useToast();
   const approve = useApprovePoDraft();
   const reparse = useReparsePoUpload();
+  const discard = useDiscardPoUpload();
   const [rejectOpen, setRejectOpen] = useState(false);
 
   const isApprovable = !blockingFlags(draft);
@@ -196,6 +199,16 @@ function ReviewActions({
     }
   };
 
+  const handleDiscard = async () => {
+    try {
+      await discard.mutateAsync(draft.id);
+      toast('PO deleted', 'success');
+      void navigate({ to: '/ar/po-inbox' });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    }
+  };
+
   const handleSkip = () => {
     if (!queue) return;
     if (queue.next) {
@@ -221,6 +234,11 @@ function ReviewActions({
           <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
             <XCircle className="h-4 w-4" />
             Reject
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDiscard} disabled={discard.isPending}
+            className="text-red-500 hover:text-red-700 hover:border-red-300 dark:hover:border-red-900">
+            <Trash2 className="h-4 w-4" />
+            Delete
           </Button>
           <Button
             variant="primary"

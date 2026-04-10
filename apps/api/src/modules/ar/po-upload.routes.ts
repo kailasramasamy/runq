@@ -164,4 +164,21 @@ export const poUploadRoutes: FastifyPluginAsync = async (app) => {
       return { data: row };
     },
   );
+
+  // DELETE /:id — discard a PO upload (sets status='discarded', drops
+  // draft + lines, deletes S3 file). Allows re-uploading the same file.
+  app.delete(
+    '/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PoUploadService(
+        request.server.db,
+        request.tenantId,
+        getStorageProvider(),
+      );
+      await service.discard(id);
+      return reply.status(204).send();
+    },
+  );
 };
