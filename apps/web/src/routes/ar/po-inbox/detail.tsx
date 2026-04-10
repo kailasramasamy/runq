@@ -235,11 +235,6 @@ function ReviewActions({
             <XCircle className="h-4 w-4" />
             Reject
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDiscard} disabled={discard.isPending}
-            className="text-red-500 hover:text-red-700 hover:border-red-300 dark:hover:border-red-900">
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </Button>
           <Button
             variant="primary"
             size="sm"
@@ -252,6 +247,11 @@ function ReviewActions({
           </Button>
         </>
       )}
+      <Button variant="outline" size="sm" onClick={handleDiscard} disabled={discard.isPending}
+        className="text-red-500 hover:text-red-700 hover:border-red-300 dark:hover:border-red-900">
+        <Trash2 className="h-4 w-4" />
+        Delete
+      </Button>
       {queue && (
         <Button variant="outline" size="sm" onClick={handleSkip}>
           <SkipForward className="h-4 w-4" />
