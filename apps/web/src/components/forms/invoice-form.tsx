@@ -83,7 +83,9 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
   const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
 
   const [customerId, setCustomerId] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(() =>
+    initialData ? '' : new Date().toISOString().slice(0, 10),
+  );
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [poNumber, setPoNumber] = useState('');
@@ -146,6 +148,57 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
     // exactly once when both initialData and the items query are first ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData, itemsData]);
+
+  // Auto-compute due date from the selected customer's payment terms.
+  // Only fires for new invoices (not edits) — edits preserve the original
+  // due date unless the user changes it manually.
+  useEffect(() => {
+    if (initialData) return;
+    if (!customerId) return;
+    const customer = customers.find((c) => c.id === customerId);
+    if (!customer) return;
+    const days = customer.paymentTermsDays ?? 30;
+    const base = invoiceDate || new Date().toISOString().slice(0, 10);
+    const d = new Date(base + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    setDueDate(d.toISOString().slice(0, 10));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, invoiceDate]);
+
+  // When the customer changes, re-resolve ALL existing line items through
+  // the price list so their unit prices reflect the per-customer pricing.
+  // Without this, items added before picking a customer (or before switching
+  // customers) keep the item-master default instead of the price-list rate.
+  const prevCustomerRef = useRef(customerId);
+  useEffect(() => {
+    if (customerId === prevCustomerRef.current) return;
+    prevCustomerRef.current = customerId;
+    if (!customerId) return;
+    // Re-resolve every line that has an itemId.
+    lines.forEach((line, idx) => {
+      if (!line.itemId) return;
+      const qty = parseFloat(line.quantity || '1') || 1;
+      resolvePrice({ customerId, itemId: line.itemId, quantity: qty })
+        .then((resolved) => {
+          if (resolved) {
+            setLines((prev) =>
+              prev.map((l, i) =>
+                i === idx
+                  ? {
+                      ...l,
+                      unitPrice: String(resolved.effectiveRate),
+                      priceSource: resolved.source,
+                      priceListName: resolved.priceListName,
+                    }
+                  : l,
+              ),
+            );
+          }
+        })
+        .catch(() => { /* non-fatal */ });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
   const tax = lines.reduce((sum, l) => {
