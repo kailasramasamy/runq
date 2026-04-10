@@ -22,6 +22,7 @@ import {
   PO_EXTRACTION_TEXT_USER_PROMPT_PREFIX,
 } from '../../utils/ai/prompts/po-extraction';
 import { PriceResolverService } from '../masters/price-resolver.service';
+import { tryLocalPoParse } from './po-local-parser';
 
 const LLM_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -33,7 +34,7 @@ const IMAGE_MIMES: Record<string, 'image/jpeg' | 'image/png' | 'image/webp'> = {
   'image/webp': 'image/webp',
 };
 const TEXT_MIMES: ReadonlySet<string> = new Set(['text/plain', 'text/csv']);
-const UNSUPPORTED_MIMES: ReadonlySet<string> = new Set([
+const XLSX_MIMES: ReadonlySet<string> = new Set([
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
@@ -105,41 +106,72 @@ export class PoParserService {
   ) {}
 
   async parse(uploadId: string): Promise<void> {
-    if (!isAIEnabled()) {
-      await this.markParseError(
-        uploadId,
-        'AI extraction is not configured (ANTHROPIC_API_KEY missing)',
-      );
-      return;
-    }
-
     const upload = await this.loadUpload(uploadId);
     if (!upload) return;
 
     await this.markParsing(uploadId);
 
     try {
+      // ── Layer 1: try local parsing (zero AI tokens) ─────────────────
+      const localResult = await this.tryLocalExtraction(upload);
+      if (localResult) {
+        const customerMatch = await this.matchCustomer(localResult);
+        const lineMatches = await this.matchLines(localResult.items, customerMatch?.id ?? null);
+        const { reviewStatus, reviewFlags } = this.computeReview(localResult, customerMatch, lineMatches);
+        await this.persistDraft({ upload, extracted: localResult, customerMatch, lineMatches, reviewStatus, reviewFlags });
+        return;
+      }
+
+      // ── Layer 2: AI extraction ──────────────────────────────────────
+      if (!isAIEnabled()) {
+        await this.markParseError(
+          uploadId,
+          'Could not parse locally (unrecognised layout or scanned PDF). AI fallback requires ANTHROPIC_API_KEY.',
+        );
+        return;
+      }
+
       const content = await this.loadContent(upload);
       const extracted = await this.extract(content);
       const customerMatch = await this.matchCustomer(extracted);
       const lineMatches = await this.matchLines(extracted.items, customerMatch?.id ?? null);
-      const { reviewStatus, reviewFlags } = this.computeReview(
-        extracted,
-        customerMatch,
-        lineMatches,
-      );
-
-      await this.persistDraft({
-        upload,
-        extracted,
-        customerMatch,
-        lineMatches,
-        reviewStatus,
-        reviewFlags,
-      });
+      const { reviewStatus, reviewFlags } = this.computeReview(extracted, customerMatch, lineMatches);
+      await this.persistDraft({ upload, extracted, customerMatch, lineMatches, reviewStatus, reviewFlags });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Parsing failed';
       await this.markParseError(uploadId, message);
+    }
+  }
+
+  /**
+   * Attempt local parsing of the uploaded file. Returns the extracted PO
+   * data if successful, null if the format isn't recognised locally
+   * (scanned PDFs, images, exotic layouts). Zero AI tokens consumed.
+   */
+  private async tryLocalExtraction(upload: PoUploadRow): Promise<ExtractedPo | null> {
+    // Text uploads can be parsed directly without loading from storage
+    if (upload.rawText) {
+      return tryLocalPoParse(Buffer.from(upload.rawText, 'utf8'), 'text/plain');
+    }
+
+    if (!upload.storageKey || !upload.fileMime) return null;
+
+    const mime = upload.fileMime.toLowerCase();
+    // Only attempt local parsing for formats we handle (xlsx, PDF, text)
+    const localMimes = new Set([
+      ...XLSX_MIMES,
+      'application/pdf',
+      'text/plain',
+      'text/csv',
+    ]);
+    if (!localMimes.has(mime)) return null;
+
+    try {
+      const stream = await this.storage.getStream(upload.storageKey);
+      const buffer = await streamToBuffer(stream);
+      return tryLocalPoParse(buffer, mime);
+    } catch {
+      return null; // storage error — let AI path handle it
     }
   }
 
@@ -199,12 +231,22 @@ export class PoParserService {
 
     const mime = upload.fileMime.toLowerCase();
 
-    if (UNSUPPORTED_MIMES.has(mime)) {
-      throw new Error('Excel files are not yet supported. Convert to PDF or paste contents.');
-    }
-
     const stream = await this.storage.getStream(upload.storageKey);
     const buffer = await streamToBuffer(stream);
+
+    // xlsx/xls → convert to CSV text for the AI text path
+    if (XLSX_MIMES.has(mime)) {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false });
+      const sheets: string[] = [];
+      for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        if (!sheet) continue;
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        if (csv.trim()) sheets.push(csv);
+      }
+      return { kind: 'text' as const, data: sheets.join('\n\n') };
+    }
 
     if (mime === PDF_MIME) {
       return { kind: 'pdf', data: buffer.toString('base64') };
