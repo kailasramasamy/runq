@@ -1,5 +1,9 @@
 import { eq, and, sql, gte, lte, notInArray, desc } from 'drizzle-orm';
-import { salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants, paymentReceipts, receiptAllocations, bankAccounts, items } from '@runq/db';
+import {
+  salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants,
+  paymentReceipts, receiptAllocations, bankAccounts, items,
+  creditNotes, collectionAssignments, dunningLog, journalEntries, poDrafts,
+} from '@runq/db';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
@@ -460,6 +464,113 @@ export class InvoiceService {
       .returning();
 
     return this.toInvoice(row!);
+  }
+
+  /**
+   * Hard-delete an invoice. Distinct from cancel(): this physically
+   * removes the row from sales_invoices (line items cascade via FK).
+   * Used to purge mistakes from imports / typos / test data.
+   *
+   * Refuses unless:
+   *   - status is 'draft' or 'cancelled' (never delete sent/paid invoices —
+   *     they have GST implications and the books expect them to exist)
+   *   - no payment receipts have been allocated to this invoice
+   *   - no credit notes reference this invoice
+   *   - no collection assignments reference this invoice
+   *   - no dunning log entries have been sent for this invoice
+   *   - no GL journal entries were posted against this invoice
+   *
+   * The po_drafts.approvedInvoiceId back-reference is nulled (it's a
+   * non-blocking pointer used to surface "this PO became invoice X" in
+   * the inbox UI — losing the link is fine).
+   *
+   * Whole flow runs in a single transaction so a partial failure leaves
+   * nothing half-deleted.
+   */
+  async hardDelete(id: string): Promise<void> {
+    const existing = await this.getById(id);
+    if (existing.status !== 'draft' && existing.status !== 'cancelled') {
+      throw new ConflictError(
+        `Only draft or cancelled invoices can be deleted (current status: ${existing.status})`,
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      // Pre-flight dependency checks. Each one is a count query against
+      // a single indexed column — cheap. Done up-front, in the same tx,
+      // so concurrent writes can't slip a payment in between the check
+      // and the delete.
+      const blockers: string[] = [];
+
+      const [allocCount] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(receiptAllocations)
+        .where(
+          and(
+            eq(receiptAllocations.invoiceId, id),
+            eq(receiptAllocations.tenantId, this.tenantId),
+          ),
+        );
+      if ((allocCount?.n ?? 0) > 0) blockers.push('payment receipts allocated to this invoice');
+
+      const [creditCount] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(creditNotes)
+        .where(
+          and(eq(creditNotes.invoiceId, id), eq(creditNotes.tenantId, this.tenantId)),
+        );
+      if ((creditCount?.n ?? 0) > 0) blockers.push('credit notes referencing this invoice');
+
+      const [assignCount] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(collectionAssignments)
+        .where(
+          and(
+            eq(collectionAssignments.invoiceId, id),
+            eq(collectionAssignments.tenantId, this.tenantId),
+          ),
+        );
+      if ((assignCount?.n ?? 0) > 0) blockers.push('collection assignments');
+
+      const [dunCount] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(dunningLog)
+        .where(and(eq(dunningLog.invoiceId, id), eq(dunningLog.tenantId, this.tenantId)));
+      if ((dunCount?.n ?? 0) > 0) blockers.push('dunning log entries');
+
+      const [glCount] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.tenantId, this.tenantId),
+            eq(journalEntries.sourceType, 'sales_invoice'),
+            eq(journalEntries.sourceId, id),
+          ),
+        );
+      if ((glCount?.n ?? 0) > 0) blockers.push('GL journal entries posted against this invoice');
+
+      if (blockers.length > 0) {
+        throw new ConflictError(
+          `Cannot delete invoice ${existing.invoiceNumber}: ${blockers.join(', ')}. Discard (cancel) it instead to preserve the audit trail.`,
+        );
+      }
+
+      // Null the non-blocking back-ref from PO drafts. The PO that became
+      // this invoice still exists; it just no longer points to a deleted row.
+      await tx
+        .update(poDrafts)
+        .set({ approvedInvoiceId: null })
+        .where(
+          and(eq(poDrafts.approvedInvoiceId, id), eq(poDrafts.tenantId, this.tenantId)),
+        );
+
+      // Now delete. sales_invoice_items has ON DELETE CASCADE on its FK
+      // to sales_invoices, so the line items vanish with the parent.
+      await tx
+        .delete(salesInvoices)
+        .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
+    });
   }
 
   async send(id: string, input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {

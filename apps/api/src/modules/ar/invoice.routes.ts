@@ -97,6 +97,21 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Hard delete — physically removes the row from sales_invoices.
+  // Distinct from DELETE /:id (which is a soft cancel). Restricted to
+  // draft + cancelled statuses, with up-front dependency checks (see
+  // InvoiceService.hardDelete). Owner-only.
+  app.delete(
+    '/:id/hard',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      await service.hardDelete(id);
+      return reply.status(204).send();
+    },
+  );
+
   app.get(
     '/:id/receipts',
     { preHandler: [rbacHook([...READ_ROLES])] },

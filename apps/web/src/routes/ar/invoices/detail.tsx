@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent, Trash2 } from 'lucide-react';
-import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts, useDeleteInvoice } from '@/hooks/queries/use-invoices';
+import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice } from '@/hooks/queries/use-invoices';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
 import { api } from '@/lib/api-client';
@@ -41,12 +41,14 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const sendMutation = useSendInvoice();
   const markPaidMutation = useMarkPaid();
   const deleteMutation = useDeleteInvoice();
+  const hardDeleteMutation = useHardDeleteInvoice();
   const { toast } = useToast();
   const invoice = data?.data;
   const receipts: InvoiceReceipt[] = receiptsData?.data ?? [];
   const [upiCopied, setUpiCopied] = useState(false);
   const [showMarkPaid, setShowMarkPaid] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [referenceNumber, setReferenceNumber] = useState('');
 
@@ -59,6 +61,18 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
       navigate({ to: '/ar/invoices' });
     } catch (err) {
       toast((err as Error).message || 'Failed to discard invoice', 'error');
+    }
+  }
+
+  async function handleHardDelete() {
+    if (!invoice) return;
+    try {
+      await hardDeleteMutation.mutateAsync(invoice.id);
+      toast(`Invoice ${invoice.invoiceNumber} deleted`, 'success');
+      setShowDelete(false);
+      navigate({ to: '/ar/invoices' });
+    } catch (err) {
+      toast((err as Error).message || 'Failed to delete invoice', 'error');
     }
   }
 
@@ -126,6 +140,20 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     );
   }
 
+  // Delete button is shown for draft + cancelled. Lifted out so the
+  // status branches below can render it without copy-pasting.
+  const deleteButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setShowDelete(true)}
+      title="Permanently delete this invoice from the database"
+      className="border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+    >
+      <Trash2 size={14} /> Delete
+    </Button>
+  );
+
   function InvoiceActions() {
     if (invoice!.status === 'draft') {
       return (
@@ -149,12 +177,16 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
             variant="outline"
             size="sm"
             onClick={() => setShowDiscard(true)}
-            title="Discard this draft (sets status to cancelled)"
+            title="Discard this draft (sets status to cancelled, keeps the row for audit)"
           >
             <Trash2 size={14} /> Discard
           </Button>
+          {deleteButton}
         </>
       );
+    }
+    if (invoice!.status === 'cancelled') {
+      return deleteButton;
     }
     if (invoice!.status === 'sent') {
       return (
@@ -619,6 +651,17 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         confirmLabel="Discard invoice"
         variant="danger"
         loading={deleteMutation.isPending}
+      />
+
+      <ConfirmationDialog
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={handleHardDelete}
+        title={`Permanently delete ${invoice.invoiceNumber}?`}
+        description={`This cannot be undone. The invoice and all its line items will be removed from the database. The delete will be refused if any payment receipts, credit notes, collection assignments, dunning entries, or GL postings reference this invoice — discard (cancel) it instead in that case.`}
+        confirmLabel="Delete forever"
+        variant="danger"
+        loading={hardDeleteMutation.isPending}
       />
     </div>
   );

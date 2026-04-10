@@ -120,3 +120,17 @@ export function useDeleteInvoice() {
     onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
   });
 }
+
+/**
+ * Hard delete — physically removes the invoice row from the DB.
+ * Distinct from useDeleteInvoice (which is the soft-cancel "Discard").
+ * Backend restricts this to draft + cancelled statuses and refuses if
+ * any payments / credit notes / GL entries reference the invoice.
+ */
+export function useHardDeleteInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/invoices/${id}/hard`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
+  });
+}
