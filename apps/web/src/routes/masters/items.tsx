@@ -196,13 +196,8 @@ export function ItemsPage() {
           <Table>
             <TableHeader>
               <tr>
-                <Th>Name</Th>
-                <Th>SKU</Th>
+                <Th className="w-[320px] min-w-[280px]">Name</Th>
                 <Th>EAN</Th>
-                {tableAttributeFields.map((f) => (
-                  <Th key={f.key}>{f.label}</Th>
-                ))}
-                <Th>Type</Th>
                 <Th>HSN/SAC</Th>
                 <Th>Unit</Th>
                 <Th align="right">Selling Price</Th>
@@ -216,24 +211,29 @@ export function ItemsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={5} cols={14 + tableAttributeFields.length} />
+                <TableSkeleton rows={5} cols={11} />
               ) : items.length === 0 ? (
                 <TableEmpty
-                  colSpan={14 + tableAttributeFields.length}
+                  colSpan={11}
                   message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
                 />
               ) : (
                 items.map((item) => (
                   <TableRow key={item.id} className="cursor-pointer" onClick={() => openEdit(item.id)}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{item.sku ?? '-'}</TableCell>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{item.name}</span>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                          {item.sku && <span className="font-mono">{item.sku}</span>}
+                          <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
+                          {tableAttributeFields.map((f) => {
+                            const v = formatAttributeValue(item.attributes?.[f.key]);
+                            return v !== '-' ? <span key={f.key}>{v}</span> : null;
+                          })}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
-                    {tableAttributeFields.map((f) => (
-                      <TableCell key={f.key} className="text-zinc-500">
-                        {formatAttributeValue(item.attributes?.[f.key])}
-                      </TableCell>
-                    ))}
-                    <TableCell><Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge></TableCell>
                     <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
                     <TableCell>{item.unit ?? '-'}</TableCell>
                     <TableCell align="right" numeric>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '-'}</TableCell>
