@@ -16,8 +16,9 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 function redirectToLoginExpired() {
-  if (!window.location.pathname.startsWith('/login')) {
-    window.location.href = '/login?session=expired';
+  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+  if (!window.location.pathname.endsWith('/login')) {
+    window.location.href = `${base}/login?session=expired`;
   }
 }
 
