@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Plus, FileText, Search, Download, Upload, Send, X as XIcon } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
+import { api } from '@/lib/api-client';
 import { useInvoices, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
+import type { PaginatedResponse } from '@runq/types';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
 import type { SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
@@ -180,6 +182,35 @@ export function InvoiceListPage() {
     navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: id } });
   }
 
+  async function handleExportCSV() {
+    try {
+      const params = new URLSearchParams();
+      if (customerFilter) params.set('customerId', customerFilter);
+      if (statusFilter) params.set('status', statusFilter);
+      if (search) params.set('search', search);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      params.set('limit', '10000');
+      const qs = params.toString();
+      const res = await api.get<PaginatedResponse<SalesInvoiceWithDetails>>(
+        `/ar/invoices${qs ? `?${qs}` : ''}`,
+      );
+      const all = res.data;
+      downloadCSV(
+        'invoices.csv',
+        ['Invoice #', 'Nickname', 'Customer', 'Date', 'Due Date', 'PO #', 'Amount', 'Received', 'Balance', 'Status'],
+        all.map((inv) => [
+          inv.invoiceNumber, inv.customerNickname ?? '', inv.customerName,
+          inv.invoiceDate, inv.dueDate, inv.poNumber ?? '',
+          inv.totalAmount, inv.amountReceived, inv.balanceDue, inv.status,
+        ]),
+      );
+      toast(`Exported ${all.length} invoices`, 'success');
+    } catch {
+      toast('Export failed', 'error');
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -188,7 +219,7 @@ export function InvoiceListPage() {
         description="Track sales invoices, payments, and outstanding balances."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('invoices.csv', ['Invoice #', 'Date', 'Due Date', 'Customer', 'Amount', 'Received', 'Balance', 'Status'], invoices.map(inv => [inv.invoiceNumber, inv.invoiceDate, inv.dueDate, inv.customerName, inv.totalAmount, inv.amountReceived, inv.balanceDue, inv.status]))}>
+            <Button variant="outline" size="sm" onClick={handleExportCSV}>
               <Download size={14} /> Export CSV
             </Button>
             <Button variant="outline" onClick={() => navigate({ to: '/ar/invoices/import' })}>
