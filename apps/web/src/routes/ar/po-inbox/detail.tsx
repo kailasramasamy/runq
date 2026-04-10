@@ -501,8 +501,8 @@ function LineItemsCard({
   }
 
   return (
-    <Card className="mb-4">
-      <CardContent className="p-0">
+    <Card className="mb-4 overflow-visible">
+      <CardContent className="p-0 overflow-visible">
         {/* Mobile: stacked card per line */}
         <div className="flex flex-col gap-2 p-3 md:hidden">
           {draft.lines.map((line) => (
@@ -518,7 +518,7 @@ function LineItemsCard({
         </div>
         {/* Desktop: dense table */}
         <div className="hidden md:block">
-          <Table>
+          <Table noOverflow>
             <TableHeader>
               <tr>
                 <Th>Customer's description</Th>
