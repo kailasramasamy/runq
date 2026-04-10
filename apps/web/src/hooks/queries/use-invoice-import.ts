@@ -49,6 +49,18 @@ export function useDeleteItemAlias() {
   });
 }
 
+export function useChangeItemAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ aliasId, newItemId }: { aliasId: string; newItemId: string }) =>
+      api.put<ApiSuccess<{ aliasUpdated: boolean; invoiceLinesUpdated: number }>>(
+        `/ar/invoice-imports/aliases/items/${aliasId}`,
+        { newItemId },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ALIAS_KEYS.all }),
+  });
+}
+
 export function useDeleteCustomerAlias() {
   const qc = useQueryClient();
   return useMutation({

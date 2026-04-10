@@ -143,6 +143,78 @@ export const invoiceImportRoutes: FastifyPluginAsync = async (app) => {
   );
 
   /**
+   * PUT /aliases/items/:id  — change an item mapping and retroactively
+   * update all invoice line items that used the old item. Only swaps
+   * the item_id FK — prices, quantities, and amounts are untouched.
+   */
+  app.put(
+    '/aliases/items/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { invoiceImportItemAliases, salesInvoiceItems, items } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const { z } = await import('zod');
+      const { id } = uuidParamSchema.parse(request.params);
+      const { newItemId } = z.object({ newItemId: z.string().uuid() }).parse(request.body);
+
+      // Read the current alias to know the old item_id.
+      const [alias] = await request.server.db
+        .select({ itemId: invoiceImportItemAliases.itemId })
+        .from(invoiceImportItemAliases)
+        .where(
+          and(
+            eq(invoiceImportItemAliases.id, id),
+            eq(invoiceImportItemAliases.tenantId, request.tenantId),
+          ),
+        )
+        .limit(1);
+      if (!alias) return { data: { aliasUpdated: false, invoiceLinesUpdated: 0 } };
+
+      const oldItemId = alias.itemId;
+
+      // Update the alias to point to the new item.
+      await request.server.db
+        .update(invoiceImportItemAliases)
+        .set({ itemId: newItemId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(invoiceImportItemAliases.id, id),
+            eq(invoiceImportItemAliases.tenantId, request.tenantId),
+          ),
+        );
+
+      // Look up the new item's name for updating the description field
+      // on the invoice lines so the printed invoice shows the correct name.
+      const [newItem] = await request.server.db
+        .select({ name: items.name, unit: items.unit })
+        .from(items)
+        .where(eq(items.id, newItemId))
+        .limit(1);
+
+      // Retroactively swap the item_id on all invoice line items that
+      // used the old (wrong) item. Also update the description to match
+      // the new item's name. Prices and quantities stay unchanged.
+      const updated = await request.server.db
+        .update(salesInvoiceItems)
+        .set({
+          itemId: newItemId,
+          ...(newItem ? { description: newItem.name } : {}),
+          ...(newItem?.unit ? { uom: newItem.unit } : {}),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(salesInvoiceItems.itemId, oldItemId),
+            eq(salesInvoiceItems.tenantId, request.tenantId),
+          ),
+        )
+        .returning({ id: salesInvoiceItems.id });
+
+      return { data: { aliasUpdated: true, invoiceLinesUpdated: updated.length } };
+    },
+  );
+
+  /**
    * DELETE /aliases/items/:id  — remove a saved item mapping.
    * Used when a mapping was wrong and the user wants the next import
    * to re-prompt for this source name.

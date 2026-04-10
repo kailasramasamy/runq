@@ -11,6 +11,7 @@ import {
   useImportAliases,
   useDeleteItemAlias,
   useDeleteCustomerAlias,
+  useChangeItemAlias,
 } from '@/hooks/queries/use-invoice-import';
 import { useCustomers, useCreateCustomer } from '@/hooks/queries/use-customers';
 import { useItems, useCreateItem } from '@/hooks/queries/use-items';
@@ -892,8 +893,23 @@ function SavedMappingsSection() {
   const { data: aliasData, isLoading } = useImportAliases();
   const deleteItem = useDeleteItemAlias();
   const deleteCustomer = useDeleteCustomerAlias();
+  const changeItem = useChangeItemAlias();
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
+  // Which alias row is in "change" mode (showing the item picker).
+  const [changingAliasId, setChangingAliasId] = useState<string | null>(null);
+
+  const { data: itemsData } = useItems({ limit: 500 });
+  const allItemOpts = useMemo(
+    () =>
+      (itemsData?.data ?? [])
+        .filter((i) => i.isActive)
+        .map((i) => ({
+          value: i.id,
+          label: `${i.name}${i.sku ? ` (${i.sku})` : ''}${i.unit ? ` · ${i.unit}` : ''}`,
+        })),
+    [itemsData],
+  );
 
   const itemAliases = aliasData?.data?.items ?? [];
   const customerAliases = aliasData?.data?.customers ?? [];
@@ -919,6 +935,20 @@ function SavedMappingsSection() {
     }
   }
 
+  async function handleChangeItem(aliasId: string, newItemId: string) {
+    try {
+      const res = await changeItem.mutateAsync({ aliasId, newItemId });
+      const { invoiceLinesUpdated } = res.data;
+      toast(
+        `Mapping updated` + (invoiceLinesUpdated > 0 ? ` · ${invoiceLinesUpdated} invoice line${invoiceLinesUpdated === 1 ? '' : 's'} corrected` : ''),
+        'success',
+      );
+      setChangingAliasId(null);
+    } catch {
+      toast('Failed to update mapping', 'error');
+    }
+  }
+
   return (
     <Card className="mt-6">
       <CardContent className="p-0">
@@ -933,7 +963,7 @@ function SavedMappingsSection() {
         {expanded && (
           <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <p className="mb-3 text-xs text-zinc-500">
-              These name → master mappings were saved during previous imports. Delete a mapping to re-prompt for it on the next import.
+              These name → master mappings were saved during previous imports. Change a mapping to pick the correct item and retroactively update all affected invoice lines. Delete to re-prompt on the next import.
             </p>
 
             {itemAliases.length > 0 && (
@@ -943,24 +973,57 @@ function SavedMappingsSection() {
                   {itemAliases.map((a) => (
                     <div
                       key={a.id}
-                      className="flex items-center justify-between rounded border border-zinc-100 px-3 py-1.5 text-xs dark:border-zinc-800"
+                      className="rounded border border-zinc-100 px-3 py-1.5 text-xs dark:border-zinc-800"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="truncate text-zinc-700 dark:text-zinc-300">{a.sourceName}</span>
-                        <span className="shrink-0 text-zinc-400">→</span>
-                        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-                          {a.itemName}
-                          {a.itemUnit ? ` · ${a.itemUnit}` : ''}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate text-zinc-700 dark:text-zinc-300">{a.sourceName}</span>
+                          <span className="shrink-0 text-zinc-400">→</span>
+                          <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                            {a.itemName}
+                            {a.itemUnit ? ` · ${a.itemUnit}` : ''}
+                          </span>
+                        </div>
+                        <div className="ml-2 flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setChangingAliasId(changingAliasId === a.id ? null : a.id)}
+                            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+                            title="Change this mapping and update existing invoices"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(a.id, a.sourceName)}
+                            className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                            title="Delete this mapping"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteItem(a.id, a.sourceName)}
-                        className="ml-2 shrink-0 rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                        title="Delete this mapping"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {changingAliasId === a.id && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1">
+                            <Combobox
+                              options={allItemOpts}
+                              value=""
+                              onChange={(newItemId) => {
+                                if (newItemId) handleChangeItem(a.id, newItemId);
+                              }}
+                              placeholder="Pick the correct item..."
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setChangingAliasId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
