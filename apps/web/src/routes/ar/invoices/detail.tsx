@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent } from 'lucide-react';
-import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts } from '@/hooks/queries/use-invoices';
+import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent, Trash2 } from 'lucide-react';
+import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts, useDeleteInvoice } from '@/hooks/queries/use-invoices';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
 import { api } from '@/lib/api-client';
@@ -12,6 +12,7 @@ import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
   StatsCard, EmptyState, CardSkeleton, Input, DateInput,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  ConfirmationDialog, useToast,
 } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
 import { FileText } from 'lucide-react';
@@ -39,12 +40,27 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const { data: receiptsData } = useInvoiceReceipts(invoiceId);
   const sendMutation = useSendInvoice();
   const markPaidMutation = useMarkPaid();
+  const deleteMutation = useDeleteInvoice();
+  const { toast } = useToast();
   const invoice = data?.data;
   const receipts: InvoiceReceipt[] = receiptsData?.data ?? [];
   const [upiCopied, setUpiCopied] = useState(false);
   const [showMarkPaid, setShowMarkPaid] = useState(false);
+  const [showDiscard, setShowDiscard] = useState(false);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [referenceNumber, setReferenceNumber] = useState('');
+
+  async function handleDiscard() {
+    if (!invoice) return;
+    try {
+      await deleteMutation.mutateAsync(invoice.id);
+      toast(`Invoice ${invoice.invoiceNumber} discarded`, 'success');
+      setShowDiscard(false);
+      navigate({ to: '/ar/invoices' });
+    } catch (err) {
+      toast((err as Error).message || 'Failed to discard invoice', 'error');
+    }
+  }
 
   const { data: upiData } = useQuery({
     queryKey: ['invoices', 'upi-link', invoiceId],
@@ -128,6 +144,14 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
             onClick={() => navigate({ to: '/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
           >
             Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDiscard(true)}
+            title="Discard this draft (sets status to cancelled)"
+          >
+            <Trash2 size={14} /> Discard
           </Button>
         </>
       );
@@ -585,6 +609,17 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </div>
         </div>
       )}
+
+      <ConfirmationDialog
+        open={showDiscard}
+        onClose={() => setShowDiscard(false)}
+        onConfirm={handleDiscard}
+        title={`Discard ${invoice.invoiceNumber}?`}
+        description={`This sets the invoice status to 'cancelled'. Only draft invoices can be discarded. The row stays in the database for audit but will no longer count toward AR or appear in active lists.`}
+        confirmLabel="Discard invoice"
+        variant="danger"
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }
