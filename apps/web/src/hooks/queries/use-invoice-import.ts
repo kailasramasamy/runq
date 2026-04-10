@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type {
   ApiSuccess,
@@ -7,6 +7,56 @@ import type {
   ParseFilesResult,
   ParsedInvoice,
 } from '@runq/types';
+
+const ALIAS_KEYS = {
+  all: ['invoice-import-aliases'] as const,
+};
+
+export interface ItemAlias {
+  id: string;
+  sourceName: string;
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  createdAt: string;
+}
+
+export interface CustomerAlias {
+  id: string;
+  sourceKey: string;
+  customerId: string;
+  customerName: string;
+  createdAt: string;
+}
+
+export function useImportAliases() {
+  return useQuery({
+    queryKey: ALIAS_KEYS.all,
+    queryFn: () =>
+      api.get<ApiSuccess<{ items: ItemAlias[]; customers: CustomerAlias[] }>>(
+        '/ar/invoice-imports/aliases',
+      ),
+  });
+}
+
+export function useDeleteItemAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<ApiSuccess<null>>(`/ar/invoice-imports/aliases/items/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ALIAS_KEYS.all }),
+  });
+}
+
+export function useDeleteCustomerAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<ApiSuccess<null>>(`/ar/invoice-imports/aliases/customers/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ALIAS_KEYS.all }),
+  });
+}
 
 /**
  * Hooks for the invoice import feature.

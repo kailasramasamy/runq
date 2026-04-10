@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { commitInvoiceImportSchema, parseInvoicesQuerySchema } from '@runq/validators';
+import { commitInvoiceImportSchema, parseInvoicesQuerySchema, uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../../hooks/rbac';
 import { AppError } from '../../../utils/errors';
 import { InvoiceImportService } from './import.service';
@@ -83,15 +83,108 @@ export const invoiceImportRoutes: FastifyPluginAsync = async (app) => {
 
   /**
    * GET /aliases  — list known item + customer aliases for the tenant.
-   * Useful for the staging UI to show "this name maps to X (saved earlier)".
    */
   app.get(
     '/aliases',
     { preHandler: [rbacHook([...READ_ROLES])] },
-    async () => {
-      // Phase 1: not exposed in the UI yet. Return empty stub so the
-      // route exists for future iterations.
-      return { data: { items: [], customers: [] } };
+    async (request) => {
+      const { invoiceImportItemAliases, invoiceImportCustomerAliases, items, customers } = await import('@runq/db');
+      const { eq } = await import('drizzle-orm');
+
+      const itemAliases = await request.server.db
+        .select({
+          id: invoiceImportItemAliases.id,
+          sourceName: invoiceImportItemAliases.sourceName,
+          itemId: invoiceImportItemAliases.itemId,
+          itemName: items.name,
+          itemSku: items.sku,
+          itemUnit: items.unit,
+          createdAt: invoiceImportItemAliases.createdAt,
+        })
+        .from(invoiceImportItemAliases)
+        .innerJoin(items, eq(invoiceImportItemAliases.itemId, items.id))
+        .where(eq(invoiceImportItemAliases.tenantId, request.tenantId))
+        .orderBy(invoiceImportItemAliases.sourceName);
+
+      const customerAliases = await request.server.db
+        .select({
+          id: invoiceImportCustomerAliases.id,
+          sourceKey: invoiceImportCustomerAliases.sourceKey,
+          customerId: invoiceImportCustomerAliases.customerId,
+          customerName: customers.name,
+          createdAt: invoiceImportCustomerAliases.createdAt,
+        })
+        .from(invoiceImportCustomerAliases)
+        .innerJoin(customers, eq(invoiceImportCustomerAliases.customerId, customers.id))
+        .where(eq(invoiceImportCustomerAliases.tenantId, request.tenantId))
+        .orderBy(invoiceImportCustomerAliases.sourceKey);
+
+      return {
+        data: {
+          items: itemAliases.map((r) => ({
+            id: r.id,
+            sourceName: r.sourceName,
+            itemId: r.itemId,
+            itemName: r.itemName,
+            itemSku: r.itemSku,
+            itemUnit: r.itemUnit,
+            createdAt: r.createdAt.toISOString(),
+          })),
+          customers: customerAliases.map((r) => ({
+            id: r.id,
+            sourceKey: r.sourceKey,
+            customerId: r.customerId,
+            customerName: r.customerName,
+            createdAt: r.createdAt.toISOString(),
+          })),
+        },
+      };
+    },
+  );
+
+  /**
+   * DELETE /aliases/items/:id  — remove a saved item mapping.
+   * Used when a mapping was wrong and the user wants the next import
+   * to re-prompt for this source name.
+   */
+  app.delete(
+    '/aliases/items/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { invoiceImportItemAliases } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const { id } = uuidParamSchema.parse(request.params);
+      await request.server.db
+        .delete(invoiceImportItemAliases)
+        .where(
+          and(
+            eq(invoiceImportItemAliases.id, id),
+            eq(invoiceImportItemAliases.tenantId, request.tenantId),
+          ),
+        );
+      return reply.status(204).send();
+    },
+  );
+
+  /**
+   * DELETE /aliases/customers/:id  — remove a saved customer mapping.
+   */
+  app.delete(
+    '/aliases/customers/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { invoiceImportCustomerAliases } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const { id } = uuidParamSchema.parse(request.params);
+      await request.server.db
+        .delete(invoiceImportCustomerAliases)
+        .where(
+          and(
+            eq(invoiceImportCustomerAliases.id, id),
+            eq(invoiceImportCustomerAliases.tenantId, request.tenantId),
+          ),
+        );
+      return reply.status(204).send();
     },
   );
 };

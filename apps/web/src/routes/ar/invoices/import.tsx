@@ -5,7 +5,13 @@ import {
   PageHeader, Card, CardContent, Button, Input, Select, Combobox, Modal, Badge, useToast,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import { useParseInvoices, useCommitInvoiceImport } from '@/hooks/queries/use-invoice-import';
+import {
+  useParseInvoices,
+  useCommitInvoiceImport,
+  useImportAliases,
+  useDeleteItemAlias,
+  useDeleteCustomerAlias,
+} from '@/hooks/queries/use-invoice-import';
 import { useCustomers, useCreateCustomer } from '@/hooks/queries/use-customers';
 import { useItems, useCreateItem } from '@/hooks/queries/use-items';
 import type { ImportFormat, ParsedInvoice, ParsedLineItem } from '@runq/types';
@@ -455,6 +461,10 @@ export function InvoiceImportPage() {
         </Card>
       )}
 
+      {/* Saved Mappings — always visible so the user can review and delete
+           wrong aliases regardless of whether they're mid-import or not. */}
+      <SavedMappingsSection />
+
       {/* Inline customer-create modal */}
       {createCustomerCtx && staged && (
         <CreateCustomerModal
@@ -873,5 +883,120 @@ function LineRow({
       <td className="px-3 py-2 text-right font-mono text-zinc-700 dark:text-zinc-300">{formatINR(line.unitPrice)}</td>
       <td className="px-3 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">{formatINR(line.lineTotal)}</td>
     </tr>
+  );
+}
+
+// ─── Saved Mappings section ────────────────────────────────────────────────
+
+function SavedMappingsSection() {
+  const { data: aliasData, isLoading } = useImportAliases();
+  const deleteItem = useDeleteItemAlias();
+  const deleteCustomer = useDeleteCustomerAlias();
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+
+  const itemAliases = aliasData?.data?.items ?? [];
+  const customerAliases = aliasData?.data?.customers ?? [];
+  const total = itemAliases.length + customerAliases.length;
+
+  if (isLoading || total === 0) return null;
+
+  async function handleDeleteItem(id: string, name: string) {
+    try {
+      await deleteItem.mutateAsync(id);
+      toast(`Mapping for "${name}" deleted`, 'success');
+    } catch {
+      toast('Failed to delete mapping', 'error');
+    }
+  }
+
+  async function handleDeleteCustomer(id: string, name: string) {
+    try {
+      await deleteCustomer.mutateAsync(id);
+      toast(`Mapping for "${name}" deleted`, 'success');
+    } catch {
+      toast('Failed to delete mapping', 'error');
+    }
+  }
+
+  return (
+    <Card className="mt-6">
+      <CardContent className="p-0">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50"
+        >
+          <span>Saved Mappings ({total})</span>
+          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </button>
+        {expanded && (
+          <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+            <p className="mb-3 text-xs text-zinc-500">
+              These name → master mappings were saved during previous imports. Delete a mapping to re-prompt for it on the next import.
+            </p>
+
+            {itemAliases.length > 0 && (
+              <div className="mb-4">
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Items</h4>
+                <div className="space-y-1">
+                  {itemAliases.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between rounded border border-zinc-100 px-3 py-1.5 text-xs dark:border-zinc-800"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="truncate text-zinc-700 dark:text-zinc-300">{a.sourceName}</span>
+                        <span className="shrink-0 text-zinc-400">→</span>
+                        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                          {a.itemName}
+                          {a.itemUnit ? ` · ${a.itemUnit}` : ''}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteItem(a.id, a.sourceName)}
+                        className="ml-2 shrink-0 rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                        title="Delete this mapping"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {customerAliases.length > 0 && (
+              <div>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Customers</h4>
+                <div className="space-y-1">
+                  {customerAliases.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between rounded border border-zinc-100 px-3 py-1.5 text-xs dark:border-zinc-800"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="truncate text-zinc-700 dark:text-zinc-300">{a.sourceKey}</span>
+                        <span className="shrink-0 text-zinc-400">→</span>
+                        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{a.customerName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomer(a.id, a.sourceKey)}
+                        className="ml-2 shrink-0 rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                        title="Delete this mapping"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
