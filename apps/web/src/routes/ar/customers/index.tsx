@@ -35,10 +35,10 @@ function CustomerCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{customer.name}</p>
-          {customer.nickname && (
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{customer.nickname}</p>
-          )}
+          <div className="flex items-center gap-2">
+            <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{customer.name}</p>
+            {customer.nickname && <Badge variant="info">{customer.nickname}</Badge>}
+          </div>
           {customer.email && (
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{customer.email}</p>
           )}
@@ -87,11 +87,9 @@ function CustomerRow({
 }) {
   return (
     <TableRow className="cursor-pointer" onClick={() => onView(customer.id)}>
+      <TableCell className="font-medium">{customer.name}</TableCell>
       <TableCell>
-        <p className="font-medium">{customer.name}</p>
-        {customer.nickname && (
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">{customer.nickname}</p>
-        )}
+        {customer.nickname && <Badge variant="info">{customer.nickname}</Badge>}
       </TableCell>
       <TableCell>
         <Badge variant={customer.type === 'b2b' ? 'info' : 'primary'}>
@@ -235,6 +233,7 @@ export function CustomerListPage() {
           <TableHeader>
             <tr>
               <Th>Name</Th>
+              <Th>Nickname</Th>
               <Th>Type</Th>
               <Th>Email</Th>
               <Th>Phone</Th>
@@ -246,10 +245,10 @@ export function CustomerListPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={6} cols={8} />
+              <TableSkeleton rows={6} cols={9} />
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState
                     icon={Users}
                     title={search ? 'No customers match your search' : 'No customers yet'}
