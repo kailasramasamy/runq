@@ -197,9 +197,9 @@ export function ItemsPage() {
             <TableHeader>
               <tr>
                 <Th className="w-[320px] min-w-[280px]">Name</Th>
+                <Th>Unit</Th>
                 <Th>EAN</Th>
                 <Th>HSN/SAC</Th>
-                <Th>Unit</Th>
                 <Th align="right">Selling Price</Th>
                 <Th align="right">MRP</Th>
                 <Th align="right">GST%</Th>
@@ -233,9 +233,9 @@ export function ItemsPage() {
                         </div>
                       </div>
                     </TableCell>
+                    <TableCell>{item.unit ?? '-'}</TableCell>
                     <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
                     <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
-                    <TableCell>{item.unit ?? '-'}</TableCell>
                     <TableCell align="right" numeric>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '-'}</TableCell>
                     <TableCell align="right" numeric>{item.mrp != null ? formatINR(item.mrp) : '-'}</TableCell>
                     <TableCell align="right" numeric>{item.gstRate != null ? `${item.gstRate}%` : '-'}</TableCell>
