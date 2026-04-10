@@ -256,156 +256,268 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
 
       <Card className="overflow-visible">
         <CardHeader title="Line Items" />
-        <CardContent className="p-0 overflow-visible">
+        <CardContent className="overflow-visible p-0 md:p-0">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
           )}
-          <Table noOverflow>
-            <TableHeader>
-              <tr>
-                <Th className="min-w-[140px]">Item</Th>
-                <Th className="min-w-[120px]">Description</Th>
-                <Th className="min-w-[70px]">UOM</Th>
-                <Th className="min-w-[90px]">HSN/SAC</Th>
-                <Th className="min-w-[70px]">Qty</Th>
-                <Th className="min-w-[90px]">Unit Price</Th>
-                <Th align="right" className="min-w-[80px]">Amount</Th>
-                <Th className="min-w-[100px]">Tax Category</Th>
-                <Th className="min-w-[70px]">GST Rate</Th>
-                <Th className="w-10" />
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {lines.map((line, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    <Combobox
-                      options={itemOptions}
-                      value={line.itemId}
-                      onChange={async (itemId) => {
-                        const item = allItems.find((i) => i.id === itemId);
-                        setLines((prev) => prev.map((l, i) => i === idx ? {
-                          ...l,
-                          itemId,
-                          description: item?.name ?? l.description,
-                          uom: item?.unit ?? l.uom,
-                          hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
-                          unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
-                          taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
-                          priceSource: undefined,
-                          priceListName: null,
-                        } : l));
 
-                        // If a customer is already chosen, ask the resolver
-                        // for the per-customer price and override the unit
-                        // price the item default just set.
-                        if (customerId && itemId) {
-                          try {
-                            const qty = parseFloat(lines[idx]?.quantity ?? '1') || 1;
-                            const resolved = await resolvePrice({ customerId, itemId, quantity: qty });
-                            if (resolved) {
-                              setLines((prev) => prev.map((l, i) => i === idx ? {
-                                ...l,
-                                unitPrice: String(resolved.effectiveRate),
-                                priceSource: resolved.source,
-                                priceListName: resolved.priceListName,
-                              } : l));
-                            }
-                          } catch {
-                            // Resolver failure is non-fatal — keep the item
-                            // default that was just populated.
+          {/* ── Mobile line item cards ── */}
+          <div className="flex flex-col gap-3 p-3 md:hidden">
+            {lines.map((line, idx) => (
+              <div
+                key={idx}
+                className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <div className="mb-2">
+                  <Combobox
+                    label="Item"
+                    options={itemOptions}
+                    value={line.itemId}
+                    onChange={async (itemId) => {
+                      const item = allItems.find((i) => i.id === itemId);
+                      setLines((prev) => prev.map((l, i) => i === idx ? {
+                        ...l,
+                        itemId,
+                        description: item?.name ?? l.description,
+                        uom: item?.unit ?? l.uom,
+                        hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
+                        unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
+                        taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
+                        priceSource: undefined,
+                        priceListName: null,
+                      } : l));
+                      if (customerId && itemId) {
+                        try {
+                          const qty = parseFloat(lines[idx]?.quantity ?? '1') || 1;
+                          const resolved = await resolvePrice({ customerId, itemId, quantity: qty });
+                          if (resolved) {
+                            setLines((prev) => prev.map((l, i) => i === idx ? {
+                              ...l,
+                              unitPrice: String(resolved.effectiveRate),
+                              priceSource: resolved.source,
+                              priceListName: resolved.priceListName,
+                            } : l));
                           }
-                        }
-                      }}
-                      placeholder="Search item…"
-                    />
-                    {line.priceSource && line.priceSource !== 'item_default' && (
-                      <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
-                        {PRICE_SOURCE_LABEL[line.priceSource]}
-                        {line.priceListName ? ` · ${line.priceListName}` : ''}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={line.description}
-                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      placeholder="Description"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={line.uom}
-                      onChange={(e) => updateLine(idx, 'uom', e.target.value)}
-                      placeholder="kg, L, pcs"
-                      className="w-20"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <HsnSacCombobox
-                      value={line.hsnSacCode}
-                      onChange={(code, gstRate) => {
-                        setLines((prev) => prev.map((l, i) => i === idx ? { ...l, hsnSacCode: code, taxRate: gstRate != null ? String(gstRate) : l.taxRate } : l));
-                      }}
-                      placeholder="Search HSN/SAC…"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
-                      placeholder="0"
-                      className="w-full text-right"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={line.unitPrice}
-                      onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
-                      placeholder="0.00"
-                      className="w-28 text-right"
-                    />
-                  </TableCell>
-                  <TableCell align="right" numeric>
+                        } catch { /* non-fatal */ }
+                      }
+                    }}
+                    placeholder="Search item…"
+                  />
+                  {line.priceSource && line.priceSource !== 'item_default' && (
+                    <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                      {PRICE_SOURCE_LABEL[line.priceSource]}
+                      {line.priceListName ? ` · ${line.priceListName}` : ''}
+                    </p>
+                  )}
+                </div>
+                <Input
+                  label="Description"
+                  value={line.description}
+                  onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                  placeholder="Description"
+                />
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <Input
+                    label="Qty"
+                    type="number"
+                    min="0"
+                    value={line.quantity}
+                    onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                    placeholder="0"
+                  />
+                  <Input
+                    label="Unit Price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={line.unitPrice}
+                    onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <Input
+                    label="UOM"
+                    value={line.uom}
+                    onChange={(e) => updateLine(idx, 'uom', e.target.value)}
+                    placeholder="kg, L"
+                  />
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Select
+                    label="Tax Category"
+                    value={line.taxCategory}
+                    onChange={(e) => updateLine(idx, 'taxCategory', e.target.value)}
+                    options={TAX_CATEGORY_OPTIONS}
+                  />
+                  <Select
+                    label="GST Rate"
+                    value={line.taxRate}
+                    onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
+                    options={TAX_RATE_OPTIONS}
+                    disabled={line.taxCategory !== 'taxable'}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                     {formatINR(lineAmount(line))}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={line.taxCategory}
-                      onChange={(e) => updateLine(idx, 'taxCategory', e.target.value)}
-                      options={TAX_CATEGORY_OPTIONS}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={line.taxRate}
-                      onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
-                      options={TAX_RATE_OPTIONS}
-                      disabled={line.taxCategory !== 'taxable'}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    {lines.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                        onClick={() => removeLine(idx)}
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </span>
+                  {lines.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => removeLine(idx)}
+                    >
+                      <Trash2 size={14} /> Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Desktop table ── */}
+          <div className="hidden md:block">
+            <Table noOverflow>
+              <TableHeader>
+                <tr>
+                  <Th className="min-w-[140px]">Item</Th>
+                  <Th className="min-w-[120px]">Description</Th>
+                  <Th className="min-w-[70px]">UOM</Th>
+                  <Th className="min-w-[90px]">HSN/SAC</Th>
+                  <Th className="min-w-[70px]">Qty</Th>
+                  <Th className="min-w-[90px]">Unit Price</Th>
+                  <Th align="right" className="min-w-[80px]">Amount</Th>
+                  <Th className="min-w-[100px]">Tax Category</Th>
+                  <Th className="min-w-[70px]">GST Rate</Th>
+                  <Th className="w-10" />
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {lines.map((line, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <Combobox
+                        options={itemOptions}
+                        value={line.itemId}
+                        onChange={async (itemId) => {
+                          const item = allItems.find((i) => i.id === itemId);
+                          setLines((prev) => prev.map((l, i) => i === idx ? {
+                            ...l,
+                            itemId,
+                            description: item?.name ?? l.description,
+                            uom: item?.unit ?? l.uom,
+                            hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
+                            unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
+                            taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
+                            priceSource: undefined,
+                            priceListName: null,
+                          } : l));
+                          if (customerId && itemId) {
+                            try {
+                              const qty = parseFloat(lines[idx]?.quantity ?? '1') || 1;
+                              const resolved = await resolvePrice({ customerId, itemId, quantity: qty });
+                              if (resolved) {
+                                setLines((prev) => prev.map((l, i) => i === idx ? {
+                                  ...l,
+                                  unitPrice: String(resolved.effectiveRate),
+                                  priceSource: resolved.source,
+                                  priceListName: resolved.priceListName,
+                                } : l));
+                              }
+                            } catch { /* non-fatal */ }
+                          }
+                        }}
+                        placeholder="Search item…"
+                      />
+                      {line.priceSource && line.priceSource !== 'item_default' && (
+                        <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                          {PRICE_SOURCE_LABEL[line.priceSource]}
+                          {line.priceListName ? ` · ${line.priceListName}` : ''}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={line.description}
+                        onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                        placeholder="Description"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={line.uom}
+                        onChange={(e) => updateLine(idx, 'uom', e.target.value)}
+                        placeholder="kg, L, pcs"
+                        className="w-20"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <HsnSacCombobox
+                        value={line.hsnSacCode}
+                        onChange={(code, gstRate) => {
+                          setLines((prev) => prev.map((l, i) => i === idx ? { ...l, hsnSacCode: code, taxRate: gstRate != null ? String(gstRate) : l.taxRate } : l));
+                        }}
+                        placeholder="Search HSN/SAC…"
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={line.quantity}
+                        onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                        placeholder="0"
+                        className="w-full text-right"
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.unitPrice}
+                        onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
+                        placeholder="0.00"
+                        className="w-28 text-right"
+                      />
+                    </TableCell>
+                    <TableCell align="right" numeric>
+                      {formatINR(lineAmount(line))}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={line.taxCategory}
+                        onChange={(e) => updateLine(idx, 'taxCategory', e.target.value)}
+                        options={TAX_CATEGORY_OPTIONS}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={line.taxRate}
+                        onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
+                        options={TAX_RATE_OPTIONS}
+                        disabled={line.taxCategory !== 'taxable'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      {lines.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                          onClick={() => removeLine(idx)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
         <CardFooter>
           <Button type="button" variant="ghost" size="sm" onClick={addLine}>
