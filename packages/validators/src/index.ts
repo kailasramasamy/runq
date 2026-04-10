@@ -7,6 +7,7 @@ export * from './ap/payment.schema';
 export * from './ap/debit-note.schema';
 export * from './ar/customer.schema';
 export * from './ar/invoice.schema';
+export * from './ar/invoice-import.schema';
 export * from './ar/receipt.schema';
 export * from './ar/credit-note.schema';
 export * from './ar/dunning.schema';

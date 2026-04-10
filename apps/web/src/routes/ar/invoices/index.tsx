@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useInvoices } from '@/hooks/queries/use-invoices';
 import { useCustomers } from '@/hooks/queries/use-customers';
@@ -132,6 +132,10 @@ export function InvoiceListPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('invoices.csv', ['Invoice #', 'Date', 'Due Date', 'Customer', 'Amount', 'Received', 'Balance', 'Status'], invoices.map(inv => [inv.invoiceNumber, inv.invoiceDate, inv.dueDate, inv.customerName, inv.totalAmount, inv.amountReceived, inv.balanceDue, inv.status]))}>
               <Download size={14} /> Export CSV
+            </Button>
+            <Button variant="outline" onClick={() => navigate({ to: '/ar/invoices/import' })}>
+              <Upload size={16} />
+              Import
             </Button>
             <Button onClick={() => navigate({ to: '/ar/invoices/new' })}>
               <Plus size={16} />

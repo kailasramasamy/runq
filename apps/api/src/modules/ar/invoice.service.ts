@@ -220,10 +220,32 @@ export class InvoiceService {
     }
   }
 
-  async create(input: CreateSalesInvoiceInput, userId?: string): Promise<SalesInvoiceWithDetails> {
+  async create(
+    input: CreateSalesInvoiceInput,
+    userId?: string,
+    options?: {
+      /**
+       * Use this exact invoice number instead of generating one from the FY
+       * sequence. Used by the invoice import flow to preserve source numbers
+       * (e.g. 260003) verbatim. Caller is responsible for ensuring the
+       * (tenant_id, invoice_number) pair is unique — the unique constraint
+       * will throw on duplicates.
+       */
+      explicitInvoiceNumber?: string;
+      /**
+       * Skip the credit-limit check. Set when importing historical invoices
+       * that are already part of the customer's outstanding balance — the
+       * balance check would otherwise reject every line.
+       */
+      skipCreditCheck?: boolean;
+    },
+  ): Promise<SalesInvoiceWithDetails> {
     return this.db.transaction(async (tx) => {
-      await this.checkCreditLimit(input.customerId, input.totalAmount);
-      const invoiceNumber = await this.resolveInvoiceNumber(tx);
+      if (!options?.skipCreditCheck) {
+        await this.checkCreditLimit(input.customerId, input.totalAmount);
+      }
+      const invoiceNumber =
+        options?.explicitInvoiceNumber ?? (await this.resolveInvoiceNumber(tx));
       const gst = await this.computeGstForInvoice(tx, input.customerId, input.items, input.reverseCharge);
 
       const [invoice] = await tx

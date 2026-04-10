@@ -11,6 +11,7 @@ import { salesOrderRoutes } from './sales-order.routes';
 import { quickTemplateRoutes } from './quick-template.routes';
 import { poUploadRoutes } from './po-upload.routes';
 import { poDraftRoutes } from './po-draft.routes';
+import { invoiceImportRoutes } from './invoice-import/routes';
 
 export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(customerRoutes, { prefix: '/customers' });
@@ -25,4 +26,5 @@ export const arRoutes: FastifyPluginAsync = async (app) => {
   await app.register(quickTemplateRoutes, { prefix: '/quick-templates' });
   await app.register(poUploadRoutes, { prefix: '/po-uploads' });
   await app.register(poDraftRoutes, { prefix: '/po-drafts' });
+  await app.register(invoiceImportRoutes, { prefix: '/invoice-imports' });
 };

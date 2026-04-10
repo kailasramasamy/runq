@@ -35,6 +35,7 @@ import { InvoiceListPage } from './ar/invoices/index';
 import { NewInvoicePage } from './ar/invoices/new';
 import { InvoiceDetailPage } from './ar/invoices/detail';
 import { EditInvoicePage } from './ar/invoices/edit';
+import { InvoiceImportPage } from './ar/invoices/import';
 import { ReceiptListPage } from './ar/receipts/index';
 import { NewReceiptPage } from './ar/receipts/new';
 import { ReceiptDetailPage } from './ar/receipts/detail';
@@ -490,6 +491,12 @@ const invoiceNewRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/invoices/new',
   component: NewInvoicePage,
+});
+
+const invoiceImportRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/invoices/import',
+  component: InvoiceImportPage,
 });
 
 const invoiceDetailRoute = createRoute({
@@ -1461,6 +1468,7 @@ export const routeTree = rootRoute.addChildren([
       customerDetailRoute,
       invoicesRoute,
       invoiceNewRoute,
+      invoiceImportRoute,
       invoiceDetailRoute,
       invoiceEditRoute,
       receiptsRoute,

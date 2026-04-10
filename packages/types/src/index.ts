@@ -8,6 +8,7 @@ export * from './ap/debit-note';
 export * from './ap/three-way-match';
 export * from './ar/customer';
 export * from './ar/invoice';
+export * from './ar/invoice-import';
 export * from './ar/receipt';
 export * from './ar/credit-note';
 export * from './ar/dunning';

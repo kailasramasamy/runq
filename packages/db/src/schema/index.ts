@@ -47,3 +47,4 @@ export * from './hr/expense-claims';
 export * from './common/webhook-endpoints';
 export * from './ar/quick-templates';
 export * from './ar/po-inbox';
+export * from './ar/invoice-import-aliases';
