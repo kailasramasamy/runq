@@ -439,10 +439,10 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                   <Th className="min-w-[70px]">UOM</Th>
                   <Th className="min-w-[90px]">HSN/SAC</Th>
                   <Th className="min-w-[55px]">Qty</Th>
-                  <Th className="min-w-[75px]">Unit Price</Th>
-                  <Th align="right" className="min-w-[80px]">Amount</Th>
-                  <Th className="min-w-[115px]">Tax Category</Th>
-                  <Th className="min-w-[85px]">GST Rate</Th>
+                  <Th className="min-w-[70px]">Unit Price</Th>
+                  <Th align="right" className="min-w-[75px]">Amount</Th>
+                  <Th className="min-w-[110px]">Tax Category</Th>
+                  <Th className="min-w-[90px]">GST Rate</Th>
                   <Th className="w-10" />
                 </tr>
               </TableHeader>
@@ -532,7 +532,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                         value={line.unitPrice}
                         onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
                         placeholder="0.00"
-                        className="w-28 text-right"
+                        className="w-24 text-right"
                       />
                     </TableCell>
                     <TableCell align="right" numeric>
