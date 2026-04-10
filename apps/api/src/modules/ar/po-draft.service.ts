@@ -240,7 +240,12 @@ export class PoDraftService {
    * (uploadStatus, reviewStatus) pair. Returns the WHERE fragment.
    */
   private buildInboxWhere(filters: InboxListParams['filters']) {
-    const conds = [eq(poUploads.tenantId, this.tenantId)];
+    const conds = [
+      eq(poUploads.tenantId, this.tenantId),
+      // Always exclude discarded uploads — they're soft-deleted and
+      // shouldn't appear in any inbox view.
+      sql`${poUploads.status} != 'discarded'`,
+    ];
 
     if (filters.status && filters.status !== 'all') {
       conds.push(this.statusFilter(filters.status));
