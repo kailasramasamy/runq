@@ -584,6 +584,59 @@ export class InvoiceService {
       await tx
         .delete(salesInvoices)
         .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
+
+      // Try to reclaim the invoice number so there's no gap. We parse the
+      // sequence number from the invoice number format and check if it
+      // matches the current FY counter. If it does, decrement the counter
+      // so the next invoice reuses this number. Only works for the LAST
+      // invoice in the sequence — older gaps aren't filled (would require
+      // a free-list, which is overkill for the common "delete the one I
+      // just created" use case).
+      try {
+        const [tenantRow] = await tx
+          .select({ settings: tenants.settings })
+          .from(tenants)
+          .where(eq(tenants.id, this.tenantId))
+          .limit(1);
+        const settings = (tenantRow?.settings ?? {}) as TenantSettings;
+        const fy = this.getCurrentFY(settings.financialYearStartMonth ?? 4);
+
+        // Extract the raw sequence number from the formatted invoice number.
+        // The format uses {seq} which is zero-padded. We strip the prefix/fy
+        // parts and parse the remaining digits.
+        const padding = settings.invoiceSequencePadding ?? 4;
+        const seqStr = existing.invoiceNumber.slice(-(padding));
+        const deletedSeq = Number(seqStr);
+
+        if (Number.isFinite(deletedSeq) && deletedSeq > 0) {
+          // Only decrement if the deleted invoice WAS the last in the sequence
+          const [seqRow] = await tx
+            .select({ lastSequence: invoiceSequences.lastSequence })
+            .from(invoiceSequences)
+            .where(
+              and(
+                eq(invoiceSequences.tenantId, this.tenantId),
+                eq(invoiceSequences.financialYear, fy),
+              ),
+            )
+            .limit(1);
+
+          if (seqRow && seqRow.lastSequence === deletedSeq) {
+            await tx
+              .update(invoiceSequences)
+              .set({ lastSequence: deletedSeq - 1, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(invoiceSequences.tenantId, this.tenantId),
+                  eq(invoiceSequences.financialYear, fy),
+                ),
+              );
+          }
+        }
+      } catch {
+        // Sequence reclaim is best-effort — don't fail the delete if
+        // the number parsing or decrement fails for any reason.
+      }
     });
   }
 
