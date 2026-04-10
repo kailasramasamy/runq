@@ -187,7 +187,7 @@ export function Combobox({
           <ul
             ref={listRef}
             role="listbox"
-            className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            className="absolute z-50 mt-1 max-h-60 min-w-[280px] w-full overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
           >
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500">

@@ -63,7 +63,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </div>
 
-      <nav className="mt-4 flex-1 space-y-1 px-2 overflow-y-auto">
+      <nav className="mt-4 flex-1 space-y-1 px-2">
         {navItems.map((item) => {
           const isActive = item.path === '/'
             ? currentPath === '/'
