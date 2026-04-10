@@ -58,7 +58,7 @@ export function InstallNudge() {
   };
 
   return (
-    <div className="mb-3 flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+    <div className="mb-3 hidden items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 max-md:flex dark:border-indigo-900 dark:bg-indigo-950/30">
       <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
       <div className="min-w-0 flex-1">
         {ios ? <IosBody /> : <AndroidBody onInstall={install} />}
