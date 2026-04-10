@@ -25,6 +25,7 @@ export const createSalesInvoiceSchema = z.object({
   taxAmount: z.number().nonnegative().default(0),
   totalAmount: z.number().positive('Total must be positive'),
   notes: z.string().nullish(),
+  poNumber: z.string().max(50).nullish(),
   // GST fields (optional for backward compat)
   reverseCharge: z.boolean().default(false),
 });

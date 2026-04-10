@@ -85,6 +85,15 @@ export function InvoiceImportPage() {
       ),
     [itemsData],
   );
+  // Map itemId → unit for the matched-row UOM badge. Built once and
+  // passed down so LineRow doesn't have to scan the items array per row.
+  const itemUnitById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of itemsData?.data ?? []) {
+      if (i.unit) map.set(i.id, i.unit);
+    }
+    return map;
+  }, [itemsData]);
 
   // Inline create modal state. Both forms identify the row(s) they were
   // opened for so we can auto-map after the master record is created.
@@ -369,6 +378,7 @@ export function InvoiceImportPage() {
               onRemove={() => removeStagedInvoice(idx)}
               customerOpts={customerOpts}
               itemOpts={itemOpts}
+              itemUnitById={itemUnitById}
               onSetCustomer={(id) => setCustomerForInvoice(idx, id)}
               onSetItem={(lineIdx, id) => setItemForLine(idx, lineIdx, id)}
             />
@@ -668,6 +678,7 @@ function StagedInvoiceCard({
   onRemove,
   customerOpts,
   itemOpts,
+  itemUnitById,
   onSetCustomer,
   onSetItem,
 }: {
@@ -677,6 +688,7 @@ function StagedInvoiceCard({
   onRemove: () => void;
   customerOpts: { value: string; label: string }[];
   itemOpts: { value: string; label: string }[];
+  itemUnitById: Map<string, string>;
   onSetCustomer: (id: string) => void;
   onSetItem: (lineIdx: number, id: string) => void;
 }) {
@@ -786,6 +798,7 @@ function StagedInvoiceCard({
                       key={`${li.sourceName}-${idx}`}
                       line={li}
                       itemOpts={itemOpts}
+                      itemUnitById={itemUnitById}
                       onSetItem={(id) => onSetItem(idx, id)}
                     />
                   ))}
@@ -808,14 +821,17 @@ function StagedInvoiceCard({
 function LineRow({
   line,
   itemOpts,
+  itemUnitById,
   onSetItem,
 }: {
   line: ParsedLineItem;
   itemOpts: { value: string; label: string }[];
+  itemUnitById: Map<string, string>;
   onSetItem: (id: string) => void;
 }) {
   const matched = !!line.match.resolvedId;
   const lowConfidence = matched && line.match.confidence < 0.85;
+  const matchedUnit = matched && line.match.resolvedId ? itemUnitById.get(line.match.resolvedId) : undefined;
 
   return (
     <tr className="border-t border-zinc-100 align-top dark:border-zinc-800">
@@ -830,6 +846,9 @@ function LineRow({
           <div className="flex items-center gap-2">
             <Check size={14} className={lowConfidence ? 'text-amber-500' : 'text-emerald-600'} />
             <span className="text-zinc-900 dark:text-zinc-100">{line.match.resolvedName}</span>
+            {matchedUnit && (
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">· {matchedUnit}</span>
+            )}
             <button
               type="button"
               onClick={() => onSetItem('')}

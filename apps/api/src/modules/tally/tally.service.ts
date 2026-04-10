@@ -284,7 +284,7 @@ ${ledgers.join('\n')}
         totalAmount: salesInvoices.totalAmount, amountReceived: salesInvoices.amountReceived,
         balanceDue: salesInvoices.balanceDue, status: salesInvoices.status,
         discountPercent: salesInvoices.discountPercent, discountDays: salesInvoices.discountDays,
-        notes: salesInvoices.notes, fileUrl: salesInvoices.fileUrl,
+        notes: salesInvoices.notes, poNumber: salesInvoices.poNumber, fileUrl: salesInvoices.fileUrl,
         placeOfSupply: salesInvoices.placeOfSupply, placeOfSupplyCode: salesInvoices.placeOfSupplyCode,
         isInterState: salesInvoices.isInterState, reverseCharge: salesInvoices.reverseCharge,
         cgstAmount: salesInvoices.cgstAmount, sgstAmount: salesInvoices.sgstAmount,

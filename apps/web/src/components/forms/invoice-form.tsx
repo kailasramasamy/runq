@@ -86,6 +86,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
   const [invoiceDate, setInvoiceDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [poNumber, setPoNumber] = useState('');
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -108,6 +109,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
     setInvoiceDate(initialData.invoiceDate);
     setDueDate(initialData.dueDate);
     setNotes(initialData.notes ?? '');
+    setPoNumber(initialData.poNumber ?? '');
 
     if (initialData.items.length > 0) {
       // Build a name → item lookup for auto-linking. Case-insensitive +
@@ -180,6 +182,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
       taxAmount: tax,
       totalAmount: total,
       notes: notes || null,
+      poNumber: poNumber || null,
       items: lines.map((l) => ({
         itemId: l.itemId || null,
         description: l.description,
@@ -239,6 +242,13 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
               error={errors.dueDate}
+            />
+            <Input
+              label="PO Number"
+              placeholder="Customer's PO ref (optional)"
+              value={poNumber}
+              onChange={(e) => setPoNumber(e.target.value)}
+              helper="Buyer's PO/order reference. Printed on the invoice."
             />
           </div>
         </CardContent>

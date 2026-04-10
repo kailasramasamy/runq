@@ -1,6 +1,7 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import {
   salesInvoices,
+  items,
   invoiceImportItemAliases,
   invoiceImportCustomerAliases,
 } from '@runq/db';
@@ -125,6 +126,26 @@ export class InvoiceImportService {
       );
     const existingSet = new Set(existingRows.map((r) => r.invoiceNumber));
 
+    // Pre-fetch HSN codes for all matched item IDs in one shot. Lets
+    // each line fall back to the master item's HSN when the source file
+    // didn't carry one — common when importing from minimal templates.
+    const matchedItemIds = new Set<string>();
+    for (const inv of payload.invoices) {
+      for (const li of inv.lineItems) {
+        if (li.match.resolvedId) matchedItemIds.add(li.match.resolvedId);
+      }
+    }
+    const itemRows =
+      matchedItemIds.size > 0
+        ? await this.db
+            .select({ id: items.id, hsnSacCode: items.hsnSacCode })
+            .from(items)
+            .where(
+              and(eq(items.tenantId, this.tenantId), inArray(items.id, [...matchedItemIds])),
+            )
+        : [];
+    const masterHsnById = new Map(itemRows.map((r) => [r.id, r.hsnSacCode ?? null]));
+
     const invoiceService = new InvoiceService(this.db, this.tenantId);
     const persistAliases = payload.persistAliases ?? true;
 
@@ -164,13 +185,19 @@ export class InvoiceImportService {
       // here are pre-validation values; the service recomputes from the
       // items + GST logic and overrides them. We just need to pass values
       // that satisfy the zod schema (positive numbers).
-      const items: CreateSalesInvoiceInput['items'] = inv.lineItems.map((li) => ({
+      //
+      // HSN fallback: if the source line didn't carry an HSN code but the
+      // matched master item has one, use the master's. Items master is
+      // the system of record for HSN/tax classification anyway.
+      const lineItemsInput: CreateSalesInvoiceInput['items'] = inv.lineItems.map((li) => ({
         itemId: li.match.resolvedId!,
         description: li.match.resolvedName ?? li.sourceName,
         quantity: li.quantity,
         unitPrice: li.unitPrice,
         amount: li.lineTotal,
-        hsnSacCode: li.hsnSacCode ?? undefined,
+        hsnSacCode:
+          li.hsnSacCode ??
+          (li.match.resolvedId ? masterHsnById.get(li.match.resolvedId) ?? undefined : undefined),
         taxRate: li.taxRate ?? undefined,
       }));
       const subtotal = inv.computedSubtotal;
@@ -181,11 +208,12 @@ export class InvoiceImportService {
         customerId: inv.customerMatch.resolvedId,
         invoiceDate: inv.invoiceDate,
         dueDate: inv.dueDate,
-        items,
+        items: lineItemsInput,
         subtotal,
         taxAmount,
         totalAmount,
         notes: inv.notes ?? undefined,
+        poNumber: inv.poNumber ?? undefined,
         reverseCharge: false,
       };
 

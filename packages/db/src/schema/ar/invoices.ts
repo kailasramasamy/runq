@@ -33,6 +33,10 @@ export const salesInvoices = pgTable('sales_invoices', {
   discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }),
   discountDays: integer('discount_days'),
   notes: text('notes'),
+  // Customer purchase order reference. Free-text varchar(50), populated
+  // by the import flow from source files and by the manual create form.
+  // Not a FK — see migration 0016 for the rationale.
+  poNumber: varchar('po_number', { length: 50 }),
   fileUrl: varchar('file_url', { length: 500 }),
   // GST fields
   placeOfSupply: varchar('place_of_supply', { length: 100 }),

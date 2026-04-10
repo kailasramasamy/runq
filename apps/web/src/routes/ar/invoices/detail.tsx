@@ -263,6 +263,16 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 </p>
               </div>
             )}
+            {invoice.poNumber && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  PO Number
+                </p>
+                <p className="mt-0.5 text-sm font-mono text-zinc-900 dark:text-zinc-100">
+                  {invoice.poNumber}
+                </p>
+              </div>
+            )}
             {invoice.notes && (
               <div className="sm:col-span-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">

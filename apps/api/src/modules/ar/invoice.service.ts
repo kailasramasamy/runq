@@ -262,6 +262,7 @@ export class InvoiceService {
           balanceDue: String(gst.summary.totalAmount),
           status: 'draft',
           notes: input.notes ?? null,
+          poNumber: input.poNumber ?? null,
           placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
           placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,
           isInterState: gst.placeOfSupply?.isInterState ?? null,
@@ -412,6 +413,7 @@ export class InvoiceService {
           ...(input.invoiceDate !== undefined && { invoiceDate: input.invoiceDate }),
           ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
           ...(input.notes !== undefined && { notes: input.notes ?? null }),
+          ...(input.poNumber !== undefined && { poNumber: input.poNumber ?? null }),
           // GST recompute path — only when items were sent
           ...(gst && {
             subtotal: String(gst.summary.subtotal),
@@ -779,6 +781,7 @@ export class InvoiceService {
       discountPercent: row.discountPercent != null ? Number(row.discountPercent) : null,
       discountDays: row.discountDays ?? null,
       notes: row.notes ?? null,
+      poNumber: row.poNumber ?? null,
       fileUrl: row.fileUrl ?? null,
       placeOfSupply: row.placeOfSupply ?? null,
       placeOfSupplyCode: row.placeOfSupplyCode ?? null,

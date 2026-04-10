@@ -18,6 +18,8 @@ export interface SalesInvoice {
   discountPercent: number | null;
   discountDays: number | null;
   notes: string | null;
+  /** Customer purchase order reference, free-text. Populated by import or manual create. */
+  poNumber: string | null;
   fileUrl: string | null;
   // GST fields
   placeOfSupply: string | null;
