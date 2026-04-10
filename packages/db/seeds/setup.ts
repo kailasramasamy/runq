@@ -40,6 +40,17 @@ async function setup() {
         ADD CONSTRAINT invoice_sequences_tenant_id_financial_year_unique
         UNIQUE (tenant_id, financial_year);
       END IF;
+      -- Unique invoice numbers per tenant
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'sales_invoices'::regclass
+          AND contype = 'u'
+          AND conname = 'sales_invoices_tenant_id_invoice_number_unique'
+      ) THEN
+        ALTER TABLE sales_invoices
+        ADD CONSTRAINT sales_invoices_tenant_id_invoice_number_unique
+        UNIQUE (tenant_id, invoice_number);
+      END IF;
     END
     $$;
   `);

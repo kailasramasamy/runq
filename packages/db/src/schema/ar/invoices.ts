@@ -55,6 +55,7 @@ export const salesInvoices = pgTable('sales_invoices', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  unique().on(t.tenantId, t.invoiceNumber),
   index('idx_si_tenant_status').on(t.tenantId, t.status),
   index('idx_si_tenant_customer').on(t.tenantId, t.customerId),
   index('idx_si_tenant_due_date').on(t.tenantId, t.dueDate),
