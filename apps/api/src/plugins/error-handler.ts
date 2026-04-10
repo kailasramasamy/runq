@@ -42,10 +42,12 @@ export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
       });
     }
 
+    // Surface the real error message so 500s are debuggable from the
+    // browser. The full stack trace is still only in server logs.
     return reply.status(500).send({
       statusCode: 500,
       error: 'Internal Server Error',
-      message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : (error instanceof Error ? error.message : 'Unknown error'),
+      message: error instanceof Error ? error.message : 'Unknown error',
     });
   });
 });
