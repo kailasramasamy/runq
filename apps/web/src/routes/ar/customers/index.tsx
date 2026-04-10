@@ -99,7 +99,7 @@ function CustomerRow({
       <TableCell className="text-zinc-500 dark:text-zinc-400">{customer.email ?? '—'}</TableCell>
       <TableCell className="text-zinc-500 dark:text-zinc-400">{customer.phone ?? '—'}</TableCell>
       <TableCell>Net {customer.paymentTermsDays}d</TableCell>
-      <TableCell numeric className="font-mono text-sm">
+      <TableCell align="right" numeric className="font-mono text-sm">
         {formatINR(customer.outstandingAmount)}
       </TableCell>
       <TableCell>
