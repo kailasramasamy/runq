@@ -178,14 +178,37 @@ export function ChartOfAccountsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+
+  const TYPE_CHIPS: { type: AccountType; label: string; range: string }[] = [
+    { type: 'asset', label: 'Assets', range: '1000–1999' },
+    { type: 'liability', label: 'Liabilities', range: '2000–2999' },
+    { type: 'equity', label: 'Equity', range: '3000–3999' },
+    { type: 'revenue', label: 'Revenue', range: '4000–4999' },
+    { type: 'expense', label: 'Expenses', range: '5000–5999' },
+  ];
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of accountList) {
+      counts[a.type] = (counts[a.type] ?? 0) + 1;
+    }
+    return counts;
+  }, [accountList]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return accountList;
-    const q = search.toLowerCase();
-    return accountList.filter(
-      (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q),
-    );
-  }, [accountList, search]);
+    let list = accountList;
+    if (typeFilter) {
+      list = list.filter((a) => a.type === typeFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [accountList, search, typeFilter]);
 
   return (
     <div>
@@ -204,6 +227,34 @@ export function ChartOfAccountsPage() {
           </div>
         }
       />
+
+      {/* Type chips */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button
+          onClick={() => setTypeFilter(null)}
+          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            typeFilter === null
+              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
+              : 'border-zinc-200 text-zinc-500 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600'
+          }`}
+        >
+          All <span className="ml-1 text-zinc-400">{accountList.length}</span>
+        </button>
+        {TYPE_CHIPS.map((chip) => (
+          <button
+            key={chip.type}
+            onClick={() => setTypeFilter(typeFilter === chip.type ? null : chip.type)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              typeFilter === chip.type
+                ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
+                : 'border-zinc-200 text-zinc-500 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600'
+            }`}
+          >
+            {chip.label} <span className="ml-1 font-mono text-zinc-400">{chip.range}</span>
+            <span className="ml-1 text-zinc-400">({typeCounts[chip.type] ?? 0})</span>
+          </button>
+        ))}
+      </div>
 
       {/* Search */}
       <div className="mb-4 max-w-sm">
