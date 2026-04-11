@@ -16,6 +16,7 @@ export * from './banking/bank-accounts';
 export * from './banking/bank-transactions';
 export * from './banking/reconciliation';
 export * from './banking/statement-format-aliases';
+export * from './banking/narration-rules';
 export * from './banking/petty-cash';
 export * from './pg-recon/settlements';
 export * from './webhook-events';

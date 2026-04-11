@@ -1,5 +1,5 @@
 import { eq, and, isNull } from 'drizzle-orm';
-import { bankTransactions, accounts, vendors, customers } from '@runq/db';
+import { bankTransactions, accounts, vendors, customers, bankNarrationRules } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CategorizationResult } from '@runq/types';
 import { analyze } from '../../utils/ai/claude.service';
@@ -9,8 +9,10 @@ import {
 } from '../../utils/ai/prompts/bank-categorization';
 
 interface RuleMatch {
-  accountCode: string;
+  accountCode?: string;
+  accountId?: string;
   confidence: number;
+  autoReconcile?: boolean;
 }
 
 interface GlAccount {
@@ -20,7 +22,8 @@ interface GlAccount {
   type: string;
 }
 
-const RULES: Array<{
+// Hardcoded rules — act as baseline before learned rules
+const HARDCODED_RULES: Array<{
   patterns: RegExp[];
   code: string;
   confidence: number;
@@ -32,18 +35,66 @@ const RULES: Array<{
   { patterns: [/INTEREST/i], code: '4002', confidence: 0.85, txnType: 'credit' },
 ];
 
+/**
+ * Extract a reusable pattern from a bank narration.
+ * NEFT/IMPS narrations contain payee identifiers that repeat across
+ * transactions — we extract those as learnable patterns.
+ *
+ * Examples:
+ *   "INF/NEFT/IN42609256714963/UCBA0002538/INDUSPPBENCHKAL" → "INDUSPPBENCHKAL"
+ *   "NEFT-AXISCN1298896167-RAZORPAY PAYMENTS PVT LTD..." → "RAZORPAY PAYMENTS"
+ *   "MMT/IMPS/609415665178/DairyChetanDriv/SBIN0040877" → "DairyChetanDriv"
+ *   "UPI/123456/Payment" → "Payment"
+ */
+function extractNarrationPattern(narration: string): string | null {
+  if (!narration || narration.length < 5) return null;
+
+  // NEFT format: "INF/NEFT/.../IFSC/PAYEE_NAME"
+  const neftMatch = narration.match(/(?:INF\/)?NEFT\/[^\/]+\/[A-Z]{4}\d{7}\/(.+)/i);
+  if (neftMatch) return neftMatch[1]!.trim();
+
+  // NEFT format: "NEFT-REFNO-PAYEE NAME..."
+  const neftDash = narration.match(/NEFT-[A-Z0-9]+-(.+?)(?:\s*-|$)/i);
+  if (neftDash) {
+    // Take the payee name, trim common suffixes
+    const payee = neftDash[1]!.trim();
+    // Keep first 2-3 significant words (drop "PVT LTD PAYMENT AGGREGATOR...")
+    const words = payee.split(/\s+/);
+    return words.slice(0, Math.min(words.length, 3)).join(' ');
+  }
+
+  // IMPS format: "MMT/IMPS/REFNO/PAYEE/IFSC"
+  const impsMatch = narration.match(/MMT\/IMPS\/\d+\/(.+?)\/[A-Z]{4}\d{7}/i);
+  if (impsMatch) return impsMatch[1]!.trim();
+
+  // UPI format: various
+  const upiMatch = narration.match(/UPI\/\d+\/(.+?)(?:\/|$)/i);
+  if (upiMatch) return upiMatch[1]!.trim();
+
+  // Fallback: if narration is short enough, use it as-is (likely a direct description)
+  if (narration.length <= 60) return narration.trim();
+
+  return null;
+}
+
 export class CategorizeService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
 
+  /**
+   * Categorize all uncategorized transactions for a bank account.
+   * Priority: learned narration rules → hardcoded rules → vendor/customer names → AI.
+   * High-confidence matches are auto-reconciled.
+   */
   async categorizeTransactions(bankAccountId: string): Promise<CategorizationResult> {
-    const [uncategorized, glAccounts, vendorNames, customerNames] = await Promise.all([
+    const [uncategorized, glAccounts, vendorNames, customerNames, narrationRules] = await Promise.all([
       this.fetchUncategorized(bankAccountId),
       this.fetchGlAccounts(),
       this.fetchVendorNames(),
       this.fetchCustomerNames(),
+      this.fetchNarrationRules(),
     ]);
 
     if (uncategorized.length === 0) {
@@ -51,18 +102,23 @@ export class CategorizeService {
     }
 
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
+    const accountById = new Map(glAccounts.map((a) => [a.id, a]));
     let rulesMatched = 0;
     let aiMatched = 0;
     const needsAI: typeof uncategorized = [];
 
     for (const txn of uncategorized) {
-      const match = this.applyRules(txn.narration, txn.type, vendorNames, customerNames);
-      if (match && accountByCode.has(match.accountCode)) {
-        await this.updateGlCategory(txn.id, accountByCode.get(match.accountCode)!.id, match.confidence);
-        rulesMatched++;
-      } else {
-        needsAI.push(txn);
+      const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorNames, customerNames);
+      if (match) {
+        const glId = match.accountId ?? accountByCode.get(match.accountCode ?? '')?.id;
+        if (glId) {
+          const shouldReconcile = match.autoReconcile ?? match.confidence >= 0.85;
+          await this.updateGlCategory(txn.id, glId, match.confidence, shouldReconcile);
+          rulesMatched++;
+          continue;
+        }
       }
+      needsAI.push(txn);
     }
 
     aiMatched = await this.categorizeWithAI(needsAI, glAccounts, accountByCode);
@@ -71,29 +127,111 @@ export class CategorizeService {
     return { categorized: rulesMatched + aiMatched, rulesMatched, aiMatched, skipped };
   }
 
-  async setCategory(transactionId: string, glAccountId: string): Promise<void> {
+  /**
+   * Manually set GL category on a transaction.
+   * Also marks as reconciled and learns the narration pattern for future auto-categorization.
+   */
+  async setCategory(
+    transactionId: string,
+    glAccountId: string,
+    options: { reconcile?: boolean; learn?: boolean } = {},
+  ): Promise<void> {
+    const { reconcile = true, learn = true } = options;
+
+    // Get the transaction to learn from
+    const [txn] = await this.db
+      .select({
+        id: bankTransactions.id,
+        narration: bankTransactions.narration,
+        type: bankTransactions.type,
+      })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)))
+      .limit(1);
+
     await this.db
       .update(bankTransactions)
-      .set({ glAccountId, glConfidence: '1.00', glSuggestedAt: null, updatedAt: new Date() })
+      .set({
+        glAccountId,
+        glConfidence: '1.00',
+        glSuggestedAt: null,
+        reconStatus: reconcile ? 'matched' : undefined,
+        updatedAt: new Date(),
+      })
       .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)));
+
+    // Learn the narration pattern
+    if (learn && txn?.narration) {
+      await this.learnNarrationRule(txn.narration, glAccountId, txn.type);
+    }
   }
 
-  private applyRules(
+  /**
+   * Extract a pattern from the narration and save it as a rule.
+   * Skips if pattern already exists for this tenant + GL account.
+   */
+  private async learnNarrationRule(
+    narration: string,
+    glAccountId: string,
+    txnType: 'credit' | 'debit',
+  ): Promise<void> {
+    const pattern = extractNarrationPattern(narration);
+    if (!pattern || pattern.length < 3) return;
+
+    // Check if this pattern already exists
+    const existing = await this.db
+      .select({ id: bankNarrationRules.id })
+      .from(bankNarrationRules)
+      .where(and(
+        eq(bankNarrationRules.tenantId, this.tenantId),
+        eq(bankNarrationRules.pattern, pattern),
+      ))
+      .limit(1);
+
+    if (existing.length > 0) return;
+
+    await this.db.insert(bankNarrationRules).values({
+      tenantId: this.tenantId,
+      pattern,
+      glAccountId,
+      autoReconcile: true,
+      txnType,
+    });
+  }
+
+  /**
+   * Apply all rule sources in priority order:
+   * 1. Learned narration rules (highest priority — user taught these)
+   * 2. Hardcoded pattern rules (bank charges, salary, etc.)
+   * 3. Vendor/customer name matching
+   */
+  private applyAllRules(
     narration: string | null,
     type: 'credit' | 'debit',
+    narrationRules: { pattern: string; glAccountId: string; autoReconcile: boolean; txnType: string | null }[],
     vendorNames: string[],
     customerNames: string[],
   ): RuleMatch | null {
     if (!narration) return null;
     const upper = narration.toUpperCase();
 
-    for (const rule of RULES) {
+    // 1. Learned narration rules (case-insensitive substring match)
+    for (const rule of narrationRules) {
+      if (rule.txnType && rule.txnType !== type) continue;
+      if (upper.includes(rule.pattern.toUpperCase())) {
+        return { accountId: rule.glAccountId, confidence: 0.95, autoReconcile: rule.autoReconcile };
+      }
+    }
+
+    // 2. Hardcoded pattern rules
+    for (const rule of HARDCODED_RULES) {
       if (rule.txnType && rule.txnType !== type) continue;
       if (rule.patterns.some((p) => p.test(upper))) {
         return { accountCode: rule.code, confidence: rule.confidence };
       }
     }
 
+    // 3. Vendor/customer name matching
     return this.matchPartyNames(upper, type, vendorNames, customerNames);
   }
 
@@ -166,7 +304,13 @@ export class CategorizeService {
         const account = accountByCode.get(r.accountCode);
         if (!txn || !account || r.confidence < 0.5) continue;
 
-        await this.updateGlCategory(txn.id, account.id, r.confidence);
+        await this.updateGlCategory(txn.id, account.id, r.confidence, r.confidence >= 0.85);
+
+        // Learn from AI categorization too
+        if (r.confidence >= 0.85 && txn.narration) {
+          await this.learnNarrationRule(txn.narration, account.id, txn.type);
+        }
+
         matched++;
       }
     } catch {
@@ -175,13 +319,19 @@ export class CategorizeService {
     return matched;
   }
 
-  private async updateGlCategory(txnId: string, glAccountId: string, confidence: number): Promise<void> {
+  private async updateGlCategory(
+    txnId: string,
+    glAccountId: string,
+    confidence: number,
+    reconcile = false,
+  ): Promise<void> {
     await this.db
       .update(bankTransactions)
       .set({
         glAccountId,
         glConfidence: confidence.toFixed(2),
         glSuggestedAt: new Date(),
+        ...(reconcile ? { reconStatus: 'matched' as const } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(bankTransactions.id, txnId), eq(bankTransactions.tenantId, this.tenantId)));
@@ -205,11 +355,10 @@ export class CategorizeService {
   }
 
   private async fetchGlAccounts(): Promise<GlAccount[]> {
-    const rows = await this.db
+    return this.db
       .select({ id: accounts.id, code: accounts.code, name: accounts.name, type: accounts.type })
       .from(accounts)
       .where(eq(accounts.tenantId, this.tenantId));
-    return rows;
   }
 
   private async fetchVendorNames(): Promise<string[]> {
@@ -226,6 +375,18 @@ export class CategorizeService {
       .from(customers)
       .where(eq(customers.tenantId, this.tenantId));
     return rows.map((r) => r.name);
+  }
+
+  private async fetchNarrationRules() {
+    return this.db
+      .select({
+        pattern: bankNarrationRules.pattern,
+        glAccountId: bankNarrationRules.glAccountId,
+        autoReconcile: bankNarrationRules.autoReconcile,
+        txnType: bankNarrationRules.txnType,
+      })
+      .from(bankNarrationRules)
+      .where(eq(bankNarrationRules.tenantId, this.tenantId));
   }
 
   private chunk<T>(arr: T[], size: number): T[][] {

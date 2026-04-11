@@ -31,10 +31,10 @@ export function CategoryBadge({ transactionId, accountName, confidence }: Catego
   }, []);
 
   const label = accountName ?? 'Uncategorized';
-  const variant = accountName ? getVariant(confidence) : 'default';
+  const variant = accountName ? getVariant(confidence) : 'warning';
   const title = confidence != null
     ? `${(confidence * 100).toFixed(0)}% confidence — click to change`
-    : 'Click to categorize';
+    : 'Click to categorize & reconcile';
 
   return (
     <div ref={ref} className="relative inline-block">
@@ -52,7 +52,11 @@ function CategoryDropdown({ transactionId, onDone }: { transactionId: string; on
   const accounts = data?.data ?? [];
 
   async function handleSelect(glAccountId: string) {
-    await api.put(`/banking/transactions/${transactionId}/category`, { glAccountId });
+    await api.put(`/banking/accounts/transactions/${transactionId}/category`, {
+      glAccountId,
+      reconcile: true,
+      learn: true,
+    });
     qc.invalidateQueries({ queryKey: ['bank-transactions'] });
     onDone();
   }

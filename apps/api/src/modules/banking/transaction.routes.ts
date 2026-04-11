@@ -16,7 +16,11 @@ const importBodySchema = z.object({
 });
 
 const transactionParamSchema = z.object({ id: z.string().uuid() });
-const setCategoryBodySchema = z.object({ glAccountId: z.string().uuid() });
+const setCategoryBodySchema = z.object({
+  glAccountId: z.string().uuid(),
+  reconcile: z.boolean().optional().default(true),
+  learn: z.boolean().optional().default(true),
+});
 
 export const transactionRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -85,10 +89,51 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request, reply) => {
       const { id } = transactionParamSchema.parse(request.params);
-      const { glAccountId } = setCategoryBodySchema.parse(request.body);
+      const { glAccountId, reconcile, learn } = setCategoryBodySchema.parse(request.body);
       const service = new CategorizeService(request.server.db, request.tenantId);
-      await service.setCategory(id, glAccountId);
+      await service.setCategory(id, glAccountId, { reconcile, learn });
       return reply.status(200).send({ data: { success: true } });
+    },
+  );
+
+  // ── Narration rules (learned categorization patterns) ──────────
+
+  app.get(
+    '/narration-rules',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { bankNarrationRules, accounts: glAccounts } = await import('@runq/db');
+      const { eq } = await import('drizzle-orm');
+      const rules = await request.server.db
+        .select({
+          id: bankNarrationRules.id,
+          pattern: bankNarrationRules.pattern,
+          glAccountId: bankNarrationRules.glAccountId,
+          glAccountName: glAccounts.name,
+          glAccountCode: glAccounts.code,
+          autoReconcile: bankNarrationRules.autoReconcile,
+          txnType: bankNarrationRules.txnType,
+          createdAt: bankNarrationRules.createdAt,
+        })
+        .from(bankNarrationRules)
+        .innerJoin(glAccounts, eq(bankNarrationRules.glAccountId, glAccounts.id))
+        .where(eq(bankNarrationRules.tenantId, request.tenantId))
+        .orderBy(bankNarrationRules.pattern);
+      return { data: rules };
+    },
+  );
+
+  app.delete(
+    '/narration-rules/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { bankNarrationRules } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const { id } = transactionParamSchema.parse(request.params);
+      await request.server.db
+        .delete(bankNarrationRules)
+        .where(and(eq(bankNarrationRules.id, id), eq(bankNarrationRules.tenantId, request.tenantId)));
+      return reply.status(204).send();
     },
   );
 };

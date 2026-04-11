@@ -86,6 +86,25 @@ export function useSyncTransactions() {
   });
 }
 
+// ── Set GL category (+ auto-reconcile + learn rule) ─────────────
+
+export function useSetTransactionCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ transactionId, glAccountId, reconcile = true, learn = true }: {
+      transactionId: string;
+      glAccountId: string;
+      reconcile?: boolean;
+      learn?: boolean;
+    }) =>
+      api.put<ApiSuccess<{ success: boolean }>>(
+        `/banking/accounts/transactions/${transactionId}/category`,
+        { glAccountId, reconcile, learn },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+  });
+}
+
 // ── Smart statement import (file upload → parse → commit) ──────
 
 export function useParseStatement() {
