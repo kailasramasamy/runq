@@ -44,11 +44,15 @@ const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3
 
 function TxnCard({ txn }: { txn: BankTransaction }) {
   const isCredit = txn.type === 'credit';
+  const [expanded, setExpanded] = useState(false);
   return (
     <div className={CARD_BASE}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <p
+            className={`text-sm font-medium text-zinc-900 dark:text-zinc-100 ${expanded ? '' : 'truncate'}`}
+            onClick={() => setExpanded((v) => !v)}
+          >
             {txn.narration ?? '—'}
           </p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{txn.transactionDate}</p>
@@ -82,7 +86,7 @@ const TxnRow = memo(function TxnRow({ txn }: { txn: BankTransaction }) {
       <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
         {txn.transactionDate}
       </TableCell>
-      <TableCell className="max-w-xs">
+      <TableCell className="max-w-xs" title={txn.narration ?? undefined}>
         <p className="truncate text-sm">{txn.narration ?? '—'}</p>
       </TableCell>
       <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
