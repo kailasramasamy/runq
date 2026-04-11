@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { BookOpen, Plus, Pencil, X, Download } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { BookOpen, Plus, Pencil, X, Download, Search } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useGLAccounts, useCreateAccount, useUpdateAccount } from '@/hooks/queries/use-gl';
 import type { Account, AccountType } from '@runq/types';
@@ -177,6 +177,15 @@ export function ChartOfAccountsPage() {
   const accountList = data?.data ?? [];
   const [showCreate, setShowCreate] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return accountList;
+    const q = search.toLowerCase();
+    return accountList.filter(
+      (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q),
+    );
+  }, [accountList, search]);
 
   return (
     <div>
@@ -196,6 +205,20 @@ export function ChartOfAccountsPage() {
         }
       />
 
+      {/* Search */}
+      <div className="mb-4 max-w-sm">
+        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+          <Search className="h-4 w-4 shrink-0 text-zinc-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by code, name, or type…"
+            className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+        </div>
+      </div>
+
       {isLoading ? (
         <>
           <div className="space-y-2 md:hidden">
@@ -207,13 +230,13 @@ export function ChartOfAccountsPage() {
             <table className="w-full"><tbody><TableSkeleton rows={10} /></tbody></table>
           </div>
         </>
-      ) : accountList.length === 0 ? (
-        <EmptyState icon={BookOpen} title="No accounts found" description="Seed the chart of accounts to get started." />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={BookOpen} title={search ? 'No matching accounts' : 'No accounts found'} description={search ? 'Try a different search term.' : 'Seed the chart of accounts to get started.'} />
       ) : (
         <>
           {/* Mobile cards */}
           <div className="space-y-2 md:hidden">
-            {accountList.map((account) => (
+            {filtered.map((account) => (
               <div
                 key={account.id}
                 className={`cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800 ${!account.isActive ? 'opacity-50' : ''}`}
@@ -246,7 +269,7 @@ export function ChartOfAccountsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accountList.map((account) => (
+                {filtered.map((account) => (
                   <AccountRow key={account.id} account={account} onEdit={setEditAccount} />
                 ))}
               </TableBody>
