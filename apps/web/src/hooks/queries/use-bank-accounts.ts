@@ -47,10 +47,16 @@ export function useUpdateBankAccount() {
   });
 }
 
+export interface BankAccountBalance {
+  id: string;
+  currentBalance: number;
+  lastTransactionDate: string | null;
+}
+
 export function useBankBalance(id: string) {
   return useQuery({
     queryKey: BANK_ACCOUNT_KEYS.balance(id),
-    queryFn: () => api.get<ApiSuccess<{ balance: number }>>(`/banking/accounts/${id}/balance`),
+    queryFn: () => api.get<ApiSuccess<BankAccountBalance>>(`/banking/accounts/${id}/balance`),
     enabled: !!id,
   });
 }

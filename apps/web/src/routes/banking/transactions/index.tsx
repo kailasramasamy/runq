@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload, Sparkles, RefreshCw } from 'lucide-react';
-import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
+import { Upload, Sparkles, RefreshCw, Calendar } from 'lucide-react';
+import { useBankAccounts, useBankBalance } from '@/hooks/queries/use-bank-accounts';
 import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
 import { CategoryBadge } from '@/components/banking/category-badge';
@@ -149,6 +149,9 @@ export function TransactionsPage() {
     }
   }, [accounts, accountId]);
 
+  const { data: balanceData } = useBankBalance(accountId);
+  const lastSyncDate = balanceData?.data?.lastTransactionDate ?? null;
+
   const reconciled = reconStatus === 'matched' || reconStatus === 'manually_matched'
     ? true
     : reconStatus === 'unreconciled'
@@ -218,7 +221,7 @@ export function TransactionsPage() {
               onClick={() => navigate({ to: '/banking/transactions/import' })}
             >
               <Upload size={16} />
-              Import CSV
+              Import Statement
             </Button>
           </div>
         }
@@ -233,6 +236,14 @@ export function TransactionsPage() {
             onChange={(e) => { setAccountId(e.target.value); setPage(1); }}
           />
         </div>
+        {lastSyncDate && (
+          <div className="col-span-2 flex items-center gap-1.5 self-end pb-2 sm:col-span-1">
+            <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              Synced till <span className="font-medium text-zinc-700 dark:text-zinc-300">{new Date(lastSyncDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            </span>
+          </div>
+        )}
         <div className="sm:w-36">
           <Select
             label="Type"
