@@ -446,7 +446,7 @@ function FileReviewCard({
                 </tr>
               </thead>
               <tbody>
-                {file.transactions.slice(0, 25).map((txn, i) => (
+                {file.transactions.map((txn, i) => (
                   <tr key={i} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
                     <td className="whitespace-nowrap px-3 py-1.5 text-zinc-500">{formatDate(txn.transactionDate)}</td>
                     <td className="max-w-[220px] truncate px-3 py-1.5">{txn.narration ?? '—'}</td>
@@ -464,11 +464,6 @@ function FileReviewCard({
                 ))}
               </tbody>
             </table>
-            {file.transactions.length > 25 && (
-              <p className="px-3 py-2 text-xs text-zinc-400">
-                … and {file.transactions.length - 25} more rows
-              </p>
-            )}
           </div>
         )}
       </CardContent>
