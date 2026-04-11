@@ -43,8 +43,8 @@ function isImage(fileName: string, mimeType: string): boolean {
 
 const COLUMN_SYNONYMS: Record<string, RegExp> = {
   // Specific patterns first (to claim columns before generic ones)
-  crDr: /^cr\s*\/\s*dr$|^dr\s*\/\s*cr$/i,
-  amount: /\b(transaction\s*amount|txn\s*amount)\b/i,
+  crDr: /^cr\s*\/\s*dr$|^dr\s*\/\s*cr$|^debit\s*\/\s*credit$|^credit\s*\/\s*debit$/i,
+  amount: /\b(transaction\s*amount|txn\s*amount|amount)\b/i,
   valueDate: /\b(value\s*date|val\s*dt)\b/i,
   // Generic patterns
   date: /\b(date|txn\s*date|transaction\s*date|trans\s*date|posting\s*date|txn\s*posted\s*date)\b/i,
@@ -386,12 +386,12 @@ export class StatementImportService {
     if (rawRows.length < 2) throw new Error(`File '${fileName}' has no data rows`);
 
     // Detect bank from all content
-    const allText = rawRows.slice(0, 15).flat().join(' ');
+    const allText = rawRows.slice(0, 30).flat().join(' ');
     const detectedBankName = this.detectBankName(allText);
     const detectedAccountId = this.matchBankAccount(detectedBankName, tenantAccounts);
 
     // ── Tier 1: Saved alias ──────────────────────────────────
-    for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+    for (let i = 0; i < Math.min(rawRows.length, 30); i++) {
       const sig = this.normalizeHeaderSignature(rawRows[i]!);
       if (!sig) continue;
       const alias = aliases.find((a) => a.headerSignature === sig);
@@ -404,7 +404,7 @@ export class StatementImportService {
     }
 
     // ── Tier 2: Regex synonym matching ───────────────────────
-    for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+    for (let i = 0; i < Math.min(rawRows.length, 30); i++) {
       const map = this.detectColumnsByName(rawRows[i]!);
       if (map) {
         const txns = this.parseDataRows(rawRows, i, map);
@@ -484,7 +484,7 @@ export class StatementImportService {
   private detectColumnsByData(
     rows: string[][],
   ): { headerIdx: number; mapping: ColumnMapping } | null {
-    const searchLimit = Math.min(rows.length - 2, 15); // need at least 2 data rows below
+    const searchLimit = Math.min(rows.length - 2, 30); // need at least 2 data rows below
 
     for (let hIdx = 0; hIdx < searchLimit; hIdx++) {
       const header = rows[hIdx]!;
@@ -600,7 +600,7 @@ export class StatementImportService {
     rows: string[][],
   ): Promise<{ headerIdx: number; mapping: ColumnMapping; bankName: string | null } | null> {
     // Send first 15 rows to AI for column mapping (NOT full parsing)
-    const sample = rows.slice(0, 15).map((r, i) => `Row ${i}: ${JSON.stringify(r)}`).join('\n');
+    const sample = rows.slice(0, 30).map((r, i) => `Row ${i}: ${JSON.stringify(r)}`).join('\n');
 
     const rawJson = await analyze(
       AI_COLUMN_MAPPING_PROMPT,
