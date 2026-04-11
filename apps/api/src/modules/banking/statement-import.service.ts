@@ -42,13 +42,16 @@ function isImage(fileName: string, mimeType: string): boolean {
 // ────────────────────────────────────────────────────────────────────
 
 const COLUMN_SYNONYMS: Record<string, RegExp> = {
-  date: /\b(date|txn\s*date|transaction\s*date|trans\s*date|posting\s*date)\b/i,
+  date: /\b(date|txn\s*date|transaction\s*date|trans\s*date|posting\s*date|txn\s*posted\s*date)\b/i,
   valueDate: /\b(value\s*date|val\s*dt)\b/i,
   narration: /\b(narration|description|particulars|details|remarks|transaction\s*details)\b/i,
-  reference: /\b(reference|ref|chq|cheque|utr|ref\s*no|instrument|chq\s*no)\b/i,
+  reference: /\b(reference|ref|chq|cheque|utr|ref\s*no|instrument|chq\s*no|transaction\s*id|trans\s*id)\b/i,
   debit: /\b(debit|dr|withdrawal|debit\s*amount|withdrawal\s*amount)\b/i,
   credit: /\b(credit|cr|deposit|credit\s*amount|deposit\s*amount)\b/i,
-  balance: /\b(balance|closing\s*balance|running\s*balance|bal)\b/i,
+  balance: /\b(balance|closing\s*balance|running\s*balance|bal|available\s*balance)\b/i,
+  // Single-amount column (ICICI, Axis, etc.) — needs Cr/Dr indicator
+  amount: /\b(transaction\s*amount|txn\s*amount|amount)\b/i,
+  crDr: /^cr\s*\/\s*dr$|^dr\s*\/\s*cr$/i,
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -406,8 +409,12 @@ export class StatementImportService {
 
       // 2. Heuristic column matching
       const map = this.detectColumnsFromRow(row);
-      if (map && map['date'] !== undefined && (map['debit'] !== undefined || map['credit'] !== undefined)) {
-        return { headerIdx: i, headerMap: map };
+      if (map) {
+        const hasAmountInfo = map['debit'] !== undefined || map['credit'] !== undefined || map['amount'] !== undefined;
+        const hasDate = map['date'] !== undefined || map['valueDate'] !== undefined;
+        if (hasDate && hasAmountInfo) {
+          return { headerIdx: i, headerMap: map };
+        }
       }
     }
 
@@ -421,12 +428,27 @@ export class StatementImportService {
 
   private detectColumnsFromRow(headerRow: string[]): Record<string, number> | null {
     const map: Record<string, number> = {};
-    for (let i = 0; i < headerRow.length; i++) {
-      const cell = headerRow[i]!.toString().trim().toLowerCase();
-      if (!cell) continue;
-      for (const [field, regex] of Object.entries(COLUMN_SYNONYMS)) {
-        if (regex.test(cell) && map[field] === undefined) {
+    const usedColumns = new Set<number>();
+
+    // Two passes: first pass for specific fields (crDr, amount, valueDate),
+    // second pass for generic fields. Prevents "Cr/Dr" matching both crDr AND debit/credit.
+    const specificFirst = ['crDr', 'amount', 'valueDate'];
+    const allFields = Object.entries(COLUMN_SYNONYMS);
+    const sorted = [
+      ...allFields.filter(([f]) => specificFirst.includes(f)),
+      ...allFields.filter(([f]) => !specificFirst.includes(f)),
+    ];
+
+    for (const [field, regex] of sorted) {
+      if (map[field] !== undefined) continue;
+      for (let i = 0; i < headerRow.length; i++) {
+        if (usedColumns.has(i)) continue;
+        const cell = headerRow[i]!.toString().trim().toLowerCase();
+        if (!cell) continue;
+        if (regex.test(cell)) {
           map[field] = i;
+          usedColumns.add(i);
+          break;
         }
       }
     }
@@ -437,26 +459,47 @@ export class StatementImportService {
     cols: string[],
     map: Record<string, number>,
   ): ParsedStatementTransaction | null {
-    const dateStr = map['date'] !== undefined ? (cols[map['date']] ?? '').toString().trim() : '';
+    // Try both 'date' and 'valueDate' — some banks only have Value Date
+    let dateStr = map['date'] !== undefined ? (cols[map['date']] ?? '').toString().trim() : '';
+    // For ICICI-style: Txn Posted Date has time appended ("02/04/2026 09:33:31 AM")
+    // Strip time portion before parsing
+    dateStr = dateStr.replace(/\s+\d{1,2}:\d{2}.*$/i, '').trim();
+    if (!dateStr && map['valueDate'] !== undefined) {
+      dateStr = (cols[map['valueDate']] ?? '').toString().trim();
+    }
     if (!dateStr) return null;
 
     const transactionDate = parseDate(dateStr);
     if (!transactionDate) return null;
 
-    const debitStr = map['debit'] !== undefined ? (cols[map['debit']] ?? '').toString() : '';
-    const creditStr = map['credit'] !== undefined ? (cols[map['credit']] ?? '').toString() : '';
-    const debit = parseFloat(debitStr.replace(/[,\s]/g, '')) || 0;
-    const credit = parseFloat(creditStr.replace(/[,\s]/g, '')) || 0;
+    let type: 'credit' | 'debit';
+    let amount: number;
 
-    if (debit === 0 && credit === 0) return null;
+    // Pattern 1: Single amount column + Cr/Dr indicator (ICICI, Axis, etc.)
+    if (map['amount'] !== undefined) {
+      const amtStr = map['amount'] !== undefined ? (cols[map['amount']] ?? '').toString() : '';
+      amount = parseFloat(amtStr.replace(/[,\s]/g, '')) || 0;
+      if (amount === 0) return null;
 
-    const type: 'credit' | 'debit' = credit > 0 ? 'credit' : 'debit';
-    const amount = credit > 0 ? credit : debit;
+      const crDrStr = map['crDr'] !== undefined ? (cols[map['crDr']] ?? '').toString().trim().toUpperCase() : '';
+      type = crDrStr === 'CR' ? 'credit' : 'debit';
+    } else {
+      // Pattern 2: Separate debit/credit columns (HDFC, SBI, etc.)
+      const debitStr = map['debit'] !== undefined ? (cols[map['debit']] ?? '').toString() : '';
+      const creditStr = map['credit'] !== undefined ? (cols[map['credit']] ?? '').toString() : '';
+      const debit = parseFloat(debitStr.replace(/[,\s]/g, '')) || 0;
+      const credit = parseFloat(creditStr.replace(/[,\s]/g, '')) || 0;
+
+      if (debit === 0 && credit === 0) return null;
+
+      type = credit > 0 ? 'credit' : 'debit';
+      amount = credit > 0 ? credit : debit;
+    }
 
     const balanceStr = map['balance'] !== undefined ? (cols[map['balance']] ?? '').toString() : '';
     const runningBalance = balanceStr ? (parseFloat(balanceStr.replace(/[,\s]/g, '')) || null) : null;
 
-    const valueDateStr = map['valueDate'] !== undefined ? (cols[map['valueDate']] ?? '').toString() : '';
+    const valueDateStr = map['valueDate'] !== undefined ? (cols[map['valueDate']] ?? '').toString().trim() : '';
 
     return {
       transactionDate,
