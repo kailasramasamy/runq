@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, decimal, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
+import { accounts } from '../gl/accounts';
 
 export const bankAccountTypeEnum = pgEnum('bank_account_type', ['current', 'savings', 'overdraft', 'cash_credit']);
 
@@ -13,6 +14,7 @@ export const bankAccounts = pgTable('bank_accounts', {
   accountType: bankAccountTypeEnum('account_type').notNull().default('current'),
   openingBalance: decimal('opening_balance', { precision: 15, scale: 2 }).notNull().default('0'),
   currentBalance: decimal('current_balance', { precision: 15, scale: 2 }).notNull().default('0'),
+  glAccountId: uuid('gl_account_id').references(() => accounts.id),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum, index } from 
 import { tenants } from '../tenant';
 import { bankAccounts } from './bank-accounts';
 import { accounts } from '../gl/accounts';
+import { journalEntries } from '../gl/journal-entries';
 
 export const bankTxnTypeEnum = pgEnum('bank_txn_type', ['credit', 'debit']);
 export const reconStatusEnum = pgEnum('recon_status', ['unreconciled', 'matched', 'manually_matched', 'excluded']);
@@ -19,6 +20,8 @@ export const bankTransactions = pgTable('bank_transactions', {
   runningBalance: decimal('running_balance', { precision: 15, scale: 2 }),
   reconStatus: reconStatusEnum('recon_status').notNull().default('unreconciled'),
   importBatchId: uuid('import_batch_id'),
+  // GL posting
+  journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
   // AI categorization
   glAccountId: uuid('gl_account_id').references(() => accounts.id),
   glConfidence: decimal('gl_confidence', { precision: 3, scale: 2 }),

@@ -70,6 +70,7 @@ export class BankAccountService {
         accountType: input.accountType,
         openingBalance: input.openingBalance.toString(),
         currentBalance: input.openingBalance.toString(),
+        glAccountId: input.glAccountId ?? null,
       })
       .returning();
 
@@ -87,6 +88,7 @@ export class BankAccountService {
         accountNumber: input.accountNumber ?? existing.accountNumber,
         ifscCode: input.ifscCode ?? existing.ifscCode,
         accountType: input.accountType ?? existing.accountType,
+        ...(input.glAccountId !== undefined ? { glAccountId: input.glAccountId ?? null } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(bankAccounts.id, id), eq(bankAccounts.tenantId, this.tenantId)))
@@ -151,6 +153,7 @@ export class BankAccountService {
       accountType: row.accountType,
       openingBalance: parseFloat(row.openingBalance),
       currentBalance: parseFloat(row.currentBalance),
+      glAccountId: row.glAccountId ?? null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

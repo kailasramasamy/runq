@@ -426,6 +426,7 @@ export class TransactionService {
       runningBalance: row.runningBalance ? parseFloat(row.runningBalance) : null,
       reconStatus: row.reconStatus,
       importBatchId: row.importBatchId,
+      journalEntryId: row.journalEntryId ?? null,
       glAccountId: row.glAccountId,
       glAccountCode: glAccountCode ?? null,
       glAccountName: glAccountName ?? null,

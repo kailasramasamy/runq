@@ -9,6 +9,7 @@ export const createBankAccountSchema = z.object({
   ifscCode: z.string().regex(ifscRegex, 'Invalid IFSC code'),
   accountType: z.enum(['current', 'savings', 'overdraft', 'cash_credit']).default('current'),
   openingBalance: z.number().default(0),
+  glAccountId: z.string().uuid().optional(),
 });
 
 export const updateBankAccountSchema = createBankAccountSchema.partial();

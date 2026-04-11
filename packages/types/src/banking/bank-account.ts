@@ -10,6 +10,7 @@ export interface BankAccount {
   accountType: BankAccountType;
   openingBalance: number;
   currentBalance: number;
+  glAccountId: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

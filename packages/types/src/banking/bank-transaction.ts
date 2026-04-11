@@ -14,6 +14,7 @@ export interface BankTransaction {
   runningBalance: number | null;
   reconStatus: ReconStatus;
   importBatchId: string | null;
+  journalEntryId: string | null;
   glAccountId: string | null;
   glAccountCode: string | null;
   glAccountName: string | null;

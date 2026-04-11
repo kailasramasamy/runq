@@ -1,5 +1,5 @@
 import { eq, and, isNull } from 'drizzle-orm';
-import { bankTransactions, accounts, vendors, customers, bankNarrationRules } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, vendors, customers, bankNarrationRules } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CategorizationResult } from '@runq/types';
 import { analyze } from '../../utils/ai/claude.service';
@@ -7,6 +7,7 @@ import {
   BANK_CATEGORIZATION_BATCH_SYSTEM_PROMPT,
   BANK_CATEGORIZATION_BATCH_USER_PROMPT,
 } from '../../utils/ai/prompts/bank-categorization';
+import { CategorizePostingService } from './categorize-posting.service';
 
 interface RuleMatch {
   accountCode?: string;
@@ -89,12 +90,13 @@ export class CategorizeService {
    * High-confidence matches are auto-reconciled.
    */
   async categorizeTransactions(bankAccountId: string): Promise<CategorizationResult> {
-    const [uncategorized, glAccounts, vendorNames, customerNames, narrationRules] = await Promise.all([
+    const [uncategorized, glAccounts, vendorNames, customerNames, narrationRules, bankGlCode] = await Promise.all([
       this.fetchUncategorized(bankAccountId),
       this.fetchGlAccounts(),
       this.fetchVendorNames(),
       this.fetchCustomerNames(),
       this.fetchNarrationRules(),
+      this.fetchBankGlCode(bankAccountId),
     ]);
 
     if (uncategorized.length === 0) {
@@ -102,7 +104,7 @@ export class CategorizeService {
     }
 
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
-    const accountById = new Map(glAccounts.map((a) => [a.id, a]));
+    const posting = new CategorizePostingService(this.db, this.tenantId);
     let rulesMatched = 0;
     let aiMatched = 0;
     const needsAI: typeof uncategorized = [];
@@ -110,10 +112,22 @@ export class CategorizeService {
     for (const txn of uncategorized) {
       const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorNames, customerNames);
       if (match) {
-        const glId = match.accountId ?? accountByCode.get(match.accountCode ?? '')?.id;
-        if (glId) {
-          const shouldReconcile = match.autoReconcile ?? match.confidence >= 0.85;
-          await this.updateGlCategory(txn.id, glId, match.confidence, shouldReconcile);
+        const glAccount = match.accountId
+          ? glAccounts.find((a) => a.id === match.accountId)
+          : accountByCode.get(match.accountCode ?? '');
+        if (glAccount) {
+          const shouldPost = (match.autoReconcile ?? match.confidence >= 0.85) && txn.type === 'debit' && bankGlCode;
+          await this.updateGlCategory(txn.id, glAccount.id, match.confidence);
+          if (shouldPost) {
+            await posting.postBankDebit({
+              transactionId: txn.id,
+              transactionDate: txn.transactionDate,
+              amount: parseFloat(txn.amount),
+              narration: txn.narration,
+              expenseAccountCode: glAccount.code,
+              bankGlAccountCode: bankGlCode,
+            });
+          }
           rulesMatched++;
           continue;
         }
@@ -121,7 +135,7 @@ export class CategorizeService {
       needsAI.push(txn);
     }
 
-    aiMatched = await this.categorizeWithAI(needsAI, glAccounts, accountByCode);
+    aiMatched = await this.categorizeWithAI(needsAI, glAccounts, accountByCode, bankGlCode, posting);
     const skipped = needsAI.length - aiMatched;
 
     return { categorized: rulesMatched + aiMatched, rulesMatched, aiMatched, skipped };
@@ -138,12 +152,15 @@ export class CategorizeService {
   ): Promise<void> {
     const { reconcile = true, learn = true } = options;
 
-    // Get the transaction to learn from
+    // Get the transaction to learn from and post JE
     const [txn] = await this.db
       .select({
         id: bankTransactions.id,
         narration: bankTransactions.narration,
         type: bankTransactions.type,
+        bankAccountId: bankTransactions.bankAccountId,
+        transactionDate: bankTransactions.transactionDate,
+        amount: bankTransactions.amount,
       })
       .from(bankTransactions)
       .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)))
@@ -155,7 +172,6 @@ export class CategorizeService {
         glAccountId,
         glConfidence: '1.00',
         glSuggestedAt: null,
-        reconStatus: reconcile ? 'matched' : undefined,
         updatedAt: new Date(),
       })
       .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)));
@@ -164,6 +180,38 @@ export class CategorizeService {
     if (learn && txn?.narration) {
       await this.learnNarrationRule(txn.narration, glAccountId, txn.type);
     }
+
+    // Auto-post JE for debit transactions
+    if (reconcile && txn?.type === 'debit') {
+      await this.postDebitJE(txn, glAccountId);
+    }
+  }
+
+  /**
+   * Look up the GL account code and bank GL code, then post a JE for a debit transaction.
+   */
+  private async postDebitJE(
+    txn: { id: string; narration: string | null; bankAccountId: string; transactionDate: string; amount: string },
+    glAccountId: string,
+  ): Promise<void> {
+    const [[glAccount], bankGlCode] = await Promise.all([
+      this.db.select({ code: accounts.code }).from(accounts)
+        .where(and(eq(accounts.id, glAccountId), eq(accounts.tenantId, this.tenantId)))
+        .limit(1),
+      this.fetchBankGlCode(txn.bankAccountId),
+    ]);
+
+    if (!glAccount || !bankGlCode) return;
+
+    const posting = new CategorizePostingService(this.db, this.tenantId);
+    await posting.postBankDebit({
+      transactionId: txn.id,
+      transactionDate: txn.transactionDate,
+      amount: parseFloat(txn.amount),
+      narration: txn.narration,
+      expenseAccountCode: glAccount.code,
+      bankGlAccountCode: bankGlCode,
+    });
   }
 
   /**
@@ -253,9 +301,11 @@ export class CategorizeService {
   }
 
   private async categorizeWithAI(
-    txns: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit' }>,
+    txns: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit'; transactionDate: string }>,
     glAccounts: GlAccount[],
     accountByCode: Map<string, GlAccount>,
+    bankGlCode: string | null,
+    posting: CategorizePostingService,
   ): Promise<number> {
     const withNarration = txns.filter((t) => t.narration);
     if (withNarration.length === 0) return 0;
@@ -265,15 +315,17 @@ export class CategorizeService {
     const batches = this.chunk(withNarration, 10);
 
     for (const batch of batches) {
-      matched += await this.processAIBatch(batch, glForPrompt, accountByCode);
+      matched += await this.processAIBatch(batch, glForPrompt, accountByCode, bankGlCode, posting);
     }
     return matched;
   }
 
   private async processAIBatch(
-    batch: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit' }>,
+    batch: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit'; transactionDate: string }>,
     glForPrompt: Array<{ code: string; name: string; type: string }>,
     accountByCode: Map<string, GlAccount>,
+    bankGlCode: string | null,
+    posting: CategorizePostingService,
   ): Promise<number> {
     const input = batch.map((t, i) => ({
       index: i,
@@ -286,13 +338,15 @@ export class CategorizeService {
     const response = await analyze(BANK_CATEGORIZATION_BATCH_SYSTEM_PROMPT, userPrompt);
     if (!response) return 0;
 
-    return this.parseAndApplyAIResponse(response, batch, accountByCode);
+    return this.parseAndApplyAIResponse(response, batch, accountByCode, bankGlCode, posting);
   }
 
   private async parseAndApplyAIResponse(
     response: string,
-    batch: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit' }>,
+    batch: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit'; transactionDate: string }>,
     accountByCode: Map<string, GlAccount>,
+    bankGlCode: string | null,
+    posting: CategorizePostingService,
   ): Promise<number> {
     let matched = 0;
     try {
@@ -304,7 +358,19 @@ export class CategorizeService {
         const account = accountByCode.get(r.accountCode);
         if (!txn || !account || r.confidence < 0.5) continue;
 
-        await this.updateGlCategory(txn.id, account.id, r.confidence, r.confidence >= 0.85);
+        await this.updateGlCategory(txn.id, account.id, r.confidence);
+
+        // Post JE for high-confidence debit matches
+        if (r.confidence >= 0.85 && txn.type === 'debit' && bankGlCode) {
+          await posting.postBankDebit({
+            transactionId: txn.id,
+            transactionDate: txn.transactionDate,
+            amount: parseFloat(txn.amount),
+            narration: txn.narration,
+            expenseAccountCode: account.code,
+            bankGlAccountCode: bankGlCode,
+          });
+        }
 
         // Learn from AI categorization too
         if (r.confidence >= 0.85 && txn.narration) {
@@ -323,7 +389,6 @@ export class CategorizeService {
     txnId: string,
     glAccountId: string,
     confidence: number,
-    reconcile = false,
   ): Promise<void> {
     await this.db
       .update(bankTransactions)
@@ -331,7 +396,6 @@ export class CategorizeService {
         glAccountId,
         glConfidence: confidence.toFixed(2),
         glSuggestedAt: new Date(),
-        ...(reconcile ? { reconStatus: 'matched' as const } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(bankTransactions.id, txnId), eq(bankTransactions.tenantId, this.tenantId)));
@@ -344,6 +408,7 @@ export class CategorizeService {
         narration: bankTransactions.narration,
         amount: bankTransactions.amount,
         type: bankTransactions.type,
+        transactionDate: bankTransactions.transactionDate,
       })
       .from(bankTransactions)
       .where(and(
@@ -352,6 +417,16 @@ export class CategorizeService {
         isNull(bankTransactions.glAccountId),
       ))
       .limit(500);
+  }
+
+  private async fetchBankGlCode(bankAccountId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ code: accounts.code })
+      .from(bankAccounts)
+      .innerJoin(accounts, eq(bankAccounts.glAccountId, accounts.id))
+      .where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+    return row?.code ?? null;
   }
 
   private async fetchGlAccounts(): Promise<GlAccount[]> {
