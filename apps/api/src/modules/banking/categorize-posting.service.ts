@@ -3,12 +3,12 @@ import { bankTransactions, journalEntries } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
 
-interface PostBankDebitParams {
+interface PostBankTxnParams {
   transactionId: string;
   transactionDate: string;
   amount: number;
   narration: string | null;
-  expenseAccountCode: string;
+  glAccountCode: string;
   bankGlAccountCode: string;
 }
 
@@ -26,10 +26,9 @@ export class CategorizePostingService {
    * Post a journal entry for a categorized bank debit transaction.
    * DR: categorized GL account (expense/asset)
    * CR: bank's GL account
-   * Returns the journal entry ID, or null if already posted.
    */
-  async postBankDebit(params: PostBankDebitParams): Promise<string | null> {
-    if (await this.isAlreadyPosted(params.transactionId)) return null;
+  async postBankDebit(params: PostBankTxnParams): Promise<string | null> {
+    if (await this.isAlreadyPosted('bank_debit', params.transactionId)) return null;
 
     const entry = await this.gl.createJournalEntry({
       date: params.transactionDate,
@@ -37,33 +36,58 @@ export class CategorizePostingService {
       sourceType: 'bank_debit',
       sourceId: params.transactionId,
       lines: [
-        { accountCode: params.expenseAccountCode, debit: params.amount },
+        { accountCode: params.glAccountCode, debit: params.amount },
         { accountCode: params.bankGlAccountCode, credit: params.amount },
       ],
     });
 
+    return this.linkJournalEntry(params.transactionId, entry.id);
+  }
+
+  /**
+   * Post a journal entry for a categorized bank credit transaction.
+   * DR: bank's GL account
+   * CR: categorized GL account (AR, income, etc.)
+   */
+  async postBankCredit(params: PostBankTxnParams): Promise<string | null> {
+    if (await this.isAlreadyPosted('bank_credit', params.transactionId)) return null;
+
+    const entry = await this.gl.createJournalEntry({
+      date: params.transactionDate,
+      description: `Bank receipt: ${params.narration ?? 'N/A'}`,
+      sourceType: 'bank_credit',
+      sourceId: params.transactionId,
+      lines: [
+        { accountCode: params.bankGlAccountCode, debit: params.amount },
+        { accountCode: params.glAccountCode, credit: params.amount },
+      ],
+    });
+
+    return this.linkJournalEntry(params.transactionId, entry.id);
+  }
+
+  private async linkJournalEntry(transactionId: string, journalEntryId: string): Promise<string> {
     await this.db
       .update(bankTransactions)
       .set({
-        journalEntryId: entry.id,
+        journalEntryId,
         reconStatus: 'matched',
         updatedAt: new Date(),
       })
       .where(and(
-        eq(bankTransactions.id, params.transactionId),
+        eq(bankTransactions.id, transactionId),
         eq(bankTransactions.tenantId, this.tenantId),
       ));
-
-    return entry.id;
+    return journalEntryId;
   }
 
-  private async isAlreadyPosted(transactionId: string): Promise<boolean> {
+  private async isAlreadyPosted(sourceType: string, transactionId: string): Promise<boolean> {
     const [row] = await this.db
       .select({ id: journalEntries.id })
       .from(journalEntries)
       .where(and(
         eq(journalEntries.tenantId, this.tenantId),
-        eq(journalEntries.sourceType, 'bank_debit'),
+        eq(journalEntries.sourceType, sourceType),
         eq(journalEntries.sourceId, transactionId),
       ))
       .limit(1);

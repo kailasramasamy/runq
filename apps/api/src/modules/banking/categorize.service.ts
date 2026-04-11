@@ -116,17 +116,10 @@ export class CategorizeService {
           ? glAccounts.find((a) => a.id === match.accountId)
           : accountByCode.get(match.accountCode ?? '');
         if (glAccount) {
-          const shouldPost = (match.autoReconcile ?? match.confidence >= 0.85) && txn.type === 'debit' && bankGlCode;
+          const shouldPost = (match.autoReconcile ?? match.confidence >= 0.85) && bankGlCode;
           await this.updateGlCategory(txn.id, glAccount.id, match.confidence);
           if (shouldPost) {
-            await posting.postBankDebit({
-              transactionId: txn.id,
-              transactionDate: txn.transactionDate,
-              amount: parseFloat(txn.amount),
-              narration: txn.narration,
-              expenseAccountCode: glAccount.code,
-              bankGlAccountCode: bankGlCode,
-            });
+            await this.postForTxnType(posting, txn, glAccount.code, bankGlCode);
           }
           rulesMatched++;
           continue;
@@ -181,17 +174,17 @@ export class CategorizeService {
       await this.learnNarrationRule(txn.narration, glAccountId, txn.type);
     }
 
-    // Auto-post JE for debit transactions
-    if (reconcile && txn?.type === 'debit') {
-      await this.postDebitJE(txn, glAccountId);
+    // Auto-post JE for categorized transactions
+    if (reconcile && txn) {
+      await this.postJE(txn, glAccountId);
     }
   }
 
   /**
-   * Look up the GL account code and bank GL code, then post a JE for a debit transaction.
+   * Look up the GL account code and bank GL code, then post a JE.
    */
-  private async postDebitJE(
-    txn: { id: string; narration: string | null; bankAccountId: string; transactionDate: string; amount: string },
+  private async postJE(
+    txn: { id: string; type: 'credit' | 'debit'; narration: string | null; bankAccountId: string; transactionDate: string; amount: string },
     glAccountId: string,
   ): Promise<void> {
     const [[glAccount], bankGlCode] = await Promise.all([
@@ -204,14 +197,28 @@ export class CategorizeService {
     if (!glAccount || !bankGlCode) return;
 
     const posting = new CategorizePostingService(this.db, this.tenantId);
-    await posting.postBankDebit({
+    await this.postForTxnType(posting, txn, glAccount.code, bankGlCode);
+  }
+
+  private async postForTxnType(
+    posting: CategorizePostingService,
+    txn: { id: string; type: 'credit' | 'debit'; transactionDate: string; amount: string; narration: string | null },
+    glAccountCode: string,
+    bankGlAccountCode: string,
+  ): Promise<void> {
+    const params = {
       transactionId: txn.id,
       transactionDate: txn.transactionDate,
       amount: parseFloat(txn.amount),
       narration: txn.narration,
-      expenseAccountCode: glAccount.code,
-      bankGlAccountCode: bankGlCode,
-    });
+      glAccountCode,
+      bankGlAccountCode,
+    };
+    if (txn.type === 'debit') {
+      await posting.postBankDebit(params);
+    } else {
+      await posting.postBankCredit(params);
+    }
   }
 
   /**
@@ -360,16 +367,9 @@ export class CategorizeService {
 
         await this.updateGlCategory(txn.id, account.id, r.confidence);
 
-        // Post JE for high-confidence debit matches
-        if (r.confidence >= 0.85 && txn.type === 'debit' && bankGlCode) {
-          await posting.postBankDebit({
-            transactionId: txn.id,
-            transactionDate: txn.transactionDate,
-            amount: parseFloat(txn.amount),
-            narration: txn.narration,
-            expenseAccountCode: account.code,
-            bankGlAccountCode: bankGlCode,
-          });
+        // Post JE for high-confidence matches
+        if (r.confidence >= 0.85 && bankGlCode) {
+          await this.postForTxnType(posting, txn, account.code, bankGlCode);
         }
 
         // Learn from AI categorization too
