@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { BankTransaction, BankStatementImportResult, CategorizationResult } from '@runq/types';
+import type {
+  BankTransaction,
+  BankStatementImportResult,
+  CategorizationResult,
+  StatementParseResult,
+  ParsedStatementTransaction,
+} from '@runq/types';
 import type { PaginatedResponse, ApiSuccess } from '@runq/types';
 
 const TXN_KEYS = {
@@ -75,6 +81,41 @@ export function useSyncTransactions() {
     mutationFn: ({ accountId }: { accountId: string }) =>
       api.post<ApiSuccess<SyncResult>>(
         `/banking/accounts/${accountId}/sync`,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+  });
+}
+
+// ── Smart statement import (file upload → parse → commit) ──────
+
+export function useParseStatement() {
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f);
+      const token = localStorage.getItem('runq-token');
+      const res = await fetch('/api/v1/banking/statement-import/parse', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Parse failed' }));
+        throw new Error(err.message || err.error || `Parse failed (${res.status})`);
+      }
+      const json = (await res.json()) as ApiSuccess<StatementParseResult>;
+      return json.data;
+    },
+  });
+}
+
+export function useCommitStatement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { accountId: string; transactions: ParsedStatementTransaction[] }) =>
+      api.post<ApiSuccess<BankStatementImportResult>>(
+        '/banking/statement-import/commit',
+        input,
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
   });

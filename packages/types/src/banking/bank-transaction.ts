@@ -34,3 +34,34 @@ export interface BankStatementImportResult {
   duplicatesSkipped: number;
   errors: { row: number; message: string }[];
 }
+
+// --------------- Statement smart-import types ---------------
+
+export interface ParsedStatementTransaction {
+  transactionDate: string;
+  valueDate?: string | null;
+  type: 'credit' | 'debit';
+  amount: number;
+  reference: string | null;
+  narration: string | null;
+  runningBalance: number | null;
+}
+
+export interface ParsedStatementFile {
+  fileName: string;
+  transactions: ParsedStatementTransaction[];
+  detectedAccountId: string | null;
+  detectedBankName: string | null;
+  parserUsed: 'spreadsheet' | 'text-heuristic' | 'ai';
+  error?: string;
+}
+
+export interface StatementParseResult {
+  files: ParsedStatementFile[];
+  accounts: { id: string; name: string; bankName: string; lastSyncDate: string | null }[];
+}
+
+export interface StatementCommitInput {
+  accountId: string;
+  transactions: ParsedStatementTransaction[];
+}
