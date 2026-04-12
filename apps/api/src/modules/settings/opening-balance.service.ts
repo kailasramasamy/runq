@@ -70,8 +70,23 @@ export class OpeningBalanceService {
     };
   }
 
-  /** Save a single customer opening balance */
+  /** Save or update a single customer opening balance */
   async saveCustomer(customerId: string, amount: number, effectiveDate: string): Promise<{ created: boolean }> {
+    // Check if OB invoice already exists — update it
+    const [existing] = await this.db.select({ id: salesInvoices.id }).from(salesInvoices)
+      .where(and(eq(salesInvoices.tenantId, this.tenantId), eq(salesInvoices.customerId, customerId), sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
+
+    if (existing) {
+      await this.db.update(salesInvoices).set({
+        totalAmount: String(amount), subtotal: String(amount), balanceDue: String(amount),
+        updatedAt: new Date(),
+      }).where(eq(salesInvoices.id, existing.id));
+      await this.db.update(salesInvoiceItems).set({
+        unitPrice: String(amount), amount: String(amount),
+      }).where(eq(salesInvoiceItems.invoiceId, existing.id));
+      return { created: false };
+    }
+
     const fy = this.getFY(effectiveDate);
     const created = await this.createOpeningInvoice(customerId, amount, effectiveDate, fy);
     if (created) {
@@ -80,8 +95,22 @@ export class OpeningBalanceService {
     return { created };
   }
 
-  /** Save a single vendor opening balance */
+  /** Save or update a single vendor opening balance */
   async saveVendor(vendorId: string, amount: number, effectiveDate: string): Promise<{ created: boolean }> {
+    const [existing] = await this.db.select({ id: purchaseInvoices.id }).from(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.tenantId, this.tenantId), eq(purchaseInvoices.vendorId, vendorId), sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
+
+    if (existing) {
+      await this.db.update(purchaseInvoices).set({
+        totalAmount: String(amount), subtotal: String(amount), balanceDue: String(amount),
+        updatedAt: new Date(),
+      }).where(eq(purchaseInvoices.id, existing.id));
+      await this.db.update(purchaseInvoiceItems).set({
+        unitPrice: String(amount), amount: String(amount),
+      }).where(eq(purchaseInvoiceItems.invoiceId, existing.id));
+      return { created: false };
+    }
+
     const fy = this.getFY(effectiveDate);
     const created = await this.createOpeningBill(vendorId, amount, effectiveDate, fy);
     if (created) {
