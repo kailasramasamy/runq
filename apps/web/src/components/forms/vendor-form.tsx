@@ -16,20 +16,36 @@ type FormState = Partial<CreateVendorInput> & { name: string };
 
 const CATEGORY_OPTIONS = [
   { value: '', label: 'No category' },
-  { value: 'raw_material', label: 'Raw Material' },
-  { value: 'service_provider', label: 'Service Provider' },
-  { value: 'logistics', label: 'Logistics' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'equipment', label: 'Equipment' },
+  { value: 'raw_material', label: 'Raw Material / Supplier' },
+  { value: 'rent', label: 'Rent / Lease' },
+  { value: 'logistics', label: 'Logistics / Transport' },
+  { value: 'utilities', label: 'Utilities (Electricity, Water, Gas)' },
+  { value: 'telecom', label: 'Telecom / Internet' },
+  { value: 'service_provider', label: 'Professional Services (CA, Legal, IT)' },
+  { value: 'contractor', label: 'Contractor / Labour' },
+  { value: 'maintenance', label: 'Maintenance / Repairs' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'equipment', label: 'Equipment / Machinery' },
+  { value: 'packaging', label: 'Packaging Material' },
+  { value: 'fuel', label: 'Fuel / Petroleum' },
+  { value: 'marketing', label: 'Marketing / Advertising' },
   { value: 'other', label: 'Other' },
 ];
 
 const CATEGORY_EXPENSE_DEFAULTS: Record<string, string> = {
   raw_material: '5001',
-  equipment: '5305',
+  rent: '5301',
   logistics: '5701',
-  service_provider: '5401',
   utilities: '5302',
+  telecom: '5303',
+  service_provider: '5401',
+  contractor: '5207',
+  maintenance: '5305',
+  insurance: '5501',
+  equipment: '5305',
+  packaging: '5002',
+  fuel: '5702',
+  marketing: '5403',
 };
 
 function buildInitial(v?: Vendor): FormState {
