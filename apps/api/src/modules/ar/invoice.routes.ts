@@ -138,6 +138,26 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
         .parse(request.body);
       const service = new InvoiceService(request.server.db, request.tenantId);
       const result = await service.batchUpdateStatus(body.invoiceIds, body.status);
+
+      // Post revenue JEs for newly sent invoices (isAlreadyPosted prevents duplicates)
+      if (body.status === 'sent' && result.updated > 0) {
+        const gl = new GLService(request.server.db, request.tenantId);
+        const updatedIds = body.invoiceIds.filter((id) => !result.skipped.find((s) => s.id === id));
+        for (const id of updatedIds) {
+          try {
+            const detail = await service.getById(id);
+            await gl.postSalesInvoice({
+              totalAmount: detail.totalAmount,
+              date: detail.invoiceDate,
+              id: detail.id,
+              customerName: detail.customerName,
+            });
+          } catch {
+            // skip — invoice may have been posted already
+          }
+        }
+      }
+
       return { data: result };
     },
   );
@@ -150,6 +170,17 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const input = sendInvoiceSchema.parse(request.body);
       const service = new InvoiceService(request.server.db, request.tenantId);
       const invoice = await service.send(id, input);
+
+      // Post revenue JE on send (isAlreadyPosted prevents duplicates)
+      const gl = new GLService(request.server.db, request.tenantId);
+      const detail = await service.getById(id);
+      await gl.postSalesInvoice({
+        totalAmount: detail.totalAmount,
+        date: detail.invoiceDate,
+        id: detail.id,
+        customerName: detail.customerName,
+      });
+
       return { data: invoice };
     },
   );
