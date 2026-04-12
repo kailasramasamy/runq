@@ -9,8 +9,8 @@
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Sync / Import   │────▶│  Auto-Categorize  │────▶│    Reconciled     │
-│  Bank Statement  │     │   (one click)     │     │   (all done)     │
+│  Sync / Import   │────▶│  Auto-Categorize │────▶│    Reconciled    │
+│  Bank Statement  │     │   (one click)    │     │   (all done)     │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
@@ -42,10 +42,10 @@ One click does everything:
 
 ```
  1. Bank debit appears
-    ┌─────────────────────────────────────────────────────┐
-    │ INB/NEFT/AXODH.../Farmtaste Dairy (OPC)/IDFC...    │
+    ┌───────────────────────────────────────────────────────┐
+    │ INB/NEFT/AXODH.../Farmtaste Dairy (OPC)/IDFC...       │
     │ Amount: ₹25,300.50  Type: Debit  Status: Unreconciled │
-    └─────────────────────────────────────────────────────┘
+    └───────────────────────────────────────────────────────┘
                           │
                           ▼
  2. Auto-Categorize detects vendor
@@ -149,8 +149,8 @@ Your expense goes up, your bank balance goes down. That's it.
                 ▼
  System does 3 things:
  ┌────────────────────────────────────────────────┐
- │ 1. Creates bill + payment + JEs               │
- │ 2. Learns: "VENDOROILSOS" = Prabhakaran       │
+ │ 1. Creates bill + payment + JEs                │
+ │ 2. Learns: "VENDOROILSOS" = Prabhakaran        │
  │ 3. Auto-applies to all similar transactions    │
  └────────────────────────────────────────────────┘
 ```
@@ -216,7 +216,7 @@ The auto-created bill is a lump sum (1 line item, no GST breakup). For GST-regis
  After auto-reconciliation:
  ┌──────────────────────────────────────────────┐
  │                                              │
- │  1. Go to AP → Bills → find the auto-bill   │
+ │  1. Go to AP → Bills → find the auto-bill    │
  │                                              │
  │  2. Attach the vendor's invoice (PDF/photo)  │
  │                                              │
