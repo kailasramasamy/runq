@@ -125,6 +125,7 @@ export class CategorizeService {
         // Vendor match on debit → auto-bill-and-pay (creates bill + payment + 2 JEs)
         if (match.vendorId && match.vendorExpenseCode && txn.type === 'debit' && bankGlCode) {
           const vendor = vendorList.find((v) => v.id === match.vendorId)!;
+          const expenseGl = accountByCode.get(match.vendorExpenseCode);
           await autoBillPay.createFromBankTxn({
             bankTransactionId: txn.id,
             vendorId: match.vendorId,
@@ -137,6 +138,10 @@ export class CategorizeService {
             narration: txn.narration,
             reference: txn.reference,
           });
+          // Learn vendor pattern for future auto-detection
+          if (txn.narration && expenseGl) {
+            await this.learnNarrationRule(txn.narration, expenseGl.id, 'debit', match.vendorId);
+          }
           rulesMatched++;
           continue;
         }
@@ -210,6 +215,19 @@ export class CategorizeService {
   }
 
   /**
+   * Public method for learning a vendor narration rule from external callers
+   * (e.g., the assign-vendor endpoint).
+   */
+  async learnVendorRule(
+    narration: string,
+    glAccountId: string,
+    vendorId: string,
+    txnType: 'credit' | 'debit',
+  ): Promise<void> {
+    await this.learnNarrationRule(narration, glAccountId, txnType, vendorId);
+  }
+
+  /**
    * Look up the GL account code and bank GL code, then post a JE.
    */
   private async postJE(
@@ -252,17 +270,17 @@ export class CategorizeService {
 
   /**
    * Extract a pattern from the narration and save it as a rule.
-   * Skips if pattern already exists for this tenant + GL account.
+   * Skips if pattern already exists for this tenant.
    */
   private async learnNarrationRule(
     narration: string,
     glAccountId: string,
     txnType: 'credit' | 'debit',
+    vendorId?: string,
   ): Promise<void> {
     const pattern = extractNarrationPattern(narration);
     if (!pattern || pattern.length < 3) return;
 
-    // Check if this pattern already exists
     const existing = await this.db
       .select({ id: bankNarrationRules.id })
       .from(bankNarrationRules)
@@ -278,6 +296,7 @@ export class CategorizeService {
       tenantId: this.tenantId,
       pattern,
       glAccountId,
+      vendorId: vendorId ?? null,
       autoReconcile: true,
       txnType,
     });
@@ -285,29 +304,51 @@ export class CategorizeService {
 
   /**
    * Apply all rule sources in priority order:
-   * 1. Learned narration rules (highest priority — user taught these)
-   * 2. Hardcoded pattern rules (bank charges, salary, etc.)
-   * 3. Vendor/customer name matching
+   * 1. Learned vendor narration rules (pattern → vendor) → auto-bill-pay
+   * 2. Vendor/customer name matching → auto-bill-pay
+   * 3. Learned GL narration rules (pattern → GL account) → categorize + JE
+   * 4. Hardcoded pattern rules (bank charges, salary, etc.)
    */
   private applyAllRules(
     narration: string | null,
     type: 'credit' | 'debit',
-    narrationRules: { pattern: string; glAccountId: string; autoReconcile: boolean; txnType: string | null }[],
+    narrationRules: { pattern: string; glAccountId: string; vendorId: string | null; autoReconcile: boolean; txnType: string | null }[],
     vendorList: VendorInfo[],
     customerNames: string[],
   ): RuleMatch | null {
     if (!narration) return null;
     const upper = narration.toUpperCase();
 
-    // 1. Learned narration rules (case-insensitive substring match)
+    // 1. Learned vendor narration rules (highest priority)
     for (const rule of narrationRules) {
+      if (!rule.vendorId) continue;
+      if (rule.txnType && rule.txnType !== type) continue;
+      if (upper.includes(rule.pattern.toUpperCase())) {
+        const vendor = vendorList.find((v) => v.id === rule.vendorId);
+        return {
+          accountId: rule.glAccountId,
+          confidence: 0.95,
+          autoReconcile: rule.autoReconcile,
+          vendorId: rule.vendorId,
+          vendorExpenseCode: vendor?.expenseAccountCode ?? undefined,
+        };
+      }
+    }
+
+    // 2. Vendor/customer name matching
+    const partyMatch = this.matchPartyNames(upper, type, vendorList, customerNames);
+    if (partyMatch) return partyMatch;
+
+    // 3. Learned GL narration rules (no vendor)
+    for (const rule of narrationRules) {
+      if (rule.vendorId) continue; // already handled above
       if (rule.txnType && rule.txnType !== type) continue;
       if (upper.includes(rule.pattern.toUpperCase())) {
         return { accountId: rule.glAccountId, confidence: 0.95, autoReconcile: rule.autoReconcile };
       }
     }
 
-    // 2. Hardcoded pattern rules
+    // 4. Hardcoded pattern rules
     for (const rule of HARDCODED_RULES) {
       if (rule.txnType && rule.txnType !== type) continue;
       if (rule.patterns.some((p) => p.test(upper))) {
@@ -315,8 +356,7 @@ export class CategorizeService {
       }
     }
 
-    // 3. Vendor/customer name matching
-    return this.matchPartyNames(upper, type, vendorList, customerNames);
+    return null;
   }
 
   private matchPartyNames(
@@ -493,6 +533,7 @@ export class CategorizeService {
       .select({
         pattern: bankNarrationRules.pattern,
         glAccountId: bankNarrationRules.glAccountId,
+        vendorId: bankNarrationRules.vendorId,
         autoReconcile: bankNarrationRules.autoReconcile,
         txnType: bankNarrationRules.txnType,
       })

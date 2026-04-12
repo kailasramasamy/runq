@@ -5,6 +5,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { TransactionService } from './transaction.service';
 import { CategorizeService } from './categorize.service';
 import { BankChargesService } from './bank-charges.service';
+import { AutoBillPayService } from './auto-bill-pay.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -93,6 +94,70 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       const service = new CategorizeService(request.server.db, request.tenantId);
       await service.setCategory(id, glAccountId, { reconcile, learn });
       return reply.status(200).send({ data: { success: true } });
+    },
+  );
+
+  // ── Assign vendor to a bank transaction ────────────────────────
+
+  const assignVendorBodySchema = z.object({ vendorId: z.string().uuid() });
+
+  app.put(
+    '/transactions/:id/vendor',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = transactionParamSchema.parse(request.params);
+      const { vendorId } = assignVendorBodySchema.parse(request.body);
+      const { bankTransactions, vendors, accounts: glAccounts, bankAccounts } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const db = request.server.db;
+      const tenantId = request.tenantId;
+
+      // Fetch transaction
+      const [txn] = await db.select().from(bankTransactions)
+        .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
+      if (!txn) return reply.status(404).send({ error: 'Transaction not found' });
+
+      // Fetch vendor
+      const [vendor] = await db.select().from(vendors)
+        .where(and(eq(vendors.id, vendorId), eq(vendors.tenantId, tenantId))).limit(1);
+      if (!vendor) return reply.status(404).send({ error: 'Vendor not found' });
+      if (!vendor.expenseAccountCode) return reply.status(400).send({ error: 'Vendor has no expense account code set' });
+
+      // Fetch bank GL account code
+      const [bankGl] = await db
+        .select({ code: glAccounts.code })
+        .from(bankAccounts)
+        .innerJoin(glAccounts, eq(bankAccounts.glAccountId, glAccounts.id))
+        .where(and(eq(bankAccounts.id, txn.bankAccountId), eq(bankAccounts.tenantId, tenantId)))
+        .limit(1);
+      if (!bankGl) return reply.status(400).send({ error: 'Bank account has no GL mapping' });
+
+      // Auto-bill-pay
+      const autoBillPay = new AutoBillPayService(db, tenantId);
+      const result = await autoBillPay.createFromBankTxn({
+        bankTransactionId: id,
+        vendorId,
+        vendorName: vendor.name,
+        expenseAccountCode: vendor.expenseAccountCode,
+        bankAccountId: txn.bankAccountId,
+        bankGlAccountCode: bankGl.code,
+        amount: parseFloat(txn.amount),
+        transactionDate: txn.transactionDate,
+        narration: txn.narration,
+        reference: txn.reference,
+      });
+
+      // Learn the pattern for future auto-detection
+      if (txn.narration) {
+        const categorize = new CategorizeService(db, tenantId);
+        const [expenseGl] = await db.select({ id: glAccounts.id }).from(glAccounts)
+          .where(and(eq(glAccounts.code, vendor.expenseAccountCode), eq(glAccounts.tenantId, tenantId))).limit(1);
+        if (expenseGl) {
+          await categorize.learnVendorRule(txn.narration, expenseGl.id, vendorId, txn.type);
+        }
+      }
+
+      return reply.status(200).send({ data: { success: true, ...result } });
     },
   );
 
