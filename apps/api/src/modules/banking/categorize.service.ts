@@ -8,12 +8,21 @@ import {
   BANK_CATEGORIZATION_BATCH_USER_PROMPT,
 } from '../../utils/ai/prompts/bank-categorization';
 import { CategorizePostingService } from './categorize-posting.service';
+import { AutoBillPayService } from './auto-bill-pay.service';
 
 interface RuleMatch {
   accountCode?: string;
   accountId?: string;
   confidence: number;
   autoReconcile?: boolean;
+  vendorId?: string;
+  vendorExpenseCode?: string;
+}
+
+interface VendorInfo {
+  id: string;
+  name: string;
+  expenseAccountCode: string | null;
 }
 
 interface GlAccount {
@@ -90,10 +99,10 @@ export class CategorizeService {
    * High-confidence matches are auto-reconciled.
    */
   async categorizeTransactions(bankAccountId: string): Promise<CategorizationResult> {
-    const [uncategorized, glAccounts, vendorNames, customerNames, narrationRules, bankGlCode] = await Promise.all([
+    const [uncategorized, glAccounts, vendorList, customerNames, narrationRules, bankGlCode] = await Promise.all([
       this.fetchUncategorized(bankAccountId),
       this.fetchGlAccounts(),
-      this.fetchVendorNames(),
+      this.fetchVendors(),
       this.fetchCustomerNames(),
       this.fetchNarrationRules(),
       this.fetchBankGlCode(bankAccountId),
@@ -105,13 +114,33 @@ export class CategorizeService {
 
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
     const posting = new CategorizePostingService(this.db, this.tenantId);
+    const autoBillPay = new AutoBillPayService(this.db, this.tenantId);
     let rulesMatched = 0;
     let aiMatched = 0;
     const needsAI: typeof uncategorized = [];
 
     for (const txn of uncategorized) {
-      const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorNames, customerNames);
+      const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorList, customerNames);
       if (match) {
+        // Vendor match on debit → auto-bill-and-pay (creates bill + payment + 2 JEs)
+        if (match.vendorId && match.vendorExpenseCode && txn.type === 'debit' && bankGlCode) {
+          const vendor = vendorList.find((v) => v.id === match.vendorId)!;
+          await autoBillPay.createFromBankTxn({
+            bankTransactionId: txn.id,
+            vendorId: match.vendorId,
+            vendorName: vendor.name,
+            expenseAccountCode: match.vendorExpenseCode,
+            bankAccountId: bankAccountId,
+            bankGlAccountCode: bankGlCode,
+            amount: parseFloat(txn.amount),
+            transactionDate: txn.transactionDate,
+            narration: txn.narration,
+            reference: txn.reference,
+          });
+          rulesMatched++;
+          continue;
+        }
+
         const glAccount = match.accountId
           ? glAccounts.find((a) => a.id === match.accountId)
           : accountByCode.get(match.accountCode ?? '');
@@ -264,7 +293,7 @@ export class CategorizeService {
     narration: string | null,
     type: 'credit' | 'debit',
     narrationRules: { pattern: string; glAccountId: string; autoReconcile: boolean; txnType: string | null }[],
-    vendorNames: string[],
+    vendorList: VendorInfo[],
     customerNames: string[],
   ): RuleMatch | null {
     if (!narration) return null;
@@ -287,18 +316,25 @@ export class CategorizeService {
     }
 
     // 3. Vendor/customer name matching
-    return this.matchPartyNames(upper, type, vendorNames, customerNames);
+    return this.matchPartyNames(upper, type, vendorList, customerNames);
   }
 
   private matchPartyNames(
     upper: string,
     type: 'credit' | 'debit',
-    vendorNames: string[],
+    vendorList: VendorInfo[],
     customerNames: string[],
   ): RuleMatch | null {
     if (type === 'debit') {
-      const match = vendorNames.find((v) => upper.includes(v.toUpperCase()));
-      if (match) return { accountCode: '2101', confidence: 0.80 };
+      const vendor = vendorList.find((v) => upper.includes(v.name.toUpperCase()));
+      if (vendor) {
+        return {
+          accountCode: '2101',
+          confidence: 0.80,
+          vendorId: vendor.id,
+          vendorExpenseCode: vendor.expenseAccountCode ?? undefined,
+        };
+      }
     }
     if (type === 'credit') {
       const match = customerNames.find((c) => upper.includes(c.toUpperCase()));
@@ -409,6 +445,7 @@ export class CategorizeService {
         amount: bankTransactions.amount,
         type: bankTransactions.type,
         transactionDate: bankTransactions.transactionDate,
+        reference: bankTransactions.reference,
       })
       .from(bankTransactions)
       .where(and(
@@ -436,12 +473,11 @@ export class CategorizeService {
       .where(eq(accounts.tenantId, this.tenantId));
   }
 
-  private async fetchVendorNames(): Promise<string[]> {
-    const rows = await this.db
-      .select({ name: vendors.name })
+  private async fetchVendors(): Promise<VendorInfo[]> {
+    return this.db
+      .select({ id: vendors.id, name: vendors.name, expenseAccountCode: vendors.expenseAccountCode })
       .from(vendors)
       .where(eq(vendors.tenantId, this.tenantId));
-    return rows.map((r) => r.name);
   }
 
   private async fetchCustomerNames(): Promise<string[]> {

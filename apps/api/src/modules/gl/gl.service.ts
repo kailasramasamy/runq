@@ -209,7 +209,7 @@ export class GLService {
 
   // ─── Auto-posting helpers ────────────────────────────────────────────────
 
-  async postPayment(payment: { amount: number; date: string; id: string; vendorName: string }): Promise<void> {
+  async postPayment(payment: { amount: number; date: string; id: string; vendorName: string; bankAccountCode?: string }): Promise<void> {
     if (await this.isAlreadyPosted('payment', payment.id)) return;
     await this.createJournalEntry({
       date: payment.date,
@@ -218,7 +218,7 @@ export class GLService {
       sourceId: payment.id,
       lines: [
         { accountCode: '2101', debit: payment.amount },
-        { accountCode: '1101', credit: payment.amount },
+        { accountCode: payment.bankAccountCode ?? '1101', credit: payment.amount },
       ],
     });
   }
