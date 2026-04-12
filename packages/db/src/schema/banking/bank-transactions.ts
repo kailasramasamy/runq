@@ -20,8 +20,9 @@ export const bankTransactions = pgTable('bank_transactions', {
   runningBalance: decimal('running_balance', { precision: 15, scale: 2 }),
   reconStatus: reconStatusEnum('recon_status').notNull().default('unreconciled'),
   importBatchId: uuid('import_batch_id'),
-  // Vendor & GL posting
+  // Vendor/Customer & GL posting
   vendorId: uuid('vendor_id'),
+  customerId: uuid('customer_id'),
   journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
   // AI categorization
   glAccountId: uuid('gl_account_id').references(() => accounts.id),

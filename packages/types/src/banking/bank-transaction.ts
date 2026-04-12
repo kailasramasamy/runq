@@ -16,6 +16,8 @@ export interface BankTransaction {
   importBatchId: string | null;
   vendorId: string | null;
   vendorName: string | null;
+  customerId: string | null;
+  customerName: string | null;
   journalEntryId: string | null;
   glAccountId: string | null;
   glAccountCode: string | null;

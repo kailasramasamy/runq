@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, cheques, vendors } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, cheques, vendors, customers } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
 import type { TransactionFilter } from '@runq/validators';
@@ -51,7 +51,7 @@ export class TransactionService {
       filters.dateFrom ? gte(bankTransactions.transactionDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
-      filters.search ? sql`(${bankTransactions.narration} ILIKE ${'%' + filters.search + '%'} OR ${bankTransactions.reference} ILIKE ${'%' + filters.search + '%'} OR ${vendors.name} ILIKE ${'%' + filters.search + '%'})` : undefined,
+      filters.search ? sql`(${bankTransactions.narration} ILIKE ${'%' + filters.search + '%'} OR ${bankTransactions.reference} ILIKE ${'%' + filters.search + '%'} OR ${vendors.name} ILIKE ${'%' + filters.search + '%'} OR ${customers.name} ILIKE ${'%' + filters.search + '%'})` : undefined,
     ];
 
     const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);
@@ -63,10 +63,12 @@ export class TransactionService {
           glAccountCode: accounts.code,
           glAccountName: accounts.name,
           vendorName: vendors.name,
+          customerName: customers.name,
         })
         .from(bankTransactions)
         .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
+        .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
@@ -75,7 +77,7 @@ export class TransactionService {
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName, r.vendorName)),
+      data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName, r.vendorName, r.customerName)),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -416,6 +418,7 @@ export class TransactionService {
     glAccountCode?: string | null,
     glAccountName?: string | null,
     vendorName?: string | null,
+    customerName?: string | null,
   ): BankTransaction {
     return {
       id: row.id,
@@ -432,6 +435,8 @@ export class TransactionService {
       importBatchId: row.importBatchId,
       vendorId: row.vendorId ?? null,
       vendorName: vendorName ?? null,
+      customerId: row.customerId ?? null,
+      customerName: customerName ?? null,
       journalEntryId: row.journalEntryId ?? null,
       glAccountId: row.glAccountId,
       glAccountCode: glAccountCode ?? null,

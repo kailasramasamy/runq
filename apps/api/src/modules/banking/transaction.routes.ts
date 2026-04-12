@@ -123,29 +123,37 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       if (!vendor) return reply.status(404).send({ error: 'Vendor not found' });
       if (!vendor.expenseAccountCode) return reply.status(400).send({ error: 'Vendor has no expense account code set' });
 
-      // Fetch bank GL account code
-      const [bankGl] = await db
-        .select({ code: glAccounts.code })
-        .from(bankAccounts)
-        .innerJoin(glAccounts, eq(bankAccounts.glAccountId, glAccounts.id))
-        .where(and(eq(bankAccounts.id, txn.bankAccountId), eq(bankAccounts.tenantId, tenantId)))
-        .limit(1);
-      if (!bankGl) return reply.status(400).send({ error: 'Bank account has no GL mapping' });
+      let result = null;
 
-      // Auto-bill-pay
-      const autoBillPay = new AutoBillPayService(db, tenantId);
-      const result = await autoBillPay.createFromBankTxn({
-        bankTransactionId: id,
-        vendorId,
-        vendorName: vendor.name,
-        expenseAccountCode: vendor.expenseAccountCode,
-        bankAccountId: txn.bankAccountId,
-        bankGlAccountCode: bankGl.code,
-        amount: parseFloat(txn.amount),
-        transactionDate: txn.transactionDate,
-        narration: txn.narration,
-        reference: txn.reference,
-      });
+      if (txn.reconStatus === 'unreconciled') {
+        // Full auto-bill-pay for unreconciled transactions
+        const [bankGl] = await db
+          .select({ code: glAccounts.code })
+          .from(bankAccounts)
+          .innerJoin(glAccounts, eq(bankAccounts.glAccountId, glAccounts.id))
+          .where(and(eq(bankAccounts.id, txn.bankAccountId), eq(bankAccounts.tenantId, tenantId)))
+          .limit(1);
+        if (!bankGl) return reply.status(400).send({ error: 'Bank account has no GL mapping' });
+
+        const autoBillPay = new AutoBillPayService(db, tenantId);
+        result = await autoBillPay.createFromBankTxn({
+          bankTransactionId: id,
+          vendorId,
+          vendorName: vendor.name,
+          expenseAccountCode: vendor.expenseAccountCode,
+          bankAccountId: txn.bankAccountId,
+          bankGlAccountCode: bankGl.code,
+          amount: parseFloat(txn.amount),
+          transactionDate: txn.transactionDate,
+          narration: txn.narration,
+          reference: txn.reference,
+        });
+      } else {
+        // Already reconciled — just tag the vendor (metadata only, no JEs)
+        await db.update(bankTransactions)
+          .set({ vendorId, updatedAt: new Date() })
+          .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
+      }
 
       // Learn the pattern for future auto-detection
       if (txn.narration) {
@@ -158,6 +166,49 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return reply.status(200).send({ data: { success: true, ...result } });
+    },
+  );
+
+  // ── Assign customer to a bank transaction ──────────────────────
+
+  const assignCustomerBodySchema = z.object({ customerId: z.string().uuid() });
+
+  app.put(
+    '/transactions/:id/customer',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = transactionParamSchema.parse(request.params);
+      const { customerId } = assignCustomerBodySchema.parse(request.body);
+      const { bankTransactions, customers } = await import('@runq/db');
+      const { eq, and } = await import('drizzle-orm');
+      const db = request.server.db;
+      const tenantId = request.tenantId;
+
+      const [txn] = await db.select().from(bankTransactions)
+        .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
+      if (!txn) return reply.status(404).send({ error: 'Transaction not found' });
+
+      const [customer] = await db.select().from(customers)
+        .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId))).limit(1);
+      if (!customer) return reply.status(404).send({ error: 'Customer not found' });
+
+      // Tag customer on the transaction (metadata — no accounting changes)
+      await db.update(bankTransactions)
+        .set({ customerId, updatedAt: new Date() })
+        .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
+
+      // Learn the narration pattern for future auto-detection
+      if (txn.narration) {
+        const categorize = new CategorizeService(db, tenantId);
+        const { accounts: glAccounts } = await import('@runq/db');
+        const [arAccount] = await db.select({ id: glAccounts.id }).from(glAccounts)
+          .where(and(eq(glAccounts.code, '1103'), eq(glAccounts.tenantId, tenantId))).limit(1);
+        if (arAccount) {
+          await categorize.learnNarrationRule(txn.narration, arAccount.id, txn.type);
+        }
+      }
+
+      return reply.status(200).send({ data: { success: true } });
     },
   );
 

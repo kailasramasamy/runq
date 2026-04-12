@@ -272,7 +272,7 @@ export class CategorizeService {
    * Extract a pattern from the narration and save it as a rule.
    * Skips if pattern already exists for this tenant.
    */
-  private async learnNarrationRule(
+  async learnNarrationRule(
     narration: string,
     glAccountId: string,
     txnType: 'credit' | 'debit',

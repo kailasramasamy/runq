@@ -94,10 +94,8 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
         {txn.reference ?? '—'}
       </TableCell>
       <TableCell className="text-sm text-zinc-700 dark:text-zinc-300" onClick={(e) => e.stopPropagation()}>
-        {txn.vendorName ?? (
-          txn.type === 'debit' && txn.reconStatus === 'unreconciled'
-            ? <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
-            : '—'
+        {txn.vendorName ?? txn.customerName ?? (
+          <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
         )}
       </TableCell>
       <TableCell align="right" numeric>
@@ -381,7 +379,7 @@ export function TransactionsPage() {
               <Th>Date</Th>
               <Th>Description</Th>
               <Th>Reference</Th>
-              <Th>Vendor</Th>
+              <Th>Vendor / Customer</Th>
               <Th align="right">Debit</Th>
               <Th align="right">Credit</Th>
               <Th align="right">Balance</Th>
