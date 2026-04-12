@@ -51,6 +51,7 @@ export class TransactionService {
       filters.dateFrom ? gte(bankTransactions.transactionDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
+      filters.search ? sql`(${bankTransactions.narration} ILIKE ${'%' + filters.search + '%'} OR ${bankTransactions.reference} ILIKE ${'%' + filters.search + '%'})` : undefined,
     ];
 
     const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);

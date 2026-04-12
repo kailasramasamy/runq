@@ -1,6 +1,6 @@
 import { useState, useEffect, memo, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload, Sparkles, RefreshCw, Calendar } from 'lucide-react';
+import { Upload, Sparkles, RefreshCw, Calendar, Search } from 'lucide-react';
 import { useBankAccounts, useBankBalance } from '@/hooks/queries/use-bank-accounts';
 import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
@@ -185,6 +185,7 @@ export function TransactionsPage() {
   const [reconStatus, setReconStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const categorize = useCategorizeTransactions();
@@ -215,6 +216,7 @@ export function TransactionsPage() {
     reconciled,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
+    search: search || undefined,
     page,
     limit: LIMIT,
   });
@@ -286,15 +288,28 @@ export function TransactionsPage() {
             value={accountId}
             onChange={(e) => { setAccountId(e.target.value); setPage(1); }}
           />
+          {lastSyncDate && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <Calendar className="h-3 w-3 text-zinc-400" />
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                Synced till <span className="font-medium text-zinc-700 dark:text-zinc-300">{new Date(lastSyncDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              </span>
+            </div>
+          )}
         </div>
-        {lastSyncDate && (
-          <div className="col-span-2 flex items-center gap-1.5 self-end pb-2 sm:col-span-1">
-            <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              Synced till <span className="font-medium text-zinc-700 dark:text-zinc-300">{new Date(lastSyncDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            </span>
+        <div className="col-span-2 sm:w-52">
+          <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Search</label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Narration or reference…"
+              className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
           </div>
-        )}
+        </div>
         <div className="sm:w-36">
           <Select
             label="Type"

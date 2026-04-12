@@ -20,6 +20,7 @@ interface TransactionFilters {
   reconciled?: boolean;
   dateFrom?: string;
   dateTo?: string;
+  search?: string;
   page?: number;
   limit?: number;
   [key: string]: unknown;
@@ -31,6 +32,7 @@ export function useBankTransactions(filters?: TransactionFilters) {
   if (filters?.reconciled !== undefined) params.set('reconciled', String(filters.reconciled));
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+  if (filters?.search) params.set('search', filters.search);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

@@ -6,6 +6,7 @@ export const transactionFilterSchema = z.object({
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
   minAmount: z.coerce.number().optional(),
+  search: z.string().optional(),
 });
 
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
