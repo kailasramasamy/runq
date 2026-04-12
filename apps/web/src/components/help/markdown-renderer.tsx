@@ -46,7 +46,12 @@ export function MarkdownRenderer({ content }: Props) {
             const isBlock = className?.includes('language-');
             if (isBlock) {
               return (
-                <code className="block text-xs font-mono text-zinc-100">{children}</code>
+                <code
+                  className="block text-xs text-zinc-100"
+                  style={{ fontFamily: '"Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono", monospace' }}
+                >
+                  {children}
+                </code>
               );
             }
             return (
@@ -56,7 +61,10 @@ export function MarkdownRenderer({ content }: Props) {
             );
           },
           pre: ({ children }) => (
-            <pre className="mb-4 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-100">
+            <pre
+              className="mb-4 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-100 leading-snug"
+              style={{ fontFamily: '"Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono", monospace' }}
+            >
               {children}
             </pre>
           ),
