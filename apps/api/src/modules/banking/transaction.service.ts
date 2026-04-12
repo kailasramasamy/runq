@@ -17,6 +17,7 @@ export interface TransactionListParams {
 export interface TransactionListResult {
   data: BankTransaction[];
   meta: PaginationMeta;
+  totals: { debit: number; credit: number };
 }
 
 interface ParsedRow {
@@ -58,7 +59,7 @@ export class TransactionService {
 
     const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);
 
-    const [rows, countResult] = await Promise.all([
+    const [rows, countResult, totalsResult] = await Promise.all([
       this.db
         .select({
           txn: bankTransactions,
@@ -79,12 +80,24 @@ export class TransactionService {
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere),
+      this.db.select({
+        totalDebit: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'debit' THEN ${bankTransactions.amount}::numeric ELSE 0 END), 0)`,
+        totalCredit: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount}::numeric ELSE 0 END), 0)`,
+      })
+        .from(bankTransactions)
+        .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
+        .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
+        .where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
     return {
       data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName, r.vendorName, r.customerName)),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
+      totals: {
+        debit: parseFloat(totalsResult[0]?.totalDebit ?? '0'),
+        credit: parseFloat(totalsResult[0]?.totalCredit ?? '0'),
+      },
     };
   }
 

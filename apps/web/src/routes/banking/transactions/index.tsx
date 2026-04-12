@@ -219,6 +219,7 @@ export function TransactionsPage() {
 
   const transactions = data?.data ?? [];
   const meta = data?.meta;
+  const totals = (data as { totals?: { debit: number; credit: number } })?.totals;
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
 
@@ -413,6 +414,20 @@ export function TransactionsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {totals && (total > 0) && (
+        <div className="mt-3 flex items-center justify-end gap-6 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+          <span className="text-zinc-500 dark:text-zinc-400">{total} transactions</span>
+          <div>
+            <span className="text-zinc-500 dark:text-zinc-400">Total Debit: </span>
+            <span className="font-medium tabular-nums text-red-600 dark:text-red-400">{formatINR(totals.debit)}</span>
+          </div>
+          <div>
+            <span className="text-zinc-500 dark:text-zinc-400">Total Credit: </span>
+            <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">{formatINR(totals.credit)}</span>
+          </div>
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="mt-4">
