@@ -8,10 +8,8 @@
 ## The Big Picture
 
 ```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Sync / Import   │ ──▶ │ Auto-Categorize  │ ──▶ │   Reconciled     │
-│  Bank Statement  │     │   (one click)    │     │   (all done)     │
-└──────────────────┘     └──────────────────┘     └──────────────────┘
+ Sync / Import          Auto-Categorize         Reconciled
+ Bank Statement  --->    (one click)     --->   (all done)
 ```
 
 One click does everything:
