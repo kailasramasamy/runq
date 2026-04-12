@@ -10,6 +10,7 @@ import {
 } from '@/components/ui';
 import { Table, TableHeader, TableBody, TableRow, TableCell, Th } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { DocumentTrail } from '@/components/audit/document-trail';
 
 const STATUS_VARIANT = {
   posted: 'success' as const,
@@ -114,6 +115,11 @@ function EntryDetail({ id }: { id: string }) {
                 </div>
               );
             })}
+          </div>
+          {/* Document trail */}
+          <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+            <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">Audit Trail</p>
+            <DocumentTrail entityType="journal_entry" entityId={id} />
           </div>
         </div>
       </td>

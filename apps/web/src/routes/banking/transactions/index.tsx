@@ -6,6 +6,7 @@ import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } f
 import { formatINR } from '@/lib/utils';
 import { CategoryBadge } from '@/components/banking/category-badge';
 import { VendorBadge } from '@/components/banking/vendor-badge';
+import { DocumentTrail } from '@/components/audit/document-trail';
 import type { BankTransaction, ReconStatus } from '@runq/types';
 import {
   PageHeader,
@@ -172,6 +173,11 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
                 </div>
               )}
               <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
+            </div>
+            {/* Document trail */}
+            <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+              <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">Audit Trail</p>
+              <DocumentTrail entityType="bank_transaction" entityId={txn.id} />
             </div>
           </div>
         </div>
