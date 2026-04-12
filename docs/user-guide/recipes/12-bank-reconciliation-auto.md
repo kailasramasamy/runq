@@ -7,7 +7,12 @@
 
 ## The Big Picture
 
-**Sync / Import** → **Auto-Categorize (one click)** → **Reconciled (all done)**
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Sync / Import   │────▶│  Auto-Categorize │────▶│    Reconciled    │
+│  Bank Statement  │     │   (one click)    │     │   (all done)     │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+```
 
 One click does everything:
 - Matches payments to vendors
@@ -33,45 +38,60 @@ One click does everything:
 
 > Vrindavan Dairy paid ₹25,300.50 to Farmtaste Dairy via NEFT
 
-### Step 1 — Bank debit appears
+### Step by step
 
-> INB/NEFT/AXODH.../Farmtaste Dairy (OPC)/IDFC...
-> Amount: ₹25,300.50 · Type: Debit · Status: **Unreconciled**
+```
+ 1. Bank debit appears
+    ┌───────────────────────────────────────────────────────┐
+    │ INB/NEFT/AXODH.../Farmtaste Dairy (OPC)/IDFC...       │
+    │ Amount: ₹25,300.50  Type: Debit  Status: Unreconciled │
+    └───────────────────────────────────────────────────────┘
+                          │
+                          ▼
+ 2. Auto-Categorize detects vendor
+    ┌─────────────────────────────────────────────────────┐
+    │ "Farmtaste Dairy" found in narration                │
+    │ → Matched to vendor: Farmtaste Dairy (OPC)          │
+    │ → Expense account: 5001 Raw Materials               │
+    └─────────────────────────────────────────────────────┘
+                          │
+                          ▼
+ 3. System auto-creates (all automatic)
+    ┌─────────────────────────────────────────────────────┐
+    │                                                     │
+    │  📄 Bill created          💳 Payment created        │
+    │  BILL-FD-2604-XXXX       Against the bill           │
+    │  ₹25,300.50              ₹25,300.50                 │
+    │  Status: Paid            Status: Completed          │
+    │                                                     │
+    └─────────────────────────────────────────────────────┘
+                          │
+                          ▼
+ 4. Two journal entries posted
 
-### Step 2 — Auto-Categorize detects vendor
+    JE #1 — Bill (expense recorded)
+    ┌─────────────────────────┬──────────┬──────────┐
+    │ Account                 │  Debit   │  Credit  │
+    ├─────────────────────────┼──────────┼──────────┤
+    │ 5001 Raw Materials      │ 25,300.50│          │
+    │ 2101 Accounts Payable   │          │ 25,300.50│
+    └─────────────────────────┴──────────┴──────────┘
 
-- "Farmtaste Dairy" found in narration
-- Matched to vendor: **Farmtaste Dairy (OPC)**
-- Expense account: **5001 Raw Materials**
+    JE #2 — Payment (bank reduced)
+    ┌─────────────────────────┬──────────┬──────────┐
+    │ Account                 │  Debit   │  Credit  │
+    ├─────────────────────────┼──────────┼──────────┤
+    │ 2101 Accounts Payable   │ 25,300.50│          │
+    │ 1101 Cash at Bank       │          │ 25,300.50│
+    └─────────────────────────┴──────────┴──────────┘
 
-### Step 3 — System auto-creates (all automatic)
-
-| What | Details |
-|---|---|
-| Bill created | BILL-FD-2604-XXXX · ₹25,300.50 · Status: Paid |
-| Payment created | Against the bill · ₹25,300.50 · Status: Completed |
-
-### Step 4 — Two journal entries posted
-
-**JE #1 — Bill (expense recorded)**
-
-| Account | Debit | Credit |
-|---|---|---|
-| 5001 Raw Materials | ₹25,300.50 | |
-| 2101 Accounts Payable | | ₹25,300.50 |
-
-**JE #2 — Payment (bank reduced)**
-
-| Account | Debit | Credit |
-|---|---|---|
-| 2101 Accounts Payable | ₹25,300.50 | |
-| 1101 Cash at Bank | | ₹25,300.50 |
-
-### Step 5 — Bank transaction → Matched
-
-- Status: **Matched**
-- Vendor: Farmtaste Dairy (OPC)
-- Linked to: Bill + Payment + 2 JEs
+ 5. Bank transaction → Matched
+    ┌─────────────────────────────────────────────────────┐
+    │ Status: Matched                                     │
+    │ Vendor: Farmtaste Dairy (OPC)                       │
+    │ Linked to: Bill + Payment + 2 JEs                   │
+    └─────────────────────────────────────────────────────┘
+```
 
 ### Net effect on your books
 
@@ -88,18 +108,24 @@ Your expense goes up, your bank balance goes down. That's it.
 
 > Razorpay settled ₹75,483.58 into ICICI account
 
-**Step 1** — Bank credit: ₹75,483.58 · Status: **Unreconciled**
+```
+ 1. Bank credit appears
+    Amount: ₹75,483.58  Type: Credit  Status: Unreconciled
 
-**Step 2** — System detects "RAZORPAY PAYMENTS" → matched to customer: **Razorpay Pvt Ltd**
+ 2. System detects "RAZORPAY PAYMENTS" in narration
+    → Matched to customer: Razorpay Pvt Ltd
 
-**Step 3** — Journal entry posted:
+ 3. Journal entry posted
+    ┌─────────────────────────┬──────────┬──────────┐
+    │ Account                 │  Debit   │  Credit  │
+    ├─────────────────────────┼──────────┼──────────┤
+    │ 1101 Cash at Bank       │ 75,483.58│          │
+    │ 1103 Accounts Receivable│          │ 75,483.58│
+    └─────────────────────────┴──────────┴──────────┘
 
-| Account | Debit | Credit |
-|---|---|---|
-| 1101 Cash at Bank | ₹75,483.58 | |
-| 1103 Accounts Receivable | | ₹75,483.58 |
-
-**Step 4** — Bank transaction → **Matched** · Customer: Razorpay Pvt Ltd
+ 4. Bank transaction → Matched
+    Customer: Razorpay Pvt Ltd
+```
 
 ---
 
@@ -107,35 +133,64 @@ Your expense goes up, your bank balance goes down. That's it.
 
 ### First time (new vendor/customer alias)
 
-1. Transaction narration: "VENDOROILSOS"
-2. No match found → status stays **Unreconciled**
-3. Accountant clicks **Assign Vendor** in the Vendor column
-4. Picks "Prabhakaran SOS Oils" from dropdown (or creates new vendor inline)
-5. System does 3 things:
-   - Creates bill + payment + JEs
-   - Learns: "VENDOROILSOS" = Prabhakaran
-   - Auto-applies to all similar transactions
+```
+ Transaction narration: "VENDOROILSOS"
+                │
+                ▼
+ No match found → status stays Unreconciled
+                │
+                ▼
+ Accountant clicks "Assign Vendor" in the Vendor column
+                │
+                ▼
+ Picks "Prabhakaran SOS Oils" from dropdown
+ (or creates new vendor inline)
+                │
+                ▼
+ System does 3 things:
+ ┌────────────────────────────────────────────────┐
+ │ 1. Creates bill + payment + JEs                │
+ │ 2. Learns: "VENDOROILSOS" = Prabhakaran        │
+ │ 3. Auto-applies to all similar transactions    │
+ └────────────────────────────────────────────────┘
+```
 
 ### Every time after
 
-1. Transaction narration: "VENDOROILSOS"
-2. Pattern matched → auto-bill-pay → **Matched** (fully automatic, no manual work)
+```
+ Transaction narration: "VENDOROILSOS"
+                │
+                ▼
+ Pattern matched → auto-bill-pay → Matched
+ (fully automatic, no manual work)
+```
 
 ---
 
 ## Your Weekly Workflow
 
-> Monday morning — 5 minutes total
-
-1. Open **Banking → Transactions**
-2. Click **Sync** (pulls latest from bank)
-3. Click **Auto-Categorize** → most transactions auto-matched
-4. Review remaining unmatched:
-   - Known vendor? → **Assign Vendor**
-   - New vendor? → **Create & Assign**
-   - Bank charges? → Already categorized
-5. Check totals bar → verify numbers
-6. Done.
+```
+ Monday morning (5 minutes)
+ ┌──────────────────────────────────────────────┐
+ │                                              │
+ │  1. Open Banking → Transactions              │
+ │                                              │
+ │  2. Click "Sync" (pulls latest from bank)    │
+ │                                              │
+ │  3. Click "Auto-Categorize"                  │
+ │     → Most transactions auto-matched         │
+ │                                              │
+ │  4. Review remaining unmatched:              │
+ │     • Known vendor? → Assign Vendor          │
+ │     • New vendor? → Create & Assign          │
+ │     • Bank charges? → Already categorized    │
+ │                                              │
+ │  5. Check totals bar → verify numbers        │
+ │                                              │
+ │  Done.                                       │
+ │                                              │
+ └──────────────────────────────────────────────┘
+```
 
 ---
 
@@ -157,10 +212,25 @@ If the accountant created the bill manually before syncing, the system detects i
 
 The auto-created bill is a lump sum (1 line item, no GST breakup). For GST-registered vendors where you need input credit:
 
-1. Go to **AP → Bills** → find the auto-bill
-2. Attach the vendor's invoice (PDF/photo)
-3. Edit line items — add actual items, quantities, HSN codes, GST rates
-4. Save → total stays the same, JEs don't change, GST input credit is now trackable
+```
+ After auto-reconciliation:
+ ┌──────────────────────────────────────────────┐
+ │                                              │
+ │  1. Go to AP → Bills → find the auto-bill    │
+ │                                              │
+ │  2. Attach the vendor's invoice (PDF/photo)  │
+ │                                              │
+ │  3. Edit line items:                         │
+ │     • Add actual items, quantities           │
+ │     • Add HSN codes and GST rates            │
+ │                                              │
+ │  4. Save                                     │
+ │     Total stays the same.                    │
+ │     JEs don't change.                        │
+ │     GST input credit is now trackable.       │
+ │                                              │
+ └──────────────────────────────────────────────┘
+```
 
 For non-GST vendors, the lump-sum bill is perfectly valid. No extra steps needed.
 
