@@ -41,12 +41,20 @@ export class AutoBillPayService {
    * Returns null if existing payment was matched (no new bill created).
    */
   async createFromBankTxn(params: AutoBillPayParams): Promise<AutoBillPayResult | null> {
+    // 1. Existing payment? Just link bank txn to it
     const existingPayment = await this.findExistingPayment(params);
     if (existingPayment) {
       await this.linkToExistingPayment(params.bankTransactionId, existingPayment);
       return null;
     }
 
+    // 2. Existing bill (unpaid/partially paid)? Create payment against it
+    const existingBill = await this.findExistingBill(params);
+    if (existingBill) {
+      return this.createPaymentForBill(params, existingBill);
+    }
+
+    // 3. Nothing exists — create bill + payment from scratch
     return this.createBillAndPayment(params);
   }
 
@@ -63,6 +71,84 @@ export class AutoBillPayService {
       ))
       .limit(1);
     return row?.id ?? null;
+  }
+
+  private async findExistingBill(params: AutoBillPayParams): Promise<{ id: string; balanceDue: string } | null> {
+    const [row] = await this.db
+      .select({ id: purchaseInvoices.id, balanceDue: purchaseInvoices.balanceDue })
+      .from(purchaseInvoices)
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId),
+        eq(purchaseInvoices.vendorId, params.vendorId),
+        sql`ABS(${purchaseInvoices.totalAmount}::numeric - ${params.amount}) < 0.01`,
+        sql`${purchaseInvoices.balanceDue}::numeric > 0`,
+        sql`ABS(${purchaseInvoices.invoiceDate}::date - ${params.transactionDate}::date) <= 30`,
+      ))
+      .limit(1);
+    return row ?? null;
+  }
+
+  private async createPaymentForBill(
+    params: AutoBillPayParams,
+    bill: { id: string; balanceDue: string },
+  ): Promise<AutoBillPayResult> {
+    const payAmount = Math.min(params.amount, parseFloat(bill.balanceDue));
+    const gl = new GLService(this.db, this.tenantId);
+
+    const paymentId = await this.db.transaction(async (tx) => {
+      const [payment] = await tx.insert(payments).values({
+        tenantId: this.tenantId,
+        vendorId: params.vendorId,
+        bankAccountId: params.bankAccountId,
+        paymentDate: params.transactionDate,
+        amount: String(payAmount),
+        paymentMethod: 'bank_transfer',
+        utrNumber: params.reference,
+        status: 'completed',
+        notes: 'Auto-created from bank transaction (matched existing bill)',
+      }).returning();
+
+      await tx.insert(paymentAllocations).values({
+        tenantId: this.tenantId,
+        paymentId: payment!.id,
+        invoiceId: bill.id,
+        amount: String(payAmount),
+      });
+
+      // Update bill balance
+      const newBalance = parseFloat(bill.balanceDue) - payAmount;
+      await tx.update(purchaseInvoices).set({
+        amountPaid: sql`${purchaseInvoices.amountPaid}::numeric + ${payAmount}`,
+        balanceDue: String(Math.max(0, newBalance)),
+        status: newBalance <= 0.01 ? 'paid' : 'partially_paid',
+        updatedAt: new Date(),
+      }).where(eq(purchaseInvoices.id, bill.id));
+
+      // Link bank txn
+      await tx.insert(reconciliationMatches).values({
+        tenantId: this.tenantId,
+        bankTransactionId: params.bankTransactionId,
+        paymentId: payment!.id,
+        matchType: 'auto_amount_date',
+      });
+
+      await tx.update(bankTransactions)
+        .set({ reconStatus: 'matched', updatedAt: new Date() })
+        .where(eq(bankTransactions.id, params.bankTransactionId));
+
+      return payment!.id;
+    });
+
+    // Post payment JE only (bill JE already exists from when bill was created)
+    await gl.postPayment({
+      amount: payAmount,
+      date: params.transactionDate,
+      id: paymentId,
+      vendorName: params.vendorName,
+      bankAccountCode: params.bankGlAccountCode,
+    });
+
+    return { billId: bill.id, paymentId };
   }
 
   private async linkToExistingPayment(bankTransactionId: string, paymentId: string): Promise<void> {
