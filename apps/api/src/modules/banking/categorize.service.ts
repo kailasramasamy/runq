@@ -60,9 +60,17 @@ const HARDCODED_RULES: Array<{
 export function extractNarrationPattern(narration: string): string | null {
   if (!narration || narration.length < 5) return null;
 
-  // NEFT format: "INF/NEFT/.../IFSC/PAYEE_NAME"
-  const neftMatch = narration.match(/(?:INF\/)?NEFT\/[^\/]+\/[A-Z]{4}\d{7}\/(.+)/i);
-  if (neftMatch) return neftMatch[1]!.trim();
+  // NEFT format: "INF/NEFT/.../IFSC/PAYEE_NAME" (ICICI style)
+  const neftIfsc = narration.match(/INF\/NEFT\/[^\/]+\/[A-Z]{4}\d{7}\/(.+)/i);
+  if (neftIfsc) return neftIfsc[1]!.trim();
+
+  // NEFT format: "INB/NEFT/REF/PAYEE/BANK..." (Axis outgoing)
+  const neftInb = narration.match(/INB\/NEFT\/[^\/]+\/(.+?)\/(?:.*BANK|.*INDIA|.*LTD)/i);
+  if (neftInb) return neftInb[1]!.trim();
+
+  // NEFT format: "NEFT/REF/PAYEE_NAME/BANK_NAME/" (incoming NEFT)
+  const neftSlash = narration.match(/^NEFT\/[^\/]+\/(.+?)\/(?:.*BANK|.*INDIA|.*LTD)/i);
+  if (neftSlash) return neftSlash[1]!.trim();
 
   // NEFT format: "NEFT-REFNO-PAYEE NAME..."
   const neftDash = narration.match(/NEFT-[A-Z0-9]+-(.+?)(?:\s*-|$)/i);
