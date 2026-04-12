@@ -25,4 +25,34 @@ export function useDocumentTrail(entityType: string, entityId: string, enabled =
   });
 }
 
-export type { TrailNode, DocumentTrail };
+interface GapItem {
+  entityType: string;
+  entityId: string;
+  label: string;
+  summary: string;
+  date: string | null;
+  url: string;
+}
+
+interface GapCategory {
+  title: string;
+  description: string;
+  severity: 'error' | 'warning' | 'info';
+  items: GapItem[];
+}
+
+interface GapScanResult {
+  categories: GapCategory[];
+  totalGaps: number;
+  scannedAt: string;
+}
+
+export function useGapScan(enabled = true) {
+  return useQuery({
+    queryKey: ['gap-scan'],
+    queryFn: () => api.get<{ data: GapScanResult }>('/audit/gap-scan'),
+    enabled,
+  });
+}
+
+export type { TrailNode, DocumentTrail, GapItem, GapCategory, GapScanResult };

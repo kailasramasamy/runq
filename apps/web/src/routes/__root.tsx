@@ -102,6 +102,7 @@ import { VendorPortalPage } from './vendor-portal/index';
 import { QuickTemplatesPage } from './ar/quick-templates';
 import { SetupPage } from './settings/setup';
 import { HelpIndexPage } from './help/index';
+import { GapScanPage } from './audit/gap-scan';
 import { HelpTopicPage } from './help/topic';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
@@ -1426,6 +1427,20 @@ const vendorPortalRoute = createRoute({
   component: VendorPortalPage,
 });
 
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+const auditRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/audit',
+  component: () => <Outlet />,
+});
+
+const gapScanRoute = createRoute({
+  getParentRoute: () => auditRoute,
+  path: '/gap-scan',
+  component: GapScanPage,
+});
+
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 export const routeTree = rootRoute.addChildren([
@@ -1563,6 +1578,9 @@ export const routeTree = rootRoute.addChildren([
     helpRoute.addChildren([
       helpIndexRoute,
       helpTopicRoute,
+    ]),
+    auditRoute.addChildren([
+      gapScanRoute,
     ]),
   ]),
 ]);
