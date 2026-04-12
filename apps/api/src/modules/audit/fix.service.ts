@@ -88,22 +88,30 @@ export class FixService {
       return { steps, allFixed: manualRequired.length === 0, manualRequired };
     }
 
-    // Path 2: Customer assigned + credit → find invoice, create receipt, post JE
+    // Path 2: Customer assigned + credit → find invoices, create receipt, post JE
     if (txn.customerId && txn.type === 'credit') {
       const [customer] = await this.db.select().from(customers).where(eq(customers.id, txn.customerId)).limit(1);
       const amount = toNumber(txn.amount);
 
-      // Find matching unpaid invoice
-      const [invoice] = await this.db.select().from(salesInvoices).where(and(
+      // Try exact match first, then batch match (multiple unpaid invoices)
+      const exactMatch = await this.db.select().from(salesInvoices).where(and(
         eq(salesInvoices.tenantId, this.tenantId),
         eq(salesInvoices.customerId, txn.customerId),
         sql`ABS(${salesInvoices.totalAmount}::numeric - ${amount}) < 0.01`,
         sql`${salesInvoices.balanceDue}::numeric > 0`,
-        sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
       )).limit(1);
 
-      if (invoice) {
-        // Create receipt against the invoice
+      const invoicesToAllocate = exactMatch.length > 0
+        ? exactMatch
+        : await this.db.select().from(salesInvoices).where(and(
+            eq(salesInvoices.tenantId, this.tenantId),
+            eq(salesInvoices.customerId, txn.customerId),
+            sql`${salesInvoices.balanceDue}::numeric > 0`,
+            sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+          )).orderBy(salesInvoices.invoiceDate).limit(20);
+
+      if (invoicesToAllocate.length > 0) {
+        // Create receipt
         const [receipt] = await this.db.insert(paymentReceipts).values({
           tenantId: this.tenantId,
           customerId: txn.customerId,
@@ -115,26 +123,40 @@ export class FixService {
           notes: 'Auto-created from bank transaction',
         }).returning();
 
-        await this.db.insert(receiptAllocations).values({
-          tenantId: this.tenantId,
-          receiptId: receipt!.id,
-          invoiceId: invoice.id,
-          amount: String(amount),
-        });
+        // Allocate across invoices (oldest first)
+        let remaining = amount;
+        let allocatedCount = 0;
+        for (const inv of invoicesToAllocate) {
+          if (remaining <= 0) break;
+          const balance = toNumber(inv.balanceDue);
+          const allocAmount = Math.min(remaining, balance);
 
-        // Update invoice balance
-        const newReceived = toNumber(invoice.amountReceived) + amount;
-        const newBalance = Math.max(0, toNumber(invoice.totalAmount) - newReceived);
-        await this.db.update(salesInvoices).set({
-          amountReceived: String(newReceived),
-          balanceDue: String(newBalance),
-          status: newBalance <= 0.01 ? 'paid' : 'partially_paid',
-          updatedAt: new Date(),
-        }).where(eq(salesInvoices.id, invoice.id));
+          await this.db.insert(receiptAllocations).values({
+            tenantId: this.tenantId,
+            receiptId: receipt!.id,
+            invoiceId: inv.id,
+            amount: String(allocAmount),
+          });
 
-        steps.push({ action: 'Match invoice', result: `Matched to invoice ${invoice.invoiceNumber}`, success: true });
+          const newReceived = toNumber(inv.amountReceived) + allocAmount;
+          const newBalance = Math.max(0, toNumber(inv.totalAmount) - newReceived);
+          await this.db.update(salesInvoices).set({
+            amountReceived: String(newReceived),
+            balanceDue: String(newBalance),
+            status: newBalance <= 0.01 ? 'paid' : 'partially_paid',
+            updatedAt: new Date(),
+          }).where(eq(salesInvoices.id, inv.id));
+
+          remaining -= allocAmount;
+          allocatedCount++;
+        }
+
         steps.push({ action: 'Create receipt', result: `Receipt created: ₹${amount.toLocaleString('en-IN')}`, success: true });
-        steps.push({ action: 'Update invoice', result: newBalance <= 0.01 ? 'Invoice marked as Paid' : `Balance reduced to ₹${newBalance.toLocaleString('en-IN')}`, success: true });
+        steps.push({ action: 'Allocate to invoices', result: `Allocated across ${allocatedCount} invoice${allocatedCount > 1 ? 's' : ''} (oldest first)`, success: true });
+        if (remaining > 0.01) {
+          steps.push({ action: 'Excess amount', result: `₹${remaining.toLocaleString('en-IN')} unallocated (exceeds invoice balances)`, success: false });
+          manualRequired.push(`₹${remaining.toLocaleString('en-IN')} could not be allocated — may need a new invoice or advance receipt`);
+        }
 
         // Post receipt JE
         const gl = new GLService(this.db, this.tenantId);
@@ -149,13 +171,13 @@ export class FixService {
         // Mark bank txn as matched
         await this.db.update(bankTransactions).set({
           reconStatus: 'matched',
-          glAccountId: null, // clear wrong GL category
+          glAccountId: null,
           updatedAt: new Date(),
         }).where(eq(bankTransactions.id, id));
         steps.push({ action: 'Reconcile', result: 'Transaction matched', success: true });
 
       } else {
-        // No matching invoice — still post basic JE
+        // No invoices at all — post basic JE
         const posting = new CategorizePostingService(this.db, this.tenantId);
         await posting.postBankCredit({
           transactionId: id,
@@ -166,7 +188,7 @@ export class FixService {
           bankGlAccountCode: bankGl.code,
         });
         steps.push({ action: 'Post journal entry', result: 'JE posted: DR Bank, CR Accounts Receivable', success: true });
-        manualRequired.push(`No matching invoice found for ₹${amount.toLocaleString('en-IN')} from ${customer?.name ?? 'Unknown'}. Create the invoice manually if needed.`);
+        manualRequired.push(`No unpaid invoices found for ${customer?.name ?? 'Unknown'}. Create invoices manually if needed.`);
       }
 
       return { steps, allFixed: manualRequired.length === 0, manualRequired };

@@ -77,8 +77,8 @@ export class TrailService {
       const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, txn.customerId)).limit(1);
       if (c) chain.push({ type: 'customer', id: txn.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${txn.customerId}` });
 
-      // Find matching unpaid invoices from this customer
-      const matchingInvoices = await this.db.select({
+      // Find related invoices: exact match first, then unpaid from this customer
+      const exactMatch = await this.db.select({
         id: salesInvoices.id, num: salesInvoices.invoiceNumber,
         amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
         date: salesInvoices.invoiceDate, status: salesInvoices.status,
@@ -90,14 +90,38 @@ export class TrailService {
           sql`ABS(${salesInvoices.totalAmount}::numeric - ${toNumber(txn.amount)}) < 0.01`,
           sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
         ))
-        .limit(3);
+        .limit(1);
 
-      for (const inv of matchingInvoices) {
-        chain.push({
-          type: 'sales_invoice', id: inv.id, label: inv.num,
-          summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due: ₹' + toNumber(inv.bal).toLocaleString('en-IN') : 'Paid'}`,
-          date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
-        });
+      if (exactMatch.length > 0) {
+        for (const inv of exactMatch) {
+          chain.push({
+            type: 'sales_invoice', id: inv.id, label: `${inv.num} (exact match)`,
+            summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due' : 'Paid'}`,
+            date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+          });
+        }
+      } else if (txn.type === 'credit') {
+        // No exact match — show unpaid invoices from this customer
+        const unpaidInvoices = await this.db.select({
+          id: salesInvoices.id, num: salesInvoices.invoiceNumber,
+          amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
+          date: salesInvoices.invoiceDate, status: salesInvoices.status,
+        })
+          .from(salesInvoices)
+          .where(and(
+            eq(salesInvoices.tenantId, this.tenantId),
+            eq(salesInvoices.customerId, txn.customerId),
+            sql`${salesInvoices.balanceDue}::numeric > 0`,
+          ))
+          .limit(5);
+
+        for (const inv of unpaidInvoices) {
+          chain.push({
+            type: 'sales_invoice', id: inv.id, label: `${inv.num} (unpaid)`,
+            summary: `₹${toNumber(inv.bal).toLocaleString('en-IN')} due of ₹${toNumber(inv.amt).toLocaleString('en-IN')}`,
+            date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+          });
+        }
       }
     }
 
