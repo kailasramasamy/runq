@@ -5,6 +5,7 @@ import { useBankAccounts, useBankBalance } from '@/hooks/queries/use-bank-accoun
 import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
 import { CategoryBadge } from '@/components/banking/category-badge';
+import { VendorBadge } from '@/components/banking/vendor-badge';
 import type { BankTransaction, ReconStatus } from '@runq/types';
 import {
   PageHeader,
@@ -165,6 +166,7 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
                   </span>
                 </div>
               )}
+              <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
             </div>
           </div>
         </div>
