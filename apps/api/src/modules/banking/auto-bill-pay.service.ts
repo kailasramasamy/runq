@@ -44,7 +44,7 @@ export class AutoBillPayService {
     // 1. Existing payment? Just link bank txn to it
     const existingPayment = await this.findExistingPayment(params);
     if (existingPayment) {
-      await this.linkToExistingPayment(params.bankTransactionId, existingPayment);
+      await this.linkToExistingPayment(params.bankTransactionId, existingPayment, params.vendorId);
       return null;
     }
 
@@ -133,7 +133,7 @@ export class AutoBillPayService {
       });
 
       await tx.update(bankTransactions)
-        .set({ reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId: params.vendorId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, params.bankTransactionId));
 
       return payment!.id;
@@ -151,7 +151,7 @@ export class AutoBillPayService {
     return { billId: bill.id, paymentId };
   }
 
-  private async linkToExistingPayment(bankTransactionId: string, paymentId: string): Promise<void> {
+  private async linkToExistingPayment(bankTransactionId: string, paymentId: string, vendorId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.insert(reconciliationMatches).values({
         tenantId: this.tenantId,
@@ -160,7 +160,7 @@ export class AutoBillPayService {
         matchType: 'auto_amount_date',
       });
       await tx.update(bankTransactions)
-        .set({ reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
     });
   }
@@ -225,7 +225,7 @@ export class AutoBillPayService {
 
       // 6. Mark bank transaction as reconciled
       await tx.update(bankTransactions)
-        .set({ reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId: params.vendorId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, params.bankTransactionId));
 
       return { billId: bill!.id, paymentId: payment!.id };

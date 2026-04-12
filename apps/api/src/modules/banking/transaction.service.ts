@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, cheques } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, cheques, vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
 import type { TransactionFilter } from '@runq/validators';
@@ -61,9 +61,11 @@ export class TransactionService {
           txn: bankTransactions,
           glAccountCode: accounts.code,
           glAccountName: accounts.name,
+          vendorName: vendors.name,
         })
         .from(bankTransactions)
         .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
+        .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
@@ -72,7 +74,7 @@ export class TransactionService {
 
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName)),
+      data: rows.map((r) => this.toTransaction(r.txn, r.glAccountCode, r.glAccountName, r.vendorName)),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -412,6 +414,7 @@ export class TransactionService {
     row: typeof bankTransactions.$inferSelect,
     glAccountCode?: string | null,
     glAccountName?: string | null,
+    vendorName?: string | null,
   ): BankTransaction {
     return {
       id: row.id,
@@ -426,6 +429,8 @@ export class TransactionService {
       runningBalance: row.runningBalance ? parseFloat(row.runningBalance) : null,
       reconStatus: row.reconStatus,
       importBatchId: row.importBatchId,
+      vendorId: row.vendorId ?? null,
+      vendorName: vendorName ?? null,
       journalEntryId: row.journalEntryId ?? null,
       glAccountId: row.glAccountId,
       glAccountCode: glAccountCode ?? null,

@@ -93,6 +93,9 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
       <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
         {txn.reference ?? '—'}
       </TableCell>
+      <TableCell className="text-sm text-zinc-700 dark:text-zinc-300">
+        {txn.vendorName ?? '—'}
+      </TableCell>
       <TableCell align="right" numeric>
         {!isCredit ? (
           <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
@@ -137,7 +140,7 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
   const isCredit = txn.type === 'credit';
   return (
     <tr>
-      <td colSpan={8} className="p-0">
+      <td colSpan={9} className="p-0">
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border-y border-zinc-200 dark:border-zinc-800 px-6 py-4">
           <div className="space-y-2 text-sm">
             <div>
@@ -358,6 +361,7 @@ export function TransactionsPage() {
               <Th>Date</Th>
               <Th>Description</Th>
               <Th>Reference</Th>
+              <Th>Vendor</Th>
               <Th align="right">Debit</Th>
               <Th align="right">Credit</Th>
               <Th align="right">Balance</Th>
@@ -367,10 +371,10 @@ export function TransactionsPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={8} cols={8} />
+              <TableSkeleton rows={8} cols={9} />
             ) : transactions.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState
                     icon={ArrowUpDown}
                     title="No transactions found"
