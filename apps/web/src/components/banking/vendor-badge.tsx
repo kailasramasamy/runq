@@ -302,8 +302,17 @@ function CreateVendorInline({
       </div>
       <div>
         <label className="mb-1 block text-xs text-zinc-500">Category</label>
-        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. farmer, transport"
-          className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+        <select value={category} onChange={(e) => setCategory(e.target.value)}
+          className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
+          <option value="">— Select —</option>
+          <option value="farmer">Farmer</option>
+          <option value="supplier">Supplier</option>
+          <option value="transport">Transport</option>
+          <option value="rent">Rent</option>
+          <option value="utility">Utility</option>
+          <option value="contractor">Contractor</option>
+          <option value="service">Service Provider</option>
+        </select>
       </div>
       <button type="submit" disabled={!name.trim() || saving}
         className="w-full rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
