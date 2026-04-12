@@ -1,19 +1,17 @@
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql, gte } from 'drizzle-orm';
 import {
   bankTransactions,
   purchaseInvoices,
   salesInvoices,
   payments,
   paymentReceipts,
-  journalEntries,
-  reconciliationMatches,
   vendors,
   customers,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { toNumber } from '../../utils/decimal';
 
-interface GapItem {
+export interface GapItem {
   entityType: string;
   entityId: string;
   label: string;
@@ -22,18 +20,36 @@ interface GapItem {
   url: string;
 }
 
-interface GapCategory {
+export interface GapCategorySummary {
+  key: string;
   title: string;
   description: string;
-  severity: 'error' | 'warning' | 'info';
+  severity: 'error' | 'warning';
+  count: number;
+}
+
+export interface GapScanSummary {
+  categories: GapCategorySummary[];
+  totalGaps: number;
+  daysScanned: number;
+  scannedAt: string;
+}
+
+export interface GapCategoryItems {
+  key: string;
   items: GapItem[];
 }
 
-export interface GapScanResult {
-  categories: GapCategory[];
-  totalGaps: number;
-  scannedAt: string;
-}
+const GAP_DEFINITIONS: Array<{ key: string; title: string; description: string; severity: 'error' | 'warning' }> = [
+  { key: 'uncategorized_bank_txns', title: 'Uncategorized Bank Transactions', description: 'No GL category, vendor, or customer assigned', severity: 'error' },
+  { key: 'matched_without_je', title: 'Matched Without Journal Entries', description: 'Reconciled but no accounting entry — books incomplete', severity: 'error' },
+  { key: 'unposted_bills', title: 'Bills Without Journal Entries', description: 'Approved bills not posted to GL', severity: 'error' },
+  { key: 'unposted_invoices', title: 'Invoices Without Journal Entries', description: 'Sent invoices not posted to GL', severity: 'error' },
+  { key: 'unpaid_bills', title: 'Unpaid Bills', description: 'Outstanding vendor balance', severity: 'warning' },
+  { key: 'unpaid_invoices', title: 'Unpaid Invoices', description: 'Outstanding customer balance', severity: 'warning' },
+  { key: 'unmatched_payments', title: 'Unreconciled Payments', description: 'Not matched to bank statement', severity: 'warning' },
+  { key: 'unmatched_receipts', title: 'Unreconciled Receipts', description: 'Not matched to bank statement', severity: 'warning' },
+];
 
 export class GapScanService {
   constructor(
@@ -41,276 +57,179 @@ export class GapScanService {
     private readonly tenantId: string,
   ) {}
 
-  async scan(): Promise<GapScanResult> {
-    const categories = await Promise.all([
-      this.uncategorizedBankTxns(),
-      this.bankTxnsWithoutJE(),
-      this.unpaidBills(),
-      this.unpaidInvoices(),
-      this.unmatchedPayments(),
-      this.unmatchedReceipts(),
-      this.unpostedBills(),
-      this.unpostedInvoices(),
+  /** Fast summary — counts only, no row data */
+  async scanSummary(days = 90): Promise<GapScanSummary> {
+    const since = this.dateSince(days);
+    const counts = await Promise.all([
+      this.uncategorizedCount(since),
+      this.matchedWithoutJECount(since),
+      this.unpostedBillsCount(since),
+      this.unpostedInvoicesCount(since),
+      this.unpaidBillsCount(since),
+      this.unpaidInvoicesCount(since),
+      this.unmatchedPaymentsCount(since),
+      this.unmatchedReceiptsCount(since),
     ]);
 
-    const filtered = categories.filter((c) => c.items.length > 0);
-    const totalGaps = filtered.reduce((s, c) => s + c.items.length, 0);
-
-    return { categories: filtered, totalGaps, scannedAt: new Date().toISOString() };
-  }
-
-  private async uncategorizedBankTxns(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: bankTransactions.id,
-      narration: bankTransactions.narration,
-      amount: bankTransactions.amount,
-      type: bankTransactions.type,
-      date: bankTransactions.transactionDate,
-    })
-      .from(bankTransactions)
-      .where(and(
-        eq(bankTransactions.tenantId, this.tenantId),
-        eq(bankTransactions.reconStatus, 'unreconciled'),
-        isNull(bankTransactions.glAccountId),
-        isNull(bankTransactions.vendorId),
-        isNull(bankTransactions.customerId),
-      ))
-      .limit(50);
+    const categories = GAP_DEFINITIONS.map((def, i) => ({
+      ...def,
+      count: counts[i],
+    })).filter((c) => c.count > 0);
 
     return {
-      title: 'Uncategorized Bank Transactions',
-      description: 'Transactions with no GL category, vendor, or customer assigned',
-      severity: 'error',
-      items: rows.map((r) => ({
-        entityType: 'bank_transaction', entityId: r.id,
-        label: r.narration?.slice(0, 60) ?? 'No description',
-        summary: `₹${toNumber(r.amount).toLocaleString('en-IN')} · ${r.type}`,
-        date: r.date, url: '/banking/transactions',
-      })),
+      categories,
+      totalGaps: counts.reduce((s, c) => s + c, 0),
+      daysScanned: days,
+      scannedAt: new Date().toISOString(),
     };
   }
 
-  private async bankTxnsWithoutJE(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: bankTransactions.id,
-      narration: bankTransactions.narration,
-      amount: bankTransactions.amount,
-      type: bankTransactions.type,
-      date: bankTransactions.transactionDate,
-    })
-      .from(bankTransactions)
-      .where(and(
-        eq(bankTransactions.tenantId, this.tenantId),
-        eq(bankTransactions.reconStatus, 'matched'),
-        isNull(bankTransactions.journalEntryId),
-        sql`NOT EXISTS (
-          SELECT 1 FROM reconciliation_matches rm
-          JOIN payments p ON rm.payment_id = p.id
-          JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id
-          WHERE rm.bank_transaction_id = ${bankTransactions.id}
-        )`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM journal_entries je
-          WHERE je.source_id = ${bankTransactions.id}
-          AND je.source_type IN ('bank_debit', 'bank_credit')
-        )`,
-      ))
-      .limit(50);
-
-    return {
-      title: 'Matched Transactions Without Journal Entries',
-      description: 'Reconciled but no accounting entry exists — books may be incomplete',
-      severity: 'error',
-      items: rows.map((r) => ({
-        entityType: 'bank_transaction', entityId: r.id,
-        label: r.narration?.slice(0, 60) ?? 'No description',
-        summary: `₹${toNumber(r.amount).toLocaleString('en-IN')} · ${r.type}`,
-        date: r.date, url: '/banking/transactions',
-      })),
-    };
+  /** Lazy-load items for a specific gap category */
+  async getCategoryItems(key: string, days = 90): Promise<GapCategoryItems> {
+    const since = this.dateSince(days);
+    const fetcher = this.itemFetchers[key];
+    if (!fetcher) return { key, items: [] };
+    const items = await fetcher(since);
+    return { key, items };
   }
 
-  private async unpaidBills(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: purchaseInvoices.id,
-      invoiceNumber: purchaseInvoices.invoiceNumber,
-      totalAmount: purchaseInvoices.totalAmount,
-      balanceDue: purchaseInvoices.balanceDue,
-      date: purchaseInvoices.invoiceDate,
-      vendorName: vendors.name,
-    })
-      .from(purchaseInvoices)
-      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
-      .where(and(
-        eq(purchaseInvoices.tenantId, this.tenantId),
-        sql`${purchaseInvoices.balanceDue}::numeric > 0`,
-        sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
-      ))
-      .limit(50);
+  // ── Helpers ──────────────────────────────────────────────────────
 
-    return {
-      title: 'Unpaid Bills',
-      description: 'Approved bills with outstanding balance — payment not yet recorded',
-      severity: 'warning',
-      items: rows.map((r) => ({
-        entityType: 'purchase_invoice', entityId: r.id,
-        label: `${r.invoiceNumber} — ${r.vendorName}`,
-        summary: `₹${toNumber(r.balanceDue).toLocaleString('en-IN')} due of ₹${toNumber(r.totalAmount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ap/bills/${r.id}`,
-      })),
-    };
+  private dateSince(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().split('T')[0];
   }
 
-  private async unpaidInvoices(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: salesInvoices.id,
-      invoiceNumber: salesInvoices.invoiceNumber,
-      totalAmount: salesInvoices.totalAmount,
-      balanceDue: salesInvoices.balanceDue,
-      date: salesInvoices.invoiceDate,
-      customerName: customers.name,
-    })
-      .from(salesInvoices)
-      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
-      .where(and(
-        eq(salesInvoices.tenantId, this.tenantId),
-        sql`${salesInvoices.balanceDue}::numeric > 0`,
-        sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
-      ))
-      .limit(50);
+  // ── Count queries (fast, indexed) ────────────────────────────────
 
-    return {
-      title: 'Unpaid Invoices',
-      description: 'Sent invoices with outstanding balance — payment not yet received',
-      severity: 'warning',
-      items: rows.map((r) => ({
-        entityType: 'sales_invoice', entityId: r.id,
-        label: `${r.invoiceNumber} — ${r.customerName}`,
-        summary: `₹${toNumber(r.balanceDue).toLocaleString('en-IN')} due of ₹${toNumber(r.totalAmount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ar/invoices/${r.id}`,
-      })),
-    };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async countFrom(query: any): Promise<number> {
+    const [row] = await query;
+    return row?.count ?? 0;
   }
 
-  private async unmatchedPayments(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: payments.id,
-      amount: payments.amount,
-      date: payments.paymentDate,
-      vendorName: vendors.name,
-    })
-      .from(payments)
-      .innerJoin(vendors, eq(payments.vendorId, vendors.id))
-      .where(and(
-        eq(payments.tenantId, this.tenantId),
-        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`,
-      ))
-      .limit(50);
-
-    return {
-      title: 'Unreconciled Payments',
-      description: 'Payments recorded in books but not matched to any bank transaction',
-      severity: 'warning',
-      items: rows.map((r) => ({
-        entityType: 'payment', entityId: r.id,
-        label: `Payment to ${r.vendorName}`,
-        summary: `₹${toNumber(r.amount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ap/payments/${r.id}`,
-      })),
-    };
+  private uncategorizedCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(and(
+      eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since),
+      eq(bankTransactions.reconStatus, 'unreconciled'), isNull(bankTransactions.glAccountId),
+      isNull(bankTransactions.vendorId), isNull(bankTransactions.customerId),
+    )));
   }
 
-  private async unmatchedReceipts(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: paymentReceipts.id,
-      amount: paymentReceipts.amount,
-      date: paymentReceipts.receiptDate,
-      customerName: customers.name,
-    })
-      .from(paymentReceipts)
-      .innerJoin(customers, eq(paymentReceipts.customerId, customers.id))
-      .where(and(
-        eq(paymentReceipts.tenantId, this.tenantId),
-        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`,
-      ))
-      .limit(50);
-
-    return {
-      title: 'Unreconciled Receipts',
-      description: 'Receipts recorded in books but not matched to any bank transaction',
-      severity: 'warning',
-      items: rows.map((r) => ({
-        entityType: 'receipt', entityId: r.id,
-        label: `Receipt from ${r.customerName}`,
-        summary: `₹${toNumber(r.amount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ar/receipts/${r.id}`,
-      })),
-    };
+  private matchedWithoutJECount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(and(
+      eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since),
+      eq(bankTransactions.reconStatus, 'matched'), isNull(bankTransactions.journalEntryId),
+      sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payments p ON rm.payment_id = p.id JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id WHERE rm.bank_transaction_id = ${bankTransactions.id})`,
+      sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_id = ${bankTransactions.id} AND je.source_type IN ('bank_debit', 'bank_credit'))`,
+    )));
   }
 
-  private async unpostedBills(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: purchaseInvoices.id,
-      invoiceNumber: purchaseInvoices.invoiceNumber,
-      totalAmount: purchaseInvoices.totalAmount,
-      date: purchaseInvoices.invoiceDate,
-      vendorName: vendors.name,
-    })
-      .from(purchaseInvoices)
-      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
-      .where(and(
-        eq(purchaseInvoices.tenantId, this.tenantId),
-        sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM journal_entries je
-          WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id}
-        )`,
-      ))
-      .limit(50);
-
-    return {
-      title: 'Bills Without Journal Entries',
-      description: 'Approved bills with no GL posting — expense not recorded in books',
-      severity: 'error',
-      items: rows.map((r) => ({
-        entityType: 'purchase_invoice', entityId: r.id,
-        label: `${r.invoiceNumber} — ${r.vendorName}`,
-        summary: `₹${toNumber(r.totalAmount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ap/bills/${r.id}`,
-      })),
-    };
+  private unpostedBillsCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(purchaseInvoices).where(and(
+      eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
+      sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+      sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`,
+    )));
   }
 
-  private async unpostedInvoices(): Promise<GapCategory> {
-    const rows = await this.db.select({
-      id: salesInvoices.id,
-      invoiceNumber: salesInvoices.invoiceNumber,
-      totalAmount: salesInvoices.totalAmount,
-      date: salesInvoices.invoiceDate,
-      customerName: customers.name,
-    })
-      .from(salesInvoices)
-      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
-      .where(and(
-        eq(salesInvoices.tenantId, this.tenantId),
-        sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM journal_entries je
-          WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id}
-        )`,
-      ))
-      .limit(50);
+  private unpostedInvoicesCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(and(
+      eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since),
+      sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+      sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id})`,
+    )));
+  }
 
-    return {
-      title: 'Invoices Without Journal Entries',
-      description: 'Sent invoices with no GL posting — revenue not recorded in books',
-      severity: 'error',
-      items: rows.map((r) => ({
-        entityType: 'sales_invoice', entityId: r.id,
-        label: `${r.invoiceNumber} — ${r.customerName}`,
-        summary: `₹${toNumber(r.totalAmount).toLocaleString('en-IN')}`,
-        date: r.date, url: `/ar/invoices/${r.id}`,
-      })),
-    };
+  private unpaidBillsCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(purchaseInvoices).where(and(
+      eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
+      sql`${purchaseInvoices.balanceDue}::numeric > 0`, sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+    )));
+  }
+
+  private unpaidInvoicesCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(and(
+      eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since),
+      sql`${salesInvoices.balanceDue}::numeric > 0`, sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+    )));
+  }
+
+  private unmatchedPaymentsCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(payments).where(and(
+      eq(payments.tenantId, this.tenantId), gte(payments.paymentDate, since),
+      sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`,
+    )));
+  }
+
+  private unmatchedReceiptsCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(paymentReceipts).where(and(
+      eq(paymentReceipts.tenantId, this.tenantId), gte(paymentReceipts.receiptDate, since),
+      sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`,
+    )));
+  }
+
+  // ── Item fetchers (lazy, on expand) ─────────────────────────────
+
+  private itemFetchers: Record<string, (since: string) => Promise<GapItem[]>> = {
+    uncategorized_bank_txns: (since) => this.fetchBankTxnItems(
+      and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'unreconciled'), isNull(bankTransactions.glAccountId), isNull(bankTransactions.vendorId), isNull(bankTransactions.customerId)),
+    ),
+    matched_without_je: (since) => this.fetchBankTxnItems(
+      and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'matched'), isNull(bankTransactions.journalEntryId),
+        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payments p ON rm.payment_id = p.id JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id WHERE rm.bank_transaction_id = ${bankTransactions.id})`,
+        sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_id = ${bankTransactions.id} AND je.source_type IN ('bank_debit', 'bank_credit'))`,
+      ),
+    ),
+    unposted_bills: async (since) => {
+      const rows = await this.db.select({ id: purchaseInvoices.id, num: purchaseInvoices.invoiceNumber, amt: purchaseInvoices.totalAmount, date: purchaseInvoices.invoiceDate, vname: vendors.name })
+        .from(purchaseInvoices).innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/bills/${r.id}` }));
+    },
+    unposted_invoices: async (since) => {
+      const rows = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, date: salesInvoices.invoiceDate, cname: customers.name })
+        .from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id})`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'sales_invoice', entityId: r.id, label: `${r.num} — ${r.cname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/invoices/${r.id}` }));
+    },
+    unpaid_bills: async (since) => {
+      const rows = await this.db.select({ id: purchaseInvoices.id, num: purchaseInvoices.invoiceNumber, amt: purchaseInvoices.totalAmount, bal: purchaseInvoices.balanceDue, date: purchaseInvoices.invoiceDate, vname: vendors.name })
+        .from(purchaseInvoices).innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.balanceDue}::numeric > 0`, sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.bal).toLocaleString('en-IN')} due of ₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/bills/${r.id}` }));
+    },
+    unpaid_invoices: async (since) => {
+      const rows = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue, date: salesInvoices.invoiceDate, cname: customers.name })
+        .from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.balanceDue}::numeric > 0`, sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'sales_invoice', entityId: r.id, label: `${r.num} — ${r.cname}`, summary: `₹${toNumber(r.bal).toLocaleString('en-IN')} due of ₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/invoices/${r.id}` }));
+    },
+    unmatched_payments: async (since) => {
+      const rows = await this.db.select({ id: payments.id, amt: payments.amount, date: payments.paymentDate, vname: vendors.name })
+        .from(payments).innerJoin(vendors, eq(payments.vendorId, vendors.id))
+        .where(and(eq(payments.tenantId, this.tenantId), gte(payments.paymentDate, since), sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'payment', entityId: r.id, label: `Payment to ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/payments/${r.id}` }));
+    },
+    unmatched_receipts: async (since) => {
+      const rows = await this.db.select({ id: paymentReceipts.id, amt: paymentReceipts.amount, date: paymentReceipts.receiptDate, cname: customers.name })
+        .from(paymentReceipts).innerJoin(customers, eq(paymentReceipts.customerId, customers.id))
+        .where(and(eq(paymentReceipts.tenantId, this.tenantId), gte(paymentReceipts.receiptDate, since), sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'receipt', entityId: r.id, label: `Receipt from ${r.cname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/receipts/${r.id}` }));
+    },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async fetchBankTxnItems(where: any): Promise<GapItem[]> {
+    const rows = await this.db.select({ id: bankTransactions.id, narration: bankTransactions.narration, amount: bankTransactions.amount, type: bankTransactions.type, date: bankTransactions.transactionDate })
+      .from(bankTransactions).where(where).limit(50);
+    return rows.map((r) => ({ entityType: 'bank_transaction', entityId: r.id, label: r.narration?.slice(0, 60) ?? 'No description', summary: `₹${toNumber(r.amount).toLocaleString('en-IN')} · ${r.type}`, date: r.date, url: '/banking/transactions' }));
   }
 }

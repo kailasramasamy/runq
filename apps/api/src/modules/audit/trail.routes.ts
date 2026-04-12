@@ -25,8 +25,25 @@ export const trailRoutes: FastifyPluginAsync = async (app) => {
     '/gap-scan',
     { preHandler: [rbacHook(['owner', 'accountant'])] },
     async (request) => {
+      const query = request.query as { days?: string };
+      const days = query.days ? parseInt(query.days, 10) : 90;
       const service = new GapScanService(request.server.db, request.tenantId);
-      const result = await service.scan();
+      const result = await service.scanSummary(days);
+      return { data: result };
+    },
+  );
+
+  const gapItemsParamSchema = z.object({ key: z.string() });
+
+  app.get(
+    '/gap-scan/:key/items',
+    { preHandler: [rbacHook(['owner', 'accountant'])] },
+    async (request) => {
+      const { key } = gapItemsParamSchema.parse(request.params);
+      const query = request.query as { days?: string };
+      const days = query.days ? parseInt(query.days, 10) : 90;
+      const service = new GapScanService(request.server.db, request.tenantId);
+      const result = await service.getCategoryItems(key, days);
       return { data: result };
     },
   );

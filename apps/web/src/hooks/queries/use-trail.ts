@@ -34,25 +34,39 @@ interface GapItem {
   url: string;
 }
 
-interface GapCategory {
+interface GapCategorySummary {
+  key: string;
   title: string;
   description: string;
-  severity: 'error' | 'warning' | 'info';
-  items: GapItem[];
+  severity: 'error' | 'warning';
+  count: number;
 }
 
-interface GapScanResult {
-  categories: GapCategory[];
+interface GapScanSummary {
+  categories: GapCategorySummary[];
   totalGaps: number;
+  daysScanned: number;
   scannedAt: string;
 }
 
-export function useGapScan(enabled = true) {
+interface GapCategoryItems {
+  key: string;
+  items: GapItem[];
+}
+
+export function useGapScan(days = 90) {
   return useQuery({
-    queryKey: ['gap-scan'],
-    queryFn: () => api.get<{ data: GapScanResult }>('/audit/gap-scan'),
+    queryKey: ['gap-scan', days],
+    queryFn: () => api.get<{ data: GapScanSummary }>(`/audit/gap-scan?days=${days}`),
+  });
+}
+
+export function useGapItems(key: string, days = 90, enabled = false) {
+  return useQuery({
+    queryKey: ['gap-scan', 'items', key, days],
+    queryFn: () => api.get<{ data: GapCategoryItems }>(`/audit/gap-scan/${key}/items?days=${days}`),
     enabled,
   });
 }
 
-export type { TrailNode, DocumentTrail, GapItem, GapCategory, GapScanResult };
+export type { TrailNode, DocumentTrail, GapItem, GapCategorySummary, GapScanSummary, GapCategoryItems };
