@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Upload, Sparkles, RefreshCw, Calendar } from 'lucide-react';
 import { useBankAccounts, useBankBalance } from '@/hooks/queries/use-bank-accounts';
@@ -79,14 +79,14 @@ function TxnCard({ txn }: { txn: BankTransaction }) {
 }
 
 // FE-03: Virtual scrolling needed here — add @tanstack/react-virtual when list grows large.
-const TxnRow = memo(function TxnRow({ txn }: { txn: BankTransaction }) {
+const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; onSelect: (id: string) => void }) {
   const isCredit = txn.type === 'credit';
   return (
-    <TableRow>
+    <TableRow className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50" onClick={() => onSelect(txn.id)}>
       <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
         {txn.transactionDate}
       </TableCell>
-      <TableCell className="max-w-xs" title={txn.narration ?? undefined}>
+      <TableCell className="max-w-xs">
         <p className="truncate text-sm">{txn.narration ?? '—'}</p>
       </TableCell>
       <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
@@ -132,6 +132,47 @@ const TxnRow = memo(function TxnRow({ txn }: { txn: BankTransaction }) {
   );
 });
 
+function TxnDetail({ txn }: { txn: BankTransaction }) {
+  const isCredit = txn.type === 'credit';
+  return (
+    <tr>
+      <td colSpan={8} className="p-0">
+        <div className="bg-zinc-50 dark:bg-zinc-900/50 border-y border-zinc-200 dark:border-zinc-800 px-6 py-4">
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-zinc-500 dark:text-zinc-400">Description: </span>
+              <span className="text-zinc-900 dark:text-zinc-100">{txn.narration ?? '—'}</span>
+            </div>
+            {txn.reference && (
+              <div>
+                <span className="text-zinc-500 dark:text-zinc-400">Reference: </span>
+                <span className="font-mono text-zinc-900 dark:text-zinc-100">{txn.reference}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="text-zinc-500 dark:text-zinc-400">Amount: </span>
+                <span className={`font-medium tabular-nums ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {isCredit ? '+' : '-'}{formatINR(txn.amount)}
+                </span>
+              </div>
+              {txn.glAccountName && (
+                <div>
+                  <span className="text-zinc-500 dark:text-zinc-400">Category: </span>
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {txn.glAccountName}
+                    <span className="text-zinc-400 dark:text-zinc-500 ml-1 text-xs">({txn.glAccountCode})</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function TransactionsPage() {
   const navigate = useNavigate();
   const [accountId, setAccountId] = useState('');
@@ -140,6 +181,7 @@ export function TransactionsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const categorize = useCategorizeTransactions();
   const sync = useSyncTransactions();
 
@@ -343,7 +385,12 @@ export function TransactionsPage() {
                 </td>
               </tr>
             ) : (
-              transactions.map((txn) => <TxnRow key={txn.id} txn={txn} />)
+              transactions.map((txn) => (
+                <Fragment key={txn.id}>
+                  <TxnRow txn={txn} onSelect={(id) => setSelectedId((prev) => prev === id ? null : id)} />
+                  {selectedId === txn.id && <TxnDetail txn={txn} />}
+                </Fragment>
+              ))
             )}
           </TableBody>
         </Table>
