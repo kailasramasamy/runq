@@ -9,7 +9,7 @@
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Sync / Import   │────▶│  Auto-Categorize │────▶│    Reconciled    │
+│  Sync / Import   │ ──▶ │ Auto-Categorize  │ ──▶ │   Reconciled     │
 │  Bank Statement  │     │   (one click)    │     │   (all done)     │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
