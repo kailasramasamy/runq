@@ -1,0 +1,213 @@
+import { eq, and, sql } from 'drizzle-orm';
+import {
+  salesInvoices, salesInvoiceItems,
+  purchaseInvoices, purchaseInvoiceItems,
+  customers, vendors,
+} from '@runq/db';
+import type { Db } from '@runq/db';
+import { GLService } from '../gl/gl.service';
+import { toNumber } from '../../utils/decimal';
+
+interface OBEntry {
+  id: string;
+  name: string;
+  amount: number;
+  hasOpeningBalance: boolean;
+}
+
+export interface OpeningBalanceStatus {
+  customers: OBEntry[];
+  vendors: OBEntry[];
+}
+
+interface SaveInput {
+  effectiveDate: string;
+  customers: { id: string; amount: number }[];
+  vendors: { id: string; amount: number }[];
+}
+
+export class OpeningBalanceService {
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+  ) {}
+
+  async getStatus(): Promise<OpeningBalanceStatus> {
+    const [custs, vends] = await Promise.all([
+      this.db.select({ id: customers.id, name: customers.name }).from(customers)
+        .where(eq(customers.tenantId, this.tenantId)).orderBy(customers.name),
+      this.db.select({ id: vendors.id, name: vendors.name }).from(vendors)
+        .where(and(eq(vendors.tenantId, this.tenantId), sql`${vendors.deletedAt} IS NULL`))
+        .orderBy(vendors.name),
+    ]);
+
+    // Check which already have OB invoices
+    const [obInvoices, obBills] = await Promise.all([
+      this.db.select({ customerId: salesInvoices.customerId, amt: salesInvoices.totalAmount })
+        .from(salesInvoices)
+        .where(and(eq(salesInvoices.tenantId, this.tenantId), sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`)),
+      this.db.select({ vendorId: purchaseInvoices.vendorId, amt: purchaseInvoices.totalAmount })
+        .from(purchaseInvoices)
+        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`)),
+    ]);
+
+    const obInvMap = new Map(obInvoices.map((i) => [i.customerId, toNumber(i.amt)]));
+    const obBillMap = new Map(obBills.map((b) => [b.vendorId, toNumber(b.amt)]));
+
+    return {
+      customers: custs.map((c) => ({
+        id: c.id,
+        name: c.name,
+        amount: obInvMap.get(c.id) ?? 0,
+        hasOpeningBalance: obInvMap.has(c.id),
+      })),
+      vendors: vends.map((v) => ({
+        id: v.id,
+        name: v.name,
+        amount: obBillMap.get(v.id) ?? 0,
+        hasOpeningBalance: obBillMap.has(v.id),
+      })),
+    };
+  }
+
+  async save(input: SaveInput): Promise<{ invoicesCreated: number; billsCreated: number }> {
+    const custEntries = input.customers.filter((c) => c.amount > 0);
+    const vendEntries = input.vendors.filter((v) => v.amount > 0);
+    const fy = this.getFY(input.effectiveDate);
+
+    let invoicesCreated = 0;
+    let billsCreated = 0;
+
+    // Create opening invoices for customers
+    for (const entry of custEntries) {
+      const created = await this.createOpeningInvoice(entry.id, entry.amount, input.effectiveDate, fy);
+      if (created) invoicesCreated++;
+    }
+
+    // Create opening bills for vendors
+    for (const entry of vendEntries) {
+      const created = await this.createOpeningBill(entry.id, entry.amount, input.effectiveDate, fy);
+      if (created) billsCreated++;
+    }
+
+    // Post consolidated opening balance JE
+    const totalAR = custEntries.reduce((s, c) => s + c.amount, 0);
+    const totalAP = vendEntries.reduce((s, v) => s + v.amount, 0);
+
+    if (totalAR > 0 || totalAP > 0) {
+      await this.postOpeningJE(input.effectiveDate, totalAR, totalAP);
+    }
+
+    return { invoicesCreated, billsCreated };
+  }
+
+  private async createOpeningInvoice(customerId: string, amount: number, date: string, fy: string): Promise<boolean> {
+    const [cust] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (!cust) return false;
+
+    const initials = cust.name.split(/\s+/).map((w) => w[0]?.toUpperCase()).filter(Boolean).join('').slice(0, 4);
+    const invoiceNumber = `OB-${initials}-${fy}`;
+
+    // Check if already exists
+    const [existing] = await this.db.select({ id: salesInvoices.id }).from(salesInvoices)
+      .where(and(eq(salesInvoices.tenantId, this.tenantId), eq(salesInvoices.invoiceNumber, invoiceNumber))).limit(1);
+    if (existing) return false;
+
+    const [inv] = await this.db.insert(salesInvoices).values({
+      tenantId: this.tenantId,
+      customerId,
+      invoiceNumber,
+      invoiceDate: date,
+      dueDate: date,
+      subtotal: String(amount),
+      taxAmount: '0',
+      totalAmount: String(amount),
+      amountReceived: '0',
+      balanceDue: String(amount),
+      status: 'sent',
+    }).returning();
+
+    await this.db.insert(salesInvoiceItems).values({
+      tenantId: this.tenantId,
+      invoiceId: inv!.id,
+      description: 'Opening balance — outstanding from previous FY',
+      quantity: '1',
+      unitPrice: String(amount),
+      amount: String(amount),
+    });
+
+    return true;
+  }
+
+  private async createOpeningBill(vendorId: string, amount: number, date: string, fy: string): Promise<boolean> {
+    const [vend] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, vendorId)).limit(1);
+    if (!vend) return false;
+
+    const initials = vend.name.split(/\s+/).map((w) => w[0]?.toUpperCase()).filter(Boolean).join('').slice(0, 4);
+    const invoiceNumber = `OB-${initials}-${fy}`;
+
+    const [existing] = await this.db.select({ id: purchaseInvoices.id }).from(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.tenantId, this.tenantId), eq(purchaseInvoices.invoiceNumber, invoiceNumber))).limit(1);
+    if (existing) return false;
+
+    const [bill] = await this.db.insert(purchaseInvoices).values({
+      tenantId: this.tenantId,
+      vendorId,
+      invoiceNumber,
+      invoiceDate: date,
+      dueDate: date,
+      subtotal: String(amount),
+      taxAmount: '0',
+      totalAmount: String(amount),
+      amountPaid: '0',
+      balanceDue: String(amount),
+      status: 'approved',
+    }).returning();
+
+    await this.db.insert(purchaseInvoiceItems).values({
+      tenantId: this.tenantId,
+      invoiceId: bill!.id,
+      itemName: 'Opening balance — outstanding from previous FY',
+      quantity: '1',
+      unitPrice: String(amount),
+      amount: String(amount),
+    });
+
+    return true;
+  }
+
+  private async postOpeningJE(date: string, totalAR: number, totalAP: number): Promise<void> {
+    const gl = new GLService(this.db, this.tenantId);
+
+    const lines: { accountCode: string; debit?: number; credit?: number }[] = [];
+    if (totalAR > 0) lines.push({ accountCode: '1103', debit: totalAR });
+    if (totalAP > 0) lines.push({ accountCode: '2101', credit: totalAP });
+
+    // Balancing entry to Retained Earnings
+    const net = totalAR - totalAP;
+    if (net > 0) {
+      lines.push({ accountCode: '3002', credit: net });
+    } else if (net < 0) {
+      lines.push({ accountCode: '3002', debit: Math.abs(net) });
+    }
+
+    if (lines.length >= 2) {
+      await gl.createJournalEntry({
+        date,
+        description: `Opening balances as of ${date}`,
+        sourceType: 'opening_balance',
+        sourceId: this.tenantId,
+        lines,
+      });
+    }
+  }
+
+  private getFY(date: string): string {
+    const d = new Date(date);
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear();
+    const startYear = month >= 4 ? year : year - 1;
+    const endYear = startYear + 1;
+    return `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+  }
+}

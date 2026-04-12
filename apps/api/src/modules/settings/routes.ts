@@ -7,6 +7,8 @@ import { SettingsService } from './settings.service';
 import { CAPortalService } from '../ca-portal/ca-portal.service';
 import { userRoutes } from './user.routes';
 import { auditRoutes } from './audit.routes';
+import { OpeningBalanceService } from './opening-balance.service';
+import { z } from 'zod';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const OWNER_ROLES = ['owner'] as const;
@@ -143,6 +145,35 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
       const service = new SettingsService(request.server.db, request.tenantId);
       const data = await service.dismissOnboarding();
       return { data };
+    },
+  );
+
+  // ── Opening Balances ────────────────────────────────────────────
+
+  app.get(
+    '/opening-balances',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new OpeningBalanceService(request.server.db, request.tenantId);
+      const data = await service.getStatus();
+      return { data };
+    },
+  );
+
+  const openingBalanceSchema = z.object({
+    effectiveDate: z.string(),
+    customers: z.array(z.object({ id: z.string().uuid(), amount: z.number().min(0) })),
+    vendors: z.array(z.object({ id: z.string().uuid(), amount: z.number().min(0) })),
+  });
+
+  app.post(
+    '/opening-balances',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const input = openingBalanceSchema.parse(request.body);
+      const service = new OpeningBalanceService(request.server.db, request.tenantId);
+      const result = await service.save(input);
+      return reply.status(200).send({ data: result });
     },
   );
 

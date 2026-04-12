@@ -4,6 +4,7 @@ import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { CompanySettingsPage } from './settings/company';
 import { InvoiceNumberingPage } from './settings/invoice-numbering';
+import { OpeningBalancesPage } from './settings/opening-balances';
 import { ItemAttributesPage } from './settings/item-attributes';
 import { UsersPage } from './settings/users';
 import { TallyExportPage } from './settings/tally-export';
@@ -835,6 +836,7 @@ const SETTINGS_TABS = [
   { label: 'CA Portal', path: '/settings/ca-portal' },
   { label: 'Migrate from Tally', path: '/settings/tally-import' },
   { label: 'Webhooks', path: '/settings/webhooks' },
+  { label: 'Opening Balances', path: '/settings/opening-balances' },
 ];
 
 function SettingsNav() {
@@ -929,6 +931,12 @@ const settingsNotificationsRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/notifications',
   component: NotificationsPage,
+});
+
+const settingsOpeningBalancesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/opening-balances',
+  component: OpeningBalancesPage,
 });
 
 // ─── Reports Sub-navigation ──────────────────────────────────────────────────
@@ -1559,6 +1567,7 @@ export const routeTree = rootRoute.addChildren([
       settingsCAPortalRoute,
       settingsTallyImportRoute,
       settingsWebhooksRoute,
+      settingsOpeningBalancesRoute,
     ]),
     mastersRoute.addChildren([
       mastersIndexRoute,
