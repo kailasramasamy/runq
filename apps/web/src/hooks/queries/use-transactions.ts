@@ -59,7 +59,10 @@ export function useImportTransactions() {
         `/banking/accounts/${accountId}/import`,
         { csvData },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TXN_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+    },
   });
 }
 
@@ -70,7 +73,10 @@ export function useCategorizeTransactions() {
       api.post<ApiSuccess<CategorizationResult>>(
         `/banking/accounts/${accountId}/categorize`,
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TXN_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+    },
   });
 }
 
@@ -86,7 +92,10 @@ export function useSyncTransactions() {
       api.post<ApiSuccess<SyncResult>>(
         `/banking/accounts/${accountId}/sync`,
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: TXN_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+    },
   });
 }
 
