@@ -280,6 +280,15 @@ export function TransactionsPage() {
         }
       />
 
+      {lastSyncDate && (
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <Calendar className="h-3 w-3 text-zinc-400" />
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            Synced till <span className="font-medium text-zinc-700 dark:text-zinc-300">{new Date(lastSyncDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </span>
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
         <div className="col-span-2 sm:w-48">
           <Select
@@ -288,14 +297,6 @@ export function TransactionsPage() {
             value={accountId}
             onChange={(e) => { setAccountId(e.target.value); setPage(1); }}
           />
-          {lastSyncDate && (
-            <div className="mt-1 flex items-center gap-1.5">
-              <Calendar className="h-3 w-3 text-zinc-400" />
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                Synced till <span className="font-medium text-zinc-700 dark:text-zinc-300">{new Date(lastSyncDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-              </span>
-            </div>
-          )}
         </div>
         <div className="col-span-2 sm:w-52">
           <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Search</label>
