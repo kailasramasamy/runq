@@ -77,25 +77,24 @@ export class OpeningBalanceService {
 
     let invoicesCreated = 0;
     let billsCreated = 0;
+    let newARTotal = 0;
+    let newAPTotal = 0;
 
     // Create opening invoices for customers
     for (const entry of custEntries) {
       const created = await this.createOpeningInvoice(entry.id, entry.amount, input.effectiveDate, fy);
-      if (created) invoicesCreated++;
+      if (created) { invoicesCreated++; newARTotal += entry.amount; }
     }
 
     // Create opening bills for vendors
     for (const entry of vendEntries) {
       const created = await this.createOpeningBill(entry.id, entry.amount, input.effectiveDate, fy);
-      if (created) billsCreated++;
+      if (created) { billsCreated++; newAPTotal += entry.amount; }
     }
 
-    // Post consolidated opening balance JE
-    const totalAR = custEntries.reduce((s, c) => s + c.amount, 0);
-    const totalAP = vendEntries.reduce((s, v) => s + v.amount, 0);
-
-    if (totalAR > 0 || totalAP > 0) {
-      await this.postOpeningJE(input.effectiveDate, totalAR, totalAP);
+    // Post JE only for newly created amounts
+    if (newARTotal > 0 || newAPTotal > 0) {
+      await this.postOpeningJE(input.effectiveDate, newARTotal, newAPTotal);
     }
 
     return { invoicesCreated, billsCreated };
@@ -105,12 +104,18 @@ export class OpeningBalanceService {
     const [cust] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, customerId)).limit(1);
     if (!cust) return false;
 
+    // Use customerId suffix to avoid collisions when names share initials
     const initials = cust.name.split(/\s+/).map((w) => w[0]?.toUpperCase()).filter(Boolean).join('').slice(0, 4);
-    const invoiceNumber = `OB-${initials}-${fy}`;
+    const suffix = customerId.slice(0, 4).toUpperCase();
+    const invoiceNumber = `OB-${initials}-${suffix}-${fy}`;
 
-    // Check if already exists
+    // Check if any OB invoice already exists for this customer
     const [existing] = await this.db.select({ id: salesInvoices.id }).from(salesInvoices)
-      .where(and(eq(salesInvoices.tenantId, this.tenantId), eq(salesInvoices.invoiceNumber, invoiceNumber))).limit(1);
+      .where(and(
+        eq(salesInvoices.tenantId, this.tenantId),
+        eq(salesInvoices.customerId, customerId),
+        sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`,
+      )).limit(1);
     if (existing) return false;
 
     const [inv] = await this.db.insert(salesInvoices).values({
@@ -144,10 +149,15 @@ export class OpeningBalanceService {
     if (!vend) return false;
 
     const initials = vend.name.split(/\s+/).map((w) => w[0]?.toUpperCase()).filter(Boolean).join('').slice(0, 4);
-    const invoiceNumber = `OB-${initials}-${fy}`;
+    const suffix = vendorId.slice(0, 4).toUpperCase();
+    const invoiceNumber = `OB-${initials}-${suffix}-${fy}`;
 
     const [existing] = await this.db.select({ id: purchaseInvoices.id }).from(purchaseInvoices)
-      .where(and(eq(purchaseInvoices.tenantId, this.tenantId), eq(purchaseInvoices.invoiceNumber, invoiceNumber))).limit(1);
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId),
+        eq(purchaseInvoices.vendorId, vendorId),
+        sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`,
+      )).limit(1);
     if (existing) return false;
 
     const [bill] = await this.db.insert(purchaseInvoices).values({
@@ -196,7 +206,7 @@ export class OpeningBalanceService {
         date,
         description: `Opening balances as of ${date}`,
         sourceType: 'opening_balance',
-        sourceId: this.tenantId,
+        sourceId: `${this.tenantId}-${Date.now()}`,
         lines,
       });
     }
