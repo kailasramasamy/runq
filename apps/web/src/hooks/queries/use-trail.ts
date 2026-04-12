@@ -69,4 +69,20 @@ export function useGapItems(key: string, days = 90, enabled = false) {
   });
 }
 
-export type { TrailNode, DocumentTrail, GapItem, GapCategorySummary, GapScanSummary, GapCategoryItems };
+interface FixStep {
+  action: string;
+  result: string;
+  success: boolean;
+}
+
+interface FixResult {
+  steps: FixStep[];
+  allFixed: boolean;
+  manualRequired: string[];
+}
+
+export async function fixEntity(entityType: string, entityId: string): Promise<{ data: FixResult }> {
+  return api.post<{ data: FixResult }>(`/audit/fix/${entityType}/${entityId}`);
+}
+
+export type { TrailNode, DocumentTrail, GapItem, GapCategorySummary, GapScanSummary, GapCategoryItems, FixStep, FixResult };
