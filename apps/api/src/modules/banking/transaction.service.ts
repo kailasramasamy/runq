@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, inArray, desc } from 'drizzle-orm';
 import { bankTransactions, bankAccounts, accounts, cheques, vendors, customers } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
@@ -73,6 +73,7 @@ export class TransactionService {
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere)
+        .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` })
