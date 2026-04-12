@@ -3,7 +3,7 @@ import { createVendorSchema } from '@runq/validators';
 import type { Vendor } from '@runq/types';
 import type { CreateVendorInput } from '@runq/validators';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
-import { Card, CardHeader, CardContent, Input, Select, Button } from '@/components/ui';
+import { Card, CardHeader, CardContent, Input, Select, Button, Combobox } from '@/components/ui';
 
 interface Props {
   initialData?: Vendor;
@@ -56,6 +56,45 @@ function buildInitial(v?: Vendor): FormState {
     expenseAccountCode: v.expenseAccountCode ?? undefined,
   };
 }
+
+const INDIAN_STATES = [
+  { value: 'Andhra Pradesh', label: 'Andhra Pradesh' },
+  { value: 'Arunachal Pradesh', label: 'Arunachal Pradesh' },
+  { value: 'Assam', label: 'Assam' },
+  { value: 'Bihar', label: 'Bihar' },
+  { value: 'Chhattisgarh', label: 'Chhattisgarh' },
+  { value: 'Delhi', label: 'Delhi' },
+  { value: 'Goa', label: 'Goa' },
+  { value: 'Gujarat', label: 'Gujarat' },
+  { value: 'Haryana', label: 'Haryana' },
+  { value: 'Himachal Pradesh', label: 'Himachal Pradesh' },
+  { value: 'Jharkhand', label: 'Jharkhand' },
+  { value: 'Karnataka', label: 'Karnataka' },
+  { value: 'Kerala', label: 'Kerala' },
+  { value: 'Madhya Pradesh', label: 'Madhya Pradesh' },
+  { value: 'Maharashtra', label: 'Maharashtra' },
+  { value: 'Manipur', label: 'Manipur' },
+  { value: 'Meghalaya', label: 'Meghalaya' },
+  { value: 'Mizoram', label: 'Mizoram' },
+  { value: 'Nagaland', label: 'Nagaland' },
+  { value: 'Odisha', label: 'Odisha' },
+  { value: 'Punjab', label: 'Punjab' },
+  { value: 'Rajasthan', label: 'Rajasthan' },
+  { value: 'Sikkim', label: 'Sikkim' },
+  { value: 'Tamil Nadu', label: 'Tamil Nadu' },
+  { value: 'Telangana', label: 'Telangana' },
+  { value: 'Tripura', label: 'Tripura' },
+  { value: 'Uttar Pradesh', label: 'Uttar Pradesh' },
+  { value: 'Uttarakhand', label: 'Uttarakhand' },
+  { value: 'West Bengal', label: 'West Bengal' },
+  { value: 'Jammu & Kashmir', label: 'Jammu & Kashmir' },
+  { value: 'Ladakh', label: 'Ladakh' },
+  { value: 'Chandigarh', label: 'Chandigarh' },
+  { value: 'Puducherry', label: 'Puducherry' },
+  { value: 'Lakshadweep', label: 'Lakshadweep' },
+  { value: 'Andaman & Nicobar', label: 'Andaman & Nicobar' },
+  { value: 'Dadra & Nagar Haveli and Daman & Diu', label: 'Dadra & Nagar Haveli and Daman & Diu' },
+];
 
 const PAYMENT_TERMS_OPTIONS = [
   { value: '0', label: 'Due on receipt' },
@@ -146,11 +185,12 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             }}
             error={errors.category}
           />
-          <Select
+          <Combobox
             label="Expense Account"
             options={getExpenseAccountOptions()}
             value={(form.expenseAccountCode as string) ?? ''}
-            onChange={(e) => set('expenseAccountCode', e.target.value)}
+            onChange={(v) => set('expenseAccountCode', v)}
+            placeholder="Search expense accounts..."
             error={errors.expenseAccountCode}
           />
         </CardContent>
@@ -174,7 +214,14 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             <Input label="Address Line 2" placeholder="Area, Landmark" {...field('addressLine2')} />
           </div>
           <Input label="City" placeholder="Mumbai" {...field('city')} />
-          <Input label="State" placeholder="Maharashtra" {...field('state')} />
+          <Combobox
+            label="State"
+            options={INDIAN_STATES}
+            value={(form.state as string) ?? ''}
+            onChange={(v) => set('state', v)}
+            placeholder="Search state..."
+            error={errors.state}
+          />
           <Input label="Pincode" placeholder="400001" {...field('pincode')} />
         </CardContent>
       </Card>
