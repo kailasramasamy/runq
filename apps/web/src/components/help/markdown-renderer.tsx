@@ -47,7 +47,7 @@ export function MarkdownRenderer({ content }: Props) {
             if (isBlock) {
               return (
                 <code
-                  className="block text-xs text-zinc-100"
+                  className="block text-xs text-zinc-800 dark:text-zinc-100"
                   style={{ fontFamily: '"Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono", monospace' }}
                 >
                   {children}
@@ -62,7 +62,7 @@ export function MarkdownRenderer({ content }: Props) {
           },
           pre: ({ children }) => (
             <pre
-              className="mb-4 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-100 leading-snug"
+              className="mb-4 overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-800 leading-snug dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               style={{ fontFamily: '"Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono", monospace' }}
             >
               {children}
