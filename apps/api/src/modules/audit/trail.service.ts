@@ -1,4 +1,4 @@
-import { eq, and, or, inArray } from 'drizzle-orm';
+import { eq, and, or, inArray, sql } from 'drizzle-orm';
 import {
   bankTransactions,
   reconciliationMatches,
@@ -76,6 +76,29 @@ export class TrailService {
     if (txn.customerId) {
       const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, txn.customerId)).limit(1);
       if (c) chain.push({ type: 'customer', id: txn.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${txn.customerId}` });
+
+      // Find matching unpaid invoices from this customer
+      const matchingInvoices = await this.db.select({
+        id: salesInvoices.id, num: salesInvoices.invoiceNumber,
+        amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
+        date: salesInvoices.invoiceDate, status: salesInvoices.status,
+      })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          eq(salesInvoices.customerId, txn.customerId),
+          sql`ABS(${salesInvoices.totalAmount}::numeric - ${toNumber(txn.amount)}) < 0.01`,
+          sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
+        ))
+        .limit(3);
+
+      for (const inv of matchingInvoices) {
+        chain.push({
+          type: 'sales_invoice', id: inv.id, label: inv.num,
+          summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due: ₹' + toNumber(inv.bal).toLocaleString('en-IN') : 'Paid'}`,
+          date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+        });
+      }
     }
 
     // Reconciliation matches → payment or receipt
@@ -130,12 +153,16 @@ export class TrailService {
 
     // Gap detection
     const hasJE = chain.some((n) => n.type === 'journal_entry');
+    const hasInvoice = chain.some((n) => n.type === 'sales_invoice');
     if (txn.reconStatus === 'unreconciled') {
       if (!txn.glAccountId && !txn.vendorId && !txn.customerId) {
         gaps.push('Not categorized or assigned to vendor/customer');
       }
       if (!hasJE && matches.length === 0) {
         gaps.push('No journal entry linked');
+      }
+      if (txn.customerId && txn.type === 'credit' && !hasInvoice && matches.length === 0) {
+        gaps.push('No matching invoice found for this customer payment');
       }
     } else if (!hasJE) {
       gaps.push('No journal entry found');

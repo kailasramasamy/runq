@@ -1,8 +1,9 @@
-import { eq, and, isNull } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, vendors } from '@runq/db';
+import { eq, and, sql } from 'drizzle-orm';
+import { bankTransactions, bankAccounts, accounts, vendors, customers, salesInvoices, paymentReceipts, receiptAllocations } from '@runq/db';
 import type { Db } from '@runq/db';
 import { AutoBillPayService } from '../banking/auto-bill-pay.service';
 import { CategorizePostingService } from '../banking/categorize-posting.service';
+import { GLService } from '../gl/gl.service';
 import { NotFoundError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
@@ -87,7 +88,91 @@ export class FixService {
       return { steps, allFixed: manualRequired.length === 0, manualRequired };
     }
 
-    // Path 2: GL category assigned but no JE → post JE
+    // Path 2: Customer assigned + credit → find invoice, create receipt, post JE
+    if (txn.customerId && txn.type === 'credit') {
+      const [customer] = await this.db.select().from(customers).where(eq(customers.id, txn.customerId)).limit(1);
+      const amount = toNumber(txn.amount);
+
+      // Find matching unpaid invoice
+      const [invoice] = await this.db.select().from(salesInvoices).where(and(
+        eq(salesInvoices.tenantId, this.tenantId),
+        eq(salesInvoices.customerId, txn.customerId),
+        sql`ABS(${salesInvoices.totalAmount}::numeric - ${amount}) < 0.01`,
+        sql`${salesInvoices.balanceDue}::numeric > 0`,
+        sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
+      )).limit(1);
+
+      if (invoice) {
+        // Create receipt against the invoice
+        const [receipt] = await this.db.insert(paymentReceipts).values({
+          tenantId: this.tenantId,
+          customerId: txn.customerId,
+          bankAccountId: txn.bankAccountId,
+          receiptDate: txn.transactionDate,
+          amount: String(amount),
+          paymentMethod: 'bank_transfer',
+          referenceNumber: txn.reference,
+          notes: 'Auto-created from bank transaction',
+        }).returning();
+
+        await this.db.insert(receiptAllocations).values({
+          tenantId: this.tenantId,
+          receiptId: receipt!.id,
+          invoiceId: invoice.id,
+          amount: String(amount),
+        });
+
+        // Update invoice balance
+        const newReceived = toNumber(invoice.amountReceived) + amount;
+        const newBalance = Math.max(0, toNumber(invoice.totalAmount) - newReceived);
+        await this.db.update(salesInvoices).set({
+          amountReceived: String(newReceived),
+          balanceDue: String(newBalance),
+          status: newBalance <= 0.01 ? 'paid' : 'partially_paid',
+          updatedAt: new Date(),
+        }).where(eq(salesInvoices.id, invoice.id));
+
+        steps.push({ action: 'Match invoice', result: `Matched to invoice ${invoice.invoiceNumber}`, success: true });
+        steps.push({ action: 'Create receipt', result: `Receipt created: ₹${amount.toLocaleString('en-IN')}`, success: true });
+        steps.push({ action: 'Update invoice', result: newBalance <= 0.01 ? 'Invoice marked as Paid' : `Balance reduced to ₹${newBalance.toLocaleString('en-IN')}`, success: true });
+
+        // Post receipt JE
+        const gl = new GLService(this.db, this.tenantId);
+        await gl.postReceipt({
+          amount,
+          date: txn.transactionDate,
+          id: receipt!.id,
+          customerName: customer?.name ?? 'Unknown',
+        });
+        steps.push({ action: 'Post journal entry', result: 'JE posted: DR Bank, CR Accounts Receivable', success: true });
+
+        // Mark bank txn as matched
+        await this.db.update(bankTransactions).set({
+          reconStatus: 'matched',
+          glAccountId: null, // clear wrong GL category
+          updatedAt: new Date(),
+        }).where(eq(bankTransactions.id, id));
+        steps.push({ action: 'Reconcile', result: 'Transaction matched', success: true });
+
+      } else {
+        // No matching invoice — still post basic JE
+        const posting = new CategorizePostingService(this.db, this.tenantId);
+        await posting.postBankCredit({
+          transactionId: id,
+          transactionDate: txn.transactionDate,
+          amount,
+          narration: txn.narration,
+          glAccountCode: '1103',
+          bankGlAccountCode: bankGl.code,
+        });
+        steps.push({ action: 'Post journal entry', result: 'JE posted: DR Bank, CR Accounts Receivable', success: true });
+        manualRequired.push(`No matching invoice found for ₹${amount.toLocaleString('en-IN')} from ${customer?.name ?? 'Unknown'}. Create the invoice manually if needed.`);
+      }
+
+      return { steps, allFixed: manualRequired.length === 0, manualRequired };
+    }
+
+    // Path 3: GL category assigned but no JE → post JE
     if (txn.glAccountId && !txn.journalEntryId) {
       const [glAccount] = await this.db.select({ code: accounts.code, name: accounts.name })
         .from(accounts).where(eq(accounts.id, txn.glAccountId)).limit(1);
