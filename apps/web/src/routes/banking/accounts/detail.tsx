@@ -82,6 +82,9 @@ function RecentTxnRow({ txn }: { txn: BankTransaction }) {
       <TableCell className="text-xs text-zinc-500">{txn.transactionDate}</TableCell>
       <TableCell className="max-w-xs truncate text-sm">{txn.narration ?? '—'}</TableCell>
       <TableCell className="font-mono text-xs text-zinc-500">{txn.reference ?? '—'}</TableCell>
+      <TableCell className="text-sm text-zinc-700 dark:text-zinc-300">
+        {txn.vendorName ?? txn.customerName ?? '—'}
+      </TableCell>
       <TableCell align="right" numeric>
         {!isCredit && (
           <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
@@ -265,7 +268,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate({ to: '/banking/transactions' })}
+              onClick={() => navigate({ to: '/banking/transactions', search: { accountId } })}
             >
               View All
             </Button>
@@ -301,6 +304,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
                       <Th>Date</Th>
                       <Th>Narration</Th>
                       <Th>Reference</Th>
+                      <Th>Vendor / Customer</Th>
                       <Th align="right">Debit</Th>
                       <Th align="right">Credit</Th>
                       <Th>Status</Th>

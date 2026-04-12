@@ -182,7 +182,8 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
 
 export function TransactionsPage() {
   const navigate = useNavigate();
-  const [accountId, setAccountId] = useState('');
+  const searchParams = new URLSearchParams(window.location.search);
+  const [accountId, setAccountId] = useState(searchParams.get('accountId') ?? '');
   const [type, setType] = useState('');
   const [reconStatus, setReconStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
