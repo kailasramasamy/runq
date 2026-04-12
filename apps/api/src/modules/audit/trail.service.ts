@@ -82,25 +82,46 @@ export class TrailService {
     const matches = await this.db.select().from(reconciliationMatches)
       .where(and(eq(reconciliationMatches.bankTransactionId, id), eq(reconciliationMatches.tenantId, this.tenantId)));
 
+    const relatedPaymentIds: string[] = [];
+    const relatedBillIds: string[] = [];
+    const relatedReceiptIds: string[] = [];
+
     for (const m of matches) {
       if (m.paymentId) {
+        relatedPaymentIds.push(m.paymentId);
         const pNodes = await this.paymentChain(m.paymentId);
         chain.push(...pNodes);
+
+        // Get bill IDs from payment allocations
+        const allocs = await this.db.select({ invoiceId: paymentAllocations.invoiceId })
+          .from(paymentAllocations)
+          .where(and(eq(paymentAllocations.paymentId, m.paymentId), eq(paymentAllocations.tenantId, this.tenantId)));
+        for (const a of allocs) {
+          relatedBillIds.push(a.invoiceId);
+          const [bill] = await this.db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, a.invoiceId)).limit(1);
+          if (bill) {
+            const [v] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, bill.vendorId)).limit(1);
+            chain.push(this.billNode(bill, v?.name ?? 'Unknown'));
+          }
+        }
       }
       if (m.receiptId) {
+        relatedReceiptIds.push(m.receiptId);
         const rNodes = await this.receiptChain(m.receiptId);
         chain.push(...rNodes);
       }
     }
 
-    // Journal entries linked directly
+    // Find all related JEs: direct link, bank_debit/credit source, payment source, bill source
+    const allSourceIds = [id, ...relatedPaymentIds, ...relatedBillIds, ...relatedReceiptIds];
+    const allSourceTypes = ['bank_debit', 'bank_credit', 'payment', 'purchase_invoice', 'receipt', 'sales_invoice'];
+
     if (txn.journalEntryId) {
-      const jeNodes = await this.jeNodes([txn.journalEntryId]);
-      chain.push(...jeNodes);
+      const jeNodesList = await this.jeNodes([txn.journalEntryId]);
+      chain.push(...jeNodesList);
     }
 
-    // Also find JEs by sourceId matching this txn
-    const sourceJEs = await this.findJEsBySource(['bank_debit', 'bank_credit'], [id]);
+    const sourceJEs = await this.findJEsBySource(allSourceTypes, allSourceIds);
     for (const je of sourceJEs) {
       if (!chain.find((n) => n.type === 'journal_entry' && n.id === je.id)) {
         chain.push(...await this.jeNodes([je.id]));
@@ -108,12 +129,16 @@ export class TrailService {
     }
 
     // Gap detection
+    const hasJE = chain.some((n) => n.type === 'journal_entry');
     if (txn.reconStatus === 'unreconciled') {
       if (!txn.glAccountId && !txn.vendorId && !txn.customerId) {
         gaps.push('Not categorized or assigned to vendor/customer');
-      } else if (!txn.journalEntryId && matches.length === 0) {
+      }
+      if (!hasJE && matches.length === 0) {
         gaps.push('No journal entry linked');
       }
+    } else if (!hasJE) {
+      gaps.push('No journal entry found');
     }
 
     return { root, chain, gaps };
