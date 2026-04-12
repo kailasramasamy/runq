@@ -42,6 +42,7 @@ const SLUG_OVERRIDES: Record<string, { group: HelpTopic['group']; order: number 
   'recipes/07-pay-vendor-bill': { group: 'ap', order: 2 },
   'recipes/08-import-bank-statement': { group: 'banking', order: 1 },
   'recipes/09-reconcile-bank': { group: 'banking', order: 2 },
+  'recipes/12-bank-reconciliation-auto': { group: 'banking', order: 3 },
   'recipes/11-export-to-tally': { group: 'export', order: 1 },
 };
 
