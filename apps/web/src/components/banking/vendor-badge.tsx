@@ -305,7 +305,6 @@ function CreateVendorInline({
         <select value={category} onChange={(e) => setCategory(e.target.value)}
           className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
           <option value="">— Select —</option>
-          <option value="farmer">Farmer</option>
           <option value="supplier">Supplier</option>
           <option value="transport">Transport</option>
           <option value="rent">Rent</option>
