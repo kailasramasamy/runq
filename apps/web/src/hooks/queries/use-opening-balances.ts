@@ -34,4 +34,22 @@ export function useSaveOpeningBalances() {
   });
 }
 
+export function useSaveCustomerOB() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; amount: number; effectiveDate: string }) =>
+      api.post<{ data: { created: boolean } }>('/settings/opening-balances/customer', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['opening-balances'] }),
+  });
+}
+
+export function useSaveVendorOB() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; amount: number; effectiveDate: string }) =>
+      api.post<{ data: { created: boolean } }>('/settings/opening-balances/vendor', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['opening-balances'] }),
+  });
+}
+
 export type { OBEntry, OpeningBalanceStatus };

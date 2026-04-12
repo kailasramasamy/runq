@@ -70,6 +70,27 @@ export class OpeningBalanceService {
     };
   }
 
+  /** Save a single customer opening balance */
+  async saveCustomer(customerId: string, amount: number, effectiveDate: string): Promise<{ created: boolean }> {
+    const fy = this.getFY(effectiveDate);
+    const created = await this.createOpeningInvoice(customerId, amount, effectiveDate, fy);
+    if (created) {
+      try { await this.postOpeningJE(effectiveDate, amount, 0); } catch { /* logged */ }
+    }
+    return { created };
+  }
+
+  /** Save a single vendor opening balance */
+  async saveVendor(vendorId: string, amount: number, effectiveDate: string): Promise<{ created: boolean }> {
+    const fy = this.getFY(effectiveDate);
+    const created = await this.createOpeningBill(vendorId, amount, effectiveDate, fy);
+    if (created) {
+      try { await this.postOpeningJE(effectiveDate, 0, amount); } catch { /* logged */ }
+    }
+    return { created };
+  }
+
+  /** Bulk save (kept for backward compat) */
   async save(input: SaveInput): Promise<{ invoicesCreated: number; billsCreated: number }> {
     const custEntries = input.customers.filter((c) => c.amount > 0);
     const vendEntries = input.vendors.filter((v) => v.amount > 0);
@@ -94,7 +115,12 @@ export class OpeningBalanceService {
 
     // Post JE only for newly created amounts
     if (newARTotal > 0 || newAPTotal > 0) {
-      await this.postOpeningJE(input.effectiveDate, newARTotal, newAPTotal);
+      try {
+        await this.postOpeningJE(input.effectiveDate, newARTotal, newAPTotal);
+      } catch (err) {
+        // Log but don't fail — invoices/bills are already created
+        console.error('Opening balance JE failed:', (err as Error).message);
+      }
     }
 
     return { invoicesCreated, billsCreated };

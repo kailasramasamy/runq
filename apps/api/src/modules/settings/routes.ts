@@ -177,6 +177,34 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  const singleOBSchema = z.object({
+    id: z.string().uuid(),
+    amount: z.number().positive(),
+    effectiveDate: z.string(),
+  });
+
+  app.post(
+    '/opening-balances/customer',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const input = singleOBSchema.parse(request.body);
+      const service = new OpeningBalanceService(request.server.db, request.tenantId);
+      const result = await service.saveCustomer(input.id, input.amount, input.effectiveDate);
+      return reply.status(200).send({ data: result });
+    },
+  );
+
+  app.post(
+    '/opening-balances/vendor',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const input = singleOBSchema.parse(request.body);
+      const service = new OpeningBalanceService(request.server.db, request.tenantId);
+      const result = await service.saveVendor(input.id, input.amount, input.effectiveDate);
+      return reply.status(200).send({ data: result });
+    },
+  );
+
   await app.register(userRoutes, { prefix: '/users' });
   await app.register(auditRoutes, { prefix: '/audit-log' });
 };
