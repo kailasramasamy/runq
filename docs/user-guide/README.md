@@ -68,7 +68,8 @@ Use this when you're sitting in front of runQ and you need to do *one* thing rig
 | # | Recipe | When you need it |
 |---|--------|------------------|
 | 08 | [Import your bank statement](./recipes/08-import-bank-statement.md) | Once a week — pull in everything from your bank |
-| 09 | [Reconcile your bank](./recipes/09-reconcile-bank.md) | Right after every import |
+| 09 | [Reconcile your bank](./recipes/09-reconcile-bank.md) | Right after every import (manual flow) |
+| 12 | [Auto Reconciliation (Smart Flow)](./recipes/12-bank-reconciliation-auto.md) | **Recommended** — one-click reconciliation with auto bill/payment creation |
 
 ### Sharing data with your CA
 
