@@ -43,11 +43,13 @@ export class TransactionService {
       eq(bankTransactions.tenantId, this.tenantId),
       eq(bankTransactions.bankAccountId, bankAccountId),
       filters.type ? eq(bankTransactions.type, filters.type) : undefined,
-      filters.reconciled !== undefined
-        ? filters.reconciled
-          ? sql`${bankTransactions.reconStatus} != 'unreconciled'`
-          : eq(bankTransactions.reconStatus, 'unreconciled')
-        : undefined,
+      filters.reconStatus
+        ? eq(bankTransactions.reconStatus, filters.reconStatus)
+        : filters.reconciled !== undefined
+          ? filters.reconciled
+            ? sql`${bankTransactions.reconStatus} != 'unreconciled'`
+            : eq(bankTransactions.reconStatus, 'unreconciled')
+          : undefined,
       filters.dateFrom ? gte(bankTransactions.transactionDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
@@ -72,7 +74,11 @@ export class TransactionService {
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(baseWhere),
+      this.db.select({ count: sql<number>`count(*)::int` })
+        .from(bankTransactions)
+        .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
+        .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
+        .where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;

@@ -206,16 +206,10 @@ export function TransactionsPage() {
   const { data: balanceData } = useBankBalance(accountId);
   const lastSyncDate = balanceData?.data?.lastTransactionDate ?? null;
 
-  const reconciled = reconStatus === 'matched' || reconStatus === 'manually_matched'
-    ? true
-    : reconStatus === 'unreconciled'
-      ? false
-      : undefined;
-
   const { data, isLoading } = useBankTransactions({
     accountId: accountId || '',
     type: (type as 'credit' | 'debit') || undefined,
-    reconciled,
+    reconStatus: (reconStatus as 'unreconciled' | 'matched' | 'manually_matched' | 'excluded') || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: search || undefined,

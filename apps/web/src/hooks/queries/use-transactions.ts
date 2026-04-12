@@ -18,6 +18,7 @@ interface TransactionFilters {
   accountId: string;
   type?: 'credit' | 'debit';
   reconciled?: boolean;
+  reconStatus?: 'unreconciled' | 'matched' | 'manually_matched' | 'excluded';
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -29,6 +30,7 @@ interface TransactionFilters {
 export function useBankTransactions(filters?: TransactionFilters) {
   const params = new URLSearchParams();
   if (filters?.type) params.set('type', filters.type);
+  if (filters?.reconStatus) params.set('reconStatus', filters.reconStatus);
   if (filters?.reconciled !== undefined) params.set('reconciled', String(filters.reconciled));
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
