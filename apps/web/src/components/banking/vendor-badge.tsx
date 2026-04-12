@@ -129,6 +129,7 @@ function CustomerDropdown({ transactionId, onDone }: { transactionId: string; on
   const customerList = data?.data ?? [];
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -147,6 +148,19 @@ function CustomerDropdown({ transactionId, onDone }: { transactionId: string; on
     onDone();
   }
 
+  async function handleCreated(customer: { id: string }) {
+    qc.invalidateQueries({ queryKey: ['customers'] });
+    await handleSelect(customer.id);
+  }
+
+  if (showCreate) {
+    return (
+      <div className="absolute z-[9999] top-full mt-1 right-0 w-72 rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+        <CreateCustomerInline defaultName={search} onCreated={handleCreated} onCancel={() => setShowCreate(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="absolute z-[9999] top-full mt-1 right-0 w-64 rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
       <SearchInput ref={inputRef} value={search} onChange={setSearch} placeholder="Search customers…" />
@@ -160,7 +174,58 @@ function CustomerDropdown({ transactionId, onDone }: { transactionId: string; on
         ))}
         {!loading && filtered.length === 0 && <li className="px-3 py-2 text-xs text-zinc-400">No matching customers</li>}
       </ul>
+      {!loading && (
+        <div className="border-t border-zinc-200 dark:border-zinc-700 px-3 py-2">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowCreate(true)}
+            className="flex w-full items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+            <Plus className="h-3.5 w-3.5" />Create new customer{search ? `: "${search}"` : ''}
+          </button>
+        </div>
+      )}
     </div>
+  );
+}
+
+function CreateCustomerInline({
+  defaultName, onCreated, onCancel,
+}: { defaultName: string; onCreated: (customer: { id: string }) => void; onCancel: () => void }) {
+  const [name, setName] = useState(defaultName);
+  const [type, setType] = useState<'b2b' | 'payment_gateway'>('b2b');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    const res = await api.post<{ data: { id: string } }>('/ar/customers', { name: name.trim(), type });
+    setSaving(false);
+    onCreated(res.data);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">New Customer</span>
+        <button type="button" onClick={onCancel} className="text-xs text-zinc-400 hover:text-zinc-600">Cancel</button>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs text-zinc-500">Name *</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoFocus
+          className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs text-zinc-500">Type</label>
+        <select value={type} onChange={(e) => setType(e.target.value as 'b2b' | 'payment_gateway')}
+          className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
+          <option value="b2b">B2B</option>
+          <option value="payment_gateway">Payment Gateway</option>
+        </select>
+      </div>
+      <button type="submit" disabled={!name.trim() || saving}
+        className="w-full rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+        {saving ? 'Creating…' : 'Create & Assign'}
+      </button>
+    </form>
   );
 }
 
