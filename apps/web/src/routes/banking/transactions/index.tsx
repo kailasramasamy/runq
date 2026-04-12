@@ -93,8 +93,12 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
       <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
         {txn.reference ?? '—'}
       </TableCell>
-      <TableCell className="text-sm text-zinc-700 dark:text-zinc-300">
-        {txn.vendorName ?? '—'}
+      <TableCell className="text-sm text-zinc-700 dark:text-zinc-300" onClick={(e) => e.stopPropagation()}>
+        {txn.vendorName ?? (
+          txn.type === 'debit' && txn.reconStatus === 'unreconciled'
+            ? <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
+            : '—'
+        )}
       </TableCell>
       <TableCell align="right" numeric>
         {!isCredit ? (
