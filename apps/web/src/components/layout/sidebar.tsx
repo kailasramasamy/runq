@@ -21,6 +21,7 @@ import {
   HelpCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -40,6 +41,7 @@ const navItems = [
   { label: 'Expenses', path: '/expenses', icon: Receipt },
   { label: 'Workflows', path: '/workflows', icon: GitBranch },
   { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
+  { label: 'Audit', path: '/audit/gap-scan', icon: ShieldCheck },
   { label: 'Settings', path: '/settings', icon: Settings },
 ];
 
