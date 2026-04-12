@@ -155,7 +155,8 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
       }
 
-      // Learn the pattern for future auto-detection
+      // Learn the pattern and apply to similar transactions
+      let applied = 0;
       if (txn.narration) {
         const categorize = new CategorizeService(db, tenantId);
         const [expenseGl] = await db.select({ id: glAccounts.id }).from(glAccounts)
@@ -163,9 +164,25 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         if (expenseGl) {
           await categorize.learnVendorRule(txn.narration, expenseGl.id, vendorId, txn.type);
         }
+
+        // Apply vendor to all similar transactions (same pattern, no vendor set)
+        const { extractNarrationPattern } = await import('./categorize.service');
+        const pattern = extractNarrationPattern(txn.narration);
+        if (pattern) {
+          const { sql, isNull } = await import('drizzle-orm');
+          const similarResult = await db.update(bankTransactions)
+            .set({ vendorId, updatedAt: new Date() })
+            .where(and(
+              eq(bankTransactions.tenantId, tenantId),
+              isNull(bankTransactions.vendorId),
+              sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
+            ))
+            .returning({ id: bankTransactions.id });
+          applied = similarResult.length;
+        }
       }
 
-      return reply.status(200).send({ data: { success: true, ...result } });
+      return reply.status(200).send({ data: { success: true, applied, ...result } });
     },
   );
 
@@ -192,23 +209,40 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId))).limit(1);
       if (!customer) return reply.status(404).send({ error: 'Customer not found' });
 
-      // Tag customer on the transaction (metadata — no accounting changes)
+      // Tag customer on the transaction
       await db.update(bankTransactions)
         .set({ customerId, updatedAt: new Date() })
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
 
-      // Learn the narration pattern for future auto-detection
+      // Learn the narration pattern with customerId for future auto-detection
+      let applied = 0;
       if (txn.narration) {
         const categorize = new CategorizeService(db, tenantId);
         const { accounts: glAccounts } = await import('@runq/db');
         const [arAccount] = await db.select({ id: glAccounts.id }).from(glAccounts)
           .where(and(eq(glAccounts.code, '1103'), eq(glAccounts.tenantId, tenantId))).limit(1);
         if (arAccount) {
-          await categorize.learnNarrationRule(txn.narration, arAccount.id, txn.type);
+          await categorize.learnNarrationRule(txn.narration, arAccount.id, txn.type, undefined, customerId);
+        }
+
+        // Apply to all similar transactions (same narration pattern, no customer set)
+        const { extractNarrationPattern } = await import('./categorize.service');
+        const pattern = extractNarrationPattern(txn.narration);
+        if (pattern) {
+          const { sql, isNull } = await import('drizzle-orm');
+          const result = await db.update(bankTransactions)
+            .set({ customerId, updatedAt: new Date() })
+            .where(and(
+              eq(bankTransactions.tenantId, tenantId),
+              isNull(bankTransactions.customerId),
+              sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
+            ))
+            .returning({ id: bankTransactions.id });
+          applied = result.length;
         }
       }
 
-      return reply.status(200).send({ data: { success: true } });
+      return reply.status(200).send({ data: { success: true, applied } });
     },
   );
 

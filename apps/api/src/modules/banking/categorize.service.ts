@@ -17,6 +17,7 @@ interface RuleMatch {
   autoReconcile?: boolean;
   vendorId?: string;
   vendorExpenseCode?: string;
+  customerId?: string;
 }
 
 interface VendorInfo {
@@ -56,7 +57,7 @@ const HARDCODED_RULES: Array<{
  *   "MMT/IMPS/609415665178/DairyChetanDriv/SBIN0040877" → "DairyChetanDriv"
  *   "UPI/123456/Payment" → "Payment"
  */
-function extractNarrationPattern(narration: string): string | null {
+export function extractNarrationPattern(narration: string): string | null {
   if (!narration || narration.length < 5) return null;
 
   // NEFT format: "INF/NEFT/.../IFSC/PAYEE_NAME"
@@ -151,7 +152,9 @@ export class CategorizeService {
           : accountByCode.get(match.accountCode ?? '');
         if (glAccount) {
           const shouldPost = (match.autoReconcile ?? match.confidence >= 0.85) && bankGlCode;
-          await this.updateGlCategory(txn.id, glAccount.id, match.confidence);
+          await this.updateGlCategory(txn.id, glAccount.id, match.confidence, {
+            customerId: match.customerId,
+          });
           if (shouldPost) {
             await this.postForTxnType(posting, txn, glAccount.code, bankGlCode);
           }
@@ -277,6 +280,7 @@ export class CategorizeService {
     glAccountId: string,
     txnType: 'credit' | 'debit',
     vendorId?: string,
+    customerId?: string,
   ): Promise<void> {
     const pattern = extractNarrationPattern(narration);
     if (!pattern || pattern.length < 3) return;
@@ -297,6 +301,7 @@ export class CategorizeService {
       pattern,
       glAccountId,
       vendorId: vendorId ?? null,
+      customerId: customerId ?? null,
       autoReconcile: true,
       txnType,
     });
@@ -312,25 +317,26 @@ export class CategorizeService {
   private applyAllRules(
     narration: string | null,
     type: 'credit' | 'debit',
-    narrationRules: { pattern: string; glAccountId: string; vendorId: string | null; autoReconcile: boolean; txnType: string | null }[],
+    narrationRules: { pattern: string; glAccountId: string; vendorId: string | null; customerId: string | null; autoReconcile: boolean; txnType: string | null }[],
     vendorList: VendorInfo[],
     customerNames: string[],
   ): RuleMatch | null {
     if (!narration) return null;
     const upper = narration.toUpperCase();
 
-    // 1. Learned vendor narration rules (highest priority)
+    // 1. Learned vendor/customer narration rules (highest priority)
     for (const rule of narrationRules) {
-      if (!rule.vendorId) continue;
+      if (!rule.vendorId && !rule.customerId) continue;
       if (rule.txnType && rule.txnType !== type) continue;
       if (upper.includes(rule.pattern.toUpperCase())) {
-        const vendor = vendorList.find((v) => v.id === rule.vendorId);
+        const vendor = rule.vendorId ? vendorList.find((v) => v.id === rule.vendorId) : undefined;
         return {
           accountId: rule.glAccountId,
           confidence: 0.95,
           autoReconcile: rule.autoReconcile,
-          vendorId: rule.vendorId,
+          vendorId: rule.vendorId ?? undefined,
           vendorExpenseCode: vendor?.expenseAccountCode ?? undefined,
+          customerId: rule.customerId ?? undefined,
         };
       }
     }
@@ -339,9 +345,9 @@ export class CategorizeService {
     const partyMatch = this.matchPartyNames(upper, type, vendorList, customerNames);
     if (partyMatch) return partyMatch;
 
-    // 3. Learned GL narration rules (no vendor)
+    // 3. Learned GL narration rules (no vendor/customer)
     for (const rule of narrationRules) {
-      if (rule.vendorId) continue; // already handled above
+      if (rule.vendorId || rule.customerId) continue; // already handled above
       if (rule.txnType && rule.txnType !== type) continue;
       if (upper.includes(rule.pattern.toUpperCase())) {
         return { accountId: rule.glAccountId, confidence: 0.95, autoReconcile: rule.autoReconcile };
@@ -465,6 +471,7 @@ export class CategorizeService {
     txnId: string,
     glAccountId: string,
     confidence: number,
+    extra?: { vendorId?: string; customerId?: string },
   ): Promise<void> {
     await this.db
       .update(bankTransactions)
@@ -472,6 +479,8 @@ export class CategorizeService {
         glAccountId,
         glConfidence: confidence.toFixed(2),
         glSuggestedAt: new Date(),
+        ...(extra?.vendorId ? { vendorId: extra.vendorId } : {}),
+        ...(extra?.customerId ? { customerId: extra.customerId } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(bankTransactions.id, txnId), eq(bankTransactions.tenantId, this.tenantId)));
@@ -534,6 +543,7 @@ export class CategorizeService {
         pattern: bankNarrationRules.pattern,
         glAccountId: bankNarrationRules.glAccountId,
         vendorId: bankNarrationRules.vendorId,
+        customerId: bankNarrationRules.customerId,
         autoReconcile: bankNarrationRules.autoReconcile,
         txnType: bankNarrationRules.txnType,
       })

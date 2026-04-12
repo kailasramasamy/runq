@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, timestamp, index, boolean } from 'drizzle-orm/p
 import { tenants } from '../tenant';
 import { accounts } from '../gl/accounts';
 import { vendors } from '../ap/vendors';
+import { customers } from '../ar/customers';
 
 /**
  * Learned narration → GL account mappings per tenant.
@@ -25,6 +26,8 @@ export const bankNarrationRules = pgTable('bank_narration_rules', {
   glAccountId: uuid('gl_account_id').notNull().references(() => accounts.id),
   /** Vendor to auto-bill when pattern matches (nullable — GL-only rules omit this). */
   vendorId: uuid('vendor_id').references(() => vendors.id),
+  /** Customer to tag on credit transactions (nullable). */
+  customerId: uuid('customer_id').references(() => customers.id),
   /** When true, matching transactions are also marked as reconciled. */
   autoReconcile: boolean('auto_reconcile').notNull().default(true),
   /** Transaction type this rule applies to. Null = both. */
