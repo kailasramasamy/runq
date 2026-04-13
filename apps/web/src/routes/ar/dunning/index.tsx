@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Bell, BookOpen, History, Send } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Bell, BookOpen, History, Search, Send } from 'lucide-react';
 import {
   useOverdueInvoices,
   useSendReminders,
@@ -68,8 +68,18 @@ function OverdueTab() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [channel, setChannel] = useState<DunningChannel>('email');
+  const [search, setSearch] = useState('');
 
-  const invoices = data?.data ?? [];
+  const allInvoices = data?.data ?? [];
+  const invoices = useMemo(() => {
+    if (!search.trim()) return allInvoices;
+    const q = search.toLowerCase();
+    return allInvoices.filter(
+      (inv) =>
+        inv.invoiceNumber.toLowerCase().includes(q) ||
+        inv.customerName?.toLowerCase().includes(q),
+    );
+  }, [allInvoices, search]);
 
   function toggleAll() {
     if (selected.size === invoices.length) {
@@ -110,6 +120,16 @@ function OverdueTab() {
     <div className="flex flex-col gap-4">
       <Card>
         <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="relative sm:w-64">
+            <input
+              type="text"
+              placeholder="Search by invoice # or customer…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+            <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          </div>
           <div className="sm:w-44">
             <Select
               label="Channel"
@@ -151,7 +171,7 @@ function OverdueTab() {
                   type="checkbox"
                   checked={selected.size > 0 && selected.size === invoices.length}
                   onChange={toggleAll}
-                  className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
                 />
               </Th>
               <Th>Invoice #</Th>
@@ -183,12 +203,12 @@ function OverdueTab() {
                       type="checkbox"
                       checked={selected.has(inv.id)}
                       onChange={() => toggleOne(inv.id)}
-                      className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
                     />
                   </TableCell>
                   <TableCell className="font-mono text-xs">{inv.invoiceNumber}</TableCell>
-                  <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-                    {inv.customerId.slice(0, 8)}…
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">
+                    {inv.customerName || inv.customerId.slice(0, 8)}
                   </TableCell>
                   <TableCell className="text-zinc-600 dark:text-zinc-400">{inv.dueDate}</TableCell>
                   <TableCell align="right" numeric>
@@ -233,7 +253,7 @@ function OverdueCard({
             type="checkbox"
             checked={isSelected}
             onChange={() => toggleOne(inv.id)}
-            className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
           />
           <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">{inv.invoiceNumber}</span>
         </div>
@@ -241,6 +261,9 @@ function OverdueCard({
           {daysOverdue(inv.dueDate)}d overdue
         </span>
       </div>
+      {inv.customerName && (
+        <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{inv.customerName}</div>
+      )}
       <div className="mt-1.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
         <span>{inv.dueDate}</span>
         <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">{formatINR(inv.balanceDue)}</span>
