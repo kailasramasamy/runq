@@ -27,11 +27,55 @@ export interface DunningLogListResult {
   meta: PaginationMeta;
 }
 
+const DEFAULT_DUNNING_RULES = [
+  {
+    name: 'Gentle Reminder (7 days)', daysAfterDue: 7, escalationLevel: 1,
+    channel: 'email' as const, action: 'send_reminder' as const,
+    subjectTemplate: 'Friendly Reminder — Invoice {{invoice_number}} is overdue',
+    bodyTemplate: 'Dear {{customer_name}},\n\nThis is a gentle reminder that invoice {{invoice_number}} for ₹{{amount}} was due on {{due_date}}. We understand that payments can sometimes be delayed. Kindly arrange payment at the earliest.\n\nThank you for your continued business.',
+  },
+  {
+    name: 'Firm Reminder (15 days)', daysAfterDue: 15, escalationLevel: 2,
+    channel: 'email' as const, action: 'send_reminder' as const,
+    subjectTemplate: 'Second Reminder — Invoice {{invoice_number}} is {{days_overdue}} days overdue',
+    bodyTemplate: 'Dear {{customer_name}},\n\nWe notice that invoice {{invoice_number}} for ₹{{amount}} remains unpaid and is now {{days_overdue}} days past due. Please arrange payment immediately to avoid further action.\n\nIf you have already made the payment, please disregard this message.',
+  },
+  {
+    name: 'Escalation Notice (30 days)', daysAfterDue: 30, escalationLevel: 3,
+    channel: 'email' as const, action: 'escalate_to_manager' as const,
+    subjectTemplate: 'Urgent — Invoice {{invoice_number}} is 30+ days overdue',
+    bodyTemplate: 'Dear {{customer_name}},\n\nDespite previous reminders, invoice {{invoice_number}} for ₹{{amount}} remains unpaid ({{days_overdue}} days overdue). This matter has been escalated to our management.\n\nPlease treat this as urgent and arrange immediate payment to avoid disruption to your account.',
+  },
+  {
+    name: 'Final Notice — Supply Hold (45 days)', daysAfterDue: 45, escalationLevel: 4,
+    channel: 'email' as const, action: 'stop_supply' as const,
+    subjectTemplate: 'Final Notice — Invoice {{invoice_number}} | Supply Hold',
+    bodyTemplate: 'Dear {{customer_name}},\n\nThis is a final notice regarding invoice {{invoice_number}} for ₹{{amount}}, now {{days_overdue}} days overdue. As per our credit policy, further supplies to your account have been placed on hold until this balance is cleared.\n\nPlease contact us immediately to resolve this matter.',
+  },
+];
+
 export class DunningService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
+
+  /** Seed industry-standard 4-level dunning rules if tenant has none */
+  async seedDefaultRules(): Promise<DunningRule[]> {
+    const existing = await this.db
+      .select({ id: dunningRules.id })
+      .from(dunningRules)
+      .where(eq(dunningRules.tenantId, this.tenantId))
+      .limit(1);
+
+    if (existing.length > 0) return this.listRules();
+
+    const rows = await this.db.insert(dunningRules).values(
+      DEFAULT_DUNNING_RULES.map((d) => ({ tenantId: this.tenantId, ...d, isActive: true })),
+    ).returning();
+
+    return rows.map((r) => this.toRule(r));
+  }
 
   async listRules(): Promise<DunningRule[]> {
     const rows = await this.db
@@ -119,6 +163,10 @@ export class DunningService {
   async sendReminders(input: SendRemindersInput): Promise<{ logged: number; sent: number; failed: number }> {
     const ruleId = await this.resolveRuleId(input);
 
+    // Fetch the matched rule for escalation context
+    const [rule] = await this.db.select().from(dunningRules)
+      .where(eq(dunningRules.id, ruleId)).limit(1);
+
     const invoiceRows = await this.db
       .select({
         id: salesInvoices.id,
@@ -150,7 +198,7 @@ export class DunningService {
     const logByInvoice = new Map(logRows.map((r) => [r.invoiceId, r.id]));
 
     if (input.channel === 'email') {
-      const results = await this.sendDunningEmails(invoiceRows);
+      const results = await this.sendDunningEmails(invoiceRows, rule?.escalationLevel, rule?.action);
       for (const r of results) {
         const logId = logByInvoice.get(r.invoiceId);
         if (logId) {
@@ -173,6 +221,9 @@ export class DunningService {
 
   private async sendDunningEmails(
     invoices: { id: string; invoiceNumber: string; customerName: string; customerEmail: string | null; dueDate: string; balanceDue: string }[],
+    escalationLevel?: number,
+    action?: string,
+    ruleByInvoice?: Map<string, { escalationLevel: number; action: string }>,
   ): Promise<{ invoiceId: string; success: boolean }[]> {
     const [companyName, tenantRow] = await Promise.all([
       getTenantName(this.db, this.tenantId),
@@ -193,6 +244,7 @@ export class DunningService {
       }
 
       const daysOverdue = Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000);
+      const ruleCtx = ruleByInvoice?.get(inv.id);
       const template = overdueReminder({
         customerName: inv.customerName,
         invoiceNumber: inv.invoiceNumber,
@@ -200,6 +252,8 @@ export class DunningService {
         dueDate: inv.dueDate,
         daysOverdue,
         companyName,
+        escalationLevel: ruleCtx?.escalationLevel ?? escalationLevel,
+        action: ruleCtx?.action ?? action,
       });
 
       try {
@@ -218,7 +272,7 @@ export class DunningService {
     return results;
   }
 
-  async autoSendDunning(): Promise<{ sent: number; skipped: number }> {
+  async autoSendDunning(): Promise<{ sent: number; failed: number; skipped: number }> {
     const [rules, overdueInvoices] = await Promise.all([
       this.db
         .select()
@@ -228,7 +282,7 @@ export class DunningService {
       this.getOverdueInvoices(),
     ]);
 
-    if (rules.length === 0 || overdueInvoices.length === 0) return { sent: 0, skipped: overdueInvoices.length };
+    if (rules.length === 0 || overdueInvoices.length === 0) return { sent: 0, failed: 0, skipped: overdueInvoices.length };
 
     const invoiceIds = overdueInvoices.map((i) => i.id);
     const existingLogs = await this.db
@@ -243,8 +297,45 @@ export class DunningService {
     const sentByInvoice = this.groupLogsByInvoice(existingLogs);
     const toInsert = this.buildEscalationInserts(rules, overdueInvoices, sentByInvoice);
 
-    if (toInsert.length > 0) await this.db.insert(dunningLog).values(toInsert);
-    return { sent: toInsert.length, skipped: overdueInvoices.length - toInsert.length };
+    if (toInsert.length === 0) return { sent: 0, failed: 0, skipped: overdueInvoices.length };
+
+    // Insert log rows as pending
+    const logRows = await this.db.insert(dunningLog)
+      .values(toInsert.map((r) => ({ ...r, status: 'pending' })))
+      .returning({ id: dunningLog.id, invoiceId: dunningLog.invoiceId, channel: dunningLog.channel });
+
+    // Send emails for email-channel entries
+    const emailLogRows = logRows.filter((r) => r.channel === 'email');
+    const emailInvoiceIds = new Set(emailLogRows.map((r) => r.invoiceId));
+    const emailInvoices = await this.db
+      .select({
+        id: salesInvoices.id,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        customerName: customers.name,
+        customerEmail: customers.email,
+        dueDate: salesInvoices.dueDate,
+        balanceDue: salesInvoices.balanceDue,
+      })
+      .from(salesInvoices)
+      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+      .where(inArray(salesInvoices.id, Array.from(emailInvoiceIds)));
+
+    // Build per-invoice rule context from toInsert
+    const ruleByInvoice = new Map(toInsert.map((r) => [r.invoiceId, { escalationLevel: r.escalationLevel, action: r.action }]));
+    const emailResults = await this.sendDunningEmails(emailInvoices, undefined, undefined, ruleByInvoice);
+    const resultMap = new Map(emailResults.map((r) => [r.invoiceId, r.success]));
+
+    let sent = 0;
+    let failed = 0;
+    for (const row of logRows) {
+      const success = row.channel === 'email' ? (resultMap.get(row.invoiceId) ?? false) : true;
+      await this.db.update(dunningLog)
+        .set({ status: success ? 'sent' : 'failed' })
+        .where(eq(dunningLog.id, row.id));
+      if (success) sent++; else failed++;
+    }
+
+    return { sent, failed, skipped: overdueInvoices.length - toInsert.length };
   }
 
   private groupLogsByInvoice(logs: { invoiceId: string; ruleId: string; sentAt: Date }[]) {
@@ -262,7 +353,7 @@ export class DunningService {
     invoices: OverdueInvoice[],
     sentByInvoice: Map<string, { ruleId: string; sentAt: Date }[]>,
   ) {
-    type Insert = { tenantId: string; invoiceId: string; ruleId: string; channel: typeof dunningRules.$inferSelect['channel']; status: string };
+    type Insert = { tenantId: string; invoiceId: string; ruleId: string; channel: typeof dunningRules.$inferSelect['channel']; status: string; escalationLevel: number; action: string };
     const toInsert: Insert[] = [];
     const ruleIds = new Set(rules.map((r) => r.id));
 
@@ -278,6 +369,8 @@ export class DunningService {
         ruleId: nextRule.id,
         channel: nextRule.channel,
         status: 'sent',
+        escalationLevel: nextRule.escalationLevel,
+        action: nextRule.action,
       });
     }
     return toInsert;

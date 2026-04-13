@@ -12,7 +12,7 @@ export const dunningRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
       const service = new DunningService(request.server.db, request.tenantId);
-      const rules = await service.listRules();
+      const rules = await service.seedDefaultRules();
       return { data: rules };
     },
   );

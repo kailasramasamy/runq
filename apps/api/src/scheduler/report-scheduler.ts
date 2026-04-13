@@ -1,5 +1,5 @@
 import { eq, and, lte, sql } from 'drizzle-orm';
-import { scheduledReports, recurringInvoiceTemplates, tenants } from '@runq/db';
+import { scheduledReports, recurringInvoiceTemplates, dunningRules, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Redis } from 'ioredis';
 import type { TenantSettings } from '@runq/types';
@@ -8,6 +8,7 @@ import { sendEmail } from '../utils/email';
 import { ReportRenderer } from '../modules/reports/report-renderer';
 import { computeNextRun } from '../utils/schedule';
 import { RecurringInvoiceService } from '../modules/ar/recurring.service';
+import { DunningService } from '../modules/ar/dunning.service';
 
 interface Logger {
   info(msg: string, ...args: unknown[]): void;
@@ -17,8 +18,11 @@ interface Logger {
 
 const INTERVAL_MS = 60_000; // check every minute
 
+const DUNNING_INTERVAL_MS = 3_600_000; // check every hour
+
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
 let recurringHandle: ReturnType<typeof setInterval> | null = null;
+let dunningHandle: ReturnType<typeof setInterval> | null = null;
 
 export function startReportScheduler(db: Db, redis: Redis, logger: Logger = console): void {
   logger.info('Report scheduler: started (checking every 60s)');
@@ -32,6 +36,12 @@ export function startReportScheduler(db: Db, redis: Redis, logger: Logger = cons
     () => runDueRecurringInvoices(db, logger).catch((err) => logger.error('Recurring invoices error:', err)),
     INTERVAL_MS,
   );
+
+  logger.info('Dunning scheduler: started (checking every hour)');
+  dunningHandle = setInterval(
+    () => runDunningForAllTenants(db, redis, logger).catch((err) => logger.error('Dunning scheduler error:', err)),
+    DUNNING_INTERVAL_MS,
+  );
 }
 
 export function stopReportScheduler(): void {
@@ -42,6 +52,10 @@ export function stopReportScheduler(): void {
   if (recurringHandle) {
     clearInterval(recurringHandle);
     recurringHandle = null;
+  }
+  if (dunningHandle) {
+    clearInterval(dunningHandle);
+    dunningHandle = null;
   }
 }
 
@@ -102,6 +116,32 @@ async function runDueRecurringInvoices(db: Db, logger: Logger): Promise<void> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(`Recurring invoices: failed tenant ${tenantId}: ${msg}`);
+    }
+  }
+}
+
+async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Promise<void> {
+  // Only run once per day — use Redis lock with 20h TTL
+  const lockKey = 'lock:dunning:daily';
+  const acquired = await redis.set(lockKey, '1', 'EX', 72_000, 'NX');
+  if (!acquired) return;
+
+  // Find tenants that have active dunning rules
+  const activeTenants = await db
+    .selectDistinct({ tenantId: dunningRules.tenantId })
+    .from(dunningRules)
+    .where(eq(dunningRules.isActive, true));
+
+  for (const { tenantId } of activeTenants) {
+    try {
+      const service = new DunningService(db, tenantId);
+      const { sent, failed, skipped } = await service.autoSendDunning();
+      if (sent > 0 || failed > 0) {
+        logger.info(`Dunning: tenant ${tenantId} — sent ${sent}, failed ${failed}, skipped ${skipped}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`Dunning: failed tenant ${tenantId}: ${msg}`);
     }
   }
 }
