@@ -39,22 +39,21 @@ export class ReportsService {
     const revenue = this.toLineItems(rows, 'revenue');
     const allExpenses = this.toLineItems(rows, 'expense');
 
-    // Legacy codes (50xx) mapped individually; new codes (51xx-59xx) mapped by prefix
-    const COGS_CODES = new Set(['5000', '5001', '5002']);
-    const FINANCIAL_CODES = new Set(['5007']); // Bank Charges
+    // COGS: 50xx range (raw materials, purchase expenses, freight inward, etc.) + 51xx
     const cogs = allExpenses.filter((e) =>
-      COGS_CODES.has(e.accountCode) || e.accountCode.startsWith('51'),
+      e.accountCode.startsWith('50') || e.accountCode.startsWith('51'),
     );
-    const operatingExpenses = allExpenses.filter((e) => {
-      if (COGS_CODES.has(e.accountCode) || FINANCIAL_CODES.has(e.accountCode)) return false;
-      if (e.accountCode.startsWith('50')) return true; // legacy 5003-5009 except 5007
-      return ['52', '53', '54', '55', '57'].some((p) => e.accountCode.startsWith(p));
-    });
+    const operatingExpenses = allExpenses.filter((e) =>
+      ['52', '53', '54', '55', '57'].some((p) => e.accountCode.startsWith(p)),
+    );
     const depreciation = allExpenses.filter((e) => e.accountCode.startsWith('58'));
-    const financialCosts = allExpenses.filter((e) =>
-      FINANCIAL_CODES.has(e.accountCode) || e.accountCode.startsWith('56'),
+    const financialCosts = allExpenses.filter((e) => e.accountCode.startsWith('56'));
+    const taxes = allExpenses.filter((e) =>
+      e.accountCode.startsWith('59') && e.accountCode !== '5999',
     );
-    const taxes = allExpenses.filter((e) => e.accountCode.startsWith('59'));
+    // 5999 Miscellaneous Expense is opex, not tax
+    const miscOpex = allExpenses.filter((e) => e.accountCode === '5999');
+    operatingExpenses.push(...miscOpex);
 
     const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0);
     const totalCogs = cogs.reduce((s, r) => s + r.amount, 0);
@@ -215,8 +214,8 @@ export class ReportsService {
   ): Promise<AccountRow[]> {
     const typeLiteral = types.map(t => `'${t}'`).join(',');
     const dateConditions = dateFrom
-      ? [gte(journalEntries.date, dateFrom), lte(journalEntries.date, dateTo)]
-      : [lte(journalEntries.date, dateTo)];
+      ? [eq(journalEntries.status, 'posted'), gte(journalEntries.date, dateFrom), lte(journalEntries.date, dateTo)]
+      : [eq(journalEntries.status, 'posted'), lte(journalEntries.date, dateTo)];
 
     const rows = await this.db
       .select({

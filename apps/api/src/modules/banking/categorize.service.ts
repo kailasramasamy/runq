@@ -9,6 +9,7 @@ import {
 } from '../../utils/ai/prompts/bank-categorization';
 import { CategorizePostingService } from './categorize-posting.service';
 import { AutoBillPayService } from './auto-bill-pay.service';
+import { AutoReceiptService } from './auto-receipt.service';
 
 interface RuleMatch {
   accountCode?: string;
@@ -24,6 +25,11 @@ interface VendorInfo {
   id: string;
   name: string;
   expenseAccountCode: string | null;
+}
+
+interface CustomerInfo {
+  id: string;
+  name: string;
 }
 
 interface GlAccount {
@@ -108,11 +114,11 @@ export class CategorizeService {
    * High-confidence matches are auto-reconciled.
    */
   async categorizeTransactions(bankAccountId: string): Promise<CategorizationResult> {
-    const [uncategorized, glAccounts, vendorList, customerNames, narrationRules, bankGlCode] = await Promise.all([
+    const [uncategorized, glAccounts, vendorList, customerList, narrationRules, bankGlCode] = await Promise.all([
       this.fetchUncategorized(bankAccountId),
       this.fetchGlAccounts(),
       this.fetchVendors(),
-      this.fetchCustomerNames(),
+      this.fetchCustomers(),
       this.fetchNarrationRules(),
       this.fetchBankGlCode(bankAccountId),
     ]);
@@ -124,12 +130,13 @@ export class CategorizeService {
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
     const posting = new CategorizePostingService(this.db, this.tenantId);
     const autoBillPay = new AutoBillPayService(this.db, this.tenantId);
+    const autoReceipt = new AutoReceiptService(this.db, this.tenantId);
     let rulesMatched = 0;
     let aiMatched = 0;
     const needsAI: typeof uncategorized = [];
 
     for (const txn of uncategorized) {
-      const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorList, customerNames);
+      const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorList, customerList);
       if (match) {
         // Vendor match on debit → auto-bill-and-pay (creates bill + payment + 2 JEs)
         if (match.vendorId && match.vendorExpenseCode && txn.type === 'debit' && bankGlCode) {
@@ -150,6 +157,30 @@ export class CategorizeService {
           // Learn vendor pattern for future auto-detection
           if (txn.narration && expenseGl) {
             await this.learnNarrationRule(txn.narration, expenseGl.id, 'debit', match.vendorId);
+          }
+          rulesMatched++;
+          continue;
+        }
+
+        // Customer match on credit → auto-receipt (creates receipt + allocates to invoice)
+        if (match.customerId && txn.type === 'credit' && bankGlCode) {
+          const customer = customerList.find((c) => c.id === match.customerId)!;
+          await autoReceipt.createFromBankTxn({
+            bankTransactionId: txn.id,
+            customerId: match.customerId,
+            customerName: customer.name,
+            bankAccountId: bankAccountId,
+            bankGlAccountCode: bankGlCode,
+            amount: parseFloat(txn.amount),
+            transactionDate: txn.transactionDate,
+            narration: txn.narration,
+            reference: txn.reference,
+          });
+          if (txn.narration) {
+            const arGl = accountByCode.get('1103');
+            if (arGl) {
+              await this.learnNarrationRule(txn.narration, arGl.id, 'credit', undefined, match.customerId);
+            }
           }
           rulesMatched++;
           continue;
@@ -327,7 +358,7 @@ export class CategorizeService {
     type: 'credit' | 'debit',
     narrationRules: { pattern: string; glAccountId: string; vendorId: string | null; customerId: string | null; autoReconcile: boolean; txnType: string | null }[],
     vendorList: VendorInfo[],
-    customerNames: string[],
+    customerList: CustomerInfo[],
   ): RuleMatch | null {
     if (!narration) return null;
     const upper = narration.toUpperCase();
@@ -350,7 +381,7 @@ export class CategorizeService {
     }
 
     // 2. Vendor/customer name matching
-    const partyMatch = this.matchPartyNames(upper, type, vendorList, customerNames);
+    const partyMatch = this.matchPartyNames(upper, type, vendorList, customerList);
     if (partyMatch) return partyMatch;
 
     // 3. Learned GL narration rules (no vendor/customer)
@@ -377,7 +408,7 @@ export class CategorizeService {
     upper: string,
     type: 'credit' | 'debit',
     vendorList: VendorInfo[],
-    customerNames: string[],
+    customerList: CustomerInfo[],
   ): RuleMatch | null {
     if (type === 'debit') {
       const vendor = vendorList.find((v) => upper.includes(v.name.toUpperCase()));
@@ -391,8 +422,10 @@ export class CategorizeService {
       }
     }
     if (type === 'credit') {
-      const match = customerNames.find((c) => upper.includes(c.toUpperCase()));
-      if (match) return { accountCode: '1103', confidence: 0.80 };
+      const customer = customerList.find((c) => upper.includes(c.name.toUpperCase()));
+      if (customer) {
+        return { accountCode: '1103', confidence: 0.80, customerId: customer.id };
+      }
     }
     return null;
   }
@@ -537,12 +570,11 @@ export class CategorizeService {
       .where(eq(vendors.tenantId, this.tenantId));
   }
 
-  private async fetchCustomerNames(): Promise<string[]> {
-    const rows = await this.db
-      .select({ name: customers.name })
+  private async fetchCustomers(): Promise<CustomerInfo[]> {
+    return this.db
+      .select({ id: customers.id, name: customers.name })
       .from(customers)
       .where(eq(customers.tenantId, this.tenantId));
-    return rows.map((r) => r.name);
   }
 
   private async fetchNarrationRules() {

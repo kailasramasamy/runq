@@ -42,6 +42,7 @@ export interface GapCategoryItems {
 
 const GAP_DEFINITIONS: Array<{ key: string; title: string; description: string; severity: 'error' | 'warning' }> = [
   { key: 'uncategorized_bank_txns', title: 'Uncategorized Bank Transactions', description: 'No GL category, vendor, or customer assigned', severity: 'error' },
+  { key: 'customer_credit_no_invoice', title: 'Customer Payments Without Invoices', description: 'Bank credit matched to customer but no invoice exists — create invoice to complete reconciliation', severity: 'error' },
   { key: 'matched_without_je', title: 'Matched Without Journal Entries', description: 'Reconciled but no accounting entry — books incomplete', severity: 'error' },
   { key: 'unposted_bills', title: 'Bills Without Journal Entries', description: 'Approved bills not posted to GL', severity: 'error' },
   { key: 'unposted_invoices', title: 'Invoices Without Journal Entries', description: 'Sent invoices not posted to GL', severity: 'error' },
@@ -62,6 +63,7 @@ export class GapScanService {
     const since = this.dateSince(days);
     const counts = await Promise.all([
       this.uncategorizedCount(since),
+      this.customerCreditNoInvoiceCount(since),
       this.matchedWithoutJECount(since),
       this.unpostedBillsCount(since),
       this.unpostedInvoicesCount(since),
@@ -114,6 +116,14 @@ export class GapScanService {
       eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since),
       eq(bankTransactions.reconStatus, 'unreconciled'), isNull(bankTransactions.glAccountId),
       isNull(bankTransactions.vendorId), isNull(bankTransactions.customerId),
+    )));
+  }
+
+  private customerCreditNoInvoiceCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(bankTransactions).where(and(
+      eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since),
+      eq(bankTransactions.type, 'credit'), eq(bankTransactions.reconStatus, 'unreconciled'),
+      sql`${bankTransactions.customerId} IS NOT NULL`,
     )));
   }
 
@@ -178,6 +188,24 @@ export class GapScanService {
     uncategorized_bank_txns: (since) => this.fetchBankTxnItems(
       and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'unreconciled'), isNull(bankTransactions.glAccountId), isNull(bankTransactions.vendorId), isNull(bankTransactions.customerId)),
     ),
+    customer_credit_no_invoice: async (since) => {
+      const rows = await this.db
+        .select({ id: bankTransactions.id, narration: bankTransactions.narration, amount: bankTransactions.amount, date: bankTransactions.transactionDate, cname: customers.name })
+        .from(bankTransactions)
+        .innerJoin(customers, eq(bankTransactions.customerId, customers.id))
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since),
+          eq(bankTransactions.type, 'credit'), eq(bankTransactions.reconStatus, 'unreconciled'),
+          sql`${bankTransactions.customerId} IS NOT NULL`,
+        ))
+        .limit(50);
+      return rows.map((r) => ({
+        entityType: 'bank_transaction', entityId: r.id,
+        label: `${r.cname} — ${r.narration?.slice(0, 40) ?? 'No description'}`,
+        summary: `₹${toNumber(r.amount).toLocaleString('en-IN')} · Create invoice for this customer, then re-run auto-reconcile`,
+        date: r.date, url: '/banking/transactions',
+      }));
+    },
     matched_without_je: (since) => this.fetchBankTxnItems(
       and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'matched'), isNull(bankTransactions.journalEntryId),
         sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payments p ON rm.payment_id = p.id JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id WHERE rm.bank_transaction_id = ${bankTransactions.id})`,

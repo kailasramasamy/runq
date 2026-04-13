@@ -32,7 +32,7 @@ export interface AutoReconciliationResult {
   matched: {
     bankTransactionId: string;
     matchedTo: { type: 'vendor_payment' | 'payment_receipt'; id: string };
-    strategy: 'utr' | 'amount_date';
+    strategy: 'utr' | 'amount_date' | 'customer_invoice';
     amount: number;
     confidence: 'exact' | 'high';
   }[];

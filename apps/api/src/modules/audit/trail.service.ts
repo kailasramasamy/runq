@@ -186,7 +186,7 @@ export class TrailService {
         gaps.push('No journal entry linked');
       }
       if (txn.customerId && txn.type === 'credit' && !hasInvoice && matches.length === 0) {
-        gaps.push('No matching invoice found for this customer payment');
+        gaps.push('Customer payment received but no invoice exists — create the invoice first, then re-run auto-reconcile to generate receipt and mark as paid');
       }
     } else if (!hasJE) {
       gaps.push('No journal entry found');

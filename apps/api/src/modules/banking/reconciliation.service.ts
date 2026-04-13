@@ -7,6 +7,8 @@ import {
   payments,
   paymentReceipts,
   cheques,
+  customers,
+  accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch } from '@runq/types';
@@ -16,6 +18,7 @@ import { toNumber } from '../../utils/decimal';
 import type { SmartMatchResult } from './smart-match.service';
 import { SmartMatchService } from './smart-match.service';
 import { TdsMatchService } from './tds-match.service';
+import { AutoReceiptService } from './auto-receipt.service';
 
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
@@ -118,6 +121,44 @@ export class ReconciliationService {
     // Bulk-insert all matches and bulk-update txn statuses in one transaction
     if (pendingMatches.length > 0) {
       await this.flushMatches(pendingMatches);
+    }
+
+    // Auto-receipt: for unmatched credit txns that have a customerId, try to
+    // find an unpaid invoice and create a receipt + allocation automatically.
+    const autoReceiptSvc = new AutoReceiptService(this.db, this.tenantId);
+    const creditWithCustomer = txns.filter(
+      (t) => !matchedTxnIds.has(t.id) && t.type === 'credit' && t.customerId,
+    );
+    if (creditWithCustomer.length > 0) {
+      const bankGlCode = await this.fetchBankGlCode(bankAccountId);
+      if (bankGlCode) {
+        for (const txn of creditWithCustomer) {
+          const [cust] = await this.db.select({ name: customers.name }).from(customers)
+            .where(and(eq(customers.id, txn.customerId!), eq(customers.tenantId, this.tenantId))).limit(1);
+          if (!cust) continue;
+          const result = await autoReceiptSvc.createFromBankTxn({
+            bankTransactionId: txn.id,
+            customerId: txn.customerId!,
+            customerName: cust.name,
+            bankAccountId,
+            bankGlAccountCode: bankGlCode,
+            amount: toNumber(txn.amount),
+            transactionDate: txn.transactionDate,
+            narration: txn.narration,
+            reference: txn.reference,
+          });
+          if (result !== null) {
+            matchedTxnIds.add(txn.id);
+            matched.push({
+              bankTransactionId: txn.id,
+              matchedTo: { type: 'payment_receipt', id: result.receiptId },
+              strategy: 'customer_invoice',
+              amount: toNumber(txn.amount),
+              confidence: 'high',
+            });
+          }
+        }
+      }
     }
 
     // Auto-clear deposited cheques that match reconciled credit transactions
@@ -510,6 +551,16 @@ export class ReconciliationService {
    * Try to auto-clear a deposited cheque that matches a bank credit transaction
    * by amount (within ₹1) and date (cheque date to cheque date + 30 days).
    */
+  private async fetchBankGlCode(bankAccountId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ code: accounts.code })
+      .from(bankAccounts)
+      .innerJoin(accounts, eq(bankAccounts.glAccountId, accounts.id))
+      .where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+    return row?.code ?? null;
+  }
+
   private async tryClearChequeForTxn(bankAccountId: string, amount: number, txnDate: string): Promise<void> {
     const [cheque] = await this.db
       .select({ id: cheques.id })
