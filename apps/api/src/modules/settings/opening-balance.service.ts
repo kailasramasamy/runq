@@ -73,7 +73,6 @@ export class OpeningBalanceService {
 
   /** Save or update a single customer opening balance */
   async saveCustomer(customerId: string, amount: number, effectiveDate: string): Promise<{ created: boolean }> {
-    // Check if OB invoice already exists — update it
     const [existing] = await this.db.select({ id: salesInvoices.id }).from(salesInvoices)
       .where(and(eq(salesInvoices.tenantId, this.tenantId), eq(salesInvoices.customerId, customerId), sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
 
@@ -91,7 +90,11 @@ export class OpeningBalanceService {
     const fy = this.getFY(effectiveDate);
     const created = await this.createOpeningInvoice(customerId, amount, effectiveDate, fy);
     if (created) {
-      try { await this.postOpeningJE(effectiveDate, amount, 0); } catch { /* logged */ }
+      const [cust] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, customerId)).limit(1);
+      try {
+        await this.postIndividualJE(effectiveDate, `Opening balance: ${cust?.name ?? 'Customer'}`, 'opening_balance_ar', customerId,
+          [{ accountCode: '1103', debit: amount }, { accountCode: '3002', credit: amount }]);
+      } catch { /* logged */ }
     }
     return { created };
   }
@@ -115,7 +118,11 @@ export class OpeningBalanceService {
     const fy = this.getFY(effectiveDate);
     const created = await this.createOpeningBill(vendorId, amount, effectiveDate, fy);
     if (created) {
-      try { await this.postOpeningJE(effectiveDate, 0, amount); } catch { /* logged */ }
+      const [vend] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, vendorId)).limit(1);
+      try {
+        await this.postIndividualJE(effectiveDate, `Opening balance: ${vend?.name ?? 'Vendor'}`, 'opening_balance_ap', vendorId,
+          [{ accountCode: '3002', debit: amount }, { accountCode: '2101', credit: amount }]);
+      } catch { /* logged */ }
     }
     return { created };
   }
@@ -242,6 +249,15 @@ export class OpeningBalanceService {
     return true;
   }
 
+  private async postIndividualJE(
+    date: string, description: string, sourceType: string, sourceId: string,
+    lines: { accountCode: string; debit?: number; credit?: number }[],
+  ): Promise<void> {
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.createJournalEntry({ date, description, sourceType, sourceId, lines });
+  }
+
+  /** @deprecated Use postIndividualJE instead */
   private async postOpeningJE(date: string, totalAR: number, totalAP: number): Promise<void> {
     const gl = new GLService(this.db, this.tenantId);
 
