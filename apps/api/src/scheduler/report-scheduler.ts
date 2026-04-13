@@ -137,10 +137,13 @@ function maybeDunning(db: Db, redis: Redis, logger: Logger): void {
 }
 
 async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Promise<void> {
-  // Redis lock ensures only one run per day even with multiple instances
-  const lockKey = 'lock:dunning:daily';
-  const acquired = await redis.set(lockKey, '1', 'EX', 72_000, 'NX');
+  const isDryRun = !!process.env.DUNNING_DRY_RUN_EMAIL;
+  // In dry-run: unique lock per deploy so it always fires once
+  const lockKey = isDryRun ? `lock:dunning:dryrun:${Date.now()}` : 'lock:dunning:daily';
+  const acquired = await redis.set(lockKey, '1', 'EX', isDryRun ? 300 : 72_000, 'NX');
   if (!acquired) return;
+
+  logger.info(`Dunning: starting${isDryRun ? ` (dry-run → ${process.env.DUNNING_DRY_RUN_EMAIL})` : ''}`);
 
   // Find tenants that have active dunning rules
   const activeTenants = await db
@@ -148,13 +151,18 @@ async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Pr
     .from(dunningRules)
     .where(eq(dunningRules.isActive, true));
 
+  logger.info(`Dunning: found ${activeTenants.length} tenant(s) with active rules`);
+
+  if (activeTenants.length === 0) {
+    logger.info('Dunning: no tenants with active rules — ensure rules are seeded (visit AR > Dunning > Rules tab)');
+    return;
+  }
+
   for (const { tenantId } of activeTenants) {
     try {
       const service = new DunningService(db, tenantId);
       const { sent, failed, skipped } = await service.autoSendDunning();
-      if (sent > 0 || failed > 0) {
-        logger.info(`Dunning: tenant ${tenantId} — sent ${sent}, failed ${failed}, skipped ${skipped}`);
-      }
+      logger.info(`Dunning: tenant ${tenantId} — sent ${sent}, failed ${failed}, skipped ${skipped}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(`Dunning: failed tenant ${tenantId}: ${msg}`);
