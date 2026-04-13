@@ -88,13 +88,16 @@ function SidebarContent({
               </>
             )}
           </Link>
-          {!collapsed && onToggleCollapse && (
+          {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              title="Collapse sidebar"
-              className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className={cn(
+                'rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors',
+                collapsed && 'mt-2 w-full flex justify-center',
+              )}
             >
-              <PanelLeftClose size={16} />
+              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
           )}
         </div>
@@ -150,27 +153,44 @@ function SidebarContent({
         </div>
       </nav>
 
-      {/* ── Footer ── */}
+      {/* ── Footer: avatar + company + theme ── */}
       <div className={cn(
         'shrink-0 border-t border-zinc-200 dark:border-zinc-800',
-        collapsed ? 'flex flex-col items-center gap-1 py-2' : 'flex items-center gap-1 px-3 py-2',
+        collapsed ? 'flex flex-col items-center py-2.5' : 'flex items-center gap-2 px-3 py-2.5',
       )}>
-        {collapsed && onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            title="Expand sidebar"
-            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-          >
-            <PanelLeftOpen size={16} />
-          </button>
+        {collapsed ? (
+          <>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white"
+              title={companyName ?? 'Company'}
+            >
+              {(companyName ?? 'C')[0].toUpperCase()}
+            </div>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="mt-1.5 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white">
+              {(companyName ?? 'C')[0].toUpperCase()}
+            </div>
+            <span className="flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
+              {companyName ?? 'Company'}
+            </span>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </>
         )}
-        <button
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-        >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
       </div>
     </>
   );
