@@ -6,6 +6,7 @@ import {
   payments,
   paymentAllocations,
   reconciliationMatches,
+  accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -41,21 +42,26 @@ export class AutoBillPayService {
    * Returns null if existing payment was matched (no new bill created).
    */
   async createFromBankTxn(params: AutoBillPayParams): Promise<AutoBillPayResult | null> {
+    // Resolve expense account ID for tagging the bank transaction
+    const [expenseGl] = await this.db.select({ id: accounts.id }).from(accounts)
+      .where(and(eq(accounts.tenantId, this.tenantId), eq(accounts.code, params.expenseAccountCode))).limit(1);
+    const expenseGlId = expenseGl?.id ?? null;
+
     // 1. Existing payment? Just link bank txn to it
     const existingPayment = await this.findExistingPayment(params);
     if (existingPayment) {
-      await this.linkToExistingPayment(params.bankTransactionId, existingPayment, params.vendorId);
+      await this.linkToExistingPayment(params.bankTransactionId, existingPayment, params.vendorId, expenseGlId);
       return null;
     }
 
     // 2. Existing bill (unpaid/partially paid)? Create payment against it
     const existingBill = await this.findExistingBill(params);
     if (existingBill) {
-      return this.createPaymentForBill(params, existingBill);
+      return this.createPaymentForBill(params, existingBill, expenseGlId);
     }
 
     // 3. Nothing exists — create bill + payment from scratch
-    return this.createBillAndPayment(params);
+    return this.createBillAndPayment(params, expenseGlId);
   }
 
   private async findExistingPayment(params: AutoBillPayParams): Promise<string | null> {
@@ -91,6 +97,7 @@ export class AutoBillPayService {
   private async createPaymentForBill(
     params: AutoBillPayParams,
     bill: { id: string; balanceDue: string },
+    expenseGlId: string | null,
   ): Promise<AutoBillPayResult> {
     const payAmount = Math.min(params.amount, parseFloat(bill.balanceDue));
     const gl = new GLService(this.db, this.tenantId);
@@ -133,7 +140,7 @@ export class AutoBillPayService {
       });
 
       await tx.update(bankTransactions)
-        .set({ vendorId: params.vendorId, reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId: params.vendorId, glAccountId: expenseGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, params.bankTransactionId));
 
       return payment!.id;
@@ -151,7 +158,7 @@ export class AutoBillPayService {
     return { billId: bill.id, paymentId };
   }
 
-  private async linkToExistingPayment(bankTransactionId: string, paymentId: string, vendorId: string): Promise<void> {
+  private async linkToExistingPayment(bankTransactionId: string, paymentId: string, vendorId: string, expenseGlId: string | null): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.insert(reconciliationMatches).values({
         tenantId: this.tenantId,
@@ -160,12 +167,12 @@ export class AutoBillPayService {
         matchType: 'auto_amount_date',
       });
       await tx.update(bankTransactions)
-        .set({ vendorId, reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId, glAccountId: expenseGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
     });
   }
 
-  private async createBillAndPayment(params: AutoBillPayParams): Promise<AutoBillPayResult> {
+  private async createBillAndPayment(params: AutoBillPayParams, expenseGlId: string | null): Promise<AutoBillPayResult> {
     const invoiceNumber = this.generateInvoiceNumber(params.vendorName, params.transactionDate);
     const gl = new GLService(this.db, this.tenantId);
 
@@ -225,7 +232,7 @@ export class AutoBillPayService {
 
       // 6. Mark bank transaction as reconciled
       await tx.update(bankTransactions)
-        .set({ vendorId: params.vendorId, reconStatus: 'matched', updatedAt: new Date() })
+        .set({ vendorId: params.vendorId, glAccountId: expenseGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, params.bankTransactionId));
 
       return { billId: bill!.id, paymentId: payment!.id };
