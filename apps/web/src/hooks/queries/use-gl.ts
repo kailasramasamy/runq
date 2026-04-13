@@ -20,6 +20,7 @@ function buildJeQs(filters?: JournalEntryFilter, page?: number, limit?: number):
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
   if (filters?.sourceType) params.set('sourceType', filters.sourceType);
+  if (filters?.search) params.set('search', filters.search);
   if (page) params.set('page', String(page));
   if (limit) params.set('limit', String(limit));
   const qs = params.toString();

@@ -380,6 +380,7 @@ export class GLService {
     if (filters.dateFrom) clauses.push(sql`${journalEntries.date} >= ${filters.dateFrom}`);
     if (filters.dateTo) clauses.push(sql`${journalEntries.date} <= ${filters.dateTo}`);
     if (filters.sourceType) clauses.push(eq(journalEntries.sourceType, filters.sourceType));
+    if (filters.search) clauses.push(sql`(${journalEntries.description} ILIKE ${'%' + filters.search + '%'} OR ${journalEntries.entryNumber} ILIKE ${'%' + filters.search + '%'})`);
     return and(...clauses);
   }
 

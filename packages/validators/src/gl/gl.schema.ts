@@ -39,6 +39,7 @@ export const journalEntryFilterSchema = z.object({
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
   sourceType: z.string().max(50).optional(),
+  search: z.string().optional(),
 });
 
 export const updateAccountSchema = z.object({
