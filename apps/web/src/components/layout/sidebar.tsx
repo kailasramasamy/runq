@@ -78,27 +78,38 @@ function SidebarContent({
       {/* ── Logo + sidebar toggle ── */}
       <div className={cn('shrink-0', collapsed ? 'px-2 pt-3 pb-1' : 'px-4 pt-3 pb-1')}>
         <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-          <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
-            {collapsed ? (
-              <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6" />
+          {collapsed ? (
+            /* Favicon by default; on hover swap to expand icon */
+            onToggleCollapse ? (
+              <button
+                onClick={onToggleCollapse}
+                title="Expand sidebar"
+                className="group flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6 group-hover:hidden" />
+                <PanelLeftOpen size={18} className="hidden text-zinc-400 group-hover:block" />
+              </button>
             ) : (
-              <>
+              <Link to="/" onClick={onNavigate}>
+                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6" />
+              </Link>
+            )
+          ) : (
+            <>
+              <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
                 <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
                 <span className="rounded border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">Finance</span>
-              </>
-            )}
-          </Link>
-          {onToggleCollapse && (
-            <button
-              onClick={onToggleCollapse}
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className={cn(
-                'rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors',
-                collapsed && 'mt-2 w-full flex justify-center',
+              </Link>
+              {onToggleCollapse && (
+                <button
+                  onClick={onToggleCollapse}
+                  title="Collapse sidebar"
+                  className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                >
+                  <PanelLeftClose size={16} />
+                </button>
               )}
-            >
-              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
+            </>
           )}
         </div>
       </div>
