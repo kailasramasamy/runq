@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload, Send, X as XIcon } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
-import { useInvoices, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
+import { useInvoices, useInvoiceSummary, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
 import type { PaginatedResponse } from '@runq/types';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { formatINR } from '@/lib/utils';
@@ -11,7 +11,7 @@ import type { SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
 import {
   PageHeader, Badge, Button, Select, DateInput, Combobox,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, Pagination, useToast,
+  TableSkeleton, EmptyState, Pagination, StatsCard, useToast,
 } from '@/components/ui';
 
 const LIMIT = 20;
@@ -156,6 +156,7 @@ export function InvoiceListPage() {
     }
   }
 
+  const { data: summaryData, isLoading: summaryLoading } = useInvoiceSummary();
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data ?? [];
   const customerOptions = [
@@ -233,6 +234,41 @@ export function InvoiceListPage() {
           </div>
         }
       />
+
+      {summaryLoading ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))}
+        </div>
+      ) : summaryData?.data ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatsCard
+            title="Total Outstanding"
+            value={summaryData.data.totalOutstanding}
+            icon={IndianRupee}
+          />
+          <StatsCard
+            title="Overdue"
+            value={summaryData.data.overdueAmount}
+            icon={AlertTriangle}
+            className="border-red-200 dark:border-red-900/50"
+            formatValue={(v) => `${formatINR(v)} (${summaryData.data.overdueCount})`}
+          />
+          <StatsCard
+            title="Drafts"
+            value={summaryData.data.draftCount}
+            icon={FileEdit}
+            formatValue={(v) => String(v)}
+            onClick={() => { setStatusFilter('draft'); setPage(1); }}
+          />
+          <StatsCard
+            title="Received This Month"
+            value={summaryData.data.receivedThisMonth}
+            icon={CheckCircle}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
         <div className="relative col-span-2 sm:w-48">

@@ -4,10 +4,19 @@ import type { PurchaseInvoice, PurchaseInvoiceWithDetails, PaginatedResponse, Ap
 import type { ThreeWayMatchResult } from '@runq/types';
 import type { CreatePurchaseInvoiceInput, UpdatePurchaseInvoiceInput, PurchaseInvoiceFilter } from '@runq/validators';
 
+interface BillsSummary {
+  totalOutstanding: number;
+  overdueCount: number;
+  overdueAmount: number;
+  pendingApprovalCount: number;
+  paidThisMonth: number;
+}
+
 const INVOICE_KEYS = {
   all: ['purchase-invoices'] as const,
   list: (filters?: Record<string, unknown>) => ['purchase-invoices', 'list', filters] as const,
   detail: (id: string) => ['purchase-invoices', 'detail', id] as const,
+  summary: ['purchase-invoices', 'summary'] as const,
 };
 
 function buildFilterQs(filters?: PurchaseInvoiceFilter): string {
@@ -19,6 +28,13 @@ function buildFilterQs(filters?: PurchaseInvoiceFilter): string {
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
+}
+
+export function useBillsSummary() {
+  return useQuery({
+    queryKey: INVOICE_KEYS.summary,
+    queryFn: () => api.get<{ data: BillsSummary }>('/ap/purchase-invoices/summary'),
+  });
 }
 
 export function usePurchaseInvoices(filters?: PurchaseInvoiceFilter) {

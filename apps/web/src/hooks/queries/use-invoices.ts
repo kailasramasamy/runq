@@ -8,10 +8,19 @@ import type {
   MarkPaidInput,
 } from '@runq/validators';
 
+interface InvoiceSummary {
+  totalOutstanding: number;
+  overdueCount: number;
+  overdueAmount: number;
+  draftCount: number;
+  receivedThisMonth: number;
+}
+
 const INVOICE_KEYS = {
   all: ['invoices'] as const,
   list: (filters?: Record<string, unknown>) => ['invoices', 'list', filters] as const,
   detail: (id: string) => ['invoices', 'detail', id] as const,
+  summary: ['invoices', 'summary'] as const,
 };
 
 interface InvoiceFilters {
@@ -23,6 +32,13 @@ interface InvoiceFilters {
   page?: number;
   limit?: number;
   [key: string]: unknown;
+}
+
+export function useInvoiceSummary() {
+  return useQuery({
+    queryKey: INVOICE_KEYS.summary,
+    queryFn: () => api.get<{ data: InvoiceSummary }>('/ar/invoices/summary'),
+  });
 }
 
 export function useInvoices(filters?: InvoiceFilters) {

@@ -25,6 +25,16 @@ const OWNER_ROLES = ['owner'] as const;
 
 export const invoiceRoutes: FastifyPluginAsync = async (app) => {
   app.get(
+    '/summary',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const summary = await service.summary();
+      return { data: summary };
+    },
+  );
+
+  app.get(
     '/',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {

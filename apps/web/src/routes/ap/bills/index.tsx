@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Download, Send } from 'lucide-react';
+import { Plus, FileText, Download, Send, IndianRupee, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
-import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
+import { usePurchaseInvoices, useBillsSummary, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import { useCreateRunFromBills } from '../../../hooks/queries/use-payment-runs';
 import type { PurchaseInvoice, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
@@ -25,6 +25,7 @@ import {
   EmptyState,
   Pagination,
   ConfirmationDialog,
+  StatsCard,
   useToast,
 } from '@/components/ui';
 
@@ -90,6 +91,7 @@ export function BillListPage() {
     dateTo: dateTo || undefined,
   };
 
+  const { data: summaryData, isLoading: summaryLoading } = useBillsSummary();
   const { data, isLoading } = usePurchaseInvoices(filters);
   const { data: vendorsData } = useVendors({ limit: 100 });
   const deleteMutation = useDeletePurchaseInvoice();
@@ -174,6 +176,41 @@ export function BillListPage() {
           </div>
         }
       />
+
+      {summaryLoading ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+          ))}
+        </div>
+      ) : summaryData?.data ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatsCard
+            title="Total Outstanding"
+            value={summaryData.data.totalOutstanding}
+            icon={IndianRupee}
+          />
+          <StatsCard
+            title="Overdue"
+            value={summaryData.data.overdueAmount}
+            icon={AlertTriangle}
+            className="border-red-200 dark:border-red-900/50"
+            formatValue={(v) => `${formatINR(v)} (${summaryData.data.overdueCount})`}
+          />
+          <StatsCard
+            title="Pending Approval"
+            value={summaryData.data.pendingApprovalCount}
+            icon={Clock}
+            formatValue={(v) => String(v)}
+            onClick={() => { setStatus('draft'); setPage(1); }}
+          />
+          <StatsCard
+            title="Paid This Month"
+            value={summaryData.data.paidThisMonth}
+            icon={CheckCircle}
+          />
+        </div>
+      ) : null}
 
       <Card className="mb-4">
         <CardContent>

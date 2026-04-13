@@ -23,6 +23,14 @@ import type { TaxCategory, TaxBreakdown } from '@runq/types';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
+export interface InvoiceSummary {
+  totalOutstanding: number;
+  overdueCount: number;
+  overdueAmount: number;
+  draftCount: number;
+  receivedThisMonth: number;
+}
+
 export interface InvoiceListParams {
   page: number;
   limit: number;
@@ -956,6 +964,56 @@ export class InvoiceService {
         };
       }),
     );
+  }
+
+  async summary(): Promise<InvoiceSummary> {
+    const today = new Date().toISOString().split('T')[0]!;
+    const monthStart = today.slice(0, 7) + '-01';
+
+    const [outstanding, overdue, drafts, receivedThisMonth] = await Promise.all([
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          sql`${salesInvoices.status} NOT IN ('paid', 'cancelled', 'draft')`,
+        )),
+      this.db
+        .select({
+          count: sql<number>`COUNT(*)::int`,
+          amount: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text`,
+        })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          sql`${salesInvoices.dueDate} < ${today}`,
+          sql`${salesInvoices.status} IN ('sent', 'partially_paid')`,
+          sql`${salesInvoices.balanceDue} > 0`,
+        )),
+      this.db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          eq(salesInvoices.status, 'draft'),
+        )),
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.amountReceived}), 0)::text` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          sql`${salesInvoices.status} IN ('paid', 'partially_paid')`,
+          gte(salesInvoices.updatedAt, new Date(monthStart)),
+        )),
+    ]);
+
+    return {
+      totalOutstanding: Number(outstanding[0]?.total ?? 0),
+      overdueCount: overdue[0]?.count ?? 0,
+      overdueAmount: Number(overdue[0]?.amount ?? 0),
+      draftCount: drafts[0]?.count ?? 0,
+      receivedThisMonth: Number(receivedThisMonth[0]?.total ?? 0),
+    };
   }
 
   private buildWhereClause(filters: SalesInvoiceFilter) {

@@ -13,6 +13,14 @@ import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, reso
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
+export interface BillsSummary {
+  totalOutstanding: number;
+  overdueCount: number;
+  overdueAmount: number;
+  pendingApprovalCount: number;
+  paidThisMonth: number;
+}
+
 export interface InvoiceListParams {
   page: number;
   limit: number;
@@ -283,6 +291,56 @@ export class PurchaseInvoiceService {
         tdsRate: item.tdsRate != null ? String(item.tdsRate) : null,
       })),
     );
+  }
+
+  async summary(): Promise<BillsSummary> {
+    const today = new Date().toISOString().split('T')[0]!;
+    const monthStart = today.slice(0, 7) + '-01';
+
+    const [outstanding, overdue, pendingApproval, paidThisMonth] = await Promise.all([
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text` })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          sql`${purchaseInvoices.status} NOT IN ('paid', 'cancelled', 'draft')`,
+        )),
+      this.db
+        .select({
+          count: sql<number>`COUNT(*)::int`,
+          amount: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text`,
+        })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          sql`${purchaseInvoices.dueDate} < ${today}`,
+          sql`${purchaseInvoices.status} NOT IN ('paid', 'cancelled')`,
+          sql`${purchaseInvoices.balanceDue} > 0`,
+        )),
+      this.db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          sql`${purchaseInvoices.status} IN ('draft', 'pending_match', 'matched')`,
+        )),
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${purchaseInvoices.amountPaid}), 0)::text` })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          sql`${purchaseInvoices.status} IN ('paid', 'partially_paid')`,
+          gte(purchaseInvoices.updatedAt, new Date(monthStart)),
+        )),
+    ]);
+
+    return {
+      totalOutstanding: Number(outstanding[0]?.total ?? 0),
+      overdueCount: overdue[0]?.count ?? 0,
+      overdueAmount: Number(overdue[0]?.amount ?? 0),
+      pendingApprovalCount: pendingApproval[0]?.count ?? 0,
+      paidThisMonth: Number(paidThisMonth[0]?.total ?? 0),
+    };
   }
 
   private buildWhereClause(filters: PurchaseInvoiceFilter) {
