@@ -84,10 +84,10 @@ function SidebarContent({
               <button
                 onClick={onToggleCollapse}
                 title="Expand sidebar"
-                className="group flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="flex h-8 w-8 items-center justify-center rounded-md transition-colors group-hover/sidebar:bg-zinc-100 dark:group-hover/sidebar:bg-zinc-800"
               >
-                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6 group-hover:hidden" />
-                <PanelLeftOpen size={18} className="hidden text-zinc-400 group-hover:block" />
+                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6 group-hover/sidebar:hidden" />
+                <PanelLeftOpen size={18} className="hidden text-zinc-400 group-hover/sidebar:block" />
               </button>
             ) : (
               <Link to="/" onClick={onNavigate}>
@@ -254,7 +254,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'hidden md:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
+        'group/sidebar hidden md:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
         collapsed ? 'w-16' : 'w-60',
       )}
     >
