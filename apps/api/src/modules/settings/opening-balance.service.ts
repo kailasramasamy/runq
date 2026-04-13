@@ -7,6 +7,7 @@ import {
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
 import { toNumber } from '../../utils/decimal';
+import { randomUUID } from 'crypto';
 
 interface OBEntry {
   id: string;
@@ -261,7 +262,7 @@ export class OpeningBalanceService {
         date,
         description: `Opening balances as of ${date}`,
         sourceType: 'opening_balance',
-        sourceId: `${this.tenantId}-${Date.now()}`,
+        sourceId: randomUUID(),
         lines,
       });
     }
