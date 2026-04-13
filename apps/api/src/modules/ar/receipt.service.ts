@@ -25,7 +25,7 @@ export interface ReceiptListResult {
 
 export interface ReceiptWithAllocations extends PaymentReceipt {
   customerName: string;
-  allocations: (ReceiptAllocation & { invoiceNumber: string; invoiceTotal: number; invoiceBalanceDue: number })[];
+  allocations: (ReceiptAllocation & { invoiceNumber: string; invoiceTotal: number; invoiceBalanceDue: number; invoiceStatus: string })[];
 }
 
 export class ReceiptService {
@@ -44,6 +44,7 @@ export class ReceiptService {
       filters.bankAccountId ? eq(paymentReceipts.bankAccountId, filters.bankAccountId) : undefined,
       filters.dateFrom ? gte(paymentReceipts.receiptDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(paymentReceipts.receiptDate, filters.dateTo) : undefined,
+      filters.search ? sql`(${customers.name} ILIKE ${'%' + filters.search + '%'} OR ${paymentReceipts.referenceNumber} ILIKE ${'%' + filters.search + '%'})` : undefined,
     );
 
     const [rows, countResult] = await Promise.all([
@@ -54,7 +55,7 @@ export class ReceiptService {
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(paymentReceipts).where(baseWhere),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(paymentReceipts).innerJoin(customers, eq(paymentReceipts.customerId, customers.id)).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
@@ -85,6 +86,7 @@ export class ReceiptService {
         invoiceNumber: salesInvoices.invoiceNumber,
         invoiceTotal: salesInvoices.totalAmount,
         invoiceBalanceDue: salesInvoices.balanceDue,
+        invoiceStatus: salesInvoices.status,
       })
       .from(receiptAllocations)
       .innerJoin(salesInvoices, eq(receiptAllocations.invoiceId, salesInvoices.id))
@@ -103,6 +105,7 @@ export class ReceiptService {
         invoiceNumber: r.invoiceNumber,
         invoiceTotal: toNumber(r.invoiceTotal),
         invoiceBalanceDue: toNumber(r.invoiceBalanceDue),
+        invoiceStatus: r.invoiceStatus,
       })),
     };
   }

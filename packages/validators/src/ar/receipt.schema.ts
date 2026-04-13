@@ -21,6 +21,7 @@ export const receiptFilterSchema = z.object({
   bankAccountId: z.string().uuid().optional(),
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),
+  search: z.string().optional(),
 });
 
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;

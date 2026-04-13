@@ -80,11 +80,11 @@ export function ReceiptDetailPage({ receiptId }: Props) {
   return (
     <div className="max-w-3xl">
       <PageHeader
-        title={receipt.referenceNumber ? `Receipt — ${receipt.referenceNumber}` : `Receipt ${receipt.id.slice(0, 8)}…`}
+        title={receipt.referenceNumber ? `Receipt — ${receipt.referenceNumber}` : `Receipt — ${receipt.id}`}
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
           { label: 'Receipts', href: '/ar/receipts' },
-          { label: receipt.referenceNumber ?? receipt.id.slice(0, 8) + '…' },
+          { label: receipt.referenceNumber ?? receipt.id },
         ]}
       />
 
@@ -121,6 +121,7 @@ export function ReceiptDetailPage({ receiptId }: Props) {
           <CardHeader title="Receipt Information" />
           <CardContent>
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
+              <DetailRow label="Receipt ID" value={receipt.id} />
               <DetailRow label="Customer" value={receipt.customerName} />
               <DetailRow label="Receipt Date" value={receipt.receiptDate} />
               <DetailRow label="Method" value={receipt.paymentMethod.replace(/_/g, ' ')} />

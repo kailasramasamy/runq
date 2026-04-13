@@ -27,6 +27,7 @@ function buildFilterQs(filters?: ReceiptFilter): string {
   if (filters.customerId) params.set('customerId', filters.customerId);
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  if (filters.search) params.set('search', filters.search);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
