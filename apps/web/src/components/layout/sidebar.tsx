@@ -75,7 +75,7 @@ function SidebarContent({
 
   return (
     <>
-      {/* ── Logo + toggle ── */}
+      {/* ── Logo + sidebar toggle ── */}
       <div className={cn('shrink-0', collapsed ? 'px-2 pt-3 pb-1' : 'px-4 pt-3 pb-1')}>
         <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
           <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
@@ -88,30 +88,16 @@ function SidebarContent({
               </>
             )}
           </Link>
-          {!collapsed && (
+          {!collapsed && onToggleCollapse && (
             <button
-              onClick={toggleTheme}
+              onClick={onToggleCollapse}
+              title="Collapse sidebar"
               className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              <PanelLeftClose size={16} />
             </button>
           )}
         </div>
-        {/* Toggle right below logo */}
-        {onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn(
-              'mt-2 flex w-full items-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200',
-              collapsed ? 'justify-center p-2' : 'gap-3 px-3 py-1.5 text-xs',
-            )}
-          >
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            {!collapsed && 'Collapse'}
-          </button>
-        )}
       </div>
 
       {/* ── Main nav — scrollbar hidden until hover ── */}
@@ -164,14 +150,28 @@ function SidebarContent({
         </div>
       </nav>
 
-      {/* ── Footer: company identity ── */}
-      {!collapsed && companyName && (
-        <div className="shrink-0 border-t border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
-          <p className="truncate text-[11px] text-zinc-400 dark:text-zinc-500">
-            {companyName}
-          </p>
-        </div>
-      )}
+      {/* ── Footer ── */}
+      <div className={cn(
+        'shrink-0 border-t border-zinc-200 dark:border-zinc-800',
+        collapsed ? 'flex flex-col items-center gap-1 py-2' : 'flex items-center gap-1 px-3 py-2',
+      )}>
+        {collapsed && onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            title="Expand sidebar"
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+          >
+            <PanelLeftOpen size={16} />
+          </button>
+        )}
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      </div>
     </>
   );
 }
