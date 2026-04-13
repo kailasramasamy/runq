@@ -130,6 +130,7 @@ export class GapScanService {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(purchaseInvoices).where(and(
       eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
       sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+      sql`${purchaseInvoices.invoiceNumber} NOT LIKE 'OB-%'`,
       sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`,
     )));
   }
@@ -138,6 +139,7 @@ export class GapScanService {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(and(
       eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since),
       sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+      sql`${salesInvoices.invoiceNumber} NOT LIKE 'OB-%'`,
       sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id})`,
     )));
   }
@@ -185,14 +187,14 @@ export class GapScanService {
     unposted_bills: async (since) => {
       const rows = await this.db.select({ id: purchaseInvoices.id, num: purchaseInvoices.invoiceNumber, amt: purchaseInvoices.totalAmount, date: purchaseInvoices.invoiceDate, vname: vendors.name })
         .from(purchaseInvoices).innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
-        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`))
+        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`, sql`${purchaseInvoices.invoiceNumber} NOT LIKE 'OB-%'`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/bills/${r.id}` }));
     },
     unposted_invoices: async (since) => {
       const rows = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, date: salesInvoices.invoiceDate, cname: customers.name })
         .from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id))
-        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id})`))
+        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`, sql`${salesInvoices.invoiceNumber} NOT LIKE 'OB-%'`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'sales_invoice' AND je.source_id = ${salesInvoices.id})`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'sales_invoice', entityId: r.id, label: `${r.num} — ${r.cname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/invoices/${r.id}` }));
     },
