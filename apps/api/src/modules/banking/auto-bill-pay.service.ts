@@ -80,7 +80,8 @@ export class AutoBillPayService {
   }
 
   private async findExistingBill(params: AutoBillPayParams): Promise<{ id: string; balanceDue: string } | null> {
-    const [row] = await this.db
+    // First try exact amount match within 30 days
+    const [exact] = await this.db
       .select({ id: purchaseInvoices.id, balanceDue: purchaseInvoices.balanceDue })
       .from(purchaseInvoices)
       .where(and(
@@ -91,7 +92,21 @@ export class AutoBillPayService {
         sql`ABS(${purchaseInvoices.invoiceDate}::date - ${params.transactionDate}::date) <= 30`,
       ))
       .limit(1);
-    return row ?? null;
+    if (exact) return exact;
+
+    // Then check for any unpaid bill from this vendor (covers OB partial payments)
+    const [any] = await this.db
+      .select({ id: purchaseInvoices.id, balanceDue: purchaseInvoices.balanceDue })
+      .from(purchaseInvoices)
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId),
+        eq(purchaseInvoices.vendorId, params.vendorId),
+        sql`${purchaseInvoices.balanceDue}::numeric > 0`,
+        sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+      ))
+      .orderBy(purchaseInvoices.invoiceDate)
+      .limit(1);
+    return any ?? null;
   }
 
   private async createPaymentForBill(
