@@ -262,10 +262,18 @@ export class DunningService {
         action: ruleCtx?.action ?? action,
       });
 
-      // Parse comma-separated emails; include ccEmail on escalation (level 3+)
-      const toAddresses = parseEmails(inv.customerEmail);
-      if (level >= 3 && inv.customerCcEmail) {
+      // Dry-run: redirect all emails to a test address
+      const dryRunEmail = process.env.DUNNING_DRY_RUN_EMAIL;
+      const toAddresses = dryRunEmail
+        ? [dryRunEmail]
+        : parseEmails(inv.customerEmail);
+      if (!dryRunEmail && level >= 3 && inv.customerCcEmail) {
         toAddresses.push(...parseEmails(inv.customerCcEmail));
+      }
+
+      // Prefix subject in dry-run so it's obvious
+      if (dryRunEmail) {
+        template.subject = `[DRY RUN → ${inv.customerEmail}] ${template.subject}`;
       }
 
       try {

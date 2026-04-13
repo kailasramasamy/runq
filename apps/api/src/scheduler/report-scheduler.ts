@@ -121,6 +121,12 @@ async function runDueRecurringInvoices(db: Db, logger: Logger): Promise<void> {
 }
 
 function maybeDunning(db: Db, redis: Redis, logger: Logger): void {
+  // In dry-run mode, skip time gate — run on first tick
+  if (process.env.DUNNING_DRY_RUN_EMAIL) {
+    runDunningForAllTenants(db, redis, logger).catch((err) => logger.error('Dunning scheduler error:', err));
+    return;
+  }
+
   // IST = UTC+5:30 — only run between 1:00 and 1:01 AM IST
   const nowUTC = new Date();
   const istHour = (nowUTC.getUTCHours() + 5 + Math.floor((nowUTC.getUTCMinutes() + 30) / 60)) % 24;
