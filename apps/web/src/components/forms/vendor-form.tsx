@@ -30,6 +30,7 @@ const CATEGORY_OPTIONS = [
   { value: 'packaging', label: 'Packaging Material' },
   { value: 'fuel', label: 'Fuel / Petroleum' },
   { value: 'marketing', label: 'Marketing / Advertising' },
+  { value: 'internal_transfer', label: 'Internal Transfer (Own Account)' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -48,6 +49,7 @@ const CATEGORY_EXPENSE_DEFAULTS: Record<string, string> = {
   packaging: '5002',
   fuel: '5702',
   marketing: '5403',
+  internal_transfer: '1101',
 };
 
 function buildInitial(v?: Vendor): FormState {
