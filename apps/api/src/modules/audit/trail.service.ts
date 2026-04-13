@@ -382,12 +382,29 @@ export class TrailService {
 
     // Trace to source document
     if (je.sourceType && je.sourceId) {
-      try {
-        const sourceTrail = await this.getTrail(this.mapSourceType(je.sourceType), je.sourceId);
-        chain.push(sourceTrail.root);
-        chain.push(...sourceTrail.chain);
-      } catch {
-        // Source document may not exist
+      if (je.sourceType === 'opening_balance_ar') {
+        // sourceId is a customer ID
+        const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, je.sourceId)).limit(1);
+        if (c) chain.push({ type: 'customer', id: je.sourceId, label: c.name, summary: 'Customer (Opening Balance)', date: null, status: null, url: `/ar/customers/${je.sourceId}` });
+        // Find the OB invoice
+        const [obInv] = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, date: salesInvoices.invoiceDate, status: salesInvoices.status })
+          .from(salesInvoices).where(and(eq(salesInvoices.customerId, je.sourceId), eq(salesInvoices.tenantId, this.tenantId), sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
+        if (obInv) chain.push({ type: 'sales_invoice', id: obInv.id, label: obInv.num, summary: `₹${toNumber(obInv.amt).toLocaleString('en-IN')}`, date: obInv.date, status: obInv.status, url: `/ar/invoices/${obInv.id}` });
+      } else if (je.sourceType === 'opening_balance_ap') {
+        // sourceId is a vendor ID
+        const [v] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, je.sourceId)).limit(1);
+        if (v) chain.push({ type: 'vendor', id: je.sourceId, label: v.name, summary: 'Vendor (Opening Balance)', date: null, status: null, url: `/ap/vendors/${je.sourceId}` });
+        // Find the OB bill
+        const [obBill] = await this.db.select().from(purchaseInvoices).where(and(eq(purchaseInvoices.vendorId, je.sourceId), eq(purchaseInvoices.tenantId, this.tenantId), sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
+        if (obBill) { const [vn] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, obBill.vendorId)).limit(1); chain.push(this.billNode(obBill, vn?.name ?? 'Unknown')); }
+      } else {
+        try {
+          const sourceTrail = await this.getTrail(this.mapSourceType(je.sourceType), je.sourceId);
+          chain.push(sourceTrail.root);
+          chain.push(...sourceTrail.chain);
+        } catch {
+          // Source document may not exist
+        }
       }
     }
 
