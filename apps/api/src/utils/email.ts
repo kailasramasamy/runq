@@ -72,7 +72,7 @@ export async function sendEmail(params: {
   fromName?: string;
 }): Promise<boolean> {
   const senderName = params.fromName || process.env.SMTP_FROM_NAME || 'runQ';
-  const from = `${senderName} <${process.env.MAIL_FROM || 'noreply@example.com'}>`;
+  const from = `${senderName} <${process.env.MAIL_FROM || 'noreply@runq.in'}>`;
 
   if (useResend) {
     return sendViaResend({ ...params, from });

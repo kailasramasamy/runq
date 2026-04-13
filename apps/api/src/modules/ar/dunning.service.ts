@@ -1,11 +1,15 @@
 import { eq, and, lt, inArray, gte, lte, sql } from 'drizzle-orm';
-import { dunningRules, dunningLog, salesInvoices, customers } from '@runq/db';
+import { dunningRules, dunningLog, salesInvoices, customers, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { DunningRule, DunningLogEntry } from '@runq/types';
+import type { DunningRule, DunningLogEntry, TenantSettings } from '@runq/types';
 import type { DunningRuleInput, SendRemindersInput, DunningLogFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { createEmailProvider } from '../../utils/email-provider';
+import { sendEmail } from '../../utils/email';
+import { overdueReminder } from '../../utils/email-templates';
+import { getTenantName } from '../../utils/tenant-name';
 
 export interface OverdueInvoice {
   id: string;
@@ -112,29 +116,106 @@ export class DunningService {
     }));
   }
 
-  async sendReminders(input: SendRemindersInput): Promise<{ logged: number }> {
+  async sendReminders(input: SendRemindersInput): Promise<{ logged: number; sent: number; failed: number }> {
     const ruleId = await this.resolveRuleId(input);
 
     const invoiceRows = await this.db
-      .select({ id: salesInvoices.id })
+      .select({
+        id: salesInvoices.id,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        customerId: salesInvoices.customerId,
+        customerName: customers.name,
+        customerEmail: customers.email,
+        dueDate: salesInvoices.dueDate,
+        balanceDue: salesInvoices.balanceDue,
+      })
       .from(salesInvoices)
+      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
       .where(and(eq(salesInvoices.tenantId, this.tenantId), inArray(salesInvoices.id, input.invoiceIds)));
 
     if (invoiceRows.length !== input.invoiceIds.length) {
       throw new NotFoundError('One or more invoices');
     }
 
-    await this.db.insert(dunningLog).values(
-      input.invoiceIds.map((invoiceId) => ({
+    const logRows = await this.db.insert(dunningLog).values(
+      invoiceRows.map((inv) => ({
         tenantId: this.tenantId,
-        invoiceId,
+        invoiceId: inv.id,
         ruleId,
         channel: input.channel,
-        status: 'sent',
+        status: 'pending',
       })),
-    );
+    ).returning({ id: dunningLog.id, invoiceId: dunningLog.invoiceId });
 
-    return { logged: input.invoiceIds.length };
+    const logByInvoice = new Map(logRows.map((r) => [r.invoiceId, r.id]));
+
+    if (input.channel === 'email') {
+      const results = await this.sendDunningEmails(invoiceRows);
+      for (const r of results) {
+        const logId = logByInvoice.get(r.invoiceId);
+        if (logId) {
+          await this.db.update(dunningLog)
+            .set({ status: r.success ? 'sent' : 'failed' })
+            .where(eq(dunningLog.id, logId));
+        }
+      }
+      const sent = results.filter((r) => r.success).length;
+      return { logged: invoiceRows.length, sent, failed: results.length - sent };
+    }
+
+    // SMS/WhatsApp: mark as sent (delivery TBD)
+    await this.db.update(dunningLog)
+      .set({ status: 'sent' })
+      .where(inArray(dunningLog.id, logRows.map((r) => r.id)));
+
+    return { logged: invoiceRows.length, sent: 0, failed: 0 };
+  }
+
+  private async sendDunningEmails(
+    invoices: { id: string; invoiceNumber: string; customerName: string; customerEmail: string | null; dueDate: string; balanceDue: string }[],
+  ): Promise<{ invoiceId: string; success: boolean }[]> {
+    const [companyName, tenantRow] = await Promise.all([
+      getTenantName(this.db, this.tenantId),
+      this.db.select({ settings: tenants.settings }).from(tenants)
+        .where(eq(tenants.id, this.tenantId)).limit(1),
+    ]);
+
+    const settings = (tenantRow[0]?.settings ?? {}) as TenantSettings;
+    const provider = createEmailProvider(settings);
+    const todayMs = Date.now();
+
+    const results: { invoiceId: string; success: boolean }[] = [];
+
+    for (const inv of invoices) {
+      if (!inv.customerEmail) {
+        results.push({ invoiceId: inv.id, success: false });
+        continue;
+      }
+
+      const daysOverdue = Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000);
+      const template = overdueReminder({
+        customerName: inv.customerName,
+        invoiceNumber: inv.invoiceNumber,
+        amount: parseFloat(inv.balanceDue),
+        dueDate: inv.dueDate,
+        daysOverdue,
+        companyName,
+      });
+
+      try {
+        if (provider) {
+          await provider.send({ to: inv.customerEmail, ...template });
+        } else {
+          await sendEmail({ to: inv.customerEmail, fromName: companyName, ...template });
+        }
+        results.push({ invoiceId: inv.id, success: true });
+      } catch (err) {
+        console.error(`Dunning email failed for ${inv.invoiceNumber}:`, err);
+        results.push({ invoiceId: inv.id, success: false });
+      }
+    }
+
+    return results;
   }
 
   async autoSendDunning(): Promise<{ sent: number; skipped: number }> {

@@ -102,7 +102,11 @@ function OverdueTab() {
       { invoiceIds: Array.from(selected), channel },
       {
         onSuccess: (res) => {
-          toast(`Sent ${res.data.logged} reminder${res.data.logged !== 1 ? 's' : ''}.`, 'success');
+          const { logged, sent, failed } = res.data;
+          const msg = sent > 0
+            ? `Sent ${sent} email${sent !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}.`
+            : `Logged ${logged} reminder${logged !== 1 ? 's' : ''}.`;
+          toast(msg, failed ? 'error' : 'success');
           setSelected(new Set());
         },
         onError: () => toast('Failed to send reminders.', 'error'),

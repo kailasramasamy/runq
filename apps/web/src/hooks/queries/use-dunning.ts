@@ -57,7 +57,7 @@ export function useSendReminders() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: SendRemindersInput) =>
-      api.post<ApiSuccess<{ logged: number }>>('/ar/dunning/send-reminders', data),
+      api.post<ApiSuccess<{ logged: number; sent: number; failed: number }>>('/ar/dunning/send-reminders', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: DUNNING_KEYS.overdue() });
       qc.invalidateQueries({ queryKey: DUNNING_KEYS.log() });

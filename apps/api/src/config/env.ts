@@ -13,7 +13,7 @@ const envSchema = z.object({
   SERVICE_JWT_EXPIRES_IN: z.string().default('5m'),
   PORT: z.coerce.number().default(3003),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  MAIL_FROM: z.string().email().default('noreply@example.com'),
+  MAIL_FROM: z.string().email().default('noreply@runq.in'),
   SMTP_HOST: z.string().default(''),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_SECURE: z.string().transform(v => v === 'true').default('false'),
