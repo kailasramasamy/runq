@@ -27,6 +27,10 @@ export interface DunningLogListResult {
   meta: PaginationMeta;
 }
 
+function parseEmails(csv: string): string[] {
+  return csv.split(',').map((e) => e.trim()).filter(Boolean);
+}
+
 const DEFAULT_DUNNING_RULES = [
   {
     name: 'Gentle Reminder (7 days)', daysAfterDue: 7, escalationLevel: 1,
@@ -174,6 +178,7 @@ export class DunningService {
         customerId: salesInvoices.customerId,
         customerName: customers.name,
         customerEmail: customers.email,
+        customerCcEmail: customers.ccEmail,
         dueDate: salesInvoices.dueDate,
         balanceDue: salesInvoices.balanceDue,
       })
@@ -220,7 +225,7 @@ export class DunningService {
   }
 
   private async sendDunningEmails(
-    invoices: { id: string; invoiceNumber: string; customerName: string; customerEmail: string | null; dueDate: string; balanceDue: string }[],
+    invoices: { id: string; invoiceNumber: string; customerName: string; customerEmail: string | null; customerCcEmail: string | null; dueDate: string; balanceDue: string }[],
     escalationLevel?: number,
     action?: string,
     ruleByInvoice?: Map<string, { escalationLevel: number; action: string }>,
@@ -243,8 +248,9 @@ export class DunningService {
         continue;
       }
 
-      const daysOverdue = Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000);
       const ruleCtx = ruleByInvoice?.get(inv.id);
+      const level = ruleCtx?.escalationLevel ?? escalationLevel ?? 1;
+      const daysOverdue = Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000);
       const template = overdueReminder({
         customerName: inv.customerName,
         invoiceNumber: inv.invoiceNumber,
@@ -252,15 +258,23 @@ export class DunningService {
         dueDate: inv.dueDate,
         daysOverdue,
         companyName,
-        escalationLevel: ruleCtx?.escalationLevel ?? escalationLevel,
+        escalationLevel: level,
         action: ruleCtx?.action ?? action,
       });
 
+      // Parse comma-separated emails; include ccEmail on escalation (level 3+)
+      const toAddresses = parseEmails(inv.customerEmail);
+      if (level >= 3 && inv.customerCcEmail) {
+        toAddresses.push(...parseEmails(inv.customerCcEmail));
+      }
+
       try {
-        if (provider) {
-          await provider.send({ to: inv.customerEmail, ...template });
-        } else {
-          await sendEmail({ to: inv.customerEmail, fromName: companyName, ...template });
+        for (const to of toAddresses) {
+          if (provider) {
+            await provider.send({ to, ...template });
+          } else {
+            await sendEmail({ to, fromName: companyName, ...template });
+          }
         }
         results.push({ invoiceId: inv.id, success: true });
       } catch (err) {
@@ -313,6 +327,7 @@ export class DunningService {
         invoiceNumber: salesInvoices.invoiceNumber,
         customerName: customers.name,
         customerEmail: customers.email,
+        customerCcEmail: customers.ccEmail,
         dueDate: salesInvoices.dueDate,
         balanceDue: salesInvoices.balanceDue,
       })

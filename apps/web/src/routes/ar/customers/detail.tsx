@@ -38,6 +38,7 @@ function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
             value={customer.type === 'b2b' ? 'B2B' : 'Payment Gateway'}
           />
           <DetailField label="Email" value={customer.email} />
+          <DetailField label="CC Email" value={customer.ccEmail} />
           <DetailField label="Phone" value={customer.phone} />
           <DetailField label="Contact Person" value={customer.contactPerson} />
           <DetailField label="Payment Terms" value={`Net ${customer.paymentTermsDays} days`} />

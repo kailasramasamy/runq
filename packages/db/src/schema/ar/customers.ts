@@ -12,7 +12,8 @@ export const customers = pgTable('customers', {
   // Searched alongside `name` and used by the PO parser for customer matching.
   nickname: varchar('nickname', { length: 100 }),
   type: customerTypeEnum('type').notNull().default('b2b'),
-  email: varchar('email', { length: 255 }),
+  email: varchar('email', { length: 500 }),
+  ccEmail: varchar('cc_email', { length: 500 }),
   phone: varchar('phone', { length: 20 }),
   gstin: varchar('gstin', { length: 15 }),
   pan: varchar('pan', { length: 10 }),

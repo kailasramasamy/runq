@@ -18,7 +18,7 @@ interface Logger {
 
 const INTERVAL_MS = 60_000; // check every minute
 
-const DUNNING_INTERVAL_MS = 3_600_000; // check every hour
+const DUNNING_INTERVAL_MS = 60_000; // check every minute, but only run at 1 AM IST
 
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
 let recurringHandle: ReturnType<typeof setInterval> | null = null;
@@ -37,9 +37,9 @@ export function startReportScheduler(db: Db, redis: Redis, logger: Logger = cons
     INTERVAL_MS,
   );
 
-  logger.info('Dunning scheduler: started (checking every hour)');
+  logger.info('Dunning scheduler: started (runs daily at 1 AM IST)');
   dunningHandle = setInterval(
-    () => runDunningForAllTenants(db, redis, logger).catch((err) => logger.error('Dunning scheduler error:', err)),
+    () => maybeDunning(db, redis, logger),
     DUNNING_INTERVAL_MS,
   );
 }
@@ -120,8 +120,18 @@ async function runDueRecurringInvoices(db: Db, logger: Logger): Promise<void> {
   }
 }
 
+function maybeDunning(db: Db, redis: Redis, logger: Logger): void {
+  // IST = UTC+5:30 — only run between 1:00 and 1:01 AM IST
+  const nowUTC = new Date();
+  const istHour = (nowUTC.getUTCHours() + 5 + Math.floor((nowUTC.getUTCMinutes() + 30) / 60)) % 24;
+  const istMin = (nowUTC.getUTCMinutes() + 30) % 60;
+  if (istHour !== 1 || istMin > 0) return;
+
+  runDunningForAllTenants(db, redis, logger).catch((err) => logger.error('Dunning scheduler error:', err));
+}
+
 async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Promise<void> {
-  // Only run once per day — use Redis lock with 20h TTL
+  // Redis lock ensures only one run per day even with multiple instances
   const lockKey = 'lock:dunning:daily';
   const acquired = await redis.set(lockKey, '1', 'EX', 72_000, 'NX');
   if (!acquired) return;

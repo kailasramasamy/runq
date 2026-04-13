@@ -21,6 +21,7 @@ function buildInitial(c?: Customer): FormState {
     nickname: c.nickname ?? undefined,
     type: c.type,
     email: c.email ?? undefined,
+    ccEmail: c.ccEmail ?? undefined,
     phone: c.phone ?? undefined,
     gstin: c.gstin ?? undefined,
     pan: c.pan ?? undefined,
@@ -132,7 +133,8 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             helper="Used to apply group-level price lists. Leave blank if not used."
             {...field('customerGroup')}
           />
-          <Input label="Email" type="email" placeholder="billing@acme.com" {...field('email')} />
+          <Input label="Email" placeholder="billing@acme.com" helper="Comma-separated for multiple" {...field('email')} />
+          <Input label="CC Email" placeholder="accounts@acme.com" helper="Included on escalation reminders" {...field('ccEmail')} />
           <Input label="Phone" placeholder="+91 98765 43210" {...field('phone')} />
         </CardContent>
       </Card>

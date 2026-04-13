@@ -7,6 +7,7 @@ export interface Customer {
   nickname: string | null;
   type: CustomerType;
   email: string | null;
+  ccEmail: string | null;
   phone: string | null;
   gstin: string | null;
   pan: string | null;

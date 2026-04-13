@@ -3,11 +3,18 @@ import { z } from 'zod';
 const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
+/** Validates a comma-separated list of email addresses */
+const commaEmails = z.string().max(500).refine(
+  (val) => val.split(',').every((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())),
+  { message: 'One or more email addresses are invalid' },
+);
+
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   nickname: z.string().max(100).nullish(),
   type: z.enum(['b2b', 'payment_gateway']).default('b2b'),
-  email: z.string().email().nullish(),
+  email: commaEmails.nullish(),
+  ccEmail: commaEmails.nullish(),
   phone: z.string().max(20).nullish(),
   gstin: z.string().regex(gstinRegex, 'Invalid GSTIN format').nullish(),
   pan: z.string().regex(panRegex, 'Invalid PAN format').nullish(),

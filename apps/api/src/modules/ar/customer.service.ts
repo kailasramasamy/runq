@@ -327,6 +327,7 @@ export class CustomerService {
       nickname: row.nickname ?? null,
       type: row.type,
       email: row.email ?? null,
+      ccEmail: row.ccEmail ?? null,
       phone: row.phone ?? null,
       gstin: row.gstin ?? null,
       pan: row.pan ?? null,
