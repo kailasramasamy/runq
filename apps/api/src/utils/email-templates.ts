@@ -18,7 +18,7 @@ function layout(companyName: string, title: string, bodyHtml: string, footerNote
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px">
         <tr><td style="background:#4f46e5;padding:24px 32px">
           <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700">${companyName}</p>
-          <p style="margin:4px 0 0;color:#c7d2fe;font-size:14px">${title}</p>
+          <p style="margin:4px 0 0;color:#e0e7ff;font-size:14px;font-weight:500">${title}</p>
         </td></tr>
         <tr><td style="padding:32px">${bodyHtml}</td></tr>
         <tr><td style="padding:16px 32px;background:#f4f4f5;border-top:1px solid #e4e4e7">
