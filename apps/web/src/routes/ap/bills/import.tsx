@@ -248,9 +248,10 @@ export function ImportBillsPage() {
           setStep(3);
         },
         onError: (err: any) => {
-          const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+          // API client throws the raw JSON error object, not an Error instance
+          const msg = err?.error || err?.message || JSON.stringify(err);
           toast(`Import failed: ${msg}`, 'error');
-          console.error('Bill import error:', err);
+          console.error('Bill import error:', JSON.stringify(err, null, 2));
         },
       },
     );
