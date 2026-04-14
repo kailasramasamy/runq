@@ -8,7 +8,7 @@ import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { createEmailProvider } from '../../utils/email-provider';
 import { sendEmail } from '../../utils/email';
-import { overdueReminder } from '../../utils/email-templates';
+import { overdueReminder, type OverdueInvoiceItem } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
 
 export interface OverdueInvoice {
@@ -239,41 +239,60 @@ export class DunningService {
     const settings = (tenantRow[0]?.settings ?? {}) as TenantSettings;
     const provider = createEmailProvider(settings);
     const todayMs = Date.now();
+    const dryRunEmail = process.env.DUNNING_DRY_RUN_EMAIL;
+
+    // Group invoices by customer email for consolidated emails
+    const byCustomer = new Map<string, typeof invoices>();
+    for (const inv of invoices) {
+      if (!inv.customerEmail) continue;
+      const key = inv.customerEmail;
+      const group = byCustomer.get(key) ?? [];
+      group.push(inv);
+      byCustomer.set(key, group);
+    }
 
     const results: { invoiceId: string; success: boolean }[] = [];
-
+    // Mark invoices without email as failed
     for (const inv of invoices) {
-      if (!inv.customerEmail) {
-        results.push({ invoiceId: inv.id, success: false });
-        continue;
+      if (!inv.customerEmail) results.push({ invoiceId: inv.id, success: false });
+    }
+
+    for (const [customerEmail, custInvoices] of byCustomer) {
+      const first = custInvoices[0]!;
+      // Use highest escalation level among this customer's invoices
+      let maxLevel = escalationLevel ?? 1;
+      let maxAction = action ?? 'send_reminder';
+      for (const inv of custInvoices) {
+        const ctx = ruleByInvoice?.get(inv.id);
+        if (ctx && ctx.escalationLevel > maxLevel) {
+          maxLevel = ctx.escalationLevel;
+          maxAction = ctx.action;
+        }
       }
 
-      const ruleCtx = ruleByInvoice?.get(inv.id);
-      const level = ruleCtx?.escalationLevel ?? escalationLevel ?? 1;
-      const daysOverdue = Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000);
-      const template = overdueReminder({
-        customerName: inv.customerName,
+      const invoiceItems: OverdueInvoiceItem[] = custInvoices.map((inv) => ({
         invoiceNumber: inv.invoiceNumber,
         amount: parseFloat(inv.balanceDue),
         dueDate: inv.dueDate,
-        daysOverdue,
+        daysOverdue: Math.floor((todayMs - new Date(inv.dueDate).getTime()) / 86_400_000),
+      }));
+      const totalDue = invoiceItems.reduce((sum, i) => sum + i.amount, 0);
+
+      const template = overdueReminder({
+        customerName: first.customerName,
+        invoices: invoiceItems,
+        totalDue,
         companyName,
-        escalationLevel: level,
-        action: ruleCtx?.action ?? action,
+        escalationLevel: maxLevel,
+        action: maxAction,
       });
 
-      // Dry-run: redirect all emails to a test address
-      const dryRunEmail = process.env.DUNNING_DRY_RUN_EMAIL;
-      const toAddresses = dryRunEmail
-        ? [dryRunEmail]
-        : parseEmails(inv.customerEmail);
-      if (!dryRunEmail && level >= 3 && inv.customerCcEmail) {
-        toAddresses.push(...parseEmails(inv.customerCcEmail));
+      const toAddresses = dryRunEmail ? [dryRunEmail] : parseEmails(customerEmail);
+      if (!dryRunEmail && maxLevel >= 3 && first.customerCcEmail) {
+        toAddresses.push(...parseEmails(first.customerCcEmail));
       }
-
-      // Prefix subject in dry-run so it's obvious
       if (dryRunEmail) {
-        template.subject = `[DRY RUN → ${inv.customerEmail}] ${template.subject}`;
+        template.subject = `[DRY RUN → ${customerEmail}] ${template.subject}`;
       }
 
       try {
@@ -284,10 +303,10 @@ export class DunningService {
             await sendEmail({ to, fromName: companyName, ...template });
           }
         }
-        results.push({ invoiceId: inv.id, success: true });
+        for (const inv of custInvoices) results.push({ invoiceId: inv.id, success: true });
       } catch (err) {
-        console.error(`Dunning email failed for ${inv.invoiceNumber}:`, err);
-        results.push({ invoiceId: inv.id, success: false });
+        console.error(`Dunning email failed for ${first.customerName}:`, err);
+        for (const inv of custInvoices) results.push({ invoiceId: inv.id, success: false });
       }
     }
 

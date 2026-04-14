@@ -126,12 +126,17 @@ export function receiptConfirmation(p: ReceiptConfirmationParams): EmailTemplate
   return { subject, html: layout(p.companyName, 'Payment Receipt', bodyHtml), text };
 }
 
-export interface OverdueReminderParams {
-  customerName: string;
+export interface OverdueInvoiceItem {
   invoiceNumber: string;
   amount: number;
   dueDate: string;
   daysOverdue: number;
+}
+
+export interface OverdueReminderParams {
+  customerName: string;
+  invoices: OverdueInvoiceItem[];
+  totalDue: number;
   companyName: string;
   escalationLevel?: number;
   action?: string;
@@ -140,28 +145,37 @@ export interface OverdueReminderParams {
 export function overdueReminder(p: OverdueReminderParams): EmailTemplate {
   const level = p.escalationLevel ?? 1;
   const action = p.action ?? 'send_reminder';
+  const maxOverdue = Math.max(...p.invoices.map((i) => i.daysOverdue));
+  const invoiceCount = p.invoices.length;
+  const invoiceLabel = invoiceCount === 1 ? 'invoice' : `${invoiceCount} invoices`;
 
-  const { subject, greeting, body, urgencyColor, badgeLabel, closing } = getDunningCopy(p, level, action);
+  const { subject, body, urgencyColor, badgeLabel, closing } = getDunningCopy(p, level, action, maxOverdue, invoiceLabel);
+
+  const invoiceRows = p.invoices
+    .sort((a, b) => b.daysOverdue - a.daysOverdue)
+    .map((inv, i) => `
+      <tr style="${i % 2 === 0 ? 'background:#f4f4f5' : ''}">
+        <td style="padding:10px 16px;color:#18181b;font-size:13px;font-weight:600;border-bottom:1px solid #e4e4e7">${inv.invoiceNumber}</td>
+        <td style="padding:10px 16px;color:${urgencyColor};font-size:13px;font-weight:600;border-bottom:1px solid #e4e4e7">₹${formatINR(inv.amount)}</td>
+        <td style="padding:10px 16px;color:#3f3f46;font-size:13px;border-bottom:1px solid #e4e4e7">${inv.dueDate}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #e4e4e7">
+          <span style="display:inline-block;background:${urgencyColor};color:#fff;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600">${inv.daysOverdue}d</span>
+        </td>
+      </tr>`)
+    .join('');
 
   const invoiceTable = `
     <table cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e4e4e7;border-radius:6px;width:100%;border-collapse:separate">
-      <tr style="background:#f4f4f5">
-        <td style="padding:12px 16px;color:#71717a;font-size:13px;width:40%;border-bottom:1px solid #e4e4e7">Invoice Number</td>
-        <td style="padding:12px 16px;color:#18181b;font-size:14px;font-weight:600;border-bottom:1px solid #e4e4e7">${p.invoiceNumber}</td>
-      </tr>
       <tr>
-        <td style="padding:12px 16px;color:#71717a;font-size:13px;border-bottom:1px solid #e4e4e7">Amount Due</td>
-        <td style="padding:12px 16px;color:${urgencyColor};font-size:14px;font-weight:700;border-bottom:1px solid #e4e4e7">₹${formatINR(p.amount)}</td>
+        <td style="padding:10px 16px;color:#71717a;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e4e4e7">Invoice</td>
+        <td style="padding:10px 16px;color:#71717a;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e4e4e7">Amount</td>
+        <td style="padding:10px 16px;color:#71717a;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e4e4e7">Due Date</td>
+        <td style="padding:10px 16px;color:#71717a;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e4e4e7">Overdue</td>
       </tr>
-      <tr style="background:#f4f4f5">
-        <td style="padding:12px 16px;color:#71717a;font-size:13px;border-bottom:1px solid #e4e4e7">Due Date</td>
-        <td style="padding:12px 16px;color:${urgencyColor};font-size:14px;font-weight:600;border-bottom:1px solid #e4e4e7">${p.dueDate}</td>
-      </tr>
-      <tr>
-        <td style="padding:12px 16px;color:#71717a;font-size:13px">Days Overdue</td>
-        <td style="padding:12px 16px;font-size:14px;font-weight:700">
-          <span style="display:inline-block;background:${urgencyColor};color:#ffffff;padding:2px 10px;border-radius:12px;font-size:12px">${p.daysOverdue} days</span>
-        </td>
+      ${invoiceRows}
+      <tr style="background:#18181b">
+        <td style="padding:12px 16px;color:#ffffff;font-size:13px;font-weight:700">Total Due</td>
+        <td style="padding:12px 16px;color:#ffffff;font-size:13px;font-weight:700" colspan="3">₹${formatINR(p.totalDue)}</td>
       </tr>
     </table>`;
 
@@ -181,7 +195,7 @@ export function overdueReminder(p: OverdueReminderParams): EmailTemplate {
     <div style="text-align:center;margin-bottom:24px">
       <span style="display:inline-block;background:${urgencyColor}1a;color:${urgencyColor};padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.5px">${badgeLabel}</span>
     </div>
-    <p style="color:#18181b;font-size:15px;line-height:1.5">${greeting}</p>
+    <p style="color:#18181b;font-size:15px;line-height:1.5">Dear ${p.customerName},</p>
     <p style="color:#3f3f46;font-size:14px;line-height:1.7">${body}</p>
     ${invoiceTable}
     ${actionBanner}
@@ -189,7 +203,8 @@ export function overdueReminder(p: OverdueReminderParams): EmailTemplate {
     <p style="color:#71717a;font-size:13px;margin-top:24px;font-style:italic">If you have already made the payment, please disregard this email.</p>`;
 
   const titleMap: Record<number, string> = { 1: 'Payment Reminder', 2: 'Second Reminder', 3: 'Escalation Notice', 4: 'Final Notice' };
-  const text = `Dear ${p.customerName}, invoice ${p.invoiceNumber} for ₹${formatINR(p.amount)} was due on ${p.dueDate} (${p.daysOverdue} days overdue). Please settle at the earliest.`;
+  const invList = p.invoices.map((i) => i.invoiceNumber).join(', ');
+  const text = `Dear ${p.customerName}, you have ${invoiceLabel} totalling ₹${formatINR(p.totalDue)} overdue. Invoices: ${invList}. Please settle at the earliest.`;
 
   return { subject, html: layout(p.companyName, titleMap[level] ?? 'Payment Reminder', bodyHtml), text };
 }
@@ -198,40 +213,39 @@ function getDunningCopy(
   p: OverdueReminderParams,
   level: number,
   action: string,
-): { subject: string; greeting: string; body: string; urgencyColor: string; badgeLabel: string; closing: string } {
+  maxOverdue: number,
+  invoiceLabel: string,
+): { subject: string; body: string; urgencyColor: string; badgeLabel: string; closing: string } {
+  const totalStr = `₹${formatINR(p.totalDue)}`;
   switch (level) {
     case 1:
       return {
-        subject: `Friendly Reminder — Invoice ${p.invoiceNumber} is overdue`,
-        greeting: `Dear ${p.customerName},`,
-        body: `We hope this message finds you well. This is a friendly reminder that invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong> was due on <strong>${p.dueDate}</strong>. We understand payments can sometimes be delayed — kindly arrange payment at your earliest convenience.`,
+        subject: `Friendly Reminder — ${invoiceLabel} overdue (${totalStr})`,
+        body: `We hope this message finds you well. This is a friendly reminder that you have <strong>${invoiceLabel}</strong> totalling <strong>${totalStr}</strong> past due. We understand payments can sometimes be delayed — kindly arrange payment at your earliest convenience.`,
         urgencyColor: '#f59e0b',
         badgeLabel: 'GENTLE REMINDER',
         closing: 'Thank you for your continued business. Please don\'t hesitate to reach out if you have any questions.',
       };
     case 2:
       return {
-        subject: `Second Reminder — Invoice ${p.invoiceNumber} is ${p.daysOverdue} days overdue`,
-        greeting: `Dear ${p.customerName},`,
-        body: `This is a follow-up regarding invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong>, which is now <strong>${p.daysOverdue} days past due</strong>. We kindly request that you arrange payment immediately to keep your account in good standing.`,
+        subject: `Second Reminder — ${invoiceLabel} overdue, up to ${maxOverdue} days (${totalStr})`,
+        body: `This is a follow-up regarding <strong>${invoiceLabel}</strong> totalling <strong>${totalStr}</strong>, now up to <strong>${maxOverdue} days past due</strong>. We kindly request that you arrange payment immediately to keep your account in good standing.`,
         urgencyColor: '#ea580c',
         badgeLabel: 'SECOND REMINDER',
         closing: 'We value our relationship and would like to resolve this promptly. Please contact us if you need to discuss payment arrangements.',
       };
     case 3:
       return {
-        subject: `Urgent — Invoice ${p.invoiceNumber} is ${p.daysOverdue} days overdue`,
-        greeting: `Dear ${p.customerName},`,
-        body: `Despite previous reminders, invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong> remains unpaid at <strong>${p.daysOverdue} days overdue</strong>. This matter requires your immediate attention and has been escalated within our organization.`,
+        subject: `Urgent — ${invoiceLabel} overdue, up to ${maxOverdue} days (${totalStr})`,
+        body: `Despite previous reminders, <strong>${invoiceLabel}</strong> totalling <strong>${totalStr}</strong> remain unpaid, up to <strong>${maxOverdue} days overdue</strong>. This matter requires your immediate attention and has been escalated within our organization.`,
         urgencyColor: '#dc2626',
         badgeLabel: 'ESCALATION NOTICE',
         closing: 'Please treat this as urgent. Contact us immediately to arrange payment and avoid any impact to your account.',
       };
     default:
       return {
-        subject: `Final Notice — Invoice ${p.invoiceNumber} | ${action === 'stop_supply' ? 'Supply Hold' : 'Action Required'}`,
-        greeting: `Dear ${p.customerName},`,
-        body: `This is a <strong>final notice</strong> regarding invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong>, now <strong>${p.daysOverdue} days overdue</strong>. As per our credit policy, we have been compelled to take further action on your account.`,
+        subject: `Final Notice — ${invoiceLabel} overdue (${totalStr}) | ${action === 'stop_supply' ? 'Supply Hold' : 'Action Required'}`,
+        body: `This is a <strong>final notice</strong> regarding <strong>${invoiceLabel}</strong> totalling <strong>${totalStr}</strong>, now up to <strong>${maxOverdue} days overdue</strong>. As per our credit policy, we have been compelled to take further action on your account.`,
         urgencyColor: '#991b1b',
         badgeLabel: 'FINAL NOTICE',
         closing: 'We strongly urge you to clear this balance immediately. Please contact our accounts team to discuss resolution options.',
