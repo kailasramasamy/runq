@@ -17,6 +17,16 @@ JSON schema:
 {
   "vendorName": "string",
   "vendorGstin": "string|null",
+  "vendorPan": "string|null",
+  "vendorPhone": "string|null",
+  "vendorEmail": "string|null",
+  "vendorAddress": "string|null",
+  "vendorCity": "string|null",
+  "vendorState": "string|null",
+  "vendorPincode": "string|null",
+  "vendorBankAccount": "string|null",
+  "vendorBankIfsc": "string|null",
+  "vendorBankName": "string|null",
   "invoiceNumber": "string",
   "invoiceDate": "YYYY-MM-DD",
   "dueDate": "YYYY-MM-DD|null",
@@ -36,7 +46,17 @@ JSON schema:
   "totalAmount": number,
   "tdsSection": "string|null",
   "confidence": number
-}`;
+}
+
+Additional extraction rules:
+- vendorPan: 10-char alphanumeric (e.g., AABCU9603R). Extract from the vendor/seller section.
+- vendorPhone: Indian phone number (10 digits, may have +91 or 0 prefix).
+- vendorEmail: email address from the vendor/seller section.
+- vendorAddress: street address from the vendor/seller section (not the buyer/billed-to section).
+- vendorBankAccount: bank account number, usually in footer or "Bank Details" section.
+- vendorBankIfsc: 11-char IFSC code (e.g., SBIN0001234).
+- vendorBankName: name of the bank.
+- Extract vendor details from the SELLER/FROM section, NOT the buyer/billed-to section.`;
 
 export const INVOICE_EXTRACTION_USER_PROMPT =
   'Extract all fields from this vendor invoice. Return only the JSON object.';

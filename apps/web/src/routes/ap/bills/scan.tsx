@@ -253,11 +253,17 @@ function ExtractedPreview({
         <CardContent>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
             <Field label="Vendor" value={extracted.vendorName} />
-            <Field label="GSTIN" value={extracted.vendorGstin} />
+            <Field label="GSTIN" value={extracted.vendorGstin} mono />
+            <Field label="PAN" value={extracted.vendorPan} mono />
+            <Field label="Phone" value={extracted.vendorPhone} />
+            <Field label="Email" value={extracted.vendorEmail} />
+            <Field label="City / State" value={[extracted.vendorCity, extracted.vendorState].filter(Boolean).join(', ') || null} />
             <Field label="Invoice #" value={extracted.invoiceNumber} mono />
             <Field label="Invoice Date" value={extracted.invoiceDate} />
             <Field label="Due Date" value={extracted.dueDate} />
             <Field label="TDS Section" value={extracted.tdsSection} />
+            <Field label="Bank A/C" value={extracted.vendorBankAccount} mono />
+            <Field label="IFSC" value={extracted.vendorBankIfsc} mono />
           </div>
         </CardContent>
       </Card>

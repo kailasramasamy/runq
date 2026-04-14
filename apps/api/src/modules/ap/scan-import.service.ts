@@ -19,6 +19,16 @@ interface ExtractedInvoice {
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string | null;
+  vendorPan: string | null;
+  vendorPhone: string | null;
+  vendorEmail: string | null;
+  vendorAddress: string | null;
+  vendorCity: string | null;
+  vendorState: string | null;
+  vendorPincode: string | null;
+  vendorBankAccount: string | null;
+  vendorBankIfsc: string | null;
+  vendorBankName: string | null;
   items: {
     itemName: string;
     hsnSacCode: string | null;
@@ -121,16 +131,25 @@ export class ScanImportService {
       if (row) return { vendorId: row.id, vendorCreated: false, vendorName: row.name };
     }
 
-    // Auto-create vendor
+    // Auto-create vendor with all extracted details
     const gstin = extracted.vendorGstin;
     const stateCode = gstin ? gstin.slice(0, 2) : null;
-    const stateName = stateCode ? STATE_CODES[stateCode] : null;
+    const stateName = extracted.vendorState || (stateCode ? STATE_CODES[stateCode] : null);
 
     const [newVendor] = await this.db.insert(vendors).values({
       tenantId: this.tenantId,
       name: extracted.vendorName || 'Unknown Vendor',
       gstin: gstin ?? null,
+      pan: extracted.vendorPan ?? null,
+      email: extracted.vendorEmail ?? null,
+      phone: extracted.vendorPhone ?? null,
+      addressLine1: extracted.vendorAddress ?? null,
+      city: extracted.vendorCity ?? null,
       state: stateName ?? null,
+      pincode: extracted.vendorPincode ?? null,
+      bankAccountNumber: extracted.vendorBankAccount ?? null,
+      bankIfsc: extracted.vendorBankIfsc ?? null,
+      bankName: extracted.vendorBankName ?? null,
       category: 'other',
       paymentTermsDays: 30,
       isActive: true,

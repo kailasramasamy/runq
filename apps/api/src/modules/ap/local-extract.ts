@@ -84,6 +84,16 @@ interface ExtractedItem {
 interface ExtractedInvoice {
   vendorName: string;
   vendorGstin: string | null;
+  vendorPan: string | null;
+  vendorPhone: string | null;
+  vendorEmail: string | null;
+  vendorAddress: string | null;
+  vendorCity: string | null;
+  vendorState: string | null;
+  vendorPincode: string | null;
+  vendorBankAccount: string | null;
+  vendorBankIfsc: string | null;
+  vendorBankName: string | null;
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string | null;
@@ -93,6 +103,26 @@ interface ExtractedInvoice {
   totalAmount: number;
   tdsSection: string | null;
   confidence: number;
+}
+
+const PAN_RE = /\b[A-Z]{5}[0-9]{4}[A-Z]\b/;
+const PHONE_RE = /(?:\+91[\s-]?|0)?[6-9]\d{9}\b/;
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+const IFSC_RE = /\b[A-Z]{4}0[A-Z0-9]{6}\b/;
+const ACCT_RE = /(?:a\/?c|account)\s*(?:no\.?|number|#)?\s*[:\-]?\s*(\d{9,18})/i;
+const BANK_NAME_RE = /(?:bank\s*(?:name)?|beneficiary\s*bank)\s*[:\-]?\s*([A-Za-z][A-Za-z\s&.]+)/i;
+const PINCODE_RE = /\b[1-9]\d{5}\b/;
+
+function extractBankDetails(text: string): { account: string | null; ifsc: string | null; bankName: string | null } {
+  const bankSection = text.match(/bank\s*details?[\s\S]{0,500}/i)?.[0] ?? text.slice(-1500);
+  const ifscMatch = bankSection.match(IFSC_RE);
+  const acctMatch = bankSection.match(ACCT_RE);
+  const nameMatch = bankSection.match(BANK_NAME_RE);
+  return {
+    account: acctMatch?.[1] ?? null,
+    ifsc: ifscMatch?.[0] ?? null,
+    bankName: nameMatch?.[1]?.trim() ?? null,
+  };
 }
 
 function extractVendorInfo(text: string): { name: string; gstin: string | null } {
@@ -179,6 +209,15 @@ export function tryLocalExtraction(text: string): ExtractedInvoice | null {
 
   const { name: vendorName, gstin: vendorGstin } = extractVendorInfo(text);
 
+  // Vendor details — extract from seller section (before "Billed to")
+  const billedToIdx = text.search(/bill(?:ed)?\s*to\s*:?/i);
+  const sellerSection = billedToIdx > 0 ? text.slice(0, billedToIdx) : text.slice(0, 1500);
+  const vendorPan = sellerSection.match(PAN_RE)?.[0] ?? null;
+  const vendorPhone = sellerSection.match(PHONE_RE)?.[0]?.replace(/^0/, '') ?? null;
+  const vendorEmail = sellerSection.match(EMAIL_RE)?.[0] ?? null;
+  const vendorPincode = sellerSection.match(PINCODE_RE)?.[0] ?? null;
+  const bank = extractBankDetails(text);
+
   const tdsMatch = text.match(TDS_RE);
   const tdsSection = tdsMatch ? tdsMatch[1]! : null;
 
@@ -216,6 +255,16 @@ export function tryLocalExtraction(text: string): ExtractedInvoice | null {
   return {
     vendorName,
     vendorGstin,
+    vendorPan,
+    vendorPhone,
+    vendorEmail,
+    vendorAddress: null,
+    vendorCity: null,
+    vendorState: null,
+    vendorPincode,
+    vendorBankAccount: bank.account,
+    vendorBankIfsc: bank.ifsc,
+    vendorBankName: bank.bankName,
     invoiceNumber,
     invoiceDate,
     dueDate: null,

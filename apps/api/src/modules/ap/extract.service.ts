@@ -27,6 +27,16 @@ interface ExtractedItem {
 interface ExtractedInvoice {
   vendorName: string;
   vendorGstin: string | null;
+  vendorPan: string | null;
+  vendorPhone: string | null;
+  vendorEmail: string | null;
+  vendorAddress: string | null;
+  vendorCity: string | null;
+  vendorState: string | null;
+  vendorPincode: string | null;
+  vendorBankAccount: string | null;
+  vendorBankIfsc: string | null;
+  vendorBankName: string | null;
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string | null;
