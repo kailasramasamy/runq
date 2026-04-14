@@ -40,6 +40,7 @@ export const updatePurchaseInvoiceSchema = createPurchaseInvoiceSchema.partial()
 export const purchaseInvoiceFilterSchema = z.object({
   vendorId: z.string().uuid().optional(),
   status: z.enum(['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled']).optional(),
+  vendorCategory: z.string().optional(),
   overdue: z.coerce.boolean().optional(),
   dateFrom: z.string().date().optional(),
   dateTo: z.string().date().optional(),

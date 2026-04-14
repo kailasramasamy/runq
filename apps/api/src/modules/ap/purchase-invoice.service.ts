@@ -47,6 +47,8 @@ export class PurchaseInvoiceService {
     const { offset } = applyPagination(page, limit);
 
     const baseWhere = this.buildWhereClause(filters);
+    const categoryWhere = filters.vendorCategory ? eq(vendors.category, filters.vendorCategory) : undefined;
+    const fullWhere = categoryWhere ? and(baseWhere, categoryWhere) : baseWhere;
 
     const [rows, countResult] = await Promise.all([
       this.db
@@ -57,13 +59,14 @@ export class PurchaseInvoiceService {
         })
         .from(purchaseInvoices)
         .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
-        .where(baseWhere)
+        .where(fullWhere)
         .limit(limit)
         .offset(offset),
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(purchaseInvoices)
-        .where(baseWhere),
+        .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+        .where(fullWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;

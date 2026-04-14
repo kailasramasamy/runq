@@ -24,6 +24,7 @@ function buildFilterQs(filters?: PurchaseInvoiceFilter): string {
   const params = new URLSearchParams();
   if (filters.vendorId) params.set('vendorId', filters.vendorId);
   if (filters.status) params.set('status', filters.status);
+  if (filters.vendorCategory) params.set('vendorCategory', filters.vendorCategory);
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   const qs = params.toString();

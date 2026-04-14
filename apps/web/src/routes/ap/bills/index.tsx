@@ -99,6 +99,7 @@ export function BillListPage() {
   const filters = {
     vendorId: vendorId || undefined,
     status: (status || undefined) as PurchaseInvoiceStatus | undefined,
+    vendorCategory: category || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   };
@@ -108,17 +109,11 @@ export function BillListPage() {
   const deleteMutation = useDeletePurchaseInvoice();
   const createRunFromBills = useCreateRunFromBills();
 
-  const allBills = data?.data ?? [];
+  const bills = data?.data ?? [];
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
   const vendors = vendorsData?.data ?? [];
   const hasFilters = !!(vendorId || status || category || dateFrom || dateTo);
-
-  // Client-side category filter (API handles vendor/status/date filters)
-  const bills = useMemo(() => {
-    if (!category) return allBills;
-    return allBills.filter((b: any) => b.vendorCategory === category);
-  }, [allBills, category]);
 
   // Compute summary from filtered bills
   const filteredSummary = useMemo(() => {
