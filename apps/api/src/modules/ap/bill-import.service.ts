@@ -105,11 +105,28 @@ export class BillImportService {
     return { created, errors };
   }
 
+  private normalizeDate(raw: string): string {
+    if (!raw) return '';
+    // Already ISO: 2026-03-31
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    // DD/MM/YYYY or DD-MM-YYYY
+    const full = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (full) return `${full[3]}-${full[2]!.padStart(2, '0')}-${full[1]!.padStart(2, '0')}`;
+    // DD/MM/YY or DD-MM-YY
+    const short = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+    if (short) {
+      const yr = parseInt(short[3]!, 10);
+      const fullYear = yr >= 50 ? 1900 + yr : 2000 + yr;
+      return `${fullYear}-${short[2]!.padStart(2, '0')}-${short[1]!.padStart(2, '0')}`;
+    }
+    return raw;
+  }
+
   private parseRow(category: BillCategory, get: (key: string) => string): ParsedRow {
     const vendorName = get('vendor name');
     const invoiceNumber = get('invoice number');
-    const invoiceDate = get('invoice date');
-    const dueDate = get('due date');
+    const invoiceDate = this.normalizeDate(get('invoice date'));
+    const dueDate = this.normalizeDate(get('due date'));
     const itemName = get('item name');
 
     switch (category) {

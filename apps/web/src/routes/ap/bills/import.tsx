@@ -13,6 +13,7 @@ import {
   CardFooter,
   Select,
   Badge,
+  ConfirmationDialog,
   useToast,
 } from '@/components/ui';
 
@@ -192,6 +193,7 @@ export function ImportBillsPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   const importMutation = useImportBillsCSV();
 
   // Fetch vendors matching the selected category
@@ -337,7 +339,7 @@ export function ImportBillsPage() {
             <Button variant="outline" onClick={() => { setStep(1); setPreview([]); }}>
               Back
             </Button>
-            <Button onClick={handleImport} loading={importMutation.isPending}>
+            <Button onClick={() => setShowConfirm(true)} loading={importMutation.isPending}>
               <Upload size={16} />
               Import {preview.length} Bills
             </Button>
@@ -380,6 +382,16 @@ export function ImportBillsPage() {
           </CardFooter>
         </Card>
       )}
+
+      <ConfirmationDialog
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={() => { setShowConfirm(false); handleImport(); }}
+        title="Confirm Import"
+        description={`This will create ${preview.length} bill${preview.length !== 1 ? 's' : ''} as drafts. Proceed?`}
+        confirmLabel="Import"
+        loading={importMutation.isPending}
+      />
     </div>
   );
 }
