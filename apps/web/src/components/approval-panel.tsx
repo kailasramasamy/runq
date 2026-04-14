@@ -36,8 +36,9 @@ export function ApprovalPanel({ entityType, entityId, amount }: ApprovalPanelPro
     try {
       await submit.mutateAsync({ entityType, entityId, amount });
       toast('Submitted for approval', 'success');
-    } catch {
-      toast('Failed to submit for approval', 'error');
+    } catch (err: unknown) {
+      const message = (err as { message?: string })?.message ?? 'Failed to submit for approval';
+      toast(message, 'error');
     }
   }
 

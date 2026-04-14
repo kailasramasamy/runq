@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { ExtractService } from './extract.service';
 import { ScanImportService } from './scan-import.service';
+import { AttachmentService } from '../common/attachment.service';
+import { getStorageProvider } from '../../utils/storage';
 
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -69,6 +71,19 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
 
       const service = new ScanImportService(request.server.db, request.tenantId);
       const result = await service.scanAndImport(buffer, mimeType, file.filename);
+
+      // Auto-attach the scanned invoice file to the created bill
+      const attachmentService = new AttachmentService(request.server.db, request.tenantId, getStorageProvider());
+      await attachmentService.upload({
+        entityType: 'purchase_invoice',
+        entityId: result.billId,
+        fileName: file.filename,
+        fileSize: buffer.length,
+        mimeType,
+        data: buffer,
+        uploadedBy: request.user.userId,
+      });
+
       return reply.status(201).send({ data: result });
     },
   );

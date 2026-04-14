@@ -30,16 +30,19 @@ export function useCreateApprovalWorkflow() {
 }
 
 export function useSubmitForApproval() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { entityType: string; entityId: string; amount: number }) =>
       api.post<ApiSuccess<ApprovalInstance>>('/workflows/submit', data),
+    onSuccess: (_d, vars) =>
+      qc.invalidateQueries({ queryKey: WF_KEYS.instance(vars.entityType, vars.entityId) }),
   });
 }
 
 export function useApprovalInstance(entityType: string, entityId: string) {
   return useQuery({
     queryKey: WF_KEYS.instance(entityType, entityId),
-    queryFn: () => api.get<ApiSuccess<ApprovalInstance>>(`/workflows/instance?entityType=${entityType}&entityId=${entityId}`),
+    queryFn: () => api.get<ApiSuccess<ApprovalInstance | null>>(`/workflows/instance?entityType=${entityType}&entityId=${entityId}`),
     enabled: !!entityType && !!entityId,
   });
 }

@@ -15,7 +15,7 @@ import type {
   CreateApprovalWorkflowInput,
   ApprovalDecisionInput,
 } from '@runq/validators';
-import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AppError, NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
 export class WorkflowService {
@@ -66,7 +66,7 @@ export class WorkflowService {
     requestedBy: string,
   ): Promise<ApprovalInstance> {
     const workflow = await this.findMatchingWorkflow(entityType, amount);
-    if (!workflow) throw new NotFoundError('Matching approval workflow');
+    if (!workflow) throw new AppError(422, 'No approval workflow configured for this type. Create one at Finance → Workflows.', 'ValidationError');
 
     const rules = await this.db
       .select()
@@ -94,7 +94,7 @@ export class WorkflowService {
     });
   }
 
-  async getApprovalInstance(entityType: string, entityId: string): Promise<ApprovalInstance> {
+  async getApprovalInstance(entityType: string, entityId: string): Promise<ApprovalInstance | null> {
     const [instance] = await this.db
       .select()
       .from(approvalInstances)
@@ -108,7 +108,7 @@ export class WorkflowService {
       .orderBy(desc(approvalInstances.createdAt))
       .limit(1);
 
-    if (!instance) throw new NotFoundError('Approval instance');
+    if (!instance) return null;
 
     const steps = await this.db
       .select()

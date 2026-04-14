@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
 import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -60,6 +60,7 @@ export class PurchaseInvoiceService {
         .from(purchaseInvoices)
         .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
         .where(fullWhere)
+        .orderBy(desc(purchaseInvoices.createdAt))
         .limit(limit)
         .offset(offset),
       this.db
