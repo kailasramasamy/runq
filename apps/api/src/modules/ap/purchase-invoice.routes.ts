@@ -6,6 +6,7 @@ import {
   purchaseInvoiceFilterSchema,
   threeWayMatchSchema,
   approveInvoiceSchema,
+  importBillsCSVSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -13,6 +14,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { GLService } from '../gl/gl.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
+import { BillImportService } from './bill-import.service';
 import { ThreeWayMatchService } from './three-way-match.service';
 import { DuplicateService } from './duplicate.service';
 import { AnomalyService } from './anomaly.service';
@@ -40,6 +42,17 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
       const summary = await service.summary();
       return { data: summary };
+    },
+  );
+
+  app.post(
+    '/import',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { csvData, category } = importBillsCSVSchema.parse(request.body);
+      const service = new BillImportService(request.server.db, request.tenantId);
+      const result = await service.importFromCSV(csvData, category);
+      return { data: result };
     },
   );
 

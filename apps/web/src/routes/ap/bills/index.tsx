@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Download, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search } from 'lucide-react';
+import { Plus, FileText, Download, Upload, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
@@ -192,6 +192,9 @@ export function BillListPage() {
             <Button variant="outline" size="sm" onClick={() => downloadCSV('bills.csv', ['Invoice #', 'Date', 'Vendor', 'Amount', 'Balance', 'Status'], bills.map(b => [b.invoiceNumber, b.invoiceDate, (b as PurchaseInvoice & { vendorName?: string }).vendorName ?? '', String(b.totalAmount), String(b.balanceDue), STATUS_LABELS[b.status]]))}>
               <Download size={14} /> Export CSV
             </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/bills/import' })}>
+              <Upload size={14} /> Import CSV
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -378,16 +381,14 @@ export function BillListPage() {
             <Th align="right">Paid</Th>
             <Th align="right">Balance</Th>
             <Th>Status</Th>
-            <Th>Match</Th>
-            <Th>Actions</Th>
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={6} cols={11} />
+            <TableSkeleton rows={6} cols={9} />
           ) : bills.length === 0 ? (
             <tr>
-              <td colSpan={11}>
+              <td colSpan={9}>
                 <EmptyState
                   icon={FileText}
                   title={hasFilters ? 'No bills match your filters' : 'No bills yet'}
@@ -443,28 +444,6 @@ export function BillListPage() {
                   >
                     {STATUS_LABELS[bill.status]}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={MATCH_BADGE_VARIANT[bill.matchStatus]}>
-                    {bill.matchStatus.replace('_', ' ')}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="flex items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {bill.status === 'draft' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                        onClick={() => handleDelete(bill.id)}
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
                 </TableCell>
               </TableRow>
             ))
