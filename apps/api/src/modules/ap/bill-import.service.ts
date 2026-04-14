@@ -32,7 +32,7 @@ interface ParsedRow {
 
 const CATEGORY_HEADERS: Record<BillCategory, string[]> = {
   employee_salary: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Amount', 'TDS Section', 'TDS Rate'],
-  delivery_boys: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Trips', 'Rate Per Trip', 'Amount'],
+  delivery_boys: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Amount'],
   farmers_suppliers: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Quantity', 'Unit Price', 'Amount', 'HSN Code', 'Tax Rate'],
   rent_fixed: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Amount', 'TDS Section', 'TDS Rate'],
   general: ['Vendor Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Item Name', 'Quantity', 'Unit Price', 'Amount', 'HSN Code', 'Tax Rate', 'TDS Section', 'TDS Rate'],
@@ -123,12 +123,10 @@ export class BillImportService {
         };
       }
       case 'delivery_boys': {
-        const trips = parseFloat(get('trips')) || 1;
-        const rate = parseFloat(get('rate per trip')) || 0;
-        const amount = parseFloat(get('amount')) || (trips * rate);
+        const amount = parseFloat(get('amount')) || 0;
         return {
           vendorName, invoiceNumber, invoiceDate, dueDate, itemName,
-          quantity: trips, unitPrice: rate, amount,
+          quantity: 1, unitPrice: amount, amount,
         };
       }
       case 'farmers_suppliers': {

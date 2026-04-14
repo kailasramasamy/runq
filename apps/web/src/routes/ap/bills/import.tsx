@@ -30,8 +30,8 @@ const TEMPLATES: Record<BillCategory, { headers: string; example: string }> = {
     example: 'Ramesh Kumar,SAL-2026-04-001,2026-04-01,2026-04-07,Salary Apr 2026,45000,194J,10',
   },
   delivery_boys: {
-    headers: 'Vendor Name,Invoice Number,Invoice Date,Due Date,Item Name,Trips,Rate Per Trip,Amount',
-    example: 'Suresh Logistics,DEL-2026-04-001,2026-04-01,2026-04-07,Delivery Apr 2026,120,50,6000',
+    headers: 'Vendor Name,Invoice Number,Invoice Date,Due Date,Item Name,Amount',
+    example: 'Suresh Logistics,DEL-2026-04-001,2026-04-01,2026-04-07,Delivery Apr 2026,6000',
   },
   farmers_suppliers: {
     headers: 'Vendor Name,Invoice Number,Invoice Date,Due Date,Item Name,Quantity,Unit Price,Amount,HSN Code,Tax Rate',
