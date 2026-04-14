@@ -47,7 +47,7 @@ export class BillImportService {
   ) {}
 
   async importFromCSV(csvData: string, category: BillCategory): Promise<ImportResult> {
-    const lines = csvData.trim().split('\n').filter(Boolean);
+    const lines = csvData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(Boolean);
     if (lines.length < 2) return { created: 0, errors: [{ row: 0, vendorName: '', message: 'No data rows found' }] };
 
     const headers = this.parseCSVLine(lines[0]!).map((h) => h.toLowerCase().trim());
@@ -176,8 +176,9 @@ export class BillImportService {
   }
 
   private async resolveVendorId(vendorName: string): Promise<string | null> {
+    const cleanName = vendorName.replace(/\r/g, '').trim();
     const exact = await this.db.select({ id: vendors.id }).from(vendors)
-      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, vendorName))).limit(1);
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, cleanName))).limit(1);
     if (exact.length === 1) return exact[0]!.id;
 
     const contains = await this.db.select({ id: vendors.id }).from(vendors)

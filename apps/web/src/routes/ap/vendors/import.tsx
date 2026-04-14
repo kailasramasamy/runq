@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardContent,
   CardFooter,
-  Textarea,
   Badge,
+  DropZone,
 } from '@/components/ui';
 
 interface PreviewRow {
@@ -60,6 +60,7 @@ export function ImportVendorsPage() {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>(1);
   const [csvData, setCsvData] = useState('');
+  const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const importMutation = useImportVendorsCSV();
@@ -100,20 +101,18 @@ export function ImportVendorsPage() {
       />
 
       <Card>
-        <CardHeader title="1. Paste CSV Data" />
+        <CardHeader title="1. Upload CSV" />
         <CardContent>
-          <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
             Expected columns:{' '}
             <span className="font-mono">
               Name, Phone, Email, GSTIN, PAN, Bank Account, IFSC, Bank Name, Address, City, State, Pincode, Category, Payment Terms
             </span>
           </p>
-          <Textarea
-            label="CSV Data"
-            placeholder={CSV_FORMAT}
-            value={csvData}
-            onChange={(e) => setCsvData(e.target.value)}
-            className="min-h-[160px] font-mono text-xs"
+          <DropZone
+            fileName={fileName}
+            onFile={(name, content) => { setFileName(name); setCsvData(content); }}
+            onClear={() => { setFileName(null); setCsvData(''); }}
           />
         </CardContent>
         <CardFooter className="flex justify-end">
