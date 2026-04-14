@@ -104,7 +104,7 @@ export function BillListPage() {
     dateTo: dateTo || undefined,
   };
 
-  const { data, isLoading } = usePurchaseInvoices(filters);
+  const { data, isLoading } = usePurchaseInvoices(filters, page, LIMIT);
   const { data: vendorsData } = useVendors({ limit: 100 });
   const deleteMutation = useDeletePurchaseInvoice();
   const createRunFromBills = useCreateRunFromBills();

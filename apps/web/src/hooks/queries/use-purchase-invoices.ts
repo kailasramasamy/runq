@@ -38,11 +38,21 @@ export function useBillsSummary() {
   });
 }
 
-export function usePurchaseInvoices(filters?: PurchaseInvoiceFilter) {
+export function usePurchaseInvoices(filters?: PurchaseInvoiceFilter, page = 1, limit = 20) {
+  const paginationKey = { ...filters, page, limit };
   return useQuery({
-    queryKey: INVOICE_KEYS.list(filters as Record<string, unknown>),
-    queryFn: () =>
-      api.get<PaginatedResponse<PurchaseInvoice>>(`/ap/purchase-invoices${buildFilterQs(filters)}`),
+    queryKey: INVOICE_KEYS.list(paginationKey as Record<string, unknown>),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filters?.vendorId) params.set('vendorId', filters.vendorId);
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.vendorCategory) params.set('vendorCategory', filters.vendorCategory);
+      if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+      if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+      params.set('page', String(page));
+      params.set('limit', String(limit));
+      return api.get<PaginatedResponse<PurchaseInvoice>>(`/ap/purchase-invoices?${params.toString()}`);
+    },
   });
 }
 
