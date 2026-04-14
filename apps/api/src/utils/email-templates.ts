@@ -23,6 +23,7 @@ function layout(companyName: string, title: string, bodyHtml: string, footerNote
         <tr><td style="padding:32px">${bodyHtml}</td></tr>
         <tr><td style="padding:16px 32px;background:#f4f4f5;border-top:1px solid #e4e4e7">
           <p style="margin:0;color:#71717a;font-size:12px">${footerNote ?? `This is an automated email from ${companyName} via runQ.`}</p>
+          <p style="margin:8px 0 0;color:#a1a1aa;font-size:11px">Powered by <a href="https://www.runq.in" style="color:#4f46e5;text-decoration:none;font-weight:600">runQ</a> — Simple accounting for Indian businesses</p>
         </td></tr>
       </table>
     </td></tr>
