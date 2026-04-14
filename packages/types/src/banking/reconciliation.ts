@@ -1,4 +1,4 @@
-export type ReconMatchType = 'auto_utr' | 'auto_amount_date' | 'manual';
+export type ReconMatchType = 'auto_utr' | 'auto_amount_date' | 'manual' | 'expense_post';
 
 export interface BankReconciliation {
   id: string;
@@ -22,6 +22,7 @@ export interface ReconciliationMatch {
   bankTransactionId: string;
   paymentId: string | null;
   receiptId: string | null;
+  journalEntryId: string | null;
   matchType: ReconMatchType;
   matchedBy: string | null;
   matchedAt: string;

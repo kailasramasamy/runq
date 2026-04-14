@@ -21,7 +21,14 @@ export const closePeriodSchema = z.object({
   bankClosingBalance: z.number(),
 });
 
+export const postAsExpenseSchema = z.object({
+  bankTransactionId: z.string().uuid(),
+  expenseAccountCode: z.string().min(1).max(20),
+  narration: z.string().max(500).optional(),
+});
+
 export type AutoReconcileInput = z.infer<typeof autoReconcileSchema>;
 export type ManualMatchInput = z.infer<typeof manualMatchSchema>;
 export type UnmatchInput = z.infer<typeof unmatchSchema>;
 export type ClosePeriodInput = z.infer<typeof closePeriodSchema>;
+export type PostAsExpenseInput = z.infer<typeof postAsExpenseSchema>;

@@ -12,8 +12,9 @@ import {
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch } from '@runq/types';
-import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput } from '@runq/validators';
+import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput, PostAsExpenseInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { GLService } from '../gl/gl.service';
 import { toNumber } from '../../utils/decimal';
 import type { SmartMatchResult } from './smart-match.service';
 import { SmartMatchService } from './smart-match.service';
@@ -261,7 +262,27 @@ export class ReconciliationService {
     if (!txn) throw new NotFoundError('Bank transaction');
     if (txn.reconStatus === 'unreconciled') throw new ConflictError('Transaction is not reconciled');
 
+    // Check if this was an expense post — reverse the JE if so
+    const [match] = await this.db
+      .select()
+      .from(reconciliationMatches)
+      .where(
+        and(
+          eq(reconciliationMatches.bankTransactionId, bankTransactionId),
+          eq(reconciliationMatches.tenantId, this.tenantId),
+        ),
+      )
+      .limit(1);
+
     await this.db.transaction(async (tx) => {
+      if (match?.journalEntryId) {
+        const { journalEntries } = await import('@runq/db');
+        await tx
+          .update(journalEntries)
+          .set({ status: 'reversed', updatedAt: new Date() })
+          .where(eq(journalEntries.id, match.journalEntryId));
+      }
+
       await tx
         .delete(reconciliationMatches)
         .where(
@@ -276,6 +297,59 @@ export class ReconciliationService {
         .set({ reconStatus: 'unreconciled', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
     });
+  }
+
+  async postAsExpense(input: PostAsExpenseInput, userId: string): Promise<ReconciliationMatch> {
+    const [txn] = await this.db
+      .select()
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.id, input.bankTransactionId), eq(bankTransactions.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!txn) throw new NotFoundError('Bank transaction');
+    if (txn.reconStatus !== 'unreconciled') throw new ConflictError('Transaction is already reconciled');
+    if (txn.type !== 'debit') throw new ConflictError('Only debit transactions can be posted as expenses');
+
+    await this.validateNotInClosedPeriod(txn.transactionDate, txn.bankAccountId);
+
+    const bankGlCode = await this.fetchBankGlCode(txn.bankAccountId);
+    if (!bankGlCode) throw new ConflictError('Bank account has no linked GL account. Link one in bank account settings.');
+
+    const amount = toNumber(txn.amount);
+    const glService = new GLService(this.db, this.tenantId);
+    const je = await glService.createJournalEntry({
+      date: txn.transactionDate,
+      description: input.narration || `Bank expense: ${txn.narration ?? 'Direct expense'}`,
+      sourceType: 'bank_expense',
+      sourceId: txn.id,
+      createdBy: userId,
+      lines: [
+        { accountCode: input.expenseAccountCode, debit: amount },
+        { accountCode: bankGlCode, credit: amount },
+      ],
+    });
+
+    const [match] = await this.db.transaction(async (tx) => {
+      const [m] = await tx
+        .insert(reconciliationMatches)
+        .values({
+          tenantId: this.tenantId,
+          bankTransactionId: input.bankTransactionId,
+          journalEntryId: je.id,
+          matchType: 'expense_post',
+          matchedBy: userId,
+        })
+        .returning();
+
+      await tx
+        .update(bankTransactions)
+        .set({ reconStatus: 'manually_matched', updatedAt: new Date() })
+        .where(eq(bankTransactions.id, input.bankTransactionId));
+
+      return [m!];
+    });
+
+    return this.toMatch(match);
   }
 
   private async fetchUnreconciledTxns(bankAccountId: string, dateFrom?: string, dateTo?: string) {
@@ -540,6 +614,7 @@ export class ReconciliationService {
       bankTransactionId: row.bankTransactionId,
       paymentId: row.paymentId,
       receiptId: row.receiptId,
+      journalEntryId: row.journalEntryId ?? null,
       matchType: row.matchType,
       matchedBy: row.matchedBy,
       matchedAt: row.matchedAt.toISOString(),

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { RefreshCw, Check, X } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
@@ -6,10 +6,12 @@ import {
   useAutoReconcile,
   useManualMatch,
   useUnmatch,
+  usePostAsExpense,
 } from '@/hooks/queries/use-reconciliation';
+import { useGLAccounts } from '@/hooks/queries/use-gl';
 import { useToast } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import type { BankTransaction, AutoReconciliationResult } from '@runq/types';
+import type { BankTransaction, AutoReconciliationResult, Account } from '@runq/types';
 import {
   PageHeader,
   Badge,
@@ -26,8 +28,9 @@ import {
   TableCell,
   TableSkeleton,
   EmptyState,
+  Input,
 } from '@/components/ui';
-import { GitCompare } from 'lucide-react';
+import { GitCompare, Receipt } from 'lucide-react';
 
 interface AutoResult {
   matched: number;
@@ -101,11 +104,13 @@ function BankTxnRow({
   selected,
   onSelect,
   suggestions,
+  onPostExpense,
 }: {
   txn: BankTransaction;
   selected: boolean;
   onSelect: (id: string) => void;
   suggestions: SuggestedMatch[];
+  onPostExpense?: (id: string) => void;
 }) {
   const topSuggestion = suggestions[0];
 
@@ -144,14 +149,25 @@ function BankTxnRow({
         </span>
       </TableCell>
       <TableCell>
-        {topSuggestion ? (
-          <Badge variant={confidenceBadge(topSuggestion.confidence).variant} title={topSuggestion.matchReason}>
-            {confidenceBadge(topSuggestion.confidence).label}
-            {suggestions.length > 1 && <span className="ml-1 text-xs opacity-60">+{suggestions.length - 1}</span>}
-          </Badge>
-        ) : (
-          <span className="text-xs text-zinc-400">—</span>
-        )}
+        <div className="flex items-center gap-2">
+          {topSuggestion ? (
+            <Badge variant={confidenceBadge(topSuggestion.confidence).variant} title={topSuggestion.matchReason}>
+              {confidenceBadge(topSuggestion.confidence).label}
+              {suggestions.length > 1 && <span className="ml-1 text-xs opacity-60">+{suggestions.length - 1}</span>}
+            </Badge>
+          ) : (
+            <span className="text-xs text-zinc-400">—</span>
+          )}
+          {txn.type === 'debit' && onPostExpense && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onPostExpense(txn.id); }}
+              className="rounded p-1 text-zinc-400 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-500/10 dark:hover:text-amber-400"
+              title="Post as Expense"
+            >
+              <Receipt size={14} />
+            </button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -220,9 +236,17 @@ export function ReconciliationPage() {
     'vendor_payment' | 'payment_receipt' | null
   >(null);
   const [autoResult, setAutoResult] = useState<AutoResult | null>(null);
+  const [expenseFormTxnId, setExpenseFormTxnId] = useState<string | null>(null);
+  const [expenseAccountCode, setExpenseAccountCode] = useState('');
+  const [expenseNarration, setExpenseNarration] = useState('');
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
+  const { data: glAccountsData } = useGLAccounts();
+  const expenseAccounts = useMemo(
+    () => (glAccountsData?.data ?? []).filter((a: Account) => a.type === 'expense' && a.isActive),
+    [glAccountsData],
+  );
 
   const { data: unreconciledData, isLoading: unreconciledLoading } = useUnreconciled(
     accountId || undefined,
@@ -242,6 +266,7 @@ export function ReconciliationPage() {
   const autoReconcileMutation = useAutoReconcile();
   const manualMatchMutation = useManualMatch();
   const unmatchMutation = useUnmatch();
+  const postExpenseMutation = usePostAsExpense();
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const bankBalance = unreconciledData?.data?.summary?.bankBalance ?? selectedAccount?.currentBalance ?? 0;
@@ -302,6 +327,29 @@ export function ReconciliationPage() {
       onSuccess: () => toast('Match removed.', 'success'),
       onError: () => toast('Failed to unmatch. Please try again.', 'error'),
     });
+  }
+
+  function handleOpenExpenseForm(txnId: string) {
+    const txn = unreconciledTxns.find((t) => t.id === txnId);
+    setExpenseFormTxnId(txnId);
+    setExpenseAccountCode('');
+    setExpenseNarration(txn?.narration ?? '');
+  }
+
+  function handlePostExpense() {
+    if (!expenseFormTxnId || !expenseAccountCode) return;
+    postExpenseMutation.mutate(
+      { bankTransactionId: expenseFormTxnId, expenseAccountCode, narration: expenseNarration || undefined },
+      {
+        onSuccess: () => {
+          toast('Expense posted and reconciled.', 'success');
+          setExpenseFormTxnId(null);
+          setExpenseAccountCode('');
+          setExpenseNarration('');
+        },
+        onError: () => toast('Failed to post expense.', 'error'),
+      },
+    );
   }
 
   function selectPayment(id: string, type: 'vendor_payment' | 'payment_receipt') {
@@ -422,13 +470,59 @@ export function ReconciliationPage() {
                     {unreconciledTxns.map((txn) => {
                       const txnSuggestions = matchMap.get(txn.id)?.suggestions ?? [];
                       return (
-                      <BankTxnRow
-                        key={txn.id}
-                        txn={txn}
-                        selected={selectedBankTxn === txn.id}
-                        onSelect={setSelectedBankTxn}
-                        suggestions={txnSuggestions}
-                      />
+                        <Fragment key={txn.id}>
+                          <BankTxnRow
+                            txn={txn}
+                            selected={selectedBankTxn === txn.id}
+                            onSelect={setSelectedBankTxn}
+                            suggestions={txnSuggestions}
+                            onPostExpense={handleOpenExpenseForm}
+                          />
+                          {expenseFormTxnId === txn.id && (
+                            <TableRow key={`${txn.id}-expense`}>
+                              <TableCell colSpan={6}>
+                                <div className="flex flex-wrap items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                                  <div className="min-w-[200px] flex-1">
+                                    <Select
+                                      label="Expense Account"
+                                      value={expenseAccountCode}
+                                      onChange={(e) => setExpenseAccountCode(e.target.value)}
+                                      options={[
+                                        { value: '', label: 'Select account...' },
+                                        ...expenseAccounts.map((a: Account) => ({ value: a.code, label: `${a.code} — ${a.name}` })),
+                                      ]}
+                                    />
+                                  </div>
+                                  <div className="min-w-[200px] flex-1">
+                                    <Input
+                                      label="Narration"
+                                      value={expenseNarration}
+                                      onChange={(e) => setExpenseNarration(e.target.value)}
+                                      placeholder="Optional description"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={handlePostExpense}
+                                      loading={postExpenseMutation.isPending}
+                                      disabled={!expenseAccountCode}
+                                    >
+                                      Post Expense
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setExpenseFormTxnId(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </TableBody>

@@ -53,3 +53,12 @@ export function useUnmatch() {
     onSuccess: () => qc.invalidateQueries({ queryKey: RECON_KEYS.all }),
   });
 }
+
+export function usePostAsExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { bankTransactionId: string; expenseAccountCode: string; narration?: string }) =>
+      api.post<ApiSuccess<ReconciliationMatch>>('/banking/reconciliation/post-expense', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: RECON_KEYS.all }),
+  });
+}

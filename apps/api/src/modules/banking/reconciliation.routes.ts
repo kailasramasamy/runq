@@ -4,6 +4,7 @@ import {
   manualMatchSchema,
   unmatchSchema,
   closePeriodSchema,
+  postAsExpenseSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -78,6 +79,17 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
       const service = new ReconciliationService(request.server.db, request.tenantId);
       const result = await service.closePeriod(input, completedBy);
       return { data: result };
+    },
+  );
+
+  app.post(
+    '/reconciliation/post-expense',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const input = postAsExpenseSchema.parse(request.body);
+      const service = new ReconciliationService(request.server.db, request.tenantId);
+      const match = await service.postAsExpense(input, request.user!.userId);
+      return { data: match };
     },
   );
 
