@@ -100,7 +100,7 @@ export function ReceiptListPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: search || undefined,
-  });
+  }, page);
 
   const receipts = (data?.data ?? []) as ReceiptWithCustomer[];
   const meta = data?.meta;

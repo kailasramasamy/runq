@@ -106,7 +106,7 @@ export function CreditNoteListPage() {
   const { data, isLoading } = useCreditNotes({
     customerId: customerId || undefined,
     status: (status || undefined) as CreditNoteStatus | undefined,
-  });
+  }, page);
 
   const customers = customersData?.data ?? [];
   const creditNotes = data?.data ?? [];

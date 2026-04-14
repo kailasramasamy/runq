@@ -32,11 +32,20 @@ function buildFilterQs(filters?: ReceiptFilter): string {
   return qs ? `?${qs}` : '';
 }
 
-export function useReceipts(filters?: ReceiptFilter) {
+export function useReceipts(filters?: ReceiptFilter, page = 1, limit = 20) {
+  const key = { ...filters, page, limit };
   return useQuery({
-    queryKey: RECEIPT_KEYS.list(filters as Record<string, unknown>),
-    queryFn: () =>
-      api.get<PaginatedResponse<PaymentReceipt>>(`/ar/receipts${buildFilterQs(filters)}`),
+    queryKey: RECEIPT_KEYS.list(key as Record<string, unknown>),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filters?.customerId) params.set('customerId', filters.customerId);
+      if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+      if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+      if (filters?.search) params.set('search', filters.search);
+      params.set('page', String(page));
+      params.set('limit', String(limit));
+      return api.get<PaginatedResponse<PaymentReceipt>>(`/ar/receipts?${params.toString()}`);
+    },
   });
 }
 

@@ -18,11 +18,18 @@ function buildFilterQs(filters?: CreditNoteFilter): string {
   return qs ? `?${qs}` : '';
 }
 
-export function useCreditNotes(filters?: CreditNoteFilter) {
+export function useCreditNotes(filters?: CreditNoteFilter, page = 1, limit = 20) {
+  const key = { ...filters, page, limit };
   return useQuery({
-    queryKey: CN_KEYS.list(filters as Record<string, unknown>),
-    queryFn: () =>
-      api.get<PaginatedResponse<CreditNote>>(`/ar/credit-notes${buildFilterQs(filters)}`),
+    queryKey: CN_KEYS.list(key as Record<string, unknown>),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filters?.customerId) params.set('customerId', filters.customerId);
+      if (filters?.status) params.set('status', filters.status);
+      params.set('page', String(page));
+      params.set('limit', String(limit));
+      return api.get<PaginatedResponse<CreditNote>>(`/ar/credit-notes?${params.toString()}`);
+    },
   });
 }
 

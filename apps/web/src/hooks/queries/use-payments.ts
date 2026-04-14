@@ -27,11 +27,19 @@ function buildFilterQs(filters?: VendorPaymentFilter): string {
   return qs ? `?${qs}` : '';
 }
 
-export function useVendorPayments(filters?: VendorPaymentFilter) {
+export function useVendorPayments(filters?: VendorPaymentFilter, page = 1, limit = 20) {
+  const key = { ...filters, page, limit };
   return useQuery({
-    queryKey: PAYMENT_KEYS.list(filters as Record<string, unknown>),
-    queryFn: () =>
-      api.get<PaginatedResponse<VendorPayment>>(`/ap/payments${buildFilterQs(filters)}`),
+    queryKey: PAYMENT_KEYS.list(key as Record<string, unknown>),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filters?.vendorId) params.set('vendorId', filters.vendorId);
+      if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+      if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+      params.set('page', String(page));
+      params.set('limit', String(limit));
+      return api.get<PaginatedResponse<VendorPayment>>(`/ap/payments?${params.toString()}`);
+    },
   });
 }
 

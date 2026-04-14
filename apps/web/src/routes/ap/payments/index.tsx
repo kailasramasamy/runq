@@ -109,7 +109,7 @@ export function PaymentListPage() {
     vendorId: vendorId || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
-  });
+  }, page);
 
   const payments = data?.data ?? [];
   const meta = data?.meta;
