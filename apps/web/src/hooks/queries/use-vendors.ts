@@ -33,6 +33,7 @@ interface VendorFilters {
 export function useVendors(filters?: VendorFilters) {
   const params = new URLSearchParams();
   if (filters?.search) params.set('search', filters.search);
+  if (filters?.category) params.set('category', filters.category as string);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

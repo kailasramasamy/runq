@@ -32,7 +32,7 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
       const pagination = paginationSchema.parse(request.query);
       const filters = vendorFilterSchema.parse(request.query);
       const service = new VendorService(request.server.db, request.tenantId);
-      return service.list({ page: pagination.page, limit: pagination.limit, search: filters.search });
+      return service.list({ page: pagination.page, limit: pagination.limit, search: filters.search, category: filters.category });
     },
   );
 

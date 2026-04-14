@@ -31,6 +31,7 @@ export interface VendorListParams {
   page: number;
   limit: number;
   search?: string;
+  category?: string;
 }
 
 export interface VendorListResult {
@@ -45,13 +46,14 @@ export class VendorService {
   ) {}
 
   async list(params: VendorListParams): Promise<VendorListResult> {
-    const { page, limit, search } = params;
+    const { page, limit, search, category } = params;
     const { offset } = applyPagination(page, limit);
 
     const baseWhere = and(
       eq(vendors.tenantId, this.tenantId),
       isNull(vendors.deletedAt),
       search ? ilike(vendors.name, `%${search}%`) : undefined,
+      category ? eq(vendors.category, category) : undefined,
     );
 
     const [rows, countResult] = await Promise.all([

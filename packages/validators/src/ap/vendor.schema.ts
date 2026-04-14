@@ -31,6 +31,7 @@ export const updateVendorSchema = createVendorSchema.partial();
 
 export const vendorFilterSchema = z.object({
   search: z.string().optional(),
+  category: z.string().optional(),
   hasOutstanding: z.coerce.boolean().optional(),
 });
 

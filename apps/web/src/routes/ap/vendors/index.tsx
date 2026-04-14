@@ -80,11 +80,10 @@ export function VendorListPage() {
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useVendors({ search: search || undefined, page, limit: LIMIT });
+  const { data, isLoading } = useVendors({ search: search || undefined, category: category || undefined, page, limit: LIMIT });
   const deleteMutation = useDeleteVendor();
 
-  const allVendors = data?.data ?? [];
-  const vendors = category ? allVendors.filter((v) => v.category === category) : allVendors;
+  const vendors = data?.data ?? [];
   const meta = data?.meta;
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
