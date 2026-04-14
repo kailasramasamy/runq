@@ -325,24 +325,37 @@ export class DunningService {
 
     if (rules.length === 0 || overdueInvoices.length === 0) return { sent: 0, failed: 0, skipped: overdueInvoices.length };
 
-    const invoiceIds = overdueInvoices.map((i) => i.id);
-    const existingLogs = await this.db
-      .select({
-        invoiceId: dunningLog.invoiceId,
-        ruleId: dunningLog.ruleId,
-        sentAt: dunningLog.sentAt,
-      })
-      .from(dunningLog)
-      .where(and(eq(dunningLog.tenantId, this.tenantId), inArray(dunningLog.invoiceId, invoiceIds)));
+    const isDryRun = !!process.env.DUNNING_DRY_RUN_EMAIL;
+    let toInsert: ReturnType<typeof this.buildEscalationInserts>;
 
-    const sentByInvoice = this.groupLogsByInvoice(existingLogs);
-    const toInsert = this.buildEscalationInserts(rules, overdueInvoices, sentByInvoice);
+    if (isDryRun) {
+      // Dry-run: skip escalation history — match every invoice to its first applicable rule
+      toInsert = this.buildEscalationInserts(rules, overdueInvoices, new Map());
+    } else {
+      const invoiceIds = overdueInvoices.map((i) => i.id);
+      const existingLogs = await this.db
+        .select({
+          invoiceId: dunningLog.invoiceId,
+          ruleId: dunningLog.ruleId,
+          sentAt: dunningLog.sentAt,
+        })
+        .from(dunningLog)
+        .where(and(
+          eq(dunningLog.tenantId, this.tenantId),
+          inArray(dunningLog.invoiceId, invoiceIds),
+          sql`${dunningLog.status} != 'dry_run'`,
+        ));
+
+      const sentByInvoice = this.groupLogsByInvoice(existingLogs);
+      toInsert = this.buildEscalationInserts(rules, overdueInvoices, sentByInvoice);
+    }
 
     if (toInsert.length === 0) return { sent: 0, failed: 0, skipped: overdueInvoices.length };
 
-    // Insert log rows as pending
+    // Insert log rows — mark as dry_run so they don't block real runs
+    const logStatus = isDryRun ? 'dry_run' : 'pending';
     const logRows = await this.db.insert(dunningLog)
-      .values(toInsert.map((r) => ({ ...r, status: 'pending' })))
+      .values(toInsert.map((r) => ({ ...r, status: logStatus })))
       .returning({ id: dunningLog.id, invoiceId: dunningLog.invoiceId, channel: dunningLog.channel });
 
     // Send emails for email-channel entries
@@ -371,8 +384,11 @@ export class DunningService {
     let failed = 0;
     for (const row of logRows) {
       const success = row.channel === 'email' ? (resultMap.get(row.invoiceId) ?? false) : true;
+      const newStatus = isDryRun
+        ? (success ? 'dry_run' : 'dry_run_failed')
+        : (success ? 'sent' : 'failed');
       await this.db.update(dunningLog)
-        .set({ status: success ? 'sent' : 'failed' })
+        .set({ status: newStatus })
         .where(eq(dunningLog.id, row.id));
       if (success) sent++; else failed++;
     }
