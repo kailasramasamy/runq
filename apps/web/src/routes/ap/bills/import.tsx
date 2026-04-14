@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Upload, Check, X, Download } from 'lucide-react';
 import { useImportBillsCSV } from '@/hooks/queries/use-bill-import';
+import { useVendors } from '@/hooks/queries/use-vendors';
 import type { BillCategory } from '@runq/validators';
 import {
   PageHeader,
@@ -47,6 +48,15 @@ const TEMPLATES: Record<BillCategory, { headers: string; example: string }> = {
   },
 };
 
+// Map bill import category → vendor categories to pre-fill template
+const CATEGORY_VENDOR_MAP: Record<BillCategory, string[]> = {
+  employee_salary: ['employee'],
+  delivery_boys: ['logistics', 'contractor'],
+  farmers_suppliers: ['raw_material'],
+  rent_fixed: ['rent', 'utilities', 'telecom'],
+  general: [],
+};
+
 interface PreviewRow {
   vendorName: string;
   invoiceNumber: string;
@@ -83,6 +93,22 @@ function parsePreview(csv: string): PreviewRow[] {
   }).filter((r) => r.vendorName);
 }
 
+function buildTemplateRow(cat: BillCategory, vendor: string, invNum: string, date: string, due: string, item: string): string {
+  const v = vendor.includes(',') ? `"${vendor}"` : vendor;
+  switch (cat) {
+    case 'employee_salary':
+    case 'rent_fixed':
+      return `${v},${invNum},${date},${due},${item},0,,`;
+    case 'delivery_boys':
+      return `${v},${invNum},${date},${due},${item},0`;
+    case 'farmers_suppliers':
+      return `${v},${invNum},${date},${due},${item},0,0,0,,`;
+    case 'general':
+    default:
+      return `${v},${invNum},${date},${due},${item},1,0,0,,,,`;
+  }
+}
+
 export function ImportBillsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -93,10 +119,32 @@ export function ImportBillsPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const importMutation = useImportBillsCSV();
 
+  // Fetch vendors matching the selected category
+  const vendorCategories = CATEGORY_VENDOR_MAP[category];
+  const { data: vendorsData } = useVendors({ limit: 500 });
+  const categoryVendors = useMemo(() => {
+    const all = vendorsData?.data ?? [];
+    if (vendorCategories.length === 0) return all.filter((v) => v.isActive);
+    return all.filter((v) => v.isActive && vendorCategories.includes(v.category ?? ''));
+  }, [vendorsData, vendorCategories]);
+
   const template = TEMPLATES[category];
 
   function handleDownloadTemplate() {
-    const csv = `${template.headers}\n${template.example}`;
+    const today = new Date().toISOString().split('T')[0]!;
+    const dueDate = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]!;
+    const month = new Date().toLocaleString('en', { month: 'short', year: 'numeric' });
+
+    // Generate one row per vendor with pre-filled names
+    const rows = categoryVendors.length > 0
+      ? categoryVendors.map((v, i) => {
+          const invNum = `${category.toUpperCase().replace(/_/g, '-')}-${(i + 1).toString().padStart(3, '0')}`;
+          const itemName = `${template.example.split(',')[4] || 'Payment'} ${month}`.trim();
+          return buildTemplateRow(category, v.name, invNum, today, dueDate, itemName);
+        })
+      : [template.example];
+
+    const csv = `${template.headers}\n${rows.join('\n')}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
