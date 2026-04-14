@@ -79,11 +79,9 @@ function PaymentQueue() {
   const [filter, setFilter] = useState<QueueFilter>('all');
   const [category, setCategory] = useState('');
 
-  const summary = data?.data?.summary;
   const allBills = data?.data?.bills ?? [];
 
-  const bills = useMemo(() => {
-    let filtered = allBills;
+  const { bills, filteredSummary } = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]!;
     const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]!;
     const monthEnd = new Date(today.slice(0, 7) + '-01');
@@ -91,19 +89,35 @@ function PaymentQueue() {
     monthEnd.setDate(0);
     const monthEndStr = monthEnd.toISOString().split('T')[0]!;
 
+    // Apply category + search first (affects summary)
+    let base = allBills;
+    if (category) base = base.filter((b) => b.vendorCategory === category);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      base = base.filter(
+        (b) => b.invoiceNumber.toLowerCase().includes(q) || b.vendorName.toLowerCase().includes(q),
+      );
+    }
+
+    // Compute summary from the base (category + search filtered) set
+    let totalPayable = 0, overdueAmount = 0, overdueCount = 0, dueThisWeek = 0, dueThisMonth = 0;
+    for (const b of base) {
+      totalPayable += b.balanceDue;
+      if (b.dueDate < today) { overdueAmount += b.balanceDue; overdueCount++; }
+      if (b.dueDate >= today && b.dueDate <= weekEnd) dueThisWeek += b.balanceDue;
+      if (b.dueDate >= today && b.dueDate <= monthEndStr) dueThisMonth += b.balanceDue;
+    }
+
+    // Apply date filter for the table
+    let filtered = base;
     if (filter === 'overdue') filtered = filtered.filter((b) => b.dueDate < today);
     else if (filter === 'due-this-week') filtered = filtered.filter((b) => b.dueDate >= today && b.dueDate <= weekEnd);
     else if (filter === 'due-this-month') filtered = filtered.filter((b) => b.dueDate >= today && b.dueDate <= monthEndStr);
 
-    if (category) filtered = filtered.filter((b) => b.vendorCategory === category);
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(
-        (b) => b.invoiceNumber.toLowerCase().includes(q) || b.vendorName.toLowerCase().includes(q),
-      );
-    }
-    return filtered;
+    return {
+      bills: filtered,
+      filteredSummary: { totalPayable, overdueAmount, overdueCount, dueThisWeek, dueThisMonth },
+    };
   }, [allBills, filter, category, search]);
 
   function toggleAll() {
@@ -144,21 +158,21 @@ function PaymentQueue() {
             <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
-      ) : summary ? (
+      ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatsCard title="Total Payable" value={summary.totalPayable} icon={IndianRupee} />
+          <StatsCard title="Total Payable" value={filteredSummary.totalPayable} icon={IndianRupee} />
           <StatsCard
             title="Overdue"
-            value={summary.overdueAmount}
+            value={filteredSummary.overdueAmount}
             icon={AlertTriangle}
             className="border-red-200 dark:border-red-900/50"
-            formatValue={(v) => `${formatINR(v)} (${summary.overdueCount})`}
+            formatValue={(v) => `${formatINR(v)} (${filteredSummary.overdueCount})`}
             onClick={() => setFilter('overdue')}
           />
-          <StatsCard title="Due This Week" value={summary.dueThisWeek} icon={Calendar} onClick={() => setFilter('due-this-week')} />
-          <StatsCard title="Due This Month" value={summary.dueThisMonth} icon={CalendarDays} onClick={() => setFilter('due-this-month')} />
+          <StatsCard title="Due This Week" value={filteredSummary.dueThisWeek} icon={Calendar} onClick={() => setFilter('due-this-week')} />
+          <StatsCard title="Due This Month" value={filteredSummary.dueThisMonth} icon={CalendarDays} onClick={() => setFilter('due-this-month')} />
         </div>
-      ) : null}
+      )}
 
       {/* Toolbar */}
       <Card>

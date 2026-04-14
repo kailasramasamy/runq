@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Download, Send, IndianRupee, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { Plus, FileText, Download, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
-import { usePurchaseInvoices, useBillsSummary, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
+import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
 import { useCreateRunFromBills } from '../../../hooks/queries/use-payment-runs';
 import type { PurchaseInvoice, PurchaseInvoiceStatus, MatchStatus } from '@runq/types';
@@ -72,6 +72,17 @@ const ALL_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'All Categories' },
+  { value: 'raw_material', label: 'Raw Material' },
+  { value: 'service_provider', label: 'Service Provider' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'internal_transfer', label: 'Internal Transfer' },
+  { value: 'other', label: 'Other' },
+];
+
 const LIMIT = 20;
 
 export function BillListPage() {
@@ -79,6 +90,7 @@ export function BillListPage() {
   const { toast } = useToast();
   const [vendorId, setVendorId] = useState('');
   const [status, setStatus] = useState('');
+  const [category, setCategory] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -91,17 +103,37 @@ export function BillListPage() {
     dateTo: dateTo || undefined,
   };
 
-  const { data: summaryData, isLoading: summaryLoading } = useBillsSummary();
   const { data, isLoading } = usePurchaseInvoices(filters);
   const { data: vendorsData } = useVendors({ limit: 100 });
   const deleteMutation = useDeletePurchaseInvoice();
   const createRunFromBills = useCreateRunFromBills();
 
-  const bills = data?.data ?? [];
+  const allBills = data?.data ?? [];
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
   const vendors = vendorsData?.data ?? [];
-  const hasFilters = !!(vendorId || status || dateFrom || dateTo);
+  const hasFilters = !!(vendorId || status || category || dateFrom || dateTo);
+
+  // Client-side category filter (API handles vendor/status/date filters)
+  const bills = useMemo(() => {
+    if (!category) return allBills;
+    return allBills.filter((b: any) => b.vendorCategory === category);
+  }, [allBills, category]);
+
+  // Compute summary from filtered bills
+  const filteredSummary = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]!;
+    const monthStart = today.slice(0, 7) + '-01';
+    let totalOutstanding = 0, overdueAmount = 0, overdueCount = 0, pendingApprovalCount = 0, paidThisMonth = 0;
+    for (const b of bills) {
+      const bal = Number(b.balanceDue);
+      if (!['paid', 'cancelled'].includes(b.status)) totalOutstanding += bal;
+      if (b.dueDate < today && bal > 0 && !['paid', 'cancelled'].includes(b.status)) { overdueAmount += bal; overdueCount++; }
+      if (['draft', 'pending_match', 'matched'].includes(b.status)) pendingApprovalCount++;
+      if (['paid', 'partially_paid'].includes(b.status) && b.updatedAt >= monthStart) paidThisMonth += Number(b.amountPaid);
+    }
+    return { totalOutstanding, overdueAmount, overdueCount, pendingApprovalCount, paidThisMonth };
+  }, [bills]);
 
   const vendorOptions = [
     { value: '', label: 'All Vendors' },
@@ -177,40 +209,40 @@ export function BillListPage() {
         }
       />
 
-      {summaryLoading ? (
+      {isLoading ? (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
-      ) : summaryData?.data ? (
+      ) : (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatsCard
             title="Total Outstanding"
-            value={summaryData.data.totalOutstanding}
+            value={filteredSummary.totalOutstanding}
             icon={IndianRupee}
           />
           <StatsCard
             title="Overdue"
-            value={summaryData.data.overdueAmount}
+            value={filteredSummary.overdueAmount}
             icon={AlertTriangle}
             className="border-red-200 dark:border-red-900/50"
-            formatValue={(v) => `${formatINR(v)} (${summaryData.data.overdueCount})`}
+            formatValue={(v) => `${formatINR(v)} (${filteredSummary.overdueCount})`}
           />
           <StatsCard
             title="Pending Approval"
-            value={summaryData.data.pendingApprovalCount}
+            value={filteredSummary.pendingApprovalCount}
             icon={Clock}
             formatValue={(v) => String(v)}
             onClick={() => { setStatus('draft'); setPage(1); }}
           />
           <StatsCard
             title="Paid This Month"
-            value={summaryData.data.paidThisMonth}
+            value={filteredSummary.paidThisMonth}
             icon={CheckCircle}
           />
         </div>
-      ) : null}
+      )}
 
       <Card className="mb-4">
         <CardContent>
@@ -229,6 +261,14 @@ export function BillListPage() {
                 options={ALL_STATUSES}
                 value={status}
                 onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              />
+            </div>
+            <div className="min-w-[160px] flex-1">
+              <Select
+                label="Category"
+                options={CATEGORY_OPTIONS}
+                value={category}
+                onChange={(e) => { setCategory(e.target.value); setPage(1); }}
               />
             </div>
             <div className="min-w-[140px]">

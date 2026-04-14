@@ -28,7 +28,7 @@ export interface InvoiceListParams {
 }
 
 export interface InvoiceListResult {
-  data: (PurchaseInvoice & { vendorName: string })[];
+  data: (PurchaseInvoice & { vendorName: string; vendorCategory: string | null })[];
   meta: PaginationMeta;
 }
 
@@ -53,6 +53,7 @@ export class PurchaseInvoiceService {
         .select({
           invoice: purchaseInvoices,
           vendorName: vendors.name,
+          vendorCategory: vendors.category,
         })
         .from(purchaseInvoices)
         .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
@@ -66,7 +67,7 @@ export class PurchaseInvoiceService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...this.toInvoice(r.invoice), vendorName: r.vendorName }));
+    const data = rows.map((r) => ({ ...this.toInvoice(r.invoice), vendorName: r.vendorName, vendorCategory: r.vendorCategory ?? null }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 
