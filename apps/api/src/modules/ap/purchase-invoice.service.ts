@@ -352,6 +352,7 @@ export class PurchaseInvoiceService {
       eq(purchaseInvoices.tenantId, this.tenantId),
       filters.vendorId ? eq(purchaseInvoices.vendorId, filters.vendorId) : undefined,
       filters.status ? eq(purchaseInvoices.status, filters.status) : undefined,
+      filters.search ? sql`(${purchaseInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'} OR EXISTS (SELECT 1 FROM ${vendors} WHERE ${vendors.id} = ${purchaseInvoices.vendorId} AND ${vendors.name} ILIKE ${'%' + filters.search + '%'}))` : undefined,
       filters.overdue ? sql`${purchaseInvoices.dueDate} < CURRENT_DATE AND ${purchaseInvoices.balanceDue} > 0` : undefined,
       filters.dateFrom ? gte(purchaseInvoices.invoiceDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(purchaseInvoices.invoiceDate, filters.dateTo) : undefined,

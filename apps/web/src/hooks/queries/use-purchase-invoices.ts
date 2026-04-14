@@ -47,6 +47,7 @@ export function usePurchaseInvoices(filters?: PurchaseInvoiceFilter, page = 1, l
       if (filters?.vendorId) params.set('vendorId', filters.vendorId);
       if (filters?.status) params.set('status', filters.status);
       if (filters?.vendorCategory) params.set('vendorCategory', filters.vendorCategory);
+      if (filters?.search) params.set('search', filters.search);
       if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
       if (filters?.dateTo) params.set('dateTo', filters.dateTo);
       params.set('page', String(page));

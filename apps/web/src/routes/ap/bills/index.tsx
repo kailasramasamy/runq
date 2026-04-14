@@ -91,6 +91,7 @@ export function BillListPage() {
   const [vendorId, setVendorId] = useState('');
   const [status, setStatus] = useState('');
   const [category, setCategory] = useState('');
+  const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -100,6 +101,7 @@ export function BillListPage() {
     vendorId: vendorId || undefined,
     status: (status || undefined) as PurchaseInvoiceStatus | undefined,
     vendorCategory: category || undefined,
+    search: search || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   };
@@ -113,7 +115,7 @@ export function BillListPage() {
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
   const vendors = vendorsData?.data ?? [];
-  const hasFilters = !!(vendorId || status || category || dateFrom || dateTo);
+  const hasFilters = !!(vendorId || status || category || search || dateFrom || dateTo);
 
   // Compute summary from filtered bills
   const filteredSummary = useMemo(() => {
@@ -245,6 +247,16 @@ export function BillListPage() {
       <Card className="mb-4">
         <CardContent>
           <div className="flex flex-wrap items-end gap-3">
+            <div className="relative min-w-[200px] flex-1">
+              <input
+                type="text"
+                placeholder="Search by invoice # or vendor…"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            </div>
             <div className="min-w-[180px] flex-1">
               <Select
                 label="Vendor"
