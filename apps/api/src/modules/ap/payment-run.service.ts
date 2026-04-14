@@ -166,6 +166,71 @@ export class PaymentRunService {
     };
   }
 
+  async getPaymentQueue(): Promise<{
+    summary: { totalPayable: number; overdueAmount: number; overdueCount: number; dueThisWeek: number; dueThisMonth: number };
+    bills: { id: string; invoiceNumber: string; vendorId: string; vendorName: string; dueDate: string; totalAmount: number; balanceDue: number; daysOverdue: number; status: string }[];
+  }> {
+    const today = new Date().toISOString().split('T')[0]!;
+    const todayMs = new Date(today).getTime();
+    const weekEnd = new Date(todayMs + 7 * 86_400_000).toISOString().split('T')[0]!;
+    const monthEnd = new Date(today.slice(0, 7) + '-01');
+    monthEnd.setMonth(monthEnd.getMonth() + 1);
+    monthEnd.setDate(0);
+    const monthEndStr = monthEnd.toISOString().split('T')[0]!;
+
+    const rows = await this.db
+      .select({
+        id: purchaseInvoices.id,
+        invoiceNumber: purchaseInvoices.invoiceNumber,
+        vendorId: vendors.id,
+        vendorName: vendors.name,
+        dueDate: purchaseInvoices.dueDate,
+        totalAmount: purchaseInvoices.totalAmount,
+        balanceDue: purchaseInvoices.balanceDue,
+        status: purchaseInvoices.status,
+      })
+      .from(purchaseInvoices)
+      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId),
+        sql`${purchaseInvoices.status} IN ('approved', 'partially_paid')`,
+        sql`${purchaseInvoices.balanceDue} > 0`,
+      ))
+      .orderBy(purchaseInvoices.dueDate)
+      .limit(500);
+
+    let totalPayable = 0;
+    let overdueAmount = 0;
+    let overdueCount = 0;
+    let dueThisWeek = 0;
+    let dueThisMonth = 0;
+
+    const bills = rows.map((r) => {
+      const bal = parseFloat(r.balanceDue);
+      const daysOverdue = Math.max(0, Math.floor((todayMs - new Date(r.dueDate).getTime()) / 86_400_000));
+      totalPayable += bal;
+      if (r.dueDate < today) { overdueAmount += bal; overdueCount++; }
+      if (r.dueDate >= today && r.dueDate <= weekEnd) dueThisWeek += bal;
+      if (r.dueDate >= today && r.dueDate <= monthEndStr) dueThisMonth += bal;
+      return {
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        vendorId: r.vendorId,
+        vendorName: r.vendorName,
+        dueDate: r.dueDate,
+        totalAmount: parseFloat(r.totalAmount),
+        balanceDue: bal,
+        daysOverdue,
+        status: r.status,
+      };
+    });
+
+    return {
+      summary: { totalPayable, overdueAmount, overdueCount, dueThisWeek, dueThisMonth },
+      bills,
+    };
+  }
+
   async getRun(id: string): Promise<PaymentRunWithLines> {
     const [run] = await this.db
       .select()

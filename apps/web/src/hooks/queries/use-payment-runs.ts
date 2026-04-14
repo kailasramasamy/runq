@@ -15,10 +15,36 @@ import type {
   PaymentRunFilter,
 } from '@runq/validators';
 
+export interface PaymentQueueBill {
+  id: string;
+  invoiceNumber: string;
+  vendorId: string;
+  vendorName: string;
+  dueDate: string;
+  totalAmount: number;
+  balanceDue: number;
+  daysOverdue: number;
+  status: string;
+}
+
+export interface PaymentQueueSummary {
+  totalPayable: number;
+  overdueAmount: number;
+  overdueCount: number;
+  dueThisWeek: number;
+  dueThisMonth: number;
+}
+
+export interface PaymentQueueData {
+  summary: PaymentQueueSummary;
+  bills: PaymentQueueBill[];
+}
+
 const RUN_KEYS = {
   all: ['payment-runs'] as const,
   list: (filters?: Record<string, unknown>) => ['payment-runs', 'list', filters] as const,
   detail: (id: string) => ['payment-runs', 'detail', id] as const,
+  queue: ['payment-runs', 'queue'] as const,
 };
 
 function buildFilterQs(filters?: PaymentRunFilter): string {
@@ -28,6 +54,13 @@ function buildFilterQs(filters?: PaymentRunFilter): string {
   if (filters.source) params.set('source', filters.source);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
+}
+
+export function usePaymentQueue() {
+  return useQuery({
+    queryKey: RUN_KEYS.queue,
+    queryFn: () => api.get<ApiSuccess<PaymentQueueData>>('/ap/payment-runs/queue'),
+  });
 }
 
 export function usePaymentRuns(filters?: PaymentRunFilter) {
@@ -62,6 +95,7 @@ export function useCreateRunFromBills() {
       api.post<ApiSuccess<PaymentRunWithLines>>('/ap/payment-runs/from-bills', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: RUN_KEYS.all });
+      qc.invalidateQueries({ queryKey: RUN_KEYS.queue });
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
     },
   });
@@ -74,6 +108,7 @@ export function useApproveLines() {
       api.post<ApiSuccess<PaymentRunWithLines>>(`/ap/payment-runs/${runId}/approve`, data),
     onSuccess: (_res, { runId }) => {
       qc.invalidateQueries({ queryKey: RUN_KEYS.all });
+      qc.invalidateQueries({ queryKey: RUN_KEYS.queue });
       qc.invalidateQueries({ queryKey: RUN_KEYS.detail(runId) });
     },
   });
@@ -86,6 +121,7 @@ export function useRejectLines() {
       api.post<ApiSuccess<PaymentRunWithLines>>(`/ap/payment-runs/${runId}/reject`, data),
     onSuccess: (_res, { runId }) => {
       qc.invalidateQueries({ queryKey: RUN_KEYS.all });
+      qc.invalidateQueries({ queryKey: RUN_KEYS.queue });
       qc.invalidateQueries({ queryKey: RUN_KEYS.detail(runId) });
     },
   });
@@ -98,6 +134,7 @@ export function useExecuteRun() {
       api.post<ApiSuccess<ExecuteRunResult>>(`/ap/payment-runs/${runId}/execute`, { bankAccountId }),
     onSuccess: (_res, { runId }) => {
       qc.invalidateQueries({ queryKey: RUN_KEYS.all });
+      qc.invalidateQueries({ queryKey: RUN_KEYS.queue });
       qc.invalidateQueries({ queryKey: RUN_KEYS.detail(runId) });
     },
   });

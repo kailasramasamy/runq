@@ -44,6 +44,16 @@ export const paymentRunRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.get(
+    '/queue',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new PaymentRunService(request.server.db, request.tenantId);
+      const result = await service.getPaymentQueue();
+      return { data: result };
+    },
+  );
+
+  app.get(
     '/',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
