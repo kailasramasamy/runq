@@ -11,17 +11,17 @@ interface EmailTemplate {
 function layout(companyName: string, title: string, bodyHtml: string, footerNote?: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:32px 0">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px">
-        <tr><td style="background:#4f46e5;padding:24px 32px">
-          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700">${companyName}</p>
-          <p style="margin:4px 0 0;color:#e0e7ff;font-size:14px;font-weight:500">${title}</p>
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px">
+        <tr><td style="background-color:#4f46e5;padding:24px 32px">
+          <p style="margin:0;color:#ffffff !important;font-size:20px;font-weight:700">${companyName}</p>
+          <p style="margin:4px 0 0;color:#e0e7ff !important;font-size:14px;font-weight:500">${title}</p>
         </td></tr>
-        <tr><td style="padding:32px">${bodyHtml}</td></tr>
-        <tr><td style="padding:16px 32px;background:#f4f4f5;border-top:1px solid #e4e4e7">
+        <tr><td style="padding:32px;background-color:#ffffff">${bodyHtml}</td></tr>
+        <tr><td style="padding:16px 32px;background-color:#f4f4f5;border-top:1px solid #e4e4e7">
           <p style="margin:0;color:#71717a;font-size:12px">${footerNote ?? `This is an automated email from ${companyName} via runQ.`}</p>
           <p style="margin:8px 0 0;color:#a1a1aa;font-size:11px">Powered by <a href="https://www.runq.in" style="color:#4f46e5;text-decoration:none;font-weight:600">runQ</a> — Simple accounting for Indian businesses</p>
         </td></tr>
