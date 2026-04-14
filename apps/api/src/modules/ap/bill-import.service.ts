@@ -97,6 +97,7 @@ export class BillImportService {
         created++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Bill import row ${rowNum} error:`, msg);
         errors.push({ row: rowNum, vendorName: get('vendor name'), message: msg });
       }
     }

@@ -247,7 +247,11 @@ export function ImportBillsPage() {
           setResult(res.data);
           setStep(3);
         },
-        onError: () => toast('Import failed. Please check your CSV and try again.', 'error'),
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+          toast(`Import failed: ${msg}`, 'error');
+          console.error('Bill import error:', err);
+        },
       },
     );
   }
