@@ -82,6 +82,7 @@ export function ImportVendorsPage() {
         onSuccess: (res) => {
           setResult(res.data);
           setStep(3);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         },
         onError: () => toast('Import failed. Please check your CSV format and try again.', 'error'),
       },

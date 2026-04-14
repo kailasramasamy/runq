@@ -174,6 +174,7 @@ export function ImportBillsPage() {
         onSuccess: (res) => {
           setResult(res.data);
           setStep(3);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         },
         onError: (err: any) => {
           // API client throws the raw JSON error object, not an Error instance
