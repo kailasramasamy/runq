@@ -139,8 +139,8 @@ function maybeDunning(db: Db, redis: Redis, logger: Logger): void {
 async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Promise<void> {
   const isDryRun = !!process.env.DUNNING_DRY_RUN_EMAIL;
   // In dry-run: unique lock per deploy so it always fires once
-  const lockKey = isDryRun ? `lock:dunning:dryrun:${Date.now()}` : 'lock:dunning:daily';
-  const acquired = await redis.set(lockKey, '1', 'EX', isDryRun ? 300 : 72_000, 'NX');
+  const lockKey = isDryRun ? 'lock:dunning:dryrun' : 'lock:dunning:daily';
+  const acquired = await redis.set(lockKey, '1', 'EX', isDryRun ? 3_600 : 72_000, 'NX');
   if (!acquired) return;
 
   logger.info(`Dunning: starting${isDryRun ? ` (dry-run → ${process.env.DUNNING_DRY_RUN_EMAIL})` : ''}`);
