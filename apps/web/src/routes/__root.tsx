@@ -21,6 +21,7 @@ import { NewBillPage } from './ap/bills/new';
 import { BillDetailPage } from './ap/bills/detail';
 import { EditBillPage } from './ap/bills/edit';
 import { ImportBillsPage } from './ap/bills/import';
+import { ScanBillPage } from './ap/bills/scan';
 import { PaymentListPage } from './ap/payments/index';
 import { NewPaymentPage } from './ap/payments/new';
 import { AdvancePaymentPage } from './ap/payments/advance';
@@ -275,6 +276,12 @@ const billImportRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/bills/import',
   component: ImportBillsPage,
+});
+
+const billScanRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/bills/scan',
+  component: ScanBillPage,
 });
 
 const billDetailRoute = createRoute({
@@ -1475,6 +1482,7 @@ export const routeTree = rootRoute.addChildren([
       billsRoute,
       billNewRoute,
       billImportRoute,
+      billScanRoute,
       billDetailRoute,
       billEditRoute,
       paymentsRoute,

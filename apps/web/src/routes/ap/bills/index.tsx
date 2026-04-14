@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Download, Upload, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search } from 'lucide-react';
+import { Plus, FileText, Download, Upload, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search, ScanLine } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
 import { useVendors } from '../../../hooks/queries/use-vendors';
@@ -193,6 +193,9 @@ export function BillListPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => downloadCSV('bills.csv', ['Invoice #', 'Date', 'Vendor', 'Amount', 'Balance', 'Status'], bills.map(b => [b.invoiceNumber, b.invoiceDate, (b as PurchaseInvoice & { vendorName?: string }).vendorName ?? '', String(b.totalAmount), String(b.balanceDue), STATUS_LABELS[b.status]]))}>
               <Download size={14} /> Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/bills/scan' })}>
+              <ScanLine size={14} /> Scan Invoice
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/bills/import' })}>
               <Upload size={14} /> Import CSV
