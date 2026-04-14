@@ -55,6 +55,17 @@ const FILTER_OPTIONS = [
   { value: 'due-this-month', label: 'Due This Month' },
 ];
 
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'All Categories' },
+  { value: 'raw_material', label: 'Raw Material' },
+  { value: 'service_provider', label: 'Service Provider' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'internal_transfer', label: 'Internal Transfer' },
+  { value: 'other', label: 'Other' },
+];
+
 // ─── Payment Queue ───────────────────────────────────────────────────────────
 
 function PaymentQueue() {
@@ -66,6 +77,7 @@ function PaymentQueue() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<QueueFilter>('all');
+  const [category, setCategory] = useState('');
 
   const summary = data?.data?.summary;
   const allBills = data?.data?.bills ?? [];
@@ -83,6 +95,8 @@ function PaymentQueue() {
     else if (filter === 'due-this-week') filtered = filtered.filter((b) => b.dueDate >= today && b.dueDate <= weekEnd);
     else if (filter === 'due-this-month') filtered = filtered.filter((b) => b.dueDate >= today && b.dueDate <= monthEndStr);
 
+    if (category) filtered = filtered.filter((b) => b.vendorCategory === category);
+
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter(
@@ -90,7 +104,7 @@ function PaymentQueue() {
       );
     }
     return filtered;
-  }, [allBills, filter, search]);
+  }, [allBills, filter, category, search]);
 
   function toggleAll() {
     if (selected.size === bills.length) setSelected(new Set());
@@ -165,6 +179,14 @@ function PaymentQueue() {
               options={FILTER_OPTIONS}
               value={filter}
               onChange={(e) => setFilter(e.target.value as QueueFilter)}
+            />
+          </div>
+          <div className="sm:w-48">
+            <Select
+              label="Category"
+              options={CATEGORY_OPTIONS}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
             />
           </div>
           {selected.size > 0 && (

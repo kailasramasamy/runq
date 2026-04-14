@@ -20,6 +20,7 @@ export interface PaymentQueueBill {
   invoiceNumber: string;
   vendorId: string;
   vendorName: string;
+  vendorCategory: string | null;
   dueDate: string;
   totalAmount: number;
   balanceDue: number;

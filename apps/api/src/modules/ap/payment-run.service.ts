@@ -168,7 +168,7 @@ export class PaymentRunService {
 
   async getPaymentQueue(): Promise<{
     summary: { totalPayable: number; overdueAmount: number; overdueCount: number; dueThisWeek: number; dueThisMonth: number };
-    bills: { id: string; invoiceNumber: string; vendorId: string; vendorName: string; dueDate: string; totalAmount: number; balanceDue: number; daysOverdue: number; status: string }[];
+    bills: { id: string; invoiceNumber: string; vendorId: string; vendorName: string; vendorCategory: string | null; dueDate: string; totalAmount: number; balanceDue: number; daysOverdue: number; status: string }[];
   }> {
     const today = new Date().toISOString().split('T')[0]!;
     const todayMs = new Date(today).getTime();
@@ -184,6 +184,7 @@ export class PaymentRunService {
         invoiceNumber: purchaseInvoices.invoiceNumber,
         vendorId: vendors.id,
         vendorName: vendors.name,
+        vendorCategory: vendors.category,
         dueDate: purchaseInvoices.dueDate,
         totalAmount: purchaseInvoices.totalAmount,
         balanceDue: purchaseInvoices.balanceDue,
@@ -217,6 +218,7 @@ export class PaymentRunService {
         invoiceNumber: r.invoiceNumber,
         vendorId: r.vendorId,
         vendorName: r.vendorName,
+        vendorCategory: r.vendorCategory ?? null,
         dueDate: r.dueDate,
         totalAmount: parseFloat(r.totalAmount),
         balanceDue: bal,
