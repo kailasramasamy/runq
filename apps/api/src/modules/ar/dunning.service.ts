@@ -359,12 +359,14 @@ export class DunningService {
       .returning({ id: dunningLog.id, invoiceId: dunningLog.invoiceId, channel: dunningLog.channel });
 
     // Send emails for email-channel entries
-    const emailLogRows = logRows.filter((r) => r.channel === 'email');
-    const emailInvoiceIds = new Set(emailLogRows.map((r) => r.invoiceId));
-    const emailInvoices = await this.db
+    // Fetch ALL overdue invoices with customer details (not just triggered ones)
+    // so the email shows the full picture per customer
+    const allOverdueIds = overdueInvoices.map((i) => i.id);
+    const allInvoiceDetails = await this.db
       .select({
         id: salesInvoices.id,
         invoiceNumber: salesInvoices.invoiceNumber,
+        customerId: salesInvoices.customerId,
         customerName: customers.name,
         customerEmail: customers.email,
         customerCcEmail: customers.ccEmail,
@@ -373,12 +375,32 @@ export class DunningService {
       })
       .from(salesInvoices)
       .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
-      .where(inArray(salesInvoices.id, Array.from(emailInvoiceIds)));
+      .where(inArray(salesInvoices.id, allOverdueIds));
+
+    // Determine which customers should receive an email (those with triggered invoices)
+    const emailLogRows = logRows.filter((r) => r.channel === 'email');
+    const triggeredInvoiceIds = new Set(emailLogRows.map((r) => r.invoiceId));
+    const triggeredCustomerIds = new Set(
+      allInvoiceDetails.filter((i) => triggeredInvoiceIds.has(i.id)).map((i) => i.customerId),
+    );
+
+    // Pass all overdue invoices for triggered customers (so email shows full list)
+    const emailInvoices = allInvoiceDetails.filter((i) => triggeredCustomerIds.has(i.customerId));
 
     // Build per-invoice rule context from toInsert
     const ruleByInvoice = new Map(toInsert.map((r) => [r.invoiceId, { escalationLevel: r.escalationLevel, action: r.action }]));
     const emailResults = await this.sendDunningEmails(emailInvoices, undefined, undefined, ruleByInvoice);
-    const resultMap = new Map(emailResults.map((r) => [r.invoiceId, r.success]));
+    // Map results back to triggered invoice IDs for log updates
+    const resultByCustomer = new Map<string, boolean>();
+    for (const r of emailResults) {
+      const inv = allInvoiceDetails.find((i) => i.id === r.invoiceId);
+      if (inv) resultByCustomer.set(inv.customerId, r.success);
+    }
+    const resultMap = new Map<string, boolean>();
+    for (const row of emailLogRows) {
+      const inv = allInvoiceDetails.find((i) => i.id === row.invoiceId);
+      if (inv) resultMap.set(row.invoiceId, resultByCustomer.get(inv.customerId) ?? false);
+    }
 
     let sent = 0;
     let failed = 0;
