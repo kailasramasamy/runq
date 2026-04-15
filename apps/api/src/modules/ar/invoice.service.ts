@@ -409,6 +409,32 @@ export class InvoiceService {
     return this.formatInvoiceNumber(settings, fy, seqRow!.lastSequence);
   }
 
+  /**
+   * Bump the invoice sequence counter so it's at least `minSeq`.
+   * Called after import to keep manual invoices in sequence.
+   */
+  async syncSequenceToAtLeast(minSeq: number): Promise<void> {
+    const [tenantRow] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const settings = (tenantRow?.settings ?? {}) as TenantSettings;
+    const fy = this.getCurrentFY(settings.financialYearStartMonth ?? 4);
+
+    await this.db
+      .insert(invoiceSequences)
+      .values({ tenantId: this.tenantId, financialYear: fy, lastSequence: minSeq })
+      .onConflictDoUpdate({
+        target: [invoiceSequences.tenantId, invoiceSequences.financialYear],
+        set: {
+          lastSequence: sql`GREATEST(${invoiceSequences.lastSequence}, ${minSeq})`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
   async update(id: string, input: UpdateSalesInvoiceInput): Promise<SalesInvoiceWithDetails> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {

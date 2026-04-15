@@ -283,6 +283,20 @@ export class InvoiceImportService {
       }
     }
 
+    // Sync the invoice sequence so the next manual invoice continues
+    // after the highest imported number.
+    if (result.created.length > 0) {
+      let maxSeq = 0;
+      for (const c of result.created) {
+        const digits = c.invoiceNumber.replace(/\D/g, '');
+        const num = digits ? parseInt(digits, 10) : 0;
+        if (num > maxSeq) maxSeq = num;
+      }
+      if (maxSeq > 0) {
+        await invoiceService.syncSequenceToAtLeast(maxSeq);
+      }
+    }
+
     return result;
   }
 
