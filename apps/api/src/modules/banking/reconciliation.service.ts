@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, isNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull, inArray, ilike, or } from 'drizzle-orm';
 import {
   bankTransactions,
   bankAccounts,
@@ -8,6 +8,7 @@ import {
   paymentReceipts,
   cheques,
   customers,
+  vendors,
   accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -488,38 +489,61 @@ export class ReconciliationService {
     });
   }
 
-  async getMatchedTransactions(bankAccountId: string, page = 1, limit = 20) {
+  async getMatchedTransactions(bankAccountId: string, page = 1, limit = 20, search?: string) {
     const offset = (page - 1) * limit;
 
-    const baseWhere = and(
+    const baseQuery = this.db
+      .select({
+        matchId: reconciliationMatches.id,
+        matchType: reconciliationMatches.matchType,
+        matchedAt: reconciliationMatches.matchedAt,
+        bankTxnId: bankTransactions.id,
+        txnDate: bankTransactions.transactionDate,
+        txnNarration: bankTransactions.narration,
+        txnAmount: bankTransactions.amount,
+        txnType: bankTransactions.type,
+        txnReference: bankTransactions.reference,
+        vendorName: vendors.name,
+        customerName: customers.name,
+      })
+      .from(reconciliationMatches)
+      .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
+      .leftJoin(payments, eq(reconciliationMatches.paymentId, payments.id))
+      .leftJoin(vendors, eq(payments.vendorId, vendors.id))
+      .leftJoin(paymentReceipts, eq(reconciliationMatches.receiptId, paymentReceipts.id))
+      .leftJoin(customers, eq(paymentReceipts.customerId, customers.id));
+
+    const conditions = [
       eq(reconciliationMatches.tenantId, this.tenantId),
       eq(bankTransactions.bankAccountId, bankAccountId),
-    );
+    ];
+
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(
+        or(
+          ilike(bankTransactions.narration, pattern),
+          ilike(bankTransactions.reference, pattern),
+          ilike(vendors.name, pattern),
+          ilike(customers.name, pattern),
+        )!,
+      );
+    }
+
+    const fullWhere = and(...conditions);
+
+    const countQuery = this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(reconciliationMatches)
+      .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
+      .leftJoin(payments, eq(reconciliationMatches.paymentId, payments.id))
+      .leftJoin(vendors, eq(payments.vendorId, vendors.id))
+      .leftJoin(paymentReceipts, eq(reconciliationMatches.receiptId, paymentReceipts.id))
+      .leftJoin(customers, eq(paymentReceipts.customerId, customers.id));
 
     const [rows, countResult] = await Promise.all([
-      this.db
-        .select({
-          matchId: reconciliationMatches.id,
-          matchType: reconciliationMatches.matchType,
-          matchedAt: reconciliationMatches.matchedAt,
-          bankTxnId: bankTransactions.id,
-          txnDate: bankTransactions.transactionDate,
-          txnNarration: bankTransactions.narration,
-          txnAmount: bankTransactions.amount,
-          txnType: bankTransactions.type,
-          txnReference: bankTransactions.reference,
-        })
-        .from(reconciliationMatches)
-        .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
-        .where(baseWhere)
-        .orderBy(sql`${reconciliationMatches.matchedAt} desc`)
-        .limit(limit)
-        .offset(offset),
-      this.db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(reconciliationMatches)
-        .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
-        .where(baseWhere),
+      baseQuery.where(fullWhere).orderBy(sql`${reconciliationMatches.matchedAt} desc`).limit(limit).offset(offset),
+      countQuery.where(fullWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
@@ -534,6 +558,7 @@ export class ReconciliationService {
         amount: toNumber(r.txnAmount),
         type: r.txnType,
         reference: r.txnReference,
+        partyName: r.vendorName ?? r.customerName ?? null,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };

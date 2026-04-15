@@ -33,7 +33,7 @@ import {
   Input,
   Pagination,
 } from '@/components/ui';
-import { GitCompare, Receipt, Unlink } from 'lucide-react';
+import { GitCompare, Receipt, Unlink, Search } from 'lucide-react';
 
 interface AutoResult {
   matched: number;
@@ -243,6 +243,7 @@ export function ReconciliationPage() {
   const [expenseAccountCode, setExpenseAccountCode] = useState('');
   const [expenseNarration, setExpenseNarration] = useState('');
   const [matchedPage, setMatchedPage] = useState(1);
+  const [matchedSearch, setMatchedSearch] = useState('');
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
@@ -262,7 +263,8 @@ export function ReconciliationPage() {
   const { data: unreconciledData, isLoading: unreconciledLoading } = useUnreconciled(
     accountId || undefined,
   );
-  const { data: matchedData } = useMatchedTransactions(accountId || undefined, matchedPage);
+  const debouncedSearch = useMemo(() => matchedSearch, [matchedSearch]);
+  const { data: matchedData } = useMatchedTransactions(accountId || undefined, matchedPage, 20, debouncedSearch || undefined);
   const matchedTxns: MatchedTransaction[] = matchedData?.data ?? [];
   const matchedMeta = matchedData?.meta;
   const unreconciledTxns = unreconciledData?.data?.unreconciledBankTxns ?? [];
@@ -702,31 +704,49 @@ export function ReconciliationPage() {
       )}
 
       {/* Previously matched transactions */}
-      {accountId && matchedTxns.length > 0 && (
+      {accountId && (matchedTxns.length > 0 || matchedSearch) && (
         <Card>
           <CardHeader
             title="Matched Transactions"
             action={matchedMeta && <Badge variant="success">{matchedMeta.total} matched</Badge>}
           />
+          <CardContent>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search by narration, reference, vendor or customer..."
+                value={matchedSearch}
+                onChange={(e) => { setMatchedSearch(e.target.value); setMatchedPage(1); }}
+                className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+              />
+            </div>
+          </CardContent>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <tr>
                     <Th>Date</Th>
+                    <Th>Party</Th>
                     <Th>Narration</Th>
-                    <Th>Reference</Th>
                     <Th>Match Type</Th>
                     <Th align="right">Amount</Th>
                     <Th>Actions</Th>
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {matchedTxns.map((m) => (
+                  {matchedTxns.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-sm text-zinc-500 py-8">
+                        {matchedSearch ? 'No matches found.' : 'No matched transactions.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : matchedTxns.map((m) => (
                     <TableRow key={m.matchId}>
                       <TableCell className="text-xs text-zinc-500">{m.date}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm">{m.narration ?? '—'}</TableCell>
-                      <TableCell className="font-mono text-xs text-zinc-500">{m.reference ?? '—'}</TableCell>
+                      <TableCell className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{m.partyName ?? '—'}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-zinc-500">{m.narration ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant="default">{m.matchType.replace(/_/g, ' ')}</Badge>
                       </TableCell>

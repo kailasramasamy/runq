@@ -22,6 +22,7 @@ export interface MatchedTransaction {
   amount: number;
   type: 'credit' | 'debit';
   reference: string | null;
+  partyName: string | null;
 }
 
 const RECON_KEYS = {
@@ -67,12 +68,14 @@ export function useUnmatch() {
   });
 }
 
-export function useMatchedTransactions(accountId?: string, page = 1, limit = 20) {
+export function useMatchedTransactions(accountId?: string, page = 1, limit = 20, search?: string) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.set('search', search);
   return useQuery({
-    queryKey: [...RECON_KEYS.matched(accountId), page, limit],
+    queryKey: [...RECON_KEYS.matched(accountId), page, limit, search],
     queryFn: () =>
       api.get<{ data: MatchedTransaction[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
-        `/banking/accounts/${accountId}/reconciliation/matched?page=${page}&limit=${limit}`,
+        `/banking/accounts/${accountId}/reconciliation/matched?${params}`,
       ),
     enabled: !!accountId,
   });

@@ -109,11 +109,12 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
       const { accountId } = accountParamSchema.parse(request.params);
-      const query = request.query as { page?: string; limit?: string };
+      const query = request.query as { page?: string; limit?: string; search?: string };
       const page = Math.max(1, parseInt(query.page ?? '1', 10) || 1);
       const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '20', 10) || 20));
+      const search = query.search?.trim() || undefined;
       const service = new ReconciliationService(request.server.db, request.tenantId);
-      return await service.getMatchedTransactions(accountId, page, limit);
+      return await service.getMatchedTransactions(accountId, page, limit, search);
     },
   );
 
