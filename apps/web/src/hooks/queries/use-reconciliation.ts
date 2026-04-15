@@ -67,11 +67,13 @@ export function useUnmatch() {
   });
 }
 
-export function useMatchedTransactions(accountId?: string) {
+export function useMatchedTransactions(accountId?: string, page = 1, limit = 20) {
   return useQuery({
-    queryKey: RECON_KEYS.matched(accountId),
+    queryKey: [...RECON_KEYS.matched(accountId), page, limit],
     queryFn: () =>
-      api.get<ApiSuccess<MatchedTransaction[]>>(`/banking/accounts/${accountId}/reconciliation/matched`),
+      api.get<{ data: MatchedTransaction[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
+        `/banking/accounts/${accountId}/reconciliation/matched?page=${page}&limit=${limit}`,
+      ),
     enabled: !!accountId,
   });
 }

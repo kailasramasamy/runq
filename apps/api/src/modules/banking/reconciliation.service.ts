@@ -488,41 +488,55 @@ export class ReconciliationService {
     });
   }
 
-  async getMatchedTransactions(bankAccountId: string) {
-    const rows = await this.db
-      .select({
-        matchId: reconciliationMatches.id,
-        matchType: reconciliationMatches.matchType,
-        matchedAt: reconciliationMatches.matchedAt,
-        bankTxnId: bankTransactions.id,
-        txnDate: bankTransactions.transactionDate,
-        txnNarration: bankTransactions.narration,
-        txnAmount: bankTransactions.amount,
-        txnType: bankTransactions.type,
-        txnReference: bankTransactions.reference,
-      })
-      .from(reconciliationMatches)
-      .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
-      .where(
-        and(
-          eq(reconciliationMatches.tenantId, this.tenantId),
-          eq(bankTransactions.bankAccountId, bankAccountId),
-        ),
-      )
-      .orderBy(sql`${reconciliationMatches.matchedAt} desc`)
-      .limit(50);
+  async getMatchedTransactions(bankAccountId: string, page = 1, limit = 20) {
+    const offset = (page - 1) * limit;
 
-    return rows.map((r) => ({
-      matchId: r.matchId,
-      matchType: r.matchType,
-      matchedAt: r.matchedAt.toISOString(),
-      bankTransactionId: r.bankTxnId,
-      date: r.txnDate,
-      narration: r.txnNarration,
-      amount: toNumber(r.txnAmount),
-      type: r.txnType,
-      reference: r.txnReference,
-    }));
+    const baseWhere = and(
+      eq(reconciliationMatches.tenantId, this.tenantId),
+      eq(bankTransactions.bankAccountId, bankAccountId),
+    );
+
+    const [rows, countResult] = await Promise.all([
+      this.db
+        .select({
+          matchId: reconciliationMatches.id,
+          matchType: reconciliationMatches.matchType,
+          matchedAt: reconciliationMatches.matchedAt,
+          bankTxnId: bankTransactions.id,
+          txnDate: bankTransactions.transactionDate,
+          txnNarration: bankTransactions.narration,
+          txnAmount: bankTransactions.amount,
+          txnType: bankTransactions.type,
+          txnReference: bankTransactions.reference,
+        })
+        .from(reconciliationMatches)
+        .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
+        .where(baseWhere)
+        .orderBy(sql`${reconciliationMatches.matchedAt} desc`)
+        .limit(limit)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(reconciliationMatches)
+        .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
+        .where(baseWhere),
+    ]);
+
+    const total = countResult[0]?.count ?? 0;
+    return {
+      data: rows.map((r) => ({
+        matchId: r.matchId,
+        matchType: r.matchType,
+        matchedAt: r.matchedAt.toISOString(),
+        bankTransactionId: r.bankTxnId,
+        date: r.txnDate,
+        narration: r.txnNarration,
+        amount: toNumber(r.txnAmount),
+        type: r.txnType,
+        reference: r.txnReference,
+      })),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async closePeriod(input: ClosePeriodInput, completedBy: string): Promise<BankReconciliation> {

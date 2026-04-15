@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { RefreshCw, Check, X } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
@@ -31,8 +31,9 @@ import {
   TableSkeleton,
   EmptyState,
   Input,
+  Pagination,
 } from '@/components/ui';
-import { GitCompare, Receipt } from 'lucide-react';
+import { GitCompare, Receipt, Unlink } from 'lucide-react';
 
 interface AutoResult {
   matched: number;
@@ -241,9 +242,17 @@ export function ReconciliationPage() {
   const [expenseFormTxnId, setExpenseFormTxnId] = useState<string | null>(null);
   const [expenseAccountCode, setExpenseAccountCode] = useState('');
   const [expenseNarration, setExpenseNarration] = useState('');
+  const [matchedPage, setMatchedPage] = useState(1);
 
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
+
+  // Auto-select first bank account
+  useEffect(() => {
+    if (!accountId && accounts.length > 0) {
+      setAccountId(accounts[0]!.id);
+    }
+  }, [accountId, accounts]);
   const { data: glAccountsData } = useGLAccounts();
   const expenseAccounts = useMemo(
     () => (glAccountsData?.data ?? []).filter((a: Account) => a.type === 'expense' && a.isActive),
@@ -253,8 +262,9 @@ export function ReconciliationPage() {
   const { data: unreconciledData, isLoading: unreconciledLoading } = useUnreconciled(
     accountId || undefined,
   );
-  const { data: matchedData } = useMatchedTransactions(accountId || undefined);
+  const { data: matchedData } = useMatchedTransactions(accountId || undefined, matchedPage);
   const matchedTxns: MatchedTransaction[] = matchedData?.data ?? [];
+  const matchedMeta = matchedData?.meta;
   const unreconciledTxns = unreconciledData?.data?.unreconciledBankTxns ?? [];
   const suggestedMatches = unreconciledData?.data?.suggestedMatches ?? [];
   const unreconciledPayments: MockPayment[] = (unreconciledData?.data?.unreconciledPayments ?? []).map((p: any) => ({
@@ -696,10 +706,10 @@ export function ReconciliationPage() {
         <Card>
           <CardHeader
             title="Matched Transactions"
-            action={<Badge variant="success">{matchedTxns.length} matched</Badge>}
+            action={matchedMeta && <Badge variant="success">{matchedMeta.total} matched</Badge>}
           />
           <CardContent className="p-0">
-            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <tr>
@@ -731,10 +741,10 @@ export function ReconciliationPage() {
                       <TableCell>
                         <button
                           onClick={() => handleUnmatch(m.bankTransactionId)}
-                          className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                          title="Unmatch"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
                         >
-                          <X size={14} />
+                          <Unlink size={12} />
+                          Unmatch
                         </button>
                       </TableCell>
                     </TableRow>
@@ -742,6 +752,17 @@ export function ReconciliationPage() {
                 </TableBody>
               </Table>
             </div>
+            {matchedMeta && matchedMeta.totalPages > 1 && (
+              <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
+                <Pagination
+                  page={matchedMeta.page}
+                  totalPages={matchedMeta.totalPages}
+                  total={matchedMeta.total}
+                  limit={matchedMeta.limit}
+                  onPageChange={setMatchedPage}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
