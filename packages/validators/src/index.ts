@@ -42,3 +42,6 @@ export * from './gl/fiscal.schema';
 export * from './settings/email-provider.schema';
 export * from './hr/expense-claim.schema';
 export * from './common/webhook-endpoint.schema';
+export * from './fa/category.schema';
+export * from './fa/asset.schema';
+export * from './fa/depreciation.schema';

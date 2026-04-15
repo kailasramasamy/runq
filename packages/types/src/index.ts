@@ -39,3 +39,4 @@ export * from './integration';
 export * from './fiscal';
 export * from './hr/expense-claim';
 export * from './common/webhook-endpoint';
+export * from './fa';

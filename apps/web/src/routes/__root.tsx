@@ -64,6 +64,11 @@ import { ChartOfAccountsPage } from './gl/accounts';
 import { JournalEntriesPage } from './gl/journal-entries';
 import { JournalEntryDetailPage } from './gl/journal-entry-detail';
 import { TrialBalancePage } from './gl/trial-balance';
+import { AssetCategoriesPage } from './fa/categories';
+import { AssetListPage } from './fa/assets/index';
+import { NewAssetPage } from './fa/assets/new';
+import { AssetDetailPage } from './fa/assets/detail';
+import { DepreciationRunPage } from './fa/depreciation-run';
 import { PortalPage } from './portal/index';
 // Phase 4: Reports
 import { ProfitAndLossPage } from './reports/profit-and-loss';
@@ -844,6 +849,98 @@ const glTrialBalanceRoute = createRoute({
   component: TrialBalancePage,
 });
 
+// ─── Fixed Assets Sub-navigation ─────────────────────────────────────────────
+
+const FA_TABS = [
+  { label: 'Asset Register', path: '/fa/assets' },
+  { label: 'Categories', path: '/fa/categories' },
+  { label: 'Run Depreciation', path: '/fa/depreciation' },
+];
+
+function FaNav() {
+  const routerState = useRouterState();
+  const current = routerState.location.pathname;
+  return (
+    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4">
+        <h1 className="text-lg sm:text-2xl font-semibold">Fixed Assets</h1>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        {FA_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/'}
+            className={[
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function FaLayout() {
+  return (
+    <div>
+      <FaNav />
+      <Outlet />
+    </div>
+  );
+}
+
+// ─── Fixed Assets Routes ─────────────────────────────────────────────────────
+
+const faRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/fa',
+  component: FaLayout,
+});
+
+const faIndexRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/',
+  component: () => <Navigate to="/fa/assets" />,
+});
+
+const faCategoriesRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/categories',
+  component: AssetCategoriesPage,
+});
+
+const faAssetsRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/assets',
+  component: AssetListPage,
+});
+
+const faNewAssetRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/assets/new',
+  component: NewAssetPage,
+});
+
+const faAssetDetailRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/assets/$assetId',
+  component: () => {
+    const { assetId } = faAssetDetailRoute.useParams();
+    return <AssetDetailPage assetId={assetId} />;
+  },
+});
+
+const faDepreciationRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/depreciation',
+  component: DepreciationRunPage,
+});
+
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
 
 const SETTINGS_TABS = [
@@ -1555,6 +1652,14 @@ export const routeTree = rootRoute.addChildren([
       glJournalEntryDetailRoute,
       glTrialBalanceRoute,
       glFiscalPeriodsRoute,
+    ]),
+    faRoute.addChildren([
+      faIndexRoute,
+      faCategoriesRoute,
+      faAssetsRoute,
+      faNewAssetRoute,
+      faAssetDetailRoute,
+      faDepreciationRoute,
     ]),
     reportsRoute.addChildren([
       reportsIndexRoute,

@@ -22,6 +22,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  Building2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -36,6 +37,7 @@ const navItems = [
   { label: 'Accounts Receivable', path: '/ar', icon: ArrowDownToLine },
   { label: 'Banking', path: '/banking', icon: Landmark },
   { label: 'General Ledger', path: '/gl', icon: BookOpen },
+  { label: 'Fixed Assets', path: '/fa', icon: Building2 },
   { label: 'Masters', path: '/masters', icon: Package },
   { label: 'Reports', path: '/reports', icon: BarChart3 },
   { label: 'Expenses', path: '/expenses', icon: Receipt },
