@@ -76,7 +76,10 @@ export class InvoiceService {
         .from(salesInvoices)
         .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
         .where(baseWhere)
-        .orderBy(desc(salesInvoices.createdAt))
+        .orderBy(
+          sql`CASE WHEN ${salesInvoices.invoiceNumber} LIKE 'OB-%' THEN 1 ELSE 0 END`,
+          desc(salesInvoices.invoiceNumber),
+        )
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id)).where(baseWhere),
