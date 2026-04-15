@@ -284,14 +284,13 @@ export class InvoiceImportService {
     }
 
     // Sync the invoice sequence so the next manual invoice continues
-    // after the highest imported number.
+    // after the highest imported number. We extract the sequence portion
+    // by building a regex from the tenant's format template — this avoids
+    // confusing the FY prefix (e.g. "26") with the actual sequence number.
     if (result.created.length > 0) {
-      let maxSeq = 0;
-      for (const c of result.created) {
-        const digits = c.invoiceNumber.replace(/\D/g, '');
-        const num = digits ? parseInt(digits, 10) : 0;
-        if (num > maxSeq) maxSeq = num;
-      }
+      const maxSeq = await invoiceService.extractMaxSequence(
+        result.created.map((c) => c.invoiceNumber),
+      );
       if (maxSeq > 0) {
         await invoiceService.syncSequenceToAtLeast(maxSeq);
       }

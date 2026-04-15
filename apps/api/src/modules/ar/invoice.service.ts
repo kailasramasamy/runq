@@ -413,6 +413,52 @@ export class InvoiceService {
   }
 
   /**
+   * Extract the highest sequence number from a list of invoice numbers
+   * by reverse-engineering the tenant's format template.
+   */
+  async extractMaxSequence(invoiceNumbers: string[]): Promise<number> {
+    const [tenantRow] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const settings = (tenantRow?.settings ?? {}) as TenantSettings;
+    const format = settings.invoiceFormat ?? '{prefix}-{fy}-{seq}';
+    const prefix = settings.invoicePrefix ?? 'INV';
+    const fy = this.getCurrentFY(settings.financialYearStartMonth ?? 4);
+    const fy2 = fy.slice(0, 2);
+
+    // Build a regex from the format by replacing placeholders with capture groups
+    const escaped = format
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // escape regex chars
+      .replace('\\{prefix\\}', escapeRegex(prefix))
+      .replace('\\{fy2\\}', escapeRegex(fy2))
+      .replace('\\{fy\\}', escapeRegex(fy))
+      .replace('\\{seq\\}', '(\\d+)');
+
+    const re = new RegExp(`^${escaped}$`);
+    let maxSeq = 0;
+
+    for (const num of invoiceNumbers) {
+      const m = num.match(re);
+      if (m?.[1]) {
+        const seq = parseInt(m[1], 10);
+        if (seq > maxSeq) maxSeq = seq;
+      } else {
+        // Fallback: if format doesn't match, use trailing digits
+        const trailing = num.match(/(\d+)$/);
+        if (trailing) {
+          const seq = parseInt(trailing[1]!, 10);
+          if (seq > maxSeq) maxSeq = seq;
+        }
+      }
+    }
+
+    return maxSeq;
+  }
+
+  /**
    * Bump the invoice sequence counter so it's at least `minSeq`.
    * Called after import to keep manual invoices in sequence.
    */
@@ -1137,4 +1183,8 @@ export class InvoiceService {
       cessAmount: Number(row.cessAmount),
     };
   }
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
