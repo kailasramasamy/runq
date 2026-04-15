@@ -469,26 +469,14 @@ export function JournalEntriesPage() {
           </div>
 
           {meta && meta.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 mt-2 text-sm text-zinc-500">
-              <span>
-                Page {meta.page} of {meta.totalPages} ({meta.total} entries)
-              </span>
-              <div className="flex gap-2">
-                <button
-                  className="rounded px-3 py-1 border border-zinc-300 dark:border-zinc-700 disabled:opacity-40"
-                  disabled={page <= 1}
-                  onClick={() => { setPage((p) => p - 1); setSelectedId(null); }}
-                >
-                  Previous
-                </button>
-                <button
-                  className="rounded px-3 py-1 border border-zinc-300 dark:border-zinc-700 disabled:opacity-40"
-                  disabled={page >= meta.totalPages}
-                  onClick={() => { setPage((p) => p + 1); setSelectedId(null); }}
-                >
-                  Next
-                </button>
-              </div>
+            <div className="border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 mt-2">
+              <Pagination
+                page={meta.page}
+                totalPages={meta.totalPages}
+                total={meta.total}
+                limit={meta.limit}
+                onPageChange={(p) => { setPage(p); setSelectedId(null); }}
+              />
             </div>
           )}
         </>
