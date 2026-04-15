@@ -711,11 +711,11 @@ export function ReconciliationPage() {
             action={matchedMeta && <Badge variant="success">{matchedMeta.total} matched</Badge>}
           />
           <CardContent>
-            <div className="relative">
+            <div className="relative w-full sm:w-72">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search by narration, reference, vendor or customer..."
+                placeholder="Search matched..."
                 value={matchedSearch}
                 onChange={(e) => { setMatchedSearch(e.target.value); setMatchedPage(1); }}
                 className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
