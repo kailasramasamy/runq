@@ -13,6 +13,7 @@ import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ApprovalPanel } from '@/components/approval-panel';
+import { DocumentTrail } from '@/components/audit/document-trail';
 import {
   PageHeader,
   Badge,
@@ -767,6 +768,12 @@ export function BillDetailPage({ billId }: { billId: string }) {
           </CardContent>
         </Card>
         <ActionsPanel invoice={invoice} />
+        <Card>
+          <CardHeader title="Audit Trail" />
+          <CardContent>
+            <DocumentTrail entityType="purchase_invoice" entityId={invoice.id} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
