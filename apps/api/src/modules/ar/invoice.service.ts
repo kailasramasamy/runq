@@ -76,7 +76,7 @@ export class InvoiceService {
         .from(salesInvoices)
         .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
         .where(baseWhere)
-        .orderBy(desc(salesInvoices.invoiceNumber))
+        .orderBy(desc(salesInvoices.createdAt))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id)).where(baseWhere),
