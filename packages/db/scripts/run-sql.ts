@@ -31,7 +31,17 @@ async function main(): Promise<void> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
-    await client.query(sql);
+    // Split on semicolons and execute each statement individually.
+    // This avoids PostgreSQL batching issues (e.g., ADD COLUMN IF NOT EXISTS
+    // validating column limits across all statements in a single query).
+    const statements = sql
+      .split(/;\s*$/m)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.startsWith('--'));
+
+    for (const stmt of statements) {
+      await client.query(stmt);
+    }
     console.log(`  ${file} applied`);
   } finally {
     await client.end();

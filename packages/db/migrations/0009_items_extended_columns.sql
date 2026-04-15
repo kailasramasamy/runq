@@ -1,4 +1,15 @@
--- 0009: Items extended columns
--- These columns are now managed by drizzle-kit push.
--- This migration is kept as a no-op for backwards compatibility.
-DO $$ BEGIN NULL; END $$;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS ean varchar(20);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS margin decimal(5, 2);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS brand varchar(100);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS grammage varchar(50);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS packing_type varchar(50);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS basic_price decimal(15, 2);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS gst_value decimal(15, 2);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS shelf_life_days integer;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS rtv_allowed boolean;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS vendor_pack_size varchar(50);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS packaging_dimension varchar(100);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS temperature varchar(20);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS cutoff_time varchar(20);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS product_type varchar(50);
+CREATE INDEX IF NOT EXISTS idx_items_tenant_ean ON items (tenant_id, ean) WHERE ean IS NOT NULL;
