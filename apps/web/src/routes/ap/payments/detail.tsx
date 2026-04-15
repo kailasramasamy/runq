@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Banknote, CheckCircle, XCircle } from 'lucide-react';
-import { useVendorPayment, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
+import { Banknote, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { useVendorPayment, useApprovePayment, useRejectPayment, useReversePayment } from '../../../hooks/queries/use-payments';
 import { ApprovalPanel } from '@/components/approval-panel';
 import type { VendorPaymentWithAllocations, PaymentStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
@@ -135,8 +135,10 @@ export function PaymentDetailPage({ paymentId }: Props) {
   const { data, isLoading, isError } = useVendorPayment(paymentId);
   const payment = data?.data;
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showReverseDialog, setShowReverseDialog] = useState(false);
   const approveMutation = useApprovePayment();
   const rejectMutation = useRejectPayment();
+  const reverseMutation = useReversePayment();
 
   if (isLoading) {
     return (
@@ -184,6 +186,15 @@ export function PaymentDetailPage({ paymentId }: Props) {
                   Reject
                 </button>
               </>
+            )}
+            {payment.status === 'completed' && (
+              <button
+                onClick={() => setShowReverseDialog(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+              >
+                <RotateCcw size={15} />
+                Reverse
+              </button>
             )}
           </div>
         }
@@ -243,6 +254,20 @@ export function PaymentDetailPage({ paymentId }: Props) {
           setShowRejectDialog(false);
         }}
         onClose={() => setShowRejectDialog(false)}
+      />
+
+      <ConfirmationDialog
+        open={showReverseDialog}
+        title="Reverse Payment"
+        description="This will reverse the payment, restore invoice balances, and reverse the GL journal entry. This cannot be undone."
+        confirmLabel="Reverse"
+        variant="danger"
+        loading={reverseMutation.isPending}
+        onConfirm={() => {
+          reverseMutation.mutate({ id: paymentId, reason: 'Manual reversal' });
+          setShowReverseDialog(false);
+        }}
+        onClose={() => setShowReverseDialog(false)}
       />
     </div>
   );

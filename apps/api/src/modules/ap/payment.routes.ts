@@ -231,4 +231,16 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(200).send({ data: { success: true } });
     },
   );
+
+  app.post(
+    '/:id/reverse',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { reason } = rejectBodySchema.parse(request.body);
+      const service = new PaymentService(request.server.db, request.tenantId);
+      await service.reversePayment(id, request.user.userId, reason);
+      return reply.status(200).send({ data: { success: true } });
+    },
+  );
 };

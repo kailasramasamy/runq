@@ -361,6 +361,84 @@ export class PaymentService {
     });
   }
 
+  async reversePayment(paymentId: string, reversedBy: string, reason?: string): Promise<void> {
+    const [payment] = await this.db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.id, paymentId), eq(payments.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!payment) throw new NotFoundError('Payment');
+    if (payment.status === 'reversed') throw new ConflictError('Payment is already reversed');
+    if (payment.status === 'failed') throw new ConflictError('Failed payments cannot be reversed');
+
+    await this.db.transaction(async (tx) => {
+      // Reverse invoice allocations
+      const allocs = await tx
+        .select()
+        .from(paymentAllocations)
+        .where(eq(paymentAllocations.paymentId, paymentId));
+
+      for (const alloc of allocs) {
+        const [inv] = await tx
+          .select()
+          .from(purchaseInvoices)
+          .where(eq(purchaseInvoices.id, alloc.invoiceId))
+          .limit(1);
+        if (!inv) continue;
+
+        const allocAmount = parseFloat(alloc.amount);
+        const newAmountPaid = Math.max(0, parseFloat(inv.amountPaid) - allocAmount);
+        const newBalanceDue = parseFloat(inv.balanceDue) + allocAmount;
+        const newStatus = newAmountPaid <= 0 ? 'approved' : 'partially_paid';
+
+        await tx
+          .update(purchaseInvoices)
+          .set({ amountPaid: newAmountPaid.toString(), balanceDue: newBalanceDue.toString(), status: newStatus, updatedAt: new Date() })
+          .where(eq(purchaseInvoices.id, alloc.invoiceId));
+      }
+
+      // Delete allocations
+      if (allocs.length > 0) {
+        await tx.delete(paymentAllocations).where(eq(paymentAllocations.paymentId, paymentId));
+      }
+
+      // Set payment status to reversed
+      await tx
+        .update(payments)
+        .set({ status: 'reversed', updatedAt: new Date() })
+        .where(eq(payments.id, paymentId));
+
+      // Reverse GL entry
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      const { journalEntries } = await import('@runq/db');
+      const [je] = await tx
+        .select({ id: journalEntries.id })
+        .from(journalEntries)
+        .where(and(
+          eq(journalEntries.tenantId, this.tenantId),
+          eq(journalEntries.sourceType, 'payment'),
+          eq(journalEntries.sourceId, paymentId),
+        ))
+        .limit(1);
+
+      if (je) {
+        await tx
+          .update(journalEntries)
+          .set({ status: 'reversed', updatedAt: new Date() })
+          .where(eq(journalEntries.id, je.id));
+      }
+    });
+
+    await this.audit().log({
+      userId: reversedBy,
+      action: 'reversed',
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: reason ? { reason } : undefined,
+    });
+  }
+
   async exportPaymentsCSV(filters: { status?: string; dateFrom?: string; dateTo?: string }): Promise<string> {
     const { status, dateFrom, dateTo } = filters;
     const rows = await this.db

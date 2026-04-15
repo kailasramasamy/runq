@@ -131,3 +131,15 @@ export function useRejectPayment() {
     },
   });
 }
+
+export function useReversePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      api.post<ApiSuccess<{ success: boolean }>>(`/ap/payments/${id}/reverse`, { reason }),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
+    },
+  });
+}

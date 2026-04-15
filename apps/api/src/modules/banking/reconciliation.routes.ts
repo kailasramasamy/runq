@@ -65,7 +65,7 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { bankTransactionId } = unmatchSchema.parse(request.body);
       const service = new ReconciliationService(request.server.db, request.tenantId);
-      await service.unmatch(bankTransactionId);
+      await service.unmatch(bankTransactionId, request.user!.userId);
       return { data: { success: true } };
     },
   );

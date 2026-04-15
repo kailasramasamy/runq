@@ -15,6 +15,7 @@ import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch 
 import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput, PostAsExpenseInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { GLService } from '../gl/gl.service';
+import { PaymentService } from '../ap/payment.service';
 import { toNumber } from '../../utils/decimal';
 import type { SmartMatchResult } from './smart-match.service';
 import { SmartMatchService } from './smart-match.service';
@@ -252,7 +253,7 @@ export class ReconciliationService {
     return result;
   }
 
-  async unmatch(bankTransactionId: string): Promise<void> {
+  async unmatch(bankTransactionId: string, userId?: string): Promise<void> {
     const [txn] = await this.db
       .select()
       .from(bankTransactions)
@@ -262,7 +263,6 @@ export class ReconciliationService {
     if (!txn) throw new NotFoundError('Bank transaction');
     if (txn.reconStatus === 'unreconciled') throw new ConflictError('Transaction is not reconciled');
 
-    // Check if this was an expense post — reverse the JE if so
     const [match] = await this.db
       .select()
       .from(reconciliationMatches)
@@ -274,7 +274,14 @@ export class ReconciliationService {
       )
       .limit(1);
 
+    // Reverse linked payment (restores invoice balances + reverses GL)
+    if (match?.paymentId) {
+      const paymentService = new PaymentService(this.db, this.tenantId);
+      await paymentService.reversePayment(match.paymentId, userId ?? 'system', 'Reversed via reconciliation unmatch');
+    }
+
     await this.db.transaction(async (tx) => {
+      // Reverse expense post JE
       if (match?.journalEntryId) {
         const { journalEntries } = await import('@runq/db');
         await tx

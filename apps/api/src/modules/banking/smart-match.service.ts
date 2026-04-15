@@ -158,8 +158,13 @@ export class SmartMatchService {
     if (nameInNarration && amountMatch) {
       return { paymentId: p.id, confidence: 0.7, matchReason: `Narration contains "${p.vendorName}" + amount match` };
     }
+    // Name-only match: only suggest if amounts are within 20% of each other
+    // Prevents matching small reimbursements (₹1,153) against large payments (₹28,500)
     if (nameInNarration) {
-      return { paymentId: p.id, confidence: 0.5, matchReason: `Narration contains "${p.vendorName}"` };
+      const amountRatio = Math.min(txnAmount, p.amount) / Math.max(txnAmount, p.amount);
+      if (amountRatio >= 0.8) {
+        return { paymentId: p.id, confidence: 0.5, matchReason: `Narration contains "${p.vendorName}"` };
+      }
     }
 
     return null;
@@ -188,7 +193,10 @@ export class SmartMatchService {
       return { receiptId: r.id, confidence: 0.7, matchReason: `Narration contains "${r.customerName}" + amount match` };
     }
     if (nameInNarration) {
-      return { receiptId: r.id, confidence: 0.5, matchReason: `Narration contains "${r.customerName}"` };
+      const amountRatio = Math.min(txnAmount, r.amount) / Math.max(txnAmount, r.amount);
+      if (amountRatio >= 0.8) {
+        return { receiptId: r.id, confidence: 0.5, matchReason: `Narration contains "${r.customerName}"` };
+      }
     }
 
     return null;
