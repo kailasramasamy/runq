@@ -471,7 +471,7 @@ export function ReconciliationPage() {
                 helpHref="/help/recipes/09-reconcile-bank"
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className={expenseFormTxnId ? '' : 'overflow-x-auto'}>
                 <Table>
                   <TableHeader>
                     <tr>
