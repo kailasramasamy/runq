@@ -93,14 +93,14 @@ export class FixedAssetService {
         categoryId: input.categoryId,
         acquisitionDate: input.acquisitionDate,
         acquisitionCost: String(input.acquisitionCost),
-        residualValue: String(input.residualValue),
+        residualValue: String(input.residualValue ?? 0),
         putToUseDate: input.putToUseDate ?? null,
         location: input.location ?? null,
         serialNumber: input.serialNumber ?? null,
         purchaseInvoiceId: input.purchaseInvoiceId ?? null,
         vendorId: input.vendorId ?? null,
-        gstCreditClaimed: input.gstCreditClaimed,
-        gstAmount: String(input.gstAmount),
+        gstCreditClaimed: input.gstCreditClaimed ?? false,
+        gstAmount: String(input.gstAmount ?? 0),
         createdBy: userId ?? null,
       })
       .returning();
