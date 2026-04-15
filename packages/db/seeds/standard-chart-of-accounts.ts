@@ -64,6 +64,12 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '1205', name: 'Vehicles', type: 'asset', parent: '1200' },
   { code: '1206', name: 'Leasehold Improvements', type: 'asset', parent: '1200' },
   { code: '1207', name: 'Accumulated Depreciation', type: 'asset', parent: '1200' },
+  { code: '1210', name: 'Accum Dep — Plant & Machinery', type: 'asset', parent: '1207' },
+  { code: '1211', name: 'Accum Dep — Furniture & Fixtures', type: 'asset', parent: '1207' },
+  { code: '1212', name: 'Accum Dep — Office Equipment', type: 'asset', parent: '1207' },
+  { code: '1213', name: 'Accum Dep — Computer & IT', type: 'asset', parent: '1207' },
+  { code: '1214', name: 'Accum Dep — Vehicles', type: 'asset', parent: '1207' },
+  { code: '1215', name: 'Accum Dep — Leasehold Improvements', type: 'asset', parent: '1207' },
 
   // Intangible Assets
   { code: '1300', name: 'Intangible Assets', type: 'asset', parent: '1000' },
@@ -214,6 +220,7 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5902', name: 'Property Tax', type: 'expense', parent: '5900' },
   { code: '5903', name: 'Stamp Duty & Registration', type: 'expense', parent: '5900' },
   { code: '5904', name: 'GST on Reverse Charge', type: 'expense', parent: '5900' },
+  { code: '5806', name: 'Loss on Sale of Assets', type: 'expense', parent: '5800' },
   { code: '5999', name: 'Miscellaneous Expense', type: 'expense', parent: '5000' },
 ];
 
