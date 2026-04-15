@@ -62,6 +62,7 @@ import { ImportPGSettlementPage } from './banking/pg-recon/import';
 import { PGSettlementDetailPage } from './banking/pg-recon/detail';
 import { ChartOfAccountsPage } from './gl/accounts';
 import { JournalEntriesPage } from './gl/journal-entries';
+import { JournalEntryDetailPage } from './gl/journal-entry-detail';
 import { TrialBalancePage } from './gl/trial-balance';
 import { PortalPage } from './portal/index';
 // Phase 4: Reports
@@ -828,6 +829,15 @@ const glJournalEntriesRoute = createRoute({
   component: JournalEntriesPage,
 });
 
+const glJournalEntryDetailRoute = createRoute({
+  getParentRoute: () => glRoute,
+  path: '/journal-entries/$journalEntryId',
+  component: () => {
+    const { journalEntryId } = glJournalEntryDetailRoute.useParams();
+    return <JournalEntryDetailPage journalEntryId={journalEntryId} />;
+  },
+});
+
 const glTrialBalanceRoute = createRoute({
   getParentRoute: () => glRoute,
   path: '/trial-balance',
@@ -1542,6 +1552,7 @@ export const routeTree = rootRoute.addChildren([
       glIndexRoute,
       glAccountsRoute,
       glJournalEntriesRoute,
+      glJournalEntryDetailRoute,
       glTrialBalanceRoute,
       glFiscalPeriodsRoute,
     ]),

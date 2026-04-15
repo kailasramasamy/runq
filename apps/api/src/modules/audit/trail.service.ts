@@ -375,7 +375,7 @@ export class TrailService {
     const root: TrailNode = {
       type: 'journal_entry', id, label: je.entryNumber,
       summary: lineSummary, date: je.date, status: je.status,
-      url: `/gl/journal-entries`,
+      url: `/gl/journal-entries/${id}`,
     };
     const chain: TrailNode[] = [];
     const gaps: string[] = [];
@@ -469,7 +469,7 @@ export class TrailService {
     return jes.map((je) => ({
       type: 'journal_entry' as const, id: je.id, label: je.entryNumber,
       summary: `${formatINR(toNumber(je.totalDebit))} — ${je.description}`,
-      date: je.date, status: je.status, url: `/gl/journal-entries`,
+      date: je.date, status: je.status, url: `/gl/journal-entries/${je.id}`,
     }));
   }
 

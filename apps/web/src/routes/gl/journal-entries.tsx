@@ -60,7 +60,15 @@ function SourceLink({ sourceType, sourceId }: { sourceType: string | null; sourc
 function EntryRow({ entry, onSelect }: { entry: JournalEntry; onSelect: (id: string) => void }) {
   return (
     <TableRow className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50" onClick={() => onSelect(entry.id)}>
-      <TableCell className="font-mono text-sm">{entry.entryNumber}</TableCell>
+      <TableCell className="font-mono text-sm">
+        <Link
+          to={`/gl/journal-entries/${entry.id}` as '/'}
+          className="text-blue-600 hover:underline dark:text-blue-400"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {entry.entryNumber}
+        </Link>
+      </TableCell>
       <TableCell>{entry.date}</TableCell>
       <TableCell className="max-w-xs truncate">{entry.description}</TableCell>
       <TableCell>
