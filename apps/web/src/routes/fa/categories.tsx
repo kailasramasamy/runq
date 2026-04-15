@@ -72,20 +72,18 @@ function NewCategoryForm({ onClose }: { onClose: () => void }) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Plant & Machinery" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <Combobox label="Companies Act Method" options={methodOptions} value={depMethodCompaniesAct} onChange={setDepMethodCompaniesAct} />
-            <Input label="Rate % (Companies Act)" type="number" min="0" step="0.01" value={depRateCompaniesAct} onChange={(e) => setDepRateCompaniesAct(e.target.value)} placeholder="e.g. 10" />
-            <Input label="Useful Life (years)" type="number" min="1" value={usefulLifeYears} onChange={(e) => setUsefulLifeYears(e.target.value)} placeholder="e.g. 15" />
+            <Input label="Rate %" type="number" min="0" step="0.01" value={depRateCompaniesAct} onChange={(e) => setDepRateCompaniesAct(e.target.value)} placeholder="e.g. 10" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input label="Useful Life (years)" type="number" min="1" value={usefulLifeYears} onChange={(e) => setUsefulLifeYears(e.target.value)} placeholder="e.g. 15" />
+          <div className="grid grid-cols-2 gap-3">
             <Combobox label="IT Act Method" options={methodOptions} value={depMethodItAct} onChange={setDepMethodItAct} />
-            <Input label="Rate % (IT Act)" type="number" min="0" step="0.01" value={depRateItAct} onChange={(e) => setDepRateItAct(e.target.value)} placeholder="e.g. 15" />
+            <Input label="Rate %" type="number" min="0" step="0.01" value={depRateItAct} onChange={(e) => setDepRateItAct(e.target.value)} placeholder="e.g. 15" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Combobox label="Asset GL Account" required options={assetAccounts} value={assetAccountCode} onChange={setAssetAccountCode} placeholder="Select asset account…" />
-            <Combobox label="Depreciation Expense Account" required options={expenseAccounts} value={depExpenseAccountCode} onChange={setDepExpenseAccountCode} placeholder="Select expense account…" />
-            <Combobox label="Accumulated Dep. Account" required options={assetAccounts} value={accumDepAccountCode} onChange={setAccumDepAccountCode} placeholder="Select contra account…" />
-          </div>
+          <Combobox label="Asset GL Account" required options={assetAccounts} value={assetAccountCode} onChange={setAssetAccountCode} placeholder="Select asset account…" />
+          <Combobox label="Depreciation Expense Account" required options={expenseAccounts} value={depExpenseAccountCode} onChange={setDepExpenseAccountCode} placeholder="Select expense account…" />
+          <Combobox label="Accumulated Dep. Account" required options={assetAccounts} value={accumDepAccountCode} onChange={setAccumDepAccountCode} placeholder="Select contra account…" />
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex items-center gap-3">
             <Button type="submit" variant="primary" size="sm" loading={createMutation.isPending}>Save Category</Button>
@@ -117,7 +115,11 @@ export function AssetCategoriesPage() {
         }
       />
 
-      {showForm && <NewCategoryForm onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <div className="max-w-xl">
+          <NewCategoryForm onClose={() => setShowForm(false)} />
+        </div>
+      )}
 
       <Table>
         <TableHeader>
