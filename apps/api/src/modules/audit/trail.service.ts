@@ -13,6 +13,8 @@ import {
   accounts,
   vendors,
   customers,
+  depreciationEntries,
+  fixedAssets,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { toNumber } from '../../utils/decimal';
@@ -382,7 +384,6 @@ export class TrailService {
 
     // Trace to source document
     if (je.sourceType === 'depreciation') {
-      const { depreciationEntries, fixedAssets } = await import('@runq/db');
       const depRows = await this.db
         .select({ assetId: depreciationEntries.assetId, assetCode: fixedAssets.assetCode, assetName: fixedAssets.name, amount: depreciationEntries.depreciationAmount })
         .from(depreciationEntries)
