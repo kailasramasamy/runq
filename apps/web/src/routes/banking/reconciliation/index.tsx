@@ -7,7 +7,9 @@ import {
   useManualMatch,
   useUnmatch,
   usePostAsExpense,
+  useMatchedTransactions,
 } from '@/hooks/queries/use-reconciliation';
+import type { MatchedTransaction } from '@/hooks/queries/use-reconciliation';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
 import { useToast } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
@@ -251,6 +253,8 @@ export function ReconciliationPage() {
   const { data: unreconciledData, isLoading: unreconciledLoading } = useUnreconciled(
     accountId || undefined,
   );
+  const { data: matchedData } = useMatchedTransactions(accountId || undefined);
+  const matchedTxns: MatchedTransaction[] = matchedData?.data ?? [];
   const unreconciledTxns = unreconciledData?.data?.unreconciledBankTxns ?? [];
   const suggestedMatches = unreconciledData?.data?.suggestedMatches ?? [];
   const unreconciledPayments: MockPayment[] = (unreconciledData?.data?.unreconciledPayments ?? []).map((p: any) => ({
@@ -683,6 +687,61 @@ export function ReconciliationPage() {
                 ))}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Previously matched transactions */}
+      {accountId && matchedTxns.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Matched Transactions"
+            action={<Badge variant="success">{matchedTxns.length} matched</Badge>}
+          />
+          <CardContent className="p-0">
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <Th>Date</Th>
+                    <Th>Narration</Th>
+                    <Th>Reference</Th>
+                    <Th>Match Type</Th>
+                    <Th align="right">Amount</Th>
+                    <Th>Actions</Th>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {matchedTxns.map((m) => (
+                    <TableRow key={m.matchId}>
+                      <TableCell className="text-xs text-zinc-500">{m.date}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm">{m.narration ?? '—'}</TableCell>
+                      <TableCell className="font-mono text-xs text-zinc-500">{m.reference ?? '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant="default">{m.matchType.replace(/_/g, ' ')}</Badge>
+                      </TableCell>
+                      <TableCell align="right" numeric>
+                        <span className={[
+                          'font-medium tabular-nums',
+                          m.type === 'debit' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400',
+                        ].join(' ')}>
+                          {m.type === 'debit' ? '-' : '+'}{formatINR(m.amount)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => handleUnmatch(m.bankTransactionId)}
+                          className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                          title="Unmatch"
+                        >
+                          <X size={14} />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

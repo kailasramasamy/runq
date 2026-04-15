@@ -488,6 +488,43 @@ export class ReconciliationService {
     });
   }
 
+  async getMatchedTransactions(bankAccountId: string) {
+    const rows = await this.db
+      .select({
+        matchId: reconciliationMatches.id,
+        matchType: reconciliationMatches.matchType,
+        matchedAt: reconciliationMatches.matchedAt,
+        bankTxnId: bankTransactions.id,
+        txnDate: bankTransactions.transactionDate,
+        txnNarration: bankTransactions.narration,
+        txnAmount: bankTransactions.amount,
+        txnType: bankTransactions.type,
+        txnReference: bankTransactions.reference,
+      })
+      .from(reconciliationMatches)
+      .innerJoin(bankTransactions, eq(reconciliationMatches.bankTransactionId, bankTransactions.id))
+      .where(
+        and(
+          eq(reconciliationMatches.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, bankAccountId),
+        ),
+      )
+      .orderBy(sql`${reconciliationMatches.matchedAt} desc`)
+      .limit(50);
+
+    return rows.map((r) => ({
+      matchId: r.matchId,
+      matchType: r.matchType,
+      matchedAt: r.matchedAt.toISOString(),
+      bankTransactionId: r.bankTxnId,
+      date: r.txnDate,
+      narration: r.txnNarration,
+      amount: toNumber(r.txnAmount),
+      type: r.txnType,
+      reference: r.txnReference,
+    }));
+  }
+
   async closePeriod(input: ClosePeriodInput, completedBy: string): Promise<BankReconciliation> {
     const [account] = await this.db
       .select()

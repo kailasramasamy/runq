@@ -12,9 +12,22 @@ export interface UnreconciledResult {
   summary: { bankBalance: number; bookBalance: number; difference: number };
 }
 
+export interface MatchedTransaction {
+  matchId: string;
+  matchType: string;
+  matchedAt: string;
+  bankTransactionId: string;
+  date: string;
+  narration: string | null;
+  amount: number;
+  type: 'credit' | 'debit';
+  reference: string | null;
+}
+
 const RECON_KEYS = {
   all: ['reconciliation'] as const,
   unreconciled: (accountId?: string) => ['reconciliation', 'unreconciled', accountId] as const,
+  matched: (accountId?: string) => ['reconciliation', 'matched', accountId] as const,
   matches: ['reconciliation', 'matches'] as const,
 };
 
@@ -51,6 +64,15 @@ export function useUnmatch() {
     mutationFn: (bankTransactionId: string) =>
       api.post<ApiSuccess<null>>('/banking/reconciliation/unmatch', { bankTransactionId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: RECON_KEYS.all }),
+  });
+}
+
+export function useMatchedTransactions(accountId?: string) {
+  return useQuery({
+    queryKey: RECON_KEYS.matched(accountId),
+    queryFn: () =>
+      api.get<ApiSuccess<MatchedTransaction[]>>(`/banking/accounts/${accountId}/reconciliation/matched`),
+    enabled: !!accountId,
   });
 }
 

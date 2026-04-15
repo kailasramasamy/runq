@@ -105,6 +105,17 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.get(
+    '/accounts/:accountId/reconciliation/matched',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { accountId } = accountParamSchema.parse(request.params);
+      const service = new ReconciliationService(request.server.db, request.tenantId);
+      const data = await service.getMatchedTransactions(accountId);
+      return { data };
+    },
+  );
+
+  app.get(
     '/accounts/:accountId/reconciliation/periods',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
