@@ -25,6 +25,8 @@ const SOURCE_LABELS: Record<string, string> = {
   receipt: 'Receipt',
   debit_note: 'Debit Note',
   credit_note: 'Credit Note',
+  depreciation: 'Depreciation',
+  bank_expense: 'Bank Expense',
 };
 
 function getSourceLink(sourceType: string | null, sourceId: string | null): string | null {
@@ -40,8 +42,12 @@ function getSourceLink(sourceType: string | null, sourceId: string | null): stri
   return routes[sourceType] ?? null;
 }
 
-function SourceLink({ sourceType, sourceId }: { sourceType: string | null; sourceId: string | null }) {
-  const link = getSourceLink(sourceType, sourceId);
+function SourceLink({ sourceType, sourceId, jeId }: { sourceType: string | null; sourceId: string | null; jeId?: string }) {
+  let link = getSourceLink(sourceType, sourceId);
+  // For depreciation/bank_expense JEs without a direct source link, link to the JE detail
+  if (!link && sourceType && jeId && ['depreciation', 'bank_expense'].includes(sourceType)) {
+    link = `/gl/journal-entries/${jeId}`;
+  }
   const label = sourceType ? (SOURCE_LABELS[sourceType] ?? sourceType) : null;
   if (!label) return <span className="text-zinc-400">—</span>;
   if (!link) return <span className="text-sm text-zinc-500">{label}</span>;
@@ -72,7 +78,7 @@ function EntryRow({ entry, onSelect }: { entry: JournalEntry; onSelect: (id: str
       <TableCell>{entry.date}</TableCell>
       <TableCell className="max-w-xs truncate">{entry.description}</TableCell>
       <TableCell>
-        <SourceLink sourceType={entry.sourceType} sourceId={entry.sourceId} />
+        <SourceLink sourceType={entry.sourceType} sourceId={entry.sourceId} jeId={entry.id} />
       </TableCell>
       <TableCell className="text-right tabular-nums">{formatINR(entry.totalDebit)}</TableCell>
       <TableCell className="text-right tabular-nums">{formatINR(entry.totalCredit)}</TableCell>
@@ -102,7 +108,7 @@ function EntryDetail({ id }: { id: string }) {
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border-y border-zinc-200 dark:border-zinc-800 px-6 py-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-zinc-500">{entry.entryNumber} — {entry.description}</span>
-            <SourceLink sourceType={entry.sourceType} sourceId={entry.sourceId} />
+            <SourceLink sourceType={entry.sourceType} sourceId={entry.sourceId} jeId={entry.id} />
           </div>
           <div className="space-y-1.5 max-w-lg">
             {entry.lines.map((line) => {
