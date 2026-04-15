@@ -32,6 +32,7 @@ import {
   EmptyState,
   Input,
   Pagination,
+  Combobox,
 } from '@/components/ui';
 import { GitCompare, Receipt, Unlink, Search } from 'lucide-react';
 
@@ -499,14 +500,12 @@ export function ReconciliationPage() {
                               <TableCell colSpan={6}>
                                 <div className="flex flex-wrap items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
                                   <div className="min-w-[200px] flex-1">
-                                    <Select
+                                    <Combobox
                                       label="Expense Account"
                                       value={expenseAccountCode}
-                                      onChange={(e) => setExpenseAccountCode(e.target.value)}
-                                      options={[
-                                        { value: '', label: 'Select account...' },
-                                        ...expenseAccounts.map((a: Account) => ({ value: a.code, label: `${a.code} — ${a.name}` })),
-                                      ]}
+                                      onChange={setExpenseAccountCode}
+                                      placeholder="Search account..."
+                                      options={expenseAccounts.map((a: Account) => ({ value: a.code, label: `${a.code} — ${a.name}` }))}
                                     />
                                   </div>
                                   <div className="min-w-[200px] flex-1">
