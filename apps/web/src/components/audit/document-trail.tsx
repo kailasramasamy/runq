@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Landmark, FileText, CreditCard, Receipt, BookOpen,
   Store, User, AlertTriangle, CheckCircle2, Wrench, Loader2,
-  ArrowRight, Info,
+  ArrowRight, Info, Building2,
 } from 'lucide-react';
 
 const TYPE_CONFIG: Record<string, { icon: typeof Landmark; color: string; label: string }> = {
@@ -18,6 +18,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Landmark; color: string; label:
   journal_entry: { icon: BookOpen, color: 'text-indigo-500', label: 'Journal Entry' },
   vendor: { icon: Store, color: 'text-amber-500', label: 'Vendor' },
   customer: { icon: User, color: 'text-cyan-500', label: 'Customer' },
+  fixed_asset: { icon: Building2, color: 'text-teal-500', label: 'Fixed Asset' },
 };
 
 interface Props {

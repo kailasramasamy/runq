@@ -381,7 +381,25 @@ export class TrailService {
     const gaps: string[] = [];
 
     // Trace to source document
-    if (je.sourceType && je.sourceId) {
+    if (je.sourceType === 'depreciation') {
+      const { depreciationEntries, fixedAssets } = await import('@runq/db');
+      const depRows = await this.db
+        .select({ assetId: depreciationEntries.assetId, assetCode: fixedAssets.assetCode, assetName: fixedAssets.name, amount: depreciationEntries.depreciationAmount })
+        .from(depreciationEntries)
+        .innerJoin(fixedAssets, eq(depreciationEntries.assetId, fixedAssets.id))
+        .where(and(eq(depreciationEntries.journalEntryId, id), eq(depreciationEntries.tenantId, this.tenantId)));
+      for (const row of depRows) {
+        chain.push({
+          type: 'fixed_asset', id: row.assetId, label: `${row.assetCode} — ${row.assetName}`,
+          summary: `Depreciation ${formatINR(toNumber(row.amount))}`,
+          date: je.date, status: 'active', url: `/fa/assets/${row.assetId}`,
+        });
+      }
+    } else if (je.sourceType === 'bank_expense' && je.sourceId) {
+      const [txn] = await this.db.select().from(bankTransactions)
+        .where(and(eq(bankTransactions.id, je.sourceId), eq(bankTransactions.tenantId, this.tenantId))).limit(1);
+      if (txn) chain.push(this.bankTxnNode(txn));
+    } else if (je.sourceType && je.sourceId) {
       if (je.sourceType === 'opening_balance_ar') {
         // sourceId is a customer ID
         const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, je.sourceId)).limit(1);
@@ -397,26 +415,6 @@ export class TrailService {
         // Find the OB bill
         const [obBill] = await this.db.select().from(purchaseInvoices).where(and(eq(purchaseInvoices.vendorId, je.sourceId), eq(purchaseInvoices.tenantId, this.tenantId), sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
         if (obBill) { const [vn] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, obBill.vendorId)).limit(1); chain.push(this.billNode(obBill, vn?.name ?? 'Unknown')); }
-      } else if (je.sourceType === 'depreciation') {
-        // Depreciation JE — link to the depreciation entries and their assets
-        const { depreciationEntries, fixedAssets } = await import('@runq/db');
-        const depRows = await this.db
-          .select({ assetId: depreciationEntries.assetId, assetCode: fixedAssets.assetCode, assetName: fixedAssets.name, amount: depreciationEntries.depreciationAmount })
-          .from(depreciationEntries)
-          .innerJoin(fixedAssets, eq(depreciationEntries.assetId, fixedAssets.id))
-          .where(and(eq(depreciationEntries.journalEntryId, id), eq(depreciationEntries.tenantId, this.tenantId)));
-        for (const row of depRows) {
-          chain.push({
-            type: 'fixed_asset', id: row.assetId, label: `${row.assetCode} — ${row.assetName}`,
-            summary: `Depreciation ${formatINR(toNumber(row.amount))}`,
-            date: je.date, status: 'active', url: `/fa/assets/${row.assetId}`,
-          });
-        }
-      } else if (je.sourceType === 'bank_expense') {
-        // Bank expense JE — sourceId is bank transaction ID
-        const [txn] = await this.db.select().from(bankTransactions)
-          .where(and(eq(bankTransactions.id, je.sourceId), eq(bankTransactions.tenantId, this.tenantId))).limit(1);
-        if (txn) chain.push(this.bankTxnNode(txn));
       } else {
         try {
           const sourceTrail = await this.getTrail(this.mapSourceType(je.sourceType), je.sourceId);
