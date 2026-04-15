@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { RefreshCw, Check, X } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
@@ -471,7 +471,7 @@ export function ReconciliationPage() {
                 helpHref="/help/recipes/09-reconcile-bank"
               />
             ) : (
-              <div className={expenseFormTxnId ? '' : 'overflow-x-auto'}>
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <tr>
@@ -487,57 +487,14 @@ export function ReconciliationPage() {
                     {unreconciledTxns.map((txn) => {
                       const txnSuggestions = matchMap.get(txn.id)?.suggestions ?? [];
                       return (
-                        <Fragment key={txn.id}>
-                          <BankTxnRow
-                            txn={txn}
-                            selected={selectedBankTxn === txn.id}
-                            onSelect={setSelectedBankTxn}
-                            suggestions={txnSuggestions}
-                            onPostExpense={handleOpenExpenseForm}
-                          />
-                          {expenseFormTxnId === txn.id && (
-                            <TableRow key={`${txn.id}-expense`}>
-                              <TableCell colSpan={6}>
-                                <div className="flex flex-wrap items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
-                                  <div className="min-w-[200px] flex-1">
-                                    <Combobox
-                                      label="Expense Account"
-                                      value={expenseAccountCode}
-                                      onChange={setExpenseAccountCode}
-                                      placeholder="Search account..."
-                                      options={expenseAccounts.map((a: Account) => ({ value: a.code, label: `${a.code} — ${a.name}` }))}
-                                    />
-                                  </div>
-                                  <div className="min-w-[200px] flex-1">
-                                    <Input
-                                      label="Narration"
-                                      value={expenseNarration}
-                                      onChange={(e) => setExpenseNarration(e.target.value)}
-                                      placeholder="Optional description"
-                                    />
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={handlePostExpense}
-                                      loading={postExpenseMutation.isPending}
-                                      disabled={!expenseAccountCode}
-                                    >
-                                      Post Expense
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setExpenseFormTxnId(null)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </Fragment>
+                        <BankTxnRow
+                          key={txn.id}
+                          txn={txn}
+                          selected={selectedBankTxn === txn.id}
+                          onSelect={setSelectedBankTxn}
+                          suggestions={txnSuggestions}
+                          onPostExpense={handleOpenExpenseForm}
+                        />
                       );
                     })}
                   </TableBody>
@@ -545,6 +502,46 @@ export function ReconciliationPage() {
               </div>
             )}
           </CardContent>
+          {expenseFormTxnId && (
+            <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+              <div className="flex flex-wrap items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                <div className="min-w-[200px] flex-1">
+                  <Combobox
+                    label="Expense Account"
+                    value={expenseAccountCode}
+                    onChange={setExpenseAccountCode}
+                    placeholder="Search account..."
+                    options={expenseAccounts.map((a: Account) => ({ value: a.code, label: `${a.code} — ${a.name}` }))}
+                  />
+                </div>
+                <div className="min-w-[200px] flex-1">
+                  <Input
+                    label="Narration"
+                    value={expenseNarration}
+                    onChange={(e) => setExpenseNarration(e.target.value)}
+                    placeholder="Optional description"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handlePostExpense}
+                    loading={postExpenseMutation.isPending}
+                    disabled={!expenseAccountCode}
+                  >
+                    Post Expense
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setExpenseFormTxnId(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Right: Unreconciled payments & receipts */}
