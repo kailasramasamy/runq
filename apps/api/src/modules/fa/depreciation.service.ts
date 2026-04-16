@@ -1,7 +1,7 @@
-import { eq, and, sql, lte } from 'drizzle-orm';
+import { eq, and, sql, lte, gte, sum } from 'drizzle-orm';
 import { fixedAssets, assetCategories, depreciationEntries } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { DepreciationPreviewLine, DepreciationRunResult, DepreciationType } from '@runq/types';
+import type { DepreciationPreviewLine, DepreciationRunResult, DepreciationType, BlockOfAssetsRow } from '@runq/types';
 import { toNumber } from '../../utils/decimal';
 import { GLService } from '../gl/gl.service';
 
@@ -129,6 +129,96 @@ export class DepreciationService {
       totalDepreciation: Math.round(totalDep * 100) / 100,
       journalEntryId: je.id,
     };
+  }
+
+  /**
+   * Block of Assets report (IT Act concept).
+   * Groups assets by category, shows opening WDV, additions, disposals,
+   * depreciation, and closing WDV for a financial year.
+   */
+  async blockOfAssets(financialYear: string): Promise<BlockOfAssetsRow[]> {
+    // Parse FY: "2627" → start 2026-04-01, end 2027-03-31
+    const fyStart = 2000 + parseInt(financialYear.slice(0, 2), 10);
+    const fyStartDate = `${fyStart}-04-01`;
+    const fyEndDate = `${fyStart + 1}-03-31`;
+
+    // Get all categories
+    const categories = await this.db.select().from(assetCategories)
+      .where(eq(assetCategories.tenantId, this.tenantId));
+
+    const rows: BlockOfAssetsRow[] = [];
+
+    for (const cat of categories) {
+      // Assets that existed before FY start (opening)
+      const allAssets = await this.db.select().from(fixedAssets)
+        .where(and(
+          eq(fixedAssets.tenantId, this.tenantId),
+          eq(fixedAssets.categoryId, cat.id),
+          lte(fixedAssets.acquisitionDate, fyEndDate),
+        ));
+
+      if (allAssets.length === 0) continue;
+
+      // Opening WDV: acquisition cost - depreciation before FY start
+      let openingWdv = 0;
+      let additions = 0;
+      let disposals = 0;
+
+      for (const asset of allAssets) {
+        const cost = toNumber(asset.acquisitionCost);
+        const acquiredBeforeFy = asset.acquisitionDate < fyStartDate;
+
+        if (acquiredBeforeFy) {
+          // Get accumulated depreciation before FY start
+          const [depBefore] = await this.db
+            .select({ total: sum(depreciationEntries.depreciationAmount) })
+            .from(depreciationEntries)
+            .where(and(
+              eq(depreciationEntries.assetId, asset.id),
+              eq(depreciationEntries.depreciationType, 'it_act'),
+              sql`${depreciationEntries.periodEnd} < ${fyStartDate}`,
+            ));
+          const accumBefore = toNumber(depBefore?.total ?? '0');
+          openingWdv += cost - accumBefore;
+        } else {
+          additions += cost;
+        }
+
+        if (asset.status === 'disposed' && asset.disposalDate && asset.disposalDate >= fyStartDate && asset.disposalDate <= fyEndDate) {
+          disposals += toNumber(asset.disposalAmount ?? '0');
+        }
+      }
+
+      // Depreciation during FY
+      const [depDuring] = await this.db
+        .select({ total: sum(depreciationEntries.depreciationAmount) })
+        .from(depreciationEntries)
+        .innerJoin(fixedAssets, eq(depreciationEntries.assetId, fixedAssets.id))
+        .where(and(
+          eq(depreciationEntries.tenantId, this.tenantId),
+          eq(fixedAssets.categoryId, cat.id),
+          eq(depreciationEntries.depreciationType, 'it_act'),
+          gte(depreciationEntries.periodEnd, fyStartDate),
+          lte(depreciationEntries.periodEnd, fyEndDate),
+        ));
+
+      const depAmount = toNumber(depDuring?.total ?? '0');
+      const closingWdv = openingWdv + additions - disposals - depAmount;
+
+      rows.push({
+        categoryId: cat.id,
+        categoryName: cat.name,
+        itActRate: toNumber(cat.depRateItAct),
+        openingWdv: Math.round(openingWdv * 100) / 100,
+        additions: Math.round(additions * 100) / 100,
+        disposals: Math.round(disposals * 100) / 100,
+        depreciationAmount: Math.round(depAmount * 100) / 100,
+        closingWdv: Math.round(closingWdv * 100) / 100,
+        assetCount: allAssets.length,
+      });
+    }
+
+    return rows;
   }
 
   private calculateDepreciation(params: {

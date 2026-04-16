@@ -24,6 +24,20 @@ export const fixedAssetFilterSchema = z.object({
   search: z.string().optional(),
 });
 
+export const disposeAssetSchema = z.object({
+  disposalDate: z.string().date(),
+  disposalAmount: z.number().min(0),
+  disposalNotes: z.string().max(500).optional(),
+});
+
+export const transferAssetSchema = z.object({
+  toLocation: z.string().min(1).max(255),
+  transferDate: z.string().date(),
+  notes: z.string().max(500).optional(),
+});
+
 export type CreateFixedAssetInput = z.infer<typeof createFixedAssetSchema>;
 export type UpdateFixedAssetInput = z.infer<typeof updateFixedAssetSchema>;
 export type FixedAssetFilter = z.infer<typeof fixedAssetFilterSchema>;
+export type DisposeAssetInput = z.infer<typeof disposeAssetSchema>;
+export type TransferAssetInput = z.infer<typeof transferAssetSchema>;

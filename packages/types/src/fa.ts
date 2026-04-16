@@ -50,6 +50,7 @@ export interface FixedAsset {
 
 export interface FixedAssetWithDepreciation extends FixedAsset {
   depreciationEntries: DepreciationEntry[];
+  transfers: AssetTransfer[];
   accumulatedDepreciation: number;
   currentWdv: number;
 }
@@ -81,6 +82,39 @@ export interface DepreciationPreviewLine {
   method: DepreciationMethod;
   depreciationAmount: number;
   closingWdv: number;
+}
+
+export interface AssetTransfer {
+  id: string;
+  assetId: string;
+  fromLocation: string;
+  toLocation: string;
+  transferDate: string;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface AssetDisposalResult {
+  assetId: string;
+  disposalDate: string;
+  disposalAmount: number;
+  accumDepreciation: number;
+  bookValue: number;
+  profitOrLoss: number;
+  journalEntryId: string;
+}
+
+export interface BlockOfAssetsRow {
+  categoryId: string;
+  categoryName: string;
+  itActRate: number;
+  openingWdv: number;
+  additions: number;
+  disposals: number;
+  depreciationAmount: number;
+  closingWdv: number;
+  assetCount: number;
 }
 
 export interface DepreciationRunResult {

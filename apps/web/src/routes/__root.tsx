@@ -69,6 +69,8 @@ import { AssetListPage } from './fa/assets/index';
 import { NewAssetPage } from './fa/assets/new';
 import { AssetDetailPage } from './fa/assets/detail';
 import { DepreciationRunPage } from './fa/depreciation-run';
+import { BlockOfAssetsPage } from './fa/block-of-assets';
+import { AssetImportPage } from './fa/import';
 import { PortalPage } from './portal/index';
 // Phase 4: Reports
 import { ProfitAndLossPage } from './reports/profit-and-loss';
@@ -855,6 +857,8 @@ const FA_TABS = [
   { label: 'Asset Register', path: '/fa/assets' },
   { label: 'Categories', path: '/fa/categories' },
   { label: 'Run Depreciation', path: '/fa/depreciation' },
+  { label: 'Block of Assets', path: '/fa/block-of-assets' },
+  { label: 'Import', path: '/fa/import' },
 ];
 
 function FaNav() {
@@ -939,6 +943,18 @@ const faDepreciationRoute = createRoute({
   getParentRoute: () => faRoute,
   path: '/depreciation',
   component: DepreciationRunPage,
+});
+
+const faBlockOfAssetsRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/block-of-assets',
+  component: BlockOfAssetsPage,
+});
+
+const faImportRoute = createRoute({
+  getParentRoute: () => faRoute,
+  path: '/import',
+  component: AssetImportPage,
 });
 
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
@@ -1660,6 +1676,8 @@ export const routeTree = rootRoute.addChildren([
       faNewAssetRoute,
       faAssetDetailRoute,
       faDepreciationRoute,
+      faBlockOfAssetsRoute,
+      faImportRoute,
     ]),
     reportsRoute.addChildren([
       reportsIndexRoute,

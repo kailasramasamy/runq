@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createAssetCategorySchema,
   updateAssetCategorySchema,
@@ -7,6 +8,8 @@ import {
   fixedAssetFilterSchema,
   depreciationPreviewSchema,
   depreciationRunSchema,
+  disposeAssetSchema,
+  transferAssetSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -81,5 +84,40 @@ export const faRoutes: FastifyPluginAsync = async (app) => {
     const input = depreciationRunSchema.parse(request.body);
     const svc = new DepreciationService(request.server.db, request.tenantId);
     return { data: await svc.run(input.periodEnd, input.depreciationType, request.user?.userId) };
+  });
+
+  app.get('/depreciation/block-of-assets', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { financialYear } = z.object({ financialYear: z.string().min(4) }).parse(request.query);
+    const svc = new DepreciationService(request.server.db, request.tenantId);
+    return { data: await svc.blockOfAssets(financialYear) };
+  });
+
+  // ─── Disposal ─────────────────────────────────────────────────────────
+
+  app.post('/:id/dispose', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const input = disposeAssetSchema.parse(request.body);
+    const svc = new FixedAssetService(request.server.db, request.tenantId);
+    return { data: await svc.dispose(id, input, request.user?.userId) };
+  });
+
+  // ─── Transfer ─────────────────────────────────────────────────────────
+
+  app.post('/:id/transfer', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const input = transferAssetSchema.parse(request.body);
+    const svc = new FixedAssetService(request.server.db, request.tenantId);
+    return { data: await svc.transfer(id, input, request.user?.userId) };
+  });
+
+  // ─── Bulk Import ──────────────────────────────────────────────────────
+
+  app.post('/import', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const file = await request.file();
+    if (!file) return { error: 'No file uploaded' };
+    const buffer = await file.toBuffer();
+    const { AssetImportService } = await import('./import.service');
+    const svc = new AssetImportService(request.server.db, request.tenantId);
+    return { data: await svc.importFromBuffer(buffer, file.filename, request.user?.userId) };
   });
 };

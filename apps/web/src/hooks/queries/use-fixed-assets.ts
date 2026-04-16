@@ -10,12 +10,15 @@ import type {
   CreateFixedAssetInput, UpdateFixedAssetInput,
 } from '@runq/validators';
 
+const BASE_URL = '/api/v1';
+
 const FA_KEYS = {
   all: ['fixed-assets'] as const,
   categories: ['fixed-assets', 'categories'] as const,
   assets: (filters?: Record<string, string>) => ['fixed-assets', 'assets', filters] as const,
   asset: (id: string) => ['fixed-assets', 'asset', id] as const,
   depPreview: (periodEnd: string, type: string) => ['fixed-assets', 'dep-preview', periodEnd, type] as const,
+  blockOfAssets: (fy: string) => ['fixed-assets', 'block-of-assets', fy] as const,
 };
 
 // ─── Categories ───────────────────────────────────────────────────────────
@@ -103,6 +106,65 @@ export function useRunDepreciation() {
   return useMutation({
     mutationFn: (data: { periodEnd: string; depreciationType: string }) =>
       api.post<ApiSuccess<DepreciationRunResult>>('/fa/depreciation/run', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: FA_KEYS.all }),
+  });
+}
+
+// ─── Dispose / Transfer / Block / Import ──────────────────────────────────────
+
+export function useDisposeAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { disposalDate: string; disposalAmount: number; disposalNotes?: string } }) =>
+      api.post<ApiSuccess<unknown>>(`/fa/${id}/dispose`, data),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: FA_KEYS.all });
+      qc.invalidateQueries({ queryKey: FA_KEYS.asset(id) });
+    },
+  });
+}
+
+export function useTransferAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { toLocation: string; transferDate: string; notes?: string } }) =>
+      api.post<ApiSuccess<unknown>>(`/fa/${id}/transfer`, data),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: FA_KEYS.all });
+      qc.invalidateQueries({ queryKey: FA_KEYS.asset(id) });
+    },
+  });
+}
+
+export function useBlockOfAssets(financialYear: string) {
+  return useQuery({
+    queryKey: FA_KEYS.blockOfAssets(financialYear),
+    queryFn: () =>
+      api.get<ApiSuccess<unknown[]>>(`/fa/depreciation/block-of-assets?financialYear=${financialYear}`),
+    enabled: !!financialYear,
+  });
+}
+
+export function useImportAssets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = (api as any).token as string | null;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(`${BASE_URL}/fa/import`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw error;
+      }
+      return response.json();
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: FA_KEYS.all }),
   });
 }

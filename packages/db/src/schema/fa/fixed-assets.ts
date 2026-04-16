@@ -120,3 +120,19 @@ export const assetSequences = pgTable('asset_sequences', {
 }, (t) => [
   unique().on(t.tenantId, t.financialYear),
 ]);
+
+// ─── Asset Transfers ──────────────────────────────────────────────────────────
+
+export const assetTransfers = pgTable('asset_transfers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  assetId: uuid('asset_id').notNull().references(() => fixedAssets.id),
+  fromLocation: varchar('from_location', { length: 255 }).notNull(),
+  toLocation: varchar('to_location', { length: 255 }).notNull(),
+  transferDate: date('transfer_date').notNull(),
+  notes: text('notes'),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('idx_at_tenant_asset').on(t.tenantId, t.assetId),
+]);
