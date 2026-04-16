@@ -27,20 +27,32 @@ if (!file) {
 
 const sql = readFileSync(file, 'utf8');
 
+/**
+ * Check if the SQL uses BEGIN/COMMIT transactions or $$ dollar-quoted blocks.
+ * If so, run as a single query (these need to be atomic).
+ * Otherwise, split on semicolons and run individually to avoid PostgreSQL
+ * batch validation issues (e.g., ADD COLUMN IF NOT EXISTS + 1600 limit).
+ */
+function needsSingleQuery(text: string): boolean {
+  const stripped = text.replace(/--.*$/gm, '').trim();
+  return /^\s*BEGIN\b/im.test(stripped) || /\$\$/.test(stripped);
+}
+
 async function main(): Promise<void> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
-    // Split on semicolons and execute each statement individually.
-    // This avoids PostgreSQL batching issues (e.g., ADD COLUMN IF NOT EXISTS
-    // validating column limits across all statements in a single query).
-    const statements = sql
-      .split(/;\s*$/m)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith('--'));
-
-    for (const stmt of statements) {
-      await client.query(stmt);
+    if (needsSingleQuery(sql)) {
+      await client.query(sql);
+    } else {
+      // Split on semicolons and execute individually
+      const statements = sql
+        .split(/;\s*$/m)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && !/^--/.test(s));
+      for (const stmt of statements) {
+        await client.query(stmt);
+      }
     }
     console.log(`  ${file} applied`);
   } finally {
