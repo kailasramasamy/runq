@@ -1,8 +1,8 @@
 -- Fixed Assets module: categories, register, depreciation, sequences
 
-CREATE TYPE depreciation_method AS ENUM ('slm', 'wdv');
-CREATE TYPE depreciation_type AS ENUM ('companies_act', 'it_act');
-CREATE TYPE asset_status AS ENUM ('active', 'disposed', 'written_off', 'cwip');
+DO $$ BEGIN CREATE TYPE depreciation_method AS ENUM ('slm', 'wdv'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE depreciation_type AS ENUM ('companies_act', 'it_act'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE asset_status AS ENUM ('active', 'disposed', 'written_off', 'cwip'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS asset_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
