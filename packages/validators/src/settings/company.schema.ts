@@ -13,6 +13,8 @@ export const companySettingsSchema = z.object({
   industry: z.enum(INDUSTRY_LIST).nullish(),
   // Company GST profile
   gstin: z.string().regex(gstinRegex, 'Invalid GSTIN format').nullish(),
+  // GST portal username — used to auto-populate authentication in GST filing flow
+  gstUsername: z.string().max(50).nullish(),
   legalName: z.string().max(255).nullish(),
   state: z.string().max(100).nullish(),
   stateCode: z.string().max(2).nullish(),

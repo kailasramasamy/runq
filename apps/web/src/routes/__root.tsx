@@ -71,6 +71,11 @@ import { AssetDetailPage } from './fa/assets/detail';
 import { DepreciationRunPage } from './fa/depreciation-run';
 import { BlockOfAssetsPage } from './fa/block-of-assets';
 import { AssetImportPage } from './fa/import';
+// GST Filing
+import { GstReturnsPage } from './gst/returns';
+import { GstReturnDetailPage } from './gst/return-detail';
+import { Gstr3bDetailPage } from './gst/return-3b-detail';
+import { ReconciliationPage as Gstr2bReconciliationPage } from './gst/reconciliation';
 import { PortalPage } from './portal/index';
 // Phase 4: Reports
 import { ProfitAndLossPage } from './reports/profit-and-loss';
@@ -957,6 +962,85 @@ const faImportRoute = createRoute({
   component: AssetImportPage,
 });
 
+// ─── GST Filing Routes ───────────────────────────────────────────────────────
+
+const GST_TABS = [
+  { label: 'Returns', path: '/gst/returns' },
+  { label: 'Reconciliation', path: '/gst/reconciliation' },
+];
+
+function GstNav() {
+  const router = useRouterState();
+  const current = router.location.pathname;
+  return (
+    <div className="border-b border-zinc-200 dark:border-zinc-700 mb-6">
+      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        {GST_TABS.map(({ label, path }) => (
+          <Link
+            key={label}
+            to={path as '/'}
+            className={[
+              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
+              current.startsWith(path)
+                ? 'border-primary-500 text-primary-500'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
+            ].join(' ')}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+const gstRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/gst',
+  component: () => (
+    <div>
+      <GstNav />
+      <Outlet />
+    </div>
+  ),
+});
+
+const gstIndexRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/',
+  component: () => <Navigate to="/gst/returns" />,
+});
+
+const gstReturnsRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/returns',
+  component: GstReturnsPage,
+});
+
+const gstReturnDetailRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/returns/$returnId',
+  component: () => {
+    const { returnId } = gstReturnDetailRoute.useParams();
+    return <GstReturnDetailPage returnId={returnId} />;
+  },
+});
+
+const gst3bDetailRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/returns/$returnId/3b',
+  component: () => {
+    const { returnId } = gst3bDetailRoute.useParams();
+    return <Gstr3bDetailPage returnId={returnId} />;
+  },
+});
+
+const gstReconciliationRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/reconciliation',
+  component: Gstr2bReconciliationPage,
+});
+
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
 
 const SETTINGS_TABS = [
@@ -1678,6 +1762,13 @@ export const routeTree = rootRoute.addChildren([
       faDepreciationRoute,
       faBlockOfAssetsRoute,
       faImportRoute,
+    ]),
+    gstRoute.addChildren([
+      gstIndexRoute,
+      gstReturnsRoute,
+      gstReturnDetailRoute,
+      gst3bDetailRoute,
+      gstReconciliationRoute,
     ]),
     reportsRoute.addChildren([
       reportsIndexRoute,

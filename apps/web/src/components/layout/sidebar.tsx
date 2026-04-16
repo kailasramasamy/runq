@@ -23,6 +23,7 @@ import {
   PanelLeftOpen,
   ShieldCheck,
   Building2,
+  FileText,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
@@ -38,6 +39,7 @@ const navItems = [
   { label: 'Banking', path: '/banking', icon: Landmark },
   { label: 'General Ledger', path: '/gl', icon: BookOpen },
   { label: 'Fixed Assets', path: '/fa', icon: Building2 },
+  { label: 'GST Filing', path: '/gst', icon: FileText },
   { label: 'Masters', path: '/masters', icon: Package },
   { label: 'Reports', path: '/reports', icon: BarChart3 },
   { label: 'Expenses', path: '/expenses', icon: Receipt },

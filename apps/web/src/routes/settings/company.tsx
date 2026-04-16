@@ -56,6 +56,7 @@ export function CompanySettingsPage() {
   const [industry, setIndustry] = useState<string>('');
   const [savedIndustry, setSavedIndustry] = useState<string>('');
   const [gstin, setGstin] = useState('');
+  const [gstUsername, setGstUsername] = useState('');
   const [legalName, setLegalName] = useState('');
   const [state, setState] = useState('');
   const [stateCode, setStateCode] = useState('');
@@ -73,6 +74,7 @@ export function CompanySettingsPage() {
       setIndustry(data.data.industry ?? '');
       setSavedIndustry(data.data.industry ?? '');
       setGstin(data.data.gstin ?? '');
+      setGstUsername(data.data.gstUsername ?? '');
       setLegalName(data.data.legalName ?? '');
       setState(data.data.state ?? '');
       setStateCode(data.data.stateCode ?? '');
@@ -108,6 +110,7 @@ export function CompanySettingsPage() {
         defaultPaymentTermsDays: Number(paymentTerms),
         industry: industry ? (industry as Industry) : null,
         gstin: gstin || null,
+        gstUsername: gstUsername || null,
         legalName: legalName || null,
         state: state || null,
         stateCode: stateCode || null,
@@ -228,6 +231,14 @@ export function CompanySettingsPage() {
               placeholder="e.g. 27AABCU9603R1ZM"
               maxLength={15}
               helper="Your company's GST registration number. Used for invoices and Tally export."
+            />
+
+            <Input
+              label="GST Portal Username"
+              value={gstUsername}
+              onChange={(e) => setGstUsername(e.target.value)}
+              placeholder="Your gst.gov.in login username"
+              helper="Auto-populated when authenticating to file GSTR-1 / GSTR-3B."
             />
 
             <Input

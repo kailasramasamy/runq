@@ -21,6 +21,8 @@ export interface TenantSettings {
   currency: string;
   // Company GST profile
   gstin?: string;
+  // GST portal username — used to auto-populate authentication in GST filing flow
+  gstUsername?: string;
   legalName?: string;
   state?: string;
   stateCode?: string;

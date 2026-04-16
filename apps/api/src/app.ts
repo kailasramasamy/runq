@@ -32,6 +32,7 @@ import { hrRoutes } from './modules/hr/routes';
 import { webhookEndpointRoutes } from './modules/webhooks/webhook-endpoint.routes';
 import { trailRoutes } from './modules/audit/trail.routes';
 import { faRoutes } from './modules/fa/routes';
+import { gstRoutes } from './modules/gst/routes';
 import { contactRoutes } from './modules/public/contact.routes';
 import { otpRoutes } from './modules/public/otp.routes';
 
@@ -98,6 +99,7 @@ export async function buildApp() {
     await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
     await scope.register(hrRoutes, { prefix: '/api/v1/hr' });
     await scope.register(faRoutes, { prefix: '/api/v1/fa' });
+    await scope.register(gstRoutes, { prefix: '/api/v1/gst' });
     await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
   });
