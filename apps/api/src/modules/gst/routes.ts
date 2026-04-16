@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { GstReturnService } from './gst-return.service';
 import { Gstr2bReconciliationService } from './gstr2b-reconciliation';
+import { GstReadinessService } from './gst-readiness.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -186,5 +187,12 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     const { period } = z.object({ period: z.string().regex(/^\d{6}$/) }).parse(request.query);
     const svc = new Gstr2bReconciliationService(request.server.db, request.tenantId);
     return { data: await svc.getSummary(period) };
+  });
+
+  // ─── GST Readiness (dashboard widget) ──────────────────────────────
+
+  app.get('/readiness', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const svc = new GstReadinessService(request.server.db, request.tenantId);
+    return { data: await svc.compute() };
   });
 };

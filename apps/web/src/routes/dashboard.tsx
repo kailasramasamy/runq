@@ -31,6 +31,7 @@ import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
 import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
 import { AIChatWidget } from '@/components/ai-chat';
 import { CashPositionWidget } from '@/components/dashboard/cash-position';
+import { GstReadinessWidget } from '@/components/dashboard/gst-readiness';
 import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
 import { QuickInvoiceWidget } from '@/components/dashboard/quick-invoice';
 
@@ -287,6 +288,9 @@ export function DashboardPage() {
         <PaymentPriorityWidget />
         <ExpenseAlertsWidget />
       </div>
+
+      {/* Row 4b: GST Readiness */}
+      <GstReadinessWidget />
 
       {/* Row 5: Upcoming PDCs */}
       <PDCCalendarWidget />
