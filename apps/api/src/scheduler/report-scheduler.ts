@@ -1,5 +1,5 @@
 import { eq, and, lte, sql } from 'drizzle-orm';
-import { scheduledReports, recurringInvoiceTemplates, dunningRules, tenants } from '@runq/db';
+import { scheduledReports, recurringInvoiceTemplates, dunningRules, tenants, fixedAssets } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Redis } from 'ioredis';
 import type { TenantSettings } from '@runq/types';
@@ -9,6 +9,7 @@ import { ReportRenderer } from '../modules/reports/report-renderer';
 import { computeNextRun } from '../utils/schedule';
 import { RecurringInvoiceService } from '../modules/ar/recurring.service';
 import { DunningService } from '../modules/ar/dunning.service';
+import { DepreciationService } from '../modules/fa/depreciation.service';
 
 interface Logger {
   info(msg: string, ...args: unknown[]): void;
@@ -23,6 +24,7 @@ const DUNNING_INTERVAL_MS = 60_000; // check every minute, but only run at 1 AM 
 let schedulerHandle: ReturnType<typeof setInterval> | null = null;
 let recurringHandle: ReturnType<typeof setInterval> | null = null;
 let dunningHandle: ReturnType<typeof setInterval> | null = null;
+let depreciationHandle: ReturnType<typeof setInterval> | null = null;
 
 export function startReportScheduler(db: Db, redis: Redis, logger: Logger = console): void {
   logger.info('Report scheduler: started (checking every 60s)');
@@ -42,6 +44,12 @@ export function startReportScheduler(db: Db, redis: Redis, logger: Logger = cons
     () => maybeDunning(db, redis, logger),
     DUNNING_INTERVAL_MS,
   );
+
+  logger.info('Depreciation scheduler: started (runs on 1st of each month at 2 AM IST)');
+  depreciationHandle = setInterval(
+    () => maybeDepreciation(db, redis, logger),
+    INTERVAL_MS,
+  );
 }
 
 export function stopReportScheduler(): void {
@@ -56,6 +64,10 @@ export function stopReportScheduler(): void {
   if (dunningHandle) {
     clearInterval(dunningHandle);
     dunningHandle = null;
+  }
+  if (depreciationHandle) {
+    clearInterval(depreciationHandle);
+    depreciationHandle = null;
   }
 }
 
@@ -168,6 +180,67 @@ async function runDunningForAllTenants(db: Db, redis: Redis, logger: Logger): Pr
       logger.error(`Dunning: failed tenant ${tenantId}: ${msg}`);
     }
   }
+}
+
+function maybeDepreciation(db: Db, redis: Redis, logger: Logger): void {
+  // IST = UTC+5:30 — only run at 2:00 AM IST on the 1st of each month
+  const nowUTC = new Date();
+  const istHour = (nowUTC.getUTCHours() + 5 + Math.floor((nowUTC.getUTCMinutes() + 30) / 60)) % 24;
+  const istMin = (nowUTC.getUTCMinutes() + 30) % 60;
+  // IST date: shift UTC by +5:30
+  const istDate = new Date(nowUTC.getTime() + 5.5 * 60 * 60 * 1000);
+  const dayOfMonth = istDate.getDate();
+
+  if (dayOfMonth !== 1 || istHour !== 2 || istMin > 0) return;
+
+  runAutoDepreciation(db, redis, logger).catch((err) => logger.error('Depreciation scheduler error:', err));
+}
+
+async function runAutoDepreciation(db: Db, redis: Redis, logger: Logger): Promise<void> {
+  const lockKey = 'lock:depreciation:monthly';
+  const acquired = await redis.set(lockKey, '1', 'EX', 72_000, 'NX');
+  if (!acquired) return;
+
+  logger.info('Depreciation: starting monthly auto-run');
+
+  // Find tenants that have active fixed assets
+  const tenantsWithAssets = await db
+    .selectDistinct({ tenantId: fixedAssets.tenantId })
+    .from(fixedAssets)
+    .where(eq(fixedAssets.status, 'active'));
+
+  if (tenantsWithAssets.length === 0) {
+    logger.info('Depreciation: no tenants with active assets');
+    return;
+  }
+
+  // Period end = last day of previous month
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+  const periodEnd = prevMonth.toISOString().slice(0, 10);
+
+  for (const { tenantId } of tenantsWithAssets) {
+    try {
+      const svc = new DepreciationService(db, tenantId);
+
+      // Run Companies Act depreciation (posted to GL)
+      const result = await svc.run(periodEnd, 'companies_act');
+      if (result.entriesCreated > 0) {
+        logger.info(`Depreciation: tenant ${tenantId} — ${result.entriesCreated} entries, ₹${result.totalDepreciation} (Companies Act)`);
+      }
+
+      // Run IT Act depreciation (for block-of-assets report, no GL posting)
+      const itResult = await svc.run(periodEnd, 'it_act', undefined, true);
+      if (itResult.entriesCreated > 0) {
+        logger.info(`Depreciation: tenant ${tenantId} — ${itResult.entriesCreated} entries (IT Act)`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`Depreciation: failed tenant ${tenantId}: ${msg}`);
+    }
+  }
+
+  logger.info('Depreciation: monthly auto-run complete');
 }
 
 async function executeReport(

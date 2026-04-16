@@ -58,7 +58,7 @@ export class DepreciationService {
     return lines;
   }
 
-  async run(periodEnd: string, depType: DepreciationType, userId?: string): Promise<DepreciationRunResult> {
+  async run(periodEnd: string, depType: DepreciationType, userId?: string, skipGlPosting = false): Promise<DepreciationRunResult> {
     const lines = await this.preview(periodEnd, depType);
     if (lines.length === 0) {
       return { periodStart: this.periodStart(periodEnd), periodEnd, depreciationType: depType, entriesCreated: 0, totalDepreciation: 0, journalEntryId: '' };
@@ -67,41 +67,45 @@ export class DepreciationService {
     const totalDep = lines.reduce((s, l) => s + l.depreciationAmount, 0);
     const periodStart = this.periodStart(periodEnd);
 
-    // Group by category for JE lines (debit each category's expense, credit each category's accum dep)
-    const categoryMap = new Map<string, { expenseCode: string; accumCode: string; amount: number }>();
-    const assets = await this.getActiveAssets(periodEnd);
-    const catById = new Map(assets.map((a) => [a.asset.id, a.category]));
+    let jeId = '';
 
-    for (const line of lines) {
-      const cat = catById.get(line.assetId);
-      if (!cat) continue;
-      const existing = categoryMap.get(cat.id);
-      if (existing) {
-        existing.amount += line.depreciationAmount;
-      } else {
-        categoryMap.set(cat.id, {
-          expenseCode: cat.depExpenseAccountCode,
-          accumCode: cat.accumDepAccountCode,
-          amount: line.depreciationAmount,
-        });
+    if (!skipGlPosting) {
+      // Group by category for JE lines
+      const categoryMap = new Map<string, { expenseCode: string; accumCode: string; amount: number }>();
+      const assets = await this.getActiveAssets(periodEnd);
+      const catById = new Map(assets.map((a) => [a.asset.id, a.category]));
+
+      for (const line of lines) {
+        const cat = catById.get(line.assetId);
+        if (!cat) continue;
+        const existing = categoryMap.get(cat.id);
+        if (existing) {
+          existing.amount += line.depreciationAmount;
+        } else {
+          categoryMap.set(cat.id, {
+            expenseCode: cat.depExpenseAccountCode,
+            accumCode: cat.accumDepAccountCode,
+            amount: line.depreciationAmount,
+          });
+        }
       }
-    }
 
-    // Create one consolidated JE for all depreciation
-    const glService = new GLService(this.db, this.tenantId);
-    const jeLines: { accountCode: string; debit?: number; credit?: number; description?: string }[] = [];
-    for (const [, cat] of categoryMap) {
-      jeLines.push({ accountCode: cat.expenseCode, debit: Math.round(cat.amount * 100) / 100 });
-      jeLines.push({ accountCode: cat.accumCode, credit: Math.round(cat.amount * 100) / 100 });
-    }
+      const glService = new GLService(this.db, this.tenantId);
+      const jeLines: { accountCode: string; debit?: number; credit?: number; description?: string }[] = [];
+      for (const [, cat] of categoryMap) {
+        jeLines.push({ accountCode: cat.expenseCode, debit: Math.round(cat.amount * 100) / 100 });
+        jeLines.push({ accountCode: cat.accumCode, credit: Math.round(cat.amount * 100) / 100 });
+      }
 
-    const je = await glService.createJournalEntry({
-      date: periodEnd,
-      description: `Depreciation for period ending ${periodEnd} (${depType === 'companies_act' ? 'Companies Act' : 'IT Act'})`,
-      sourceType: 'depreciation',
-      lines: jeLines,
-      createdBy: userId,
-    });
+      const je = await glService.createJournalEntry({
+        date: periodEnd,
+        description: `Depreciation for period ending ${periodEnd} (${depType === 'companies_act' ? 'Companies Act' : 'IT Act'})`,
+        sourceType: 'depreciation',
+        lines: jeLines,
+        createdBy: userId,
+      });
+      jeId = je.id;
+    }
 
     // Insert depreciation entries
     for (const line of lines) {
@@ -116,8 +120,8 @@ export class DepreciationService {
         openingWdv: String(line.openingWdv),
         depreciationAmount: String(line.depreciationAmount),
         closingWdv: String(line.closingWdv),
-        journalEntryId: je.id,
-        isPosted: true,
+        journalEntryId: jeId || null,
+        isPosted: !skipGlPosting,
       });
     }
 
@@ -127,7 +131,7 @@ export class DepreciationService {
       depreciationType: depType,
       entriesCreated: lines.length,
       totalDepreciation: Math.round(totalDep * 100) / 100,
-      journalEntryId: je.id,
+      journalEntryId: jeId,
     };
   }
 
