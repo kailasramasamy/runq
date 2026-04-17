@@ -110,6 +110,8 @@ import { ItemAnalysisPage } from './masters/items/analysis';
 import { ItemEditPage } from './masters/items/edit';
 import { ItemProfitabilityPage } from './masters/items/profitability';
 import { PriceListsPage } from './masters/price-lists';
+import { PriceListDetailPage } from './masters/price-lists/detail';
+import { PriceListEditPage } from './masters/price-lists/edit';
 import { CategoriesPage } from './masters/categories';
 import { QuotesPage } from './ar/quotes/index';
 import { SalesOrdersPage } from './ar/sales-orders/index';
@@ -1607,6 +1609,24 @@ const mastersPriceListsRoute = createRoute({
   component: PriceListsPage,
 });
 
+const mastersPriceListDetailRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/price-lists/$priceListId',
+  component: () => {
+    const { priceListId } = mastersPriceListDetailRoute.useParams();
+    return <PriceListDetailPage priceListId={priceListId} />;
+  },
+});
+
+const mastersPriceListEditRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/price-lists/$priceListId/edit',
+  component: () => {
+    const { priceListId } = mastersPriceListEditRoute.useParams();
+    return <PriceListEditPage priceListId={priceListId} />;
+  },
+});
+
 // Expenses routes
 const expensesRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
@@ -1829,6 +1849,8 @@ export const routeTree = rootRoute.addChildren([
       mastersItemsAnalysisRoute,
       mastersCategoriesRoute,
       mastersPriceListsRoute,
+      mastersPriceListDetailRoute,
+      mastersPriceListEditRoute,
     ]),
     expensesRoute.addChildren([
       expensesIndexRoute,

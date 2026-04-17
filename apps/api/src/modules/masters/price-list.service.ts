@@ -86,7 +86,17 @@ export class PriceListService {
     if (!row) throw new NotFoundError('Price List');
 
     const lineItems = await this.db
-      .select({ pli: priceListItems, itemName: items.name, itemSku: items.sku })
+      .select({
+        pli: priceListItems,
+        itemName: items.name,
+        itemSku: items.sku,
+        itemMrp: items.mrp,
+        itemCostPrice: items.costPrice,
+        itemMargin: items.margin,
+        itemGstRate: items.gstRate,
+        itemBasicPrice: items.basicPrice,
+        itemUnit: items.unit,
+      })
       .from(priceListItems)
       .leftJoin(items, eq(priceListItems.itemId, items.id))
       .where(eq(priceListItems.priceListId, id))
@@ -96,7 +106,14 @@ export class PriceListService {
       ...this.toPriceList(row.pl),
       customerName: row.customerName ?? null,
       vendorName: row.vendorName ?? null,
-      items: lineItems.map((li) => this.toPriceListItem(li.pli, li.itemName ?? '', li.itemSku ?? null)),
+      items: lineItems.map((li) => this.toPriceListItem(li.pli, li.itemName ?? '', li.itemSku ?? null, {
+        mrp: li.itemMrp != null ? toNumber(li.itemMrp) : null,
+        costPrice: li.itemCostPrice != null ? toNumber(li.itemCostPrice) : null,
+        margin: li.itemMargin != null ? toNumber(li.itemMargin) : null,
+        gstRate: li.itemGstRate != null ? toNumber(li.itemGstRate) : null,
+        basicPrice: li.itemBasicPrice != null ? toNumber(li.itemBasicPrice) : null,
+        unit: li.itemUnit ?? null,
+      })),
     };
   }
 
@@ -213,6 +230,14 @@ export class PriceListService {
     row: typeof priceListItems.$inferSelect,
     itemName: string,
     itemSku: string | null,
+    itemPricing?: {
+      mrp: number | null;
+      costPrice: number | null;
+      margin: number | null;
+      gstRate: number | null;
+      basicPrice: number | null;
+      unit: string | null;
+    },
   ): PriceListItem {
     return {
       id: row.id,
@@ -227,6 +252,14 @@ export class PriceListService {
       minQuantity: row.minQuantity ? toNumber(row.minQuantity) : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      ...(itemPricing ? {
+        itemMrp: itemPricing.mrp,
+        itemCostPrice: itemPricing.costPrice,
+        itemMargin: itemPricing.margin,
+        itemGstRate: itemPricing.gstRate,
+        itemBasicPrice: itemPricing.basicPrice,
+        itemUnit: itemPricing.unit,
+      } : {}),
     };
   }
 }

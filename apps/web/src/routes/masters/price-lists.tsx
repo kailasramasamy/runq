@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, X, Pencil, Download, Power, Trash2, Calculator } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Plus, X, Pencil, Download, Trash2, Calculator, Search } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, DateInput,
@@ -9,7 +10,7 @@ import {
 import { formatINR } from '@/lib/utils';
 import { calculatePricing, solveMrpForTargetMargin } from '@/lib/item-pricing';
 import {
-  usePriceLists, usePriceList, useCreatePriceList, useUpdatePriceList, useTogglePriceList,
+  usePriceLists, useCreatePriceList, useUpdatePriceList,
   type PriceList, type CreatePriceListInput, type PriceListItemInput,
 } from '@/hooks/queries/use-price-lists';
 import { useItems, type Item } from '@/hooks/queries/use-items';
@@ -411,22 +412,29 @@ type LineWithKey = PriceListItemInput & { _key: string };
 let lineKeyCounter = 0;
 function newLineKey() { return `line-${++lineKeyCounter}`; }
 
-function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose: () => void }) {
+export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose: () => void }) {
   const create = useCreatePriceList();
   const update = useUpdatePriceList();
   const { toast } = useToast();
   const { data: itemsData } = useItems({ limit: 100 });
   const allItems = itemsData?.data ?? [];
   const { data: customersData } = useCustomers({ limit: 200 });
-  const customerOpts = [
-    { value: '', label: 'Select customer…' },
-    ...((customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }))),
-  ];
+  const customerOpts = useMemo(() => {
+    const list = (customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }));
+    // Ensure the current customer shows by name even before the full list loads
+    if (priceList?.customerId && priceList.customerName && !list.some((o) => o.value === priceList.customerId)) {
+      list.unshift({ value: priceList.customerId, label: priceList.customerName });
+    }
+    return list;
+  }, [customersData, priceList?.customerId, priceList?.customerName]);
   const { data: vendorsData } = useVendors({ limit: 200 });
-  const vendorOpts = [
-    { value: '', label: 'Select vendor…' },
-    ...((vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }))),
-  ];
+  const vendorOpts = useMemo(() => {
+    const list = (vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }));
+    if (priceList?.vendorId && priceList.vendorName && !list.some((o) => o.value === priceList.vendorId)) {
+      list.unshift({ value: priceList.vendorId, label: priceList.vendorName });
+    }
+    return list;
+  }, [vendorsData, priceList?.vendorId, priceList?.vendorName]);
   const isEdit = !!priceList;
 
   const [name, setName] = useState(priceList?.name ?? '');
@@ -553,22 +561,24 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
         )}
         {applyTo === 'customer' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <Select
+            <Combobox
               label="Customer"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
               options={customerOpts}
+              value={customerId}
+              onChange={(v) => setCustomerId(v)}
+              placeholder="Search customer…"
               required
             />
           </div>
         )}
         {applyTo === 'vendor' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <Select
+            <Combobox
               label="Vendor"
-              value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
               options={vendorOpts}
+              value={vendorId}
+              onChange={(v) => setVendorId(v)}
+              placeholder="Search vendor…"
               required
             />
           </div>
@@ -647,25 +657,23 @@ function PriceListForm({ priceList, onClose }: { priceList?: PriceList; onClose:
 // ─── Price Lists Page ───────────────────────────────────────────────────────
 
 export function PriceListsPage() {
-  const { data, isLoading } = usePriceLists();
-  const toggle = useTogglePriceList();
-  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState<'' | 'selling' | 'buying'>('');
+  const [filterStatus, setFilterStatus] = useState<'' | 'active' | 'inactive'>('');
+  const { data, isLoading } = usePriceLists({
+    ...(search ? { search } : {}),
+    ...(filterType ? { type: filterType } : {}),
+  });
   const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const priceLists = data?.data ?? [];
+  const allPriceLists = data?.data ?? [];
+  const priceLists = filterStatus
+    ? allPriceLists.filter((pl) => (filterStatus === 'active' ? pl.isActive : !pl.isActive))
+    : allPriceLists;
 
-  // Fetch full detail when editing (to get line items)
-  const { data: editDetail } = usePriceList(editingId);
-  const editingPriceList = editDetail?.data ?? null;
-
-  async function handleToggle(id: string) {
-    try {
-      await toggle.mutateAsync(id);
-      toast('Price list status toggled', 'success');
-    } catch {
-      toast('Failed to toggle status', 'error');
-    }
+  function openDetail(id: string) {
+    navigate({ to: '/masters/price-lists/$priceListId', params: { priceListId: id } });
   }
 
   return (
@@ -679,15 +687,51 @@ export function PriceListsPage() {
             <Button variant="outline" size="sm" onClick={() => downloadCSV('price-lists.csv', ['Name', 'Type', 'Currency', 'Apply To', 'Valid From', 'Valid To', 'Items', 'Status'], priceLists.map(p => [p.name, p.type, p.currency, p.applyTo, p.validFrom ?? '', p.validTo ?? '', String(p.itemCount ?? 0), p.isActive ? 'Active' : 'Inactive']))}>
               <Download size={14} /> Export CSV
             </Button>
-            <Button size="sm" onClick={() => { setEditingId(null); setShowCreate((v) => !v); }}>
+            <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
               <Plus size={14} /> New Price List
             </Button>
           </div>
         }
       />
 
-      {showCreate && !editingId && <PriceListForm onClose={() => setShowCreate(false)} />}
-      {editingId && editingPriceList && <PriceListForm priceList={editingPriceList} onClose={() => setEditingId(null)} />}
+      {showCreate && <PriceListForm onClose={() => setShowCreate(false)} />}
+
+      {/* Search & Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative sm:w-72">
+          <Input
+            placeholder="Search by name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+          <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
+        </div>
+        <div className="w-36">
+          <Combobox
+            options={[
+              { value: '', label: 'All Types' },
+              { value: 'selling', label: 'Selling' },
+              { value: 'buying', label: 'Buying' },
+            ]}
+            value={filterType}
+            onChange={(v) => setFilterType(v as '' | 'selling' | 'buying')}
+            placeholder="Type"
+          />
+        </div>
+        <div className="w-36">
+          <Combobox
+            options={[
+              { value: '', label: 'All Status' },
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+            value={filterStatus}
+            onChange={(v) => setFilterStatus(v as '' | 'active' | 'inactive')}
+            placeholder="Status"
+          />
+        </div>
+      </div>
 
       {/* Mobile cards */}
       {isLoading ? (
@@ -696,13 +740,17 @@ export function PriceListsPage() {
             <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
+      ) : priceLists.length === 0 ? (
+        <div className="md:hidden py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+          {search || filterType || filterStatus ? 'No price lists match your filters.' : 'No price lists yet. Create your first price list above.'}
+        </div>
       ) : (
         <div className="space-y-2 md:hidden">
           {priceLists.map((pl) => (
             <div
               key={pl.id}
               className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => { setShowCreate(false); setEditingId(pl.id); }}
+              onClick={() => openDetail(pl.id)}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
                 <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{pl.name}</p>
@@ -741,10 +789,10 @@ export function PriceListsPage() {
               {isLoading ? (
                 <TableSkeleton rows={5} cols={9} />
               ) : priceLists.length === 0 ? (
-                <TableEmpty colSpan={9} message="No price lists yet. Create your first price list above." />
+                <TableEmpty colSpan={9} message={search || filterType || filterStatus ? 'No price lists match your filters.' : 'No price lists yet. Create your first price list above.'} />
               ) : (
                 priceLists.map((pl) => (
-                  <TableRow key={pl.id} className="cursor-pointer" onClick={() => { setShowCreate(false); setEditingId(pl.id); }}>
+                  <TableRow key={pl.id} className="cursor-pointer" onClick={() => openDetail(pl.id)}>
                     <TableCell className="font-medium">{pl.name}</TableCell>
                     <TableCell><Badge variant={pl.type === 'selling' ? 'success' : 'info'}>{pl.type}</Badge></TableCell>
                     <TableCell>{pl.currency}</TableCell>
@@ -753,13 +801,7 @@ export function PriceListsPage() {
                     <TableCell className="text-zinc-500">{pl.validTo ?? '-'}</TableCell>
                     <TableCell align="right" numeric>{pl.itemCount ?? 0}</TableCell>
                     <TableCell><Badge variant={statusVariant(pl.isActive)}>{pl.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
-                    <TableCell align="right">
-                      <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" onClick={() => handleToggle(pl.id)} disabled={toggle.isPending}>
-                          <Power size={14} /> {pl.isActive ? 'Deactivate' : 'Activate'}
-                        </Button>
-                      </div>
-                    </TableCell>
+                    <TableCell align="right">—</TableCell>
                   </TableRow>
                 ))
               )}

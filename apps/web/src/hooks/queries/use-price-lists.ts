@@ -21,6 +21,13 @@ export interface PriceListItemRow {
   minQuantity: number | null;
   createdAt: string;
   updatedAt: string;
+  // Joined from items master (detail view)
+  itemMrp?: number | null;
+  itemCostPrice?: number | null;
+  itemMargin?: number | null;
+  itemGstRate?: number | null;
+  itemBasicPrice?: number | null;
+  itemUnit?: string | null;
 }
 
 export interface PriceList {
