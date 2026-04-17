@@ -159,12 +159,8 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/2b/pull', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
     const { period } = periodSchema.parse(request.body);
-    const gstSvc = new GstReturnService(request.server.db, request.tenantId);
     const reconSvc = new Gstr2bReconciliationService(request.server.db, request.tenantId);
-    // Reuse cached GSP auth token from previous OTP authentication
-    const profile = await (gstSvc as any).getTenantGstProfile();
-    const token = await gstSvc.getValidTokenForGstin(profile.gstin);
-    const data = await reconSvc.pull2b(period, token);
+    const data = await reconSvc.pull2b(period);
     return reply.status(201).send({ data });
   });
 

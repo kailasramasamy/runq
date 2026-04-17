@@ -1,6 +1,6 @@
-import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray, sql, desc } from 'drizzle-orm';
 import {
-  gstr2bData, gstr2bMatches, purchaseInvoices, vendors, tenants,
+  gstr2bData, gstr2bMatches, purchaseInvoices, vendors, tenants, gspAuthTokens,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Gstr2bEntry } from '@runq/db';
@@ -30,10 +30,11 @@ export class Gstr2bReconciliationService {
 
   // ── Pull 2B from GSTN ────────────────────────────────────────────────
 
-  async pull2b(period: string, token: GspAuthToken): Promise<Gstr2bDataRow> {
+  async pull2b(period: string, token?: GspAuthToken): Promise<Gstr2bDataRow> {
     const gsp = createGspClient();
     const { gstin, gstUsername } = await this.getProfile();
-    const rawData = await gsp.getGstr2b(token, gstin, gstUsername, period);
+    const authToken = token ?? await this.getValidToken(gstin);
+    const rawData = await gsp.getGstr2b(authToken, gstin, gstUsername, period);
 
     // Upsert — replace if already pulled for this period
     const [existing] = await this.db
@@ -303,6 +304,24 @@ export class Gstr2bReconciliationService {
     }
 
     return summary;
+  }
+
+  private async getValidToken(gstin: string): Promise<GspAuthToken> {
+    const [cached] = await this.db
+      .select()
+      .from(gspAuthTokens)
+      .where(and(
+        eq(gspAuthTokens.tenantId, this.tenantId),
+        eq(gspAuthTokens.gstin, gstin),
+      ))
+      .orderBy(desc(gspAuthTokens.createdAt))
+      .limit(1);
+
+    if (cached && new Date(cached.expiresAt) > new Date()) {
+      return { accessToken: cached.accessToken, txn: cached.txn || '', expiresAt: new Date(cached.expiresAt) };
+    }
+
+    throw new ConflictError('GST portal session expired. Please authenticate again with OTP.');
   }
 
   private async getProfile(): Promise<{ gstin: string; gstUsername: string }> {

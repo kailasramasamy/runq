@@ -446,7 +446,17 @@ export class WhiteBooksGspClient implements GspClient {
     const headers = commonHeaders(username, stateCode, token.txn);
 
     const res = await fetch(url, { method: 'GET', headers });
-    return res.json();
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`GSTN 2B fetch failed (HTTP ${res.status}): ${text.slice(0, 200)}`);
+    }
+    const result = await res.json();
+    // GSTN error responses have status_cd !== '1'
+    if (result.status_cd && result.status_cd !== '1') {
+      const errMsg = result.error?.message || result.error?.error_msg || JSON.stringify(result.error ?? 'Unknown error');
+      throw new Error(`GSTN 2B error: ${errMsg}`);
+    }
+    return result.data ?? result;
   }
 
   // ── Transform helpers ────────────────────────────────────────────────
