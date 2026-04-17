@@ -456,18 +456,6 @@ export class WhiteBooksGspClient implements GspClient {
       const errMsg = result.error?.message || result.error?.error_msg || JSON.stringify(result.error ?? 'Unknown error');
       throw new Error(`GSTN 2B error: ${errMsg}`);
     }
-    // Log response structure for debugging
-    const topKeys = Object.keys(result);
-    const d1 = result.data;
-    const d1Keys = d1 ? Object.keys(d1) : [];
-    const d2 = d1?.data;
-    const d2Keys = d2 ? Object.keys(d2) : [];
-    const d2Type = d2 === null ? 'null' : typeof d2;
-    const d3 = d2?.docdata;
-    const d3Keys = d3 ? Object.keys(d3) : [];
-    console.log(`[GST 2B] top: ${topKeys.join(',')} | data: ${d1Keys.join(',')} | data.data(${d2Type}): ${d2Keys.join(',')} | docdata: ${d3Keys.join(',')}`);
-    // If data.data is a string (JSON-encoded), log a snippet
-    if (typeof d2 === 'string') console.log(`[GST 2B] data.data is string: ${d2.slice(0, 300)}`);
     return result;
   }
 

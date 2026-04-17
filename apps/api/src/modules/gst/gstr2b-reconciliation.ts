@@ -352,33 +352,38 @@ export class Gstr2bReconciliationService {
     const docdata = l2?.docdata ?? l2;
     const b2bDocs = docdata?.b2b ?? [];
 
-    console.log(`[GST 2B parse] b2b suppliers: ${b2bDocs.length}`);
     let loggedSample = false;
     for (const supplier of b2bDocs) {
       const gstin = supplier.ctin || supplier.supplierGstin || '';
       const name = supplier.trdnm || supplier.supplierName || '';
       const invoices = supplier.inv || supplier.invoices || [];
       for (const inv of invoices) {
-        if (!loggedSample) {
-          console.log(`[GST 2B sample] inv keys: ${Object.keys(inv).join(',')} | itms sample: ${JSON.stringify((inv.itms ?? inv.items ?? [])[0] ?? 'none').slice(0, 500)}`);
-          loggedSample = true;
-        }
+        // GSTN 2B can have tax values either as nested itms[] or flat on the invoice
         const items = inv.itms || inv.items || [];
         let taxableValue = 0, igst = 0, cgst = 0, sgst = 0, cess = 0, rate = 0;
-        for (const item of items) {
-          const det = item.itm_det || item;
-          taxableValue += det.txval || det.taxableValue || 0;
-          igst += det.iamt || det.igstAmount || 0;
-          cgst += det.camt || det.cgstAmount || 0;
-          sgst += det.samt || det.sgstAmount || 0;
-          cess += det.csamt || det.cessAmount || 0;
-          rate = det.rt || det.gstRate || rate;
+        if (items.length > 0) {
+          for (const item of items) {
+            const det = item.itm_det || item;
+            taxableValue += det.txval || det.taxableValue || 0;
+            igst += det.iamt || det.igstAmount || 0;
+            cgst += det.camt || det.cgstAmount || 0;
+            sgst += det.samt || det.sgstAmount || 0;
+            cess += det.csamt || det.cessAmount || 0;
+            rate = det.rt || det.gstRate || rate;
+          }
+        } else {
+          // Flat structure — values directly on invoice
+          taxableValue = inv.txval || 0;
+          igst = inv.igst || 0;
+          cgst = inv.cgst || 0;
+          sgst = inv.sgst || 0;
+          cess = inv.cess || 0;
         }
         entries.push({
           supplierGstin: gstin,
           supplierName: name,
           invoiceNumber: inv.inum || inv.invoiceNumber || '',
-          invoiceDate: inv.idt || inv.invoiceDate || '',
+          invoiceDate: inv.dt || inv.idt || inv.invoiceDate || '',
           invoiceValue: inv.val || inv.invoiceValue || 0,
           taxableValue,
           igstAmount: igst,
