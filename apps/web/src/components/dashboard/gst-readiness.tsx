@@ -84,7 +84,7 @@ export function GstReadinessWidget() {
       <CardHeader
         title="GST Readiness"
         action={
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/gst/returns' as '/' })}>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/gst/readiness' as '/' })}>
             View →
           </Button>
         }
@@ -135,7 +135,7 @@ export function GstReadinessWidget() {
             ))}
             {pendingSignals.length > 3 && (
               <p className="text-xs text-zinc-500 pt-1">
-                + {pendingSignals.length - 3} more — <button onClick={() => navigate({ to: '/gst/returns' as '/' })} className="text-primary-600 hover:underline">view all</button>
+                + {pendingSignals.length - 3} more — <button onClick={() => navigate({ to: '/gst/readiness' as '/' })} className="text-primary-600 hover:underline">view all</button>
               </p>
             )}
           </div>

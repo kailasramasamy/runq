@@ -195,4 +195,9 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     const svc = new GstReadinessService(request.server.db, request.tenantId);
     return { data: await svc.compute() };
   });
+
+  app.get('/readiness/details', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const svc = new GstReadinessService(request.server.db, request.tenantId);
+    return { data: await svc.computeDetails() };
+  });
 };

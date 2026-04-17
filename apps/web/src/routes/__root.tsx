@@ -76,6 +76,7 @@ import { GstReturnsPage } from './gst/returns';
 import { GstReturnDetailPage } from './gst/return-detail';
 import { Gstr3bDetailPage } from './gst/return-3b-detail';
 import { ReconciliationPage as Gstr2bReconciliationPage } from './gst/reconciliation';
+import { GstReadinessPage } from './gst/readiness';
 import { PortalPage } from './portal/index';
 // Phase 4: Reports
 import { ProfitAndLossPage } from './reports/profit-and-loss';
@@ -967,6 +968,7 @@ const faImportRoute = createRoute({
 const GST_TABS = [
   { label: 'Returns', path: '/gst/returns' },
   { label: 'Reconciliation', path: '/gst/reconciliation' },
+  { label: 'Readiness', path: '/gst/readiness' },
 ];
 
 function GstNav() {
@@ -1039,6 +1041,12 @@ const gstReconciliationRoute = createRoute({
   getParentRoute: () => gstRoute,
   path: '/reconciliation',
   component: Gstr2bReconciliationPage,
+});
+
+const gstReadinessRoute = createRoute({
+  getParentRoute: () => gstRoute,
+  path: '/readiness',
+  component: GstReadinessPage,
 });
 
 // ─── Settings Layout & Sub-navigation ────────────────────────────────────────
@@ -1769,6 +1777,7 @@ export const routeTree = rootRoute.addChildren([
       gstReturnDetailRoute,
       gst3bDetailRoute,
       gstReconciliationRoute,
+      gstReadinessRoute,
     ]),
     reportsRoute.addChildren([
       reportsIndexRoute,
