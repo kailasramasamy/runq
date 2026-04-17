@@ -29,6 +29,8 @@ export interface GstReadinessResult {
   // When true, this period was filed externally (before gstFilingStartPeriod)
   filedExternally?: boolean;
   filingStartLabel?: string;   // e.g. "Apr 2026"
+  // When true, showing current month preparation (month still in progress)
+  preparing?: boolean;
 }
 
 export interface GstReadinessSignal {
@@ -65,30 +67,38 @@ export class GstReadinessService {
     const tenantCfg = await this.getTenantGstConfig();
 
     const prevPeriod = this.previousMonthPeriod();
+    const currPeriod = this.currentMonthPeriod();
 
-    // If tenant has a filing start period and the previous month is before it,
-    // the period hasn't started yet — return an all-clear result.
+    // If previous month is before the filing start period:
     if (tenantCfg.gstFilingStartPeriod && this.periodIsBefore(prevPeriod, tenantCfg.gstFilingStartPeriod)) {
-      const startLabel = this.periodLabel(tenantCfg.gstFilingStartPeriod);
-      return {
-        period: prevPeriod,
-        periodLabel: this.periodLabel(prevPeriod),
-        score: 100,
-        signals: [],
-        returns: {
-          gstr1: { exists: false, status: 'filed_externally' },
-          gstr3b: { exists: false, status: 'filed_externally' },
-        },
-        dueDates: {
-          gstr1: this.dueDate(prevPeriod, 11),
-          gstr3b: this.dueDate(prevPeriod, 20),
-        },
-        filedExternally: true,
-        filingStartLabel: startLabel,
-      };
+      // If current month is also before the start → nothing to track yet
+      if (this.periodIsBefore(currPeriod, tenantCfg.gstFilingStartPeriod)) {
+        const startLabel = this.periodLabel(tenantCfg.gstFilingStartPeriod);
+        return {
+          period: prevPeriod,
+          periodLabel: this.periodLabel(prevPeriod),
+          score: 100,
+          signals: [],
+          returns: {
+            gstr1: { exists: false, status: 'filed_externally' },
+            gstr3b: { exists: false, status: 'filed_externally' },
+          },
+          dueDates: {
+            gstr1: this.dueDate(prevPeriod, 11),
+            gstr3b: this.dueDate(prevPeriod, 20),
+          },
+          filedExternally: true,
+          filingStartLabel: startLabel,
+        };
+      }
+      // Current month IS the start period (or later) — show current month's
+      // readiness so the tenant can prepare data quality (HSN, GSTIN, etc.)
+      // while the month is still in progress. Draft signals won't apply yet.
     }
 
-    const period = prevPeriod;
+    // Use current month if prev is before start (preparing), else prev (filing)
+    const isPreparing = !!(tenantCfg.gstFilingStartPeriod && this.periodIsBefore(prevPeriod, tenantCfg.gstFilingStartPeriod));
+    const period = isPreparing ? currPeriod : prevPeriod;
     const { periodStart, periodEnd } = this.periodToDateRange(period);
     const periodLabel = this.periodLabel(period);
 
@@ -147,16 +157,21 @@ export class GstReadinessService {
       {
         key: 'gstr1_draft',
         label: 'GSTR-1 draft generated',
-        ok: returns.gstr1.exists,
-        detail: returns.gstr1.exists
+        // Month still in progress — drafts auto-generate on 1st of next month
+        ok: isPreparing ? true : returns.gstr1.exists,
+        detail: isPreparing
+          ? 'Will auto-generate on 1st of next month'
+          : returns.gstr1.exists
           ? `Status: ${returns.gstr1.status}`
           : 'Auto-generates on 1st, or click Generate',
       },
       {
         key: 'gstr3b_draft',
         label: 'GSTR-3B draft generated',
-        ok: returns.gstr3b.exists,
-        detail: returns.gstr3b.exists
+        ok: isPreparing ? true : returns.gstr3b.exists,
+        detail: isPreparing
+          ? 'Will auto-generate on 1st of next month'
+          : returns.gstr3b.exists
           ? `Status: ${returns.gstr3b.status}`
           : 'Depends on GSTR-1',
       },
@@ -182,6 +197,7 @@ export class GstReadinessService {
         gstr1: this.dueDate(period, 11),
         gstr3b: this.dueDate(period, 20),
       },
+      ...(isPreparing ? { preparing: true } : {}),
     };
   }
 
@@ -476,6 +492,12 @@ export class GstReadinessService {
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const mm = String(prev.getMonth() + 1).padStart(2, '0');
     return `${mm}${prev.getFullYear()}`;
+  }
+
+  private currentMonthPeriod(): string {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    return `${mm}${now.getFullYear()}`;
   }
 
   private periodToDateRange(period: string) {
