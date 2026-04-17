@@ -337,11 +337,18 @@ export class Gstr2bReconciliationService {
   }
 
   private parse2bEntries(rawData: unknown): Gstr2bEntry[] {
-    // GSTN 2B structure: data.docdata.b2b[] -> each has ctin (supplier GSTIN) and inv[]
-    const data = rawData as any;
+    // GSTN 2B response can be nested in multiple ways depending on the GSP wrapper:
+    //   result.data.docdata.b2b[]  (White Books wraps in data)
+    //   result.docdata.b2b[]       (direct GSTN structure)
+    //   result.b2b[]               (flattened)
+    const root = rawData as any;
+    const data = root?.data ?? root;
     const entries: Gstr2bEntry[] = [];
 
-    const b2bDocs = data?.docdata?.b2b ?? data?.b2b ?? [];
+    const docdata = data?.docdata ?? data;
+    const b2bDocs = docdata?.b2b ?? [];
+
+    console.log(`[GST 2B parse] root keys: ${Object.keys(root ?? {}).join(', ')} | data keys: ${Object.keys(data ?? {}).join(', ')} | docdata keys: ${Object.keys(docdata ?? {}).join(', ')} | b2b count: ${b2bDocs.length}`);
     for (const supplier of b2bDocs) {
       const gstin = supplier.ctin || supplier.supplierGstin || '';
       const name = supplier.trdnm || supplier.supplierName || '';
