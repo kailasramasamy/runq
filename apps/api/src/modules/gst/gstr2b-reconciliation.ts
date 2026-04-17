@@ -341,14 +341,18 @@ export class Gstr2bReconciliationService {
     //   result.data.docdata.b2b[]  (White Books wraps in data)
     //   result.docdata.b2b[]       (direct GSTN structure)
     //   result.b2b[]               (flattened)
+    // White Books response: { data: { chksum, data: { docdata: { b2b: [...] } } }, status_cd, ... }
+    // Navigate through the nested data layers to find b2b entries.
     const root = rawData as any;
-    const data = root?.data ?? root;
     const entries: Gstr2bEntry[] = [];
 
-    const docdata = data?.docdata ?? data;
+    // Drill through: root.data.data.docdata.b2b or any subset
+    const l1 = root?.data ?? root;
+    const l2 = l1?.data ?? l1;
+    const docdata = l2?.docdata ?? l2;
     const b2bDocs = docdata?.b2b ?? [];
 
-    console.log(`[GST 2B parse] root keys: ${Object.keys(root ?? {}).join(', ')} | data keys: ${Object.keys(data ?? {}).join(', ')} | docdata keys: ${Object.keys(docdata ?? {}).join(', ')} | b2b count: ${b2bDocs.length}`);
+    console.log(`[GST 2B parse] b2b suppliers: ${b2bDocs.length}`);
     for (const supplier of b2bDocs) {
       const gstin = supplier.ctin || supplier.supplierGstin || '';
       const name = supplier.trdnm || supplier.supplierName || '';
