@@ -74,9 +74,7 @@ export function ReconciliationPage() {
   const summary: ReconSummary | null = summaryData?.data ?? null;
   const matches: Gstr2bMatch[] = matchesData?.data ?? [];
   const gstin = companyData?.data?.gstin ?? '';
-  const startPeriod = companyData?.data?.gstFilingStartPeriod as string | undefined;
   const periodOptions = generatePeriodOptions();
-  const periodBeforeStart = !!(period && startPeriod && periodIsBefore(period, startPeriod));
 
   // Auto-populate GST username from company settings
   useEffect(() => {
@@ -89,10 +87,6 @@ export function ReconciliationPage() {
     if (!period) { toast('Select a period', 'error'); return; }
     pullMutation.mutate(period, {
       onSuccess: () => {
-        if (periodBeforeStart) {
-          toast('GSTR-2B pulled from GSTN (no invoices in runq to reconcile for this period)', 'success');
-          return;
-        }
         toast('GSTR-2B pulled — reconciling...', 'success');
         reconMutation.mutate(period, {
           onSuccess: () => toast('Reconciliation complete', 'success'),
@@ -191,7 +185,7 @@ export function ReconciliationPage() {
             </div>
             <Button onClick={handlePullAndReconcile} disabled={pullMutation.isPending || reconMutation.isPending || !period}>
               <RefreshCw className={`h-4 w-4 mr-2 ${pullMutation.isPending || reconMutation.isPending ? 'animate-spin' : ''}`} />
-              {pullMutation.isPending ? 'Pulling from GSTN...' : reconMutation.isPending ? 'Reconciling...' : periodBeforeStart ? 'Pull 2B from GSTN' : 'Pull & Reconcile'}
+              {pullMutation.isPending ? 'Pulling from GSTN...' : reconMutation.isPending ? 'Reconciling...' : 'Pull & Reconcile'}
             </Button>
           </div>
         </CardContent>
