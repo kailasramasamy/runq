@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary,
   useRequestOtp, useVerifyOtp, useForceLogout,
@@ -8,7 +8,7 @@ import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { Gstr2bMatch, ReconSummary } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
-  PageHeader, Button, Card, CardHeader, CardContent, Badge, Combobox, StatsCard,
+  PageHeader, Button, Card, CardContent, Badge, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Modal, Input, useToast,
 } from '@/components/ui';
@@ -191,48 +191,30 @@ export function ReconciliationPage() {
         </CardContent>
       </Card>
 
-      {/* Summary cards */}
+      {/* Summary */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <StatsCard
-            title="Matched"
-            value={summary.matched.count}
-            icon={CheckCircle}
-            onClick={() => setStatusFilter('matched')}
-          />
-          <StatsCard
-            title="Mismatched"
-            value={summary.mismatched.count}
-            icon={AlertTriangle}
-            onClick={() => setStatusFilter('mismatched')}
-          />
-          <StatsCard
-            title="Not in Books"
-            value={summary.notInBooks.count}
-            icon={XCircle}
-            onClick={() => setStatusFilter('not_in_books')}
-          />
-          <StatsCard
-            title="Not in 2B"
-            value={summary.notIn2b.count}
-            icon={HelpCircle}
-            onClick={() => setStatusFilter('not_in_2b')}
-          />
-        </div>
-      )}
-
-      {summary && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Card>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="cursor-pointer hover:ring-1 hover:ring-primary-500" onClick={() => setStatusFilter(undefined)}>
             <CardContent className="py-3">
               <p className="text-sm text-zinc-500">Total ITC Available (2B)</p>
               <p className="text-xl font-bold">{formatINR(summary.totalItcAvailable)}</p>
+              <p className="text-xs text-zinc-400 mt-1">
+                {summary.matched.count + summary.mismatched.count + summary.notInBooks.count + summary.notIn2b.count} invoices
+              </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="cursor-pointer hover:ring-1 hover:ring-green-500" onClick={() => setStatusFilter('matched')}>
             <CardContent className="py-3">
               <p className="text-sm text-zinc-500">ITC Claimable (Matched)</p>
               <p className="text-xl font-bold text-green-600">{formatINR(summary.totalItcClaimable)}</p>
+              <p className="text-xs text-zinc-400 mt-1">{summary.matched.count} invoices</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:ring-1 hover:ring-red-500" onClick={() => setStatusFilter('not_in_books')}>
+            <CardContent className="py-3">
+              <p className="text-sm text-zinc-500">Not in Books</p>
+              <p className="text-xl font-bold text-red-500">{summary.notInBooks.count} invoices</p>
+              <p className="text-xs text-zinc-400 mt-1">{formatINR(summary.notInBooks.taxableValue)} taxable</p>
             </CardContent>
           </Card>
         </div>
@@ -268,43 +250,50 @@ export function ReconciliationPage() {
         <EmptyState icon={RefreshCw} title="No Matches" description="Pull GSTR-2B and run reconciliation to see results." />
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Status</Th>
-                <Th>Supplier GSTIN</Th>
-                <Th>Supplier</Th>
-                <Th>Invoice (2B)</Th>
-                <Th>Invoice (Books)</Th>
-                <Th className="text-right">Taxable (2B)</Th>
-                <Th className="text-right">Taxable (Books)</Th>
-                <Th className="text-right">Diff</Th>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {matches.map((m) => {
-                const badge = STATUS_BADGE[m.matchStatus];
-                return (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{m.supplierGstin}</TableCell>
-                    <TableCell className="text-xs">{m.supplierName ?? '—'}</TableCell>
-                    <TableCell className="text-xs">{m.invoiceNumber2b || '—'}</TableCell>
-                    <TableCell className="text-xs">{m.invoiceNumberBooks ?? '—'}</TableCell>
-                    <TableCell className="text-right">{formatINR(Number(m.taxableValue2b))}</TableCell>
-                    <TableCell className="text-right">{m.taxableValueBooks ? formatINR(Number(m.taxableValueBooks)) : '—'}</TableCell>
-                    <TableCell className="text-right">
-                      {m.valueDiff && Number(m.valueDiff) > 0 ? (
-                        <span className="text-red-500">{formatINR(Number(m.valueDiff))}</span>
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Status</Th>
+                  <Th>Supplier</Th>
+                  <Th>Invoice (2B)</Th>
+                  <Th>Invoice (Books)</Th>
+                  <Th className="text-right">Taxable</Th>
+                  <Th className="text-right">IGST</Th>
+                  <Th className="text-right">CGST</Th>
+                  <Th className="text-right">SGST</Th>
+                  <Th className="text-right">Total Tax</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {matches.map((m) => {
+                  const badge = STATUS_BADGE[m.matchStatus];
+                  const igst = Number(m.igst2b);
+                  const cgst = Number(m.cgst2b);
+                  const sgst = Number(m.sgst2b);
+                  const totalTax = igst + cgst + sgst;
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-xs font-medium">{m.supplierName ?? '—'}</p>
+                        <p className="text-[10px] font-mono text-zinc-400">{m.supplierGstin}</p>
+                      </TableCell>
+                      <TableCell className="text-xs">{m.invoiceNumber2b || '—'}</TableCell>
+                      <TableCell className="text-xs">{m.invoiceNumberBooks ?? '—'}</TableCell>
+                      <TableCell className="text-right">{formatINR(Number(m.taxableValue2b))}</TableCell>
+                      <TableCell className="text-right text-zinc-500">{igst ? formatINR(igst) : '—'}</TableCell>
+                      <TableCell className="text-right text-zinc-500">{cgst ? formatINR(cgst) : '—'}</TableCell>
+                      <TableCell className="text-right text-zinc-500">{sgst ? formatINR(sgst) : '—'}</TableCell>
+                      <TableCell className="text-right font-medium">{formatINR(totalTax)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
 
