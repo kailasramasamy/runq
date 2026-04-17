@@ -197,7 +197,7 @@ export function ReconciliationPage() {
           <Card className="cursor-pointer hover:ring-1 hover:ring-primary-500" onClick={() => setStatusFilter(undefined)}>
             <CardContent className="py-3">
               <p className="text-sm text-zinc-500">Total ITC Available (2B)</p>
-              <p className="text-xl font-bold">{formatINR(summary.totalItcAvailable)}</p>
+              <p className="text-xl font-bold font-mono tabular-nums">{formatINR(summary.totalItcAvailable)}</p>
               <p className="text-xs text-zinc-400 mt-1">
                 {summary.matched.count + summary.mismatched.count + summary.notInBooks.count + summary.notIn2b.count} invoices
               </p>
@@ -206,7 +206,7 @@ export function ReconciliationPage() {
           <Card className="cursor-pointer hover:ring-1 hover:ring-green-500" onClick={() => setStatusFilter('matched')}>
             <CardContent className="py-3">
               <p className="text-sm text-zinc-500">ITC Claimable (Matched)</p>
-              <p className="text-xl font-bold text-green-600">{formatINR(summary.totalItcClaimable)}</p>
+              <p className="text-xl font-bold font-mono tabular-nums text-green-600">{formatINR(summary.totalItcClaimable)}</p>
               <p className="text-xs text-zinc-400 mt-1">{summary.matched.count} invoices</p>
             </CardContent>
           </Card>
@@ -283,11 +283,11 @@ export function ReconciliationPage() {
                       </TableCell>
                       <TableCell className="text-xs">{m.invoiceNumber2b || '—'}</TableCell>
                       <TableCell className="text-xs">{m.invoiceNumberBooks ?? '—'}</TableCell>
-                      <TableCell className="text-right">{formatINR(Number(m.taxableValue2b))}</TableCell>
-                      <TableCell className="text-right text-zinc-500">{igst ? formatINR(igst) : '—'}</TableCell>
-                      <TableCell className="text-right text-zinc-500">{cgst ? formatINR(cgst) : '—'}</TableCell>
-                      <TableCell className="text-right text-zinc-500">{sgst ? formatINR(sgst) : '—'}</TableCell>
-                      <TableCell className="text-right font-medium">{formatINR(totalTax)}</TableCell>
+                      <TableCell align="right" numeric>{formatINR(Number(m.taxableValue2b))}</TableCell>
+                      <TableCell align="right" numeric className="text-zinc-500">{igst ? formatINR(igst) : '—'}</TableCell>
+                      <TableCell align="right" numeric className="text-zinc-500">{cgst ? formatINR(cgst) : '—'}</TableCell>
+                      <TableCell align="right" numeric className="text-zinc-500">{sgst ? formatINR(sgst) : '—'}</TableCell>
+                      <TableCell align="right" numeric className="font-medium">{formatINR(totalTax)}</TableCell>
                     </TableRow>
                   );
                 })}
