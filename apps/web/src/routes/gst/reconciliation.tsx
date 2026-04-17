@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle, KeyRound } from 'lucide-react';
+import { Download, RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary,
   useRequestOtp, useVerifyOtp, useForceLogout,
@@ -51,7 +51,6 @@ export function ReconciliationPage() {
   const [gstUsername, setGstUsername] = useState('');
   const [otp, setOtp] = useState('');
   const [txn, setTxn] = useState('');
-  const [authenticated, setAuthenticated] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   const requestOtpMutation = useRequestOtp();
@@ -126,7 +125,6 @@ export function ReconciliationPage() {
       { gstin, username: gstUsername, otp, txn },
       {
         onSuccess: () => {
-          setAuthenticated(true);
           setShowOtpModal(false);
           setOtp('');
           setTxn('');
@@ -189,10 +187,6 @@ export function ReconciliationPage() {
             <Button onClick={handleReconcile} disabled={reconMutation.isPending || !period}>
               <RefreshCw className="h-4 w-4 mr-2" />
               {reconMutation.isPending ? 'Reconciling...' : 'Run Reconciliation'}
-            </Button>
-            <Button onClick={() => setShowOtpModal(true)} variant="ghost" size="sm">
-              <KeyRound className="h-4 w-4 mr-1" />
-              {authenticated ? 'Re-authenticate' : 'Authenticate'}
             </Button>
           </div>
         </CardContent>
