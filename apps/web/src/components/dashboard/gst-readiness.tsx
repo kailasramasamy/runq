@@ -72,12 +72,14 @@ export function GstReadinessWidget() {
   }
 
   const r = data.data;
+  const filedExternally = !!(r as Record<string, unknown>).filedExternally;
+  const filingStartLabel = (r as Record<string, unknown>).filingStartLabel as string | undefined;
   const color = scoreColor(r.score);
   const g1Days = daysUntil(r.dueDates.gstr1);
   const g3bDays = daysUntil(r.dueDates.gstr3b);
   const pendingSignals = r.signals.filter((s) => !s.ok);
-  const gstr1Filed = r.returns.gstr1.status === 'filed';
-  const gstr3bFiled = r.returns.gstr3b.status === 'filed';
+  const gstr1Filed = filedExternally || r.returns.gstr1.status === 'filed';
+  const gstr3bFiled = filedExternally || r.returns.gstr3b.status === 'filed';
 
   return (
     <Card>
@@ -93,7 +95,9 @@ export function GstReadinessWidget() {
         {/* Score + period header */}
         <div className="flex items-start justify-between mb-4">
           <div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">For {r.periodLabel}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {filedExternally ? `${r.periodLabel} — filed externally` : `For ${r.periodLabel}`}
+            </p>
             <div className="flex items-baseline gap-2 mt-1">
               <span className={`text-3xl font-bold ${color.text}`}>{r.score}%</span>
               <span className="text-sm text-zinc-500">ready</span>
@@ -109,13 +113,13 @@ export function GstReadinessWidget() {
           <div className={`rounded-md border px-3 py-2 ${gstr1Filed ? 'border-green-200 bg-green-50 dark:bg-green-900/10' : g1Days <= 3 ? 'border-red-200 bg-red-50 dark:bg-red-900/10' : 'border-zinc-200 dark:border-zinc-700'}`}>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">GSTR-1</p>
             <p className="text-sm font-medium">
-              {gstr1Filed ? '✓ Filed' : g1Days < 0 ? `${Math.abs(g1Days)}d overdue` : g1Days === 0 ? 'Due today' : `${g1Days}d left`}
+              {gstr1Filed ? (filedExternally ? '✓ External' : '✓ Filed') : g1Days < 0 ? `${Math.abs(g1Days)}d overdue` : g1Days === 0 ? 'Due today' : `${g1Days}d left`}
             </p>
           </div>
           <div className={`rounded-md border px-3 py-2 ${gstr3bFiled ? 'border-green-200 bg-green-50 dark:bg-green-900/10' : g3bDays <= 3 ? 'border-red-200 bg-red-50 dark:bg-red-900/10' : 'border-zinc-200 dark:border-zinc-700'}`}>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">GSTR-3B</p>
             <p className="text-sm font-medium">
-              {gstr3bFiled ? '✓ Filed' : g3bDays < 0 ? `${Math.abs(g3bDays)}d overdue` : g3bDays === 0 ? 'Due today' : `${g3bDays}d left`}
+              {gstr3bFiled ? (filedExternally ? '✓ External' : '✓ Filed') : g3bDays < 0 ? `${Math.abs(g3bDays)}d overdue` : g3bDays === 0 ? 'Due today' : `${g3bDays}d left`}
             </p>
           </div>
         </div>

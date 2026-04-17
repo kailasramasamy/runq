@@ -84,6 +84,13 @@ function previousMonthPeriod(): string {
   return periodFor(prev);
 }
 
+/** Returns true if periodA (MMYYYY) is strictly before periodB (MMYYYY). */
+function periodIsBefore(a: string, b: string): boolean {
+  const aY = parseInt(a.substring(2), 10), aM = parseInt(a.substring(0, 2), 10);
+  const bY = parseInt(b.substring(2), 10), bM = parseInt(b.substring(0, 2), 10);
+  return aY < bY || (aY === bY && aM < bM);
+}
+
 function periodToLabel(period: string): string {
   const month = parseInt(period.substring(0, 2), 10);
   const year = parseInt(period.substring(2), 10);
@@ -139,6 +146,13 @@ async function runMonthlyDraftGeneration(db: Db, redis: Redis, logger: Logger): 
   logger.info(`GST drafts: ${eligibleTenants.length} tenant(s) eligible`);
 
   for (const tenant of eligibleTenants) {
+    // Skip tenants whose GST filing start period is after the current period
+    const startPeriod = tenant.settings.gstFilingStartPeriod;
+    if (startPeriod && periodIsBefore(period, startPeriod)) {
+      logger.info(`GST drafts: tenant ${tenant.id} — skipped, filing starts from ${periodToLabel(startPeriod)}`);
+      continue;
+    }
+
     try {
       const svc = new GstReturnService(db, tenant.id);
 
@@ -276,6 +290,9 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
   for (const ret of unfiled) {
     try {
       const settings = ret.settings as TenantSettings;
+      // Skip tenants whose filing hasn't started yet
+      if (settings.gstFilingStartPeriod && periodIsBefore(ret.period, settings.gstFilingStartPeriod)) continue;
+
       const ownerEmail = ownerEmailFor({ id: ret.tenantId, name: ret.tenantName, settings });
       if (!ownerEmail) continue;
 

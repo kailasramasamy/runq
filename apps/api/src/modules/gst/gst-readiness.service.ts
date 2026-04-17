@@ -26,6 +26,9 @@ export interface GstReadinessResult {
     gstr1: string;        // YYYY-MM-DD
     gstr3b: string;
   };
+  // When true, this period was filed externally (before gstFilingStartPeriod)
+  filedExternally?: boolean;
+  filingStartLabel?: string;   // e.g. "Apr 2026"
 }
 
 export interface GstReadinessSignal {
@@ -58,12 +61,38 @@ export class GstReadinessService {
   ) {}
 
   async compute(): Promise<GstReadinessResult> {
-    const period = this.previousMonthPeriod();
+    // Fetch tenant config first — we need gstFilingStartPeriod to decide the period
+    const tenantCfg = await this.getTenantGstConfig();
+
+    const prevPeriod = this.previousMonthPeriod();
+
+    // If tenant has a filing start period and the previous month is before it,
+    // the period hasn't started yet — return an all-clear result.
+    if (tenantCfg.gstFilingStartPeriod && this.periodIsBefore(prevPeriod, tenantCfg.gstFilingStartPeriod)) {
+      const startLabel = this.periodLabel(tenantCfg.gstFilingStartPeriod);
+      return {
+        period: prevPeriod,
+        periodLabel: this.periodLabel(prevPeriod),
+        score: 100,
+        signals: [],
+        returns: {
+          gstr1: { exists: false, status: 'filed_externally' },
+          gstr3b: { exists: false, status: 'filed_externally' },
+        },
+        dueDates: {
+          gstr1: this.dueDate(prevPeriod, 11),
+          gstr3b: this.dueDate(prevPeriod, 20),
+        },
+        filedExternally: true,
+        filingStartLabel: startLabel,
+      };
+    }
+
+    const period = prevPeriod;
     const { periodStart, periodEnd } = this.periodToDateRange(period);
     const periodLabel = this.periodLabel(period);
 
-    const [tenantCfg, invoices, bills, returns] = await Promise.all([
-      this.getTenantGstConfig(),
+    const [invoices, bills, returns] = await Promise.all([
       this.checkInvoices(periodStart, periodEnd),
       this.checkPurchaseInvoices(periodStart, periodEnd),
       this.getExistingReturns(period),
@@ -328,7 +357,11 @@ export class GstReadinessService {
 
   // ── Internal checks ──────────────────────────────────────────────────
 
-  private async getTenantGstConfig(): Promise<{ gstinConfigured: boolean; usernameConfigured: boolean }> {
+  private async getTenantGstConfig(): Promise<{
+    gstinConfigured: boolean;
+    usernameConfigured: boolean;
+    gstFilingStartPeriod: string | null;
+  }> {
     const [row] = await this.db
       .select({ settings: tenants.settings })
       .from(tenants)
@@ -337,6 +370,7 @@ export class GstReadinessService {
     return {
       gstinConfigured: !!s.gstin,
       usernameConfigured: !!s.gstUsername,
+      gstFilingStartPeriod: s.gstFilingStartPeriod ?? null,
     };
   }
 
@@ -466,5 +500,14 @@ export class GstReadinessService {
     // Due is in the month after the return period
     const due = new Date(year, month, day);
     return due.toISOString().split('T')[0];
+  }
+
+  /** Returns true if periodA (MMYYYY) is strictly before periodB (MMYYYY). */
+  private periodIsBefore(a: string, b: string): boolean {
+    const aMonth = parseInt(a.substring(0, 2), 10);
+    const aYear = parseInt(a.substring(2), 10);
+    const bMonth = parseInt(b.substring(0, 2), 10);
+    const bYear = parseInt(b.substring(2), 10);
+    return aYear < bYear || (aYear === bYear && aMonth < bMonth);
   }
 }

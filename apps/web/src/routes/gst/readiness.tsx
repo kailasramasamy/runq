@@ -161,13 +161,16 @@ export function GstReadinessPage() {
     );
   }
 
+  const filedExternally = !!(readiness as Record<string, unknown>).filedExternally;
+  const filingStartLabel = (readiness as Record<string, unknown>).filingStartLabel as string | undefined;
+
   const color = scoreColor(readiness.score);
   const pending = signals.filter((s) => !s.ok);
   const done = signals.filter((s) => s.ok);
   const g1Days = daysUntil(readiness.dueDates.gstr1);
   const g3bDays = daysUntil(readiness.dueDates.gstr3b);
-  const gstr1Filed = readiness.returns.gstr1.status === 'filed';
-  const gstr3bFiled = readiness.returns.gstr3b.status === 'filed';
+  const gstr1Filed = filedExternally || readiness.returns.gstr1.status === 'filed';
+  const gstr3bFiled = filedExternally || readiness.returns.gstr3b.status === 'filed';
 
   return (
     <div className="max-w-3xl">
@@ -177,7 +180,9 @@ export function GstReadinessPage() {
           { label: 'GST', href: '/gst/returns' },
           { label: 'Readiness' },
         ]}
-        description={`Filing readiness for ${readiness.periodLabel}`}
+        description={filedExternally
+          ? `${readiness.periodLabel} — filed externally. runq filing starts from ${filingStartLabel ?? 'next period'}.`
+          : `Filing readiness for ${readiness.periodLabel}`}
       />
 
       {/* Score + due dates header */}
@@ -205,7 +210,7 @@ export function GstReadinessPage() {
               </div>
               <p className="text-lg font-semibold">
                 {gstr1Filed ? (
-                  <span className="text-green-600">Filed</span>
+                  <span className="text-green-600">{filedExternally ? 'Filed externally' : 'Filed'}</span>
                 ) : g1Days < 0 ? (
                   <span className="text-red-600">{Math.abs(g1Days)} days overdue</span>
                 ) : g1Days === 0 ? (
@@ -223,7 +228,7 @@ export function GstReadinessPage() {
               </div>
               <p className="text-lg font-semibold">
                 {gstr3bFiled ? (
-                  <span className="text-green-600">Filed</span>
+                  <span className="text-green-600">{filedExternally ? 'Filed externally' : 'Filed'}</span>
                 ) : g3bDays < 0 ? (
                   <span className="text-red-600">{Math.abs(g3bDays)} days overdue</span>
                 ) : g3bDays === 0 ? (

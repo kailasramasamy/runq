@@ -15,6 +15,8 @@ export const companySettingsSchema = z.object({
   gstin: z.string().regex(gstinRegex, 'Invalid GSTIN format').nullish(),
   // GST portal username — used to auto-populate authentication in GST filing flow
   gstUsername: z.string().max(50).nullish(),
+  // First period (MMYYYY) for which runq manages GST filing
+  gstFilingStartPeriod: z.string().regex(/^(0[1-9]|1[0-2])\d{4}$/, 'Must be MMYYYY format').nullish(),
   legalName: z.string().max(255).nullish(),
   state: z.string().max(100).nullish(),
   stateCode: z.string().max(2).nullish(),

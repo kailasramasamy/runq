@@ -66,6 +66,7 @@ export function CompanySettingsPage() {
   const [pincode, setPincode] = useState('');
   const [upiId, setUpiId] = useState('');
   const [defaultMargin, setDefaultMargin] = useState('');
+  const [gstFilingStart, setGstFilingStart] = useState(''); // YYYY-MM for the input
 
   useEffect(() => {
     if (data?.data) {
@@ -88,6 +89,13 @@ export function CompanySettingsPage() {
           ? String(data.data.defaultMarginPercent)
           : '',
       );
+      // MMYYYY → YYYY-MM for the month input
+      const sp = data.data.gstFilingStartPeriod;
+      if (sp && sp.length === 6) {
+        setGstFilingStart(`${sp.substring(2)}-${sp.substring(0, 2)}`);
+      } else {
+        setGstFilingStart('');
+      }
     }
   }, [data]);
 
@@ -121,6 +129,10 @@ export function CompanySettingsPage() {
         upiId: upiId || null,
         defaultMarginPercent:
           defaultMargin.trim() === '' ? null : Number(defaultMargin),
+        // YYYY-MM → MMYYYY
+        gstFilingStartPeriod: gstFilingStart
+          ? `${gstFilingStart.substring(5, 7)}${gstFilingStart.substring(0, 4)}`
+          : null,
       });
       // If industry changed, the backend wiped itemAttributeSchema server-side.
       // Invalidate the frontend cache for both the schema query and any cached
@@ -239,6 +251,14 @@ export function CompanySettingsPage() {
               onChange={(e) => setGstUsername(e.target.value)}
               placeholder="Your gst.gov.in login username"
               helper="Auto-populated when authenticating to file GSTR-1 / GSTR-3B."
+            />
+
+            <Input
+              label="GST Filing Start Period"
+              type="month"
+              value={gstFilingStart}
+              onChange={(e) => setGstFilingStart(e.target.value)}
+              helper="First month runq manages GST filing. Earlier periods are treated as filed externally (e.g. by your CA)."
             />
 
             <Input
