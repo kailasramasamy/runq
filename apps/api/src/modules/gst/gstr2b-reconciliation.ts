@@ -353,11 +353,16 @@ export class Gstr2bReconciliationService {
     const b2bDocs = docdata?.b2b ?? [];
 
     console.log(`[GST 2B parse] b2b suppliers: ${b2bDocs.length}`);
+    let loggedSample = false;
     for (const supplier of b2bDocs) {
       const gstin = supplier.ctin || supplier.supplierGstin || '';
       const name = supplier.trdnm || supplier.supplierName || '';
       const invoices = supplier.inv || supplier.invoices || [];
       for (const inv of invoices) {
+        if (!loggedSample) {
+          console.log(`[GST 2B sample] inv keys: ${Object.keys(inv).join(',')} | itms sample: ${JSON.stringify((inv.itms ?? inv.items ?? [])[0] ?? 'none').slice(0, 500)}`);
+          loggedSample = true;
+        }
         const items = inv.itms || inv.items || [];
         let taxableValue = 0, igst = 0, cgst = 0, sgst = 0, cess = 0, rate = 0;
         for (const item of items) {
