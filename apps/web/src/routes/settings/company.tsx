@@ -258,6 +258,7 @@ export function CompanySettingsPage() {
               type="month"
               value={gstFilingStart}
               onChange={(e) => setGstFilingStart(e.target.value)}
+              className="dark:[color-scheme:dark]"
               helper="First month runq manages GST filing. Earlier periods are treated as filed externally (e.g. by your CA)."
             />
 
