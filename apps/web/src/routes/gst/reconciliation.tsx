@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { Download, RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle, KeyRound } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary,
+  useRequestOtp, useVerifyOtp, useForceLogout,
 } from '@/hooks/queries/use-gst-returns';
+import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { Gstr2bMatch, ReconSummary } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, Badge, Combobox, StatsCard,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
-  TableSkeleton, EmptyState, useToast,
+  TableSkeleton, EmptyState, Modal, Input, useToast,
 } from '@/components/ui';
 
 function periodLabel(period: string): string {
@@ -43,6 +45,19 @@ export function ReconciliationPage() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const periodOptions = generatePeriodOptions();
 
+  // OTP auth state
+  const { data: companyData } = useCompanySettings();
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [gstUsername, setGstUsername] = useState('');
+  const [otp, setOtp] = useState('');
+  const [txn, setTxn] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  const requestOtpMutation = useRequestOtp();
+  const verifyOtpMutation = useVerifyOtp();
+  const forceLogoutMutation = useForceLogout();
+
   const pullMutation = usePull2b();
   const reconMutation = useReconcile2b();
   const { data: summaryData } = use2bSummary(period);
@@ -50,12 +65,28 @@ export function ReconciliationPage() {
 
   const summary: ReconSummary | null = summaryData?.data ?? null;
   const matches: Gstr2bMatch[] = matchesData?.data ?? [];
+  const gstin = companyData?.data?.gstin ?? '';
+
+  // Auto-populate GST username from company settings
+  useEffect(() => {
+    if (companyData?.data?.gstUsername && !gstUsername) {
+      setGstUsername(companyData.data.gstUsername);
+    }
+  }, [companyData, gstUsername]);
 
   function handlePull() {
     if (!period) { toast('Select a period', 'error'); return; }
     pullMutation.mutate(period, {
       onSuccess: () => toast('GSTR-2B pulled from GSTN', 'success'),
-      onError: (err: any) => toast(err?.message ?? 'Failed to pull 2B. Authenticate first.', 'error'),
+      onError: (err: any) => {
+        const msg = err?.message ?? '';
+        if (msg.includes('session expired') || msg.includes('Authenticate')) {
+          setShowOtpModal(true);
+          toast('GST session expired — authenticate to continue', 'error');
+        } else {
+          toast(msg || 'Failed to pull 2B', 'error');
+        }
+      },
     });
   }
 
@@ -65,6 +96,67 @@ export function ReconciliationPage() {
       onSuccess: () => toast('Reconciliation complete', 'success'),
       onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
     });
+  }
+
+  function handleRequestOtp() {
+    if (!gstUsername) { toast('Enter GST portal username', 'error'); return; }
+    if (!gstin) { toast('GSTIN not configured in Settings → Company', 'error'); return; }
+    setSessionError(null);
+    requestOtpMutation.mutate(
+      { gstin, username: gstUsername },
+      {
+        onSuccess: (res: any) => {
+          if (!res.data.success || !res.data.txn) {
+            const msg = res.data.message ?? 'Failed to request OTP from GST portal';
+            setSessionError(msg);
+            toast(msg, 'error');
+            return;
+          }
+          setTxn(res.data.txn);
+          toast('OTP sent to your registered mobile', 'success');
+        },
+        onError: (err: any) => toast(err?.message ?? 'Failed to request OTP', 'error'),
+      },
+    );
+  }
+
+  function handleVerifyOtp() {
+    if (!otp) { toast('Enter the OTP', 'error'); return; }
+    verifyOtpMutation.mutate(
+      { gstin, username: gstUsername, otp, txn },
+      {
+        onSuccess: () => {
+          setAuthenticated(true);
+          setShowOtpModal(false);
+          setOtp('');
+          setTxn('');
+          toast('Authenticated — you can now pull 2B data', 'success');
+          // Auto-trigger pull after auth
+          if (period) {
+            pullMutation.mutate(period, {
+              onSuccess: () => toast('GSTR-2B pulled from GSTN', 'success'),
+              onError: (err: any) => toast(err?.message ?? 'Failed to pull 2B', 'error'),
+            });
+          }
+        },
+        onError: (err: any) => toast(err?.message ?? 'OTP verification failed', 'error'),
+      },
+    );
+  }
+
+  function handleForceLogout() {
+    if (!gstUsername) { toast('Enter GST portal username first', 'error'); return; }
+    forceLogoutMutation.mutate(
+      { gstin, username: gstUsername },
+      {
+        onSuccess: (res: any) => {
+          toast(res.data.success ? 'Session cleared. Try OTP again.' : `Logout: ${res.data.message}`, res.data.success ? 'success' : 'error');
+          setSessionError(null);
+          setTxn('');
+        },
+        onError: (err: any) => toast(err?.message ?? 'Force logout failed', 'error'),
+      },
+    );
   }
 
   const statusOptions = [
@@ -97,6 +189,10 @@ export function ReconciliationPage() {
             <Button onClick={handleReconcile} disabled={reconMutation.isPending || !period}>
               <RefreshCw className="h-4 w-4 mr-2" />
               {reconMutation.isPending ? 'Reconciling...' : 'Run Reconciliation'}
+            </Button>
+            <Button onClick={() => setShowOtpModal(true)} variant="ghost" size="sm">
+              <KeyRound className="h-4 w-4 mr-1" />
+              {authenticated ? 'Re-authenticate' : 'Authenticate'}
             </Button>
           </div>
         </CardContent>
@@ -218,6 +314,76 @@ export function ReconciliationPage() {
           </Table>
         </Card>
       )}
+
+      {/* OTP Auth Modal */}
+      <Modal open={showOtpModal} title="Authenticate with GST Portal" onClose={() => setShowOtpModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium block mb-1">GSTIN</label>
+            <Input value={gstin} disabled />
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">GST Portal Username</label>
+            <Input
+              value={gstUsername}
+              onChange={(e) => setGstUsername(e.target.value)}
+              placeholder="Your GST portal username"
+            />
+          </div>
+          {!txn ? (
+            <>
+              {requestOtpMutation.isPending && (
+                <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 rounded-md px-3 py-2">
+                  <div className="h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Requesting OTP from GST portal... this may take a few seconds</span>
+                </div>
+              )}
+              {sessionError && (
+                <div className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-md px-3 py-2 space-y-2">
+                  <p><strong>GST Portal:</strong> {sessionError}</p>
+                  {sessionError.toLowerCase().includes('session') && (
+                    <Button
+                      onClick={handleForceLogout}
+                      disabled={forceLogoutMutation.isPending}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {forceLogoutMutation.isPending ? 'Clearing...' : 'Clear Stuck Session'}
+                    </Button>
+                  )}
+                </div>
+              )}
+              <Button onClick={handleRequestOtp} disabled={requestOtpMutation.isPending} className="w-full">
+                {requestOtpMutation.isPending ? 'Sending...' : 'Send OTP'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-md px-3 py-2">
+                <span>OTP sent to your registered mobile. Enter it below.</span>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">OTP</label>
+                <Input
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter 6-digit OTP"
+                  maxLength={6}
+                />
+              </div>
+              {verifyOtpMutation.isPending && (
+                <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 rounded-md px-3 py-2">
+                  <div className="h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying OTP with GSTN...</span>
+                </div>
+              )}
+              <Button onClick={handleVerifyOtp} disabled={verifyOtpMutation.isPending} className="w-full">
+                {verifyOtpMutation.isPending ? 'Verifying...' : 'Verify OTP'}
+              </Button>
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
