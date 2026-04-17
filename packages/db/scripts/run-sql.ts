@@ -1,15 +1,15 @@
 /**
- * Tiny SQL runner used by docker-entrypoint.sh to apply hand-written
- * migration files (e.g. table renames that drizzle-kit push cannot
- * express safely) before drizzle-kit push runs.
+ * SQL runner with migration tracking — used by docker-entrypoint.sh to apply
+ * hand-written migration files before drizzle-kit push runs.
  *
  * Usage: tsx scripts/run-sql.ts <path-to-sql-file>
  *
- * Each SQL file must be idempotent — it will be executed on every
- * container start.
+ * Each file is applied at most once. A `_migrations_applied` table tracks
+ * which files have already run, so deploys skip previously-applied migrations.
  */
 
 import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { Client } from 'pg';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -25,14 +25,9 @@ if (!file) {
   process.exit(1);
 }
 
+const migrationName = basename(file);
 const sql = readFileSync(file, 'utf8');
 
-/**
- * Check if the SQL uses BEGIN/COMMIT transactions or $$ dollar-quoted blocks.
- * If so, run as a single query (these need to be atomic).
- * Otherwise, split on semicolons and run individually to avoid PostgreSQL
- * batch validation issues (e.g., ADD COLUMN IF NOT EXISTS + 1600 limit).
- */
 function needsSingleQuery(text: string): boolean {
   const stripped = text.replace(/--.*$/gm, '').trim();
   return /^\s*BEGIN\b/im.test(stripped) || /\$\$/.test(stripped);
@@ -42,10 +37,28 @@ async function main(): Promise<void> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
+    // Ensure tracking table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS _migrations_applied (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Check if already applied
+    const { rows } = await client.query(
+      'SELECT 1 FROM _migrations_applied WHERE name = $1',
+      [migrationName],
+    );
+    if (rows.length > 0) {
+      console.log(`  ${file} — already applied, skipping`);
+      return;
+    }
+
+    // Apply migration
     if (needsSingleQuery(sql)) {
       await client.query(sql);
     } else {
-      // Split on semicolons and execute individually
       const statements = sql
         .split(/;\s*$/m)
         .map((s) => s.trim())
@@ -54,6 +67,12 @@ async function main(): Promise<void> {
         await client.query(stmt);
       }
     }
+
+    // Record as applied
+    await client.query(
+      'INSERT INTO _migrations_applied (name) VALUES ($1) ON CONFLICT DO NOTHING',
+      [migrationName],
+    );
     console.log(`  ${file} applied`);
   } finally {
     await client.end();
