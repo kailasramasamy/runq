@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary,
   useRequestOtp, useVerifyOtp, useForceLogout,
@@ -20,16 +20,26 @@ function periodLabel(period: string): string {
   return `${months[month - 1]} ${year}`;
 }
 
-function generatePeriodOptions(): Array<{ value: string; label: string }> {
+/** Generate period options, optionally filtering out months before startPeriod (MMYYYY). */
+function generatePeriodOptions(startPeriod?: string): Array<{ value: string; label: string }> {
   const options: Array<{ value: string; label: string }> = [];
   const now = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = String(d.getFullYear());
-    options.push({ value: `${mm}${yyyy}`, label: periodLabel(`${mm}${yyyy}`) });
+    const val = `${mm}${yyyy}`;
+    // Skip periods before filing start
+    if (startPeriod && periodIsBefore(val, startPeriod)) continue;
+    options.push({ value: val, label: periodLabel(val) });
   }
   return options;
+}
+
+function periodIsBefore(a: string, b: string): boolean {
+  const aY = parseInt(a.substring(2), 10), aM = parseInt(a.substring(0, 2), 10);
+  const bY = parseInt(b.substring(2), 10), bM = parseInt(b.substring(0, 2), 10);
+  return aY < bY || (aY === bY && aM < bM);
 }
 
 const STATUS_BADGE: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info'; label: string }> = {
@@ -43,7 +53,6 @@ export function ReconciliationPage() {
   const { toast } = useToast();
   const [period, setPeriod] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const periodOptions = generatePeriodOptions();
 
   // OTP auth state
   const { data: companyData } = useCompanySettings();
@@ -65,6 +74,8 @@ export function ReconciliationPage() {
   const summary: ReconSummary | null = summaryData?.data ?? null;
   const matches: Gstr2bMatch[] = matchesData?.data ?? [];
   const gstin = companyData?.data?.gstin ?? '';
+  const startPeriod = companyData?.data?.gstFilingStartPeriod as string | undefined;
+  const periodOptions = generatePeriodOptions(startPeriod);
 
   // Auto-populate GST username from company settings
   useEffect(() => {
@@ -73,10 +84,16 @@ export function ReconciliationPage() {
     }
   }, [companyData, gstUsername]);
 
-  function handlePull() {
+  function handlePullAndReconcile() {
     if (!period) { toast('Select a period', 'error'); return; }
     pullMutation.mutate(period, {
-      onSuccess: () => toast('GSTR-2B pulled from GSTN', 'success'),
+      onSuccess: () => {
+        toast('GSTR-2B pulled — reconciling...', 'success');
+        reconMutation.mutate(period, {
+          onSuccess: () => toast('Reconciliation complete', 'success'),
+          onError: (err: any) => toast(err?.message ?? 'Reconciliation failed', 'error'),
+        });
+      },
       onError: (err: any) => {
         const msg = err?.message ?? '';
         if (msg.includes('session expired') || msg.includes('Authenticate')) {
@@ -86,14 +103,6 @@ export function ReconciliationPage() {
           toast(msg || 'Failed to pull 2B', 'error');
         }
       },
-    });
-  }
-
-  function handleReconcile() {
-    if (!period) { toast('Select a period', 'error'); return; }
-    reconMutation.mutate(period, {
-      onSuccess: () => toast('Reconciliation complete', 'success'),
-      onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
     });
   }
 
@@ -128,14 +137,9 @@ export function ReconciliationPage() {
           setShowOtpModal(false);
           setOtp('');
           setTxn('');
-          toast('Authenticated — you can now pull 2B data', 'success');
-          // Auto-trigger pull after auth
-          if (period) {
-            pullMutation.mutate(period, {
-              onSuccess: () => toast('GSTR-2B pulled from GSTN', 'success'),
-              onError: (err: any) => toast(err?.message ?? 'Failed to pull 2B', 'error'),
-            });
-          }
+          toast('Authenticated — pulling 2B data...', 'success');
+          // Auto-trigger pull + reconcile after auth
+          if (period) handlePullAndReconcile();
         },
         onError: (err: any) => toast(err?.message ?? 'OTP verification failed', 'error'),
       },
@@ -180,13 +184,9 @@ export function ReconciliationPage() {
               <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 block">Period</label>
               <Combobox options={periodOptions} value={period} onChange={setPeriod} placeholder="Select month..." />
             </div>
-            <Button onClick={handlePull} disabled={pullMutation.isPending || !period} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              {pullMutation.isPending ? 'Pulling...' : 'Pull 2B from GSTN'}
-            </Button>
-            <Button onClick={handleReconcile} disabled={reconMutation.isPending || !period}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {reconMutation.isPending ? 'Reconciling...' : 'Run Reconciliation'}
+            <Button onClick={handlePullAndReconcile} disabled={pullMutation.isPending || reconMutation.isPending || !period}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${pullMutation.isPending || reconMutation.isPending ? 'animate-spin' : ''}`} />
+              {pullMutation.isPending ? 'Pulling from GSTN...' : reconMutation.isPending ? 'Reconciling...' : 'Pull & Reconcile'}
             </Button>
           </div>
         </CardContent>
