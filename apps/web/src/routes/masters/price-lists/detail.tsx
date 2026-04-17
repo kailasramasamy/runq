@@ -121,7 +121,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       <div>
         <PageHeader
           title="Price List"
-          breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists', path: '/masters/price-lists' }, { label: '…' }]}
+          breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists', href: '/masters/price-lists' }, { label: '…' }]}
         />
         <div className="flex flex-col gap-6 max-w-6xl">
           <CardSkeleton />
@@ -136,7 +136,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       <div>
         <PageHeader
           title="Price List"
-          breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists', path: '/masters/price-lists' }, { label: 'Not Found' }]}
+          breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists', href: '/masters/price-lists' }, { label: 'Not Found' }]}
         />
         <Card>
           <CardContent className="py-12 text-center text-sm text-zinc-500">
@@ -160,7 +160,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
         title={pl.name}
         breadcrumbs={[
           { label: 'Masters' },
-          { label: 'Price Lists', path: '/masters/price-lists' },
+          { label: 'Price Lists', href: '/masters/price-lists' },
           { label: pl.name },
         ]}
         actions={

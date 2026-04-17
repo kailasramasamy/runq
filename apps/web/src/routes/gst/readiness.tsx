@@ -40,7 +40,7 @@ function useReadinessDetails() {
 function useReadiness() {
   return useQuery({
     queryKey: ['gst', 'readiness'],
-    queryFn: () => api.get<{ data: { period: string; periodLabel: string; score: number; dueDates: { gstr1: string; gstr3b: string }; returns: { gstr1: { exists: boolean; status: string | null }; gstr3b: { exists: boolean; status: string | null } } } }>('/gst/readiness'),
+    queryFn: () => api.get<{ data: { period: string; periodLabel: string; score: number; dueDates: { gstr1: string; gstr3b: string }; returns: { gstr1: { exists: boolean; status: string | null }; gstr3b: { exists: boolean; status: string | null } }; filedExternally?: boolean; filingStartLabel?: string } }>('/gst/readiness'),
     staleTime: 60_000,
   });
 }
@@ -161,8 +161,8 @@ export function GstReadinessPage() {
     );
   }
 
-  const filedExternally = !!(readiness as Record<string, unknown>).filedExternally;
-  const filingStartLabel = (readiness as Record<string, unknown>).filingStartLabel as string | undefined;
+  const filedExternally = !!readiness.filedExternally;
+  const filingStartLabel = readiness.filingStartLabel;
 
   const color = scoreColor(readiness.score);
   const pending = signals.filter((s) => !s.ok);

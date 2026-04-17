@@ -24,6 +24,8 @@ interface ReadinessResult {
     gstr1: string;
     gstr3b: string;
   };
+  filedExternally?: boolean;
+  filingStartLabel?: string;
 }
 
 function useGstReadiness() {
@@ -72,8 +74,8 @@ export function GstReadinessWidget() {
   }
 
   const r = data.data;
-  const filedExternally = !!(r as Record<string, unknown>).filedExternally;
-  const filingStartLabel = (r as Record<string, unknown>).filingStartLabel as string | undefined;
+  const filedExternally = !!r.filedExternally;
+  const filingStartLabel = r.filingStartLabel;
   const color = scoreColor(r.score);
   const g1Days = daysUntil(r.dueDates.gstr1);
   const g3bDays = daysUntil(r.dueDates.gstr3b);

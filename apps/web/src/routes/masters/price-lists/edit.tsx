@@ -19,7 +19,7 @@ export function PriceListEditPage({ priceListId }: { priceListId: string }) {
           title="Edit Price List"
           breadcrumbs={[
             { label: 'Masters' },
-            { label: 'Price Lists', path: '/masters/price-lists' },
+            { label: 'Price Lists', href: '/masters/price-lists' },
             { label: '…' },
           ]}
         />
@@ -35,7 +35,7 @@ export function PriceListEditPage({ priceListId }: { priceListId: string }) {
           title="Edit Price List"
           breadcrumbs={[
             { label: 'Masters' },
-            { label: 'Price Lists', path: '/masters/price-lists' },
+            { label: 'Price Lists', href: '/masters/price-lists' },
             { label: 'Not Found' },
           ]}
         />
@@ -50,8 +50,8 @@ export function PriceListEditPage({ priceListId }: { priceListId: string }) {
         title={`Edit — ${pl.name}`}
         breadcrumbs={[
           { label: 'Masters' },
-          { label: 'Price Lists', path: '/masters/price-lists' },
-          { label: pl.name, path: `/masters/price-lists/${priceListId}` },
+          { label: 'Price Lists', href: '/masters/price-lists' },
+          { label: pl.name, href: `/masters/price-lists/${priceListId}` },
           { label: 'Edit' },
         ]}
       />
