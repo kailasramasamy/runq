@@ -680,6 +680,12 @@ export class WhiteBooksGspClient implements GspClient {
   }
 
   private transformGstr3bForUpload(gstin: string, period: string, data: Gstr3bData) {
+    // Table 3.2 → inter_sup (inter-state supplies to unregistered/composition/UIN)
+    const unreg = data.table32.reduce(
+      (acc, e) => ({ txval: acc.txval + e.taxableValue, iamt: acc.iamt + e.igst }),
+      { txval: 0, iamt: 0 },
+    );
+
     return {
       gstin,
       ret_period: period,
@@ -698,6 +704,20 @@ export class WhiteBooksGspClient implements GspClient {
         },
         osup_nil_exmp: { txval: data.table31.nilRatedExempt.taxableValue },
         osup_nongst: { txval: data.table31.nonGstOutward.taxableValue },
+        // Table 3.1(d): Inward supplies liable to reverse charge
+        isup_rev: {
+          txval: 0,
+          iamt: data.table4.itcAvailable.inwardReverseCharge.igst,
+          camt: data.table4.itcAvailable.inwardReverseCharge.cgst,
+          samt: data.table4.itcAvailable.inwardReverseCharge.sgst,
+          csamt: data.table4.itcAvailable.inwardReverseCharge.cess,
+        },
+      },
+      // Table 3.2: Inter-state supplies
+      inter_sup: {
+        unreg_details: [{ txval: unreg.txval, iamt: unreg.iamt, pos: '' }],
+        comp_details: [],
+        uin_details: [],
       },
       itc_elg: {
         itc_avl: [
@@ -712,6 +732,25 @@ export class WhiteBooksGspClient implements GspClient {
           { ty: 'OTH', iamt: data.table4.itcReversed.others.igst, camt: data.table4.itcReversed.others.cgst, samt: data.table4.itcReversed.others.sgst, csamt: data.table4.itcReversed.others.cess },
         ],
         itc_net: { iamt: data.table4.netItc.igst, camt: data.table4.netItc.cgst, samt: data.table4.netItc.sgst, csamt: data.table4.netItc.cess },
+      },
+      // Table 5: Exempt, nil-rated, non-GST inward supplies
+      inward_sup: {
+        isup_details: [
+          {
+            ty: 'ISRC',
+            inter: data.table5.interState.nilRated + data.table5.interState.exempt + data.table5.interState.nonGst,
+            intra: data.table5.intraState.nilRated + data.table5.intraState.exempt + data.table5.intraState.nonGst,
+          },
+        ],
+      },
+      // Table 5.1: Interest and late fee
+      intr_ltfee: {
+        intr_details: {
+          iamt: 0, camt: 0, samt: 0, csamt: 0,
+        },
+        ltfee_details: {
+          iamt: 0, camt: data.table51.lateFee / 2, samt: data.table51.lateFee / 2, csamt: 0,
+        },
       },
     };
   }
