@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { createCustomerSchema } from '@runq/validators';
 import type { Customer } from '@runq/types';
 import type { CreateCustomerInput } from '@runq/validators';
-import { Card, CardHeader, CardContent, Input, Select, Button } from '@/components/ui';
+import { Card, CardHeader, CardContent, Input, Select, Combobox, Button } from '@/components/ui';
+import { INDIAN_STATE_OPTIONS } from '@/lib/indian-states';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 
 interface Props {
@@ -157,7 +158,13 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             <Input label="Address Line 2" placeholder="Area, Landmark" {...field('addressLine2')} />
           </div>
           <Input label="City" placeholder="Mumbai" {...field('city')} />
-          <Input label="State" placeholder="Maharashtra" {...field('state')} />
+          <Combobox
+            label="State"
+            options={INDIAN_STATE_OPTIONS.map((s) => ({ value: s.label, label: s.label }))}
+            value={form.state ?? ''}
+            onChange={(v) => setForm((f) => ({ ...f, state: v || undefined }))}
+            placeholder="Select state…"
+          />
           <Input label="Pincode" placeholder="400001" {...field('pincode')} />
         </CardContent>
       </Card>
