@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp } from 'lucide-react';
+import XLSX from 'xlsx-js-style';
+import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input,
@@ -50,6 +51,18 @@ export function ItemsPage() {
   const remove = useDeleteItem();
   const { toast } = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!exportOpen) return;
+    function handler(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportOpen]);
 
   const items = data?.data ?? [];
   const meta = data?.meta;
@@ -108,9 +121,27 @@ export function ItemsPage() {
         description="Manage products and services used across invoices and bills."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportItemsCsv(items, schema)}>
-              <Download size={14} /> Export CSV
-            </Button>
+            <div className="relative" ref={exportRef}>
+              <Button variant="outline" size="sm" onClick={() => setExportOpen((v) => !v)}>
+                <Download size={14} /> Export <ChevronDown size={12} />
+              </Button>
+              {exportOpen && (
+                <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                  <button
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    onClick={() => { exportItemsCsv(items, schema); setExportOpen(false); }}
+                  >
+                    <FileText size={14} /> Export CSV
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    onClick={() => { exportItemsForCustomer(items); setExportOpen(false); }}
+                  >
+                    <FileSpreadsheet size={14} /> Export for Customer
+                  </button>
+                </div>
+              )}
+            </div>
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/profitability' })}>
               <TrendingUp size={14} /> Profitability
             </Button>
@@ -199,7 +230,7 @@ export function ItemsPage() {
                 <Th className="w-[320px] min-w-[280px]">Name</Th>
                 <Th>EAN</Th>
                 <Th>HSN/SAC</Th>
-                <Th align="right">Selling Price</Th>
+                <Th align="right">Landing Price</Th>
                 <Th align="right">MRP</Th>
                 <Th align="right">GST%</Th>
                 <Th align="right">Margin%</Th>
@@ -304,15 +335,25 @@ export function ItemsPage() {
  * status) are fixed; every schema attribute becomes its own column so
  * the export stays complete regardless of industry.
  */
+function sortByCategorySubcategory(a: Item, b: Item): number {
+  const catA = (a.category ?? '').toLowerCase();
+  const catB = (b.category ?? '').toLowerCase();
+  if (catA !== catB) return catA.localeCompare(catB);
+  const subA = (a.subcategory ?? '').toLowerCase();
+  const subB = (b.subcategory ?? '').toLowerCase();
+  return subA.localeCompare(subB);
+}
+
 function exportItemsCsv(items: Item[], schema: ItemAttributeField[]): void {
+  const sorted = [...items].sort(sortByCategorySubcategory);
   const fixedHeaders = [
     'Name', 'SKU', 'EAN', 'Type', 'HSN/SAC', 'Unit',
-    'Selling Price', 'Purchase Price', 'MRP', 'Cost Price', 'Basic Price',
+    'Landing Price', 'Purchase Price', 'MRP', 'Cost Price', 'Basic Price',
     'GST%', 'GST Value', 'Margin %',
     'Category', 'Subcategory', 'Description', 'Status',
   ];
   const headers = [...fixedHeaders, ...schema.map((f) => f.label)];
-  const rows = items.map((i) => {
+  const rows = sorted.map((i) => {
     const fixed = [
       i.name, i.sku ?? '', i.ean ?? '', i.type, i.hsnSacCode ?? '', i.unit ?? '',
       String(i.defaultSellingPrice ?? ''), String(i.defaultPurchasePrice ?? ''),
@@ -330,4 +371,73 @@ function exportItemsCsv(items: Item[], schema: ItemAttributeField[]): void {
     return [...fixed, ...dynamic];
   });
   downloadCSV('items.csv', headers, rows);
+}
+
+/**
+ * XLSX export for sharing with customers — includes only customer-relevant
+ * columns: item identity, MRP, basic cost, GST, and landing cost (incl. GST).
+ * Styled with professional headers and formatting matching the price-list export.
+ */
+function exportItemsForCustomer(items: Item[]): void {
+  const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Basic Price', 'GST %', 'GST Value', 'Landing Price (incl. GST)'];
+  const sorted = items.filter((i) => i.isActive).sort(sortByCategorySubcategory);
+  const dataRows = sorted.map((i, idx) => [
+    idx + 1,
+    i.category ?? '',
+    i.subcategory ?? '',
+    i.name,
+    i.unit ?? '',
+    i.sku ?? '',
+    i.hsnSacCode ?? '',
+    i.mrp ?? '',
+    i.basicPrice ?? '',
+    i.gstRate ?? '',
+    i.gstValue ?? '',
+    i.defaultSellingPrice ?? '',
+  ]);
+
+  const sheetData = [columns, ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+  // Style column header row
+  const colHeaderStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: '1F2937' } },
+    alignment: { horizontal: 'center' as const },
+    border: { bottom: { style: 'thin' as const, color: { rgb: '000000' } } },
+  };
+  for (let c = 0; c < columns.length; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c })];
+    if (cell) cell.s = colHeaderStyle;
+  }
+
+  // Currency columns: MRP=7, Basic Price=8, GST Value=10, Landing=11
+  const currencyCols = [7, 8, 10, 11];
+  const currencyStyle = { numFmt: '#,##0.00', alignment: { horizontal: 'right' as const } };
+  for (let r = 0; r < dataRows.length; r++) {
+    for (const c of currencyCols) {
+      const cell = ws[XLSX.utils.encode_cell({ r: r + 1, c })];
+      if (cell) cell.s = currencyStyle;
+    }
+  }
+
+  // Alternate row shading
+  for (let r = 0; r < dataRows.length; r++) {
+    if (r % 2 === 1) {
+      for (let c = 0; c < columns.length; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: r + 1, c })];
+        if (cell) cell.s = { ...cell.s, fill: { fgColor: { rgb: 'F3F4F6' } } };
+      }
+    }
+  }
+
+  // Auto-fit column widths
+  const currencyColSet = new Set(currencyCols);
+  ws['!cols'] = columns.map((col, i) => ({
+    wch: Math.max(col.length, ...dataRows.map((r) => String(r[i] ?? '').length)) + (currencyColSet.has(i) ? 5 : 2),
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Items');
+  XLSX.writeFile(wb, 'items-customer.xlsx');
 }
