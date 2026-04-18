@@ -591,16 +591,11 @@ export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; o
 
         {/* Line items */}
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <div>
-              <h5 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Items</h5>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Override Rate (absolute), Seller Margin %, or MRP — any combination. Click the calculator on any product row to see the items-master breakdown and a suggested MRP.
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={addLine}>
-              <Plus size={14} /> Add Item
-            </Button>
+          <div className="mb-2">
+            <h5 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Items</h5>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Override Rate (absolute), Seller Margin %, or MRP — any combination. Click the calculator on any product row to see the items-master breakdown and a suggested MRP.
+            </p>
           </div>
           <div className="rounded-md border border-zinc-200 dark:border-zinc-800">
             <table className="w-full text-sm">
@@ -629,6 +624,11 @@ export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; o
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-2">
+            <Button type="button" variant="outline" size="sm" onClick={addLine}>
+              <Plus size={14} /> Add Item
+            </Button>
           </div>
         </div>
 
