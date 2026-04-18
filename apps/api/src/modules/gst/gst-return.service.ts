@@ -4,6 +4,7 @@ import type { Db } from '@runq/db';
 import type { Gstr1Data, Gstr3bData } from '@runq/db';
 import { Gstr1Generator } from './gstr1-generator';
 import { Gstr3bGenerator } from './gstr3b-generator';
+import { Gstr2bReconciliationService } from './gstr2b-reconciliation';
 import { validateGstr1 } from './gstr1-validator';
 import { createGspClient } from './gsp-client';
 import type { GspAuthToken, GspClient } from './gsp-client';
@@ -153,12 +154,20 @@ export class GstReturnService {
 
     const generator = new Gstr3bGenerator(this.db, this.tenantId);
     const gstr1Data = gstr1Return?.data as Gstr1Data | undefined;
-    const data = await generator.generate(periodStart, periodEnd, gstr1Data);
+
+    // Try to use stored GSTR-2B data for ITC (Table 4) instead of purchase invoices
+    const recon = new Gstr2bReconciliationService(this.db, this.tenantId);
+    const itcFrom2b = await recon.computeItcFrom2b(period);
+
+    const data = await generator.generate(periodStart, periodEnd, gstr1Data, itcFrom2b);
+    const notes = itcFrom2b
+      ? 'ITC (Table 4) auto-populated from GSTR-2B data'
+      : 'ITC (Table 4) computed from purchase invoices';
 
     if (existing) {
       const [updated] = await this.db
         .update(gstReturns)
-        .set({ data, status: 'draft', updatedAt: new Date() })
+        .set({ data, notes, status: 'draft', updatedAt: new Date() })
         .where(eq(gstReturns.id, existing.id))
         .returning();
       return updated;
@@ -173,6 +182,7 @@ export class GstReturnService {
         period,
         status: 'draft',
         data,
+        notes,
       })
       .returning();
 

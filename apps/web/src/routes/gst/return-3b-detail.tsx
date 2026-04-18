@@ -251,7 +251,11 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
 
       {/* Table 4: ITC */}
       <Card className="mb-4">
-        <CardHeader title="4 — Input Tax Credit" />
+        <CardHeader title="4 — Input Tax Credit" action={
+          <Badge variant={ret.notes?.includes('GSTR-2B') ? 'success' : 'default'} className="text-xs">
+            {ret.notes?.includes('GSTR-2B') ? 'Source: GSTR-2B' : 'Source: Purchase Invoices'}
+          </Badge>
+        } />
         <CardContent className="p-0">
           <Table>
             <TableHeader>

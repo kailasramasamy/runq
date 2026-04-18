@@ -24,12 +24,12 @@ export class Gstr3bGenerator {
    * Generates GSTR-3B from GSTR-1 data (outward) + purchase invoices (ITC).
    * If gstr1Data is provided, uses it directly. Otherwise queries sales invoices.
    */
-  async generate(periodStart: string, periodEnd: string, gstr1Data?: Gstr1Data): Promise<Gstr3bData> {
+  async generate(periodStart: string, periodEnd: string, gstr1Data?: Gstr1Data, itcFrom2b?: Gstr3bData['table4'] | null): Promise<Gstr3bData> {
     const outward = gstr1Data
       ? this.computeOutwardFromGstr1(gstr1Data)
       : await this.computeOutwardFromInvoices(periodStart, periodEnd);
 
-    const itc = await this.computeItc(periodStart, periodEnd);
+    const itc = itcFrom2b ?? await this.computeItc(periodStart, periodEnd);
     const exempt = await this.computeExemptInward(periodStart, periodEnd);
     const liability = this.computeLiability(outward, itc);
 

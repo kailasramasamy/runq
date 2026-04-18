@@ -3,7 +3,7 @@ import {
   gstr2bData, gstr2bMatches, purchaseInvoices, vendors, tenants, gspAuthTokens,
 } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { Gstr2bEntry } from '@runq/db';
+import type { Gstr2bEntry, Gstr3bData } from '@runq/db';
 import { createGspClient } from './gsp-client';
 import type { GspAuthToken } from './gsp-client';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -67,6 +67,55 @@ export class Gstr2bReconciliationService {
       .returning();
 
     return created;
+  }
+
+  // ── Compute ITC from stored 2B data for GSTR-3B Table 4 ─────────────
+
+  async computeItcFrom2b(period: string): Promise<Gstr3bData['table4'] | null> {
+    const stored = await this.get2b(period);
+    if (!stored) return null;
+
+    const entries = this.parse2bEntries(stored.data);
+    if (entries.length === 0) return null;
+
+    type TaxTotals = { igst: number; cgst: number; sgst: number; cess: number };
+    const zero = (): TaxTotals => ({ igst: 0, cgst: 0, sgst: 0, cess: 0 });
+    const add = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
+      igst: a.igst + b.igst, cgst: a.cgst + b.cgst,
+      sgst: a.sgst + b.sgst, cess: a.cess + b.cess,
+    });
+
+    const rcm = zero();
+    const allOther = zero();
+
+    for (const e of entries) {
+      const tax: TaxTotals = {
+        igst: e.igstAmount, cgst: e.cgstAmount,
+        sgst: e.sgstAmount, cess: e.cessAmount,
+      };
+      if (e.reverseCharge) {
+        Object.assign(rcm, add(rcm, tax));
+      } else {
+        Object.assign(allOther, add(allOther, tax));
+      }
+    }
+
+    const totalAvailable = add(rcm, allOther);
+
+    return {
+      itcAvailable: {
+        importGoods: zero(),
+        importServices: zero(),
+        inwardReverseCharge: rcm,
+        isd: zero(),
+        allOtherItc: allOther,
+      },
+      itcReversed: {
+        rule4243: zero(),
+        others: zero(),
+      },
+      netItc: totalAvailable,
+    };
   }
 
   // ── Get stored 2B data ───────────────────────────────────────────────
