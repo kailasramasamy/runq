@@ -157,34 +157,65 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
 
   function exportXlsx() {
     if (!pl) return;
-    const rows = items.map((item) => {
+
+    // Header section
+    const headerRows = [
+      ['Price List', pl.name],
+      ['Type', pl.type === 'selling' ? 'Selling' : 'Buying'],
+      ['Currency', pl.currency],
+      ['Valid From', pl.validFrom ?? '—'],
+      ['Valid To', pl.validTo ?? '—'],
+      [],
+    ];
+
+    const columns = ['S.No', 'Item', 'SKU', 'Unit', 'MRP', 'Basic Rate', 'GST %', 'Rate (incl. GST)', 'Discount %', 'Min Qty'];
+    const dataRows = items.map((item, idx) => {
       const breakup = computeBreakup(item);
-      return {
-        'Item': item.itemName ?? '',
-        'SKU': item.itemSku ?? '',
-        'Unit': item.itemUnit ?? '',
-        'MRP': breakup?.effectiveMrp ?? '',
-        'Rate': breakup ? breakup.basicPrice : '',
-        'GST %': item.itemGstRate ?? '',
-        'Landing (incl. GST)': breakup ? breakup.landingPrice : '',
-        'Discount %': item.discountPercent ?? '',
-        'Effective Rate': breakup ? breakup.effectiveRate : '',
-        'Min Qty': item.minQuantity ?? 0,
-      };
+      return [
+        idx + 1,
+        item.itemName ?? '',
+        item.itemSku ?? '',
+        item.itemUnit ?? '',
+        breakup?.effectiveMrp ?? '',
+        breakup ? breakup.basicPrice : '',
+        item.itemGstRate ?? '',
+        breakup ? breakup.landingPrice : '',
+        item.discountPercent ?? '',
+        item.minQuantity ?? 0,
+      ];
     });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    // Auto-size columns
-    const colWidths = Object.keys(rows[0] ?? {}).map((key) => ({
-      wch: Math.max(key.length, ...rows.map((r) => String((r as Record<string, unknown>)[key] ?? '').length)) + 2,
+
+    const sheetData = [...headerRows, columns, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Column widths
+    const headerRowIdx = headerRows.length; // 0-indexed row where column headers are
+    ws['!cols'] = columns.map((col, i) => ({
+      wch: Math.max(col.length, ...dataRows.map((r) => String(r[i] ?? '').length)) + 3,
     }));
-    ws['!cols'] = colWidths;
+
+    // Merge header label cells for a cleaner look (e.g., "Price List" + value)
+    ws['!merges'] = [];
+
+    // Number format for currency columns (MRP, Basic Rate, Rate incl GST) — columns E, F, H (0-indexed: 4,5,7)
+    const currencyCols = [4, 5, 7];
+    for (let r = 0; r < dataRows.length; r++) {
+      for (const c of currencyCols) {
+        const cellRef = XLSX.utils.encode_cell({ r: r + headerRowIdx + 1, c });
+        if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+          ws[cellRef].z = '#,##0.00';
+        }
+      }
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Price List');
-    XLSX.writeFile(wb, `${pl.name.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+    const filename = `${pl.name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_')}.xlsx`;
+    XLSX.writeFile(wb, filename);
   }
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <PageHeader
         title={pl.name}
         breadcrumbs={[
@@ -250,7 +281,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                     <Th align="right">GST</Th>
                     <Th align="right">Landing</Th>
                     <Th align="right">Disc %</Th>
-                    <Th align="right">Eff. Rate</Th>
+                    <Th align="right">Net Rate</Th>
                     <Th align="right">Profit</Th>
                     <Th align="right">Min Qty</Th>
                   </tr>
