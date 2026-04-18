@@ -168,7 +168,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       [],
     ];
 
-    const columns = ['S.No', 'Item', 'SKU', 'Unit', 'MRP', 'Basic Rate', 'GST %', 'Rate (incl. GST)', 'Discount %', 'Min Qty'];
+    const columns = ['S.No', 'Item', 'SKU', 'Unit', 'MRP', 'Basic Rate', 'GST %', 'Landing (incl. GST)', 'Discount %', 'Min Qty'];
     const dataRows = items.map((item, idx) => {
       const breakup = computeBreakup(item);
       return [
