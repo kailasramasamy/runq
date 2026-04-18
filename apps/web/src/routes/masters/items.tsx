@@ -19,8 +19,17 @@ import {
 const LIMIT = 20;
 
 async function fetchAllItems(): Promise<Item[]> {
-  const res = await api.get<PaginatedResponse<Item>>('/masters/items?limit=10000');
-  return res.data;
+  const all: Item[] = [];
+  let page = 1;
+  const limit = 500;
+  let totalPages = 1;
+  do {
+    const res = await api.get<PaginatedResponse<Item>>(`/masters/items?limit=${limit}&page=${page}`);
+    all.push(...res.data);
+    totalPages = res.meta.totalPages;
+    page++;
+  } while (page <= totalPages);
+  return all;
 }
 
 /**
