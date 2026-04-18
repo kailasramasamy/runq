@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Pencil, Power, ArrowLeft, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { usePriceList, useTogglePriceList, type PriceListItemRow } from '@/hooks/queries/use-price-lists';
 import { formatINR } from '@/lib/utils';
 import { calculatePricing } from '@/lib/item-pricing';
@@ -188,25 +188,58 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
     const sheetData = [...headerRows, columns, ...dataRows];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Column widths
-    const headerRowIdx = headerRows.length; // 0-indexed row where column headers are
-    ws['!cols'] = columns.map((col, i) => ({
-      wch: Math.max(col.length, ...dataRows.map((r) => String(r[i] ?? '').length)) + 3,
-    }));
+    const colHeaderRow = headerRows.length; // row index of column headers
 
-    // Merge header label cells for a cleaner look (e.g., "Price List" + value)
-    ws['!merges'] = [];
+    // Style info header rows (bold labels)
+    const labelStyle = { font: { bold: true, color: { rgb: '333333' } } };
+    for (let r = 0; r < headerRows.length - 1; r++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
+      if (cell) cell.s = labelStyle;
+    }
 
-    // Number format for currency columns (MRP, Basic Rate, Rate incl GST) — columns E, F, H (0-indexed: 4,5,7)
+    // Style column header row (white text on dark background)
+    const colHeaderStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: '1F2937' } },
+      alignment: { horizontal: 'center' as const },
+      border: {
+        bottom: { style: 'thin' as const, color: { rgb: '000000' } },
+      },
+    };
+    for (let c = 0; c < columns.length; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: colHeaderRow, c })];
+      if (cell) cell.s = colHeaderStyle;
+    }
+
+    // Number format + right-align for currency columns (MRP=4, Basic Rate=5, Landing=7)
     const currencyCols = [4, 5, 7];
+    const currencyStyle = { numFmt: '#,##0.00', alignment: { horizontal: 'right' as const } };
     for (let r = 0; r < dataRows.length; r++) {
       for (const c of currencyCols) {
-        const cellRef = XLSX.utils.encode_cell({ r: r + headerRowIdx + 1, c });
-        if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
-          ws[cellRef].z = '#,##0.00';
+        const cell = ws[XLSX.utils.encode_cell({ r: r + colHeaderRow + 1, c })];
+        if (cell) cell.s = currencyStyle;
+      }
+    }
+
+    // Alternate row shading for data rows
+    for (let r = 0; r < dataRows.length; r++) {
+      if (r % 2 === 1) {
+        for (let c = 0; c < columns.length; c++) {
+          const cell = ws[XLSX.utils.encode_cell({ r: r + colHeaderRow + 1, c })];
+          if (cell) cell.s = { ...cell.s, fill: { fgColor: { rgb: 'F3F4F6' } } };
         }
       }
     }
+
+    // Auto-fit column widths
+    ws['!cols'] = columns.map((col, i) => ({
+      wch: Math.max(
+        col.length,
+        ...dataRows.map((r) => String(r[i] ?? '').length),
+        // Also consider header rows for first 2 columns
+        ...(i < 2 ? headerRows.map((hr) => String(hr[i] ?? '').length) : []),
+      ) + 2,
+    }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Price List');
