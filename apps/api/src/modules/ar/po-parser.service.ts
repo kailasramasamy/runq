@@ -297,10 +297,12 @@ export class PoParserService {
   }
 
   private async matchCustomer(extracted: ExtractedPo): Promise<CustomerMatch | null> {
-    // 1. Exact GSTIN match — highest confidence
+    // 1. Exact GSTIN match — highest confidence. When multiple customers
+    // share the same GSTIN (e.g., same company with different channel
+    // arrangements), use buyer name to disambiguate.
     if (extracted.buyerGstin) {
-      const [row] = await this.db
-        .select({ id: customers.id })
+      const gstinRows = await this.db
+        .select({ id: customers.id, name: customers.name })
         .from(customers)
         .where(
           and(
@@ -308,9 +310,29 @@ export class PoParserService {
             eq(customers.gstin, extracted.buyerGstin),
             eq(customers.isActive, true),
           ),
-        )
-        .limit(1);
-      if (row) return { id: row.id, source: 'gstin', confidence: 1.0 };
+        );
+      if (gstinRows.length === 1) {
+        return { id: gstinRows[0].id, source: 'gstin', confidence: 1.0 };
+      }
+      if (gstinRows.length > 1 && extracted.buyerName) {
+        // Pick the one whose name best matches the PO buyer name
+        const buyerNorm = extracted.buyerName.toLowerCase();
+        let bestId = gstinRows[0].id;
+        let bestScore = 0;
+        for (const r of gstinRows) {
+          const nameNorm = r.name.toLowerCase();
+          // Exact substring or full match gets highest score
+          const score = nameNorm === buyerNorm ? 1.0
+            : buyerNorm.includes(nameNorm) || nameNorm.includes(buyerNorm) ? 0.9
+            : 0;
+          if (score > bestScore) { bestScore = score; bestId = r.id; }
+        }
+        return { id: bestId, source: 'gstin', confidence: bestScore > 0 ? bestScore : 0.6 };
+      }
+      if (gstinRows.length > 1) {
+        // No buyer name to disambiguate — pick first but lower confidence
+        return { id: gstinRows[0].id, source: 'gstin', confidence: 0.6 };
+      }
     }
 
     // 2. Phone match — last 10 digits to handle country-code variations

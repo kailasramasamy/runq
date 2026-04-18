@@ -185,18 +185,51 @@ export class InvoiceImportMatcherService {
     masterRows: MasterCustomerRow[],
     aliasRows: AliasRow[],
   ): MatchResult {
-    // Tier 1: GSTIN exact match. Strongest signal — overrides everything.
+    // Tier 1: GSTIN exact match. If only one customer has this GSTIN,
+    // it's a definitive match. If multiple share the same GSTIN (e.g.,
+    // same company with different channel arrangements), fall through
+    // to name matching to disambiguate.
     if (source.gstin && source.gstin.trim()) {
       const gstinNorm = source.gstin.trim().toLowerCase();
-      const hit = masterRows.find((m) => m.gstin && m.gstin.toLowerCase() === gstinNorm);
-      if (hit) {
+      const gstinHits = masterRows.filter((m) => m.gstin && m.gstin.toLowerCase() === gstinNorm);
+      if (gstinHits.length === 1) {
         return {
-          resolvedId: hit.id,
+          resolvedId: gstinHits[0].id,
           source: 'gstin',
           confidence: 1,
-          resolvedName: hit.name,
+          resolvedName: gstinHits[0].name,
           suggestions: [],
         };
+      }
+      if (gstinHits.length > 1) {
+        // Multiple customers with same GSTIN — use name similarity to pick
+        const sourceName = source.sourceName.trim();
+        if (sourceName) {
+          const scored = gstinHits.map((m) => ({
+            id: m.id,
+            name: m.name,
+            confidence: similarity(sourceName, m.name),
+            source: 'gstin' as MatchSource,
+          }));
+          const best = scored.sort((a, b) => b.confidence - a.confidence)[0];
+          if (best && best.confidence >= AUTO_PICK_THRESHOLD) {
+            return {
+              resolvedId: best.id,
+              source: 'gstin',
+              confidence: best.confidence,
+              resolvedName: best.name,
+              suggestions: buildSuggestions(scored),
+            };
+          }
+          // Name similarity too low — show all GSTIN matches as suggestions
+          return {
+            resolvedId: null,
+            source: 'unmatched',
+            confidence: best?.confidence ?? 0,
+            resolvedName: null,
+            suggestions: scored.map((s) => ({ id: s.id, name: s.name, confidence: s.confidence })),
+          };
+        }
       }
     }
 
