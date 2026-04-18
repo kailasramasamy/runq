@@ -231,14 +231,14 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       }
     }
 
-    // Auto-fit column widths
+    // Auto-fit column widths (extra padding for currency columns)
+    const currencyColSet = new Set(currencyCols);
     ws['!cols'] = columns.map((col, i) => ({
       wch: Math.max(
         col.length,
         ...dataRows.map((r) => String(r[i] ?? '').length),
-        // Also consider header rows for first 2 columns
         ...(i < 2 ? headerRows.map((hr) => String(hr[i] ?? '').length) : []),
-      ) + 2,
+      ) + (currencyColSet.has(i) ? 5 : 2),
     }));
 
     const wb = XLSX.utils.book_new();
