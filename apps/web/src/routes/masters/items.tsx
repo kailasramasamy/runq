@@ -9,13 +9,19 @@ import {
   TableSkeleton, useToast, ConfirmationDialog, Pagination,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 import type { Item } from '@/hooks/queries/use-items';
-import type { ItemAttributeField } from '@runq/types';
+import type { ItemAttributeField, PaginatedResponse } from '@runq/types';
 import {
   useItems, useToggleItem, useDeleteItem, useItemAttributeSchema,
 } from '@/hooks/queries/use-items';
 
 const LIMIT = 20;
+
+async function fetchAllItems(): Promise<Item[]> {
+  const res = await api.get<PaginatedResponse<Item>>('/masters/items?limit=10000');
+  return res.data;
+}
 
 /**
  * Render an attribute value from items.attributes in a way that's safe for
@@ -129,13 +135,13 @@ export function ItemsPage() {
                 <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
                   <button
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    onClick={() => { exportItemsCsv(items, schema); setExportOpen(false); }}
+                    onClick={async () => { setExportOpen(false); const all = await fetchAllItems(); exportItemsCsv(all, schema); }}
                   >
                     <FileText size={14} /> Export CSV
                   </button>
                   <button
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    onClick={() => { exportItemsForCustomer(items); setExportOpen(false); }}
+                    onClick={async () => { setExportOpen(false); const all = await fetchAllItems(); exportItemsForCustomer(all); }}
                   >
                     <FileSpreadsheet size={14} /> Export for Customer
                   </button>
