@@ -156,6 +156,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   const items = pl.items ?? [];
 
   function exportXlsx() {
+    if (!pl) return;
     const rows = items.map((item) => {
       const breakup = computeBreakup(item);
       return {
