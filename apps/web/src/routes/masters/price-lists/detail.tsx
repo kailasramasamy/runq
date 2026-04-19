@@ -158,17 +158,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   function exportXlsx() {
     if (!pl) return;
 
-    // Header section
-    const headerRows = [
-      ['Price List', pl.name],
-      ['Type', pl.type === 'selling' ? 'Selling' : 'Buying'],
-      ['Currency', pl.currency],
-      ['Valid From', pl.validFrom ?? '—'],
-      ['Valid To', pl.validTo ?? '—'],
-      [],
-    ];
-
-    const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Basic Rate', 'GST %', 'GST Value', 'Landing (incl. GST)', 'Discount %', 'Min Qty'];
+    const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Margin %', 'Basic Rate', 'GST %', 'GST Value', 'Landing (incl. GST)'];
     const dataRows = items.map((item, idx) => {
       const breakup = computeBreakup(item);
       return [
@@ -180,69 +170,53 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
         item.itemSku ?? '',
         item.itemHsnSacCode ?? '',
         breakup?.effectiveMrp ?? '',
+        breakup?.effectiveMargin != null ? `${breakup.effectiveMargin}%` : '',
         breakup ? breakup.basicPrice : '',
         item.itemGstRate ?? '',
         breakup ? breakup.gstValue : '',
         breakup ? breakup.landingPrice : '',
-        item.discountPercent ?? '',
-        item.minQuantity ?? 0,
       ];
     });
 
-    const sheetData = [...headerRows, columns, ...dataRows];
+    const sheetData = [columns, ...dataRows];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    const colHeaderRow = headerRows.length; // row index of column headers
-
-    // Style info header rows (bold labels)
-    const labelStyle = { font: { bold: true, color: { rgb: '333333' } } };
-    for (let r = 0; r < headerRows.length - 1; r++) {
-      const cell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
-      if (cell) cell.s = labelStyle;
-    }
 
     // Style column header row (white text on dark background)
     const colHeaderStyle = {
       font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
       fill: { fgColor: { rgb: '1F2937' } },
       alignment: { horizontal: 'center' as const },
-      border: {
-        bottom: { style: 'thin' as const, color: { rgb: '000000' } },
-      },
+      border: { bottom: { style: 'thin' as const, color: { rgb: '000000' } } },
     };
     for (let c = 0; c < columns.length; c++) {
-      const cell = ws[XLSX.utils.encode_cell({ r: colHeaderRow, c })];
+      const cell = ws[XLSX.utils.encode_cell({ r: 0, c })];
       if (cell) cell.s = colHeaderStyle;
     }
 
-    // Number format + right-align for currency columns (MRP=7, Basic Rate=8, GST Value=10, Landing=11)
-    const currencyCols = [7, 8, 10, 11];
+    // Currency columns: MRP=7, Basic Rate=9, GST Value=11, Landing=12
+    const currencyCols = [7, 9, 11, 12];
     const currencyStyle = { numFmt: '#,##0.00', alignment: { horizontal: 'right' as const } };
     for (let r = 0; r < dataRows.length; r++) {
       for (const c of currencyCols) {
-        const cell = ws[XLSX.utils.encode_cell({ r: r + colHeaderRow + 1, c })];
+        const cell = ws[XLSX.utils.encode_cell({ r: r + 1, c })];
         if (cell) cell.s = currencyStyle;
       }
     }
 
-    // Alternate row shading for data rows
+    // Alternate row shading
     for (let r = 0; r < dataRows.length; r++) {
       if (r % 2 === 1) {
         for (let c = 0; c < columns.length; c++) {
-          const cell = ws[XLSX.utils.encode_cell({ r: r + colHeaderRow + 1, c })];
+          const cell = ws[XLSX.utils.encode_cell({ r: r + 1, c })];
           if (cell) cell.s = { ...cell.s, fill: { fgColor: { rgb: 'F3F4F6' } } };
         }
       }
     }
 
-    // Auto-fit column widths (extra padding for currency columns)
+    // Compact column widths
     const currencyColSet = new Set(currencyCols);
     ws['!cols'] = columns.map((col, i) => ({
-      wch: Math.max(
-        col.length,
-        ...dataRows.map((r) => String(r[i] ?? '').length),
-        ...(i < 2 ? headerRows.map((hr) => String(hr[i] ?? '').length) : []),
-      ) + (currencyColSet.has(i) ? 5 : 2),
+      wch: Math.max(col.length, ...dataRows.map((r) => String(r[i] ?? '').length)) + (currencyColSet.has(i) ? 3 : 1),
     }));
 
     const wb = XLSX.utils.book_new();
