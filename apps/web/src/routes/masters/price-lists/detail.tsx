@@ -292,14 +292,13 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                     <Th align="right">GST</Th>
                     <Th align="right">Landing</Th>
                     <Th align="right">Disc %</Th>
-                    <Th align="right">Net Rate</Th>
                     <Th align="right">Profit</Th>
                     <Th align="right">Min Qty</Th>
                   </tr>
                 </TableHeader>
                 <TableBody>
                   {items.length === 0 ? (
-                    <TableEmpty colSpan={13} message="No items in this price list." />
+                    <TableEmpty colSpan={12} message="No items in this price list." />
                   ) : (
                     items.map((item) => {
                       const breakup = computeBreakup(item);
@@ -357,9 +356,6 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                           </TableCell>
                           <TableCell align="right" numeric className="text-zinc-500">
                             {item.discountPercent != null ? `${item.discountPercent}%` : '—'}
-                          </TableCell>
-                          <TableCell align="right" numeric className="font-medium">
-                            {breakup ? formatINR(breakup.effectiveRate) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric>
                             {breakup ? (

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "feature-roadmap.md",
+                "file": "gst-filing-tracker.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "feature-roadmap"
+              "title": "gst-filing-tracker"
             }
           }
         ]
@@ -185,20 +185,41 @@
   },
   "active": "c4b2a52328679b98",
   "lastOpenFiles": [
+    "gst-api-docs/~$itebooks-gst-api-documentation.docx",
+    "gst-automation-tracker.md",
+    "gst-api-docs/GST-api-postman-collection.json",
+    "gst-api-docs/GST api postman collection.json",
+    "gst-api-docs/whitebooks-gst-api-documentation.docx",
+    "gst-api-docs/Return-Filing-through-API_v1.1.docx",
+    "gst-api-docs/GST-API-Error-Codes.docx",
+    "gst-api-docs/whitebooks-gst-api-documentation (1).docx",
+    "gst-api-docs/Released_API_List_20231218.xlsx",
+    "gst-api-docs/whitebooks.crt",
+    "gst-api-docs/gst_prod.cer",
+    "gst-api-docs/gst_sandbox.cer",
+    "gst-filing-plan.md",
+    "gst-filing-tracker.md",
+    "tracking.md",
+    "user-guide/recipes/12-bank-reconciliation-auto.md",
+    "feature-roadmap.md",
+    "user-guide/day-in-life.md",
+    "production-readiness.md",
+    "user-guide/recipes/11-export-to-tally.md",
+    "user-guide/recipes/10-view-ar-aging.md",
+    "user-guide/recipes/09-reconcile-bank.md",
+    "user-guide/recipes/08-import-bank-statement.md",
+    "user-guide/recipes/07-pay-vendor-bill.md",
+    "user-guide/recipes/06-enter-vendor-bill.md",
+    "user-guide/recipes/05-add-vendor.md",
+    "user-guide/recipes/04-record-customer-payment.md",
+    "user-guide/recipes/03-create-invoice.md",
+    "user-guide/recipes/02-add-customer.md",
+    "user-guide/recipes/01-setup-company.md",
+    "user-guide/README.md",
+    "icici-bank-api/Security.md",
     "phase4-manual-testing.md",
     "gl-journalling-manual-testing.md",
-    "feature-roadmap.md",
     "product-assessment.md",
-    "phase3-manual-testing.md",
-    "finance-accounting-decisions.md",
-    "payment-integration-plan.md",
-    "project-structure.md",
-    "tracking.md",
-    "phase2-manual-testing.md",
-    "phase1-manual-testing.md",
-    "database-schema.md",
-    "audit-tracker.md",
-    "wms-integration-guide.md",
-    "api-routes.md"
+    "phase3-manual-testing.md"
   ]
 }
