@@ -28,6 +28,9 @@ export interface PriceListItemRow {
   itemGstRate?: number | null;
   itemBasicPrice?: number | null;
   itemUnit?: string | null;
+  itemHsnSacCode?: string | null;
+  itemCategory?: string | null;
+  itemSubcategory?: string | null;
 }
 
 export interface PriceList {

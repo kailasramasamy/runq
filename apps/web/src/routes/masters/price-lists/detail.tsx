@@ -168,17 +168,21 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       [],
     ];
 
-    const columns = ['S.No', 'Item', 'SKU', 'Unit', 'MRP', 'Basic Rate', 'GST %', 'Landing (incl. GST)', 'Discount %', 'Min Qty'];
+    const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Basic Rate', 'GST %', 'GST Value', 'Landing (incl. GST)', 'Discount %', 'Min Qty'];
     const dataRows = items.map((item, idx) => {
       const breakup = computeBreakup(item);
       return [
         idx + 1,
+        item.itemCategory ?? '',
+        item.itemSubcategory ?? '',
         item.itemName ?? '',
-        item.itemSku ?? '',
         item.itemUnit ?? '',
+        item.itemSku ?? '',
+        item.itemHsnSacCode ?? '',
         breakup?.effectiveMrp ?? '',
         breakup ? breakup.basicPrice : '',
         item.itemGstRate ?? '',
+        breakup ? breakup.gstValue : '',
         breakup ? breakup.landingPrice : '',
         item.discountPercent ?? '',
         item.minQuantity ?? 0,
@@ -211,8 +215,8 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       if (cell) cell.s = colHeaderStyle;
     }
 
-    // Number format + right-align for currency columns (MRP=4, Basic Rate=5, Landing=7)
-    const currencyCols = [4, 5, 7];
+    // Number format + right-align for currency columns (MRP=7, Basic Rate=8, GST Value=10, Landing=11)
+    const currencyCols = [7, 8, 10, 11];
     const currencyStyle = { numFmt: '#,##0.00', alignment: { horizontal: 'right' as const } };
     for (let r = 0; r < dataRows.length; r++) {
       for (const c of currencyCols) {

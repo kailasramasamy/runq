@@ -96,11 +96,14 @@ export class PriceListService {
         itemGstRate: items.gstRate,
         itemBasicPrice: items.basicPrice,
         itemUnit: items.unit,
+        itemHsnSacCode: items.hsnSacCode,
+        itemCategory: items.category,
+        itemSubcategory: items.subcategory,
       })
       .from(priceListItems)
       .leftJoin(items, eq(priceListItems.itemId, items.id))
       .where(eq(priceListItems.priceListId, id))
-      .orderBy(items.name);
+      .orderBy(items.category, items.subcategory, items.name);
 
     return {
       ...this.toPriceList(row.pl),
@@ -113,6 +116,9 @@ export class PriceListService {
         gstRate: li.itemGstRate != null ? toNumber(li.itemGstRate) : null,
         basicPrice: li.itemBasicPrice != null ? toNumber(li.itemBasicPrice) : null,
         unit: li.itemUnit ?? null,
+        hsnSacCode: li.itemHsnSacCode ?? null,
+        category: li.itemCategory ?? null,
+        subcategory: li.itemSubcategory ?? null,
       })),
     };
   }
@@ -237,6 +243,9 @@ export class PriceListService {
       gstRate: number | null;
       basicPrice: number | null;
       unit: string | null;
+      hsnSacCode: string | null;
+      category: string | null;
+      subcategory: string | null;
     },
   ): PriceListItem {
     return {
@@ -259,6 +268,9 @@ export class PriceListService {
         itemGstRate: itemPricing.gstRate,
         itemBasicPrice: itemPricing.basicPrice,
         itemUnit: itemPricing.unit,
+        itemHsnSacCode: itemPricing.hsnSacCode,
+        itemCategory: itemPricing.category,
+        itemSubcategory: itemPricing.subcategory,
       } : {}),
     };
   }
