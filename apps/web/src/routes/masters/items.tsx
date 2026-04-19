@@ -394,7 +394,7 @@ function exportItemsCsv(items: Item[], schema: ItemAttributeField[]): void {
  * Styled with professional headers and formatting matching the price-list export.
  */
 function exportItemsForCustomer(items: Item[]): void {
-  const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Basic Price', 'GST %', 'GST Value', 'Landing Price (incl. GST)', 'Margin %'];
+  const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Margin %', 'Basic Price', 'GST %', 'GST Value', 'Landing Price (incl. GST)'];
   const sorted = items.filter((i) => i.isActive).sort(sortByCategorySubcategory);
   const dataRows = sorted.map((i, idx) => [
     idx + 1,
@@ -405,11 +405,11 @@ function exportItemsForCustomer(items: Item[]): void {
     i.sku ?? '',
     i.hsnSacCode ?? '',
     i.mrp ?? '',
+    i.margin != null ? `${i.margin}%` : '',
     i.basicPrice ?? '',
     i.gstRate ?? '',
     i.gstValue ?? '',
     i.defaultSellingPrice ?? '',
-    i.margin != null ? `${i.margin}%` : '',
   ]);
 
   const sheetData = [columns, ...dataRows];
@@ -427,8 +427,8 @@ function exportItemsForCustomer(items: Item[]): void {
     if (cell) cell.s = colHeaderStyle;
   }
 
-  // Currency columns: MRP=7, Basic Price=8, GST Value=10, Landing=11
-  const currencyCols = [7, 8, 10, 11];
+  // Currency columns: MRP=7, Basic Price=9, GST Value=11, Landing=12
+  const currencyCols = [7, 9, 11, 12];
   const currencyStyle = { numFmt: '#,##0.00', alignment: { horizontal: 'right' as const } };
   for (let r = 0; r < dataRows.length; r++) {
     for (const c of currencyCols) {
