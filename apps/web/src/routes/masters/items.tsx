@@ -394,7 +394,7 @@ function exportItemsCsv(items: Item[], schema: ItemAttributeField[]): void {
  * Styled with professional headers and formatting matching the price-list export.
  */
 function exportItemsForCustomer(items: Item[]): void {
-  const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Margin %', 'Basic Price', 'GST %', 'GST Value', 'Landing Price (incl. GST)'];
+  const columns = ['S.No', 'Category', 'Subcategory', 'Item', 'Unit', 'SKU', 'HSN/SAC', 'MRP', 'Margin %', 'Basic Price', 'GST %', 'GST Value', 'Landing (incl. GST)'];
   const sorted = items.filter((i) => i.isActive).sort(sortByCategorySubcategory);
   const dataRows = sorted.map((i, idx) => [
     idx + 1,
