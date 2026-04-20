@@ -16,10 +16,11 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 function redirectToLoginExpired() {
+  // Already on login page — don't redirect again
+  if (window.location.pathname.endsWith('/login')) return;
   const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-  if (!window.location.pathname.endsWith('/login')) {
-    window.location.href = `${base}/login?session=expired`;
-  }
+  // Use replace to prevent back-button returning to broken page
+  window.location.replace(`${base}/login?session=expired`);
 }
 
 interface AuthContextValue {
