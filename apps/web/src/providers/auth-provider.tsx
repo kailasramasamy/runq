@@ -15,11 +15,13 @@ function decodeJwtExpMs(token: string): number | null {
   }
 }
 
+let isRedirecting = false;
 function redirectToLoginExpired() {
-  // Already on login page — don't redirect again
+  if (isRedirecting) return;
   if (window.location.pathname.endsWith('/login')) return;
+  isRedirecting = true;
+  localStorage.removeItem('runq-token');
   const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-  // Use replace to prevent back-button returning to broken page
   window.location.replace(`${base}/login?session=expired`);
 }
 

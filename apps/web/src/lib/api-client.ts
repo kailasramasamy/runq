@@ -33,10 +33,17 @@ class ApiClient {
       headers,
     });
 
-    // Only fire global logout if we actually sent a token — wrong-password
-    // login attempts return 401 too and shouldn't kick the user out.
-    if (response.status === 401 && sentToken && this.onUnauthorized) {
-      this.onUnauthorized();
+    // Expired/invalid token — clear it and redirect to login.
+    // Only when we actually sent a token (login attempts also return 401).
+    if (response.status === 401 && sentToken) {
+      localStorage.removeItem('runq-token');
+      this.token = null;
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      } else if (!window.location.pathname.endsWith('/login')) {
+        const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+        window.location.replace(`${base}/login?session=expired`);
+      }
     }
 
     if (!response.ok) {
