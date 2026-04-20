@@ -19,6 +19,14 @@ export function isAIEnabled(): boolean {
 }
 
 /**
+ * Get the Anthropic client for direct SDK usage (e.g., streaming with tool use).
+ * Returns null if API key is not configured.
+ */
+export function getStreamClient(): Anthropic | null {
+  return getClient();
+}
+
+/**
  * Extract structured data from a PDF document using Claude Vision.
  * Returns the raw text response from Claude.
  */

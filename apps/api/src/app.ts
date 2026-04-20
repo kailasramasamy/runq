@@ -35,6 +35,7 @@ import { faRoutes } from './modules/fa/routes';
 import { gstRoutes } from './modules/gst/routes';
 import { contactRoutes } from './modules/public/contact.routes';
 import { otpRoutes } from './modules/public/otp.routes';
+import { agentRoutes } from './modules/agent/routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -102,6 +103,7 @@ export async function buildApp() {
     await scope.register(gstRoutes, { prefix: '/api/v1/gst' });
     await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
+    await scope.register(agentRoutes, { prefix: '/api/v1/agent' });
   });
 
   // Health check

@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
+import { FinanceAgent } from '../components/agent/finance-agent';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { CompanySettingsPage } from './settings/company';
@@ -165,6 +166,7 @@ const dashboardLayoutRoute = createRoute({
         <Outlet />
       </main>
       <MobileBottomNav />
+      <FinanceAgent />
     </div>
   ),
 });
