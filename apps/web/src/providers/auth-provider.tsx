@@ -150,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         .catch(() => {
           clearAuth();
+          redirectToLoginExpired();
         })
         .finally(() => setIsLoading(false));
       return;
