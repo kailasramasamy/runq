@@ -1,7 +1,8 @@
-import { Sparkles, RefreshCw, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
+import { Sparkles, RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardContent } from '@/components/ui';
 import { api } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 
 interface AISummary {
   summary: string;
@@ -12,10 +13,11 @@ const AI_SUMMARY_KEY = ['dashboard', 'ai-summary'] as const;
 
 type Severity = 'critical' | 'warning' | 'ok';
 
-interface ParsedLine {
+interface InsightItem {
+  label: string;
+  amount: string;
+  note: string;
   severity: Severity;
-  headline: string;
-  detail: string;
 }
 
 function useAISummary() {
@@ -27,72 +29,59 @@ function useAISummary() {
   });
 }
 
-function parseLine(raw: string): ParsedLine {
-  const text = raw.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d✅⚠️🔴•\-*\s]+/u, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
-  const severity: Severity = raw.includes('🔴') ? 'critical' : raw.includes('⚠️') ? 'warning' : 'ok';
-
-  // Split on " — " or " - " to get headline vs detail
-  const dashMatch = text.match(/^(.+?)\s[—–-]\s(.+)$/);
-  if (dashMatch) return { severity, headline: dashMatch[1], detail: dashMatch[2] };
-
-  // Split on first comma if long enough
-  const commaIdx = text.indexOf(', ');
-  if (commaIdx > 10) return { severity, headline: text.slice(0, commaIdx), detail: text.slice(commaIdx + 2) };
-
-  return { severity, headline: text, detail: '' };
+function parseInsights(text: string): InsightItem[] {
+  try {
+    // Try JSON parse first (new format)
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Fallback: parse legacy text format
+    return text
+      .split('\n')
+      .filter((l) => l.trim().length > 0)
+      .map((raw) => {
+        const severity: Severity = raw.includes('🔴') ? 'critical' : raw.includes('⚠️') ? 'warning' : 'ok';
+        const cleaned = raw.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d✅⚠️🔴•\-*\s]+/u, '').trim();
+        const amountMatch = cleaned.match(/(₹[\d,.]+[LCr]*)/);
+        const amount = amountMatch ? amountMatch[1] : '';
+        const rest = cleaned.replace(amount, '').replace(/^\s*[:\-—]\s*/, '').trim();
+        const dashMatch = rest.match(/^(.+?)\s[—–-]\s(.+)$/);
+        return {
+          label: dashMatch ? dashMatch[1] : rest.slice(0, 20),
+          amount,
+          note: dashMatch ? dashMatch[2] : rest,
+          severity,
+        };
+      });
+  }
+  return [];
 }
 
-const SEVERITY_STYLES: Record<Severity, { bg: string; border: string; text: string; icon: typeof AlertTriangle }> = {
-  critical: {
-    bg: 'bg-red-50 dark:bg-red-950/30',
-    border: 'border-red-200 dark:border-red-900/50',
-    text: 'text-red-700 dark:text-red-300',
-    icon: AlertTriangle,
-  },
-  warning: {
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    border: 'border-amber-200 dark:border-amber-900/50',
-    text: 'text-amber-700 dark:text-amber-300',
-    icon: AlertCircle,
-  },
-  ok: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    border: 'border-emerald-200 dark:border-emerald-900/50',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    icon: CheckCircle,
-  },
+const SEVERITY_BAR: Record<Severity, string> = {
+  critical: 'bg-red-500',
+  warning: 'bg-amber-500',
+  ok: 'bg-emerald-500',
 };
 
-function InsightCard({ line }: { line: ParsedLine }) {
-  const style = SEVERITY_STYLES[line.severity];
-  const Icon = style.icon;
+const SEVERITY_AMOUNT: Record<Severity, string> = {
+  critical: 'text-red-600 dark:text-red-400',
+  warning: 'text-amber-600 dark:text-amber-400',
+  ok: 'text-zinc-900 dark:text-zinc-100',
+};
 
+function InsightCard({ item }: { item: InsightItem }) {
   return (
-    <div className={`rounded-lg border p-3 ${style.bg} ${style.border}`}>
-      <div className="flex gap-2.5">
-        <Icon size={15} className={`${style.text} mt-0.5 shrink-0`} />
-        <div>
-          <p className={`text-sm font-semibold leading-snug ${style.text}`}>{line.headline}</p>
-          {line.detail && (
-            <p className={`mt-0.5 text-xs leading-relaxed ${style.text} opacity-75`}>{line.detail}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SummaryContent({ text }: { text: string }) {
-  const lines = text
-    .split('\n')
-    .filter((l) => l.trim().length > 0)
-    .map(parseLine);
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {lines.map((line, i) => (
-        <InsightCard key={i} line={line} />
-      ))}
+    <div className="relative overflow-hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className={cn('absolute left-0 top-0 h-full w-1', SEVERITY_BAR[item.severity])} />
+      <p className={cn('font-mono text-2xl font-semibold tabular-nums', SEVERITY_AMOUNT[item.severity])}>
+        {item.amount || '₹0'}
+      </p>
+      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {item.label}
+      </p>
+      {item.note && (
+        <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{item.note}</p>
+      )}
     </div>
   );
 }
@@ -110,6 +99,8 @@ export function AIInsightsWidget() {
       queryFn: () => api.get<{ data: AISummary }>('/dashboard/ai-summary?refresh=true'),
     });
   };
+
+  const insights = summary ? parseInsights(summary.summary) : [];
 
   return (
     <Card>
@@ -137,15 +128,19 @@ export function AIInsightsWidget() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
             ))}
           </div>
         ) : isNotConfigured ? (
           <p className="text-sm text-zinc-400">Set ANTHROPIC_API_KEY to enable AI insights</p>
-        ) : summary ? (
-          <SummaryContent text={summary.summary} />
+        ) : insights.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {insights.map((item, i) => (
+              <InsightCard key={i} item={item} />
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-zinc-400">Unable to load insights</p>
         )}

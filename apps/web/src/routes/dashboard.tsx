@@ -29,7 +29,6 @@ import type { AgingData } from '@/hooks/queries/use-dashboard';
 import { PaymentPriorityWidget } from '@/components/dashboard/payment-priority';
 import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
 import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
-import { AIChatWidget } from '@/components/ai-chat';
 import { CashPositionWidget } from '@/components/dashboard/cash-position';
 import { GstReadinessWidget } from '@/components/dashboard/gst-readiness';
 import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
@@ -170,14 +169,8 @@ export function DashboardPage() {
         </p>
       </div>
 
-      {/* AI Snapshot + AI Finance Assistant — side-by-side on desktop,
-          stacked on mobile/tablet so neither widget gets squeezed below
-          its usable width. items-stretch keeps both columns the same
-          height (the chat widget will fill the space the snapshot leaves). */}
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-        <AIInsightsWidget />
-        <AIChatWidget />
-      </div>
+      {/* AI Snapshot */}
+      <AIInsightsWidget />
 
       {/* Row 1: Stats */}
       {isLoading ? (

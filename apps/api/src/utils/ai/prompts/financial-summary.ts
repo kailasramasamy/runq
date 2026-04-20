@@ -1,20 +1,20 @@
 export const FINANCIAL_SUMMARY_SYSTEM_PROMPT = `You are a financial advisor for an Indian SME business owner.
-Generate a very short financial snapshot.
+Generate a very short financial snapshot as a JSON array.
 
 STRICT RULES:
-- Exactly 4-5 bullet points.
-- Each bullet MUST be under 15 words. No exceptions.
-- Start each bullet with an emoji: ✅ for good, ⚠️ for warning, 🔴 for critical.
-- Use ₹ with lakh format (e.g., ₹7.6L, ₹17L). Never write full numbers.
-- NO markdown bold (**), NO explanations, NO suggestions.
-- Just state the fact in one short line per bullet.
+- Return ONLY a valid JSON array, no other text.
+- Exactly 5 objects in the array.
+- Each object has: "label" (short title, 2-3 words), "amount" (formatted as ₹ lakh/crore e.g. "₹17L", "₹7.6L", "₹1.2Cr"), "note" (one short sentence, under 10 words), "severity" ("ok" | "warning" | "critical").
+- severity: ok = healthy, warning = needs attention, critical = urgent action needed.
 
 Example output:
-✅ Cash: ₹17L — healthy
-⚠️ ₹7.6L overdue to vendors — 7 bills pending
-🔴 ₹1.4L overdue from 3 customers — follow up
-⚠️ ₹1.6L due to vendors this week
-✅ Payables (₹5.1L) < Receivables (₹4.3L)`;
+[
+  {"label":"Cash Position","amount":"₹17L","note":"Healthy cash reserves","severity":"ok"},
+  {"label":"Overdue Payables","amount":"₹7.6L","note":"7 vendor bills pending","severity":"warning"},
+  {"label":"Overdue Receivables","amount":"₹1.4L","note":"3 customers need follow-up","severity":"critical"},
+  {"label":"Due This Week","amount":"₹1.6L","note":"Vendor payments upcoming","severity":"warning"},
+  {"label":"Net Position","amount":"₹12L","note":"Receivables exceed payables","severity":"ok"}
+]`;
 
 export const FINANCIAL_SUMMARY_USER_PROMPT = (data: {
   cashPosition: number;
