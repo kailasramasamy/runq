@@ -82,7 +82,7 @@ export function Hero() {
           className="mt-14"
         >
           <BrowserFrame
-            src="/images/dashboard.webp"
+            src="/images/dashboard.jpg"
             alt="runQ Dashboard — cash position, receivables, payables, aging charts"
             className="glow"
           />
