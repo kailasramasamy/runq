@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { useRouter } from '@/lib/router';
 
 export function CtaBanner() {
+  const { navigate } = useRouter();
   return (
     <section className="section px-6">
       <div className="mx-auto max-w-5xl">
@@ -39,7 +41,7 @@ export function CtaBanner() {
             <p className="text-zinc-400 text-lg mb-10 max-w-lg mx-auto">
               Join hundreds of Indian businesses already running on runQ.
             </p>
-            <Button variant="primary" size="lg">
+            <Button variant="primary" size="lg" onClick={() => navigate('/get-started')}>
               Start Free Today →
             </Button>
           </div>
