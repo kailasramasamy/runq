@@ -62,7 +62,9 @@ async function main(): Promise<void> {
       const statements = sql
         .split(/;\s*$/m)
         .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !/^--/.test(s));
+        // Drop fragments that contain only comment lines / whitespace.
+        // (Don't reject a real statement just because it's preceded by a comment.)
+        .filter((s) => s.length > 0 && s.replace(/--.*$/gm, '').trim().length > 0);
       for (const stmt of statements) {
         await client.query(stmt);
       }

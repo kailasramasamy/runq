@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -325,7 +324,6 @@ class _InvoiceRow extends StatelessWidget {
     final isPartial = invoice.status == 'partially_paid';
     return RunqCard(
       onTap: () {
-        debugPrint('[invoice-row] tap → /invoices/${invoice.id}');
         if (invoice.id.isEmpty) return;
         context.push('/invoices/${invoice.id}');
       },

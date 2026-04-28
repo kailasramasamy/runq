@@ -10,9 +10,7 @@ class _Palette {
   final Color bg;
   final Color glow;
   final Color halo;
-  final Color iconFrame;
   final Color ring;
-  final String wordmarkAsset;
   final Color tagline;
   final Color dot;
   final Color shimmer;
@@ -20,9 +18,7 @@ class _Palette {
     required this.bg,
     required this.glow,
     required this.halo,
-    required this.iconFrame,
     required this.ring,
-    required this.wordmarkAsset,
     required this.tagline,
     required this.dot,
     required this.shimmer,
@@ -35,11 +31,7 @@ class _Palette {
         bg: Color(0xFF6366F1),
         glow: Color(0xFF818CF8),
         halo: Color(0x26FFFFFF),
-        // Deep indigo plate behind the SVG so the icon's lighter indigo
-        // square (#6366F1) doesn't dissolve into the same-color splash bg.
-        iconFrame: Color(0xFF1E1B4B),
         ring: Color(0x99FFFFFF),
-        wordmarkAsset: 'assets/branding/runq-wordmark-light.png',
         tagline: Color(0xD9FFFFFF),
         dot: Color(0xFFFFFFFF),
         shimmer: Color(0x80FFFFFF),
@@ -49,9 +41,7 @@ class _Palette {
       bg: const Color(0xFFF7F5F1),
       glow: RunqColors.indigo,
       halo: RunqColors.indigo.withValues(alpha: 0.10),
-      iconFrame: RunqColors.indigoDarkest,
       ring: RunqColors.indigo.withValues(alpha: 0.18),
-      wordmarkAsset: 'assets/branding/runq-wordmark-dark.png',
       tagline: const Color(0xFF7B7468),
       dot: RunqColors.indigo,
       shimmer: const Color(0x66FFFFFF),
@@ -70,8 +60,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   late final AnimationController _ctrl;
   late final Animation<double> _logoScale;
   late final Animation<double> _logoFade;
-  late final Animation<double> _wordmarkFade;
-  late final Animation<Offset> _wordmarkSlide;
+  late final Animation<double> _taglineFade;
   late final Animation<double> _shimmerSweep;
   late final Animation<double> _exitOpacity;
 
@@ -90,10 +79,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     ]).animate(_ctrl);
 
     _logoFade = CurvedAnimation(parent: _ctrl, curve: const Interval(0, 0.25, curve: Curves.easeOut));
-    _wordmarkFade = CurvedAnimation(parent: _ctrl, curve: const Interval(0.30, 0.55, curve: Curves.easeOut));
-    _wordmarkSlide = Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
-        .chain(CurveTween(curve: Curves.easeOutCubic))
-        .animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.30, 0.60)));
+    _taglineFade = CurvedAnimation(parent: _ctrl, curve: const Interval(0.30, 0.55, curve: Curves.easeOut));
     _shimmerSweep = CurvedAnimation(parent: _ctrl, curve: const Interval(0.45, 0.95, curve: Curves.easeInOut));
     _exitOpacity = Tween<double>(begin: 1.0, end: 0.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.90, 1.0)));
@@ -147,31 +133,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       palette: p,
                     ),
                     const SizedBox(height: 28),
-                    SlideTransition(
-                      position: _wordmarkSlide,
-                      child: FadeTransition(
-                        opacity: _wordmarkFade,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: p.iconFrame,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: const [
-                              BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 8)),
-                            ],
-                          ),
-                          child: Image.asset(
-                            p.wordmarkAsset,
-                            height: 30,
-                            fit: BoxFit.contain,
-                            filterQuality: FilterQuality.medium,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
                     FadeTransition(
-                      opacity: _wordmarkFade,
+                      opacity: _taglineFade,
                       child: Text(
                         'Books, on autopilot.',
                         style: RunqText.h3.copyWith(
@@ -189,7 +152,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                 left: 0, right: 0,
                 bottom: 56 + MediaQuery.of(context).padding.bottom,
                 child: FadeTransition(
-                  opacity: _wordmarkFade,
+                  opacity: _taglineFade,
                   child: _LoadingDots(color: p.dot),
                 ),
               ),

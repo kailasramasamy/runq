@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../providers/auth_provider.dart';
 import '../theme/runq_theme.dart';
-import '../widgets/wordmark.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   final bool sessionExpired;
@@ -242,8 +241,6 @@ class _LogoBlock extends StatelessWidget {
           opacity: fade,
           child: Column(
             children: [
-              const RunqWordmark(size: 28, inkColor: Color(0xFFF4F4F5)),
-              const SizedBox(height: 8),
               Text(
                 'Sign in to your workspace',
                 style: RunqText.bodyStrong.copyWith(

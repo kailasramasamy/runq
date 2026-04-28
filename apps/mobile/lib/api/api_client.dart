@@ -38,6 +38,33 @@ class ApiClient {
   }
 
   Future<dynamic> get(String path) => _send('GET', path);
+
+  Future<List<int>> getBytes(String path) async {
+    final sentToken = _token;
+    final req = http.Request('GET', _uri(path))..headers.addAll(_headers());
+    final streamed = await _inner.send(req).timeout(const Duration(seconds: 60));
+    final res = await http.Response.fromStream(streamed);
+
+    if (res.statusCode == 401 && sentToken != null) {
+      _token = null;
+      _onUnauthorized?.call();
+    }
+    if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+    String message = 'Download failed (${res.statusCode})';
+    try {
+      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is Map<String, dynamic>) {
+        final err = decoded['error'];
+        if (err is Map<String, dynamic> && err['message'] is String) {
+          message = err['message'] as String;
+        } else if (decoded['message'] is String) {
+          message = decoded['message'] as String;
+        }
+      }
+    } catch (_) {}
+    throw ApiException(statusCode: res.statusCode, message: message);
+  }
+
   Future<dynamic> post(String path, [Object? body]) => _send('POST', path, body);
   Future<dynamic> put(String path, [Object? body]) => _send('PUT', path, body);
   Future<dynamic> patch(String path, [Object? body]) => _send('PATCH', path, body);

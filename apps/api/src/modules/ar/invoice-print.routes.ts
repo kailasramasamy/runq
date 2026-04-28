@@ -7,6 +7,16 @@ const printParamSchema = z.object({ id: z.string().uuid() });
 const tenantQuerySchema = z.object({ tenantId: z.string().uuid().optional() });
 
 export const invoicePrintRoutes: FastifyPluginAsync = async (app) => {
+  // Opportunistic auth: this route is registered outside the protected scope
+  // so portal links can hit it with `?tenantId=`, but admin and mobile callers
+  // arrive with a Bearer token. Verify it when present so request.user is set;
+  // otherwise fall through to the query-param fallback below.
+  app.addHook('onRequest', async (request) => {
+    if (request.headers.authorization?.startsWith('Bearer ')) {
+      try { await request.jwtVerify(); } catch { /* fall through to tenantId query */ }
+    }
+  });
+
   app.get('/:id/print', async (request, reply) => {
     const { id } = printParamSchema.parse(request.params);
     const { tenantId: queryTenantId } = tenantQuerySchema.parse(request.query);

@@ -169,7 +169,7 @@ class _LineItemsCard extends StatelessWidget {
           for (var i = 0; i < items.length; i++) ...[
             _ItemRow(item: items[i]),
             if (i < items.length - 1)
-              Divider(height: 14, thickness: 0.5, color: RT(context).hairlineSoft),
+              Divider(height: 20, thickness: 1, color: RT(context).hairline),
           ],
         ],
       ),
