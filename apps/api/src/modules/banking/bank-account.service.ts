@@ -6,6 +6,7 @@ import type { CreateBankAccountInput, UpdateBankAccountInput } from '@runq/valid
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { resolveBankLogoUrl } from './bank-logo';
 
 export interface BankAccountListParams {
   page: number;
@@ -71,6 +72,7 @@ export class BankAccountService {
         openingBalance: input.openingBalance.toString(),
         currentBalance: input.openingBalance.toString(),
         glAccountId: input.glAccountId ?? null,
+        logoUrl: resolveBankLogoUrl(input.bankName),
       })
       .returning();
 
@@ -79,6 +81,9 @@ export class BankAccountService {
 
   async update(id: string, input: UpdateBankAccountInput): Promise<BankAccount> {
     const existing = await this.getById(id);
+    // Resolve a fresh logo whenever the bank name changes; otherwise leave
+    // the stored value alone (don't overwrite with null).
+    const bankNameChanged = input.bankName !== undefined && input.bankName !== existing.bankName;
 
     const [row] = await this.db
       .update(bankAccounts)
@@ -89,6 +94,7 @@ export class BankAccountService {
         ifscCode: input.ifscCode ?? existing.ifscCode,
         accountType: input.accountType ?? existing.accountType,
         ...(input.glAccountId !== undefined ? { glAccountId: input.glAccountId ?? null } : {}),
+        ...(bankNameChanged ? { logoUrl: resolveBankLogoUrl(input.bankName!) } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(bankAccounts.id, id), eq(bankAccounts.tenantId, this.tenantId)))
@@ -143,6 +149,8 @@ export class BankAccountService {
   }
 
   private toAccount(row: typeof bankAccounts.$inferSelect): BankAccount {
+    // Heal legacy rows that were created before the logo column existed.
+    const logoUrl = row.logoUrl ?? resolveBankLogoUrl(row.bankName);
     return {
       id: row.id,
       tenantId: row.tenantId,
@@ -154,6 +162,7 @@ export class BankAccountService {
       openingBalance: parseFloat(row.openingBalance),
       currentBalance: parseFloat(row.currentBalance),
       glAccountId: row.glAccountId ?? null,
+      logoUrl,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

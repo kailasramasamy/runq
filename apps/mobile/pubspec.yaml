@@ -1,0 +1,55 @@
+name: runq_mobile
+description: "runQ Mobile — on-the-go companion for runQ ERP."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  go_router: ^14.6.2
+  flutter_riverpod: ^2.6.1
+  google_fonts: ^6.2.1
+  intl: ^0.20.1
+  flutter_svg: ^2.0.16
+  http: ^1.2.2
+  shared_preferences: ^2.3.4
+  image_picker: ^1.1.2
+  cunning_document_scanner: ^1.4.0
+  permission_handler: ^12.0.1
+  file_picker: ^8.1.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.2
+  flutter_native_splash: ^2.4.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/
+
+flutter_launcher_icons:
+  image_path: "assets/branding/runq-app-logo.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#6366F1"
+  adaptive_icon_foreground: "assets/branding/runq-app-logo.png"
+
+flutter_native_splash:
+  color: "#F7F5F1"
+  image: "assets/branding/runq-app-logo.png"
+  color_dark: "#6366F1"
+  image_dark: "assets/branding/runq-app-logo.png"
+  android_12:
+    color: "#F7F5F1"
+    image: "assets/branding/runq-app-logo.png"
+    color_dark: "#6366F1"
+    image_dark: "assets/branding/runq-app-logo.png"

@@ -16,6 +16,8 @@ import { runReportNow } from '../../scheduler/report-scheduler';
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const aiSummaryQuerySchema = z.object({ refresh: z.string().optional() });
 const aiChatBodySchema = z.object({ question: z.string().min(1).max(500) });
+const cashTrendQuerySchema = z.object({ days: z.coerce.number().int().min(2).max(90).optional() });
+const activityQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() });
 
 export const dashboardRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -54,6 +56,28 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const service = new DashboardService(request.server.db, request.tenantId);
       const data = await service.getReceivablesAging();
+      return { data };
+    },
+  );
+
+  app.get(
+    '/cash-trend',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { days = 14 } = cashTrendQuerySchema.parse(request.query);
+      const service = new DashboardService(request.server.db, request.tenantId);
+      const data = await service.getCashTrend(days);
+      return { data };
+    },
+  );
+
+  app.get(
+    '/activity',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { limit = 20 } = activityQuerySchema.parse(request.query);
+      const service = new DashboardService(request.server.db, request.tenantId);
+      const data = await service.getActivity(limit);
       return { data };
     },
   );

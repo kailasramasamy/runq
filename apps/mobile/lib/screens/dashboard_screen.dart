@@ -1,0 +1,181 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../providers/auth_provider.dart';
+import '../providers/data_providers.dart';
+import '../theme/runq_theme.dart';
+import '../theme/runq_tokens.dart';
+import '../widgets/section_head.dart';
+import 'dashboard/cash_hero_card.dart';
+import 'dashboard/quick_actions_row.dart';
+import 'dashboard/spotlight_cards.dart';
+import 'dashboard/activity_list.dart';
+
+class DashboardScreen extends ConsumerWidget {
+  const DashboardScreen({super.key});
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(dashboardSummaryProvider);
+    ref.invalidate(cashTrendProvider);
+    ref.invalidate(bankAccountsProvider);
+    ref.invalidate(pendingApprovalsProvider);
+    ref.invalidate(activityProvider);
+    ref.invalidate(invoicesProvider(const InvoiceFilter()));
+    await ref.read(dashboardSummaryProvider.future).catchError((_) => throw 0);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        color: RunqColors.indigo,
+        onRefresh: () => _refresh(ref),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            const SliverToBoxAdapter(child: _Header()),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              sliver: SliverToBoxAdapter(child: CashHeroCard()),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 24),
+              sliver: SliverToBoxAdapter(child: QuickActionsRow()),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: SectionHead(
+                  title: 'Needs your attention',
+                  action: 'Ask agent →',
+                  onAction: () => context.push('/agent'),
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SpotlightCards()),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                child: SectionHead(
+                  title: 'Activity',
+                  action: 'See all',
+                  onAction: () => context.push('/activity'),
+                ),
+              ),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
+              sliver: SliverToBoxAdapter(child: ActivityList()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends ConsumerWidget {
+  const _Header();
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  String _firstName(String? name, String? email) {
+    final n = (name ?? '').trim();
+    if (n.isNotEmpty) return n.split(' ').first;
+    final e = (email ?? '').trim();
+    if (e.isEmpty) return 'there';
+    final local = e.split('@').first;
+    return local.isEmpty ? 'there' : '${local[0].toUpperCase()}${local.substring(1)}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final user = ref.watch(authProvider).user;
+    final approvals = ref.watch(pendingApprovalsProvider);
+    final hasNotifications = approvals.maybeWhen(data: (l) => l.isNotEmpty, orElse: () => false);
+    final dateLabel = DateFormat('EEEE, d MMMM').format(DateTime.now());
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(dateLabel, style: RunqText.caption.copyWith(color: t.muted, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(
+                  '${_greeting()}, ${_firstName(user?.name, user?.email)}',
+                  style: RunqText.h2.copyWith(color: t.ink),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _IconButton(icon: Icons.search_rounded, onTap: () => context.push('/search')),
+          const SizedBox(width: 8),
+          _IconButton(
+            icon: Icons.notifications_none_rounded,
+            badge: hasNotifications,
+            onTap: () => context.push('/approvals'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool badge;
+  const _IconButton({required this.icon, required this.onTap, this.badge = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: t.surface,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.hairline, width: 0.5),
+            ),
+            child: Icon(icon, size: 20, color: t.ink),
+          ),
+          if (badge)
+            Positioned(
+              right: 9, top: 9,
+              child: Container(
+                width: 8, height: 8,
+                decoration: BoxDecoration(
+                  color: RunqColors.redInk,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.surface, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
