@@ -29,32 +29,62 @@ function useAISummary() {
   });
 }
 
+function isInsightItem(v: unknown): v is InsightItem {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.label === 'string' && typeof o.note === 'string';
+}
+
+function tryJsonInsights(raw: string): InsightItem[] | null {
+  // Try whole string first, then any embedded [...] block (covers
+  // markdown fences like ```json\n[...]\n``` or extra prose).
+  const candidates = [raw];
+  const m = raw.match(/\[[\s\S]*\]/);
+  if (m && m[0] !== raw) candidates.push(m[0]);
+  for (const c of candidates) {
+    try {
+      const parsed = JSON.parse(c);
+      if (!Array.isArray(parsed)) continue;
+      return parsed.filter(isInsightItem).map((p) => ({
+        label: p.label,
+        amount: typeof (p as { amount?: unknown }).amount === 'string' ? (p as { amount: string }).amount : '',
+        note: p.note,
+        severity:
+          (p as { severity?: unknown }).severity === 'critical' ||
+          (p as { severity?: unknown }).severity === 'warning'
+            ? ((p as { severity: 'critical' | 'warning' }).severity)
+            : 'ok',
+      }));
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
 function parseInsights(text: string): InsightItem[] {
-  try {
-    // Try JSON parse first (new format)
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {
-    // Fallback: parse legacy text format
-    return text
-      .split('\n')
-      .filter((l) => l.trim().length > 0)
-      .map((raw) => {
+  if (!text) return [];
+  const json = tryJsonInsights(text);
+  if (json) return json;
+
+  // Legacy plain-text fallback. Only runs when no JSON array is present.
+  return text
+    .split('\n')
+    .filter((l) => l.trim().length > 0)
+    .map((raw) => {
         const severity: Severity = raw.includes('🔴') ? 'critical' : raw.includes('⚠️') ? 'warning' : 'ok';
         const cleaned = raw.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d✅⚠️🔴•\-*\s]+/u, '').trim();
         const amountMatch = cleaned.match(/(₹[\d,.]+[LCr]*)/);
         const amount = amountMatch ? amountMatch[1] : '';
         const rest = cleaned.replace(amount, '').replace(/^\s*[:\-—]\s*/, '').trim();
-        const dashMatch = rest.match(/^(.+?)\s[—–-]\s(.+)$/);
-        return {
-          label: dashMatch ? dashMatch[1] : rest.slice(0, 20),
-          amount,
-          note: dashMatch ? dashMatch[2] : rest,
-          severity,
-        };
-      });
-  }
-  return [];
+      const dashMatch = rest.match(/^(.+?)\s[—–-]\s(.+)$/);
+      return {
+        label: dashMatch ? dashMatch[1] : rest.slice(0, 20),
+        amount,
+        note: dashMatch ? dashMatch[2] : rest,
+        severity,
+      };
+    });
 }
 
 const SEVERITY_BAR: Record<Severity, string> = {
