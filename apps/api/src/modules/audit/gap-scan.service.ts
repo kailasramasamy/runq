@@ -172,6 +172,7 @@ export class GapScanService {
   private unmatchedPaymentsCount(since: string) {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(payments).where(and(
       eq(payments.tenantId, this.tenantId), gte(payments.paymentDate, since),
+      sql`${payments.status} NOT IN ('reversed', 'failed')`,
       sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`,
     )));
   }
@@ -244,7 +245,7 @@ export class GapScanService {
     unmatched_payments: async (since) => {
       const rows = await this.db.select({ id: payments.id, amt: payments.amount, date: payments.paymentDate, vname: vendors.name })
         .from(payments).innerJoin(vendors, eq(payments.vendorId, vendors.id))
-        .where(and(eq(payments.tenantId, this.tenantId), gte(payments.paymentDate, since), sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`))
+        .where(and(eq(payments.tenantId, this.tenantId), gte(payments.paymentDate, since), sql`${payments.status} NOT IN ('reversed', 'failed')`, sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'payment', entityId: r.id, label: `Payment to ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/payments/${r.id}` }));
     },
