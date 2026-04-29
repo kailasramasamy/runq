@@ -124,8 +124,10 @@ export class InvoiceImportService {
     };
 
     // Pre-fetch the existing invoice numbers in the requested set so we
-    // can skip duplicates without a DB roundtrip per invoice.
-    const requestedNumbers = payload.invoices.map((i) => i.invoiceNumber);
+    // can skip duplicates without a DB roundtrip per invoice. Match on the
+    // trimmed form so trailing/leading whitespace doesn't sneak past the
+    // pre-check and into a DB unique-violation.
+    const requestedNumbers = payload.invoices.map((i) => i.invoiceNumber.trim());
     const existingRows = await this.db
       .select({ invoiceNumber: salesInvoices.invoiceNumber })
       .from(salesInvoices)
@@ -135,7 +137,7 @@ export class InvoiceImportService {
           inArray(salesInvoices.invoiceNumber, requestedNumbers),
         ),
       );
-    const existingSet = new Set(existingRows.map((r) => r.invoiceNumber));
+    const existingSet = new Set(existingRows.map((r) => r.invoiceNumber.trim()));
 
     // Pre-fetch HSN codes for all matched item IDs in one shot. Lets
     // each line fall back to the master item's HSN when the source file
@@ -179,7 +181,7 @@ export class InvoiceImportService {
 
     for (const inv of payload.invoices) {
       // Skip duplicates first.
-      if (existingSet.has(inv.invoiceNumber)) {
+      if (existingSet.has(inv.invoiceNumber.trim())) {
         result.skipped.push({
           invoiceNumber: inv.invoiceNumber,
           reason: 'Already exists in this tenant',
@@ -275,6 +277,19 @@ export class InvoiceImportService {
           result.aliasesPersisted += await this.persistAliasesForInvoice(inv);
         }
       } catch (err) {
+        // Postgres unique-violation on (tenant_id, invoice_number) — the
+        // pre-fetch missed this duplicate (usually a whitespace or casing
+        // mismatch). Treat as a skip so the user sees a useful "already
+        // exists" message instead of the raw DB constraint error.
+        const pgErr = err as { code?: string; constraint?: string };
+        if (pgErr?.code === '23505' && pgErr?.constraint?.includes('invoice_number')) {
+          result.skipped.push({
+            invoiceNumber: inv.invoiceNumber,
+            reason: 'Already exists in this tenant',
+            sourceFile: inv.sourceFile,
+          });
+          continue;
+        }
         result.errors.push({
           invoiceNumber: inv.invoiceNumber,
           error: (err as Error).message,
