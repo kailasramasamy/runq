@@ -10,6 +10,7 @@ import {
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
+import { AuditService } from '../../utils/audit';
 
 interface AutoReceiptParams {
   bankTransactionId: string;
@@ -175,6 +176,19 @@ export class AutoReceiptService {
       date: params.transactionDate,
       id: result.receiptId,
       customerName: params.customerName,
+    });
+
+    await new AuditService(this.db, this.tenantId).log({
+      action: 'auto_created_from_bank_txn',
+      entityType: 'payment_receipt',
+      entityId: result.receiptId,
+      metadata: {
+        bankTransactionId: params.bankTransactionId,
+        customerId: params.customerId,
+        amount: params.amount,
+        allocations: result.allocations,
+        unallocated: result.unallocated,
+      },
     });
 
     return result;

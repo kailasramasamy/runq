@@ -11,6 +11,7 @@ import {
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
+import { AuditService } from '../../utils/audit';
 
 interface AutoBillPayParams {
   bankTransactionId: string;
@@ -52,17 +53,42 @@ export class AutoBillPayService {
     const existingPayment = await this.findExistingPayment(params);
     if (existingPayment) {
       await this.linkToExistingPayment(params.bankTransactionId, existingPayment, params.vendorId, expenseGlId);
+      await this.logAudit('linked', existingPayment, params, null);
       return null;
     }
 
     // 2. Existing bill (unpaid/partially paid)? Create payment against it
     const existingBill = await this.findExistingBill(params);
     if (existingBill) {
-      return this.createPaymentForBill(params, existingBill, expenseGlId);
+      const result = await this.createPaymentForBill(params, existingBill, expenseGlId);
+      await this.logAudit('matched_existing_bill', result.paymentId, params, result.billId);
+      return result;
     }
 
     // 3. Nothing exists — create bill + payment from scratch
-    return this.createBillAndPayment(params, expenseGlId);
+    const result = await this.createBillAndPayment(params, expenseGlId);
+    await this.logAudit('created_bill_and_payment', result.paymentId, params, result.billId);
+    return result;
+  }
+
+  private async logAudit(
+    flow: 'linked' | 'matched_existing_bill' | 'created_bill_and_payment',
+    paymentId: string,
+    params: AutoBillPayParams,
+    billId: string | null,
+  ): Promise<void> {
+    await new AuditService(this.db, this.tenantId).log({
+      action: 'auto_created_from_bank_txn',
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: {
+        flow,
+        bankTransactionId: params.bankTransactionId,
+        vendorId: params.vendorId,
+        amount: params.amount,
+        billId,
+      },
+    });
   }
 
   private async findExistingPayment(params: AutoBillPayParams): Promise<string | null> {
