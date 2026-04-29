@@ -165,34 +165,48 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
       }
 
-      // Learn the pattern and apply to similar transactions
+      // Learn the pattern and apply to similar transactions — but only if the
+      // narration unambiguously identifies this vendor. If any other vendor
+      // already has txns with the same pattern, multiple parties share this
+      // narration (e.g. group entities, generic "NEFT/IMPS" prefixes) and
+      // bulk-applying or learning a rule would mass-misclassify future imports.
       let applied = 0;
+      let ambiguous = false;
       if (txn.narration) {
-        const categorize = new CategorizeService(db, tenantId);
-        const [expenseGl] = await db.select({ id: glAccounts.id }).from(glAccounts)
-          .where(and(eq(glAccounts.code, vendor.expenseAccountCode), eq(glAccounts.tenantId, tenantId))).limit(1);
-        if (expenseGl) {
-          await categorize.learnVendorRule(txn.narration, expenseGl.id, vendorId, txn.type);
-        }
-
-        // Apply vendor to all similar transactions (same pattern, no vendor set)
         const { extractNarrationPattern } = await import('./categorize.service');
         const pattern = extractNarrationPattern(txn.narration);
         if (pattern) {
-          const { sql, isNull } = await import('drizzle-orm');
-          const similarResult = await db.update(bankTransactions)
-            .set({ vendorId, updatedAt: new Date() })
+          const { sql, isNull, ne } = await import('drizzle-orm');
+          const [conflict] = await db.select({ id: bankTransactions.id }).from(bankTransactions)
             .where(and(
               eq(bankTransactions.tenantId, tenantId),
-              isNull(bankTransactions.vendorId),
+              ne(bankTransactions.vendorId, vendorId),
+              sql`${bankTransactions.vendorId} IS NOT NULL`,
               sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
-            ))
-            .returning({ id: bankTransactions.id });
-          applied = similarResult.length;
+            )).limit(1);
+          ambiguous = !!conflict;
+
+          if (!ambiguous) {
+            const categorize = new CategorizeService(db, tenantId);
+            const [expenseGl] = await db.select({ id: glAccounts.id }).from(glAccounts)
+              .where(and(eq(glAccounts.code, vendor.expenseAccountCode), eq(glAccounts.tenantId, tenantId))).limit(1);
+            if (expenseGl) {
+              await categorize.learnVendorRule(txn.narration, expenseGl.id, vendorId, txn.type);
+            }
+            const similarResult = await db.update(bankTransactions)
+              .set({ vendorId, updatedAt: new Date() })
+              .where(and(
+                eq(bankTransactions.tenantId, tenantId),
+                isNull(bankTransactions.vendorId),
+                sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
+              ))
+              .returning({ id: bankTransactions.id });
+            applied = similarResult.length;
+          }
         }
       }
 
-      return reply.status(200).send({ data: { success: true, applied, ...result } });
+      return reply.status(200).send({ data: { success: true, applied, ambiguous, ...result } });
     },
   );
 
@@ -233,35 +247,47 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .set({ customerId, updatedAt: new Date() })
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
 
-      // Learn the narration pattern with customerId for future auto-detection
+      // Same ambiguity guard as the vendor route: if other customers already
+      // have txns matching this narration pattern, the bank statement format
+      // can't distinguish them — don't bulk-apply, don't learn a rule.
       let applied = 0;
+      let ambiguous = false;
       if (txn.narration) {
-        const categorize = new CategorizeService(db, tenantId);
-        const { accounts: glAccounts } = await import('@runq/db');
-        const [arAccount] = await db.select({ id: glAccounts.id }).from(glAccounts)
-          .where(and(eq(glAccounts.code, '1103'), eq(glAccounts.tenantId, tenantId))).limit(1);
-        if (arAccount) {
-          await categorize.learnNarrationRule(txn.narration, arAccount.id, txn.type, undefined, customerId);
-        }
-
-        // Apply to all similar transactions (same narration pattern, no customer set)
         const { extractNarrationPattern } = await import('./categorize.service');
         const pattern = extractNarrationPattern(txn.narration);
         if (pattern) {
-          const { sql, isNull } = await import('drizzle-orm');
-          const result = await db.update(bankTransactions)
-            .set({ customerId, updatedAt: new Date() })
+          const { sql, isNull, ne } = await import('drizzle-orm');
+          const [conflict] = await db.select({ id: bankTransactions.id }).from(bankTransactions)
             .where(and(
               eq(bankTransactions.tenantId, tenantId),
-              isNull(bankTransactions.customerId),
+              ne(bankTransactions.customerId, customerId),
+              sql`${bankTransactions.customerId} IS NOT NULL`,
               sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
-            ))
-            .returning({ id: bankTransactions.id });
-          applied = result.length;
+            )).limit(1);
+          ambiguous = !!conflict;
+
+          if (!ambiguous) {
+            const categorize = new CategorizeService(db, tenantId);
+            const { accounts: glAccounts } = await import('@runq/db');
+            const [arAccount] = await db.select({ id: glAccounts.id }).from(glAccounts)
+              .where(and(eq(glAccounts.code, '1103'), eq(glAccounts.tenantId, tenantId))).limit(1);
+            if (arAccount) {
+              await categorize.learnNarrationRule(txn.narration, arAccount.id, txn.type, undefined, customerId);
+            }
+            const result = await db.update(bankTransactions)
+              .set({ customerId, updatedAt: new Date() })
+              .where(and(
+                eq(bankTransactions.tenantId, tenantId),
+                isNull(bankTransactions.customerId),
+                sql`${bankTransactions.narration} ILIKE ${'%' + pattern + '%'}`,
+              ))
+              .returning({ id: bankTransactions.id });
+            applied = result.length;
+          }
         }
       }
 
-      return reply.status(200).send({ data: { success: true, applied } });
+      return reply.status(200).send({ data: { success: true, applied, ambiguous } });
     },
   );
 

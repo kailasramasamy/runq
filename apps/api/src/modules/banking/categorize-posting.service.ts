@@ -47,9 +47,19 @@ export class CategorizePostingService {
   /**
    * Post a journal entry for a categorized bank credit transaction.
    * DR: bank's GL account
-   * CR: categorized GL account (AR, income, etc.)
+   * CR: categorized GL account (refund recovery, miscellaneous income, etc.)
+   *
+   * Refuses to post when the credit GL is Accounts Receivable (1103) or
+   * a revenue account (4xxx) — those represent customer payments, which
+   * must flow through AutoReceiptService so a receipt + allocations are
+   * created. Posting them here would either double-count revenue or leave
+   * AR untouched while the customer's invoices stay open.
    */
   async postBankCredit(params: PostBankTxnParams): Promise<string | null> {
+    // Customer payments must flow through AutoReceiptService so a receipt +
+    // allocations are created; CR'ing AR or revenue from here either leaves
+    // AR untouched (invoices stay open) or double-counts revenue.
+    if (this.isCustomerPaymentAccount(params.glAccountCode)) return null;
     if (await this.isAlreadyPosted('bank_credit', params.transactionId)) return null;
 
     const entry = await this.gl.createJournalEntry({
@@ -79,6 +89,10 @@ export class CategorizePostingService {
         eq(bankTransactions.tenantId, this.tenantId),
       ));
     return journalEntryId;
+  }
+
+  private isCustomerPaymentAccount(code: string): boolean {
+    return code === '1103' || /^4\d{3}$/.test(code);
   }
 
   private async isAlreadyPosted(sourceType: string, transactionId: string): Promise<boolean> {
