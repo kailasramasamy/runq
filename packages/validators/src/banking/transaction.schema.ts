@@ -8,6 +8,7 @@ export const transactionFilterSchema = z.object({
   dateTo: z.string().date().optional(),
   minAmount: z.coerce.number().optional(),
   search: z.string().optional(),
+  inSuspense: z.coerce.boolean().optional(),
 });
 
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;

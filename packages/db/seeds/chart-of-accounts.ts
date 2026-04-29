@@ -19,6 +19,7 @@ export const INDIAN_COA: CoaEntry[] = [
   { code: '1102', name: 'Petty Cash', type: 'asset', parent: '1100' },
   { code: '1103', name: 'Accounts Receivable', type: 'asset', parent: '1100' },
   { code: '1104', name: 'Advance to Suppliers', type: 'asset', parent: '1100' },
+  { code: '1116', name: 'Bank Suspense', type: 'asset', parent: '1100' },
   { code: '1200', name: 'Fixed Assets', type: 'asset', parent: '1000' },
 
   // LIABILITIES (2xxx)

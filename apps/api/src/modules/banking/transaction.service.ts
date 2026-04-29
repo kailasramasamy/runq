@@ -55,6 +55,7 @@ export class TransactionService {
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
       filters.search ? sql`(${bankTransactions.narration} ILIKE ${'%' + filters.search + '%'} OR ${bankTransactions.reference} ILIKE ${'%' + filters.search + '%'} OR ${vendors.name} ILIKE ${'%' + filters.search + '%'} OR ${customers.name} ILIKE ${'%' + filters.search + '%'})` : undefined,
+      filters.inSuspense ? sql`${bankTransactions.glAccountId} IN (SELECT id FROM ${accounts} WHERE code = '1116' AND tenant_id = ${this.tenantId})` : undefined,
     ];
 
     const baseWhere = and(...conditions.filter(Boolean) as Parameters<typeof and>);

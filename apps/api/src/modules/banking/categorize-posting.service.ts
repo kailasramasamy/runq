@@ -45,6 +45,15 @@ export class CategorizePostingService {
   }
 
   /**
+   * Fallback for debits we couldn't categorize: park them in 1116 Bank
+   * Suspense so the bank GL stays tied to reality. The user re-categorizes
+   * later via setCategory, which reverses this and posts the correct JE.
+   */
+  async postBankDebitToSuspense(params: Omit<PostBankTxnParams, 'glAccountCode'>): Promise<string | null> {
+    return this.postBankDebit({ ...params, glAccountCode: '1116' });
+  }
+
+  /**
    * Post a journal entry for a categorized bank credit transaction.
    * DR: bank's GL account
    * CR: categorized GL account (refund recovery, miscellaneous income, etc.)

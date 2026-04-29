@@ -2,7 +2,6 @@ import { eq, and, sql } from 'drizzle-orm';
 import {
   bankTransactions,
   purchaseInvoices,
-  purchaseInvoiceItems,
   payments,
   paymentAllocations,
   reconciliationMatches,
@@ -27,8 +26,9 @@ interface AutoBillPayParams {
 }
 
 interface AutoBillPayResult {
-  billId: string;
-  paymentId: string;
+  billId: string | null;
+  paymentId: string | null;
+  journalEntryId?: string;
 }
 
 export class AutoBillPayService {
@@ -38,10 +38,14 @@ export class AutoBillPayService {
   ) {}
 
   /**
-   * Auto-create bill + payment from a bank debit transaction.
-   * First checks if an existing unreconciled payment already matches
-   * (same vendor + amount + date ±5 days). If so, links to it instead.
-   * Returns null if existing payment was matched (no new bill created).
+   * Reconcile a vendor-matched bank debit to AP.
+   * Three paths, in order:
+   *   1. Existing unreconciled payment (same vendor/amount/date ±5d) → link.
+   *   2. Existing unpaid bill from the vendor → create payment + allocate.
+   *   3. Nothing exists → post direct expense JE (Dr expense, Cr Bank). The
+   *      bank txn itself is the source document — most one-off spends (fuel,
+   *      parking, courier) never get a formal invoice. If a real bill arrives
+   *      later, the user re-categorizes the txn against it manually.
    */
   async createFromBankTxn(params: AutoBillPayParams): Promise<AutoBillPayResult | null> {
     // Resolve expense account ID for tagging the bank transaction
@@ -61,26 +65,26 @@ export class AutoBillPayService {
     const existingBill = await this.findExistingBill(params);
     if (existingBill) {
       const result = await this.createPaymentForBill(params, existingBill, expenseGlId);
-      await this.logAudit('matched_existing_bill', result.paymentId, params, result.billId);
+      await this.logAudit('matched_existing_bill', result.paymentId!, params, result.billId);
       return result;
     }
 
-    // 3. Nothing exists — create bill + payment from scratch
-    const result = await this.createBillAndPayment(params, expenseGlId);
-    await this.logAudit('created_bill_and_payment', result.paymentId, params, result.billId);
+    // 3. Nothing exists — post direct expense JE, no bill
+    const result = await this.postDirectExpense(params, expenseGlId);
+    await this.logAudit('posted_direct_expense', result.journalEntryId ?? '', params, null);
     return result;
   }
 
   private async logAudit(
-    flow: 'linked' | 'matched_existing_bill' | 'created_bill_and_payment',
-    paymentId: string,
+    flow: 'linked' | 'matched_existing_bill' | 'posted_direct_expense',
+    entityId: string,
     params: AutoBillPayParams,
     billId: string | null,
   ): Promise<void> {
     await new AuditService(this.db, this.tenantId).log({
       action: 'auto_created_from_bank_txn',
-      entityType: 'payment',
-      entityId: paymentId,
+      entityType: flow === 'posted_direct_expense' ? 'journal_entry' : 'payment',
+      entityId,
       metadata: {
         flow,
         bankTransactionId: params.bankTransactionId,
@@ -214,98 +218,54 @@ export class AutoBillPayService {
     });
   }
 
-  private async createBillAndPayment(params: AutoBillPayParams, expenseGlId: string | null): Promise<AutoBillPayResult> {
-    const invoiceNumber = this.generateInvoiceNumber(params.vendorName, params.transactionDate);
+  /**
+   * Post the bank debit as a direct expense against the vendor's expense
+   * account. No bill, no payment row — the bank txn itself is the source
+   * document. Used for one-off / no-invoice spends (fuel, parking, courier).
+   * JE: Dr <vendor.expenseAccountCode>, Cr Bank.
+   */
+  private async postDirectExpense(
+    params: AutoBillPayParams,
+    expenseGlId: string | null,
+  ): Promise<AutoBillPayResult> {
     const gl = new GLService(this.db, this.tenantId);
 
-    return this.db.transaction(async (tx) => {
-      // 1. Create purchase invoice (bill) — directly as 'paid'
-      const [bill] = await tx.insert(purchaseInvoices).values({
-        tenantId: this.tenantId,
-        vendorId: params.vendorId,
-        invoiceNumber,
-        invoiceDate: params.transactionDate,
-        dueDate: params.transactionDate,
-        subtotal: String(params.amount),
-        totalAmount: String(params.amount),
-        amountPaid: String(params.amount),
-        balanceDue: '0',
-        status: 'paid',
-      }).returning();
-
-      // 2. Create line item
-      await tx.insert(purchaseInvoiceItems).values({
-        tenantId: this.tenantId,
-        invoiceId: bill!.id,
-        itemName: params.narration ?? `Purchase from ${params.vendorName}`,
-        quantity: '1',
-        unitPrice: String(params.amount),
-        amount: String(params.amount),
-      });
-
-      // 3. Create payment — directly as 'completed'
-      const [payment] = await tx.insert(payments).values({
-        tenantId: this.tenantId,
-        vendorId: params.vendorId,
-        bankAccountId: params.bankAccountId,
-        paymentDate: params.transactionDate,
-        amount: String(params.amount),
-        paymentMethod: 'bank_transfer',
-        utrNumber: params.reference,
-        status: 'completed',
-        notes: `Auto-created from bank transaction`,
-      }).returning();
-
-      // 4. Link payment to bill
-      await tx.insert(paymentAllocations).values({
-        tenantId: this.tenantId,
-        paymentId: payment!.id,
-        invoiceId: bill!.id,
-        amount: String(params.amount),
-      });
-
-      // 5. Link bank transaction → payment
-      await tx.insert(reconciliationMatches).values({
-        tenantId: this.tenantId,
-        bankTransactionId: params.bankTransactionId,
-        paymentId: payment!.id,
-        matchType: 'auto_amount_date',
-      });
-
-      // 6. Mark bank transaction as reconciled
-      await tx.update(bankTransactions)
-        .set({ vendorId: params.vendorId, glAccountId: expenseGlId, reconStatus: 'matched', updatedAt: new Date() })
-        .where(eq(bankTransactions.id, params.bankTransactionId));
-
-      return { billId: bill!.id, paymentId: payment!.id };
-    }).then(async (result) => {
-      // 7. Post JEs (outside the main txn — GLService uses its own transaction)
-      await gl.postPurchaseInvoice({
-        totalAmount: params.amount,
-        date: params.transactionDate,
-        id: result.billId,
-        vendorName: params.vendorName,
-        expenseAccountCode: params.expenseAccountCode,
-      });
-      await gl.postPayment({
-        amount: params.amount,
-        date: params.transactionDate,
-        id: result.paymentId,
-        vendorName: params.vendorName,
-        bankAccountCode: params.bankGlAccountCode,
-      });
-      return result;
+    const entry = await gl.createJournalEntry({
+      date: params.transactionDate,
+      description: `Bank payment — ${params.vendorName}: ${params.narration ?? 'N/A'}`,
+      sourceType: 'bank_debit',
+      sourceId: params.bankTransactionId,
+      lines: [
+        { accountCode: params.expenseAccountCode, debit: params.amount },
+        { accountCode: params.bankGlAccountCode, credit: params.amount },
+      ],
     });
+
+    await this.db.update(bankTransactions)
+      .set({
+        vendorId: params.vendorId,
+        glAccountId: expenseGlId,
+        journalEntryId: entry.id,
+        reconStatus: 'matched',
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        eq(bankTransactions.id, params.bankTransactionId),
+      ));
+
+    return { billId: null, paymentId: null, journalEntryId: entry.id };
   }
 
   /**
    * Undo whatever this service did when the wrong vendor was assigned.
    * Looks up the recon-match by bank txn, classifies it via payment.notes,
-   * then rolls back the auto-created bill/payment/JEs accordingly.
-   * Safe to call when nothing was created (idempotent — just clears the txn tag).
+   * then rolls back the bill/advance/JEs accordingly. Safe to call when
+   * nothing was created (idempotent — just clears the txn tag).
    */
   async reverseFromBankTxn(bankTransactionId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
+      // Path 1/2: payment-linked via reconciliation_matches
       const [match] = await tx.select().from(reconciliationMatches)
         .where(and(
           eq(reconciliationMatches.tenantId, this.tenantId),
@@ -317,18 +277,34 @@ export class AutoBillPayService {
           .where(eq(payments.id, match.paymentId)).limit(1);
 
         const note = payment?.notes ?? '';
-        const isAutoCreated = note.startsWith('Auto-created from bank transaction');
-        const billPreexisted = note === 'Auto-created from bank transaction (matched existing bill)';
-
-        if (payment && isAutoCreated) {
+        if (payment && note.startsWith('Auto-created from bank transaction')) {
+          const billPreexisted = note === 'Auto-created from bank transaction (matched existing bill)';
           await this.rollbackAutoPayment(tx as unknown as Db, payment.id, billPreexisted);
         }
         await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
       }
 
+      // Path 3: direct expense JE — reverse the JE if it was sourced by this txn
+      const [txn] = await tx.select().from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.id, bankTransactionId),
+        )).limit(1);
+      if (txn?.journalEntryId) {
+        await tx.update(journalEntries)
+          .set({ status: 'reversed', updatedAt: new Date() })
+          .where(and(
+            eq(journalEntries.tenantId, this.tenantId),
+            eq(journalEntries.id, txn.journalEntryId),
+            eq(journalEntries.sourceType, 'bank_debit'),
+            eq(journalEntries.sourceId, bankTransactionId),
+          ));
+      }
+
       await tx.update(bankTransactions).set({
         vendorId: null,
         glAccountId: null,
+        journalEntryId: null,
         reconStatus: 'unreconciled',
         updatedAt: new Date(),
       }).where(and(
@@ -386,16 +362,4 @@ export class AutoBillPayService {
       ));
   }
 
-  private generateInvoiceNumber(vendorName: string, date: string): string {
-    const initials = vendorName
-      .split(/\s+/)
-      .map((w) => w[0]?.toUpperCase())
-      .filter(Boolean)
-      .join('')
-      .slice(0, 4);
-    const d = new Date(date);
-    const yymm = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `BILL-${initials}-${yymm}-${rand}`;
-  }
 }

@@ -22,6 +22,7 @@ interface TransactionFilters {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  inSuspense?: boolean;
   page?: number;
   limit?: number;
   [key: string]: unknown;
@@ -35,6 +36,7 @@ export function useBankTransactions(filters?: TransactionFilters) {
   if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.set('dateTo', filters.dateTo);
   if (filters?.search) params.set('search', filters.search);
+  if (filters?.inSuspense) params.set('inSuspense', 'true');
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

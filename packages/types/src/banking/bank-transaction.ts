@@ -31,6 +31,7 @@ export interface CategorizationResult {
   categorized: number;
   rulesMatched: number;
   aiMatched: number;
+  suspensed: number;
   skipped: number;
 }
 

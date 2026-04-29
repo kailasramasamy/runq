@@ -128,7 +128,7 @@ async function main() {
   });
 
   if (result) {
-    console.log(`✅ Phase 2: bill ${result.billId.slice(0, 8)}, payment ${result.paymentId.slice(0, 8)}`);
+    console.log(`✅ Phase 2: bill ${result.billId?.slice(0, 8) ?? 'n/a'}, payment ${result.paymentId?.slice(0, 8) ?? 'n/a'}`);
   } else {
     console.log('⚠️ Phase 2: auto-bill-pay returned null (linked to existing payment)');
   }

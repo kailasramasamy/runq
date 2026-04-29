@@ -54,6 +54,7 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '1113', name: 'Inventory — Packing Material', type: 'asset', parent: '1100' },
   { code: '1114', name: 'Short-Term Investments', type: 'asset', parent: '1100' },
   { code: '1115', name: 'Accrued Revenue', type: 'asset', parent: '1100' },
+  { code: '1116', name: 'Bank Suspense', type: 'asset', parent: '1100', system: true },
 
   // Fixed Assets
   { code: '1200', name: 'Fixed Assets', type: 'asset', parent: '1000' },

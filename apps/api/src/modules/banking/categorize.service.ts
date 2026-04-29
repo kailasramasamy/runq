@@ -124,7 +124,7 @@ export class CategorizeService {
     ]);
 
     if (uncategorized.length === 0) {
-      return { categorized: 0, rulesMatched: 0, aiMatched: 0, skipped: 0 };
+      return { categorized: 0, rulesMatched: 0, aiMatched: 0, suspensed: 0, skipped: 0 };
     }
 
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
@@ -205,9 +205,52 @@ export class CategorizeService {
     }
 
     aiMatched = await this.categorizeWithAI(needsAI, glAccounts, accountByCode, bankGlCode, posting);
-    const skipped = needsAI.length - aiMatched;
 
-    return { categorized: rulesMatched + aiMatched, rulesMatched, aiMatched, skipped };
+    // Suspense sweep: any debit still uncategorized after rules + AI gets
+    // parked in 1116 so the bank GL stays reconciled. User can re-categorize
+    // later, which reverses the suspense JE and posts the correct one.
+    const suspensed = await this.sweepDebitsToSuspense(needsAI, accountByCode, bankGlCode, posting);
+    const skipped = needsAI.length - aiMatched - suspensed;
+
+    return { categorized: rulesMatched + aiMatched + suspensed, rulesMatched, aiMatched, suspensed, skipped };
+  }
+
+  private async sweepDebitsToSuspense(
+    needsAI: Array<{ id: string; narration: string | null; amount: string; type: 'credit' | 'debit'; transactionDate: string }>,
+    accountByCode: Map<string, GlAccount>,
+    bankGlCode: string | null,
+    posting: CategorizePostingService,
+  ): Promise<number> {
+    const suspenseGl = accountByCode.get('1116');
+    if (!suspenseGl || !bankGlCode) return 0;
+
+    const debits = needsAI.filter((t) => t.type === 'debit');
+    if (debits.length === 0) return 0;
+
+    // Re-check from DB which are still uncategorized — AI may have matched some
+    const stillUncategorized = await this.db
+      .select({ id: bankTransactions.id })
+      .from(bankTransactions)
+      .where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        isNull(bankTransactions.glAccountId),
+      ));
+    const uncategorizedIds = new Set(stillUncategorized.map((r) => r.id));
+
+    let count = 0;
+    for (const txn of debits) {
+      if (!uncategorizedIds.has(txn.id)) continue;
+      await posting.postBankDebitToSuspense({
+        transactionId: txn.id,
+        transactionDate: txn.transactionDate,
+        amount: parseFloat(txn.amount),
+        narration: txn.narration,
+        bankGlAccountCode: bankGlCode,
+      });
+      await this.updateGlCategory(txn.id, suspenseGl.id, 0.0);
+      count++;
+    }
+    return count;
   }
 
   /**

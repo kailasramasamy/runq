@@ -200,6 +200,7 @@ export function TransactionsPage() {
   const [accountId, setAccountId] = useState(searchParams.get('accountId') ?? '');
   const [type, setType] = useState('');
   const [reconStatus, setReconStatus] = useState('');
+  const [inSuspense, setInSuspense] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
@@ -225,6 +226,7 @@ export function TransactionsPage() {
     accountId: accountId || '',
     type: (type as 'credit' | 'debit') || undefined,
     reconStatus: (reconStatus as 'unreconciled' | 'matched' | 'manually_matched' | 'excluded') || undefined,
+    inSuspense: inSuspense || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: search || undefined,
@@ -338,6 +340,19 @@ export function TransactionsPage() {
             value={reconStatus}
             onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
           />
+        </div>
+        <div className="sm:self-end">
+          <button
+            type="button"
+            onClick={() => { setInSuspense((v) => !v); setPage(1); }}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              inSuspense
+                ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
+            }`}
+          >
+            In suspense
+          </button>
         </div>
         <div className="sm:w-40">
           <DateInput
