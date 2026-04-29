@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { and, eq } from 'drizzle-orm';
-import { users, tenants, seedCoaForTenant } from '@runq/db';
+import { users, tenants, platformUsers, seedCoaForTenant } from '@runq/db';
 import { loginSchema, registerSchema } from '@runq/validators';
 import argon2 from 'argon2';
 import { UnauthorizedError, ConflictError } from '../../utils/errors';
@@ -160,6 +160,35 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', async (request, reply) => {
     const { email, password, tenant: tenantSlug } = loginSchema.parse(request.body);
 
+    // First try platform user (no tenant slug, no tenant context).
+    // Platform users have unique emails across the platform.
+    if (!tenantSlug) {
+      const [pUser] = await app.db.select().from(platformUsers).where(eq(platformUsers.email, email)).limit(1);
+      if (pUser && pUser.isActive) {
+        const valid = await argon2.verify(pUser.passwordHash, password);
+        if (valid) {
+          await app.db.update(platformUsers).set({ lastLoginAt: new Date() }).where(eq(platformUsers.id, pUser.id));
+          const token = app.jwt.sign(
+            {
+              userId: pUser.id,
+              tenantId: '00000000-0000-0000-0000-000000000000',
+              role: 'owner' as const,
+              platformUserId: pUser.id,
+              platformRole: pUser.role,
+            },
+            { expiresIn: env.JWT_EXPIRES_IN },
+          );
+          return reply.send({
+            data: {
+              token,
+              user: { id: pUser.id, tenantId: null, email: pUser.email, name: pUser.name, role: pUser.role, isActive: pUser.isActive },
+              platform: true,
+            },
+          });
+        }
+      }
+    }
+
     let tenant: { id: string; name: string } | undefined;
     let user: typeof users.$inferSelect | undefined;
 
@@ -287,6 +316,22 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/me', { preHandler: [app.authenticate] }, async (request) => {
+    // Platform user (no tenant context)
+    if (request.user.platformUserId && !request.user.impersonatedBy) {
+      const [pUser] = await app.db
+        .select({ id: platformUsers.id, email: platformUsers.email, name: platformUsers.name, role: platformUsers.role, isActive: platformUsers.isActive })
+        .from(platformUsers)
+        .where(eq(platformUsers.id, request.user.platformUserId))
+        .limit(1);
+      return {
+        data: {
+          user: pUser ? { ...pUser, tenantId: null, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() } : null,
+          tenant: null,
+          platform: true,
+        },
+      };
+    }
+
     const [user] = await app.db
       .select({ id: users.id, tenantId: users.tenantId, email: users.email, name: users.name, role: users.role, isActive: users.isActive, createdAt: users.createdAt, updatedAt: users.updatedAt })
       .from(users)
@@ -303,6 +348,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       data: {
         user: user ? { ...user, createdAt: user.createdAt.toISOString(), updatedAt: user.updatedAt.toISOString() } : null,
         tenant: tenant ?? null,
+        impersonatedBy: request.user.impersonatedBy ?? null,
       },
     };
   });

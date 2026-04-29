@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { FinanceAgent } from '../components/agent/finance-agent';
+import { ImpersonationBanner } from '../components/admin/impersonation-banner';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { CompanySettingsPage } from './settings/company';
@@ -124,6 +125,23 @@ import { SetupPage } from './settings/setup';
 import { HelpIndexPage } from './help/index';
 import { GapScanPage } from './audit/gap-scan';
 import { HelpTopicPage } from './help/topic';
+import { AdminShell } from '@/components/admin/admin-shell';
+import { AdminOverviewPage } from './admin/overview';
+import { AdminAuditLogPage } from './admin/audit-log';
+import { AdminTenantsPage } from './admin/tenants';
+import { AdminTenantDetailPage } from './admin/tenant-detail';
+import {
+  AdminBillingPage,
+  AdminBillingPlansPage,
+  AdminBillingSubscriptionsPage,
+  AdminBillingInvoicesPage,
+} from './admin/billing';
+import { AdminUsersPage, AdminPlatformUsersPage } from './admin/users';
+import { AdminObservabilityPage } from './admin/observability';
+import { AdminFeatureFlagsPage } from './admin/feature-flags';
+import { AdminAppConfigPage } from './admin/app-config';
+import { AdminAnnouncementsPage } from './admin/announcements';
+import { AdminSettingsPage } from './admin/settings';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -159,14 +177,17 @@ const dashboardLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'dashboard-layout',
   component: () => (
-    <div className="flex h-screen flex-col md:flex-row overflow-hidden">
-      <MobileHeader />
-      <Sidebar />
-      <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:p-6 md:pb-6 text-zinc-900 dark:text-zinc-100">
-        <Outlet />
-      </main>
-      <MobileBottomNav />
-      <FinanceAgent />
+    <div className="flex h-screen flex-col overflow-hidden">
+      <ImpersonationBanner />
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+        <MobileHeader />
+        <Sidebar />
+        <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:p-6 md:pb-6 text-zinc-900 dark:text-zinc-100">
+          <Outlet />
+        </main>
+        <MobileBottomNav />
+        <FinanceAgent />
+      </div>
     </div>
   ),
 });
@@ -1700,6 +1721,107 @@ const gapScanRoute = createRoute({
   component: GapScanPage,
 });
 
+// ─── Admin (super-admin) Layout & Routes ─────────────────────────────────────
+
+const adminLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'admin-layout',
+  component: AdminShell,
+});
+
+const adminIndexRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin',
+  component: AdminOverviewPage,
+});
+
+const adminTenantsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/tenants',
+  component: AdminTenantsPage,
+});
+
+const adminTenantDetailRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/tenants/$tenantId',
+  component: () => {
+    const { tenantId } = adminTenantDetailRoute.useParams();
+    return <AdminTenantDetailPage tenantId={tenantId} />;
+  },
+});
+
+const adminBillingRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/billing',
+  component: AdminBillingPage,
+});
+
+const adminBillingPlansRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/billing/plans',
+  component: AdminBillingPlansPage,
+});
+
+const adminBillingSubsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/billing/subscriptions',
+  component: AdminBillingSubscriptionsPage,
+});
+
+const adminBillingInvoicesRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/billing/invoices',
+  component: AdminBillingInvoicesPage,
+});
+
+const adminUsersRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/users',
+  component: AdminUsersPage,
+});
+
+const adminPlatformUsersRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/users/platform',
+  component: AdminPlatformUsersPage,
+});
+
+const adminObservabilityRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/observability',
+  component: AdminObservabilityPage,
+});
+
+const adminFeatureFlagsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/feature-flags',
+  component: AdminFeatureFlagsPage,
+});
+
+const adminAppConfigRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/app-config',
+  component: AdminAppConfigPage,
+});
+
+const adminAnnouncementsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/announcements',
+  component: AdminAnnouncementsPage,
+});
+
+const adminAuditLogRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/audit-log',
+  component: AdminAuditLogPage,
+});
+
+const adminSettingsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/settings',
+  component: AdminSettingsPage,
+});
+
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 export const routeTree = rootRoute.addChildren([
@@ -1708,6 +1830,23 @@ export const routeTree = rootRoute.addChildren([
   portalSlugRoute,
   caPortalRoute,
   vendorPortalRoute,
+  adminLayoutRoute.addChildren([
+    adminIndexRoute,
+    adminTenantsRoute,
+    adminTenantDetailRoute,
+    adminBillingRoute,
+    adminBillingPlansRoute,
+    adminBillingSubsRoute,
+    adminBillingInvoicesRoute,
+    adminUsersRoute,
+    adminPlatformUsersRoute,
+    adminObservabilityRoute,
+    adminFeatureFlagsRoute,
+    adminAppConfigRoute,
+    adminAnnouncementsRoute,
+    adminAuditLogRoute,
+    adminSettingsRoute,
+  ]),
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
     apRoute.addChildren([

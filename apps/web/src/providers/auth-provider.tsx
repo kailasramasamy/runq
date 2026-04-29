@@ -29,8 +29,9 @@ interface AuthContextValue {
   user: Omit<User, 'createdAt' | 'updatedAt'> | null;
   token: string | null;
   isAuthenticated: boolean;
+  isPlatform: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, tenant: string) => Promise<void>;
+  login: (email: string, password: string, tenant: string) => Promise<{ platform: boolean }>;
   logout: () => void;
 }
 
@@ -38,14 +39,16 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   token: null,
   isAuthenticated: false,
+  isPlatform: false,
   isLoading: true,
-  login: async () => {},
+  login: async () => ({ platform: false }),
   logout: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Omit<User, 'createdAt' | 'updatedAt'> | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isPlatform, setIsPlatform] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const expiryTimerRef = useRef<number | null>(null);
 
@@ -100,9 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const doLogin = useCallback(
     async (email: string, password: string, tenant: string) => {
-      const res = await api.post<{ data: LoginResponse }>('/auth/login', { email, password, tenant });
+      const res = await api.post<{ data: LoginResponse & { platform?: boolean } }>('/auth/login', { email, password, tenant });
       applyToken(res.data.token);
       setUser(res.data.user);
+      const platform = !!res.data.platform;
+      setIsPlatform(platform);
+      return { platform };
     },
     [applyToken],
   );
@@ -145,10 +151,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       api.setToken(stored);
       api
-        .get<{ data: { user: Omit<User, 'createdAt' | 'updatedAt'> } }>('/auth/me')
+        .get<{ data: { user: Omit<User, 'createdAt' | 'updatedAt'>; platform?: boolean } }>('/auth/me')
         .then((res) => {
           setToken(stored);
           setUser(res.data.user);
+          setIsPlatform(!!res.data.platform);
           scheduleExpiry(stored);
         })
         .catch(() => {
@@ -159,8 +166,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Dev auto-login: skip the login page during development
-    if (import.meta.env.DEV) {
+    // Dev auto-login: skip the login page during development.
+    // BUT: don't auto-login as a tenant user when the user is trying to
+    // access the super-admin panel — that would mask the actual login screen.
+    const onAdminRoute = window.location.pathname.includes('/admin');
+    if (import.meta.env.DEV && !onAdminRoute) {
       doLogin('vaidehi@vrindavandairy.com', 'Vrindavan@2026', 'demo-company')
         .catch(() => {})
         .finally(() => setIsLoading(false));
@@ -178,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!user, isLoading, login, logout }}
+      value={{ user, token, isAuthenticated: !!user, isPlatform, isLoading, login, logout }}
     >
       {children}
     </AuthContext.Provider>

@@ -34,8 +34,10 @@ import { trailRoutes } from './modules/audit/trail.routes';
 import { faRoutes } from './modules/fa/routes';
 import { gstRoutes } from './modules/gst/routes';
 import { contactRoutes } from './modules/public/contact.routes';
+import { appConfigRoutes } from './modules/public/app-config.routes';
 import { otpRoutes } from './modules/public/otp.routes';
 import { agentRoutes } from './modules/agent/routes';
+import { adminRoutes } from './modules/admin/routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -73,6 +75,7 @@ export async function buildApp() {
     await publicScope.register(rateLimit, { max: 5, timeWindow: '1 minute' });
     await publicScope.register(contactRoutes);
     await publicScope.register(otpRoutes);
+    await publicScope.register(appConfigRoutes);
   }, { prefix: '/api/v1/public' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
@@ -105,6 +108,9 @@ export async function buildApp() {
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
     await scope.register(agentRoutes, { prefix: '/api/v1/agent' });
   });
+
+  // Platform admin routes (super-admin only — gated per-route by authenticatePlatform)
+  await app.register(adminRoutes, { prefix: '/api/v1/admin' });
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }));
