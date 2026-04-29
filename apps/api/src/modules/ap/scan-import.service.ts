@@ -143,11 +143,19 @@ export class ScanImportService {
     vendorCreated: boolean;
     vendorName: string;
   }> {
+    // The AI is unreliable about lengths and formatting — sanitize the
+    // identifiers it gave us so a stray "GSTIN: " prefix or a truncated
+    // 14-char GSTIN doesn't blow up the vendor insert against the strict
+    // varchar column widths.
+    const gstin = sanitizeGstin(extracted.vendorGstin);
+    const pan = sanitizePan(extracted.vendorPan);
+    const ifsc = sanitizeIfsc(extracted.vendorBankIfsc);
+
     // Try GSTIN match first
-    if (extracted.vendorGstin) {
+    if (gstin) {
       const [row] = await this.db.select({ id: vendors.id, name: vendors.name })
         .from(vendors)
-        .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.gstin, extracted.vendorGstin), isNull(vendors.deletedAt)))
+        .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.gstin, gstin), isNull(vendors.deletedAt)))
         .limit(1);
       if (row) return { vendorId: row.id, vendorCreated: false, vendorName: row.name };
     }
@@ -162,15 +170,14 @@ export class ScanImportService {
     }
 
     // Auto-create vendor with all extracted details
-    const gstin = extracted.vendorGstin;
     const stateCode = gstin ? gstin.slice(0, 2) : null;
     const stateName = extracted.vendorState || (stateCode ? STATE_CODES[stateCode] : null);
 
     const [newVendor] = await this.db.insert(vendors).values({
       tenantId: this.tenantId,
       name: extracted.vendorName || 'Unknown Vendor',
-      gstin: gstin ?? null,
-      pan: extracted.vendorPan ?? null,
+      gstin,
+      pan,
       email: extracted.vendorEmail ?? null,
       phone: extracted.vendorPhone ?? null,
       addressLine1: extracted.vendorAddress ?? null,
@@ -178,7 +185,7 @@ export class ScanImportService {
       state: stateName ?? null,
       pincode: extracted.vendorPincode ?? null,
       bankAccountNumber: extracted.vendorBankAccount ?? null,
-      bankIfsc: extracted.vendorBankIfsc ?? null,
+      bankIfsc: ifsc,
       bankName: extracted.vendorBankName ?? null,
       category: inferVendorCategory(extracted),
       paymentTermsDays: 30,
@@ -191,6 +198,27 @@ export class ScanImportService {
       vendorName: newVendor!.name,
     };
   }
+}
+
+// GSTIN: 15 alphanumeric chars (2 digit state + 10 char PAN + entity code +
+// Z + checksum). Anything else from the AI is junk — drop it rather than
+// truncate, since a partial GSTIN poisons future GSTIN-based matching.
+function sanitizeGstin(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(cleaned) ? cleaned : null;
+}
+
+function sanitizePan(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(cleaned) ? cleaned : null;
+}
+
+function sanitizeIfsc(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/\s+/g, '').toUpperCase();
+  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleaned) ? cleaned : null;
 }
 
 /**
