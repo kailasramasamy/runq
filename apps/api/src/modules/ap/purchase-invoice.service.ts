@@ -8,6 +8,8 @@ import type { CreatePurchaseInvoiceInput, UpdatePurchaseInvoiceInput, PurchaseIn
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
+import { AttachmentService } from '../common/attachment.service';
+import type { StorageProvider } from '../../utils/storage';
 import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,6 +272,56 @@ export class PurchaseInvoiceService {
 
     await this.audit().log({ userId, action: 'cancelled', entityType: 'purchase_invoice', entityId: id });
     return this.toInvoice(row!);
+  }
+
+  /**
+   * Hard delete a draft bill — removes line items, the bill row, and any
+   * attached scanned originals (DB rows + S3 objects). Only valid for
+   * `draft` status; bills with payments, GL entries, or in any other
+   * status must be cancelled instead so the audit trail survives.
+   *
+   * Why this exists: cancel() leaves a `cancelled` row and an orphaned S3
+   * file forever. For drafts created in error (bad scan, wrong vendor,
+   * duplicate), the user wants a clean undo — not an audit trail.
+   */
+  async hardDelete(id: string, storage: StorageProvider, userId?: string): Promise<void> {
+    const existing = await this.getById(id);
+    if (existing.status !== 'draft') {
+      throw new ConflictError('Only draft bills can be deleted permanently');
+    }
+
+    // Wipe attachments first — best-effort on S3, hard on DB. If a single
+    // S3 delete fails we still proceed: orphaned objects are cheap and
+    // can be cleaned via lifecycle policy later.
+    const attachmentService = new AttachmentService(this.db, this.tenantId, storage);
+    const attachments = await attachmentService.listByEntity('purchase_invoice', id);
+    for (const att of attachments) {
+      try {
+        await attachmentService.deleteAttachment(att.id);
+      } catch {
+        // Continue — best-effort cleanup.
+      }
+    }
+
+    await this.db
+      .delete(purchaseInvoiceItems)
+      .where(and(eq(purchaseInvoiceItems.invoiceId, id), eq(purchaseInvoiceItems.tenantId, this.tenantId)));
+
+    await this.db
+      .delete(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)));
+
+    await this.audit().log({
+      userId,
+      action: 'deleted',
+      entityType: 'purchase_invoice',
+      entityId: id,
+      metadata: {
+        invoiceNumber: existing.invoiceNumber,
+        totalAmount: existing.totalAmount,
+        attachmentsRemoved: attachments.length,
+      },
+    });
   }
 
   private async replaceLineItems(

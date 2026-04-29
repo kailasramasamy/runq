@@ -4,6 +4,7 @@ import {
   bankAccounts,
   reconciliationMatches,
   bankReconciliations,
+  bankMatchCorrections,
   payments,
   paymentReceipts,
   cheques,
@@ -11,6 +12,7 @@ import {
   vendors,
   accounts,
 } from '@runq/db';
+import { extractNarrationPattern } from './categorize.service';
 import type { Db } from '@runq/db';
 import type { AutoReconciliationResult, BankReconciliation, ReconciliationMatch } from '@runq/types';
 import type { AutoReconcileInput, ClosePeriodInput, ManualMatchInput, PostAsExpenseInput } from '@runq/validators';
@@ -220,7 +222,7 @@ export class ReconciliationService {
 
     await this.validateNotInClosedPeriod(txn.transactionDate, txn.bankAccountId);
 
-    const { paymentId, receiptId, matchAmount } = await this.resolveMatchTarget(input);
+    const { paymentId, receiptId, vendorId, customerId, matchAmount } = await this.resolveMatchTarget(input);
 
     const diff = Math.abs(toNumber(txn.amount) - matchAmount);
     if (diff > 1) throw new ConflictError(`Amount mismatch: bank ${txn.amount}, book ${matchAmount}`);
@@ -251,7 +253,57 @@ export class ReconciliationService {
       await this.tryClearChequeForTxn(txn.bankAccountId, toNumber(txn.amount), txn.transactionDate);
     }
 
+    // Close the recon feedback loop: log the user's match decision so
+    // smart-match can later score future suggestions by historical hit
+    // rate against this narration pattern + vendor/customer.
+    await this.logMatchCorrection({
+      bankTransactionId: input.bankTransactionId,
+      narration: txn.narration,
+      amount: toNumber(txn.amount),
+      txnType: txn.type,
+      paymentId,
+      receiptId,
+      vendorId,
+      customerId,
+      action: 'match',
+      actedBy: userId,
+    });
+
     return result;
+  }
+
+  /** Best-effort log; never throw. */
+  private async logMatchCorrection(args: {
+    bankTransactionId: string;
+    narration: string | null;
+    amount: number;
+    txnType: 'credit' | 'debit';
+    paymentId: string | null;
+    receiptId: string | null;
+    vendorId: string | null;
+    customerId: string | null;
+    action: 'match' | 'unmatch';
+    actedBy?: string;
+  }): Promise<void> {
+    try {
+      const pattern = args.narration ? extractNarrationPattern(args.narration) : null;
+      await this.db.insert(bankMatchCorrections).values({
+        tenantId: this.tenantId,
+        bankTransactionId: args.bankTransactionId,
+        narrationPattern: pattern,
+        amount: String(args.amount),
+        txnType: args.txnType,
+        paymentId: args.paymentId,
+        receiptId: args.receiptId,
+        vendorId: args.vendorId,
+        customerId: args.customerId,
+        action: args.action,
+        actedBy: args.actedBy ?? null,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[bank-match-corrections] failed to log', err);
+    }
   }
 
   async unmatch(bankTransactionId: string, userId?: string): Promise<void> {
@@ -305,6 +357,40 @@ export class ReconciliationService {
         .set({ reconStatus: 'unreconciled', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
     });
+
+    // Log the unmatch as a negative signal — if the user reversed an
+    // earlier match, that pattern → vendor/customer mapping was wrong.
+    if (match) {
+      let vendorId: string | null = null;
+      let customerId: string | null = null;
+      if (match.paymentId) {
+        const [p] = await this.db
+          .select({ vendorId: payments.vendorId })
+          .from(payments)
+          .where(and(eq(payments.id, match.paymentId), eq(payments.tenantId, this.tenantId)))
+          .limit(1);
+        vendorId = p?.vendorId ?? null;
+      } else if (match.receiptId) {
+        const [r] = await this.db
+          .select({ customerId: paymentReceipts.customerId })
+          .from(paymentReceipts)
+          .where(and(eq(paymentReceipts.id, match.receiptId), eq(paymentReceipts.tenantId, this.tenantId)))
+          .limit(1);
+        customerId = r?.customerId ?? null;
+      }
+      await this.logMatchCorrection({
+        bankTransactionId,
+        narration: txn.narration,
+        amount: toNumber(txn.amount),
+        txnType: txn.type,
+        paymentId: match.paymentId ?? null,
+        receiptId: match.receiptId ?? null,
+        vendorId,
+        customerId,
+        action: 'unmatch',
+        actedBy: userId,
+      });
+    }
   }
 
   async postAsExpense(input: PostAsExpenseInput, userId: string): Promise<ReconciliationMatch> {
@@ -658,7 +744,13 @@ export class ReconciliationService {
         .where(and(eq(payments.id, input.matchId), eq(payments.tenantId, this.tenantId)))
         .limit(1);
       if (!payment) throw new NotFoundError('Payment');
-      return { paymentId: payment.id, receiptId: null as null, matchAmount: toNumber(payment.amount) };
+      return {
+        paymentId: payment.id,
+        receiptId: null as null,
+        vendorId: payment.vendorId,
+        customerId: null as null,
+        matchAmount: toNumber(payment.amount),
+      };
     }
 
     const [receipt] = await this.db
@@ -667,7 +759,13 @@ export class ReconciliationService {
       .where(and(eq(paymentReceipts.id, input.matchId), eq(paymentReceipts.tenantId, this.tenantId)))
       .limit(1);
     if (!receipt) throw new NotFoundError('Payment receipt');
-    return { paymentId: null as null, receiptId: receipt.id, matchAmount: toNumber(receipt.amount) };
+    return {
+      paymentId: null as null,
+      receiptId: receipt.id,
+      vendorId: null as null,
+      customerId: receipt.customerId ?? null,
+      matchAmount: toNumber(receipt.amount),
+    };
   }
 
   private mergeSuggestions(smart: SmartMatchResult[], tds: SmartMatchResult[]): SmartMatchResult[] {

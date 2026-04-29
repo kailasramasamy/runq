@@ -147,15 +147,14 @@ function AttachmentList({ attachments, readonly, deletingId, onDelete }: Attachm
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <a
-              href={`/api/v1/common/attachments/${att.id}/download`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => openAttachment(att)}
               className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              title="Download"
+              title="View / download"
             >
               <Download className="h-4 w-4" />
-            </a>
+            </button>
             {!readonly && (
               <button
                 onClick={() => onDelete(att.id)}
@@ -192,4 +191,44 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Authenticated download for an attachment. The /attachments/:id/download
+ * endpoint requires a Bearer token, so a plain `<a href>` won't work — the
+ * browser doesn't carry our localStorage token on a top-level navigation.
+ * We fetch as a blob and open it in a new tab via an object URL, which the
+ * browser previews natively for PDFs and images.
+ */
+async function openAttachment(att: DocumentAttachment): Promise<void> {
+  try {
+    const token = localStorage.getItem('runq-token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`/api/v1/common/attachments/${att.id}/download`, { headers });
+    if (!res.ok) {
+      // eslint-disable-next-line no-alert
+      alert(`Could not download attachment (HTTP ${res.status})`);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank');
+    // Fall back to a forced download if the browser blocked the popup.
+    if (!newWindow) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // Revoke after a delay so the new tab has time to load.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[file-upload] download failed', err);
+    // eslint-disable-next-line no-alert
+    alert('Could not download the attachment.');
+  }
 }

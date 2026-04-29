@@ -5,6 +5,8 @@ import { ExtractService } from './extract.service';
 import { ScanImportService } from './scan-import.service';
 import { AttachmentService } from '../common/attachment.service';
 import { getStorageProvider } from '../../utils/storage';
+import { ExtractionStagingService } from './extraction-staging.service';
+import { documentAttachments } from '@runq/db';
 
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -47,7 +49,19 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
 
       const service = new ExtractService(request.server.db, request.tenantId);
       const result = await service.extractFromFile(buffer, mimeType, file.filename);
-      return { data: result };
+
+      // Stage the file in S3 + Redis so /scan-commit can bind it to the
+      // bill without re-uploading. TTL 30 minutes; orphans are eligible
+      // for S3 lifecycle cleanup under the `_extraction_tmp/` prefix.
+      const staging = new ExtractionStagingService(request.server.redis, getStorageProvider());
+      const { extractionId } = await staging.stage({
+        tenantId: request.tenantId,
+        fileName: file.filename,
+        mimeType,
+        data: buffer,
+      });
+
+      return { data: { ...result, extractionId } };
     },
   );
 
@@ -70,7 +84,7 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const service = new ScanImportService(request.server.db, request.tenantId);
-      const result = await service.scanAndImport(buffer, mimeType, file.filename);
+      const result = await service.scanAndImport(buffer, mimeType, file.filename, request.user.userId);
 
       // Auto-attach the scanned invoice file to the created bill
       const attachmentService = new AttachmentService(request.server.db, request.tenantId, getStorageProvider());
@@ -88,49 +102,95 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Commit a previously extracted invoice (from preview)
+  // Commit a previously extracted invoice (from preview).
+  // The client should round-trip the original `aiOutput` from /extract so we
+  // can record the user's correction diff for downstream learning.
+  // `null` for numeric amount fields means "not present on the bill" — tax-
+  // inclusive bills (fuel, retail receipts) legitimately have no separate
+  // tax line. We coerce null → 0 at validation.
+  const nonNegOrNull = z.preprocess((v) => v ?? 0, z.number().nonnegative());
+  const extractedSchema = z.object({
+    vendorName: z.string().min(1),
+    vendorGstin: z.string().nullable().default(null),
+    vendorPan: z.string().nullable().default(null),
+    vendorPhone: z.string().nullable().default(null),
+    vendorEmail: z.string().nullable().default(null),
+    vendorAddress: z.string().nullable().default(null),
+    vendorCity: z.string().nullable().default(null),
+    vendorState: z.string().nullable().default(null),
+    vendorPincode: z.string().nullable().default(null),
+    vendorBankAccount: z.string().nullable().default(null),
+    vendorBankIfsc: z.string().nullable().default(null),
+    vendorBankName: z.string().nullable().default(null),
+    invoiceNumber: z.string().min(1),
+    invoiceDate: z.string(),
+    dueDate: z.string().nullable().default(null),
+    items: z.array(z.object({
+      itemName: z.string().min(1),
+      hsnSacCode: z.string().nullable().default(null),
+      quantity: z.number().positive(),
+      unitPrice: nonNegOrNull,
+      amount: z.number().positive(),
+      taxRate: z.number().nullable().default(null),
+      taxCategory: z.string().nullable().default(null),
+    })).min(1),
+    subtotal: nonNegOrNull,
+    taxAmount: nonNegOrNull,
+    totalAmount: z.number().positive(),
+    tdsSection: z.string().nullable().default(null),
+    confidence: z.number(),
+  });
+
   const commitSchema = z.object({
-    extracted: z.object({
-      vendorName: z.string().min(1),
-      vendorGstin: z.string().nullable().default(null),
-      vendorPan: z.string().nullable().default(null),
-      vendorPhone: z.string().nullable().default(null),
-      vendorEmail: z.string().nullable().default(null),
-      vendorAddress: z.string().nullable().default(null),
-      vendorCity: z.string().nullable().default(null),
-      vendorState: z.string().nullable().default(null),
-      vendorPincode: z.string().nullable().default(null),
-      vendorBankAccount: z.string().nullable().default(null),
-      vendorBankIfsc: z.string().nullable().default(null),
-      vendorBankName: z.string().nullable().default(null),
-      invoiceNumber: z.string().min(1),
-      invoiceDate: z.string(),
-      dueDate: z.string().nullable().default(null),
-      items: z.array(z.object({
-        itemName: z.string().min(1),
-        hsnSacCode: z.string().nullable().default(null),
-        quantity: z.number().positive(),
-        unitPrice: z.number().nonnegative(),
-        amount: z.number().positive(),
-        taxRate: z.number().nullable().default(null),
-        taxCategory: z.string().nullable().default(null),
-      })).min(1),
-      subtotal: z.number().nonnegative(),
-      taxAmount: z.number().nonnegative(),
-      totalAmount: z.number().positive(),
-      tdsSection: z.string().nullable().default(null),
-      confidence: z.number(),
-    }),
+    extracted: extractedSchema,
     vendorId: z.string().uuid().nullish(),
+    // Optional — when present, used to compute the user's correction diff.
+    // The client should pass the `extracted` field from the original
+    // /extract response untouched.
+    aiOutput: extractedSchema.partial().nullish(),
+    // Optional — present when the bill came through the two-step
+    // extract → review → commit flow. Used to bind the already-uploaded
+    // S3 file as an attachment on the new bill.
+    extractionId: z.string().uuid().nullish(),
   });
 
   app.post(
     '/scan-commit',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request, reply) => {
-      const { extracted, vendorId } = commitSchema.parse(request.body);
+      const { extracted, vendorId, aiOutput, extractionId } = commitSchema.parse(request.body);
       const service = new ScanImportService(request.server.db, request.tenantId);
-      const result = await service.commitExtracted(extracted, vendorId ?? undefined);
+      // Synthesize an ExtractionResult shape so commitExtracted records the
+      // user diff against the AI output (when the client passed it).
+      const fakeExtraction = aiOutput
+        ? { confidence: aiOutput.confidence ?? extracted.confidence, extracted: aiOutput as typeof extracted, vendorMatch: null }
+        : undefined;
+      const result = await service.commitExtracted(extracted, vendorId ?? undefined, fakeExtraction, request.user.userId);
+
+      // Bind the staged S3 file (if any) to the new bill as an attachment.
+      // We don't move the object in S3 — just create a row pointing to the
+      // existing key. Best-effort; never blocks the bill commit.
+      if (extractionId) {
+        try {
+          const staging = new ExtractionStagingService(request.server.redis, getStorageProvider());
+          const staged = await staging.claim(extractionId, request.tenantId);
+          if (staged) {
+            await request.server.db.insert(documentAttachments).values({
+              tenantId: request.tenantId,
+              entityType: 'purchase_invoice',
+              entityId: result.billId,
+              fileName: staged.fileName,
+              fileSize: staged.fileSize,
+              mimeType: staged.mimeType,
+              storageKey: staged.storageKey,
+              uploadedBy: request.user.userId,
+            });
+          }
+        } catch (err) {
+          request.server.log.warn({ err, extractionId }, 'Failed to bind extraction to bill');
+        }
+      }
+
       return reply.status(201).send({ data: result });
     },
   );

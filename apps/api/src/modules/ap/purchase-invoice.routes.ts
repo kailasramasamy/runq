@@ -19,6 +19,7 @@ import { ThreeWayMatchService } from './three-way-match.service';
 import { DuplicateService } from './duplicate.service';
 import { AnomalyService } from './anomaly.service';
 import { checkDuplicatesSchema } from './duplicate.schema';
+import { getStorageProvider } from '../../utils/storage';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -124,7 +125,15 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
-      await service.cancel(id);
+      // Drafts: hard-delete (bill + items + attachments + S3 files) — they
+      // were created in error or as duplicates and never had downstream
+      // GL/payment effects. Anything else: soft-cancel to preserve audit.
+      const existing = await service.getById(id);
+      if (existing.status === 'draft') {
+        await service.hardDelete(id, getStorageProvider(), request.user.userId);
+      } else {
+        await service.cancel(id, request.user.userId);
+      }
       return reply.status(204).send();
     },
   );

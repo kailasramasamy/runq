@@ -5,6 +5,7 @@ import {
   poDraftLines,
   customers,
   customerSkuAliases,
+  customerBuyerAliases,
   items,
   salesInvoices,
   applyPagination,
@@ -19,6 +20,20 @@ import { InvoiceService } from './invoice.service';
 type PoUploadRow = typeof poUploads.$inferSelect;
 type PoDraftRow = typeof poDrafts.$inferSelect;
 type PoDraftLineRow = typeof poDraftLines.$inferSelect;
+
+/**
+ * Line shape returned to clients: the raw line plus the matched item's master
+ * name and unit. The mobile review screen prefers these over the raw
+ * extracted text so the user sees the canonical product (without embedded
+ * SKU codes leaking through from the parse) and the master UoM.
+ */
+export type PoDraftLineDto = PoDraftLineRow & {
+  matchedItemName: string | null;
+  matchedItemUnit: string | null;
+  /** GST rate from the items master (numeric string, e.g. "5.00"). Null when
+   * the line isn't matched to an item, or when the master has no rate set. */
+  matchedItemGstRate: string | null;
+};
 
 type PoUploadStatus = PoUploadRow['status'];
 type PoDraftReviewStatus = PoDraftRow['reviewStatus'];
@@ -81,7 +96,7 @@ export interface PoDraftDetail extends InboxRow {
   llmModel: string | null;
   /** Full pasted text content for paste_text uploads — null for file uploads. */
   rawText: string | null;
-  lines: PoDraftLineRow[];
+  lines: PoDraftLineDto[];
 }
 
 /**
@@ -182,10 +197,16 @@ export class PoDraftService {
 
     if (!row) throw new NotFoundError('PoUpload');
 
-    const lines: PoDraftLineRow[] = row.draft
+    const lineRows = row.draft
       ? await this.db
-          .select()
+          .select({
+            line: poDraftLines,
+            itemName: items.name,
+            itemUnit: items.unit,
+            itemGstRate: items.gstRate,
+          })
           .from(poDraftLines)
+          .leftJoin(items, eq(items.id, poDraftLines.matchedItemId))
           .where(
             and(
               eq(poDraftLines.poDraftId, row.draft.id),
@@ -194,6 +215,12 @@ export class PoDraftService {
           )
           .orderBy(poDraftLines.lineIndex)
       : [];
+    const lines: PoDraftLineDto[] = lineRows.map((r) => ({
+      ...r.line,
+      matchedItemName: r.itemName,
+      matchedItemUnit: r.itemUnit,
+      matchedItemGstRate: r.itemGstRate,
+    }));
 
     const u = row.upload;
     const d = row.draft;
@@ -345,9 +372,53 @@ export class PoDraftService {
     // (or returns) without forcing a full re-parse.
     if (input.customerId !== undefined) {
       await this.refreshReviewFlags(draft.id);
+      // Manual customer pick: remember the buyer-name / buyer-GSTIN so the
+      // next PO from the same buyer auto-resolves without AI/fuzzy matching.
+      if (input.customerId) {
+        await this.recordBuyerAliases(input.customerId, {
+          buyerName: draft.buyerNameRaw,
+          buyerGstin: draft.buyerGstinRaw,
+        });
+      }
     }
 
     return updated!;
+  }
+
+  private async recordBuyerAliases(
+    customerId: string,
+    args: { buyerName: string | null; buyerGstin: string | null },
+  ): Promise<void> {
+    const rows: Array<{ kind: 'name' | 'gstin'; text: string }> = [];
+    if (args.buyerGstin && args.buyerGstin.trim()) {
+      rows.push({ kind: 'gstin', text: args.buyerGstin.trim().toUpperCase() });
+    }
+    if (args.buyerName && args.buyerName.trim()) {
+      rows.push({ kind: 'name', text: args.buyerName.trim().toLowerCase() });
+    }
+    for (const row of rows) {
+      try {
+        await this.db
+          .insert(customerBuyerAliases)
+          .values({
+            tenantId: this.tenantId,
+            customerId,
+            aliasKind: row.kind,
+            aliasText: row.text,
+          })
+          .onConflictDoUpdate({
+            target: [customerBuyerAliases.tenantId, customerBuyerAliases.aliasKind, customerBuyerAliases.aliasText],
+            set: {
+              customerId,
+              useCount: sql`${customerBuyerAliases.useCount} + 1`,
+              lastUsedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+      } catch {
+        // Non-fatal — alias mining shouldn't block the customer pick.
+      }
+    }
   }
 
   /**
@@ -434,8 +505,11 @@ export class PoDraftService {
       aliasItemId = newItemId;
     }
 
+    // Amount stands when rate × qty are both known, even before the line is
+    // mapped to an items master entry — so totals reflect manual overrides
+    // while the user works through unmatched rows.
     const amount =
-      newItemId && resolvedRate != null && newQty > 0
+      resolvedRate != null && newQty > 0
         ? Number((newQty * resolvedRate).toFixed(2))
         : null;
 
@@ -467,13 +541,20 @@ export class PoDraftService {
 
     // The moat: remember "this customer's word for that item" for next time.
     // Only record on a manual item pick — not when the user is just editing qty/rate.
+    // Record an alias for both the customer's SKU code (when present) AND the
+    // raw description so future POs match either way.
     const shouldRecord = (input.recordAlias ?? true) && aliasItemId && draft.customerId;
     if (shouldRecord) {
-      await this.recordCustomerSkuAlias({
-        customerId: draft.customerId!,
-        aliasText: line.rawDescription,
-        itemId: aliasItemId!,
-      });
+      const aliasTexts = [line.customerSkuRaw, line.rawDescription]
+        .map((s) => s?.trim())
+        .filter((s): s is string => !!s);
+      for (const aliasText of aliasTexts) {
+        await this.recordCustomerSkuAlias({
+          customerId: draft.customerId!,
+          aliasText,
+          itemId: aliasItemId!,
+        });
+      }
     }
 
     await this.recomputeDraftTotals(draft.id);

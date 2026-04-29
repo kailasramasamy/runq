@@ -1,11 +1,12 @@
 import type { Readable } from 'node:stream';
-import { eq, and, or, ilike } from 'drizzle-orm';
+import { eq, and, or, ilike, sql } from 'drizzle-orm';
 import {
   poUploads,
   poDrafts,
   poDraftLines,
   customers,
   customerSkuAliases,
+  customerBuyerAliases,
   items,
 } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -43,6 +44,7 @@ type PoUploadRow = typeof poUploads.$inferSelect;
 
 interface ExtractedItem {
   description: string;
+  customerSku: string | null;
   quantity: number;
   uom: string | null;
   rate: number | null;
@@ -64,7 +66,7 @@ interface ExtractedPo {
 
 interface CustomerMatch {
   id: string;
-  source: 'gstin' | 'phone' | 'name_fuzzy';
+  source: 'alias' | 'gstin' | 'phone' | 'name_fuzzy';
   confidence: number;
 }
 
@@ -296,7 +298,57 @@ export class PoParserService {
     return parseLLMResponse(raw);
   }
 
+  /**
+   * Look up a previously-corrected mapping from buyer fingerprint →
+   * customerId. Tries the GSTIN first (exact match, highest confidence),
+   * then the normalized buyer name. This is the moat: every customer pick
+   * the user makes feeds this table, so the SaaS gets sharper per tenant.
+   */
+  private async matchByBuyerAlias(extracted: ExtractedPo): Promise<CustomerMatch | null> {
+    const candidates: Array<{ kind: 'name' | 'gstin'; text: string; conf: number }> = [];
+    if (extracted.buyerGstin?.trim()) {
+      candidates.push({ kind: 'gstin', text: extracted.buyerGstin.trim().toUpperCase(), conf: 1.0 });
+    }
+    if (extracted.buyerName?.trim()) {
+      candidates.push({ kind: 'name', text: extracted.buyerName.trim().toLowerCase(), conf: 0.95 });
+    }
+    for (const c of candidates) {
+      const [row] = await this.db
+        .select({ customerId: customerBuyerAliases.customerId })
+        .from(customerBuyerAliases)
+        .where(
+          and(
+            eq(customerBuyerAliases.tenantId, this.tenantId),
+            eq(customerBuyerAliases.aliasKind, c.kind),
+            eq(customerBuyerAliases.aliasText, c.text),
+          ),
+        )
+        .limit(1);
+      if (row) {
+        // Bump usage stats so popular aliases stay fresh in any future analytics.
+        await this.db
+          .update(customerBuyerAliases)
+          .set({ useCount: sql`${customerBuyerAliases.useCount} + 1`, lastUsedAt: new Date() })
+          .where(
+            and(
+              eq(customerBuyerAliases.tenantId, this.tenantId),
+              eq(customerBuyerAliases.aliasKind, c.kind),
+              eq(customerBuyerAliases.aliasText, c.text),
+            ),
+          );
+        return { id: row.customerId, source: 'alias', confidence: c.conf };
+      }
+    }
+    return null;
+  }
+
   private async matchCustomer(extracted: ExtractedPo): Promise<CustomerMatch | null> {
+    // 0. Buyer alias hit — if a user previously corrected the customer for
+    // this exact buyer GSTIN or buyer name, trust their decision and skip
+    // re-discovery. Highest confidence.
+    const aliasHit = await this.matchByBuyerAlias(extracted);
+    if (aliasHit) return aliasHit;
+
     // 1. Exact GSTIN match — highest confidence. When multiple customers
     // share the same GSTIN (e.g., same company with different channel
     // arrangements), use buyer name to disambiguate.
@@ -434,39 +486,62 @@ export class PoParserService {
     confidence: number | null;
   }> {
     const description = line.description.trim();
-    if (!description) return { itemId: null, source: null, confidence: null };
+    const sku = line.customerSku?.trim() ?? '';
+    if (!description && !sku) return { itemId: null, source: null, confidence: null };
 
-    const lower = description.toLowerCase();
-
-    // 1. Exact alias match (the moat) — only if we know the customer
+    // 1. Alias match (the moat). Try the customer's SKU code first since it's
+    //    a deterministic identifier; fall back to the description only if no
+    //    SKU was extracted. Both forms are stored lowercase.
     if (customerId) {
-      const [aliasRow] = await this.db
-        .select({ itemId: customerSkuAliases.itemId })
-        .from(customerSkuAliases)
+      const aliasCandidates = [sku, description].map((s) => s.toLowerCase()).filter((s) => s);
+      for (const alias of aliasCandidates) {
+        const [aliasRow] = await this.db
+          .select({ itemId: customerSkuAliases.itemId })
+          .from(customerSkuAliases)
+          .where(
+            and(
+              eq(customerSkuAliases.tenantId, this.tenantId),
+              eq(customerSkuAliases.customerId, customerId),
+              eq(customerSkuAliases.aliasText, alias),
+            ),
+          )
+          .limit(1);
+        if (aliasRow) return { itemId: aliasRow.itemId, source: 'alias', confidence: 1.0 };
+      }
+    }
+
+    // 2. Master-SKU exact match (case-insensitive) when the customer's PO
+    //    happens to use our own SKU codes.
+    if (sku) {
+      const [skuRow] = await this.db
+        .select({ id: items.id })
+        .from(items)
         .where(
           and(
-            eq(customerSkuAliases.tenantId, this.tenantId),
-            eq(customerSkuAliases.customerId, customerId),
-            eq(customerSkuAliases.aliasText, lower),
+            eq(items.tenantId, this.tenantId),
+            eq(items.isActive, true),
+            ilike(items.sku, sku),
           ),
         )
         .limit(1);
-      if (aliasRow) return { itemId: aliasRow.itemId, source: 'alias', confidence: 1.0 };
+      if (skuRow) return { itemId: skuRow.id, source: 'name_fuzzy', confidence: 0.85 };
     }
 
-    // 2. Fuzzy match on items.name OR exact SKU code (case-insensitive)
-    const [nameRow] = await this.db
-      .select({ id: items.id })
-      .from(items)
-      .where(
-        and(
-          eq(items.tenantId, this.tenantId),
-          eq(items.isActive, true),
-          or(ilike(items.name, `%${description}%`), ilike(items.sku, description)),
-        ),
-      )
-      .limit(1);
-    if (nameRow) return { itemId: nameRow.id, source: 'name_fuzzy', confidence: 0.7 };
+    // 3. Fuzzy match on items.name
+    if (description) {
+      const [nameRow] = await this.db
+        .select({ id: items.id })
+        .from(items)
+        .where(
+          and(
+            eq(items.tenantId, this.tenantId),
+            eq(items.isActive, true),
+            ilike(items.name, `%${description}%`),
+          ),
+        )
+        .limit(1);
+      if (nameRow) return { itemId: nameRow.id, source: 'name_fuzzy', confidence: 0.7 };
+    }
 
     return { itemId: null, source: null, confidence: null };
   }
@@ -534,7 +609,7 @@ export class PoParserService {
             customerMatch != null ? String(customerMatch.confidence) : null,
           buyerGstinRaw: extracted.buyerGstin,
           buyerNameRaw: extracted.buyerName,
-          poNumberExtracted: extracted.poNumber,
+          poNumberExtracted: cleanPoNumber(extracted.poNumber),
           poDate: extracted.poDate,
           deliveryDate: extracted.deliveryDate,
           subtotal: subtotal > 0 ? String(subtotal.toFixed(2)) : null,
@@ -554,6 +629,7 @@ export class PoParserService {
             poDraftId: draft!.id,
             lineIndex,
             rawDescription: line.description,
+            customerSkuRaw: line.customerSku,
             rawQty: line.quantity != null ? String(line.quantity) : null,
             rawUom: line.uom,
             rawRate: line.rate != null ? String(line.rate) : null,
@@ -619,6 +695,7 @@ function parseLLMResponse(rawText: string): ExtractedPo {
           const item = (it ?? {}) as Record<string, unknown>;
           return {
             description: String(item.description ?? '').trim() || 'Unknown item',
+            customerSku: stringOrNull(item.customerSku),
             quantity: numberOrZero(item.quantity),
             uom: stringOrNull(item.uom),
             rate: numberOrNull(item.rate),
@@ -660,4 +737,18 @@ function clampConfidence(v: unknown): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0.5;
   return Math.max(0, Math.min(1, n));
+}
+
+// Some POs have the literal heading "PO" / "PO #" / "PO No." standing alone
+// where a real number should be — the LLM occasionally returns those instead
+// of null. Strip noise so the UI shows nothing rather than a misleading "PO".
+function cleanPoNumber(v: string | null): string | null {
+  if (v == null) return null;
+  const trimmed = v.replace(/^(po|p\.o|po\s*#|po\s*no\.?)\s*[:\-]?\s*/i, '').trim();
+  if (!trimmed) return null;
+  // Reject when the entire value was a heading or just punctuation/letters
+  // with no digits (e.g. "PO", "Order", "—"). A real PO number has at least
+  // one digit somewhere.
+  if (!/\d/.test(trimmed)) return null;
+  return trimmed;
 }

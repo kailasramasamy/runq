@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { Check, X, AlertTriangle, FileWarning, Pencil } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { Check, X, AlertTriangle, FileWarning, Pencil, Trash2 } from 'lucide-react';
 import {
   usePurchaseInvoice,
   useThreeWayMatch,
@@ -12,7 +12,6 @@ import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, De
 import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import { FileUpload } from '@/components/ui/file-upload';
-import { ApprovalPanel } from '@/components/approval-panel';
 import { DocumentTrail } from '@/components/audit/document-trail';
 import {
   PageHeader,
@@ -222,6 +221,7 @@ function MatchResultPanel({ result }: { result: ThreeWayMatchResult }) {
 // ─── Actions Panel ────────────────────────────────────────────────────────────
 
 function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
+  const navigate = useNavigate();
   const [showMatchForm, setShowMatchForm] = useState(false);
   const [matchResult, setMatchResult] = useState<ThreeWayMatchResult | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -244,53 +244,59 @@ function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
     />
   );
 
+  // Drafts get a real "Delete" — server hard-removes the bill, items, and
+  // attached scanned originals. Other statuses get the soft "Cancel" path
+  // which preserves audit trail.
+  const isDraft = invoice.status === 'draft';
   const cancelDialog = (
     <ConfirmationDialog
       open={showCancelDialog}
       onClose={() => setShowCancelDialog(false)}
       onConfirm={() => {
-        deleteMutation.mutate(invoice.id, { onSuccess: () => setShowCancelDialog(false) });
+        deleteMutation.mutate(invoice.id, {
+          onSuccess: () => {
+            setShowCancelDialog(false);
+            // Navigate away — for hard-deletes the bill is gone, for cancels
+            // the list view is friendlier than landing on a "cancelled" detail.
+            if (isDraft) navigate({ to: '/ap/bills' });
+          },
+        });
       }}
-      title="Cancel Bill"
-      description={`Cancel bill ${invoice.invoiceNumber}? You can create a revised bill afterwards.`}
-      confirmLabel="Cancel Bill"
+      title={isDraft ? 'Delete Bill' : 'Cancel Bill'}
+      description={
+        isDraft
+          ? `Permanently delete bill ${invoice.invoiceNumber}? The line items and any attached scanned document will be removed. This cannot be undone.`
+          : `Cancel bill ${invoice.invoiceNumber}? You can create a revised bill afterwards.`
+      }
+      confirmLabel={isDraft ? 'Delete Bill' : 'Cancel Bill'}
       variant="danger"
       loading={deleteMutation.isPending}
     />
   );
 
   if (invoice.status === 'draft' && !invoice.poId) {
+    // Approve / Edit / Delete have moved to the page header (top right).
+    // The body card here is just for the optional PO-linking flow, which
+    // expands inline and would crowd the header.
     return (
       <Card>
-        <CardHeader title="Approval" />
+        <CardHeader title="Link a Purchase Order" />
         <CardContent>
-          <ApprovalPanel entityType="purchase_invoice" entityId={invoice.id} amount={Number(invoice.totalAmount)} />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 mt-4">
-            This bill has no linked Purchase Order. You can approve it directly or link a PO for 3-way matching.
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+            Optional: link this bill to a Purchase Order for 3-way matching against the PO and GRN.
           </p>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowApproveDialog(true)}
-            >
-              Approve Bill
-            </Button>
+          {showMatchForm ? (
+            <MatchForm
+              invoiceId={invoice.id}
+              onDone={() => { setShowMatchForm(false); setMatchResult(null); }}
+            />
+          ) : (
             <Button variant="outline" size="sm" onClick={() => setShowMatchForm(true)}>
               Link PO &amp; Match
             </Button>
-          </div>
-          {showMatchForm && (
-            <div className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-              <MatchForm
-                invoiceId={invoice.id}
-                onDone={() => { setShowMatchForm(false); setMatchResult(null); }}
-              />
-            </div>
           )}
           {matchResult && <MatchResultPanel result={matchResult} />}
         </CardContent>
-        {approveDialog}
       </Card>
     );
   }
@@ -698,8 +704,13 @@ function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
 // ─── Main Detail Page ─────────────────────────────────────────────────────────
 
 export function BillDetailPage({ billId }: { billId: string }) {
+  const navigate = useNavigate();
   const { data, isLoading, isError } = usePurchaseInvoice(billId);
   const invoice = data?.data;
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const approveMutation = useApproveInvoice();
+  const deleteMutation = useDeletePurchaseInvoice();
 
   if (isLoading) {
     return (
@@ -722,6 +733,9 @@ export function BillDetailPage({ billId }: { billId: string }) {
     );
   }
 
+  const isDraft = invoice.status === 'draft';
+  const canApproveDirect = isDraft && !invoice.poId;
+
   return (
     <div className="max-w-6xl">
       <PageHeader
@@ -739,15 +753,59 @@ export function BillDetailPage({ billId }: { billId: string }) {
             <Badge variant={MATCH_BADGE_VARIANT[invoice.matchStatus]}>
               {invoice.matchStatus.replace('_', ' ')}
             </Badge>
-            {invoice.status === 'draft' && (
+            {canApproveDirect && (
+              <Button variant="primary" size="sm" onClick={() => setShowApproveDialog(true)}>
+                <Check size={14} /> Approve
+              </Button>
+            )}
+            {isDraft && (
               <Link to="/ap/bills/$billId/edit" params={{ billId }}>
                 <Button variant="outline" size="sm">
                   <Pencil size={14} /> Edit
                 </Button>
               </Link>
             )}
+            {isDraft && (
+              <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
+                <Trash2 size={14} /> Delete
+              </Button>
+            )}
           </div>
         }
+      />
+
+      <ConfirmationDialog
+        open={showApproveDialog}
+        onClose={() => setShowApproveDialog(false)}
+        onConfirm={() =>
+          approveMutation.mutate(
+            { id: invoice.id },
+            { onSuccess: () => setShowApproveDialog(false) },
+          )
+        }
+        title="Approve Bill"
+        description={`Approve bill ${invoice.invoiceNumber} for ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}? Once approved, it will be available for payment.`}
+        confirmLabel="Approve"
+        variant="warning"
+        loading={approveMutation.isPending}
+      />
+
+      <ConfirmationDialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={() =>
+          deleteMutation.mutate(invoice.id, {
+            onSuccess: () => {
+              setShowDeleteDialog(false);
+              navigate({ to: '/ap/bills' });
+            },
+          })
+        }
+        title="Delete Bill"
+        description={`Permanently delete bill ${invoice.invoiceNumber}? The line items and any attached scanned document will be removed. This cannot be undone.`}
+        confirmLabel="Delete Bill"
+        variant="danger"
+        loading={deleteMutation.isPending}
       />
 
       {/* Summary Stats */}

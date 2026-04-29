@@ -3,6 +3,8 @@ import { vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 import { ExtractService, type ExtractionResult } from './extract.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
+import { recordExtractionCorrection } from '../common/extraction-corrections.service';
+import { recordItemAliasesFromBill } from './vendor-item-aliases.service';
 
 interface ScanImportResult {
   extraction: ExtractionResult;
@@ -56,10 +58,13 @@ export class ScanImportService {
     buffer: Buffer,
     mimeType: string,
     fileName: string,
+    createdBy?: string | null,
   ): Promise<ScanImportResult> {
     const extractService = new ExtractService(this.db, this.tenantId);
     const extraction = await extractService.extractFromFile(buffer, mimeType, fileName);
-    return this.commitExtracted(extraction.extracted, extraction.vendorMatch?.id, extraction);
+    // No user edits in one-shot path; aiOutput == userOutput. Still log so
+    // we can track AI baseline accuracy and template usage per vendor.
+    return this.commitExtracted(extraction.extracted, extraction.vendorMatch?.id, extraction, createdBy);
   }
 
   /** Commit a previously extracted (and possibly edited) invoice */
@@ -67,6 +72,7 @@ export class ScanImportService {
     extracted: ExtractedInvoice,
     existingVendorId?: string,
     extraction?: ExtractionResult,
+    createdBy?: string | null,
   ): Promise<ScanImportResult> {
     // Resolve or create vendor
     const { vendorId, vendorCreated, vendorName } = existingVendorId
@@ -97,6 +103,30 @@ export class ScanImportService {
       reverseCharge: false,
       tdsSection: extracted.tdsSection ?? undefined,
     });
+
+    // Capture the user's diff for analytics + future template/alias mining.
+    // When the caller passes the AI's raw output via `extraction`, we diff
+    // against the (possibly edited) `extracted`. If no AI output was passed
+    // we still log a row with both blobs equal — useful as a baseline.
+    const aiOutput = (extraction?.extracted ?? extracted) as unknown as Record<string, unknown>;
+    const userOutput = extracted as unknown as Record<string, unknown>;
+    await recordExtractionCorrection(this.db, {
+      tenantId: this.tenantId,
+      documentType: 'ap_bill',
+      sourceEntityType: 'purchase_invoice',
+      sourceEntityId: bill.id,
+      vendorId,
+      aiOutput,
+      userOutput,
+      aiConfidence: extracted.confidence ?? null,
+      extractionMethod: 'ai',
+      createdBy: createdBy ?? null,
+    });
+
+    // Mine per-vendor item aliases from the saved line items. Next time
+    // this vendor sends an invoice with the same item description, we
+    // pre-fill the user-confirmed HSN/tax instead of relying on AI alone.
+    await recordItemAliasesFromBill(this.db, this.tenantId, vendorId, extracted.items);
 
     return {
       extraction: extraction ?? { confidence: extracted.confidence, extracted, vendorMatch: null },
@@ -150,7 +180,7 @@ export class ScanImportService {
       bankAccountNumber: extracted.vendorBankAccount ?? null,
       bankIfsc: extracted.vendorBankIfsc ?? null,
       bankName: extracted.vendorBankName ?? null,
-      category: 'other',
+      category: inferVendorCategory(extracted),
       paymentTermsDays: 30,
       isActive: true,
     }).returning();
@@ -161,6 +191,48 @@ export class ScanImportService {
       vendorName: newVendor!.name,
     };
   }
+}
+
+/**
+ * Heuristic categorization for auto-created vendors. Lets the UI group
+ * dealer-level vendors under a recognisable label ("Indian Oil pump on
+ * MG Road" → category: 'fuel') while still keeping each GSTIN as its
+ * own vendor record (mandatory for ITC). Defaults to 'other' on no match.
+ */
+function inferVendorCategory(extracted: ExtractedInvoice): string {
+  const haystack = [
+    extracted.vendorName,
+    extracted.vendorAddress,
+    ...(extracted.items?.map((i) => i.itemName) ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const hsns = (extracted.items ?? []).map((i) => (i.hsnSacCode ?? '').replace(/\D/g, ''));
+
+  // Petroleum HSN family — 2710 covers petrol, diesel, kerosene, ATF.
+  if (hsns.some((h) => h.startsWith('2710'))) return 'fuel';
+
+  if (
+    /\b(petrol(eum)?|diesel|hsd|petrol pump|filling station|fuel station|petro|gas station)\b/.test(haystack) ||
+    /\b(iocl|hpcl|bpcl|reliance petroleum|nayara|shell)\b/.test(haystack)
+  ) {
+    return 'fuel';
+  }
+
+  if (/\b(courier|logistics|cargo|transport|freight|shipping|fedex|dtdc|bluedart|delhivery)\b/.test(haystack)) {
+    return 'logistics';
+  }
+
+  if (/\b(electricity|power|kseb|bescom|tata power|adani electric|reliance energy)\b/.test(haystack)) {
+    return 'utilities';
+  }
+
+  if (/\b(telecom|airtel|jio|vodafone|bsnl|broadband|internet)\b/.test(haystack)) {
+    return 'utilities';
+  }
+
+  return 'other';
 }
 
 const STATE_CODES: Record<string, string> = {

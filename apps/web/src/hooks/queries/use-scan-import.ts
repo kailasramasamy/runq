@@ -44,6 +44,9 @@ export interface ExtractionResult {
   confidence: number;
   extracted: ExtractedInvoice;
   vendorMatch: VendorMatch | null;
+  // Set on the two-step flow: server has staged the file in S3 under this id
+  // and will bind it to the bill on commit.
+  extractionId?: string;
 }
 
 interface ScanImportResult {
@@ -84,7 +87,16 @@ export function useExtractInvoice() {
 export function useScanCommit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { extracted: ExtractedInvoice; vendorId?: string }) => {
+    mutationFn: async (params: {
+      extracted: ExtractedInvoice;
+      vendorId?: string;
+      // Original AI output from /extract — pass through unchanged so the
+      // server can compute the user's correction diff for learning.
+      aiOutput?: ExtractedInvoice;
+      // Round-trip the extractionId from /extract so the server can bind
+      // the staged S3 file to the new bill as an attachment.
+      extractionId?: string;
+    }) => {
       const token = getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;

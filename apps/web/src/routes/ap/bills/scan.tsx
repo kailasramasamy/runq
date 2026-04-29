@@ -25,6 +25,10 @@ export function ScanBillPage() {
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
+  // Editable copy of the AI extraction. The user's version of `extracted`
+  // is what we save; `extraction.extracted` stays the immutable AI original
+  // and is sent as `aiOutput` so the server can compute the correction diff.
+  const [edited, setEdited] = useState<ExtractedInvoice | null>(null);
   const [commitResult, setCommitResult] = useState<{ vendorCreated: boolean; vendorName: string; billId: string; billNumber: string } | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -36,6 +40,7 @@ export function ScanBillPage() {
     extractMutation.mutate(f, {
       onSuccess: (res) => {
         setExtraction(res.data);
+        setEdited(res.data.extracted);
         setStep('preview');
       },
       onError: (err: any) => {
@@ -45,12 +50,14 @@ export function ScanBillPage() {
   }
 
   function handleCommit() {
-    if (!extraction) return;
+    if (!extraction || !edited) return;
     setShowConfirm(false);
     commitMutation.mutate(
       {
-        extracted: extraction.extracted,
+        extracted: edited,
         vendorId: extraction.vendorMatch?.id,
+        aiOutput: extraction.extracted,
+        extractionId: extraction.extractionId,
       },
       {
         onSuccess: (res) => {
@@ -59,16 +66,36 @@ export function ScanBillPage() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         },
         onError: (err: any) => {
-          toast(`Import failed: ${err?.error || err?.message || 'Unknown error'}`, 'error');
+          // Surface server-side validation errors with the offending field
+          // path so the user knows where to look. Falls back to plain
+          // message for non-validation errors.
+          const details: Array<{ field: string; message: string }> | undefined = err?.details;
+          if (Array.isArray(details) && details.length > 0) {
+            const summary = details
+              .map((d) => `${prettyFieldName(d.field)}: ${d.message}`)
+              .slice(0, 3)
+              .join(' · ');
+            toast(`Cannot save: ${summary}`, 'error');
+          } else {
+            toast(`Import failed: ${err?.error || err?.message || 'Unknown error'}`, 'error');
+          }
         },
       },
     );
+  }
+
+  function prettyFieldName(path: string): string {
+    return path
+      .replace(/^extracted\./, '')
+      .replace(/\.items\.(\d+)/, ' (line $1)')
+      .replace(/\./g, ' ');
   }
 
   function reset() {
     setStep('upload');
     setFile(null);
     setExtraction(null);
+    setEdited(null);
     setCommitResult(null);
   }
 
@@ -102,10 +129,12 @@ export function ScanBillPage() {
         </Card>
       )}
 
-      {/* Step 2: Preview extracted data */}
-      {step === 'preview' && extraction && (
+      {/* Step 2: Preview & edit extracted data */}
+      {step === 'preview' && extraction && edited && (
         <ExtractedPreview
           extraction={extraction}
+          edited={edited}
+          onChange={setEdited}
           fileName={file?.name ?? ''}
           onConfirm={() => setShowConfirm(true)}
           onRetry={reset}
@@ -152,8 +181,8 @@ export function ScanBillPage() {
         title="Create Bill"
         description={
           extraction?.vendorMatch
-            ? `Create a draft bill from ${extraction.extracted.vendorName} for ${formatINR(extraction.extracted.totalAmount)}?`
-            : `Vendor "${extraction?.extracted.vendorName}" not found. A new vendor will be auto-created and a draft bill for ${formatINR(extraction?.extracted.totalAmount ?? 0)} will be created. Proceed?`
+            ? `Create a draft bill from ${edited?.vendorName} for ${formatINR(edited?.totalAmount ?? 0)}?`
+            : `Vendor "${edited?.vendorName}" not found. A new vendor will be auto-created and a draft bill for ${formatINR(edited?.totalAmount ?? 0)} will be created. Proceed?`
         }
         confirmLabel="Create Bill"
         loading={commitMutation.isPending}
@@ -202,19 +231,73 @@ function InvoiceDropZone({ onFile }: { onFile: (file: File) => void }) {
 
 function ExtractedPreview({
   extraction,
+  edited,
+  onChange,
   fileName,
   onConfirm,
   onRetry,
   isCommitting,
 }: {
   extraction: ExtractionResult;
+  edited: ExtractedInvoice;
+  onChange: (next: ExtractedInvoice) => void;
   fileName: string;
   onConfirm: () => void;
   onRetry: () => void;
   isCommitting: boolean;
 }) {
-  const { extracted, vendorMatch, confidence } = extraction;
+  const { vendorMatch, confidence } = extraction;
   const confidencePct = Math.round(confidence * 100);
+
+  // Field setters — keeps the JSX terse without inlining setState calls.
+  const setField = <K extends keyof ExtractedInvoice>(key: K, value: ExtractedInvoice[K]) =>
+    onChange({ ...edited, [key]: value });
+
+  const updateItem = (idx: number, patch: Partial<ExtractedInvoice['items'][number]>) => {
+    const items = edited.items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+    // Auto-recompute amount when qty or unit price changes.
+    if (patch.quantity !== undefined || patch.unitPrice !== undefined) {
+      const target = items[idx];
+      if (target) target.amount = Number((target.quantity * target.unitPrice).toFixed(2));
+    }
+    const subtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
+    onChange({ ...edited, items, subtotal: Number(subtotal.toFixed(2)) });
+  };
+
+  const addItem = () => {
+    onChange({
+      ...edited,
+      items: [
+        ...edited.items,
+        { itemName: '', hsnSacCode: null, quantity: 1, unitPrice: 0, amount: 0, taxRate: null, taxCategory: null },
+      ],
+    });
+  };
+
+  const removeItem = (idx: number) => {
+    const items = edited.items.filter((_, i) => i !== idx);
+    const subtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
+    onChange({ ...edited, items, subtotal: Number(subtotal.toFixed(2)) });
+  };
+
+  // Sanity check — surface tax/total mismatch even if the server already softened it.
+  const computedTotal = (edited.subtotal || 0) + (edited.taxAmount || 0);
+  const totalsMismatch = edited.totalAmount > 0 && Math.abs(computedTotal - edited.totalAmount) > 2;
+
+  // Client-side validation that mirrors the server schema. Shown as a
+  // banner + used to disable "Create Bill" so the user understands why.
+  const validationIssues: string[] = [];
+  if (!edited.vendorName?.trim()) validationIssues.push('Vendor name is required');
+  if (!edited.invoiceNumber?.trim()) validationIssues.push('Invoice number is required');
+  if (!edited.invoiceDate) validationIssues.push('Invoice date is required');
+  if (edited.totalAmount <= 0) validationIssues.push('Total must be greater than 0');
+  edited.items.forEach((it, i) => {
+    if (!it.itemName?.trim()) validationIssues.push(`Line ${i + 1}: item name is required`);
+    if (!(it.quantity > 0)) validationIssues.push(`Line ${i + 1}: quantity must be > 0`);
+    if (!(it.amount > 0)) validationIssues.push(`Line ${i + 1}: amount must be > 0`);
+  });
+  if (edited.items.length === 0) validationIssues.push('Add at least one line item');
+  const hasErrors = validationIssues.length > 0;
 
   return (
     <div className="space-y-4">
@@ -242,53 +325,112 @@ function ExtractedPreview({
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/20">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Low confidence extraction. Please review the data carefully before importing.
+            Low confidence extraction. Review every field carefully — extracted values may be wrong.
           </p>
         </div>
       )}
 
-      {/* Invoice header */}
+      {totalsMismatch && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/20">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Subtotal + Tax doesn't match Total ({formatINR(computedTotal)} vs {formatINR(edited.totalAmount)}). Please correct before saving.
+          </p>
+        </div>
+      )}
+
+      {hasErrors && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-900/20">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-600" />
+            <div className="text-xs text-red-700 dark:text-red-400">
+              <p className="font-semibold">Fix the following before saving:</p>
+              <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                {validationIssues.slice(0, 6).map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+                {validationIssues.length > 6 && <li>…and {validationIssues.length - 6} more</li>}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice header — editable */}
       <Card>
         <CardHeader title="Invoice Details" />
         <CardContent>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-            <Field label="Vendor" value={extracted.vendorName} />
-            <Field label="GSTIN" value={extracted.vendorGstin} mono />
-            <Field label="PAN" value={extracted.vendorPan} mono />
-            <Field label="Phone" value={extracted.vendorPhone} />
-            <Field label="Email" value={extracted.vendorEmail} />
-            <Field label="City / State" value={[extracted.vendorCity, extracted.vendorState].filter(Boolean).join(', ') || null} />
-            <Field label="Invoice #" value={extracted.invoiceNumber} mono />
-            <Field label="Invoice Date" value={extracted.invoiceDate} />
-            <Field label="Due Date" value={extracted.dueDate} />
-            <Field label="TDS Section" value={extracted.tdsSection} />
-            <Field label="Bank A/C" value={extracted.vendorBankAccount} mono />
-            <Field label="IFSC" value={extracted.vendorBankIfsc} mono />
+          <div className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <EditableField label="Vendor" value={edited.vendorName} onChange={(v) => setField('vendorName', v)} required />
+            <EditableField label="GSTIN" value={edited.vendorGstin} onChange={(v) => setField('vendorGstin', v || null)} mono />
+            <EditableField label="PAN" value={edited.vendorPan} onChange={(v) => setField('vendorPan', v || null)} mono />
+            <EditableField label="Phone" value={edited.vendorPhone} onChange={(v) => setField('vendorPhone', v || null)} />
+            <EditableField label="Email" value={edited.vendorEmail} onChange={(v) => setField('vendorEmail', v || null)} />
+            <EditableField label="City" value={edited.vendorCity} onChange={(v) => setField('vendorCity', v || null)} />
+            <EditableField label="State" value={edited.vendorState} onChange={(v) => setField('vendorState', v || null)} />
+            <EditableField label="Pincode" value={edited.vendorPincode} onChange={(v) => setField('vendorPincode', v || null)} mono />
+            <EditableField label="Address" value={edited.vendorAddress} onChange={(v) => setField('vendorAddress', v || null)} />
+            <EditableField label="Invoice #" value={edited.invoiceNumber} onChange={(v) => setField('invoiceNumber', v)} mono required />
+            <EditableField label="Invoice Date" value={edited.invoiceDate} onChange={(v) => setField('invoiceDate', v)} type="date" required />
+            <EditableField label="Due Date" value={edited.dueDate} onChange={(v) => setField('dueDate', v || null)} type="date" />
+            <EditableField label="TDS Section" value={edited.tdsSection} onChange={(v) => setField('tdsSection', v || null)} />
+            <EditableField label="Bank A/C" value={edited.vendorBankAccount} onChange={(v) => setField('vendorBankAccount', v || null)} mono />
+            <EditableField label="IFSC" value={edited.vendorBankIfsc} onChange={(v) => setField('vendorBankIfsc', v || null)} mono />
           </div>
         </CardContent>
       </Card>
 
-      {/* Line items */}
+      {/* Line items — editable */}
       <Card>
-        <CardHeader title={`Line Items (${extracted.items.length})`} />
+        <CardHeader
+          title={`Line Items (${edited.items.length})`}
+          action={
+            <Button variant="outline" size="sm" onClick={addItem}>+ Add row</Button>
+          }
+        />
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800/50">
-                {['Item', 'HSN/SAC', 'Qty', 'Unit Price', 'Amount', 'Tax %'].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{h}</th>
+                {[
+                  { label: 'Item', align: 'text-left' },
+                  { label: 'HSN/SAC', align: 'text-left' },
+                  { label: 'Qty', align: 'text-right' },
+                  { label: 'Unit Price', align: 'text-right' },
+                  { label: 'Amount', align: 'text-right' },
+                  { label: 'Tax %', align: 'text-right' },
+                  { label: '', align: 'text-right' },
+                ].map((h, i) => (
+                  <th key={i} className={`px-3 py-2.5 ${h.align} text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400`}>{h.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {extracted.items.map((item, i) => (
+              {edited.items.map((item, i) => (
                 <tr key={i} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
-                  <td className="px-4 py-2 font-medium">{item.itemName}</td>
-                  <td className="px-4 py-2 font-mono text-zinc-500">{item.hsnSacCode || '—'}</td>
-                  <td className="px-4 py-2 text-right font-mono">{item.quantity}</td>
-                  <td className="px-4 py-2 text-right font-mono">{formatINR(item.unitPrice)}</td>
-                  <td className="px-4 py-2 text-right font-mono font-medium">{formatINR(item.amount)}</td>
-                  <td className="px-4 py-2 text-right font-mono">{item.taxRate != null ? `${item.taxRate}%` : '—'}</td>
+                  <td className="px-3 py-1.5">
+                    <CellInput value={item.itemName} onChange={(v) => updateItem(i, { itemName: v })} className="w-full min-w-[12rem]" />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <CellInput value={item.hsnSacCode ?? ''} onChange={(v) => updateItem(i, { hsnSacCode: v || null })} className="w-24 font-mono" />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <CellInput type="number" value={String(item.quantity)} onChange={(v) => updateItem(i, { quantity: Number(v) || 0 })} className="w-20 text-right font-mono" />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <CellInput type="number" value={String(item.unitPrice)} onChange={(v) => updateItem(i, { unitPrice: Number(v) || 0 })} className="w-28 text-right font-mono" />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <CellInput type="number" value={String(item.amount)} onChange={(v) => updateItem(i, { amount: Number(v) || 0 })} className="w-28 text-right font-mono font-medium" />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <CellInput type="number" value={item.taxRate != null ? String(item.taxRate) : ''} onChange={(v) => updateItem(i, { taxRate: v ? Number(v) : null })} className="w-20 text-right font-mono" placeholder="—" />
+                  </td>
+                  <td className="px-3 py-1.5 text-right">
+                    <button type="button" onClick={() => removeItem(i)} className="text-zinc-400 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove row">
+                      <X size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -296,21 +438,21 @@ function ExtractedPreview({
         </CardContent>
       </Card>
 
-      {/* Totals */}
+      {/* Totals — editable */}
       <Card>
         <CardContent>
-          <div className="flex flex-col items-end gap-1 text-sm">
-            <div className="flex w-48 justify-between">
+          <div className="flex flex-col items-end gap-1.5 text-sm">
+            <div className="flex w-64 items-center justify-between">
               <span className="text-zinc-500">Subtotal</span>
-              <span className="font-mono">{formatINR(extracted.subtotal)}</span>
+              <CellInput type="number" value={String(edited.subtotal)} onChange={(v) => setField('subtotal', Number(v) || 0)} className="w-32 text-right font-mono" />
             </div>
-            <div className="flex w-48 justify-between">
+            <div className="flex w-64 items-center justify-between">
               <span className="text-zinc-500">Tax</span>
-              <span className="font-mono">{formatINR(extracted.taxAmount)}</span>
+              <CellInput type="number" value={String(edited.taxAmount)} onChange={(v) => setField('taxAmount', Number(v) || 0)} className="w-32 text-right font-mono" />
             </div>
-            <div className="flex w-48 justify-between border-t border-zinc-200 pt-1 dark:border-zinc-700">
+            <div className="flex w-64 items-center justify-between border-t border-zinc-200 pt-1.5 dark:border-zinc-700">
               <span className="font-semibold">Total</span>
-              <span className="font-mono font-bold">{formatINR(extracted.totalAmount)}</span>
+              <CellInput type="number" value={String(edited.totalAmount)} onChange={(v) => setField('totalAmount', Number(v) || 0)} className="w-32 text-right font-mono font-bold" />
             </div>
           </div>
         </CardContent>
@@ -319,7 +461,7 @@ function ExtractedPreview({
       {/* Actions */}
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={onRetry}>Upload Different File</Button>
-        <Button onClick={onConfirm} loading={isCommitting}>
+        <Button onClick={onConfirm} loading={isCommitting} disabled={hasErrors}>
           <Check size={16} />
           Create Bill
         </Button>
@@ -328,13 +470,63 @@ function ExtractedPreview({
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
+function EditableField({
+  label,
+  value,
+  onChange,
+  mono,
+  required,
+  type,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onChange: (v: string) => void;
+  mono?: boolean;
+  required?: boolean;
+  type?: 'text' | 'date';
+}) {
   return (
     <div>
-      <p className="text-xs text-zinc-400 dark:text-zinc-500">{label}</p>
-      <p className={`mt-0.5 text-zinc-800 dark:text-zinc-200 ${mono ? 'font-mono' : ''}`}>
-        {value || '—'}
-      </p>
+      <label className="text-xs text-zinc-400 dark:text-zinc-500">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </label>
+      <input
+        type={type ?? 'text'}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        className={[
+          'mt-0.5 block w-full rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 placeholder-zinc-400 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500',
+          mono ? 'font-mono' : '',
+        ].join(' ')}
+      />
     </div>
+  );
+}
+
+function CellInput({
+  value,
+  onChange,
+  type,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  type?: 'text' | 'number';
+  className?: string;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type={type ?? 'text'}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className={[
+        'rounded border border-transparent bg-transparent px-2 py-1 text-xs text-zinc-800 placeholder-zinc-400 hover:border-zinc-200 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 dark:text-zinc-100 dark:placeholder-zinc-500 dark:hover:border-zinc-700 dark:focus:bg-zinc-900',
+        className ?? '',
+      ].join(' ')}
+    />
   );
 }

@@ -13,6 +13,12 @@ import {
 import { extractPdfText } from '../ar/invoice-import/extractors/pdf-text';
 import { extractImageText } from '../ar/invoice-import/extractors/image-ocr';
 import { tryLocalExtraction } from './local-extract';
+import { lookupItemAliases } from './vendor-item-aliases.service';
+import {
+  buildVendorContext,
+  findVendorInText,
+  renderVendorContextForPrompt,
+} from './vendor-extraction-context.service';
 
 interface ExtractedItem {
   itemName: string;
@@ -90,11 +96,17 @@ export class ExtractService {
     mimeType: string,
     _fileName: string,
   ): Promise<ExtractionResult> {
-    // ── Layer 1: try local text extraction + heuristic parsing ────────
-    const localResult = await this.tryLocalExtraction(buffer, mimeType);
+    // Always extract text up front. Used by the heuristic parser AND
+    // (when we fall back to AI) to identify the vendor cheaply via GSTIN
+    // before the LLM call so we can ground the prompt with vendor context.
+    const text = await this.extractText(buffer, mimeType);
+
+    // ── Layer 1: try heuristic parser on the extracted text ───────────
+    const localResult = text ? tryLocalExtraction(text) : null;
     if (localResult) {
       const vendorMatch = await this.matchVendor(localResult);
-      return { confidence: localResult.confidence, extracted: localResult, vendorMatch };
+      const enriched = await this.applyItemAliases(localResult, vendorMatch?.id);
+      return { confidence: enriched.confidence, extracted: enriched, vendorMatch };
     }
 
     // ── Layer 2: fall back to Claude AI Vision ────────────────────────
@@ -104,52 +116,96 @@ export class ExtractService {
           'AI fallback requires ANTHROPIC_API_KEY to be set.',
       );
     }
+
+    // Pre-identify vendor from the raw text (GSTIN regex). When found,
+    // build a context block from past corrections + item aliases and
+    // fold it into the user prompt. The LLM then has tenant-specific
+    // grounding.
+    let userPrompt = INVOICE_EXTRACTION_USER_PROMPT;
+    let preIdentifiedVendorId: string | undefined;
+    if (text) {
+      const found = await findVendorInText(this.db, this.tenantId, text);
+      if (found) {
+        preIdentifiedVendorId = found.id;
+        const ctx = await buildVendorContext(this.db, this.tenantId, found.id);
+        if (ctx && (ctx.topItems.length > 0 || ctx.recentHeaders.length > 0)) {
+          userPrompt = `${renderVendorContextForPrompt(ctx)}\n\n---\n\n${INVOICE_EXTRACTION_USER_PROMPT}`;
+        }
+      }
+    }
+
     const base64 = buffer.toString('base64');
-    const rawText = await this.callClaude(base64, mimeType);
+    const rawText = await this.callClaude(base64, mimeType, userPrompt);
 
     if (!rawText) {
       throw new Error('AI extraction returned empty response');
     }
 
     const extracted = this.parseResponse(rawText);
-    const vendorMatch = await this.matchVendor(extracted);
+    const vendorMatch =
+      (preIdentifiedVendorId
+        ? { id: preIdentifiedVendorId, name: extracted.vendorName, matchType: 'gstin' as const }
+        : null) ?? (await this.matchVendor(extracted));
+    const enriched = await this.applyItemAliases(extracted, vendorMatch?.id);
 
-    return { confidence: extracted.confidence, extracted, vendorMatch };
+    return { confidence: enriched.confidence, extracted: enriched, vendorMatch };
+  }
+
+  /** Extract raw text from PDF/image (pdf-parse / OCR). Returns null when nothing usable. */
+  private async extractText(buffer: Buffer, mimeType: string): Promise<string | null> {
+    if (mimeType === PDF_MIME) {
+      const pdf = await extractPdfText(buffer);
+      return pdf.hasUsableText ? pdf.text : null;
+    }
+    if (IMAGE_MIMES[mimeType]) {
+      const ocr = await extractImageText(buffer);
+      return ocr.hasUsableText ? ocr.text : null;
+    }
+    return null;
   }
 
   /**
-   * Attempt local extraction: pdf-parse (text PDFs) or tesseract OCR
-   * (images) → regex heuristic parser. Returns null when the extracted
-   * text is too short or the parser can't find enough fields.
+   * Overlay vendor-scoped item aliases onto the extracted line items.
+   * For each item, if AI didn't find an HSN/tax rate but we've seen this
+   * exact description from this vendor before, fill it in. AI-provided
+   * values are preserved — aliases only fill gaps, never overwrite.
    */
-  private async tryLocalExtraction(
-    buffer: Buffer,
-    mimeType: string,
-  ): Promise<ExtractedInvoice | null> {
-    let text: string | null = null;
+  private async applyItemAliases(
+    extracted: ExtractedInvoice,
+    vendorId: string | undefined,
+  ): Promise<ExtractedInvoice> {
+    if (!vendorId || extracted.items.length === 0) return extracted;
 
-    if (mimeType === PDF_MIME) {
-      const pdf = await extractPdfText(buffer);
-      if (pdf.hasUsableText) text = pdf.text;
-    } else if (IMAGE_MIMES[mimeType]) {
-      const ocr = await extractImageText(buffer);
-      if (ocr.hasUsableText) text = ocr.text;
-    }
+    const aliases = await lookupItemAliases(
+      this.db,
+      this.tenantId,
+      vendorId,
+      extracted.items.map((i) => i.itemName),
+    );
+    if (aliases.size === 0) return extracted;
 
-    if (!text) return null;
-    return tryLocalExtraction(text);
+    return {
+      ...extracted,
+      items: extracted.items.map((item) => {
+        const hint = aliases.get(item.itemName);
+        if (!hint) return item;
+        return {
+          ...item,
+          hsnSacCode: item.hsnSacCode ?? hint.hsnSacCode,
+          taxRate: item.taxRate ?? hint.taxRate,
+          taxCategory: item.taxCategory ?? hint.taxCategory,
+        };
+      }),
+    };
   }
 
   private async callClaude(
     base64: string,
     mimeType: string,
+    userPrompt: string,
   ): Promise<string | null> {
     if (mimeType === PDF_MIME) {
-      return extractFromPDF(
-        base64,
-        INVOICE_EXTRACTION_SYSTEM_PROMPT,
-        INVOICE_EXTRACTION_USER_PROMPT,
-      );
+      return extractFromPDF(base64, INVOICE_EXTRACTION_SYSTEM_PROMPT, userPrompt);
     }
 
     const mediaType = IMAGE_MIMES[mimeType];
@@ -157,12 +213,7 @@ export class ExtractService {
       throw new Error(`Unsupported file type: ${mimeType}`);
     }
 
-    return extractFromImage(
-      base64,
-      mediaType,
-      INVOICE_EXTRACTION_SYSTEM_PROMPT,
-      INVOICE_EXTRACTION_USER_PROMPT,
-    );
+    return extractFromImage(base64, mediaType, INVOICE_EXTRACTION_SYSTEM_PROMPT, userPrompt);
   }
 
   private parseResponse(rawText: string): ExtractedInvoice {
@@ -171,11 +222,62 @@ export class ExtractService {
       .replace(/```\s*$/, '')
       .trim();
 
+    let parsed: ExtractedInvoice;
     try {
-      return JSON.parse(cleaned) as ExtractedInvoice;
+      parsed = JSON.parse(cleaned) as ExtractedInvoice;
     } catch {
       throw new Error('AI returned invalid JSON. Please try again.');
     }
+
+    return this.sanitizeAmounts(parsed);
+  }
+
+  /**
+   * Catch absurd amounts the AI sometimes hallucinates from fuel-pump
+   * totalizer readings, OCR garbage, or transcribed metadata. We don't
+   * try to "fix" the values — we null them out and lower confidence so
+   * the user is forced to enter the correct amounts.
+   */
+  private sanitizeAmounts(extracted: ExtractedInvoice): ExtractedInvoice {
+    const total = Number(extracted.totalAmount) || 0;
+    const tax = Number(extracted.taxAmount) || 0;
+    const sub = Number(extracted.subtotal) || 0;
+
+    let confidence = extracted.confidence;
+    let taxAmount = extracted.taxAmount;
+    let subtotal = extracted.subtotal;
+    let totalAmount = extracted.totalAmount;
+
+    // Tax > 35% of total → almost certainly wrong (legal max GST is 28%).
+    if (total > 0 && tax / total > 0.35) {
+      taxAmount = 0;
+      confidence = Math.min(confidence, 0.4);
+    }
+
+    // Tax bigger than total in absolute terms.
+    if (tax > total && total > 0) {
+      taxAmount = 0;
+      confidence = Math.min(confidence, 0.4);
+    }
+
+    // Subtotal + tax wildly off from total (>₹2 mismatch on values < ₹1Cr).
+    if (total > 0 && total < 10_000_000) {
+      const computedTotal = sub + tax;
+      if (computedTotal > 0 && Math.abs(computedTotal - total) > 2) {
+        // Trust the printed total, blank the components.
+        subtotal = 0;
+        taxAmount = 0;
+        confidence = Math.min(confidence, 0.5);
+      }
+    }
+
+    // Insanely large totals on what looks like a retail receipt — likely
+    // a fuel-pump meter misread. Cap confidence so the UI flags it.
+    if (total > 5_000_000 && (extracted.items?.length ?? 0) <= 2) {
+      confidence = Math.min(confidence, 0.3);
+    }
+
+    return { ...extracted, taxAmount, subtotal, totalAmount, confidence };
   }
 
   private async matchVendor(

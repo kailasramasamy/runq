@@ -51,6 +51,7 @@ export const poCustomerMatchSourceEnum = pgEnum('po_customer_match_source', [
   'phone',
   'name_fuzzy',
   'manual',
+  'alias',
 ]);
 
 export const poItemMatchSourceEnum = pgEnum('po_item_match_source', [
@@ -175,6 +176,9 @@ export const poDraftLines = pgTable(
 
     // Raw — exactly what was extracted from the PO
     rawDescription: text('raw_description').notNull(),
+    // The customer's SKU code, kept separate from description so it can drive
+    // alias-based matching (customer_sku_aliases) and isn't shown in the name.
+    customerSkuRaw: varchar('customer_sku_raw', { length: 100 }),
     rawQty: decimal('raw_qty', { precision: 12, scale: 3 }),
     rawUom: varchar('raw_uom', { length: 20 }),
     rawRate: decimal('raw_rate', { precision: 15, scale: 2 }),

@@ -56,7 +56,16 @@ Additional extraction rules:
 - vendorBankAccount: bank account number, usually in footer or "Bank Details" section.
 - vendorBankIfsc: 11-char IFSC code (e.g., SBIN0001234).
 - vendorBankName: name of the bank.
-- Extract vendor details from the SELLER/FROM section, NOT the buyer/billed-to section.`;
+- Extract vendor details from the SELLER/FROM section, NOT the buyer/billed-to section.
+
+CRITICAL — fuel station / petrol pump invoices:
+- Petrol pump receipts contain machine totalizer readings: "Atot", "Vtot", "AT", "VT", or large running totals (often 8–12 digits like "27898984"). These are CUMULATIVE PUMP COUNTERS, NOT MONEY. NEVER use them as taxAmount, subtotal, or any amount field.
+- The actual invoice amount is usually a small 3–6 digit number labelled "Total", "Amount", "Net Payable", "Bill Amount", or printed near the bottom.
+- If a number is larger than ₹10,00,000 on a fuel/retail receipt, it is almost certainly a meter reading — ignore it.
+
+Sanity check before returning:
+- taxAmount must be ≤ 35% of totalAmount. If your candidate taxAmount fails this, set taxAmount to null and lower confidence.
+- subtotal + taxAmount should approximately equal totalAmount (within ₹2). If not, prefer the printed totalAmount and set the others to null.`;
 
 export const INVOICE_EXTRACTION_USER_PROMPT =
   'Extract all fields from this vendor invoice. Return only the JSON object.';
