@@ -50,14 +50,23 @@ export class ItemService {
     const { page, limit, filters } = params;
     const { offset } = applyPagination(page, limit);
 
+    // Per-word AND so a query like "A2 Cow Milk" matches "Cow Milk A2 1L"
+    // regardless of word order. Each word matches name OR sku.
+    const searchTerms = (filters.search ?? '')
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    const searchClause = searchTerms.length > 0
+      ? and(
+          ...searchTerms.map((term) =>
+            or(ilike(items.name, `%${term}%`), ilike(items.sku, `%${term}%`)),
+          ),
+        )
+      : undefined;
+
     const baseWhere = and(
       eq(items.tenantId, this.tenantId),
-      filters.search
-        ? or(
-            ilike(items.name, `%${filters.search}%`),
-            ilike(items.sku, `%${filters.search}%`),
-          )
-        : undefined,
+      searchClause,
       filters.type ? eq(items.type, filters.type) : undefined,
       filters.category ? eq(items.category, filters.category) : undefined,
       filters.subcategory ? eq(items.subcategory, filters.subcategory) : undefined,
