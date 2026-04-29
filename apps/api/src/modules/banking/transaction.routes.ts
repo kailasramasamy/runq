@@ -247,6 +247,34 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .set({ customerId, updatedAt: new Date() })
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
 
+      // For unreconciled credits, run the auto-receipt waterfall so the
+      // customer's open invoices are allocated and marked paid/partially_paid.
+      // (Mirrors the vendor route's auto-bill-pay step for debits.)
+      let result: Awaited<ReturnType<AutoReceiptService['createFromBankTxn']>> = null;
+      if (txn.type === 'credit' && txn.reconStatus === 'unreconciled') {
+        const { bankAccounts, accounts: glAccounts } = await import('@runq/db');
+        const [bankGl] = await db
+          .select({ code: glAccounts.code })
+          .from(bankAccounts)
+          .innerJoin(glAccounts, eq(bankAccounts.glAccountId, glAccounts.id))
+          .where(and(eq(bankAccounts.id, txn.bankAccountId), eq(bankAccounts.tenantId, tenantId)))
+          .limit(1);
+        if (bankGl) {
+          const autoReceipt = new AutoReceiptService(db, tenantId);
+          result = await autoReceipt.createFromBankTxn({
+            bankTransactionId: id,
+            customerId,
+            customerName: customer.name,
+            bankAccountId: txn.bankAccountId,
+            bankGlAccountCode: bankGl.code,
+            amount: parseFloat(txn.amount),
+            transactionDate: txn.transactionDate,
+            narration: txn.narration,
+            reference: txn.reference,
+          });
+        }
+      }
+
       // Same ambiguity guard as the vendor route: if other customers already
       // have txns matching this narration pattern, the bank statement format
       // can't distinguish them — don't bulk-apply, don't learn a rule.
@@ -287,7 +315,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      return reply.status(200).send({ data: { success: true, applied, ambiguous } });
+      return reply.status(200).send({ data: { success: true, applied, ambiguous, ...(result ?? {}) } });
     },
   );
 
