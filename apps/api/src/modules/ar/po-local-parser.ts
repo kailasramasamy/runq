@@ -64,6 +64,7 @@ function coerceDate(raw: string): string | null {
 
 interface ExtractedItem {
   description: string;
+  customerSku: string | null;
   quantity: number;
   uom: string | null;
   rate: number | null;
@@ -86,7 +87,8 @@ interface ExtractedPo {
 // ─── Column synonym map for xlsx header detection ──────────────────────────
 
 const COL_SYNONYMS: Record<string, string[]> = {
-  description: ['item', 'itemname', 'productname', 'product', 'description', 'particulars', 'material', 'sku', 'article'],
+  description: ['item', 'itemname', 'productname', 'product', 'description', 'particulars', 'material'],
+  customerSku: ['sku', 'article', 'articleno', 'code', 'itemcode', 'productcode', 'materialcode', 'partno', 'partnumber'],
   quantity: ['quantity', 'qty', 'orderqty', 'orderedqty', 'units', 'nos', 'pcs'],
   rate: ['rate', 'unitprice', 'price', 'mrp', 'unitrate', 'up', 'sellingprice'],
   amount: ['amount', 'total', 'value', 'lineamount', 'linetotal', 'netamount'],
@@ -105,8 +107,10 @@ function detectColumns(headers: string[]): Record<string, number> | null {
     const idx = normed.findIndex((h) => synonyms.includes(h));
     if (idx !== -1) cols[field] = idx;
   }
-  // Need at least description + quantity
-  if (!('description' in cols) || !('quantity' in cols)) return null;
+  // Need at least one identifier (description or SKU) plus quantity.
+  if ((!('description' in cols) && !('customerSku' in cols)) || !('quantity' in cols)) {
+    return null;
+  }
   return cols;
 }
 
@@ -201,14 +205,25 @@ function parseXlsx(buffer: Buffer): ExtractedPo | null {
     const items: ExtractedItem[] = [];
     for (let i = rowIdx + 1; i < rows.length; i++) {
       const r = rows[i] ?? [];
-      const desc = String(r[cols.description!] ?? '').trim();
-      if (!desc) continue;
+      const desc = cols.description !== undefined ? String(r[cols.description] ?? '').trim() : '';
+      const sku = cols.customerSku !== undefined ? String(r[cols.customerSku] ?? '').trim() : '';
+      // The user-facing identifier — prefer the descriptive name, fall back to
+      // the SKU when only a code column is present.
+      const identifier = desc || sku;
+      if (!identifier) continue;
       const qty = Number(r[cols.quantity!] ?? 0);
       if (qty <= 0) continue;
       const rate = cols.rate !== undefined && r[cols.rate] != null ? Number(r[cols.rate]) : null;
       const amount = cols.amount !== undefined && r[cols.amount] != null ? Number(r[cols.amount]) : null;
       const uom = cols.uom !== undefined && r[cols.uom] != null ? String(r[cols.uom]).trim() || null : null;
-      items.push({ description: desc, quantity: qty, uom, rate, amount });
+      items.push({
+        description: identifier,
+        customerSku: sku || null,
+        quantity: qty,
+        uom,
+        rate,
+        amount,
+      });
     }
 
     if (items.length === 0) continue;
@@ -272,6 +287,7 @@ function detectTextLineItem(line: string): ExtractedItem | null {
         if (name.length < 2 || !/[a-zA-Z]/.test(name)) continue;
         return {
           description: name,
+          customerSku: null,
           quantity: qty.value,
           uom: null,
           rate: rate.value,
@@ -290,6 +306,7 @@ function detectTextLineItem(line: string): ExtractedItem | null {
         const rate = numbers.length >= 2 ? numbers[1]!.value : null;
         return {
           description: name,
+          customerSku: null,
           quantity: qty.value,
           uom: null,
           rate: rate && rate > 0 ? rate : null,
