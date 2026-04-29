@@ -176,21 +176,10 @@ export class WorkflowService {
   // --- Enforcement helpers ---
 
   async isApproved(entityType: string, entityId: string): Promise<boolean> {
-    // Check if any active workflow exists for this entity type
-    const [workflow] = await this.db
-      .select({ id: approvalWorkflows.id })
-      .from(approvalWorkflows)
-      .where(and(
-        eq(approvalWorkflows.tenantId, this.tenantId),
-        eq(approvalWorkflows.entityType, entityType),
-        eq(approvalWorkflows.isActive, true),
-      ))
-      .limit(1);
-
-    // No workflow configured — allow direct approval (backward compatible)
-    if (!workflow) return true;
-
-    // Check for an approved instance
+    // The gate enforces in-flight workflow instances. If none exists for this
+    // entity, the workflow simply hasn't been engaged — owners (the only role
+    // permitted to call /approve directly) can post without the ceremony.
+    // If an instance does exist, the gate enforces its outcome.
     const [instance] = await this.db
       .select({ status: approvalInstances.status })
       .from(approvalInstances)
@@ -202,7 +191,8 @@ export class WorkflowService {
       .orderBy(desc(approvalInstances.createdAt))
       .limit(1);
 
-    return instance?.status === 'approved';
+    if (!instance) return true;
+    return instance.status === 'approved';
   }
 
   async listPendingApprovals(userRole: string): Promise<ApprovalInstance[]> {
