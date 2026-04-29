@@ -19,7 +19,8 @@ Rules:
 - Dates must be YYYY-MM-DD. Convert DD/MM/YYYY, DD-MM-YYYY, "10 Apr 2026", "tomorrow morning", "Monday next week", etc. into ISO format. Use today's date as reference for relative dates only when context makes it unambiguous; otherwise null.
 - GSTIN is a 15-character alphanumeric code (e.g., 27AABCU9603R1ZM). Extract only if clearly visible. Do not infer.
 - Phone numbers should be normalized to digits only with optional country code (e.g., "+919876543210" or "9876543210").
-- Item descriptions: extract exactly the words the customer used to identify the SKU (e.g., "Full Cream Milk 1L Pouch", "Paneer block 1kg", "Curd 500g cup"). Do NOT translate or normalize. The seller's system will match these to internal SKUs separately.
+- Item descriptions: the human-readable name of the product (e.g., "Full Cream Milk 1L Pouch", "Paneer block 1kg"). Do NOT translate or normalize. The seller's system will match these to internal SKUs separately.
+- customerSku: when the customer's PO has a separate SKU/article/code column or includes a short code embedded in the line (e.g., "D-M-01", "FCM-1L", "ITEM 3142"), extract it into customerSku. STRIP any such code OUT of the description so description contains only the product name. If no code is present, customerSku is null.
 - Quantity must be a number. UOM goes in the uom field separately (L, ml, kg, g, pcs, packets, boxes, dozen, etc.).
 - Rate and amount are often MISSING on customer POs — that is normal. Use null when not stated. Do not compute amount from rate × quantity yourself.
 - WhatsApp chat formatting: input may include lines like "[09/04/26, 8:23 AM] Sharma Foods:" — strip these chat headers; the order content is what follows.
@@ -37,6 +38,7 @@ JSON schema:
   "items": [
     {
       "description": "string",
+      "customerSku": "string|null",
       "quantity": number,
       "uom": "string|null",
       "rate": number|null,
