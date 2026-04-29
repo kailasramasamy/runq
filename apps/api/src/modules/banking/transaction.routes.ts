@@ -6,6 +6,7 @@ import { TransactionService } from './transaction.service';
 import { CategorizeService } from './categorize.service';
 import { BankChargesService } from './bank-charges.service';
 import { AutoBillPayService } from './auto-bill-pay.service';
+import { AutoReceiptService } from './auto-receipt.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -113,7 +114,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       const tenantId = request.tenantId;
 
       // Fetch transaction
-      const [txn] = await db.select().from(bankTransactions)
+      let [txn] = await db.select().from(bankTransactions)
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
       if (!txn) return reply.status(404).send({ error: 'Transaction not found' });
 
@@ -122,6 +123,15 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .where(and(eq(vendors.id, vendorId), eq(vendors.tenantId, tenantId))).limit(1);
       if (!vendor) return reply.status(404).send({ error: 'Vendor not found' });
       if (!vendor.expenseAccountCode) return reply.status(400).send({ error: 'Vendor has no expense account code set' });
+
+      // Reassignment: roll back any prior auto-bill-pay artifacts before re-applying
+      if (txn.vendorId && txn.vendorId !== vendorId) {
+        const reverter = new AutoBillPayService(db, tenantId);
+        await reverter.reverseFromBankTxn(id);
+        const [refreshed] = await db.select().from(bankTransactions)
+          .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
+        if (refreshed) txn = refreshed;
+      }
 
       let result = null;
 
@@ -201,13 +211,22 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       const db = request.server.db;
       const tenantId = request.tenantId;
 
-      const [txn] = await db.select().from(bankTransactions)
+      let [txn] = await db.select().from(bankTransactions)
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
       if (!txn) return reply.status(404).send({ error: 'Transaction not found' });
 
       const [customer] = await db.select().from(customers)
         .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId))).limit(1);
       if (!customer) return reply.status(404).send({ error: 'Customer not found' });
+
+      // Reassignment: roll back any prior auto-receipt artifacts before re-applying
+      if (txn.customerId && txn.customerId !== customerId) {
+        const reverter = new AutoReceiptService(db, tenantId);
+        await reverter.reverseFromBankTxn(id);
+        const [refreshed] = await db.select().from(bankTransactions)
+          .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId))).limit(1);
+        if (refreshed) txn = refreshed;
+      }
 
       // Tag customer on the transaction
       await db.update(bankTransactions)
@@ -243,6 +262,30 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return reply.status(200).send({ data: { success: true, applied } });
+    },
+  );
+
+  // ── Clear vendor / customer assignment (reverses auto-bill-pay / auto-receipt) ──
+
+  app.delete(
+    '/transactions/:id/vendor',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = transactionParamSchema.parse(request.params);
+      const reverter = new AutoBillPayService(request.server.db, request.tenantId);
+      await reverter.reverseFromBankTxn(id);
+      return reply.status(200).send({ data: { success: true } });
+    },
+  );
+
+  app.delete(
+    '/transactions/:id/customer',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = transactionParamSchema.parse(request.params);
+      const reverter = new AutoReceiptService(request.server.db, request.tenantId);
+      await reverter.reverseFromBankTxn(id);
+      return reply.status(200).send({ data: { success: true } });
     },
   );
 

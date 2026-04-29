@@ -6,6 +6,7 @@ import {
   receiptAllocations,
   reconciliationMatches,
   accounts,
+  journalEntries,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -177,6 +178,68 @@ export class AutoReceiptService {
     });
 
     return result;
+  }
+
+  /**
+   * Undo whatever this service did when the wrong customer was assigned.
+   * Auto-created receipts have no status column, so they're hard-deleted along
+   * with their allocations. Pre-existing receipts (linked via recon match only)
+   * are preserved — only the recon match is removed.
+   */
+  async reverseFromBankTxn(bankTransactionId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [match] = await tx.select().from(reconciliationMatches)
+        .where(and(
+          eq(reconciliationMatches.tenantId, this.tenantId),
+          eq(reconciliationMatches.bankTransactionId, bankTransactionId),
+        )).limit(1);
+
+      if (match?.receiptId) {
+        const [receipt] = await tx.select().from(paymentReceipts)
+          .where(eq(paymentReceipts.id, match.receiptId)).limit(1);
+        const isAutoCreated = (receipt?.notes ?? '').startsWith('Auto-created from bank transaction');
+
+        if (receipt && isAutoCreated) {
+          const allocs = await tx.select().from(receiptAllocations)
+            .where(eq(receiptAllocations.receiptId, receipt.id));
+
+          for (const alloc of allocs) {
+            const [inv] = await tx.select().from(salesInvoices)
+              .where(eq(salesInvoices.id, alloc.invoiceId)).limit(1);
+            if (!inv) continue;
+            const newRecv = Math.max(0, parseFloat(inv.amountReceived) - parseFloat(alloc.amount));
+            const newBal = parseFloat(inv.balanceDue) + parseFloat(alloc.amount);
+            await tx.update(salesInvoices).set({
+              amountReceived: String(newRecv),
+              balanceDue: String(newBal),
+              status: newRecv <= 0.01 ? 'sent' : 'partially_paid',
+              updatedAt: new Date(),
+            }).where(eq(salesInvoices.id, inv.id));
+          }
+
+          await tx.delete(receiptAllocations).where(eq(receiptAllocations.receiptId, receipt.id));
+          await tx.update(journalEntries)
+            .set({ status: 'reversed', updatedAt: new Date() })
+            .where(and(
+              eq(journalEntries.tenantId, this.tenantId),
+              eq(journalEntries.sourceType, 'receipt'),
+              eq(journalEntries.sourceId, receipt.id),
+            ));
+          await tx.delete(paymentReceipts).where(eq(paymentReceipts.id, receipt.id));
+        }
+        await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
+      }
+
+      await tx.update(bankTransactions).set({
+        customerId: null,
+        glAccountId: null,
+        reconStatus: 'unreconciled',
+        updatedAt: new Date(),
+      }).where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        eq(bankTransactions.id, bankTransactionId),
+      ));
+    });
   }
 
   private async linkToExistingReceipt(

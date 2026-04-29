@@ -7,6 +7,7 @@ import {
   paymentAllocations,
   reconciliationMatches,
   accounts,
+  journalEntries,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -269,6 +270,94 @@ export class AutoBillPayService {
       });
       return result;
     });
+  }
+
+  /**
+   * Undo whatever this service did when the wrong vendor was assigned.
+   * Looks up the recon-match by bank txn, classifies it via payment.notes,
+   * then rolls back the auto-created bill/payment/JEs accordingly.
+   * Safe to call when nothing was created (idempotent — just clears the txn tag).
+   */
+  async reverseFromBankTxn(bankTransactionId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [match] = await tx.select().from(reconciliationMatches)
+        .where(and(
+          eq(reconciliationMatches.tenantId, this.tenantId),
+          eq(reconciliationMatches.bankTransactionId, bankTransactionId),
+        )).limit(1);
+
+      if (match?.paymentId) {
+        const [payment] = await tx.select().from(payments)
+          .where(eq(payments.id, match.paymentId)).limit(1);
+
+        const note = payment?.notes ?? '';
+        const isAutoCreated = note.startsWith('Auto-created from bank transaction');
+        const billPreexisted = note === 'Auto-created from bank transaction (matched existing bill)';
+
+        if (payment && isAutoCreated) {
+          await this.rollbackAutoPayment(tx as unknown as Db, payment.id, billPreexisted);
+        }
+        await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
+      }
+
+      await tx.update(bankTransactions).set({
+        vendorId: null,
+        glAccountId: null,
+        reconStatus: 'unreconciled',
+        updatedAt: new Date(),
+      }).where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        eq(bankTransactions.id, bankTransactionId),
+      ));
+    });
+  }
+
+  private async rollbackAutoPayment(
+    tx: Db,
+    paymentId: string,
+    billPreexisted: boolean,
+  ): Promise<void> {
+    const allocs = await tx.select().from(paymentAllocations)
+      .where(eq(paymentAllocations.paymentId, paymentId));
+
+    for (const alloc of allocs) {
+      const [bill] = await tx.select().from(purchaseInvoices)
+        .where(eq(purchaseInvoices.id, alloc.invoiceId)).limit(1);
+      if (!bill) continue;
+
+      const newPaid = Math.max(0, parseFloat(bill.amountPaid) - parseFloat(alloc.amount));
+      const newBal = parseFloat(bill.balanceDue) + parseFloat(alloc.amount);
+      const restoredStatus: 'approved' | 'partially_paid' = newPaid <= 0.01 ? 'approved' : 'partially_paid';
+
+      await tx.update(purchaseInvoices).set({
+        amountPaid: String(newPaid),
+        balanceDue: String(newBal),
+        status: billPreexisted ? restoredStatus : 'cancelled',
+        updatedAt: new Date(),
+      }).where(eq(purchaseInvoices.id, bill.id));
+
+      if (!billPreexisted) {
+        await tx.update(journalEntries)
+          .set({ status: 'reversed', updatedAt: new Date() })
+          .where(and(
+            eq(journalEntries.tenantId, this.tenantId),
+            eq(journalEntries.sourceType, 'purchase_invoice'),
+            eq(journalEntries.sourceId, bill.id),
+          ));
+      }
+    }
+
+    await tx.delete(paymentAllocations).where(eq(paymentAllocations.paymentId, paymentId));
+    await tx.update(payments)
+      .set({ status: 'reversed', updatedAt: new Date() })
+      .where(eq(payments.id, paymentId));
+    await tx.update(journalEntries)
+      .set({ status: 'reversed', updatedAt: new Date() })
+      .where(and(
+        eq(journalEntries.tenantId, this.tenantId),
+        eq(journalEntries.sourceType, 'payment'),
+        eq(journalEntries.sourceId, paymentId),
+      ));
   }
 
   private generateInvoiceNumber(vendorName: string, date: string): string {

@@ -12,13 +12,16 @@ interface PartyBadgeProps {
   transactionId: string;
   type: 'credit' | 'debit';
   reconStatus: string;
+  assignedName?: string | null;
 }
 
 /**
- * Shows "Assign Vendor" for debits or "Assign Customer" for credits
- * when no vendor/customer is assigned yet.
+ * Renders a clickable party tag for a bank transaction. When unassigned, shows
+ * "Assign Vendor"/"Assign Customer". When assigned, shows the name; clicking
+ * reopens the dropdown to reassign or remove. Reassignment safely rolls back
+ * any auto-bill-pay / auto-receipt artifacts on the server side.
  */
-export function VendorBadge({ transactionId, type }: PartyBadgeProps) {
+export function VendorBadge({ transactionId, type, assignedName }: PartyBadgeProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -31,8 +34,9 @@ export function VendorBadge({ transactionId, type }: PartyBadgeProps) {
   }, []);
 
   const isDebit = type === 'debit';
-  const label = isDebit ? 'Assign Vendor' : 'Assign Customer';
   const Icon = isDebit ? Store : User;
+  const fallback = isDebit ? 'Assign Vendor' : 'Assign Customer';
+  const isAssigned = !!assignedName;
 
   return (
     <div ref={ref} className="relative inline-block">
@@ -40,16 +44,23 @@ export function VendorBadge({ transactionId, type }: PartyBadgeProps) {
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className="cursor-pointer"
+        title={isAssigned ? 'Click to change' : (isDebit ? 'Assign a vendor' : 'Assign a customer')}
       >
-        <Badge variant="default" title={isDebit ? 'Assign a vendor' : 'Assign a customer'}>
-          <Icon className="mr-1 inline h-3 w-3" />
-          {label}
-        </Badge>
+        {isAssigned ? (
+          <span className="text-sm text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300">
+            {assignedName}
+          </span>
+        ) : (
+          <Badge variant="default">
+            <Icon className="mr-1 inline h-3 w-3" />
+            {fallback}
+          </Badge>
+        )}
       </button>
       {open && (
         isDebit
-          ? <VendorDropdown transactionId={transactionId} onDone={() => setOpen(false)} />
-          : <CustomerDropdown transactionId={transactionId} onDone={() => setOpen(false)} />
+          ? <VendorDropdown transactionId={transactionId} hasAssigned={isAssigned} onDone={() => setOpen(false)} />
+          : <CustomerDropdown transactionId={transactionId} hasAssigned={isAssigned} onDone={() => setOpen(false)} />
       )}
     </div>
   );
@@ -57,7 +68,7 @@ export function VendorBadge({ transactionId, type }: PartyBadgeProps) {
 
 // ── Vendor Dropdown ─────────────────────────────────────────────────
 
-function VendorDropdown({ transactionId, onDone }: { transactionId: string; onDone: () => void }) {
+function VendorDropdown({ transactionId, hasAssigned, onDone }: { transactionId: string; hasAssigned: boolean; onDone: () => void }) {
   const { data } = useVendors({ limit: 200 });
   const qc = useQueryClient();
   const vendors = data?.data ?? [];
@@ -82,6 +93,14 @@ function VendorDropdown({ transactionId, onDone }: { transactionId: string; onDo
     onDone();
   }
 
+  async function handleRemove() {
+    setLoading(true);
+    await api.delete(`/banking/accounts/transactions/${transactionId}/vendor`);
+    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+    setLoading(false);
+    onDone();
+  }
+
   async function handleCreated(vendor: Vendor) {
     qc.invalidateQueries({ queryKey: ['vendors'] });
     await handleSelect(vendor.id);
@@ -98,8 +117,14 @@ function VendorDropdown({ transactionId, onDone }: { transactionId: string; onDo
   return (
     <div className="absolute z-[9999] top-full mt-1 right-0 w-64 rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
       <SearchInput ref={inputRef} value={search} onChange={setSearch} placeholder="Search vendors…" />
+      {hasAssigned && !loading && (
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleRemove}
+          className="block w-full border-b border-zinc-200 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-900/20">
+          Remove vendor (reverse bill & payment)
+        </button>
+      )}
       <ul className="max-h-60 overflow-auto py-1">
-        {loading && <li className="px-3 py-2 text-xs text-zinc-400">Assigning…</li>}
+        {loading && <li className="px-3 py-2 text-xs text-zinc-400">Working…</li>}
         {!loading && filtered.map((v) => (
           <li key={v.id} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelect(v.id)}
             className="cursor-pointer px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
@@ -123,7 +148,7 @@ function VendorDropdown({ transactionId, onDone }: { transactionId: string; onDo
 
 // ── Customer Dropdown ───────────────────────────────────────────────
 
-function CustomerDropdown({ transactionId, onDone }: { transactionId: string; onDone: () => void }) {
+function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionId: string; hasAssigned: boolean; onDone: () => void }) {
   const { data } = useCustomers({ limit: 200 });
   const qc = useQueryClient();
   const customerList = data?.data ?? [];
@@ -148,6 +173,14 @@ function CustomerDropdown({ transactionId, onDone }: { transactionId: string; on
     onDone();
   }
 
+  async function handleRemove() {
+    setLoading(true);
+    await api.delete(`/banking/accounts/transactions/${transactionId}/customer`);
+    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+    setLoading(false);
+    onDone();
+  }
+
   async function handleCreated(customer: { id: string }) {
     qc.invalidateQueries({ queryKey: ['customers'] });
     await handleSelect(customer.id);
@@ -164,8 +197,14 @@ function CustomerDropdown({ transactionId, onDone }: { transactionId: string; on
   return (
     <div className="absolute z-[9999] top-full mt-1 right-0 w-64 rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
       <SearchInput ref={inputRef} value={search} onChange={setSearch} placeholder="Search customers…" />
+      {hasAssigned && !loading && (
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleRemove}
+          className="block w-full border-b border-zinc-200 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-900/20">
+          Remove customer (reverse receipt)
+        </button>
+      )}
       <ul className="max-h-60 overflow-auto py-1">
-        {loading && <li className="px-3 py-2 text-xs text-zinc-400">Assigning…</li>}
+        {loading && <li className="px-3 py-2 text-xs text-zinc-400">Working…</li>}
         {!loading && filtered.map((c) => (
           <li key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelect(c.id)}
             className="cursor-pointer px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20">

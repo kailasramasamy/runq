@@ -95,9 +95,12 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
         {txn.reference ?? '—'}
       </TableCell>
       <TableCell className="text-sm text-zinc-700 dark:text-zinc-300" onClick={(e) => e.stopPropagation()}>
-        {txn.vendorName ?? txn.customerName ?? (
-          <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
-        )}
+        <VendorBadge
+          transactionId={txn.id}
+          type={txn.type}
+          reconStatus={txn.reconStatus}
+          assignedName={txn.vendorName ?? txn.customerName}
+        />
       </TableCell>
       <TableCell align="right" numeric>
         {!isCredit ? (
@@ -172,7 +175,12 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
                   </span>
                 </div>
               )}
-              <VendorBadge transactionId={txn.id} type={txn.type} reconStatus={txn.reconStatus} />
+              <VendorBadge
+                transactionId={txn.id}
+                type={txn.type}
+                reconStatus={txn.reconStatus}
+                assignedName={txn.vendorName ?? txn.customerName}
+              />
             </div>
             {/* Document trail */}
             <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
