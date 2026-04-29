@@ -7,6 +7,11 @@ export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
 
+    const pgFriendly = mapPostgresError(error);
+    if (pgFriendly) {
+      return reply.status(pgFriendly.statusCode).send(pgFriendly);
+    }
+
     if (error instanceof AppError) {
       const body: Record<string, unknown> = {
         statusCode: error.statusCode,
@@ -51,3 +56,108 @@ export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
     });
   });
 });
+
+interface PgError {
+  code?: string;
+  message?: string;
+  detail?: string;
+  column?: string;
+  column_name?: string;
+  table?: string;
+  table_name?: string;
+  constraint?: string;
+  constraint_name?: string;
+}
+
+interface FriendlyError {
+  statusCode: number;
+  error: string;
+  message: string;
+  field?: string;
+}
+
+// Translate raw Postgres errors into something a user can act on. Returns
+// null when the error isn't a Postgres error so the default handler can
+// take over.
+function mapPostgresError(err: unknown): FriendlyError | null {
+  if (!err || typeof err !== 'object') return null;
+  const e = err as PgError;
+  const code = e.code;
+  if (!code || !/^[0-9A-Z]{5}$/.test(code)) return null;
+
+  const column = humanField(e.column ?? e.column_name);
+  const table = humanTable(e.table ?? e.table_name);
+  const where = column ? `"${column}"${table ? ` on ${table}` : ''}` : table ?? null;
+
+  switch (code) {
+    case '22001': {
+      // string_data_right_truncation — Postgres rarely sets column for this.
+      // Fish the limit out of the message ("character varying(15)") so the
+      // user at least knows how short the field needs to be.
+      const m = /character varying\((\d+)\)/.exec(e.message ?? '');
+      const limit = m?.[1];
+      const subject = where ?? 'One of the fields';
+      return {
+        statusCode: 400,
+        error: 'ValidationError',
+        message: limit
+          ? `${subject} is too long. Maximum length is ${limit} characters.`
+          : `${subject} is too long.`,
+        field: column ?? undefined,
+      };
+    }
+    case '23502':
+      return {
+        statusCode: 400,
+        error: 'ValidationError',
+        message: column
+          ? `"${column}" is required.`
+          : 'A required field is missing.',
+        field: column ?? undefined,
+      };
+    case '23505':
+      return {
+        statusCode: 409,
+        error: 'ConflictError',
+        message: column
+          ? `A record with this "${column}" already exists.`
+          : 'A duplicate record already exists.',
+        field: column ?? undefined,
+      };
+    case '23503':
+      return {
+        statusCode: 409,
+        error: 'ConflictError',
+        message: 'This record is referenced elsewhere and cannot be saved as-is.',
+      };
+    case '23514':
+      return {
+        statusCode: 400,
+        error: 'ValidationError',
+        message: column
+          ? `"${column}" has an invalid value.`
+          : 'A field has an invalid value.',
+        field: column ?? undefined,
+      };
+    case '22P02':
+      return {
+        statusCode: 400,
+        error: 'ValidationError',
+        message: 'A field has the wrong type or format.',
+      };
+    default:
+      return null;
+  }
+}
+
+function humanField(col: string | undefined): string | null {
+  if (!col) return null;
+  return col.replace(/_/g, ' ');
+}
+
+function humanTable(tbl: string | undefined): string | null {
+  if (!tbl) return null;
+  // "purchase_invoices" → "purchase invoice"
+  const noUnderscore = tbl.replace(/_/g, ' ');
+  return noUnderscore.endsWith('s') ? noUnderscore.slice(0, -1) : noUnderscore;
+}
