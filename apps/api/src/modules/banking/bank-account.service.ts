@@ -149,8 +149,9 @@ export class BankAccountService {
   }
 
   private toAccount(row: typeof bankAccounts.$inferSelect): BankAccount {
-    // Heal legacy rows that were created before the logo column existed.
-    const logoUrl = row.logoUrl ?? resolveBankLogoUrl(row.bankName);
+    // Always resolve from the bank name so URL/resolution bumps in
+    // resolveBankLogoUrl propagate without needing to backfill the column.
+    const logoUrl = resolveBankLogoUrl(row.bankName) ?? row.logoUrl;
     return {
       id: row.id,
       tenantId: row.tenantId,

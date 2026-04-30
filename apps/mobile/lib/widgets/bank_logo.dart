@@ -17,6 +17,10 @@ class BankLogo extends StatelessWidget {
     final avatar = _Avatar(name: bankName, size: size);
     final url = logoUrl;
     if (url == null || url.isEmpty) return avatar;
+    // Decode at physical-pixel resolution so the bitmap is sharp on retina/3x
+    // displays instead of being upscaled from a logical-pixel decode.
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final decodePx = (size * dpr).round();
     return ClipRRect(
       borderRadius: BorderRadius.circular(size * 0.28),
       child: Container(
@@ -27,8 +31,10 @@ class BankLogo extends StatelessWidget {
           url,
           width: size,
           height: size,
+          cacheWidth: decodePx,
+          cacheHeight: decodePx,
           fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
+          filterQuality: FilterQuality.high,
           loadingBuilder: (ctx, child, progress) {
             if (progress == null) return child;
             return avatar;

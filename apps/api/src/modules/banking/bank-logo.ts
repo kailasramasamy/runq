@@ -2,7 +2,7 @@
  * Resolve a public logo URL for a given bank/payment-processor name.
  *
  * The list maps common substrings (case-insensitive) to a primary domain;
- * the URL is built using Google's faviconV2 service which returns a 128px
+ * the URL is built using Google's faviconV2 service which returns a 256px
  * PNG and works without an API key. If you later want crisper logos, just
  * swap the URL builder — call sites stay the same.
  */
@@ -46,7 +46,7 @@ export function resolveBankLogoUrl(bankName: string | null | undefined): string 
   if (/(^|\s)(cash|petty|on[\s-]?hand)/.test(s)) return null;
   for (const [match, domain] of BANK_DOMAINS) {
     if (s.includes(match)) {
-      return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=128`;
+      return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=256`;
     }
   }
   return null;
