@@ -634,12 +634,12 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Center(
         child: Column(
           children: [
             RichText(
-              text: const TextSpan(
+              text: TextSpan(
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -648,7 +648,7 @@ class _Footer extends StatelessWidget {
                 ),
                 children: [
                   TextSpan(text: 'run'),
-                  TextSpan(text: 'Q', style: TextStyle(color: RunqColors.indigo)),
+                  TextSpan(text: 'Q', style: TextStyle(color: RT(context).brand)),
                 ],
               ),
             ),

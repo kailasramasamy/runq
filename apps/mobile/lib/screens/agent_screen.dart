@@ -176,13 +176,13 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      padding: EdgeInsets.fromLTRB(8, 8, 8, 8),
       child: Row(
         children: [
           Container(
             width: 40, height: 40,
-            decoration: const BoxDecoration(color: RunqColors.purpleBg, shape: BoxShape.circle),
-            child: const Center(child: Sparkle(size: 18, color: RunqColors.indigo, animated: true)),
+            decoration: BoxDecoration(color: RunqColors.purpleBg, shape: BoxShape.circle),
+            child: Center(child: Sparkle(size: 18, color: RT(context).brand, animated: true)),
           ),
           const SizedBox(width: 10),
           Text('Agent', style: RunqText.bodyStrong.copyWith(fontSize: 16)),
@@ -200,11 +200,11 @@ class _EmptyAgent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Sparkle(size: 36, color: RunqColors.indigo, animated: true),
+          Sparkle(size: 36, color: RT(context).brand, animated: true),
           const SizedBox(height: 14),
           Text('Ask anything about your books', style: RunqText.h3, textAlign: TextAlign.center),
           const SizedBox(height: 6),
@@ -289,7 +289,7 @@ class _MsgBubble extends StatelessWidget {
                       ),
                       child: Text(c,
                           style: RunqText.caption.copyWith(
-                            color: RunqColors.indigo,
+                            color: RT(context).brand,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           )),

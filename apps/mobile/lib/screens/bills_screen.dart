@@ -111,7 +111,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
           const SizedBox(height: 12),
           Expanded(
             child: RefreshIndicator(
-              color: RunqColors.indigo,
+              color: RT(context).brand,
               onRefresh: () async {
                 ref.invalidate(billsProvider(_filter));
                 ref.invalidate(billsSummaryProvider);
@@ -253,7 +253,7 @@ class _IconChip extends StatelessWidget {
                 child: Container(
                   width: 8, height: 8,
                   decoration: BoxDecoration(
-                    color: RunqColors.indigo,
+                    color: RT(context).brand,
                     shape: BoxShape.circle,
                     border: Border.all(color: t.surface, width: 1.5),
                   ),

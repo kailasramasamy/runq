@@ -19,10 +19,10 @@ class ActivityList extends ConsumerWidget {
 
     return AsyncSlot<List<ActivityEntry>>(
       value: value,
-      loading: const Padding(
+      loading: Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
-          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo)),
+          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand)),
         ),
       ),
       onRetry: () => ref.invalidate(activityProvider),
@@ -86,11 +86,19 @@ class _Row extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: spec.tint.withValues(alpha: 0.12), shape: BoxShape.circle),
-              child: Icon(spec.icon, size: 18, color: spec.tint),
-            ),
+            Builder(builder: (ctx) {
+              final isDark = Theme.of(ctx).brightness == Brightness.dark;
+              final accent = isDark ? _liftToward(spec.tint, 0.42) : spec.tint;
+              return Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: isDark ? 0.22 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(spec.icon, size: 18, color: accent),
+              );
+            }),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -152,10 +160,16 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Light mode: muted dark ink on pastel bg works fine.
+    // Dark mode: lift the tint into a brighter shade for both bg and text so
+    // the pill doesn't dissolve into the dark surface.
+    final ink = isDark ? _lighten(tint, 0.42) : tint;
+    final bgAlpha = isDark ? 0.22 : 0.12;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.10),
+        color: ink.withValues(alpha: bgAlpha),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -163,13 +177,24 @@ class _StatusPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w600,
-          color: tint,
+          color: ink,
           height: 1.2,
           letterSpacing: 0.1,
         ),
       ),
     );
   }
+
+  Color _lighten(Color c, double t) => _liftToward(c, t);
+}
+
+/// Lift [c] toward white by [t] (0..1) while preserving hue. Used to derive
+/// a dark-mode-friendly variant of brand / status tints whose default value
+/// is tuned for light surfaces.
+Color _liftToward(Color c, double t) {
+  final hsl = HSLColor.fromColor(c);
+  final l = (hsl.lightness + (1 - hsl.lightness) * t).clamp(0.0, 1.0);
+  return hsl.withLightness(l).toColor();
 }
 
 String _relTime(DateTime t) {

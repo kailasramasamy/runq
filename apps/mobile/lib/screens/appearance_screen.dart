@@ -113,7 +113,7 @@ class _Option extends StatelessWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle_rounded, color: RunqColors.indigo, size: 20),
+              Icon(Icons.check_circle_rounded, color: RT(context).brand, size: 20),
           ],
         ),
       ),

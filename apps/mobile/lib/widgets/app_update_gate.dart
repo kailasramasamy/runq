@@ -178,7 +178,7 @@ class _MaintenanceScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.construction, size: 64, color: RunqColors.indigo),
+                  Icon(Icons.construction, size: 64, color: RT(context).brand),
                   const SizedBox(height: 24),
                   Text(
                     "We'll be right back",

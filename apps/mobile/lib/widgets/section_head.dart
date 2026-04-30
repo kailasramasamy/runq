@@ -30,7 +30,7 @@ class SectionHead extends StatelessWidget {
                 child: Text(
                   action!,
                   style: RunqText.caption.copyWith(
-                    color: RunqColors.indigo,
+                    color: RT(context).brand,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),

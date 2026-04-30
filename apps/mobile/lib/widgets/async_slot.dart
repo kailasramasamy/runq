@@ -25,12 +25,12 @@ class _DefaultLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(32),
         child: SizedBox(
           width: 22, height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo),
+          child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand),
         ),
       ),
     );

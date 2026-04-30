@@ -70,6 +70,14 @@ class RunqColors {
 
 class RunqTokens extends ThemeExtension<RunqTokens> {
   final Color bgWarm, bgWarmer, surface, ink, ink2, muted, muted2, hairline, hairlineSoft, inputFill;
+  /// Brand colour for text / icons / loading indicators / selected states. In
+  /// dark mode this is intentionally LIGHTER than [RunqColors.indigo] to keep
+  /// AA contrast against dark backgrounds — using #4F46E5 there fails WCAG
+  /// and feels muddy. Use the raw [RunqColors.indigo] for filled buttons and
+  /// hero panels (they pair white text with the saturated brand).
+  final Color brand;
+  /// Faint fill of the brand colour for badge backgrounds, focus rings, etc.
+  final Color brandSubtle;
   const RunqTokens({
     required this.bgWarm,
     required this.bgWarmer,
@@ -81,6 +89,8 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
     required this.hairline,
     required this.hairlineSoft,
     required this.inputFill,
+    required this.brand,
+    required this.brandSubtle,
   });
 
   static const light = RunqTokens(
@@ -94,6 +104,8 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
     hairline: Color(0x14141210),
     hairlineSoft: Color(0x0F141210),
     inputFill: Color(0xFFF6F4F0),
+    brand: Color(0xFF4F46E5),
+    brandSubtle: Color(0x1F4F46E5),
   );
 
   static const dark = RunqTokens(
@@ -107,12 +119,15 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
     hairline: Color(0x33FFFFFF),
     hairlineSoft: Color(0x1AFFFFFF),
     inputFill: Color(0xFF26241F),
+    brand: Color(0xFFA5B4FC),
+    brandSubtle: Color(0x33A5B4FC),
   );
 
   @override
   RunqTokens copyWith({
     Color? bgWarm, Color? bgWarmer, Color? surface, Color? ink, Color? ink2,
     Color? muted, Color? muted2, Color? hairline, Color? hairlineSoft, Color? inputFill,
+    Color? brand, Color? brandSubtle,
   }) =>
       RunqTokens(
         bgWarm: bgWarm ?? this.bgWarm,
@@ -125,6 +140,8 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
         hairline: hairline ?? this.hairline,
         hairlineSoft: hairlineSoft ?? this.hairlineSoft,
         inputFill: inputFill ?? this.inputFill,
+        brand: brand ?? this.brand,
+        brandSubtle: brandSubtle ?? this.brandSubtle,
       );
 
   @override
@@ -141,6 +158,8 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
       hairline: Color.lerp(hairline, other.hairline, t)!,
       hairlineSoft: Color.lerp(hairlineSoft, other.hairlineSoft, t)!,
       inputFill: Color.lerp(inputFill, other.inputFill, t)!,
+      brand: Color.lerp(brand, other.brand, t)!,
+      brandSubtle: Color.lerp(brandSubtle, other.brandSubtle, t)!,
     );
   }
 }

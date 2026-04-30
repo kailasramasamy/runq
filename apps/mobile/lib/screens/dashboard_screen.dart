@@ -30,7 +30,7 @@ class DashboardScreen extends ConsumerWidget {
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
-        color: RunqColors.indigo,
+        color: RT(context).brand,
         onRefresh: () => _refresh(ref),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

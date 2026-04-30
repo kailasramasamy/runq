@@ -89,9 +89,9 @@ class _ManualScanScreenState extends State<ManualScanScreen> {
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(
-        title: const Text('Scan bill'),
+        title: Text('Scan bill'),
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: Icon(Icons.close_rounded),
           onPressed: _cancel,
         ),
       ),
@@ -102,7 +102,7 @@ class _ManualScanScreenState extends State<ManualScanScreen> {
               children: [
                 Expanded(
                   child: _pages.isEmpty
-                      ? const _EmptyState()
+                      ? _EmptyState()
                       : _PageGrid(pages: _pages, onRemove: _remove),
                 ),
                 _BottomBar(
@@ -114,14 +114,14 @@ class _ManualScanScreenState extends State<ManualScanScreen> {
               ],
             ),
             if (_finalizing)
-              const Positioned.fill(
+              Positioned.fill(
                 child: ColoredBox(
                   color: Color(0x80FFFFFF),
                   child: Center(
                     child: SizedBox(
                       width: 28,
                       height: 28,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: RunqColors.indigo),
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: RT(context).brand),
                     ),
                   ),
                 ),

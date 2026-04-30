@@ -463,23 +463,23 @@ class _Extracting extends StatelessWidget {
     return SafeArea(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: RunqCard(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 24, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Sparkle(size: 56, color: RunqColors.accent, animated: true),
-                const SizedBox(height: 14),
+                Sparkle(size: 56, color: RunqColors.accent, animated: true),
+                SizedBox(height: 14),
                 Text('Reading the bill…', style: RunqText.h3),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text('Detecting vendor, line items, and totals',
                     textAlign: TextAlign.center,
                     style: RunqText.caption.copyWith(color: RT(context).muted)),
-                const SizedBox(height: 18),
-                const SizedBox(
+                SizedBox(height: 18),
+                SizedBox(
                   width: 24, height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: RunqColors.indigo),
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: RT(context).brand),
                 ),
               ],
             ),

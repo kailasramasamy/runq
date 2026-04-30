@@ -28,7 +28,7 @@ class BankingScreen extends ConsumerWidget {
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
-        color: RunqColors.indigo,
+        color: RT(context).brand,
         onRefresh: () async {
           ref.invalidate(bankAccountsProvider);
           final selected = ref.read(_selectedAccountProvider);
@@ -438,7 +438,7 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
       onTap: _running ? null : _categorize,
       borderRadius: BorderRadius.circular(RunqRadii.input),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: bannerBg,
           borderRadius: BorderRadius.circular(RunqRadii.input),
@@ -450,8 +450,8 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
               width: 36, height: 36,
               decoration: BoxDecoration(color: RT(context).surface, borderRadius: BorderRadius.circular(10)),
               child: _running
-                  ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo)))
-                  : const Center(child: Sparkle(size: 18, color: RunqColors.indigo, animated: true)),
+                  ? Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand)))
+                  : Center(child: Sparkle(size: 18, color: RT(context).brand, animated: true)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -467,7 +467,7 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
               ),
             ),
             Text('Run →',
-                style: RunqText.caption.copyWith(color: RunqColors.indigo, fontWeight: FontWeight.w600, fontSize: 12)),
+                style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12)),
           ],
         ),
       ),

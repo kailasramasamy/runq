@@ -77,10 +77,14 @@ class StatusPill extends StatelessWidget {
       bg = Colors.white.withValues(alpha: 0.18);
       fg = Colors.white;
     } else if (isDark) {
-      // Tinted bg using the brand ink at low alpha; light text.
-      final inkBase = spec.ink;
-      bg = inkBase.withValues(alpha: 0.18);
-      fg = _darkInk[status] ?? const Color(0xFFE5E7EB);
+      // Use the lighter (mode-appropriate) ink as both the bg tint and the
+      // text colour. Tinting the dark `spec.ink` instead would produce a
+      // muddy, low-contrast pill against the dark surface — the symptom we
+      // were seeing before this change. ~24% alpha gives the pill enough
+      // presence to read as a status badge without dominating the row.
+      final accent = _darkInk[status] ?? const Color(0xFFE5E7EB);
+      bg = accent.withValues(alpha: 0.22);
+      fg = accent;
     } else {
       bg = _lightBg[status] ?? RunqColors.grayBg;
       fg = spec.ink;

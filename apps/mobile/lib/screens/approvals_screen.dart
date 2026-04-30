@@ -57,7 +57,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
             _Header(count: value.maybeWhen(data: (l) => l.length, orElse: () => 0)),
             Expanded(
               child: RefreshIndicator(
-                color: RunqColors.indigo,
+                color: RT(context).brand,
                 onRefresh: () async {
                   ref.invalidate(pendingApprovalsProvider);
                   await ref.read(pendingApprovalsProvider.future).catchError((_) => throw 0);
@@ -235,14 +235,14 @@ class _ConfirmedState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      key: const ValueKey('confirmed'),
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      key: ValueKey('confirmed'),
+      padding: EdgeInsets.symmetric(vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 18, height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo),
+            child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand),
           ),
           const SizedBox(width: 10),
           Text('Submitting…', style: RunqText.bodyStrong),

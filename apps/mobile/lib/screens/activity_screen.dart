@@ -29,7 +29,7 @@ class ActivityScreen extends ConsumerWidget {
             _Header(),
             Expanded(
               child: RefreshIndicator(
-                color: RunqColors.indigo,
+                color: RT(context).brand,
                 onRefresh: () async {
                   ref.invalidate(_allActivityProvider);
                   ref.invalidate(activityProvider);

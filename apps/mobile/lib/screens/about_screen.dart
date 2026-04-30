@@ -179,7 +179,7 @@ class _FeatureCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, color: RunqColors.indigo, size: 18),
+                child: Icon(icon, color: RT(context).brand, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(child: Text(title, style: RunqText.h3.copyWith(fontSize: 15))),

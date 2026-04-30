@@ -463,10 +463,10 @@ class _TotalsCard extends StatelessWidget {
         children: [
           Text('TOTALS', style: RunqText.label),
           const SizedBox(height: 8),
-          _LinePair(label: 'Subtotal', value: formatINR(detail.subtotal)),
-          if (detail.taxTotal > 0) _LinePair(label: 'Tax', value: formatINR(detail.taxTotal)),
+          _LinePair(label: 'Subtotal', value: formatINR(detail.subtotal, paise: true)),
+          _LinePair(label: 'Tax', value: formatINR(detail.taxTotal, paise: true)),
           Divider(height: 14, thickness: 0.5, color: t.hairlineSoft),
-          _LinePair(label: 'Grand total', value: formatINR(detail.grandTotal), strong: true),
+          _LinePair(label: 'Grand total', value: formatINR(detail.grandTotal, paise: true), strong: true),
         ],
       ),
     );

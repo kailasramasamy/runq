@@ -182,7 +182,12 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? RunqColors.indigo : RT(context).muted;
+    final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Inactive tabs need more contrast in dark mode — `muted` (a warm beige)
+    // sits too close to the surface tint and the labels go ghosted.
+    final inactive = isDark ? t.ink2 : t.muted;
+    final color = active ? t.brand : inactive;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(RunqRadii.smallCard),
@@ -228,7 +233,7 @@ class _FabButton extends StatelessWidget {
               height: 52,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: RunqColors.indigo,
+                color: RT(context).brand,
                 shape: BoxShape.circle,
                 boxShadow: RunqShadows.fab,
               ),

@@ -69,11 +69,11 @@ class _LineEditSheetState extends State<_LineEditSheet> {
   }
 
   Future<void> _pickItem() async {
-    final picked = await showModalBottomSheet<ItemSummary>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ItemPickerSheet(initialQuery: widget.line.rawDescription),
+    final picked = await Navigator.of(context).push<ItemSummary>(
+      MaterialPageRoute(
+        builder: (_) => _ItemPickerScreen(initialQuery: widget.line.rawDescription),
+        fullscreenDialog: true,
+      ),
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -362,17 +362,17 @@ class _Field extends StatelessWidget {
   }
 }
 
-// ─── Item picker bottom sheet ────────────────────────────────────────────
+// ─── Item picker screen ──────────────────────────────────────────────────
 
-class _ItemPickerSheet extends StatefulWidget {
+class _ItemPickerScreen extends StatefulWidget {
   final String initialQuery;
-  const _ItemPickerSheet({required this.initialQuery});
+  const _ItemPickerScreen({required this.initialQuery});
 
   @override
-  State<_ItemPickerSheet> createState() => _ItemPickerSheetState();
+  State<_ItemPickerScreen> createState() => _ItemPickerScreenState();
 }
 
-class _ItemPickerSheetState extends State<_ItemPickerSheet> {
+class _ItemPickerScreenState extends State<_ItemPickerScreen> {
   final _ctrl = TextEditingController();
   Timer? _debounce;
   List<ItemSummary> _results = const [];
@@ -428,43 +428,37 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final media = MediaQuery.of(context);
-    // Sit between the keyboard and the top of the screen. Without this the
-    // sheet's fixed height collides with the keyboard and the title clips
-    // off the top.
-    final maxHeight = media.size.height - media.viewInsets.bottom - media.padding.top - 24;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Container(
-          decoration: BoxDecoration(
-            color: t.bgWarmer,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
-          ),
+    return Scaffold(
+      backgroundColor: t.bgWarmer,
+      appBar: AppBar(
+        title: const Text('Map to product'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 12),
               TextField(
                 controller: _ctrl,
                 autofocus: true,
                 onChanged: _onChanged,
+                style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
                 decoration: InputDecoration(
-                  hintText: 'Search items...',
+                  hintText: 'Search by name or SKU',
+                  hintStyle: RunqText.body.copyWith(fontSize: 14, color: t.muted2),
                   prefixIcon: Icon(Icons.search_rounded, size: 18, color: t.muted),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   suffixIcon: _ctrl.text.isEmpty
                       ? null
                       : IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                           icon: Icon(Icons.close_rounded, size: 16, color: t.muted),
                           onPressed: () {
                             _ctrl.clear();
@@ -475,14 +469,23 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
                   isDense: true,
                   filled: true,
                   fillColor: t.inputFill,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(color: t.hairline, width: 0.5),
                   ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: t.hairline, width: 0.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: RunqColors.indigo, width: 1),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
-              Flexible(child: _resultsBody(t)),
+              Expanded(child: _resultsBody(t)),
             ],
           ),
         ),
@@ -492,37 +495,45 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
 
   Widget _resultsBody(RunqTokens t) {
     if (_loading && _results.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: RunqColors.indigo));
+      return Center(child: CircularProgressIndicator(color: RT(context).brand));
     }
     if (_error != null) {
       return Center(child: Text(_error!, style: RunqText.body.copyWith(color: t.muted)));
     }
     if (_results.isEmpty) {
       final isQuery = _ctrl.text.trim().isNotEmpty;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 32),
+            Icon(Icons.inventory_2_outlined, size: 36, color: t.muted2),
+            const SizedBox(height: 10),
+            Text(
+              isQuery ? 'No matching items' : 'No items in your masters yet',
+              textAlign: TextAlign.center,
+              style: RunqText.body.copyWith(fontSize: 14, color: t.ink, fontWeight: FontWeight.w600),
+            ),
+            if (isQuery) ...[
+              const SizedBox(height: 4),
               Text(
-                isQuery ? 'No items match "${_ctrl.text.trim()}".' : 'No items in your masters yet.',
+                'Try fewer words, the SKU code, or a partial name.',
                 textAlign: TextAlign.center,
-                style: RunqText.body.copyWith(color: t.muted),
+                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
               ),
-              if (isQuery) ...[
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    _ctrl.clear();
-                    _runQuery('');
-                    setState(() {});
-                  },
-                  child: const Text('Clear search & browse all'),
-                ),
-              ],
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  _ctrl.clear();
+                  _runQuery('');
+                  setState(() {});
+                },
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                child: const Text('Clear search & browse all'),
+              ),
             ],
-          ),
+          ],
         ),
       );
     }

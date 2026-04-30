@@ -260,10 +260,10 @@ class _Indicator extends StatelessWidget {
             color: RunqColors.indigo.withValues(alpha: 0.12),
           ),
           alignment: Alignment.center,
-          child: const SizedBox(
+          child: SizedBox(
             width: 14,
             height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo),
+            child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand),
           ),
         );
       case _StepState.pending:

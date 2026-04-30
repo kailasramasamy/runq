@@ -111,7 +111,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
           const SizedBox(height: 12),
           Expanded(
             child: RefreshIndicator(
-              color: RunqColors.indigo,
+              color: RT(context).brand,
               onRefresh: () async {
                 ref.invalidate(invoicesProvider(_filter));
                 ref.invalidate(invoiceSummaryProvider);
@@ -252,7 +252,7 @@ class _IconChip extends StatelessWidget {
                 child: Container(
                   width: 8, height: 8,
                   decoration: BoxDecoration(
-                    color: RunqColors.indigo,
+                    color: RT(context).brand,
                     shape: BoxShape.circle,
                     border: Border.all(color: t.surface, width: 1.5),
                   ),
@@ -498,7 +498,7 @@ class _PartialPayBar extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
                 widthFactor: pct,
-                child: Container(color: RunqColors.indigo),
+                child: Container(color: RT(context).brand),
               ),
             ),
           ),

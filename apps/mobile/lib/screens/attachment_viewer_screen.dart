@@ -137,8 +137,8 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
-        child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2.5, color: RunqColors.indigo)),
+      return Center(
+        child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2.5, color: RT(context).brand)),
       );
     }
     if (_error != null || _file == null) {

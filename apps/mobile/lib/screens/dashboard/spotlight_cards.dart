@@ -22,8 +22,8 @@ class SpotlightCards extends ConsumerWidget {
       height: 168,
       child: summary.when(
         data: (s) => _buildList(context, ref, s),
-        loading: () => const Center(
-          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo)),
+        loading: () => Center(
+          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand)),
         ),
         error: (_, __) => const SizedBox(),
       ),
@@ -189,13 +189,13 @@ class _SpotlightCard extends StatelessWidget {
               Row(
                 children: [
                   if (ctaIcon != null) ...[
-                    Icon(ctaIcon, size: 12, color: RunqColors.indigo),
+                    Icon(ctaIcon, size: 12, color: RT(context).brand),
                     const SizedBox(width: 4),
                   ],
                   Flexible(
                     child: Text(
                       cta,
-                      style: RunqText.caption.copyWith(color: RunqColors.indigo, fontWeight: FontWeight.w600, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -308,7 +308,7 @@ class _GstCard extends StatelessWidget {
                   Flexible(
                     child: Text(
                       failing == null ? 'Review' : 'Fix & review',
-                      style: RunqText.caption.copyWith(color: RunqColors.indigo, fontWeight: FontWeight.w600, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

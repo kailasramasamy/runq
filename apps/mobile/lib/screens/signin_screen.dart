@@ -8,6 +8,129 @@ import '../api/api_client.dart';
 import '../providers/auth_provider.dart';
 import '../theme/runq_theme.dart';
 
+// Theme-aware colour palette for the sign-in screen. The whole screen used
+// to be hardcoded dark; this palette mirrors the gradient/glow design but
+// adapts to the system theme via Theme.of(context).brightness so the
+// pre-auth screen no longer looks out of place when the OS is in light mode.
+class _Palette {
+  final Color bg;
+  final List<Color> bgGradient;
+  final Color glowIndigo;
+  final Color glowViolet;
+  final Color cardBg;
+  final Color cardBorder;
+  final Color cardShadow;
+  final Color titleInk;
+  final Color subtitleInk;
+  final Color labelInk;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final Color fieldHint;
+  final Color fieldText;
+  final Color iconMuted;
+  final Color linkInk;
+  final Color subtleInk;
+  final Color overlayIcons; // status bar icon brightness
+  final Brightness statusBarIconBrightness;
+  final Color sessionBg;
+  final Color sessionBorder;
+  final Color sessionText;
+  final Color errorBg;
+  final Color errorBorder;
+  final Color errorText;
+  final Color primaryBtn;
+  const _Palette({
+    required this.bg,
+    required this.bgGradient,
+    required this.glowIndigo,
+    required this.glowViolet,
+    required this.cardBg,
+    required this.cardBorder,
+    required this.cardShadow,
+    required this.titleInk,
+    required this.subtitleInk,
+    required this.labelInk,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.fieldHint,
+    required this.fieldText,
+    required this.iconMuted,
+    required this.linkInk,
+    required this.subtleInk,
+    required this.overlayIcons,
+    required this.statusBarIconBrightness,
+    required this.sessionBg,
+    required this.sessionBorder,
+    required this.sessionText,
+    required this.errorBg,
+    required this.errorBorder,
+    required this.errorText,
+    required this.primaryBtn,
+  });
+
+  static _Palette of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? _dark : _light;
+  }
+
+  static const _dark = _Palette(
+    bg: Color(0xFF09090B),
+    bgGradient: [Color(0xFF09090B), Color(0xFF18181B), Color(0xFF1E1B4B)],
+    glowIndigo: Color(0x736366F1),
+    glowViolet: Color(0x4D7C3AED),
+    cardBg: Color(0xC718181B),
+    cardBorder: Color(0xFF27272A),
+    cardShadow: Color(0x66000000),
+    titleInk: Color(0xFFF4F4F5),
+    subtitleInk: Color(0xFFA1A1AA),
+    labelInk: Color(0xFFD4D4D8),
+    fieldBg: Color(0xFF27272A),
+    fieldBorder: Color(0xFF3F3F46),
+    fieldHint: Color(0xFF71717A),
+    fieldText: Color(0xFFF4F4F5),
+    iconMuted: Color(0xFF71717A),
+    linkInk: Color(0xFF818CF8),
+    subtleInk: Color(0xFF52525B),
+    overlayIcons: Color(0xFFFFFFFF),
+    statusBarIconBrightness: Brightness.light,
+    sessionBg: Color(0x80451A03),
+    sessionBorder: Color(0xFF92400E),
+    sessionText: Color(0xFFFCD34D),
+    errorBg: Color(0x80450A0A),
+    errorBorder: Color(0xFF7F1D1D),
+    errorText: Color(0xFFFCA5A5),
+    primaryBtn: Color(0xFF6366F1),
+  );
+
+  static const _light = _Palette(
+    bg: Color(0xFFFAFAFA),
+    bgGradient: [Color(0xFFFAFAFA), Color(0xFFF4F4F5), Color(0xFFE0E7FF)],
+    glowIndigo: Color(0x336366F1),
+    glowViolet: Color(0x267C3AED),
+    cardBg: Color(0xF2FFFFFF),
+    cardBorder: Color(0xFFE4E4E7),
+    cardShadow: Color(0x14000000),
+    titleInk: Color(0xFF18181B),
+    subtitleInk: Color(0xFF52525B),
+    labelInk: Color(0xFF52525B),
+    fieldBg: Color(0xFFFFFFFF),
+    fieldBorder: Color(0xFFD4D4D8),
+    fieldHint: Color(0xFFA1A1AA),
+    fieldText: Color(0xFF18181B),
+    iconMuted: Color(0xFFA1A1AA),
+    linkInk: Color(0xFF6366F1),
+    subtleInk: Color(0xFFA1A1AA),
+    overlayIcons: Color(0xFF18181B),
+    statusBarIconBrightness: Brightness.dark,
+    sessionBg: Color(0xFFFEF3C7),
+    sessionBorder: Color(0xFFFCD34D),
+    sessionText: Color(0xFF92400E),
+    errorBg: Color(0xFFFEE2E2),
+    errorBorder: Color(0xFFFCA5A5),
+    errorText: Color(0xFFB91C1C),
+    primaryBtn: Color(0xFF6366F1),
+  );
+}
+
 class SignInScreen extends ConsumerStatefulWidget {
   final bool sessionExpired;
   const SignInScreen({super.key, this.sessionExpired = false});
@@ -85,17 +208,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+        statusBarIconBrightness: p.statusBarIconBrightness,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF09090B),
+        backgroundColor: p.bg,
         body: Stack(
           children: [
-            const Positioned.fill(child: _BackgroundGradient()),
-            const Positioned.fill(child: _GlowBlobs()),
+            Positioned.fill(child: _BackgroundGradient(palette: p)),
+            Positioned.fill(child: _GlowBlobs(palette: p)),
             SafeArea(
               child: SingleChildScrollView(
                 physics: const ClampingScrollPhysics(),
@@ -110,14 +234,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const SizedBox(height: 24),
-                      _LogoBlock(fade: _logoFade, scale: _logoScale),
+                      _LogoBlock(fade: _logoFade, scale: _logoScale, palette: p),
                       const SizedBox(height: 28),
                       if (widget.sessionExpired)
                         FadeTransition(
                           opacity: _cardFade,
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: const _SessionExpiredBanner(),
+                            child: _SessionExpiredBanner(palette: p),
                           ),
                         ),
                       SlideTransition(
@@ -125,6 +249,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                         child: FadeTransition(
                           opacity: _cardFade,
                           child: _SignInCard(
+                            palette: p,
                             email: _email,
                             password: _password,
                             showPassword: _showPassword,
@@ -142,7 +267,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           child: Text(
                             'runQ Finance v1',
                             style: RunqText.caption.copyWith(
-                              color: const Color(0xFF52525B),
+                              color: p.subtleInk,
                               fontSize: 11,
                               letterSpacing: 0.04 * 11,
                             ),
@@ -162,17 +287,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
 }
 
 class _BackgroundGradient extends StatelessWidget {
-  const _BackgroundGradient();
+  final _Palette palette;
+  const _BackgroundGradient({required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF09090B), Color(0xFF18181B), Color(0xFF1E1B4B)],
-          stops: [0, 0.55, 1],
+          colors: palette.bgGradient,
+          stops: const [0, 0.55, 1],
         ),
       ),
     );
@@ -180,36 +306,41 @@ class _BackgroundGradient extends StatelessWidget {
 }
 
 class _GlowBlobs extends StatelessWidget {
-  const _GlowBlobs();
+  final _Palette palette;
+  const _GlowBlobs({required this.palette});
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _GlowPainter());
+    return CustomPaint(painter: _GlowPainter(palette: palette));
   }
 }
 
 class _GlowPainter extends CustomPainter {
+  final _Palette palette;
+  _GlowPainter({required this.palette});
+
   @override
   void paint(Canvas canvas, Size size) {
     final p1 = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0xFF6366F1).withValues(alpha: 0.45), const Color(0x00000000)],
+        colors: [palette.glowIndigo, const Color(0x00000000)],
       ).createShader(Rect.fromCircle(center: Offset(size.width * 0.85, size.height * 0.18), radius: size.width * 0.7));
     canvas.drawRect(Offset.zero & size, p1);
     final p2 = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0xFF7C3AED).withValues(alpha: 0.30), const Color(0x00000000)],
+        colors: [palette.glowViolet, const Color(0x00000000)],
       ).createShader(Rect.fromCircle(center: Offset(-size.width * 0.1, size.height * 0.85), radius: size.width * 0.8));
     canvas.drawRect(Offset.zero & size, p2);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
+  bool shouldRepaint(covariant _GlowPainter old) => old.palette != palette;
 }
 
 class _LogoBlock extends StatelessWidget {
   final Animation<double> fade, scale;
-  const _LogoBlock({required this.fade, required this.scale});
+  final _Palette palette;
+  const _LogoBlock({required this.fade, required this.scale, required this.palette});
 
   @override
   Widget build(BuildContext context) {
@@ -243,15 +374,12 @@ class _LogoBlock extends StatelessWidget {
             children: [
               Text(
                 'Sign in to your workspace',
-                style: RunqText.bodyStrong.copyWith(
-                  color: const Color(0xFFF4F4F5),
-                  fontSize: 17,
-                ),
+                style: RunqText.bodyStrong.copyWith(color: palette.titleInk, fontSize: 17),
               ),
               const SizedBox(height: 4),
               Text(
                 'Finance & Accounting ERP',
-                style: RunqText.caption.copyWith(color: const Color(0xFFA1A1AA), fontSize: 13),
+                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 13),
               ),
             ],
           ),
@@ -262,25 +390,26 @@ class _LogoBlock extends StatelessWidget {
 }
 
 class _SessionExpiredBanner extends StatelessWidget {
-  const _SessionExpiredBanner();
+  final _Palette palette;
+  const _SessionExpiredBanner({required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF451A03).withValues(alpha: 0.5),
+        color: palette.sessionBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF92400E), width: 0.5),
+        border: Border.all(color: palette.sessionBorder, width: 0.5),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFFCD34D)),
+          Icon(Icons.info_outline_rounded, size: 16, color: palette.sessionText),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Your session has expired. Please sign in again.',
-              style: RunqText.caption.copyWith(color: const Color(0xFFFCD34D), fontSize: 12),
+              style: RunqText.caption.copyWith(color: palette.sessionText, fontSize: 12),
             ),
           ),
         ],
@@ -290,6 +419,7 @@ class _SessionExpiredBanner extends StatelessWidget {
 }
 
 class _SignInCard extends StatelessWidget {
+  final _Palette palette;
   final TextEditingController email, password;
   final bool showPassword;
   final VoidCallback onToggleShow;
@@ -297,6 +427,7 @@ class _SignInCard extends StatelessWidget {
   final bool loading;
   final VoidCallback onSubmit;
   const _SignInCard({
+    required this.palette,
     required this.email,
     required this.password,
     required this.showPassword,
@@ -311,17 +442,18 @@ class _SignInCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B).withValues(alpha: 0.78),
+        color: palette.cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF27272A), width: 0.6),
-        boxShadow: const [
-          BoxShadow(color: Color(0x66000000), blurRadius: 40, offset: Offset(0, 20)),
+        border: Border.all(color: palette.cardBorder, width: 0.6),
+        boxShadow: [
+          BoxShadow(color: palette.cardShadow, blurRadius: 40, offset: const Offset(0, 20)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _DarkField(
+          _ThemedField(
+            palette: palette,
             label: 'Email',
             controller: email,
             hint: 'you@company.com',
@@ -331,7 +463,8 @@ class _SignInCard extends StatelessWidget {
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 14),
-          _DarkField(
+          _ThemedField(
+            palette: palette,
             label: 'Password',
             controller: password,
             hint: '••••••••',
@@ -342,7 +475,7 @@ class _SignInCard extends StatelessWidget {
               child: Icon(
                 showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                 size: 18,
-                color: const Color(0xFF71717A),
+                color: palette.iconMuted,
               ),
             ),
             autofillHints: const [AutofillHints.password],
@@ -359,7 +492,7 @@ class _SignInCard extends StatelessWidget {
                 child: Text(
                   'Forgot password?',
                   style: RunqText.caption.copyWith(
-                    color: const Color(0xFF818CF8),
+                    color: palette.linkInk,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -372,18 +505,18 @@ class _SignInCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF450A0A).withValues(alpha: 0.5),
+                color: palette.errorBg,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF7F1D1D), width: 0.5),
+                border: Border.all(color: palette.errorBorder, width: 0.5),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFFCA5A5)),
+                  Icon(Icons.error_outline_rounded, size: 14, color: palette.errorText),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       error!,
-                      style: RunqText.caption.copyWith(color: const Color(0xFFFCA5A5), fontSize: 12),
+                      style: RunqText.caption.copyWith(color: palette.errorText, fontSize: 12),
                     ),
                   ),
                 ],
@@ -396,8 +529,8 @@ class _SignInCard extends StatelessWidget {
             child: FilledButton(
               onPressed: loading ? null : onSubmit,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
-                disabledBackgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.6),
+                backgroundColor: palette.primaryBtn,
+                disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -420,13 +553,13 @@ class _SignInCard extends StatelessWidget {
           Center(
             child: Text.rich(
               TextSpan(
-                style: RunqText.caption.copyWith(color: const Color(0xFF71717A), fontSize: 12),
+                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 12),
                 children: [
                   const TextSpan(text: 'New to runQ? '),
                   TextSpan(
                     text: 'Request access',
                     style: RunqText.caption.copyWith(
-                      color: const Color(0xFF818CF8),
+                      color: palette.linkInk,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -441,7 +574,8 @@ class _SignInCard extends StatelessWidget {
   }
 }
 
-class _DarkField extends StatelessWidget {
+class _ThemedField extends StatelessWidget {
+  final _Palette palette;
   final String label, hint;
   final IconData icon;
   final TextEditingController controller;
@@ -451,7 +585,8 @@ class _DarkField extends StatelessWidget {
   final List<String>? autofillHints;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
-  const _DarkField({
+  const _ThemedField({
+    required this.palette,
     required this.label,
     required this.hint,
     required this.icon,
@@ -472,7 +607,7 @@ class _DarkField extends StatelessWidget {
         Text(
           label,
           style: RunqText.caption.copyWith(
-            color: const Color(0xFFD4D4D8),
+            color: palette.labelInk,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -480,9 +615,9 @@ class _DarkField extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF27272A),
+            color: palette.fieldBg,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFF3F3F46), width: 0.5),
+            border: Border.all(color: palette.fieldBorder, width: 0.5),
           ),
           child: TextField(
             controller: controller,
@@ -491,12 +626,12 @@ class _DarkField extends StatelessWidget {
             autofillHints: autofillHints,
             textInputAction: textInputAction,
             onSubmitted: onSubmitted,
-            style: RunqText.body.copyWith(color: const Color(0xFFF4F4F5), fontSize: 14),
-            cursorColor: const Color(0xFF818CF8),
+            style: RunqText.body.copyWith(color: palette.fieldText, fontSize: 14),
+            cursorColor: palette.linkInk,
             decoration: InputDecoration(
               prefixIcon: Padding(
                 padding: const EdgeInsets.only(left: 12, right: 8),
-                child: Icon(icon, size: 18, color: const Color(0xFF71717A)),
+                child: Icon(icon, size: 18, color: palette.iconMuted),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
               suffixIcon: suffix == null
@@ -504,7 +639,7 @@ class _DarkField extends StatelessWidget {
                   : Padding(padding: const EdgeInsets.only(right: 12), child: suffix),
               suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
               hintText: hint,
-              hintStyle: RunqText.body.copyWith(color: const Color(0xFF71717A), fontSize: 14),
+              hintStyle: RunqText.body.copyWith(color: palette.fieldHint, fontSize: 14),
               border: InputBorder.none,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
