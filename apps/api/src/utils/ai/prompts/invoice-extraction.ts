@@ -58,6 +58,33 @@ Additional extraction rules:
 - vendorBankName: name of the bank.
 - Extract vendor details from the SELLER/FROM section, NOT the buyer/billed-to section.
 
+CRITICAL — line item completeness (transcribe the bill, do not redo its math):
+- Capture EVERY printed numeric line as a separate item, in the order it appears on the bill: goods, services, charges, fees, discounts, round-off. Use itemName exactly as printed.
+- Quantity / unit price defaults: if a line has no separately printed quantity or rate (typical for "Round Off", "Pet Charges", "Discount", "Container Deposit"), use quantity=1 and unitPrice = amount.
+- Negative amounts are valid for discount, round-off, rebate, subsidy lines. Notation "(-)0.01", "(-) 5", "-0.50" all mean a negative number — preserve the sign.
+- A line is only zero-amount if the printed amount is literally zero. Skip those.
+
+CRITICAL — handling tax (two distinct bill styles):
+
+(a) TAX-EXCLUSIVE bills (most B2B tax invoices: Sanathana Foods, BESCOM-style):
+    Tax is printed as separate rows mixed in with the line items, between the goods and the grand total. Examples: "Output CGST@2.5%", "Output SGST@2.5%", "GST @18%", "Tax @ 9%".
+    → Capture every such tax row as its own line item with quantity=1, unitPrice=amount.
+    → Sum of line items (goods + tax rows + charges + discounts) should equal totalAmount.
+    → Set header taxAmount to 0; the tax IS the line items above.
+
+(b) TAX-INCLUSIVE bills (retail receipts: kirana stores, supermarkets, restaurants):
+    Line item amounts already include GST. There may be a footer summary table showing "Taxable Value / CGST / SGST" broken down by HSN slab — this is for filing records only and is NOT additional charges.
+    → Capture only the goods line items; their amounts already include tax.
+    → Do NOT create line items for the footer GST summary table.
+    → Set header taxAmount to 0; goods items sum to totalAmount on their own.
+
+Test for which style applies: if the visible goods line items already sum to the printed Total (within ₹2 rounding), the bill is tax-inclusive — case (b). If the goods sum to less than Total and you can see explicit tax rows printed mid-bill, it's case (a).
+
+For all line items, set taxRate to null. Tax is recorded only via dedicated tax line items in case (a). The taxCategory field can still be set when it's obvious from the bill ("taxable", "exempt", "nil_rated").
+
+subtotal = the bill's printed "Sub Total" / "Taxable Value" total when present; otherwise null.
+- A line is only zero-amount if the printed amount is literally zero. Skip those.
+
 CRITICAL — fuel station / petrol pump invoices:
 - Petrol pump receipts contain machine totalizer readings: "Atot", "Vtot", "AT", "VT", or large running totals (often 8–12 digits like "27898984"). These are CUMULATIVE PUMP COUNTERS, NOT MONEY. NEVER use them as taxAmount, subtotal, or any amount field.
 - The actual invoice amount is usually a small 3–6 digit number labelled "Total", "Amount", "Net Payable", "Bill Amount", or printed near the bottom.

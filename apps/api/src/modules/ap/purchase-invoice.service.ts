@@ -104,6 +104,16 @@ export class PurchaseInvoiceService {
       const gst = await this.computeGstForBill(tx, input.vendorId, input.items, input.reverseCharge);
       const tdsTotal = this.computeTdsTotal(input.items);
 
+      // Honor the totals the caller passed in — they reflect what the user
+      // confirmed in the review screen against the printed bill, and are
+      // authoritative even when our per-line GST recomputation lands on a
+      // slightly different number (rounding, charges outside GST, etc.).
+      // Per-line GST breakdown still comes from `gst` so cgst/sgst/igst
+      // columns stay populated for ITC/return purposes.
+      const subtotal = input.subtotal ?? gst.summary.subtotal;
+      const taxAmount = input.taxAmount ?? gst.summary.taxAmount;
+      const totalAmount = input.totalAmount;
+
       const [invoice] = await tx
         .insert(purchaseInvoices)
         .values({
@@ -113,10 +123,10 @@ export class PurchaseInvoiceService {
           invoiceDate: input.invoiceDate,
           dueDate: input.dueDate,
           poId: input.poId ?? null,
-          subtotal: String(gst.summary.subtotal),
-          taxAmount: String(gst.summary.taxAmount),
-          totalAmount: String(gst.summary.totalAmount),
-          balanceDue: String(gst.summary.totalAmount),
+          subtotal: String(subtotal),
+          taxAmount: String(taxAmount),
+          totalAmount: String(totalAmount),
+          balanceDue: String(totalAmount),
           status: 'draft',
           placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
           placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,

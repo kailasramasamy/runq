@@ -6,8 +6,12 @@ const invoiceItemSchema = z.object({
   itemName: z.string().min(1).max(255),
   sku: z.string().max(100).nullish(),
   quantity: z.number().positive('Quantity must be positive'),
-  unitPrice: z.number().nonnegative('Unit price must be non-negative'),
-  amount: z.number().positive('Amount must be positive'),
+  // Negative unit prices are valid for discount/round-off lines, mirroring
+  // the rule for [amount] below.
+  unitPrice: z.number(),
+  // Negative amounts are valid for discount lines / credit adjustments;
+  // only zero is meaningless on a bill line.
+  amount: z.number().refine((n) => n !== 0, { message: 'Amount cannot be zero' }),
   // GST fields (optional for backward compat)
   hsnSacCode: z.string().max(8).nullish(),
   taxCategory: taxCategorySchema.nullish(),

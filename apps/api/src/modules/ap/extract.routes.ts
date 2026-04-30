@@ -129,8 +129,12 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
       itemName: z.string().min(1),
       hsnSacCode: z.string().nullable().default(null),
       quantity: z.number().positive(),
-      unitPrice: nonNegOrNull,
-      amount: z.number().positive(),
+      // Discount / round-off lines have a negative unitPrice; null means
+      // "not separately printed" (the AI dropped it).
+      unitPrice: z.preprocess((v) => v ?? 0, z.number()),
+      // Negative amounts are valid for discount lines / credit adjustments;
+      // only zero is meaningless on a bill line.
+      amount: z.number().refine((n) => n !== 0, { message: 'amount cannot be zero' }),
       taxRate: z.number().nullable().default(null),
       taxCategory: z.string().nullable().default(null),
     })).min(1),
@@ -147,7 +151,10 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
     // Optional — when present, used to compute the user's correction diff.
     // The client should pass the `extracted` field from the original
     // /extract response untouched.
-    aiOutput: extractedSchema.partial().nullish(),
+    // Reference data for diff logging only — never persisted as the bill.
+    // Validating it strictly defeats the purpose, since the AI's raw output
+    // is precisely what we want to record warts and all.
+    aiOutput: z.record(z.unknown()).nullish(),
     // Optional — present when the bill came through the two-step
     // extract → review → commit flow. Used to bind the already-uploaded
     // S3 file as an attachment on the new bill.
@@ -163,7 +170,11 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
       // Synthesize an ExtractionResult shape so commitExtracted records the
       // user diff against the AI output (when the client passed it).
       const fakeExtraction = aiOutput
-        ? { confidence: aiOutput.confidence ?? extracted.confidence, extracted: aiOutput as typeof extracted, vendorMatch: null }
+        ? {
+            confidence: typeof aiOutput.confidence === 'number' ? aiOutput.confidence : extracted.confidence,
+            extracted: aiOutput as unknown as typeof extracted,
+            vendorMatch: null,
+          }
         : undefined;
       const result = await service.commitExtracted(extracted, vendorId ?? undefined, fakeExtraction, request.user.userId);
 
