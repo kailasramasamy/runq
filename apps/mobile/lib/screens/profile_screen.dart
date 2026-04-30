@@ -530,8 +530,15 @@ class _Row3 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final iconBg = spec.iconBg ?? (Theme.of(context).brightness == Brightness.dark ? t.inputFill : const Color(0xFFF3F1EC));
-    final iconFg = spec.iconFg ?? const Color(0xFF605A52);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // The default neutral icon-box: light cream in light mode; in dark mode
+    // we need something noticeably lighter than `surface` (#1B1A18) — using
+    // `inputFill` (#26241F) is only a few lightness points away and the
+    // boxes vanish into the row. A 15%-alpha mix of the secondary ink
+    // produces a clean elevated chip without forcing a brand tint.
+    final iconBg = spec.iconBg ??
+        (isDark ? t.ink2.withValues(alpha: 0.14) : const Color(0xFFF3F1EC));
+    final iconFg = spec.iconFg ?? (isDark ? t.ink2 : const Color(0xFF605A52));
 
     return InkWell(
       onTap: spec.onTap,
