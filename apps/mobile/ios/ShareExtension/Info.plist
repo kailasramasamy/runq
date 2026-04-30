@@ -6,13 +6,32 @@
 	<dict>
 		<key>NSExtensionAttributes</key>
 		<dict>
+			<!-- Tell iOS we accept a single file (PDF / image / spreadsheet)
+			     so WhatsApp + Files + Mail surface us in the apps row.
+			     SupportsFile covers PDFs and any UTI-conforming attachment;
+			     SupportsImage covers gallery share. Limit 1 — we don't
+			     stitch multiple shared files in one go. -->
 			<key>NSExtensionActivationRule</key>
-			<string>TRUEPREDICATE</string>
+			<dict>
+				<key>NSExtensionActivationSupportsFileWithMaxCount</key>
+				<integer>1</integer>
+				<key>NSExtensionActivationSupportsImageWithMaxCount</key>
+				<integer>1</integer>
+			</dict>
+			<key>PHSupportedMediaTypes</key>
+			<array>
+				<string>Image</string>
+			</array>
 		</dict>
 		<key>NSExtensionMainStoryboard</key>
 		<string>MainInterface</string>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.share-services</string>
 	</dict>
+	<!-- RSIShareViewController reads this at runtime to know which App Group
+	     UserDefaults / file container to write the shared payload into.
+	     Must match the App Group enabled on both targets in Signing & Capabilities. -->
+	<key>AppGroupId</key>
+	<string>group.com.quartex.runq</string>
 </dict>
 </plist>

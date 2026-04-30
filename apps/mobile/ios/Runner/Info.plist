@@ -73,6 +73,23 @@
 				</array>
 			</dict>
 		</array>
+		<!-- URL scheme used by the Share Extension to wake the host app
+		     and forward the path to the file it just dropped into the
+		     App Group container. Must match what RSIShareViewController
+		     opens internally: ShareMedia-<bundle-id>. -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>com.quartex.runq</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>ShareMedia-com.quartex.runq</string>
+				</array>
+			</dict>
+		</array>
 		<key>NSAppTransportSecurity</key>
 		<dict>
 			<key>NSAllowsLocalNetworking</key>

@@ -24,14 +24,26 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Static shortcuts + share-targets so Android promotes runQ in
+                 the share sheet's Direct Share row for matching document
+                 mime-types. Must live inside the launcher <activity>. -->
+            <meta-data
+              android:name="android.app.shortcuts"
+              android:resource="@xml/shortcuts"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Share-to-runQ: receive a single PO file (PDF / image / spreadsheet) -->
+            <!-- Share-to-runQ: receive a single PO file (PDF / image / spreadsheet).
+                 The runq.share.RECEIVE_DOCUMENT category is matched by the
+                 <share-target> in res/xml/shortcuts.xml, which is what tells
+                 Android's share sheet to surface us in the top "Direct Share"
+                 row instead of burying the app under "..." -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="in.runq.share.RECEIVE_DOCUMENT"/>
                 <data android:mimeType="application/pdf"/>
                 <data android:mimeType="image/*"/>
                 <data android:mimeType="application/vnd.ms-excel"/>

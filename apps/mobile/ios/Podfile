@@ -36,6 +36,13 @@ target 'Runner' do
   end
 end
 
+# The ShareExtension target deliberately has NO pods. The
+# receive_sharing_intent plugin's main entry point uses
+# UIApplicationDelegate APIs that are forbidden in extensions, so linking
+# its pod here breaks the build. Instead, we copy RSIShareViewController.swift
+# (the extension-safe half of the plugin) directly into the ShareExtension
+# target sources — it's self-contained and only depends on system frameworks.
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)

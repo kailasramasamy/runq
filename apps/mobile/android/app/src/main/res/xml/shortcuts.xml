@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pins runQ to the top row of Android's share sheet for the document
+  mime-types we accept (PDFs, images, spreadsheets, CSV). Without a
+  share-target the OS hides the app under "..." regardless of usage
+  history. The category here matches the one declared on the
+  <intent-filter> in AndroidManifest.xml so Android knows which entry
+  point handles each direct-share invocation.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <share-target android:targetClass="com.quartex.runq.MainActivity">
+        <data android:mimeType="application/pdf" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="application/vnd.ms-excel" />
+        <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        <data android:mimeType="text/csv" />
+        <data android:mimeType="text/plain" />
+        <category android:name="in.runq.share.RECEIVE_DOCUMENT" />
+    </share-target>
+</shortcuts>
