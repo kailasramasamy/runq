@@ -5,6 +5,20 @@ allprojects {
     }
 }
 
+subprojects {
+    afterEvaluate {
+        (extensions.findByName("android") as? com.android.build.gradle.BaseExtension)?.apply {
+            compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+            compileOptions.targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

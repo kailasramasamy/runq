@@ -7,17 +7,10 @@ import '../../theme/runq_tokens.dart';
 import '../../theme/runq_theme.dart';
 import '../../utils/format_inr.dart';
 
-const _darkAmberGradient = LinearGradient(
-  begin: Alignment(-0.7, -1),
-  end: Alignment(0.7, 1),
-  colors: [Color(0xFF3F1D08), Color(0xFF7C3503)],
-);
-
-const _darkGreenGradient = LinearGradient(
-  begin: Alignment(-0.7, -1),
-  end: Alignment(0.7, 1),
-  colors: [Color(0xFF052E1B), Color(0xFF0E4D2E)],
-);
+/// Urgency level used to colour the pill inside an attention card.
+/// Card backgrounds stay neutral (surface) for visual consistency —
+/// urgency is communicated by the pill alone.
+enum _Urgency { critical, warning, ok, info }
 
 class SpotlightCards extends ConsumerWidget {
   const SpotlightCards({super.key});
@@ -28,7 +21,7 @@ class SpotlightCards extends ConsumerWidget {
     return SizedBox(
       height: 168,
       child: summary.when(
-        data: (s) => _buildList(context, s),
+        data: (s) => _buildList(context, ref, s),
         loading: () => const Center(
           child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo)),
         ),
@@ -37,47 +30,45 @@ class SpotlightCards extends ConsumerWidget {
     );
   }
 
-  Widget _buildList(BuildContext context, DashboardSummary s) {
-    return Consumer(
-      builder: (ctx, ref, _) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final gst = ref.watch(gstReadinessProvider).maybeWhen(data: (g) => g, orElse: () => null);
-        return _renderTiles(ctx, s, isDark, gst);
-      },
-    );
-  }
-
-  Widget _renderTiles(BuildContext context, DashboardSummary s, bool isDark, GstReadiness? gst) {
+  Widget _buildList(BuildContext context, WidgetRef ref, DashboardSummary s) {
+    final gst = ref.watch(gstReadinessProvider).maybeWhen(data: (g) => g, orElse: () => null);
     final tiles = <Widget>[];
+
     if (s.overdueAmount > 0) {
       tiles.add(_SpotlightCard(
-        gradient: isDark ? _darkAmberGradient : RunqColors.overdueGradient,
-        inkColor: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
         icon: Icons.timer_outlined,
+        urgency: _Urgency.critical,
         pillLabel: 'OVERDUE',
         headline: formatINR(s.overdueAmount, compact: true),
         sub: '${s.overdueCount} ${s.overdueCount == 1 ? 'invoice' : 'invoices'}',
-        cta: 'Send reminder →',
+        cta: 'Send reminder',
         ctaIcon: Icons.chat_bubble_outline_rounded,
         onTap: () => context.push('/invoices?status=overdue'),
       ));
     }
     if (s.upcomingAmount > 0) {
       tiles.add(_SpotlightCard(
-        gradient: isDark ? _darkGreenGradient : RunqColors.gstGradient,
-        inkColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
         icon: Icons.event_note_outlined,
+        urgency: _Urgency.warning,
         pillLabel: 'DUE THIS WEEK',
         headline: formatINR(s.upcomingAmount, compact: true),
         sub: '${s.upcomingCount} ${s.upcomingCount == 1 ? 'bill' : 'bills'}',
-        cta: 'Pay vendors →',
+        cta: 'Pay vendors',
         onTap: () => context.push('/bills'),
       ));
     }
     if (gst != null && !gst.filedExternally) {
-      tiles.add(_GstCard(gst: gst, isDark: isDark));
+      tiles.add(_GstCard(gst: gst));
     }
-    tiles.add(_CashAskAgentCard(cash: s.cashPosition));
+    tiles.add(_SpotlightCard(
+      icon: Icons.show_chart_rounded,
+      urgency: _Urgency.info,
+      pillLabel: 'TODAY',
+      headline: formatINR(s.cashPosition, compact: true),
+      sub: 'Cash on hand',
+      cta: 'Ask agent',
+      onTap: () => context.push('/agent'),
+    ));
 
     return ListView.separated(
       scrollDirection: Axis.horizontal,
@@ -90,17 +81,52 @@ class SpotlightCards extends ConsumerWidget {
   }
 }
 
+/// Soft lavender wash so the spotlight cards share the runQ theme without
+/// competing with the urgency pills. Two stops, diagonal sweep — readable
+/// in both light and dark mode.
+LinearGradient _spotlightGradient(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return LinearGradient(
+    begin: const Alignment(-0.9, -1),
+    end: const Alignment(0.9, 1),
+    colors: isDark
+        ? [
+            RunqColors.indigo.withValues(alpha: 0.28),
+            RunqColors.indigoDeep.withValues(alpha: 0.10),
+          ]
+        : [
+            const Color(0xFFE0DAFA), // soft violet
+            const Color(0xFFF5F1FF), // near-white with violet undertone
+          ],
+  );
+}
+
+/// Maps an urgency level to (background-tint, ink) for the pill.
+({Color bg, Color ink}) _pillColors(BuildContext context, _Urgency u) {
+  switch (u) {
+    case _Urgency.critical:
+      return (bg: RunqColors.redBg, ink: RunqColors.redInk);
+    case _Urgency.warning:
+      return (bg: RunqColors.amberBg, ink: RunqColors.amberInk);
+    case _Urgency.ok:
+      return (bg: RunqColors.greenBg, ink: RunqColors.greenInk);
+    case _Urgency.info:
+      return (
+        bg: RunqColors.indigo.withValues(alpha: 0.10),
+        ink: RunqColors.indigo,
+      );
+  }
+}
+
 class _SpotlightCard extends StatelessWidget {
-  final Gradient gradient;
-  final Color inkColor;
   final IconData icon;
+  final _Urgency urgency;
   final String pillLabel, headline, sub, cta;
   final IconData? ctaIcon;
   final VoidCallback? onTap;
   const _SpotlightCard({
-    required this.gradient,
-    required this.inkColor,
     required this.icon,
+    required this.urgency,
     required this.pillLabel,
     required this.headline,
     required this.sub,
@@ -111,147 +137,113 @@ class _SpotlightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(RunqRadii.card),
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(RunqRadii.card),
-          border: Border.all(color: inkColor.withValues(alpha: 0.10), width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 32, height: 32,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: inkColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 18, color: inkColor),
-                ),
-                const Spacer(),
-                _MicroPill(label: pillLabel, color: inkColor),
-              ],
+    final t = RT(context);
+    final pill = _pillColors(context, urgency);
+    return Container(
+      width: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(RunqRadii.card),
+        boxShadow: RunqShadows.card,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(RunqRadii.card),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: _spotlightGradient(context),
+              borderRadius: BorderRadius.circular(RunqRadii.card),
+              border: Border.all(color: RunqColors.indigo.withValues(alpha: 0.10), width: 0.5),
             ),
-            const Spacer(),
-            Text(headline, style: RunqText.numberLg.copyWith(color: inkColor, fontSize: 24)),
-            const SizedBox(height: 4),
-            Text(sub,
-                style: RunqText.caption.copyWith(color: inkColor.withValues(alpha: 0.78), fontSize: 11),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (ctaIcon != null) ...[
-                  Icon(ctaIcon, size: 12, color: inkColor),
-                  const SizedBox(width: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32, height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: t.bgWarm,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, size: 18, color: t.muted),
+                  ),
+                  const Spacer(),
+                  _Pill(label: pillLabel, bg: pill.bg, ink: pill.ink),
                 ],
-                Flexible(
-                  child: Text(
-                    cta,
-                    style: RunqText.caption.copyWith(color: inkColor, fontWeight: FontWeight.w600, fontSize: 12),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              Text(headline, style: RunqText.numberLg.copyWith(color: t.ink, fontSize: 24)),
+              const SizedBox(height: 4),
+              Text(
+                sub,
+                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (ctaIcon != null) ...[
+                    Icon(ctaIcon, size: 12, color: RunqColors.indigo),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      cta,
+                      style: RunqText.caption.copyWith(color: RunqColors.indigo, fontWeight: FontWeight.w600, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 2),
+                  const Icon(Icons.arrow_forward_rounded, size: 12, color: RunqColors.indigo),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    );
+    ));
   }
 }
 
-class _MicroPill extends StatelessWidget {
+class _Pill extends StatelessWidget {
   final String label;
-  final Color color;
-  const _MicroPill({required this.label, required this.color});
+  final Color bg, ink;
+  const _Pill({required this.label, required this.bg, required this.ink});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label, style: RunqText.micro.copyWith(color: color)),
-    );
-  }
-}
-
-class _CashAskAgentCard extends StatelessWidget {
-  final double cash;
-  const _CashAskAgentCard({required this.cash});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/agent'),
-      borderRadius: BorderRadius.circular(RunqRadii.card),
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: RunqColors.cashCardGradient,
-          borderRadius: BorderRadius.circular(RunqRadii.card),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 32, height: 32,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.show_chart_rounded, size: 18, color: Colors.white),
-                ),
-                const Spacer(),
-                _MicroPill(label: 'TODAY', color: Colors.white),
-              ],
-            ),
-            const Spacer(),
-            Text(formatINR(cash, compact: true), style: RunqText.numberLg.copyWith(color: Colors.white, fontSize: 24)),
-            const SizedBox(height: 4),
-            Text('Cash on hand',
-                style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
-            const SizedBox(height: 10),
-            Text('Ask agent →',
-                style: RunqText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
-          ],
-        ),
-      ),
+      child: Text(label, style: RunqText.micro.copyWith(color: ink)),
     );
   }
 }
 
 class _GstCard extends StatelessWidget {
   final GstReadiness gst;
-  final bool isDark;
-  const _GstCard({required this.gst, required this.isDark});
+  const _GstCard({required this.gst});
 
   @override
   Widget build(BuildContext context) {
+    final t = RT(context);
     final score = gst.score;
-    final ink = isDark
-        ? (score >= 80 ? const Color(0xFF6EE7B7) : score >= 50 ? const Color(0xFFFCD34D) : const Color(0xFFFCA5A5))
-        : (score >= 80 ? const Color(0xFF047857) : score >= 50 ? const Color(0xFF92400E) : const Color(0xFFB91C1C));
-    final gradient = score >= 80
-        ? (isDark ? _darkGreenGradient : RunqColors.gstGradient)
+    final urgency = score >= 80
+        ? _Urgency.ok
         : score >= 50
-            ? (isDark ? _darkAmberGradient : RunqColors.overdueGradient)
-            : (isDark ? _darkRedGradient : _lightRedGradient);
+            ? _Urgency.warning
+            : _Urgency.critical;
+    final pill = _pillColors(context, urgency);
     final pillLabel = score >= 80
         ? 'ON TRACK'
         : score >= 50
@@ -265,66 +257,73 @@ class _GstCard extends StatelessWidget {
             ? '—'
             : days < 0
                 ? 'Overdue'
-                : '${days} ${days == 1 ? 'day' : 'days'}';
+                : '$days ${days == 1 ? 'day' : 'days'}';
 
     final failing = gst.firstFailingSignal;
     final sub = failing != null
         ? 'GSTR-1 ${gst.periodLabel} · ${failing.detail ?? failing.label}'
         : 'GSTR-1 ${gst.periodLabel} · all clear';
 
-    return InkWell(
-      onTap: () {/* TODO: route to /gst when screen exists */},
-      borderRadius: BorderRadius.circular(RunqRadii.card),
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(RunqRadii.card),
-          border: Border.all(color: ink.withValues(alpha: 0.10), width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                SizedBox(width: 32, height: 32, child: CustomPaint(painter: _RingPainter(score / 100, ink))),
-                const Spacer(),
-                _MicroPill(label: pillLabel, color: ink),
-              ],
+    return Container(
+      width: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(RunqRadii.card),
+        boxShadow: RunqShadows.card,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(RunqRadii.card),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {/* TODO: route to /gst when screen exists */},
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: _spotlightGradient(context),
+              borderRadius: BorderRadius.circular(RunqRadii.card),
+              border: Border.all(color: RunqColors.indigo.withValues(alpha: 0.10), width: 0.5),
             ),
-            const Spacer(),
-            Text(headline, style: RunqText.numberLg.copyWith(color: ink, fontSize: 24)),
-            const SizedBox(height: 4),
-            Text(
-              sub,
-              style: RunqText.caption.copyWith(color: ink.withValues(alpha: 0.78), fontSize: 11),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              failing == null ? 'Review →' : 'Fix & review →',
-              style: RunqText.caption.copyWith(color: ink, fontWeight: FontWeight.w600, fontSize: 12),
-            ),
-          ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  SizedBox(width: 32, height: 32, child: CustomPaint(painter: _RingPainter(score / 100, pill.ink))),
+                  const Spacer(),
+                  _Pill(label: pillLabel, bg: pill.bg, ink: pill.ink),
+                ],
+              ),
+              const Spacer(),
+              Text(headline, style: RunqText.numberLg.copyWith(color: t.ink, fontSize: 24)),
+              const SizedBox(height: 4),
+              Text(
+                sub,
+                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      failing == null ? 'Review' : 'Fix & review',
+                      style: RunqText.caption.copyWith(color: RunqColors.indigo, fontWeight: FontWeight.w600, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.arrow_forward_rounded, size: 12, color: RunqColors.indigo),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    );
+    ));
   }
 }
-
-const _darkRedGradient = LinearGradient(
-  begin: Alignment(-0.7, -1),
-  end: Alignment(0.7, 1),
-  colors: [Color(0xFF4C0519), Color(0xFF7F1D1D)],
-);
-
-const _lightRedGradient = LinearGradient(
-  begin: Alignment(-0.7, -1),
-  end: Alignment(0.7, 1),
-  colors: [Color(0xFFFEE2E2), Color(0xFFFECACA)],
-);
 
 class _RingPainter extends CustomPainter {
   final double progress;

@@ -1,0 +1,567 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../api/api_client.dart';
+import '../api/models.dart';
+import '../api/repos.dart';
+import '../theme/runq_theme.dart';
+import '../theme/runq_tokens.dart';
+import '../utils/format_inr.dart';
+import 'runq_snack.dart';
+
+/// Bottom sheet for editing a single PO draft line:
+///   - Pick a matching item from the masters (or clear the match)
+///   - Override quantity and rate
+///
+/// Returns the updated `PoDraftDetail` from the server when the user saves so
+/// the parent screen can refresh totals + flags. Returns null on cancel.
+Future<PoDraftDetail?> showPoLineEditSheet({
+  required BuildContext context,
+  required String uploadId,
+  required PoDraftLine line,
+}) {
+  return showModalBottomSheet<PoDraftDetail>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _LineEditSheet(uploadId: uploadId, line: line),
+  );
+}
+
+class _LineEditSheet extends StatefulWidget {
+  final String uploadId;
+  final PoDraftLine line;
+  const _LineEditSheet({required this.uploadId, required this.line});
+
+  @override
+  State<_LineEditSheet> createState() => _LineEditSheetState();
+}
+
+class _LineEditSheetState extends State<_LineEditSheet> {
+  late final TextEditingController _qty;
+  late final TextEditingController _rate;
+  String? _itemId;
+  String? _itemLabel;
+  String? _itemUnit;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final l = widget.line;
+    _qty = TextEditingController(text: _fmt(l.rawQty));
+    _rate = TextEditingController(text: l.effectiveRate > 0 ? _fmt(l.effectiveRate) : '');
+    _itemId = l.matchedItemId;
+    _itemLabel = l.matchedItemId != null ? l.displayName : null;
+    _itemUnit = l.displayUom;
+  }
+
+  @override
+  void dispose() {
+    _qty.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  String _fmt(double v) {
+    if (v == 0) return '';
+    return v == v.toInt() ? v.toInt().toString() : v.toStringAsFixed(2);
+  }
+
+  Future<void> _pickItem() async {
+    final picked = await showModalBottomSheet<ItemSummary>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ItemPickerSheet(initialQuery: widget.line.rawDescription),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _itemId = picked.id;
+      _itemLabel = picked.name;
+      // Prefer the master's UoM once an item is chosen — that's the unit
+      // the invoice will actually use after approve. Fall back to the PO's
+      // raw UoM only if the master doesn't define one.
+      _itemUnit = picked.unit ?? widget.line.rawUom;
+      // Prefill from the master selling price ("landing price") so the user
+      // sees the canonical rate immediately and can adjust if needed. If
+      // the master has no price, leave blank — the server will still resolve
+      // a rate via price-lists on save.
+      final master = picked.defaultSellingPrice;
+      _rate.text = (master != null && master > 0) ? _fmt(master) : '';
+    });
+  }
+
+  void _clearItem() {
+    setState(() {
+      _itemId = null;
+      _itemLabel = null;
+      _itemUnit = widget.line.rawUom;
+    });
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final qty = double.tryParse(_qty.text.trim());
+    final rateText = _rate.text.trim();
+    final rate = rateText.isEmpty ? null : double.tryParse(rateText);
+    if (qty == null || qty <= 0) {
+      showRunqSnack(context, 'Quantity must be a positive number', kind: SnackKind.error);
+      return;
+    }
+    // Blank rate is OK only when an item is picked — the server then resolves
+    // the master/landing price via PriceResolverService. Without an item
+    // there's nothing to resolve from, so a positive number is required.
+    if (rateText.isEmpty) {
+      if (_itemId == null) {
+        showRunqSnack(context, 'Rate must be a positive number', kind: SnackKind.error);
+        return;
+      }
+    } else if (rate == null || rate <= 0) {
+      showRunqSnack(context, 'Rate must be a positive number', kind: SnackKind.error);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final updated = await poRepo.updateLine(
+        widget.uploadId,
+        widget.line.id,
+        matchedItemId: _itemId,
+        quantity: qty,
+        rate: rate,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(updated);
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (mounted) showRunqSnack(context, 'Could not save changes', kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final l = widget.line;
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    final amount = (double.tryParse(_qty.text) ?? 0) * (double.tryParse(_rate.text) ?? 0);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: inset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.bgWarmer,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: t.hairline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Edit line', style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+            const SizedBox(height: 4),
+            Text(l.rawDescription,
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: RunqText.caption.copyWith(color: t.muted)),
+            if (l.customerSku != null) ...[
+              const SizedBox(height: 4),
+              _SkuChip(sku: l.customerSku!),
+            ],
+            const SizedBox(height: 18),
+            _ItemPickerRow(
+              label: _itemLabel,
+              onPick: _pickItem,
+              onClear: _itemId != null ? _clearItem : null,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _Field(
+                    controller: _qty,
+                    label: 'Quantity',
+                    suffix: _itemUnit,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _Field(
+                    controller: _rate,
+                    label: 'Rate',
+                    prefix: '₹',
+                    hintText: _itemId != null ? 'Master rate' : null,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Text('Amount', style: RunqText.caption.copyWith(color: t.muted)),
+                const Spacer(),
+                Text(formatINR(amount),
+                    style: RunqText.tabular(size: 16, w: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 18),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: RunqColors.indigo,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text('Save', style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemPickerRow extends StatelessWidget {
+  final String? label;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+  const _ItemPickerRow({required this.label, required this.onPick, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final hasMatch = label != null;
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: hasMatch ? RunqColors.indigo : t.hairline, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasMatch ? Icons.inventory_2_rounded : Icons.search_rounded,
+              size: 18,
+              color: hasMatch ? RunqColors.indigo : t.muted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label ?? 'Pick an item from masters',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: RunqText.body.copyWith(
+                  color: hasMatch ? t.ink : t.muted,
+                  fontWeight: hasMatch ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                onPressed: onClear,
+                icon: Icon(Icons.close_rounded, size: 16, color: t.muted),
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkuChip extends StatelessWidget {
+  final String sku;
+  const _SkuChip({required this.sku});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: t.hairlineSoft,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text('SKU $sku',
+            style: RunqText.caption.copyWith(fontSize: 10, color: t.muted)),
+      ),
+    );
+  }
+}
+
+class _Field extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String? prefix, suffix, hintText;
+  final ValueChanged<String>? onChanged;
+  const _Field({required this.controller, required this.label, this.prefix, this.suffix, this.hintText, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: t.inputFill,
+            prefixText: prefix,
+            suffixText: suffix,
+            hintText: hintText,
+            hintStyle: RunqText.body.copyWith(color: t.muted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: t.hairline, width: 0.5),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: t.hairline, width: 0.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: RunqColors.indigo, width: 1),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Item picker bottom sheet ────────────────────────────────────────────
+
+class _ItemPickerSheet extends StatefulWidget {
+  final String initialQuery;
+  const _ItemPickerSheet({required this.initialQuery});
+
+  @override
+  State<_ItemPickerSheet> createState() => _ItemPickerSheetState();
+}
+
+class _ItemPickerSheetState extends State<_ItemPickerSheet> {
+  final _ctrl = TextEditingController();
+  Timer? _debounce;
+  List<ItemSummary> _results = const [];
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.text = widget.initialQuery;
+    _runQuery(widget.initialQuery);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () => _runQuery(q));
+  }
+
+  Future<void> _runQuery(String q) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await poRepo.searchItems(q);
+      if (!mounted) return;
+      setState(() {
+        _results = res;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load items';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final media = MediaQuery.of(context);
+    // Sit between the keyboard and the top of the screen. Without this the
+    // sheet's fixed height collides with the keyboard and the title clips
+    // off the top.
+    final maxHeight = media.size.height - media.viewInsets.bottom - media.padding.top - 24;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Container(
+          decoration: BoxDecoration(
+            color: t.bgWarmer,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _ctrl,
+                autofocus: true,
+                onChanged: _onChanged,
+                decoration: InputDecoration(
+                  hintText: 'Search items...',
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: t.muted),
+                  suffixIcon: _ctrl.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: Icon(Icons.close_rounded, size: 16, color: t.muted),
+                          onPressed: () {
+                            _ctrl.clear();
+                            _onChanged('');
+                            setState(() {});
+                          },
+                        ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: t.inputFill,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: t.hairline, width: 0.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(child: _resultsBody(t)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _resultsBody(RunqTokens t) {
+    if (_loading && _results.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: RunqColors.indigo));
+    }
+    if (_error != null) {
+      return Center(child: Text(_error!, style: RunqText.body.copyWith(color: t.muted)));
+    }
+    if (_results.isEmpty) {
+      final isQuery = _ctrl.text.trim().isNotEmpty;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isQuery ? 'No items match "${_ctrl.text.trim()}".' : 'No items in your masters yet.',
+                textAlign: TextAlign.center,
+                style: RunqText.body.copyWith(color: t.muted),
+              ),
+              if (isQuery) ...[
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () {
+                    _ctrl.clear();
+                    _runQuery('');
+                    setState(() {});
+                  },
+                  child: const Text('Clear search & browse all'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: _results.length,
+      separatorBuilder: (_, __) => Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+      itemBuilder: (_, i) {
+        final it = _results[i];
+        final meta = [
+          if (it.sku.isNotEmpty) it.sku,
+          if (it.unit != null && it.unit!.isNotEmpty) 'per ${it.unit}',
+        ].join(' · ');
+        return InkWell(
+          onTap: () => Navigator.of(context).pop(it),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(it.name,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+                      if (meta.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(meta,
+                            style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

@@ -40,10 +40,14 @@ class BankingScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(bankAccountsProvider),
           data: (list) {
             if (list.isEmpty) {
-              return ListView(children: const [
-                _Header(),
-                SizedBox(height: 80),
-                EmptyState(
+              return ListView(children: [
+                _BankingHeader(
+                  accountCount: 0,
+                  totalBalance: 0,
+                  onRefresh: () => ref.invalidate(bankAccountsProvider),
+                ),
+                const SizedBox(height: 80),
+                const EmptyState(
                   icon: Icons.account_balance_outlined,
                   title: 'No bank accounts yet',
                   subtitle: 'Add one in the web app to start reconciling.',
@@ -71,24 +75,37 @@ class _Body extends ConsumerWidget {
     final filter = ref.watch(_reconFilterProvider);
     final total = accounts.fold<double>(0, (s, a) => s + a.currentBalance);
 
+    // Match count for the *currently selected* account, derived from its
+    // loaded txns. Other accounts don't get a badge — we don't preload all
+    // of their txns just to show a count.
+    final selectedMatchCount = txns.maybeWhen(
+      data: (page) => page.data.where((t) => t.reconStatus == 'unreconciled').length,
+      orElse: () => 0,
+    );
+
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       slivers: [
-        SliverToBoxAdapter(child: const _Header()),
-        SliverToBoxAdapter(child: _TotalRibbon(total: total, count: accounts.length)),
         SliverToBoxAdapter(
-          child: _AccountStrip(
+          child: _BankingHeader(
+            accountCount: accounts.length,
+            totalBalance: total,
+            onRefresh: () {
+              ref.invalidate(bankAccountsProvider);
+              ref.invalidate(bankTxnsProvider(selected.id));
+            },
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: _AccountCardStrip(
             accounts: accounts,
             selectedId: selected.id,
+            selectedMatchCount: selectedMatchCount,
             onSelect: (id) => ref.read(_selectedAccountProvider.notifier).state = id,
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          sliver: SliverToBoxAdapter(child: _AccountHero(account: selected)),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           sliver: SliverToBoxAdapter(child: _AiReconcileBanner(accountId: selected.id)),
         ),
         SliverPadding(
@@ -170,90 +187,54 @@ class _Body extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+class _BankingHeader extends StatelessWidget {
+  final int accountCount;
+  final double totalBalance;
+  final VoidCallback onRefresh;
+  const _BankingHeader({
+    required this.accountCount,
+    required this.totalBalance,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final countLabel = accountCount == 0
+        ? 'No accounts'
+        : '$accountCount ${accountCount == 1 ? 'account' : 'accounts'} · ${formatINR(totalBalance)}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 16, 6),
+      padding: const EdgeInsets.fromLTRB(20, 8, 16, 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text('Banking', style: RunqText.h2.copyWith(color: t.ink)),
-        ],
-      ),
-    );
-  }
-}
-
-class _TotalRibbon extends StatelessWidget {
-  final double total;
-  final int count;
-  const _TotalRibbon({required this.total, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 16, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('TOTAL BALANCE', style: RunqText.label.copyWith(color: t.muted2)),
-              const SizedBox(height: 4),
-              Text(formatINR(total),
-                  style: RunqText.tabular(size: 28, w: FontWeight.w700, color: t.ink)),
-            ],
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              '$count ${count == 1 ? 'account' : 'accounts'}',
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Banking', style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
+                const SizedBox(height: 4),
+                Text(
+                  countLabel,
+                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 13),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 12),
+          _IconChip(icon: Icons.refresh_rounded, onTap: onRefresh),
         ],
       ),
     );
   }
 }
 
-class _AccountStrip extends StatelessWidget {
-  final List<BankAccount> accounts;
-  final String selectedId;
-  final ValueChanged<String> onSelect;
-  const _AccountStrip({required this.accounts, required this.selectedId, required this.onSelect});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: accounts.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final a = accounts[i];
-          return _AccountChip(account: a, selected: a.id == selectedId, onTap: () => onSelect(a.id));
-        },
-      ),
-    );
-  }
-}
-
-class _AccountChip extends StatelessWidget {
-  final BankAccount account;
-  final bool selected;
+class _IconChip extends StatelessWidget {
+  final IconData icon;
   final VoidCallback onTap;
-  const _AccountChip({required this.account, required this.selected, required this.onTap});
+  const _IconChip({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -262,85 +243,148 @@ class _AccountChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+          width: 40, height: 40,
           decoration: BoxDecoration(
-            color: selected ? RunqColors.indigo.withValues(alpha: 0.10) : t.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected ? RunqColors.indigo : t.hairline,
-              width: selected ? 1.4 : 0.5,
-            ),
+            color: t.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.hairline, width: 0.5),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              BankLogo(bankName: account.bankName.isEmpty ? account.name : account.bankName, logoUrl: account.logoUrl, size: 28),
-              const SizedBox(width: 8),
-              Text(
-                _shortName(account),
-                style: RunqText.bodyStrong.copyWith(
-                  fontSize: 13,
-                  color: selected ? RunqColors.indigo : t.ink,
-                ),
-              ),
-            ],
-          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 18, color: t.ink),
         ),
       ),
     );
   }
+}
 
-  String _shortName(BankAccount a) {
-    final base = a.bankName.isEmpty ? a.name : a.bankName;
-    final firstWord = base.split(RegExp(r'\s+')).first;
-    return firstWord.length > 10 ? '${firstWord.substring(0, 10)}…' : firstWord;
+/// Horizontally-scrolling strip of account cards. Each card shows the bank
+/// logo + name, balance as the dominant element, and `··· last4 · type`
+/// caption. The currently selected account renders an indigo border so the
+/// transaction list below has an obvious anchor.
+class _AccountCardStrip extends StatelessWidget {
+  final List<BankAccount> accounts;
+  final String selectedId;
+  /// Unmatched-txn count for the currently selected account (computed from
+  /// loaded txns). Other cards don't get a badge — we don't preload all
+  /// accounts' txns just for the count.
+  final int selectedMatchCount;
+  final ValueChanged<String> onSelect;
+  const _AccountCardStrip({
+    required this.accounts,
+    required this.selectedId,
+    required this.selectedMatchCount,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 142,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: accounts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, i) {
+          final a = accounts[i];
+          final isSelected = a.id == selectedId;
+          return _AccountCard(
+            account: a,
+            selected: isSelected,
+            matchCount: isSelected ? selectedMatchCount : 0,
+            onTap: () => onSelect(a.id),
+          );
+        },
+      ),
+    );
   }
 }
 
-class _AccountHero extends StatelessWidget {
+class _AccountCard extends StatelessWidget {
   final BankAccount account;
-  const _AccountHero({required this.account});
+  final bool selected;
+  final int matchCount;
+  final VoidCallback onTap;
+  const _AccountCard({
+    required this.account,
+    required this.selected,
+    required this.matchCount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return RunqCard(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      child: Row(
-        children: [
-          BankLogo(bankName: account.bankName.isEmpty ? account.name : account.bankName, logoUrl: account.logoUrl, size: 44),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  account.bankName.isEmpty ? account.name : account.bankName,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      _typeLabel(account.accountType),
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
-                    ),
-                    Text(' · ', style: RunqText.caption.copyWith(color: t.muted2)),
-                    Text(account.masked,
-                        style: RunqText.caption.copyWith(fontSize: 12, color: t.muted, fontFamily: 'monospace')),
-                  ],
-                ),
-              ],
+    final bankName = account.bankName.isEmpty ? account.name : account.bankName;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 196,
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? RunqColors.indigo : t.hairline,
+              width: selected ? 1.4 : 0.5,
             ),
+            boxShadow: [
+              BoxShadow(color: t.hairlineSoft, blurRadius: 3, offset: const Offset(0, 1)),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(formatINR(account.currentBalance),
-              style: RunqText.tabular(size: 20, w: FontWeight.w700, color: t.ink)),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  BankLogo(bankName: bankName, logoUrl: account.logoUrl, size: 32),
+                  const Spacer(),
+                  if (matchCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: RunqColors.amberBg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$matchCount to match',
+                        style: RunqText.caption.copyWith(
+                          color: RunqColors.amberInk,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                bankName,
+                style: RunqText.body.copyWith(color: t.muted, fontSize: 13),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                formatINR(account.currentBalance),
+                style: RunqText.tabular(size: 18, w: FontWeight.w700, color: t.ink),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              Text(
+                '${account.masked} · ${_typeLabel(account.accountType)}',
+                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -14,9 +14,21 @@ import 'screens/approvals_screen.dart';
 import 'screens/activity_screen.dart';
 import 'screens/agent_screen.dart';
 import 'screens/bill_detail_screen.dart';
+import 'screens/bill_edit_screen.dart';
+import 'screens/attachment_viewer_screen.dart';
+import 'api/models.dart' show BillAttachment;
+import 'screens/profile_screen.dart';
+import 'screens/about_screen.dart';
+import 'screens/personal_info_screen.dart';
+import 'screens/notifications_settings_screen.dart';
+import 'screens/appearance_screen.dart';
+import 'screens/help_screen.dart';
+import 'screens/po_draft_review_screen.dart';
+import 'screens/po_processing_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/po_intake.dart';
 
 final rootKey = GlobalKey<NavigatorState>();
 final shellKey = GlobalKey<NavigatorState>();
@@ -30,7 +42,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
       redirect: (ctx, state) {
         final auth = ref.read(authProvider);
         final loc = state.matchedLocation;
-        const protected = {'/home', '/invoices', '/bills', '/banking', '/approvals', '/agent'};
+        const protected = {'/home', '/invoices', '/bills', '/banking', '/approvals', '/agent', '/po', '/profile'};
         final isProtected = protected.any(loc.startsWith);
         if (auth.sessionExpired && loc != '/signin' && loc != '/splash') {
           return '/signin?session=expired';
@@ -75,7 +87,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/invoices/:id',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(InvoiceDetailScreen(id: state.pathParameters['id']!)),
+          pageBuilder: (ctx, state) => _slidePage(InvoiceDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
         ),
         GoRoute(
           path: '/bills/extract',
@@ -83,40 +95,101 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) {
             final file = state.extra as File?;
             if (file == null) {
-              return _slidePage(const _MissingFileFallback());
+              return _slidePage(const _MissingFileFallback(), key: state.pageKey);
             }
-            return _slidePage(BillExtractScreen(file: file));
+            return _slidePage(BillExtractScreen(file: file), key: state.pageKey);
           },
+        ),
+        GoRoute(
+          path: '/po/processing',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            final args = state.extra as PoIntakeArgs?;
+            if (args == null) {
+              return _slidePage(const _MissingFileFallback(), key: state.pageKey);
+            }
+            return _slidePage(PoProcessingScreen(file: args.file, source: args.source), key: state.pageKey);
+          },
+        ),
+        GoRoute(
+          path: '/po-drafts/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(PoDraftReviewScreen(uploadId: state.pathParameters['id']!), key: state.pageKey),
         ),
         GoRoute(
           path: '/bills/:id',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(BillDetailScreen(id: state.pathParameters['id']!)),
+          pageBuilder: (ctx, state) => _slidePage(BillDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/bills/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(BillEditScreen(billId: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/attachments/view',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            final att = state.extra as BillAttachment;
+            return _slidePage(AttachmentViewerScreen(attachment: att), key: state.pageKey);
+          },
         ),
         GoRoute(
           path: '/activity',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const ActivityScreen()),
+          pageBuilder: (ctx, state) => _slidePage(const ActivityScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const ProfileScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/about',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const AboutScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile/personal',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const PersonalInfoScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile/notifications',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const NotificationsSettingsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile/appearance',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const AppearanceScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile/help',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HelpScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/search',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const SearchScreen()),
+          pageBuilder: (ctx, state) => _slidePage(const SearchScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/approvals',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const ApprovalsScreen()),
+          pageBuilder: (ctx, state) => _slidePage(const ApprovalsScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/agent',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const AgentScreen()),
+          pageBuilder: (ctx, state) => _slidePage(const AgentScreen(), key: state.pageKey),
         ),
       ],
     );
 
-CustomTransitionPage _slidePage(Widget child) => CustomTransitionPage(
+CustomTransitionPage _slidePage(Widget child, {LocalKey? key}) => CustomTransitionPage(
+      key: key,
       child: child,
       transitionDuration: const Duration(milliseconds: 220),
       transitionsBuilder: (_, anim, __, c) => FadeTransition(

@@ -99,6 +99,10 @@ final billDetailProvider = FutureProvider.family<BillWithDetails, String>((ref, 
   return _watchAuth(ref, () => billsRepo.detail(id));
 });
 
+final billAttachmentsProvider = FutureProvider.family<List<BillAttachment>, String>((ref, id) async {
+  return _watchAuth(ref, () => billsRepo.attachments(id));
+});
+
 final bankAccountsProvider = FutureProvider<List<BankAccount>>((ref) async {
   return _watchAuth(ref, () => bankingRepo.accounts());
 });

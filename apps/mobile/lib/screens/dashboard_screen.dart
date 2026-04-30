@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
+import '../widgets/gradient_avatar.dart';
 import '../widgets/section_head.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
@@ -101,7 +101,6 @@ class _Header extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
     final approvals = ref.watch(pendingApprovalsProvider);
     final hasNotifications = approvals.maybeWhen(data: (l) => l.isNotEmpty, orElse: () => false);
-    final dateLabel = DateFormat('EEEE, d MMMM').format(DateTime.now());
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 16),
@@ -113,10 +112,12 @@ class _Header extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(dateLabel, style: RunqText.caption.copyWith(color: t.muted, fontSize: 13)),
-                const SizedBox(height: 4),
                 Text(
-                  '${_greeting()}, ${_firstName(user?.name, user?.email)}',
+                  _greeting(),
+                  style: RunqText.body.copyWith(color: t.muted),
+                ),
+                Text(
+                  _firstName(user?.name, user?.email),
                   style: RunqText.h2.copyWith(color: t.ink),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -125,15 +126,34 @@ class _Header extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _IconButton(icon: Icons.search_rounded, onTap: () => context.push('/search')),
+          _IconButton(
+            icon: Icons.search_rounded,
+            onTap: () => context.push('/search'),
+          ),
           const SizedBox(width: 8),
           _IconButton(
             icon: Icons.notifications_none_rounded,
             badge: hasNotifications,
             onTap: () => context.push('/approvals'),
           ),
+          const SizedBox(width: 8),
+          _AvatarButton(name: user?.name ?? user?.email ?? '?'),
         ],
       ),
+    );
+  }
+}
+
+class _AvatarButton extends StatelessWidget {
+  final String name;
+  const _AvatarButton({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push('/profile'),
+      borderRadius: BorderRadius.circular(12),
+      child: GradientAvatar(name: name, size: 36),
     );
   }
 }
@@ -149,7 +169,7 @@ class _IconButton extends StatelessWidget {
     final t = RT(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(12),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -157,14 +177,15 @@ class _IconButton extends StatelessWidget {
             width: 40, height: 40,
             decoration: BoxDecoration(
               color: t.surface,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: t.hairline, width: 0.5),
             ),
-            child: Icon(icon, size: 20, color: t.ink),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 18, color: t.ink),
           ),
           if (badge)
             Positioned(
-              right: 9, top: 9,
+              right: 8, top: 8,
               child: Container(
                 width: 8, height: 8,
                 decoration: BoxDecoration(

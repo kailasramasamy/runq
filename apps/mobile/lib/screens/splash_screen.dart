@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../theme/runq_theme.dart';
-import '../theme/runq_tokens.dart';
 
 class _Palette {
   final Color bg;
@@ -25,26 +24,14 @@ class _Palette {
   });
 
   static _Palette of(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (isDark) {
-      return const _Palette(
-        bg: Color(0xFF6366F1),
-        glow: Color(0xFF818CF8),
-        halo: Color(0x26FFFFFF),
-        ring: Color(0x99FFFFFF),
-        tagline: Color(0xD9FFFFFF),
-        dot: Color(0xFFFFFFFF),
-        shimmer: Color(0x80FFFFFF),
-      );
-    }
-    return _Palette(
-      bg: const Color(0xFFF7F5F1),
-      glow: RunqColors.indigo,
-      halo: RunqColors.indigo.withValues(alpha: 0.10),
-      ring: RunqColors.indigo.withValues(alpha: 0.18),
-      tagline: const Color(0xFF7B7468),
-      dot: RunqColors.indigo,
-      shimmer: const Color(0x66FFFFFF),
+    return const _Palette(
+      bg: Color(0xFF6366F1),
+      glow: Color(0xFF818CF8),
+      halo: Color(0x26FFFFFF),
+      ring: Color(0x99FFFFFF),
+      tagline: Color(0xD9FFFFFF),
+      dot: Color(0xFFFFFFFF),
+      shimmer: Color(0x80FFFFFF),
     );
   }
 }
@@ -56,8 +43,10 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  Ticker? _driver;
+  static const _splashDurationMs = 2500;
   late final Animation<double> _logoScale;
   late final Animation<double> _logoFade;
   late final Animation<double> _taglineFade;
@@ -69,7 +58,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 6500),
     );
 
     _logoScale = TweenSequence<double>([
@@ -84,7 +73,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     _exitOpacity = Tween<double>(begin: 1.0, end: 0.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.90, 1.0)));
 
-    _ctrl.forward().whenComplete(_route);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _driver = createTicker((elapsed) {
+        final v = (elapsed.inMilliseconds / _splashDurationMs).clamp(0.0, 1.0);
+        _ctrl.value = v;
+        if (v >= 1.0) {
+          _driver?.stop();
+          _route();
+        }
+      })..start();
+    });
   }
 
   Future<void> _route() async {
@@ -106,6 +105,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    _driver?.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -192,9 +192,10 @@ class _Logo extends StatelessWidget {
                 ],
               ),
               child: ClipOval(
-                child: SvgPicture.asset(
-                  'assets/branding/runq-app-logo.svg',
+                child: Image.asset(
+                  'assets/branding/runq-app-logo.png',
                   width: 104, height: 104,
+                  fit: BoxFit.cover,
                 ),
               ),
             ),

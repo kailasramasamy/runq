@@ -20,10 +20,9 @@ class _Tab {
 
 const _tabs = <_Tab>[
   _Tab('all', 'All', null),
-  _Tab('outstanding', 'Outstanding', 'sent'),
   _Tab('overdue', 'Overdue', 'overdue'),
+  _Tab('unpaid', 'Unpaid', 'sent'),
   _Tab('paid', 'Paid', 'paid'),
-  _Tab('drafts', 'Drafts', 'draft'),
 ];
 
 class InvoicesScreen extends ConsumerStatefulWidget {
@@ -36,6 +35,7 @@ class InvoicesScreen extends ConsumerStatefulWidget {
 class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   String tabKey = 'all';
   String search = '';
+  bool searchOpen = false;
   DateTime? dateFrom;
   DateTime? dateTo;
 
@@ -64,22 +64,51 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   Widget build(BuildContext context) {
     final summary = ref.watch(invoiceSummaryProvider);
     final list = ref.watch(invoicesProvider(_filter));
+
+    // Active tab's list — also drives the header subtitle ("8 · ₹14,23,900").
+    final (countLabel, totalLabel) = list.maybeWhen(
+      data: (page) {
+        final count = page.total;
+        final sum = summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null);
+        final amount = sum != null ? '${formatINR(sum)} outstanding' : '—';
+        return ('$count', amount);
+      },
+      orElse: () => ('—', '—'),
+    );
+
+    // One badge per tab — pagination meta gives accurate `total` regardless
+    // of page size, so each filter combo costs one cached request.
+    int? cnt(String? status) => ref
+        .watch(invoicesProvider(InvoiceFilter(status: status)))
+        .maybeWhen(data: (p) => p.total, orElse: () => null);
+    final badges = <String, int>{
+      for (final t in _tabs)
+        if (cnt(t.statusFilter) != null) t.key: cnt(t.statusFilter)!,
+    };
+
     return SafeArea(
       bottom: false,
       child: Column(
         children: [
           _Header(
-            onSearch: (v) => setState(() => search = v),
+            countLabel: countLabel,
+            totalLabel: totalLabel,
+            searchOpen: searchOpen,
+            searchValue: search,
+            onSearchToggle: () => setState(() {
+              searchOpen = !searchOpen;
+              if (!searchOpen) search = '';
+            }),
+            onSearchChanged: (v) => setState(() => search = v),
             onFilter: _openFilterSheet,
             filterActive: _hasDateFilter,
           ),
-          _TabBar(activeKey: tabKey, onTap: (k) => setState(() => tabKey = k)),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _SummaryStrip(summary: summary),
+          _TabBar(
+            activeKey: tabKey,
+            badges: badges,
+            onTap: (k) => setState(() => tabKey = k),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
             child: RefreshIndicator(
               color: RunqColors.indigo,
@@ -119,85 +148,179 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
 }
 
 class _Header extends StatelessWidget {
-  final ValueChanged<String> onSearch;
+  final String countLabel, totalLabel;
+  final bool searchOpen;
+  final String searchValue;
+  final VoidCallback onSearchToggle;
+  final ValueChanged<String> onSearchChanged;
   final VoidCallback onFilter;
   final bool filterActive;
-  const _Header({required this.onSearch, required this.onFilter, required this.filterActive});
+  const _Header({
+    required this.countLabel,
+    required this.totalLabel,
+    required this.searchOpen,
+    required this.searchValue,
+    required this.onSearchToggle,
+    required this.onSearchChanged,
+    required this.onFilter,
+    required this.filterActive,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+      padding: EdgeInsets.fromLTRB(20, 8, 16, searchOpen ? 16 : 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text('Invoices', style: RunqText.h2.copyWith(color: t.ink)),
-              const Spacer(),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onFilter,
-                  customBorder: const CircleBorder(),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(
-                          color: t.surface,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: t.hairline, width: 0.5),
-                        ),
-                        child: Icon(Icons.tune_rounded, size: 20, color: t.ink),
-                      ),
-                      if (filterActive)
-                        Positioned(
-                          right: 9, top: 9,
-                          child: Container(
-                            width: 8, height: 8,
-                            decoration: BoxDecoration(
-                              color: RunqColors.indigo,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: t.surface, width: 1.5),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Invoices', style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$countLabel · $totalLabel',
+                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 13),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              _IconChip(
+                icon: searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                onTap: onSearchToggle,
+              ),
+              const SizedBox(width: 8),
+              _IconChip(
+                icon: Icons.filter_list_rounded,
+                onTap: onFilter,
+                showDot: filterActive,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: t.hairline, width: 0.5),
+          if (searchOpen) ...[
+            const SizedBox(height: 12),
+            _InlineSearch(value: searchValue, onChanged: onSearchChanged),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Square-with-rounded-corners icon button used for the header search and
+/// filter affordances. Matches the design — softer than a full circle, more
+/// "tap-target" than a flat IconButton.
+class _IconChip extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool showDot;
+  const _IconChip({required this.icon, required this.onTap, this.showDot = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: t.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: t.hairline, width: 0.5),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 18, color: t.ink),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.search_rounded, size: 18, color: t.muted),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    onChanged: onSearch,
-                    style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
-                    decoration: InputDecoration(
-                      hintText: 'Search invoices, customers',
-                      hintStyle: RunqText.body.copyWith(color: t.muted2),
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+            if (showDot)
+              Positioned(
+                right: 8, top: 8,
+                child: Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(
+                    color: RunqColors.indigo,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: t.surface, width: 1.5),
                   ),
                 ),
-              ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineSearch extends StatefulWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _InlineSearch({required this.value, required this.onChanged});
+
+  @override
+  State<_InlineSearch> createState() => _InlineSearchState();
+}
+
+class _InlineSearchState extends State<_InlineSearch> {
+  late final TextEditingController _ctrl = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, size: 18, color: t.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _ctrl,
+              focusNode: _focus,
+              onChanged: widget.onChanged,
+              style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
+              decoration: InputDecoration(
+                hintText: 'Search invoices, customers',
+                hintStyle: RunqText.body.copyWith(color: t.muted2),
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
             ),
           ),
         ],
@@ -208,45 +331,27 @@ class _Header extends StatelessWidget {
 
 class _TabBar extends StatelessWidget {
   final String activeKey;
+  /// Optional count badges keyed by tab key. 0/missing → no badge.
+  final Map<String, int> badges;
   final ValueChanged<String> onTap;
-  const _TabBar({required this.activeKey, required this.onTap});
+  const _TabBar({required this.activeKey, required this.onTap, this.badges = const {}});
 
   @override
   Widget build(BuildContext context) {
-    final tk = RT(context);
     return SizedBox(
-      height: 40,
-      child: ListView.builder(
+      height: 36,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _tabs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final t = _tabs[i];
-          final isActive = t.key == activeKey;
-          return GestureDetector(
+          return _TabPill(
+            label: t.label,
+            badge: badges[t.key] ?? 0,
+            active: t.key == activeKey,
             onTap: () => onTap(t.key),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              margin: const EdgeInsets.only(right: 18),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isActive ? RunqColors.indigo : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  t.label,
-                  style: RunqText.body.copyWith(
-                    fontSize: 13,
-                    color: isActive ? tk.ink : tk.muted,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
           );
         },
       ),
@@ -254,57 +359,69 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-class _SummaryStrip extends StatelessWidget {
-  final AsyncValue<InvoiceSummary> summary;
-  const _SummaryStrip({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    return summary.maybeWhen(
-      data: (s) => Row(
-        children: [
-          Expanded(
-            child: _StatCard(
-              label: 'Outstanding',
-              value: formatINR(s.totalOutstanding, compact: true),
-              sub: 'across all customers',
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _StatCard(
-              label: 'Overdue',
-              value: formatINR(s.overdueAmount, compact: true),
-              sub: '${s.overdueCount} ${s.overdueCount == 1 ? 'invoice' : 'invoices'}',
-              tone: RunqColors.redInk,
-            ),
-          ),
-        ],
-      ),
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label, value, sub;
-  final Color? tone;
-  const _StatCard({required this.label, required this.value, required this.sub, this.tone});
+class _TabPill extends StatelessWidget {
+  final String label;
+  final int badge;
+  final bool active;
+  final VoidCallback onTap;
+  const _TabPill({required this.label, required this.badge, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return RunqCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
-          const SizedBox(height: 6),
-          Text(value, style: RunqText.tabular(size: 22, w: FontWeight.w700, color: tone ?? t.ink)),
-          const SizedBox(height: 2),
-          Text(sub, style: RunqText.caption.copyWith(fontSize: 11, color: tone ?? t.muted)),
-        ],
+    final bg = active ? t.ink : t.surface;
+    final fg = active ? t.surface : t.ink;
+    // Subtle count chip — light bg + muted text in both states. Matches the
+    // design: it carries info, not urgency, so red is too loud.
+    final badgeBg = active ? t.surface.withValues(alpha: 0.18) : t.hairlineSoft;
+    final badgeFg = active ? t.surface : t.muted;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: active ? Colors.transparent : t.hairline,
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: RunqText.bodyStrong.copyWith(
+                  color: fg,
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+              if (badge > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: TextStyle(
+                      color: badgeFg,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -333,7 +450,7 @@ class _InvoiceRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RqAvatar(name: invoice.customerName, size: 36),
+              RqAvatar(name: invoice.customerName, size: 44, square: true),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

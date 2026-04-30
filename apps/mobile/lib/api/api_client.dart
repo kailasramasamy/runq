@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'api_config.dart';
 
 class ApiException implements Exception {
@@ -53,6 +55,54 @@ class ApiClient {
     String message = 'Download failed (${res.statusCode})';
     try {
       final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is Map<String, dynamic>) {
+        final err = decoded['error'];
+        if (err is Map<String, dynamic> && err['message'] is String) {
+          message = err['message'] as String;
+        } else if (decoded['message'] is String) {
+          message = decoded['message'] as String;
+        }
+      }
+    } catch (_) {}
+    throw ApiException(statusCode: res.statusCode, message: message);
+  }
+
+  Future<dynamic> upload(
+    String path,
+    File file, {
+    String fileField = 'file',
+    Map<String, String> fields = const {},
+    String? mimeType,
+  }) async {
+    final sentToken = _token;
+    final req = http.MultipartRequest('POST', _uri(path))
+      ..headers.addAll(_headers())
+      ..fields.addAll(fields);
+    final stream = http.ByteStream(file.openRead());
+    final length = await file.length();
+    final part = http.MultipartFile(
+      fileField,
+      stream,
+      length,
+      filename: file.path.split(Platform.pathSeparator).last,
+      contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+    );
+    req.files.add(part);
+
+    final streamed = await _inner.send(req).timeout(const Duration(seconds: 120));
+    final res = await http.Response.fromStream(streamed);
+
+    if (res.statusCode == 401 && sentToken != null) {
+      _token = null;
+      _onUnauthorized?.call();
+    }
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (res.body.isEmpty) return null;
+      return jsonDecode(res.body);
+    }
+    String message = 'Upload failed (${res.statusCode})';
+    try {
+      final decoded = jsonDecode(res.body);
       if (decoded is Map<String, dynamic>) {
         final err = decoded['error'];
         if (err is Map<String, dynamic> && err['message'] is String) {

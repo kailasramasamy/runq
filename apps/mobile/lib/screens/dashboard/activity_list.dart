@@ -46,7 +46,7 @@ class ActivityList extends ConsumerWidget {
                 if (i < shown.length - 1)
                   Padding(
                     padding: const EdgeInsets.only(left: 60),
-                    child: Divider(height: 1, thickness: 0.5, color: RT(context).hairlineSoft),
+                    child: Divider(height: 1, thickness: 0.6, color: RT(context).hairline),
                   ),
               ],
             ],
@@ -98,11 +98,30 @@ class _Row extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Text(
                           spec.title,
                           style: RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (spec.statusLabel != null) ...[
+                        const SizedBox(width: 10),
+                        _StatusPill(label: spec.statusLabel!, tint: spec.tint),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          spec.subtitle(_relTime(entry.createdAt)),
+                          style: RunqText.caption.copyWith(fontSize: 11, color: t.muted2),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -116,17 +135,37 @@ class _Row extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    spec.subtitle(_relTime(entry.createdAt)),
-                    style: RunqText.caption.copyWith(fontSize: 11, color: t.muted2),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color tint;
+  const _StatusPill({required this.label, required this.tint});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: tint,
+          height: 1.2,
+          letterSpacing: 0.1,
         ),
       ),
     );

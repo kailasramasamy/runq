@@ -1,8 +1,14 @@
-String formatINR(num? value, {bool compact = false, bool signed = false, bool currency = true}) {
+String formatINR(
+  num? value, {
+  bool compact = false,
+  bool signed = false,
+  bool currency = true,
+  bool paise = false,
+}) {
   if (value == null || value.isNaN) return '—';
   final neg = value < 0;
   final abs = value.abs();
-  final body = compact ? _compact(abs) : _grouped(abs);
+  final body = compact ? _compact(abs) : _grouped(abs, keepPaise: paise);
   final sign = neg ? '−' : (signed ? '+' : '');
   return '${currency ? '₹' : ''}$sign$body';
 }
@@ -14,16 +20,34 @@ String _compact(num abs) {
   return abs.toStringAsFixed(0);
 }
 
-String _grouped(num abs) {
-  final s = abs.round().toString();
-  if (s.length <= 3) return s;
-  final last3 = s.substring(s.length - 3);
-  final rest = s.substring(0, s.length - 3);
-  final groupedRest = rest.replaceAllMapped(
-    RegExp(r'(\d)(?=(\d\d)+$)'),
-    (m) => '${m[1]},',
-  );
-  return '$groupedRest,$last3';
+String _grouped(num abs, {bool keepPaise = false}) {
+  // Preserve paise: format to 2 decimals first so the fractional part isn't
+  // lost, then group the integer part Indian-style. By default trailing
+  // zeros are trimmed so whole-rupee values render as "₹648". When
+  // [keepPaise] is true (e.g. detail/ledger views) the two decimals are
+  // always rendered: "₹648.00".
+  final fixed = abs.toStringAsFixed(2);
+  final dot = fixed.indexOf('.');
+  final intPart = dot >= 0 ? fixed.substring(0, dot) : fixed;
+  var fracPart = dot >= 0 ? fixed.substring(dot + 1) : '';
+  if (!keepPaise) {
+    fracPart = fracPart.replaceFirst(RegExp(r'0+$'), '');
+  }
+
+  String grouped;
+  if (intPart.length <= 3) {
+    grouped = intPart;
+  } else {
+    final last3 = intPart.substring(intPart.length - 3);
+    final rest = intPart.substring(0, intPart.length - 3);
+    final groupedRest = rest.replaceAllMapped(
+      RegExp(r'(\d)(?=(\d\d)+$)'),
+      (m) => '${m[1]},',
+    );
+    grouped = '$groupedRest,$last3';
+  }
+
+  return fracPart.isEmpty ? grouped : '$grouped.$fracPart';
 }
 
 String _trim(String n) {

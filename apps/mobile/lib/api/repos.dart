@@ -6,6 +6,10 @@ import 'api_client.dart';
 import 'api_config.dart';
 import 'models.dart';
 
+// Sentinel for "field not provided" in PATCH bodies — lets a caller pass
+// `null` to mean "clear this field" without colliding with "leave alone".
+const Object _unset = Object();
+
 Map<String, dynamic> _data(dynamic res) {
   if (res is Map && res['data'] is Map) return (res['data'] as Map).cast<String, dynamic>();
   if (res is Map) return res.cast<String, dynamic>();
@@ -95,6 +99,26 @@ class InvoicesRepo {
       'receiptDate': (receiptDate ?? DateTime.now()).toIso8601String().substring(0, 10),
     });
   }
+
+  /// Soft-cancel a draft invoice. Sets status='cancelled'; keeps the row for
+  /// audit. Mirrors admin's "Discard". Allowed only on draft.
+  Future<void> discard(String id) async {
+    await apiClient.delete('/ar/invoices/$id');
+  }
+
+  /// Hard delete — physically removes the row. Allowed only on draft +
+  /// cancelled and only when no receipts/credit notes/GL postings reference
+  /// it; the API enforces both checks.
+  Future<void> hardDelete(String id) async {
+    await apiClient.delete('/ar/invoices/$id/hard');
+  }
+
+  /// UPI deep link + QR payload for the outstanding balance. Throws if the
+  /// tenant hasn't configured a UPI ID in settings.
+  Future<UpiLinkData> upiLink(String id) async {
+    final res = await apiClient.get('/ar/invoices/$id/upi-link');
+    return UpiLinkData.fromJson(_data(res));
+  }
 }
 
 class BillsRepo {
@@ -125,6 +149,38 @@ class BillsRepo {
     return BillWithDetails.fromJson(_data(res));
   }
 
+  /// Partial update for a draft bill. Server PUT accepts any subset of
+  /// (invoiceNumber, invoiceDate, dueDate, items, subtotal, taxAmount,
+  /// totalAmount, notes, reverseCharge, tdsSection). Restricted to draft
+  /// status server-side; we mirror that constraint in the UI.
+  Future<BillWithDetails> update(
+    String id, {
+    String? invoiceNumber,
+    DateTime? invoiceDate,
+    DateTime? dueDate,
+    List<Map<String, dynamic>>? items,
+    double? subtotal,
+    double? taxAmount,
+    double? totalAmount,
+    String? notes,
+    bool? reverseCharge,
+    String? tdsSection,
+  }) async {
+    final body = <String, dynamic>{};
+    if (invoiceNumber != null) body['invoiceNumber'] = invoiceNumber;
+    if (invoiceDate != null) body['invoiceDate'] = _isoDate(invoiceDate);
+    if (dueDate != null) body['dueDate'] = _isoDate(dueDate);
+    if (items != null) body['items'] = items;
+    if (subtotal != null) body['subtotal'] = subtotal;
+    if (taxAmount != null) body['taxAmount'] = taxAmount;
+    if (totalAmount != null) body['totalAmount'] = totalAmount;
+    if (notes != null) body['notes'] = notes;
+    if (reverseCharge != null) body['reverseCharge'] = reverseCharge;
+    if (tdsSection != null) body['tdsSection'] = tdsSection;
+    final res = await apiClient.put('/ap/purchase-invoices/$id', body);
+    return BillWithDetails.fromJson(_data(res));
+  }
+
   Future<ExtractedBill> extract(File file) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/ap/purchase-invoices/extract');
     final req = http.MultipartRequest('POST', uri);
@@ -138,12 +194,74 @@ class BillsRepo {
     return ExtractedBill.fromJson(_data(jsonDecode(res.body)));
   }
 
-  Future<Map<String, dynamic>> commitScan(Map<String, dynamic> extracted, {String? vendorId}) async {
+  /// Commit a (possibly user-edited) extracted bill. Pass the original
+  /// `aiOutput` from [extract] so the server can record the user's
+  /// correction diff for downstream learning. Pass [extractionId] so the
+  /// server can bind the staged S3 file to the new bill as an attachment.
+  Future<Map<String, dynamic>> commitScan(
+    Map<String, dynamic> extracted, {
+    String? vendorId,
+    Map<String, dynamic>? aiOutput,
+    String? extractionId,
+  }) async {
     final res = await apiClient.post('/ap/purchase-invoices/scan-commit', {
       'extracted': extracted,
       if (vendorId != null) 'vendorId': vendorId,
+      if (aiOutput != null) 'aiOutput': aiOutput,
+      if (extractionId != null) 'extractionId': extractionId,
     });
     return _data(res);
+  }
+
+  /// Approve a draft bill — moves it from draft to approved status,
+  /// posts to GL, and makes it eligible for payment.
+  Future<void> approve(String id) async {
+    await apiClient.post('/ap/purchase-invoices/$id/approve', const {});
+  }
+
+  /// Delete a bill. Server dispatches based on status:
+  ///   - draft → permanent removal (bill, items, attached scanned file)
+  ///   - anything else → soft cancel (status flip, audit preserved)
+  Future<void> remove(String id) async {
+    await apiClient.delete('/ap/purchase-invoices/$id');
+  }
+
+  /// Run duplicate detection against existing bills for the same vendor.
+  /// Returns matches grouped by reason (exact invoice #, similar amount/date,
+  /// same amount within 30 days). Empty list = no duplicates found.
+  Future<List<DuplicateMatch>> checkDuplicates({
+    required String vendorId,
+    required String invoiceNumber,
+    required DateTime invoiceDate,
+    required double totalAmount,
+  }) async {
+    final res = await apiClient.post('/ap/purchase-invoices/check-duplicates', {
+      'vendorId': vendorId,
+      'invoiceNumber': invoiceNumber,
+      'invoiceDate': _isoDate(invoiceDate),
+      'totalAmount': totalAmount,
+    });
+    final matches = _data(res)['matches'] as List? ?? const [];
+    return matches.cast<Map<String, dynamic>>().map(DuplicateMatch.fromJson).toList();
+  }
+
+  /// Attachments (the original scanned PDF/image) bound to a bill.
+  Future<List<BillAttachment>> attachments(String billId) async {
+    final res = await apiClient.get('/common/attachments/purchase_invoice/$billId');
+    return _dataList(res).map(BillAttachment.fromJson).toList();
+  }
+
+  /// Download an attachment's raw bytes via the authenticated download
+  /// endpoint. Caller is responsible for writing to disk / opening.
+  Future<List<int>> downloadAttachment(String id) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/common/attachments/$id/download');
+    final headers = <String, String>{};
+    if (apiClient.token != null) headers['Authorization'] = 'Bearer ${apiClient.token}';
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(statusCode: res.statusCode, message: 'Could not download attachment');
+    }
+    return res.bodyBytes;
   }
 }
 
@@ -240,9 +358,81 @@ Map<String, dynamic>? _safeJson(String s) {
   }
 }
 
+class PoRepo {
+  Future<PoUpload> upload(File file, {String source = 'share_sheet', Map<String, dynamic>? sourceMetadata}) async {
+    final fields = <String, String>{'source': source};
+    if (sourceMetadata != null) fields['sourceMetadata'] = jsonEncode(sourceMetadata);
+    final res = await apiClient.upload(
+      '/ar/po-uploads/',
+      file,
+      fields: fields,
+      mimeType: _guessMime(file.path),
+    );
+    return PoUpload.fromJson(_data(res));
+  }
+
+  Future<PoDraftDetail> getDraft(String uploadId) async {
+    final res = await apiClient.get('/ar/po-drafts/$uploadId');
+    return PoDraftDetail.fromJson(_data(res));
+  }
+
+  Future<PoUpload> getUpload(String uploadId) async {
+    final res = await apiClient.get('/ar/po-uploads/$uploadId');
+    return PoUpload.fromJson(_data(res));
+  }
+
+  Future<PoApproveResult> approve(String uploadId) async {
+    final res = await apiClient.post('/ar/po-drafts/$uploadId/approve');
+    return PoApproveResult.fromJson(_data(res));
+  }
+
+  Future<void> discard(String uploadId) async {
+    await apiClient.delete('/ar/po-uploads/$uploadId');
+  }
+
+  Future<PoDraftDetail> updateLine(
+    String uploadId,
+    String lineId, {
+    Object? matchedItemId = _unset,
+    double? quantity,
+    double? rate,
+  }) async {
+    final body = <String, dynamic>{};
+    if (matchedItemId != _unset) body['matchedItemId'] = matchedItemId;
+    if (quantity != null) body['quantity'] = quantity;
+    if (rate != null) body['rate'] = rate;
+    final res = await apiClient.patch('/ar/po-drafts/$uploadId/lines/$lineId', body);
+    return PoDraftDetail.fromJson(_data(res));
+  }
+
+  Future<List<ItemSummary>> searchItems(String query) async {
+    final qp = <String, String>{'limit': '20'};
+    if (query.trim().isNotEmpty) qp['search'] = query.trim();
+    final res = await apiClient.get('/masters/items?${Uri(queryParameters: qp).query}');
+    return _dataList(res).map(ItemSummary.fromJson).toList();
+  }
+
+  String? _guessMime(String path) {
+    final ext = path.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'pdf': return 'application/pdf';
+      case 'png': return 'image/png';
+      case 'jpg':
+      case 'jpeg': return 'image/jpeg';
+      case 'webp': return 'image/webp';
+      case 'csv': return 'text/csv';
+      case 'txt': return 'text/plain';
+      case 'xls': return 'application/vnd.ms-excel';
+      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default: return null;
+    }
+  }
+}
+
 final dashboardRepo = DashboardRepo();
 final invoicesRepo = InvoicesRepo();
 final billsRepo = BillsRepo();
 final bankingRepo = BankingRepo();
 final approvalsRepo = ApprovalsRepo();
 final agentRepo = AgentRepo();
+final poRepo = PoRepo();

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers/theme_mode_provider.dart';
 import 'router.dart';
+import 'services/share_intake.dart';
 import 'theme/runq_theme.dart';
+import 'widgets/app_update_gate.dart';
 
 void main() {
-  final binding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: binding);
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProviderScope(child: RunqApp()));
-  WidgetsBinding.instance.addPostFrameCallback((_) => FlutterNativeSplash.remove());
 }
 
 class RunqApp extends ConsumerWidget {
@@ -22,8 +22,12 @@ class RunqApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: RunqTheme.light(),
       darkTheme: RunqTheme.dark(),
-      themeMode: ThemeMode.system,
-      builder: (ctx, child) => _SystemChromeSync(child: child ?? const SizedBox()),
+      themeMode: ref.watch(themeModeProvider),
+      builder: (ctx, child) => ShareIntakeHost(
+        child: AppUpdateGate(
+          child: _SystemChromeSync(child: child ?? const SizedBox()),
+        ),
+      ),
       routerConfig: ref.watch(routerProvider),
     );
   }

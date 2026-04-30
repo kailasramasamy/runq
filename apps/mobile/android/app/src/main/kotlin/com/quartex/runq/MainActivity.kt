@@ -1,4 +1,4 @@
-package com.runq.runq_mobile
+package com.quartex.runq
 
 import io.flutter.embedding.android.FlutterActivity
 

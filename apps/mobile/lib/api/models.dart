@@ -8,6 +8,13 @@ double _num(Object? v) {
   return 0;
 }
 
+double? _numOrNull(Object? v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
 int _int(Object? v) {
   if (v == null) return 0;
   if (v is int) return v;
@@ -258,7 +265,20 @@ class Invoice {
 class InvoiceItem {
   final String description, itemName;
   final double quantity, unitPrice, amount;
-  InvoiceItem({required this.description, required this.itemName, required this.quantity, required this.unitPrice, required this.amount});
+  /// GST rate applied to this line (percent, e.g. 5.0). Null when this line
+  /// is GST-exempt or the master had no rate set when invoiced.
+  final double? taxRate;
+  /// Total tax for this line: cgst + sgst + igst + cess.
+  final double taxAmount;
+  InvoiceItem({
+    required this.description,
+    required this.itemName,
+    required this.quantity,
+    required this.unitPrice,
+    required this.amount,
+    required this.taxRate,
+    required this.taxAmount,
+  });
 
   factory InvoiceItem.fromJson(Map<String, dynamic> j) => InvoiceItem(
         description: _strOr(j['description'], ''),
@@ -266,6 +286,11 @@ class InvoiceItem {
         quantity: _num(j['quantity']),
         unitPrice: _num(j['unitPrice']),
         amount: _num(j['amount']),
+        taxRate: _numOrNull(j['taxRate']),
+        taxAmount: _num(j['cgstAmount']) +
+            _num(j['sgstAmount']) +
+            _num(j['igstAmount']) +
+            _num(j['cessAmount']),
       );
 }
 
@@ -337,6 +362,19 @@ class InvoiceReceipt {
       );
 }
 
+class UpiLinkData {
+  /// `upi://pay?...` deep link — open in any UPI app, or copy/paste/share.
+  final String deepLink;
+  /// String to encode into a QR for offline scanning (same payload).
+  final String qrData;
+  UpiLinkData({required this.deepLink, required this.qrData});
+
+  factory UpiLinkData.fromJson(Map<String, dynamic> j) => UpiLinkData(
+        deepLink: _strOr(j['deepLink'], ''),
+        qrData: _strOr(j['qrData'], ''),
+      );
+}
+
 class Bill {
   final String id, invoiceNumber, vendorId, status, matchStatus;
   final String vendorName;
@@ -381,15 +419,27 @@ class Bill {
 
 class BillItem {
   final String description, itemName;
+  final String? hsnSacCode;
   final double quantity, unitPrice, amount;
-  BillItem({required this.description, required this.itemName, required this.quantity, required this.unitPrice, required this.amount});
+  final double? taxRate;
+  BillItem({
+    required this.description,
+    required this.itemName,
+    this.hsnSacCode,
+    required this.quantity,
+    required this.unitPrice,
+    required this.amount,
+    this.taxRate,
+  });
 
   factory BillItem.fromJson(Map<String, dynamic> j) => BillItem(
         description: _strOr(j['itemName'] ?? j['description'], ''),
         itemName: _strOr(j['itemName'] ?? j['description'], ''),
+        hsnSacCode: _str(j['hsnSacCode']),
         quantity: _num(j['quantity']),
         unitPrice: _num(j['unitPrice']),
         amount: _num(j['amount']),
+        taxRate: j['taxRate'] == null ? null : _num(j['taxRate']),
       );
 }
 
@@ -612,25 +662,43 @@ class ApprovalInstance {
 
 class ExtractedBill {
   final String vendorName;
-  final String? vendorGstin, invoiceNumber;
+  final String? vendorGstin, vendorPan, vendorPhone, vendorEmail;
+  final String? vendorAddress, vendorCity, vendorState, vendorPincode;
+  final String? vendorBankAccount, vendorBankIfsc, vendorBankName;
+  final String? invoiceNumber, tdsSection;
   final DateTime? invoiceDate, dueDate;
   final double subtotal, taxAmount, totalAmount;
   final double confidence;
   final List<ExtractedBillItem> items;
   final ExtractedVendorMatch? vendorMatch;
+  /// Set when the server staged the uploaded file in S3. Pass back on
+  /// commit so the file is bound to the new bill as an attachment.
+  final String? extractionId;
 
   ExtractedBill({
     required this.vendorName,
     this.vendorGstin,
+    this.vendorPan,
+    this.vendorPhone,
+    this.vendorEmail,
+    this.vendorAddress,
+    this.vendorCity,
+    this.vendorState,
+    this.vendorPincode,
+    this.vendorBankAccount,
+    this.vendorBankIfsc,
+    this.vendorBankName,
     this.invoiceNumber,
     this.invoiceDate,
     this.dueDate,
+    this.tdsSection,
     required this.subtotal,
     required this.taxAmount,
     required this.totalAmount,
     required this.confidence,
     required this.items,
     this.vendorMatch,
+    this.extractionId,
   });
 
   factory ExtractedBill.fromJson(Map<String, dynamic> j) {
@@ -643,7 +711,18 @@ class ExtractedBill {
     return ExtractedBill(
       vendorName: _strOr(extracted['vendorName'], '—'),
       vendorGstin: _str(extracted['vendorGstin']),
+      vendorPan: _str(extracted['vendorPan']),
+      vendorPhone: _str(extracted['vendorPhone']),
+      vendorEmail: _str(extracted['vendorEmail']),
+      vendorAddress: _str(extracted['vendorAddress']),
+      vendorCity: _str(extracted['vendorCity']),
+      vendorState: _str(extracted['vendorState']),
+      vendorPincode: _str(extracted['vendorPincode']),
+      vendorBankAccount: _str(extracted['vendorBankAccount']),
+      vendorBankIfsc: _str(extracted['vendorBankIfsc']),
+      vendorBankName: _str(extracted['vendorBankName']),
       invoiceNumber: _str(extracted['invoiceNumber']),
+      tdsSection: _str(extracted['tdsSection']),
       invoiceDate: _dt(extracted['invoiceDate']),
       dueDate: _dt(extracted['dueDate']),
       subtotal: _num(extracted['subtotal']),
@@ -652,21 +731,102 @@ class ExtractedBill {
       confidence: _num(j['confidence'] ?? extracted['confidence']),
       items: items,
       vendorMatch: vmRaw is Map ? ExtractedVendorMatch.fromJson(vmRaw.cast<String, dynamic>()) : null,
+      extractionId: _str(j['extractionId']),
     );
   }
 }
 
 class ExtractedBillItem {
   final String itemName;
+  final String? hsnSacCode, taxCategory;
   final double quantity, unitPrice, amount;
-  ExtractedBillItem({required this.itemName, required this.quantity, required this.unitPrice, required this.amount});
+  final double? taxRate;
+  ExtractedBillItem({
+    required this.itemName,
+    this.hsnSacCode,
+    required this.quantity,
+    required this.unitPrice,
+    required this.amount,
+    this.taxRate,
+    this.taxCategory,
+  });
 
   factory ExtractedBillItem.fromJson(Map<String, dynamic> j) => ExtractedBillItem(
         itemName: _strOr(j['itemName'], ''),
+        hsnSacCode: _str(j['hsnSacCode']),
         quantity: _num(j['quantity']),
         unitPrice: _num(j['unitPrice']),
         amount: _num(j['amount']),
+        taxRate: j['taxRate'] == null ? null : _num(j['taxRate']),
+        taxCategory: _str(j['taxCategory']),
       );
+}
+
+class DuplicateMatch {
+  final String id, invoiceNumber, invoiceDate, status, matchType;
+  final double totalAmount;
+  final double confidence;
+
+  DuplicateMatch({
+    required this.id,
+    required this.invoiceNumber,
+    required this.invoiceDate,
+    required this.totalAmount,
+    required this.status,
+    required this.matchType,
+    required this.confidence,
+  });
+
+  factory DuplicateMatch.fromJson(Map<String, dynamic> j) => DuplicateMatch(
+        id: _strOr(j['id'], ''),
+        invoiceNumber: _strOr(j['invoiceNumber'], ''),
+        invoiceDate: _strOr(j['invoiceDate'], ''),
+        totalAmount: _num(j['totalAmount']),
+        status: _strOr(j['status'], ''),
+        matchType: _strOr(j['matchType'], ''),
+        confidence: _num(j['confidence']),
+      );
+
+  String get reasonLabel {
+    switch (matchType) {
+      case 'exact_invoice_number':
+        return 'Same invoice number';
+      case 'similar_amount_and_date':
+        return 'Similar amount within ±3 days';
+      case 'same_amount_recent':
+        return 'Same amount within 30 days';
+      default:
+        return matchType;
+    }
+  }
+}
+
+class BillAttachment {
+  final String id, fileName, mimeType;
+  final int fileSize;
+  final DateTime createdAt;
+
+  BillAttachment({
+    required this.id,
+    required this.fileName,
+    required this.mimeType,
+    required this.fileSize,
+    required this.createdAt,
+  });
+
+  factory BillAttachment.fromJson(Map<String, dynamic> j) => BillAttachment(
+        id: _strOr(j['id'], ''),
+        fileName: _strOr(j['fileName'], 'attachment'),
+        mimeType: _strOr(j['mimeType'], 'application/octet-stream'),
+        fileSize: (j['fileSize'] is int) ? j['fileSize'] as int : int.tryParse(j['fileSize']?.toString() ?? '') ?? 0,
+        createdAt: DateTime.tryParse(j['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      );
+
+  String get prettySize {
+    if (fileSize < 1024) return '$fileSize B';
+    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 }
 
 class ExtractedVendorMatch {
@@ -677,5 +837,229 @@ class ExtractedVendorMatch {
         id: _strOr(j['id'], ''),
         name: _strOr(j['name'], ''),
         matchType: _strOr(j['matchType'], 'name'),
+      );
+}
+
+// ─── PO Intake ────────────────────────────────────────────────────────────
+
+class PoUpload {
+  final String id;
+  final String source;
+  final String status;
+  final String? fileName;
+  final String? errorMessage;
+  PoUpload({
+    required this.id,
+    required this.source,
+    required this.status,
+    this.fileName,
+    this.errorMessage,
+  });
+
+  factory PoUpload.fromJson(Map<String, dynamic> j) => PoUpload(
+        id: _strOr(j['id'], ''),
+        source: _strOr(j['source'], 'share_sheet'),
+        status: _strOr(j['status'] ?? j['uploadStatus'], 'pending'),
+        fileName: _str(j['fileName']),
+        errorMessage: _str(j['errorMessage']),
+      );
+
+  bool get isTerminal => status == 'parsed' || status == 'parse_error';
+}
+
+class PoDraftLine {
+  final String id;
+  final int lineIndex;
+  final String rawDescription;
+  final String? customerSku;
+  final double rawQty;
+  final String? rawUom;
+  final String? resolvedUom;
+  final double rawRate;
+  final double resolvedRate;
+  final double amount;
+  final String? matchedItemId;
+  final String? matchedItemName;
+  final String? matchedItemUnit;
+  /// GST rate from the matched item master (percent, e.g. 5.0). Null when the
+  /// line isn't matched, or when the master has no rate set. 0 = exempt.
+  final double? matchedItemGstRate;
+  final String? reviewFlag;
+
+  PoDraftLine({
+    required this.id,
+    required this.lineIndex,
+    required this.rawDescription,
+    required this.customerSku,
+    required this.rawQty,
+    required this.rawUom,
+    required this.resolvedUom,
+    required this.rawRate,
+    required this.resolvedRate,
+    required this.amount,
+    required this.matchedItemId,
+    required this.matchedItemName,
+    required this.matchedItemUnit,
+    required this.matchedItemGstRate,
+    required this.reviewFlag,
+  });
+
+  /// Canonical product name to display: prefer the matched item master name
+  /// (which strips any SKU codes the parser left embedded in the raw text)
+  /// and fall back to the raw extracted description for unmatched lines.
+  String get displayName =>
+      (matchedItemName != null && matchedItemName!.isNotEmpty)
+          ? matchedItemName!
+          : rawDescription;
+
+  /// UoM to display: prefer master unit (set when an item is matched), then
+  /// the resolved unit persisted on the line, then whatever the parser saw.
+  String? get displayUom => matchedItemUnit ?? resolvedUom ?? rawUom;
+
+  /// Effective unit price — manual rate override or master rate, falls back
+  /// to whatever was extracted from the PO so the UI shows a number.
+  double get effectiveRate => resolvedRate > 0 ? resolvedRate : rawRate;
+
+  /// True when the line has enough info to be invoiced: an item match (or
+  /// manual rate) and a positive rate × quantity.
+  bool get isInvoiceable => matchedItemId != null && resolvedRate > 0 && rawQty > 0;
+
+  factory PoDraftLine.fromJson(Map<String, dynamic> j) => PoDraftLine(
+        id: _strOr(j['id'], ''),
+        lineIndex: _int(j['lineIndex']),
+        rawDescription: _strOr(j['rawDescription'], ''),
+        customerSku: _str(j['customerSkuRaw']),
+        rawQty: _num(j['rawQty']),
+        rawUom: _str(j['rawUom']),
+        resolvedUom: _str(j['resolvedUom']),
+        rawRate: _num(j['rawRate']),
+        resolvedRate: _num(j['resolvedRate'] ?? j['rawRate']),
+        amount: _num(j['amount']),
+        matchedItemId: _str(j['matchedItemId']),
+        matchedItemName: _str(j['matchedItemName']),
+        matchedItemUnit: _str(j['matchedItemUnit']),
+        matchedItemGstRate: _numOrNull(j['matchedItemGstRate']),
+        reviewFlag: _str(j['reviewFlag']),
+      );
+}
+
+class ItemSummary {
+  final String id;
+  final String name;
+  final String sku;
+  final String? unit;
+  /// Master selling price (the "landing price"). Used to prefill the rate
+  /// field in PO line mapping so the user immediately sees what'll be billed.
+  final double? defaultSellingPrice;
+  /// GST rate from the items master, percent (e.g. 5.0 for 5% GST). Null /
+  /// 0 means GST-exempt — important for staples like milk.
+  final double? gstRate;
+  ItemSummary({
+    required this.id,
+    required this.name,
+    required this.sku,
+    this.unit,
+    this.defaultSellingPrice,
+    this.gstRate,
+  });
+
+  factory ItemSummary.fromJson(Map<String, dynamic> j) => ItemSummary(
+        id: _strOr(j['id'], ''),
+        name: _strOr(j['name'], ''),
+        sku: _strOr(j['sku'], ''),
+        unit: _str(j['unit']),
+        defaultSellingPrice: _numOrNull(j['defaultSellingPrice']),
+        gstRate: _numOrNull(j['gstRate']),
+      );
+}
+
+class PoDraftDetail {
+  final String id;
+  final String? draftId;
+  final String uploadStatus;
+  final String? reviewStatus;
+  final String? errorMessage;
+  final String? fileName;
+  final String? customerId;
+  final String? customerName;
+  final String? buyerNameRaw;
+  final String? buyerGstinRaw;
+  final String? poNumberExtracted;
+  final DateTime? poDate;
+  final DateTime? deliveryDate;
+  final double subtotal;
+  final double taxTotal;
+  final double grandTotal;
+  final List<PoDraftLine> lines;
+  final List<String> reviewFlags;
+
+  PoDraftDetail({
+    required this.id,
+    required this.draftId,
+    required this.uploadStatus,
+    required this.reviewStatus,
+    required this.errorMessage,
+    required this.fileName,
+    required this.customerId,
+    required this.customerName,
+    required this.buyerNameRaw,
+    required this.buyerGstinRaw,
+    required this.poNumberExtracted,
+    required this.poDate,
+    required this.deliveryDate,
+    required this.subtotal,
+    required this.taxTotal,
+    required this.grandTotal,
+    required this.lines,
+    required this.reviewFlags,
+  });
+
+  bool get isParsing => uploadStatus == 'pending' || uploadStatus == 'parsing';
+  bool get hasError => uploadStatus == 'parse_error' || reviewStatus == 'error';
+  bool get isReady => reviewStatus == 'ready' || reviewStatus == 'needs_review';
+
+  factory PoDraftDetail.fromJson(Map<String, dynamic> j) {
+    final flagsRaw = j['reviewFlags'];
+    final flags = <String>[];
+    if (flagsRaw is List) {
+      for (final f in flagsRaw) {
+        if (f is Map && f['type'] is String) flags.add(f['type'] as String);
+      }
+    }
+    final linesRaw = (j['lines'] as List?) ?? const [];
+    return PoDraftDetail(
+      id: _strOr(j['id'], ''),
+      draftId: _str(j['draftId']),
+      uploadStatus: _strOr(j['uploadStatus'], 'pending'),
+      reviewStatus: _str(j['reviewStatus']),
+      errorMessage: _str(j['errorMessage']),
+      fileName: _str(j['fileName']),
+      customerId: _str(j['customerId']),
+      customerName: _str(j['customerName']),
+      buyerNameRaw: _str(j['buyerNameRaw']),
+      buyerGstinRaw: _str(j['buyerGstinRaw']),
+      poNumberExtracted: _str(j['poNumberExtracted']),
+      poDate: _dt(j['poDate']),
+      deliveryDate: _dt(j['deliveryDate']),
+      subtotal: _num(j['subtotal']),
+      taxTotal: _num(j['taxTotal']),
+      grandTotal: _num(j['grandTotal']),
+      lines: linesRaw
+          .whereType<Map<String, dynamic>>()
+          .map(PoDraftLine.fromJson)
+          .toList(),
+      reviewFlags: flags,
+    );
+  }
+}
+
+class PoApproveResult {
+  final String invoiceId;
+  final String invoiceNumber;
+  PoApproveResult({required this.invoiceId, required this.invoiceNumber});
+
+  factory PoApproveResult.fromJson(Map<String, dynamic> j) => PoApproveResult(
+        invoiceId: _strOr(j['invoiceId'], ''),
+        invoiceNumber: _strOr(j['invoiceNumber'], ''),
       );
 }
