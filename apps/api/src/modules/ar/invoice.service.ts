@@ -276,6 +276,15 @@ export class InvoiceService {
         options?.explicitInvoiceNumber ?? (await this.resolveInvoiceNumber(tx));
       const gst = await this.computeGstForInvoice(tx, input.customerId, input.items, input.reverseCharge);
 
+      // Honor the totals the caller passed in. The PO-approval flow finalises
+      // subtotal / taxAmount / totalAmount on the review screen against the
+      // printed PO (which often has GST baked into the rate), so re-deriving
+      // here would double-count tax and break PO ↔ invoice reconciliation.
+      // Per-line cgst/sgst/igst columns still come from `gst` so reports work.
+      const subtotal = input.subtotal ?? gst.summary.subtotal;
+      const taxAmount = input.taxAmount ?? gst.summary.taxAmount;
+      const totalAmount = input.totalAmount;
+
       const [invoice] = await tx
         .insert(salesInvoices)
         .values({
@@ -284,10 +293,10 @@ export class InvoiceService {
           customerId: input.customerId,
           invoiceDate: input.invoiceDate,
           dueDate: input.dueDate,
-          subtotal: String(gst.summary.subtotal),
-          taxAmount: String(gst.summary.taxAmount),
-          totalAmount: String(gst.summary.totalAmount),
-          balanceDue: String(gst.summary.totalAmount),
+          subtotal: String(subtotal),
+          taxAmount: String(taxAmount),
+          totalAmount: String(totalAmount),
+          balanceDue: String(totalAmount),
           status: 'draft',
           notes: input.notes ?? null,
           poNumber: input.poNumber ?? null,

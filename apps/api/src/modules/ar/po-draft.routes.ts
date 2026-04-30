@@ -11,7 +11,6 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { PoDraftService } from './po-draft.service';
-import { GLService } from '../gl/gl.service';
 import { InvoiceService } from './invoice.service';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 
@@ -96,17 +95,10 @@ export const poDraftRoutes: FastifyPluginAsync = async (app) => {
       const service = new PoDraftService(request.server.db, request.tenantId);
       const { invoiceId, invoiceNumber } = await service.approve(id, userId);
 
-      // Mirror /ar/invoices POST: post to GL + deliver webhook for the new draft.
+      // PO approval creates the invoice in draft status — no GL posting yet.
+      // Revenue is recognised when the user sends the invoice (POST /:id/send).
       const invoiceService = new InvoiceService(request.server.db, request.tenantId);
       const created = await invoiceService.getById(invoiceId);
-
-      const gl = new GLService(request.server.db, request.tenantId);
-      await gl.postSalesInvoice({
-        totalAmount: created.totalAmount,
-        date: created.invoiceDate,
-        id: created.id,
-        customerName: created.customerName,
-      });
 
       const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
       void webhooks.deliver('invoice.created', {
@@ -134,22 +126,16 @@ export const poDraftRoutes: FastifyPluginAsync = async (app) => {
       const service = new PoDraftService(request.server.db, request.tenantId);
       const result = await service.bulkApprove(input.uploadIds, userId);
 
-      // Fan out GL posting + webhook delivery for everything we successfully
-      // created. Each call is independent — one failure here doesn't roll
-      // back the others (the invoice rows are already committed).
+      // Fan out webhook delivery for everything we successfully created.
+      // Each call is independent — one failure here doesn't roll back the
+      // others (the invoice rows are already committed). GL posting is
+      // deferred to the explicit send step on each draft invoice.
       const invoiceService = new InvoiceService(request.server.db, request.tenantId);
-      const gl = new GLService(request.server.db, request.tenantId);
       const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
 
       for (const ok of result.created) {
         try {
           const created = await invoiceService.getById(ok.invoiceId);
-          await gl.postSalesInvoice({
-            totalAmount: created.totalAmount,
-            date: created.invoiceDate,
-            id: created.id,
-            customerName: created.customerName,
-          });
           void webhooks.deliver('invoice.created', {
             invoiceId: created.id,
             invoiceNumber: created.invoiceNumber,
@@ -158,7 +144,7 @@ export const poDraftRoutes: FastifyPluginAsync = async (app) => {
             invoiceDate: created.invoiceDate,
           });
         } catch (err) {
-          // GL/webhook failure is non-fatal at this stage — the invoice exists.
+          // Webhook failure is non-fatal at this stage — the invoice exists.
           // eslint-disable-next-line no-console
           console.error(`[bulk-approve] post-create side-effects failed for ${ok.invoiceId}:`, err);
         }

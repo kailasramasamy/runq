@@ -758,7 +758,40 @@ export class PoDraftService {
       };
     });
 
-    const subtotal = Number(invoiceItems.reduce((s, it) => s + it.amount, 0).toFixed(2));
+    const lineAmountSum = Number(invoiceItems.reduce((s, it) => s + it.amount, 0).toFixed(2));
+
+    // The PO's printed grand total is the source of truth for what the
+    // customer pays — never recompute it. The line items' rates are
+    // GST-inclusive (they already match the printed line totals), so derive
+    // a sensible subtotal / tax split from each line's GST rate so GSTR-1 /
+    // ITC reports have the right structure. The total still equals the
+    // printed PO total down to the paisa.
+    let subtotalImplied = 0;
+    let taxImplied = 0;
+    for (const it of invoiceItems) {
+      const rate = it.taxRate ?? 0;
+      if (rate > 0) {
+        const sub = it.amount / (1 + rate / 100);
+        subtotalImplied += sub;
+        taxImplied += it.amount - sub;
+      } else {
+        subtotalImplied += it.amount;
+      }
+    }
+    subtotalImplied = Number(subtotalImplied.toFixed(2));
+    taxImplied = Number(taxImplied.toFixed(2));
+
+    const printedTotal = draft.grandTotal != null ? Number(draft.grandTotal) : null;
+    const printedTax = draft.taxTotal != null ? Number(draft.taxTotal) : null;
+    const printedSubtotal = draft.subtotal != null ? Number(draft.subtotal) : null;
+
+    const finalTotal = printedTotal ?? lineAmountSum;
+    // Prefer the explicit printed split when the PO actually printed one
+    // (rare for retail / B2B POs from marketplaces); otherwise use the
+    // line-rate-derived split.
+    const hasPrintedSplit = printedTax != null && printedTax > 0;
+    const finalTax = hasPrintedSplit ? printedTax : taxImplied;
+    const finalSubtotal = hasPrintedSplit ? (printedSubtotal ?? lineAmountSum) : subtotalImplied;
 
     // Pull the customer's payment terms to compute due date
     const [customer] = await this.db
@@ -772,17 +805,14 @@ export class PoDraftService {
     const invoiceDate = draft.poDate ?? today;
     const dueDate = addDays(invoiceDate, customer.paymentTermsDays);
 
-    // Tax is computed inside InvoiceService — pass the raw subtotal here and
-    // let create() recompute. We pass totalAmount = subtotal as a placeholder;
-    // create() doesn't trust it (it builds its own gst.summary).
     const input: CreateSalesInvoiceInput = {
       customerId: draft.customerId,
       invoiceDate,
       dueDate,
       items: invoiceItems,
-      subtotal,
-      taxAmount: 0,
-      totalAmount: subtotal,
+      subtotal: finalSubtotal,
+      taxAmount: finalTax,
+      totalAmount: finalTotal,
       notes: null,
       poNumber: draft.poNumberExtracted ?? null,
       reverseCharge: false,

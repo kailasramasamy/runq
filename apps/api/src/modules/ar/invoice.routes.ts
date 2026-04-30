@@ -64,13 +64,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       const service = new InvoiceService(request.server.db, request.tenantId);
       const invoice = await service.create(input);
 
-      const gl = new GLService(request.server.db, request.tenantId);
-      await gl.postSalesInvoice({
-        totalAmount: invoice.totalAmount,
-        date: invoice.invoiceDate,
-        id: invoice.id,
-        customerName: invoice.customerName,
-      });
+      // Drafts don't hit the GL — revenue is recognised on send (POST /:id/send
+      // / batch-status → sent). This lets users edit / delete a draft freely
+      // without GL reversals, mirroring the AP draft → approve flow.
 
       const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
       void webhooks.deliver('invoice.created', {
