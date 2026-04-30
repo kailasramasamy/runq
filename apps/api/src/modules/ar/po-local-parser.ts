@@ -259,6 +259,21 @@ function numberValues(line: string): number[] {
   return extractNumbers(line).map((n) => n.value);
 }
 
+// Standalone UOM token between qty and rate. Word-boundary on both sides so
+// it doesn't fire on "500ml" inside "A2 Cow Milk 500ml" (no space → no match).
+const UOM_RE =
+  /\b(PCS|pcs|Pcs|nos|NOS|Nos|kg|KG|Kg|gms?|GMS?|grams?|L|l|ltr|LTR|Ltr|ml|ML|Ml|packets?|PACKETS?|Packets?|boxes?|BOXES?|Boxes?|dozen|DOZEN|Dozen|units?|UNITS?|Units?|cases?|CASES?|Cases?)\b/;
+
+// SKU-like token: an uppercase code with at least one separator (e.g.
+// "D-C-01", "FCM-1L", "ITEM-3142", "SKU/123"). Tight enough to skip plain
+// words like "PCS" or "GST" but loose enough to catch most real SKU formats.
+const SKU_RE = /\b[A-Z][A-Z0-9]*[-/_][A-Z0-9][A-Z0-9\-/_]*\b/;
+
+// Currency-symbol prefix that may sit immediately before a money value. The
+// rupee glyph ₹ sometimes renders in PDFs as ¹ (superscript 1) or as plain
+// "Rs" / "INR". We don't strip these from the line — extractNumbers already
+// ignores leading symbols — but we do strip them from the description.
+
 function detectTextLineItem(line: string): ExtractedItem | null {
   const trimmed = line.trim();
   if (trimmed.length < 4) return null;
@@ -267,11 +282,44 @@ function detectTextLineItem(line: string): ExtractedItem | null {
   const numbers = extractNumbers(trimmed);
   if (numbers.length < 2) return null;
 
-  // Simple: first number after the name is qty, last is amount or rate
   const total = numbers[numbers.length - 1]!;
   if (total.value <= 0) return null;
 
-  // Try brute-force (qty, rate) matching
+  // Preferred path: UOM-anchored parsing. When the PO has a clear unit of
+  // measure between qty and rate (most B2B POs do), we can identify each
+  // value by position relative to the UOM token instead of guessing via
+  // qty × rate ≈ total math. This avoids the embedded-number trap entirely:
+  // "100% Cow Milk Curd 400g D-C-01 2 PCS ₹36.66 ₹73.32" → qty is the
+  // number IMMEDIATELY BEFORE "PCS", rate is the first number after.
+  const uomMatch = UOM_RE.exec(trimmed);
+  if (uomMatch) {
+    const uomStart = uomMatch.index;
+    const uomEnd = uomStart + uomMatch[0].length;
+    const before = numbers.filter((n) => n.index < uomStart);
+    const after = numbers.filter((n) => n.index >= uomEnd);
+    const qty = before.length > 0 ? before[before.length - 1]! : null;
+    const rate = after.length > 0 ? after[0]! : null;
+    const amount = after.length > 0 ? after[after.length - 1]! : null;
+    if (qty && qty.value > 0 && qty.value < 100000) {
+      const headSlice = trimmed.slice(0, qty.index).trim();
+      const cleaned = cleanItemHead(headSlice);
+      if (cleaned.description.length >= 2 && /[a-zA-Z]/.test(cleaned.description)) {
+        return {
+          description: cleaned.description,
+          customerSku: cleaned.customerSku,
+          quantity: qty.value,
+          uom: uomMatch[1] ?? uomMatch[0],
+          rate: rate && rate.value > 0 && rate !== amount ? rate.value : null,
+          amount: amount && amount.value > 0 ? amount.value : (rate ? rate.value : null),
+        };
+      }
+    }
+    // UOM matched but nothing qty-shaped before it — fall through to
+    // brute-force, this row probably isn't a line item.
+  }
+
+  // Fallback path: brute-force (qty, rate) ≈ total math. Used when no UOM
+  // token is printed (some POs just have qty / rate columns with no unit).
   for (let i = 0; i < numbers.length - 1; i++) {
     const qty = numbers[i]!;
     if (qty.value <= 0 || qty.value > 100000) continue;
@@ -283,11 +331,12 @@ function detectTextLineItem(line: string): ExtractedItem | null {
       if (expected === 0) continue;
       const err = Math.abs(expected - total.value) / expected;
       if (err < 0.06) {
-        let name = trimmed.slice(0, qty.index).trim().replace(/^\d+[.)\s]+/, '').trim();
-        if (name.length < 2 || !/[a-zA-Z]/.test(name)) continue;
+        const headSlice = trimmed.slice(0, qty.index).trim();
+        const cleaned = cleanItemHead(headSlice);
+        if (cleaned.description.length < 2 || !/[a-zA-Z]/.test(cleaned.description)) continue;
         return {
-          description: name,
-          customerSku: null,
+          description: cleaned.description,
+          customerSku: cleaned.customerSku,
           quantity: qty.value,
           uom: null,
           rate: rate.value,
@@ -297,26 +346,23 @@ function detectTextLineItem(line: string): ExtractedItem | null {
     }
   }
 
-  // Fallback: just qty + name (no rate verification)
-  if (numbers.length >= 1) {
-    const qty = numbers[0]!;
-    if (qty.value > 0 && qty.value < 100000) {
-      let name = trimmed.slice(0, qty.index).trim().replace(/^\d+[.)\s]+/, '').trim();
-      if (name.length >= 2 && /[a-zA-Z]/.test(name)) {
-        const rate = numbers.length >= 2 ? numbers[1]!.value : null;
-        return {
-          description: name,
-          customerSku: null,
-          quantity: qty.value,
-          uom: null,
-          rate: rate && rate > 0 ? rate : null,
-          amount: numbers[numbers.length - 1]!.value,
-        };
-      }
-    }
-  }
-
   return null;
+}
+
+/**
+ * Strip the leading line-number ("1 ", "1.", "1)") and any SKU-like code
+ * embedded in the head portion of the row, returning the clean human
+ * description plus the captured customer SKU (if any).
+ */
+function cleanItemHead(head: string): { description: string; customerSku: string | null } {
+  let s = head.replace(/^\d+[.)\s]+/, '').trim();
+  let customerSku: string | null = null;
+  const skuMatch = SKU_RE.exec(s);
+  if (skuMatch) {
+    customerSku = skuMatch[0];
+    s = (s.slice(0, skuMatch.index) + s.slice(skuMatch.index + skuMatch[0].length)).replace(/\s+/g, ' ').trim();
+  }
+  return { description: s, customerSku };
 }
 
 function parseText(text: string): ExtractedPo | null {
