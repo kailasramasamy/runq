@@ -21,6 +21,37 @@ final gstReadinessProvider = FutureProvider<GstReadiness?>((ref) async {
   return _watchAuth(ref, () => dashboardRepo.gstReadiness());
 });
 
+final gstReturnsProvider = FutureProvider<List<GstReturn>>((ref) async {
+  return _watchAuth(ref, () => gstRepo.list());
+});
+
+final gstReturnDetailProvider =
+    FutureProvider.family<GstReturnDetail, String>((ref, id) async {
+  return _watchAuth(ref, () => gstRepo.get(id));
+});
+
+final gst2bSummaryProvider =
+    FutureProvider.family<Gstr2bSummary, String>((ref, period) async {
+  return _watchAuth(ref, () => gstRepo.summary2b(period));
+});
+
+class Gstr2bFilter {
+  final String period;
+  final String? status;
+  const Gstr2bFilter({required this.period, this.status});
+
+  @override
+  bool operator ==(Object o) =>
+      o is Gstr2bFilter && o.period == period && o.status == status;
+  @override
+  int get hashCode => Object.hash(period, status);
+}
+
+final gst2bMatchesProvider =
+    FutureProvider.family<List<Gstr2bMatch>, Gstr2bFilter>((ref, f) async {
+  return _watchAuth(ref, () => gstRepo.matches2b(f.period, status: f.status));
+});
+
 final activityProvider = FutureProvider<List<ActivityEntry>>((ref) async {
   return _watchAuth(ref, () => dashboardRepo.activity());
 });

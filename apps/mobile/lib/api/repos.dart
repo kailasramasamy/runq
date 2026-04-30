@@ -448,6 +448,111 @@ class PoRepo {
   }
 }
 
+class GstRepo {
+  Future<List<GstReturn>> list({String? returnType, String? status}) async {
+    final qp = <String, String>{};
+    if (returnType != null) qp['returnType'] = returnType;
+    if (status != null) qp['status'] = status;
+    final q = qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get('/gst/returns$q');
+    return _dataList(res).map(GstReturn.fromJson).toList();
+  }
+
+  Future<GstReturnDetail> get(String id) async {
+    final res = await apiClient.get('/gst/returns/$id');
+    return GstReturnDetail.fromJson(_data(res));
+  }
+
+  Future<GstReturn> generateGstr1(String period) async {
+    final res = await apiClient.post('/gst/returns/generate', {'period': period});
+    return GstReturn.fromJson(_data(res));
+  }
+
+  Future<GstReturn> generateGstr3b(String period) async {
+    final res = await apiClient.post('/gst/returns/generate-3b', {'period': period});
+    return GstReturn.fromJson(_data(res));
+  }
+
+  Future<void> delete(String id) async {
+    await apiClient.delete('/gst/returns/$id');
+  }
+
+  Future<List<GstReturnError>> validate(String id) async {
+    final res = await apiClient.post('/gst/returns/$id/validate', const {});
+    final list = _data(res)['errors'] as List? ?? const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(GstReturnError.fromJson)
+        .toList();
+  }
+
+  Future<GspOtpRequest> requestOtp(String gstin, String username) async {
+    final res = await apiClient.post(
+      '/gst/auth/request-otp',
+      {'gstin': gstin, 'username': username},
+    );
+    return GspOtpRequest.fromJson(_data(res));
+  }
+
+  Future<void> verifyOtp({
+    required String gstin,
+    required String username,
+    required String otp,
+    required String txn,
+  }) async {
+    await apiClient.post('/gst/auth/verify-otp', {
+      'gstin': gstin,
+      'username': username,
+      'otp': otp,
+      'txn': txn,
+    });
+  }
+
+  Future<void> forceLogout(String gstin, String username) async {
+    await apiClient.post(
+      '/gst/auth/force-logout',
+      {'gstin': gstin, 'username': username},
+    );
+  }
+
+  Future<Map<String, dynamic>> upload(String id) async {
+    final ret = await gstRepo.get(id);
+    final endpoint = ret.ret.returnType == 'gstr3b'
+        ? '/gst/returns/$id/upload-3b'
+        : '/gst/returns/$id/upload';
+    final res = await apiClient.post(endpoint, const {});
+    return _data(res);
+  }
+
+  Future<Map<String, dynamic>> file(String id, String evc) async {
+    final res = await apiClient.post('/gst/returns/$id/file', {'evc': evc});
+    return _data(res);
+  }
+
+  Future<void> pull2b(String period) async {
+    await apiClient.post('/gst/2b/pull', {'period': period});
+  }
+
+  Future<Gstr2bSummary> reconcile2b(String period) async {
+    final res = await apiClient.post('/gst/2b/reconcile', {'period': period});
+    return Gstr2bSummary.fromJson(_data(res));
+  }
+
+  Future<List<Gstr2bMatch>> matches2b(String period, {String? status}) async {
+    final qp = <String, String>{'period': period};
+    if (status != null) qp['status'] = status;
+    final res = await apiClient.get(
+      '/gst/2b/matches?${Uri(queryParameters: qp).query}',
+    );
+    return _dataList(res).map(Gstr2bMatch.fromJson).toList();
+  }
+
+  Future<Gstr2bSummary> summary2b(String period) async {
+    final res = await apiClient.get('/gst/2b/summary?period=$period');
+    return Gstr2bSummary.fromJson(_data(res));
+  }
+}
+
 final dashboardRepo = DashboardRepo();
 final invoicesRepo = InvoicesRepo();
 final billsRepo = BillsRepo();
@@ -455,3 +560,4 @@ final bankingRepo = BankingRepo();
 final approvalsRepo = ApprovalsRepo();
 final agentRepo = AgentRepo();
 final poRepo = PoRepo();
+final gstRepo = GstRepo();

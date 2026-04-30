@@ -71,7 +71,9 @@ class _Body extends ConsumerWidget {
               return _LineRow(
                 line: line,
                 checked: selected.contains(line.id),
-                editable: run.status == 'draft' && line.status == 'pending',
+                editable: (run.status == 'pending_approval' ||
+                        run.status == 'partially_approved') &&
+                    line.status == 'pending',
                 onToggle: () {
                   final s = {...selected};
                   if (s.contains(line.id)) {
@@ -230,7 +232,9 @@ class _SelectAllRow extends ConsumerWidget {
         .toSet();
     final allSelected =
         pendingIds.isNotEmpty && selectedCount == pendingIds.length;
-    final canSelect = run.status == 'draft' && pendingIds.isNotEmpty;
+    final canSelect = (run.status == 'pending_approval' ||
+            run.status == 'partially_approved') &&
+        pendingIds.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -431,7 +435,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final t = RT(context);
     final run = widget.run;
     final selected = ref.watch(_selectedLinesProvider(run.id));
-    final isDraft = run.status == 'draft';
+    final isDraft = run.status == 'pending_approval' ||
+        run.status == 'partially_approved';
     final isApproved = run.status == 'approved';
     if (!isDraft && !isApproved) return const SizedBox.shrink();
     return SafeArea(

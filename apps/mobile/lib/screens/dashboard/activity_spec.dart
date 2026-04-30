@@ -46,8 +46,9 @@ ActivitySpec activitySpec(ActivityEntry e) {
         icon: Icons.send_rounded,
         tint: RunqColors.indigo,
         title: entity,
-        statusLabel: who.isNotEmpty && who != 'someone' ? 'Sent to $who' : 'Sent',
-        subtitle: (when) => '$user · $when',
+        statusLabel: 'Sent',
+        subtitle: (when) =>
+            who.isNotEmpty && who != 'someone' ? 'to $who · $when' : '$user · $when',
       );
     case 'send_reminder':
       return ActivitySpec(
@@ -55,15 +56,17 @@ ActivitySpec activitySpec(ActivityEntry e) {
         tint: RunqColors.whatsapp,
         title: entity,
         statusLabel: 'Reminder',
-        subtitle: (when) => '${who.isEmpty || who == 'someone' ? user : 'to $who'} · $when',
+        subtitle: (when) =>
+            who.isNotEmpty && who != 'someone' ? 'to $who · $when' : '$user · $when',
       );
     case 'applied':
       return ActivitySpec(
         icon: Icons.payments_outlined,
         tint: RunqColors.greenInk,
         title: entity,
-        statusLabel: 'Payment applied',
-        subtitle: (when) => '$user · $when',
+        statusLabel: 'Paid',
+        subtitle: (when) =>
+            who.isNotEmpty && who != 'someone' ? 'to $who · $when' : '$user · $when',
       );
     case 'approved':
     case 'approve':

@@ -211,12 +211,14 @@ class _MoneyGrid extends ConsumerWidget {
       orElse: () => 0.0,
     );
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return HubSectionGrid(
       tiles: [
         HubSectionTile(
           icon: Icons.account_balance_rounded,
-          iconBg: const Color(0xFFE0E7FF),
-          iconFg: const Color(0xFF4338CA),
+          iconBg: isDark ? const Color(0xFF312E81) : const Color(0xFFE0E7FF),
+          iconFg: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA),
           title: 'BANKING',
           metric: accountCount > 0
               ? formatINR(totalBalance, compact: true)
@@ -228,8 +230,8 @@ class _MoneyGrid extends ConsumerWidget {
         ),
         HubSectionTile(
           icon: Icons.show_chart_rounded,
-          iconBg: const Color(0xFFD1FAE5),
-          iconFg: const Color(0xFF047857),
+          iconBg: isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5),
+          iconFg: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
           title: 'CASH FLOW',
           metric: '90 days',
           caption: 'projection & forecast',
@@ -237,8 +239,8 @@ class _MoneyGrid extends ConsumerWidget {
         ),
         HubSectionTile(
           icon: Icons.bar_chart_rounded,
-          iconBg: const Color(0xFFEDE9FE),
-          iconFg: const Color(0xFF6D28D9),
+          iconBg: isDark ? const Color(0xFF4C1D95) : const Color(0xFFEDE9FE),
+          iconFg: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6D28D9),
           title: 'P&L & ANALYTICS',
           metric: 'This month',
           caption: 'revenue · expenses',
@@ -246,8 +248,8 @@ class _MoneyGrid extends ConsumerWidget {
         ),
         HubSectionTile(
           icon: Icons.handshake_outlined,
-          iconBg: const Color(0xFFFEF3C7),
-          iconFg: const Color(0xFF92400E),
+          iconBg: isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7),
+          iconFg: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
           title: 'RECEIVABLES',
           metric: formatINR(receivables, compact: true),
           caption: 'outstanding from customers',

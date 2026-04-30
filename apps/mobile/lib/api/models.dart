@@ -178,6 +178,196 @@ extension on Iterable<GstSignal> {
   GstSignal? get firstOrNull => isEmpty ? null : first;
 }
 
+class GstReturn {
+  final String id;
+  final String gstin;
+  final String returnType; // 'gstr1' | 'gstr3b'
+  final String period;     // MMYYYY
+  final String status;     // draft | validated | uploaded | filed | error
+  final String? arn;
+  final DateTime? filedAt;
+  final List<GstReturnError> errors;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  GstReturn({
+    required this.id,
+    required this.gstin,
+    required this.returnType,
+    required this.period,
+    required this.status,
+    required this.arn,
+    required this.filedAt,
+    required this.errors,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory GstReturn.fromJson(Map<String, dynamic> j) {
+    final errs = (j['errorDetails'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(GstReturnError.fromJson)
+        .toList();
+    return GstReturn(
+      id: _strOr(j['id'], ''),
+      gstin: _strOr(j['gstin'], ''),
+      returnType: _strOr(j['returnType'], 'gstr1'),
+      period: _strOr(j['period'], ''),
+      status: _strOr(j['status'], 'draft'),
+      arn: _str(j['arn']),
+      filedAt: _dt(j['filedAt']),
+      errors: errs,
+      createdAt: _dt(j['createdAt']) ?? DateTime.now(),
+      updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),
+    );
+  }
+
+  String get periodLabel {
+    if (period.length != 6) return period;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final m = int.tryParse(period.substring(0, 2));
+    final y = period.substring(2);
+    if (m == null || m < 1 || m > 12) return period;
+    return '${months[m - 1]} $y';
+  }
+
+  Map<String, dynamic>? get rawData => null; // populated from detail endpoint via fromJsonWithData
+}
+
+class GstReturnError {
+  final String code;
+  final String message;
+  final String? section;
+  GstReturnError({required this.code, required this.message, this.section});
+
+  factory GstReturnError.fromJson(Map<String, dynamic> j) => GstReturnError(
+        code: _strOr(j['code'], ''),
+        message: _strOr(j['message'], ''),
+        section: _str(j['section']),
+      );
+}
+
+class GstReturnDetail {
+  final GstReturn ret;
+  final Map<String, dynamic> data; // raw section payload (b2b, b2cs, hsn, etc.)
+  GstReturnDetail({required this.ret, required this.data});
+
+  factory GstReturnDetail.fromJson(Map<String, dynamic> j) => GstReturnDetail(
+        ret: GstReturn.fromJson(j),
+        data: (j['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+}
+
+class GspOtpRequest {
+  final String txn;
+  final String? message;
+  GspOtpRequest({required this.txn, this.message});
+
+  factory GspOtpRequest.fromJson(Map<String, dynamic> j) => GspOtpRequest(
+        txn: _strOr(j['txn'], ''),
+        message: _str(j['message']),
+      );
+}
+
+class Gstr2bMatch {
+  final String id;
+  final String period;
+  final String supplierGstin;
+  final String? supplierName;
+  final String invoiceNumber2b;
+  final double taxableValue2b;
+  final double igst2b;
+  final double cgst2b;
+  final double sgst2b;
+  final String? purchaseInvoiceId;
+  final String? invoiceNumberBooks;
+  final double? taxableValueBooks;
+  final String matchStatus; // matched | mismatched | not_in_books | not_in_2b
+  final double? valueDiff;
+
+  Gstr2bMatch({
+    required this.id,
+    required this.period,
+    required this.supplierGstin,
+    required this.supplierName,
+    required this.invoiceNumber2b,
+    required this.taxableValue2b,
+    required this.igst2b,
+    required this.cgst2b,
+    required this.sgst2b,
+    required this.purchaseInvoiceId,
+    required this.invoiceNumberBooks,
+    required this.taxableValueBooks,
+    required this.matchStatus,
+    required this.valueDiff,
+  });
+
+  factory Gstr2bMatch.fromJson(Map<String, dynamic> j) => Gstr2bMatch(
+        id: _strOr(j['id'], ''),
+        period: _strOr(j['period'], ''),
+        supplierGstin: _strOr(j['supplierGstin'], ''),
+        supplierName: _str(j['supplierName']),
+        invoiceNumber2b: _strOr(j['invoiceNumber2b'], ''),
+        taxableValue2b: _num(j['taxableValue2b']),
+        igst2b: _num(j['igst2b']),
+        cgst2b: _num(j['cgst2b']),
+        sgst2b: _num(j['sgst2b']),
+        purchaseInvoiceId: _str(j['purchaseInvoiceId']),
+        invoiceNumberBooks: _str(j['invoiceNumberBooks']),
+        taxableValueBooks: _numOrNull(j['taxableValueBooks']),
+        matchStatus: _strOr(j['matchStatus'], 'mismatched'),
+        valueDiff: _numOrNull(j['valueDiff']),
+      );
+}
+
+class Gstr2bSummary {
+  final int matchedCount;
+  final double matchedTaxable;
+  final int mismatchedCount;
+  final double mismatchedTaxable;
+  final int notInBooksCount;
+  final double notInBooksTaxable;
+  final int notIn2bCount;
+  final double notIn2bTaxable;
+  final double totalItcAvailable;
+  final double totalItcClaimable;
+
+  Gstr2bSummary({
+    required this.matchedCount,
+    required this.matchedTaxable,
+    required this.mismatchedCount,
+    required this.mismatchedTaxable,
+    required this.notInBooksCount,
+    required this.notInBooksTaxable,
+    required this.notIn2bCount,
+    required this.notIn2bTaxable,
+    required this.totalItcAvailable,
+    required this.totalItcClaimable,
+  });
+
+  factory Gstr2bSummary.fromJson(Map<String, dynamic> j) {
+    final m = (j['matched'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final mm = (j['mismatched'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final nib = (j['notInBooks'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final ni2b = (j['notIn2b'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return Gstr2bSummary(
+      matchedCount: _int(m['count']),
+      matchedTaxable: _num(m['taxableValue']),
+      mismatchedCount: _int(mm['count']),
+      mismatchedTaxable: _num(mm['taxableValue']),
+      notInBooksCount: _int(nib['count']),
+      notInBooksTaxable: _num(nib['taxableValue']),
+      notIn2bCount: _int(ni2b['count']),
+      notIn2bTaxable: _num(ni2b['taxableValue']),
+      totalItcAvailable: _num(j['totalItcAvailable']),
+      totalItcClaimable: _num(j['totalItcClaimable']),
+    );
+  }
+
+  int get totalCount =>
+      matchedCount + mismatchedCount + notInBooksCount + notIn2bCount;
+}
+
 class CashTrend {
   final List<double> spark;
   final double weeklyDelta;

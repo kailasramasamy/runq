@@ -232,6 +232,7 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final activeFill = RunqColors.indigo;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(999),
@@ -241,9 +242,9 @@ class _Pill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: active ? t.brand : t.surface,
+            color: active ? activeFill : t.surface,
             border: Border.all(
-              color: active ? t.brand : t.hairline,
+              color: active ? activeFill : t.hairline,
               width: 0.5,
             ),
             borderRadius: BorderRadius.circular(999),
@@ -557,13 +558,37 @@ class _AnalyticsHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final ink = invertText ? const Color(0xFF92400E) : const Color(0xFF065F46);
-    final muted = invertText
-        ? const Color(0xFFB45309)
-        : const Color(0xFF047857);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color ink;
+    final Color muted;
+    final Gradient bg;
+    if (isDark) {
+      if (invertText) {
+        ink = const Color(0xFFFCD34D);
+        muted = const Color(0xFFFBBF24);
+        bg = const LinearGradient(
+          begin: Alignment(-0.7, -1),
+          end: Alignment(0.7, 1),
+          colors: [Color(0xFF451A03), Color(0xFF78350F)],
+        );
+      } else {
+        ink = const Color(0xFF6EE7B7);
+        muted = const Color(0xFF34D399);
+        bg = const LinearGradient(
+          begin: Alignment(-0.7, -1),
+          end: Alignment(0.7, 1),
+          colors: [Color(0xFF022C22), Color(0xFF064E3B)],
+        );
+      }
+    } else {
+      ink = invertText ? const Color(0xFF92400E) : const Color(0xFF065F46);
+      muted = invertText ? const Color(0xFFB45309) : const Color(0xFF047857);
+      bg = accent;
+    }
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        gradient: accent,
+        gradient: bg,
         borderRadius: BorderRadius.circular(RunqRadii.hero),
         border: Border.all(color: t.hairline, width: 0.5),
         boxShadow: RunqShadows.card,

@@ -151,11 +151,25 @@ class CashFlowProjection {
   final double projectedBalance;
   CashFlowProjection({required this.day, required this.projectedBalance});
 
-  factory CashFlowProjection.fromJson(Map<String, dynamic> j) =>
-      CashFlowProjection(
-        day: intAt(j['day']),
-        projectedBalance: numAt(j['projectedBalance']),
-      );
+  factory CashFlowProjection.fromJson(Map<String, dynamic> j) {
+    final dateStr = j['date'];
+    int day = 0;
+    if (dateStr is String && dateStr.isNotEmpty) {
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed != null) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final d = DateTime(parsed.year, parsed.month, parsed.day);
+        day = d.difference(today).inDays;
+      }
+    } else {
+      day = intAt(j['day']);
+    }
+    return CashFlowProjection(
+      day: day,
+      projectedBalance: numAt(j['projected'] ?? j['projectedBalance']),
+    );
+  }
 }
 
 class CashFlowForecast {

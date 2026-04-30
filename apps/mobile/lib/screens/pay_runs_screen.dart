@@ -292,7 +292,7 @@ class _ScheduleSectionState extends ConsumerState<_ScheduleSection> {
                   height: 40,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: t.brand,
+                    color: RunqColors.indigo,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: _busy

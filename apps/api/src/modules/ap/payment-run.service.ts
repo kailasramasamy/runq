@@ -196,6 +196,14 @@ export class PaymentRunService {
         eq(purchaseInvoices.tenantId, this.tenantId),
         sql`${purchaseInvoices.status} IN ('approved', 'partially_paid')`,
         sql`${purchaseInvoices.balanceDue} > 0`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${paymentRunLines} prl
+          INNER JOIN ${paymentRuns} pr ON pr.id = prl.run_id
+          WHERE prl.purchase_invoice_id = ${purchaseInvoices.id}
+            AND prl.tenant_id = ${this.tenantId}
+            AND pr.status NOT IN ('executed', 'rejected')
+            AND prl.status NOT IN ('failed', 'rejected')
+        )`,
       ))
       .orderBy(purchaseInvoices.dueDate)
       .limit(500);

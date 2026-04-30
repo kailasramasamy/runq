@@ -10,6 +10,7 @@ import '../widgets/section_head.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
 import 'dashboard/spotlight_cards.dart';
+import 'dashboard/gst_section.dart';
 import 'dashboard/activity_list.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -55,6 +56,10 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
             const SliverToBoxAdapter(child: SpotlightCards()),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
+              sliver: SliverToBoxAdapter(child: GstSection()),
+            ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),

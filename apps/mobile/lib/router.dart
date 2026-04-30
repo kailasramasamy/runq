@@ -20,6 +20,10 @@ import 'screens/pay_runs_screen.dart';
 import 'screens/pay_run_detail_screen.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/activity_screen.dart';
+import 'screens/gst_hub_screen.dart';
+import 'screens/gst_returns_screen.dart';
+import 'screens/gst_return_detail_screen.dart';
+import 'screens/gst_2b_screen.dart';
 import 'screens/agent_screen.dart';
 import 'screens/bill_detail_screen.dart';
 import 'screens/bill_edit_screen.dart';
@@ -210,6 +214,28 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/activity',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const ActivityScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/gst',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const GstHubScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/gst/returns',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const GstReturnsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/gst/returns/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+              GstReturnDetailScreen(id: state.pathParameters['id']!),
+              key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/gst/2b',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const Gst2bScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/profile',

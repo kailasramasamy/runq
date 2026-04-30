@@ -232,8 +232,8 @@ class _FabButton extends StatelessWidget {
               width: 52,
               height: 52,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: RT(context).brand,
+              decoration: const BoxDecoration(
+                color: RunqColors.indigo,
                 shape: BoxShape.circle,
                 boxShadow: RunqShadows.fab,
               ),

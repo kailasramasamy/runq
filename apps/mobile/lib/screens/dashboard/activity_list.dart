@@ -116,9 +116,12 @@ class _Row extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (spec.statusLabel != null) ...[
-                        const SizedBox(width: 10),
-                        _StatusPill(label: spec.statusLabel!, tint: spec.tint),
+                      if (entry.amount != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          formatINR(entry.amount!),
+                          style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink),
+                        ),
                       ],
                     ],
                   ),
@@ -134,12 +137,9 @@ class _Row extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (entry.amount != null) ...[
+                      if (spec.statusLabel != null) ...[
                         const SizedBox(width: 8),
-                        Text(
-                          formatINR(entry.amount!),
-                          style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink),
-                        ),
+                        _StatusPill(label: spec.statusLabel!, tint: spec.tint),
                       ],
                     ],
                   ),

@@ -31,7 +31,6 @@ class SpotlightCards extends ConsumerWidget {
   }
 
   Widget _buildList(BuildContext context, WidgetRef ref, DashboardSummary s) {
-    final gst = ref.watch(gstReadinessProvider).maybeWhen(data: (g) => g, orElse: () => null);
     final tiles = <Widget>[];
 
     if (s.overdueAmount > 0) {
@@ -56,9 +55,6 @@ class SpotlightCards extends ConsumerWidget {
         cta: 'Pay vendors',
         onTap: () => context.push('/bills'),
       ));
-    }
-    if (gst != null && !gst.filedExternally) {
-      tiles.add(_GstCard(gst: gst));
     }
     tiles.add(_SpotlightCard(
       icon: Icons.show_chart_rounded,
@@ -103,16 +99,26 @@ LinearGradient _spotlightGradient(BuildContext context) {
 
 /// Maps an urgency level to (background-tint, ink) for the pill.
 ({Color bg, Color ink}) _pillColors(BuildContext context, _Urgency u) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   switch (u) {
     case _Urgency.critical:
-      return (bg: RunqColors.redBg, ink: RunqColors.redInk);
+      return (
+        bg: isDark ? const Color(0xFF3F1212) : RunqColors.redBg,
+        ink: isDark ? const Color(0xFFF87171) : RunqColors.redInk,
+      );
     case _Urgency.warning:
-      return (bg: RunqColors.amberBg, ink: RunqColors.amberInk);
+      return (
+        bg: isDark ? const Color(0xFF3A2410) : RunqColors.amberBg,
+        ink: isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
+      );
     case _Urgency.ok:
-      return (bg: RunqColors.greenBg, ink: RunqColors.greenInk);
+      return (
+        bg: isDark ? const Color(0xFF0D2620) : RunqColors.greenBg,
+        ink: isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
+      );
     case _Urgency.info:
       return (
-        bg: RunqColors.indigo.withValues(alpha: 0.10),
+        bg: RunqColors.indigo.withValues(alpha: isDark ? 0.22 : 0.10),
         ink: RunqColors.indigo,
       );
   }
@@ -230,132 +236,3 @@ class _Pill extends StatelessWidget {
   }
 }
 
-class _GstCard extends StatelessWidget {
-  final GstReadiness gst;
-  const _GstCard({required this.gst});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final score = gst.score;
-    final urgency = score >= 80
-        ? _Urgency.ok
-        : score >= 50
-            ? _Urgency.warning
-            : _Urgency.critical;
-    final pill = _pillColors(context, urgency);
-    final pillLabel = score >= 80
-        ? 'ON TRACK'
-        : score >= 50
-            ? 'NEEDS WORK'
-            : 'AT RISK';
-
-    final days = gst.daysToGstr1;
-    final headline = gst.preparing
-        ? 'Preparing'
-        : days == null
-            ? '—'
-            : days < 0
-                ? 'Overdue'
-                : '$days ${days == 1 ? 'day' : 'days'}';
-
-    final failing = gst.firstFailingSignal;
-    final sub = failing != null
-        ? 'GSTR-1 ${gst.periodLabel} · ${failing.detail ?? failing.label}'
-        : 'GSTR-1 ${gst.periodLabel} · all clear';
-
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(RunqRadii.card),
-        boxShadow: RunqShadows.card,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(RunqRadii.card),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {/* TODO: route to /gst when screen exists */},
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: _spotlightGradient(context),
-              borderRadius: BorderRadius.circular(RunqRadii.card),
-              border: Border.all(color: RunqColors.indigo.withValues(alpha: 0.10), width: 0.5),
-            ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  SizedBox(width: 32, height: 32, child: CustomPaint(painter: _RingPainter(score / 100, pill.ink))),
-                  const Spacer(),
-                  _Pill(label: pillLabel, bg: pill.bg, ink: pill.ink),
-                ],
-              ),
-              const Spacer(),
-              Text(headline, style: RunqText.numberLg.copyWith(color: t.ink, fontSize: 24)),
-              const SizedBox(height: 4),
-              Text(
-                sub,
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      failing == null ? 'Review' : 'Fix & review',
-                      style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  const Icon(Icons.arrow_forward_rounded, size: 12, color: RunqColors.indigo),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    ));
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  _RingPainter(this.progress, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - 2;
-    final track = Paint()
-      ..color = color.withValues(alpha: 0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    final fg = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3;
-    canvas.drawCircle(center, radius, track);
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawArc(rect, -1.5708, 6.2832 * progress, false, fg);
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '${(progress * 100).round()}%',
-        style: RunqText.micro.copyWith(color: color, fontSize: 9),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy - tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(covariant _RingPainter old) => old.progress != progress || old.color != color;
-}

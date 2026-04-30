@@ -231,12 +231,14 @@ class _SalesGrid extends ConsumerWidget {
     final draftCount =
         summary.maybeWhen(data: (s) => s.draftCount, orElse: () => 0);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return HubSectionGrid(
       tiles: [
         HubSectionTile(
           icon: Icons.receipt_long_rounded,
-          iconBg: const Color(0xFFE0E7FF),
-          iconFg: const Color(0xFF4338CA),
+          iconBg: isDark ? const Color(0xFF312E81) : const Color(0xFFE0E7FF),
+          iconFg: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA),
           title: 'INVOICES',
           metric: draftCount > 0 ? '$draftCount draft' : 'View all',
           caption: draftCount > 0 ? 'tap to send' : null,
@@ -248,8 +250,8 @@ class _SalesGrid extends ConsumerWidget {
         ),
         HubSectionTile(
           icon: Icons.notifications_active_rounded,
-          iconBg: const Color(0xFFFEE2E2),
-          iconFg: const Color(0xFFB91C1C),
+          iconBg: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2),
+          iconFg: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
           title: 'AGING & COLLECTIONS',
           metric: overdueCount > 0
               ? formatINR(overdueAmount, compact: true)

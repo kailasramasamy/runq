@@ -26,10 +26,9 @@ class CashFlowScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final horizon = ref.watch(_horizonProvider);
     final forecast = ref.watch(cashFlowForecastProvider(horizon));
-    final past90 = DateRange(
-      DateTime.now().subtract(const Duration(days: 90)),
-      DateTime.now(),
-    );
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final past90 = DateRange(today.subtract(const Duration(days: 90)), today);
     final statement = ref.watch(cashFlowStatementProvider(past90));
 
     return Scaffold(
@@ -298,9 +297,9 @@ class _HorizonPill extends StatelessWidget {
           height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? t.brand : t.surface,
+            color: active ? RunqColors.indigo : t.surface,
             border: Border.all(
-              color: active ? t.brand : t.hairline,
+              color: active ? RunqColors.indigo : t.hairline,
               width: 0.5,
             ),
             borderRadius: BorderRadius.circular(999),
@@ -337,13 +336,15 @@ class _ForecastChart extends StatelessWidget {
         ),
       );
     }
-    final maxDay = projections.last.day.toDouble();
+    final rawMaxDay = projections.last.day.toDouble();
+    final maxDay = rawMaxDay > 0 ? rawMaxDay : 1.0;
     final values = projections.map((p) => p.projectedBalance).toList();
     final maxV = values.reduce((a, b) => a > b ? a : b);
     final minV = values.reduce((a, b) => a < b ? a : b);
     final pad = ((maxV - minV).abs() * 0.15).clamp(1.0, double.infinity);
     final maxY = maxV + pad;
-    final minY = (minV - pad).clamp(double.negativeInfinity, currentBalance);
+    final rawMinY = (minV - pad).clamp(double.negativeInfinity, currentBalance);
+    final minY = rawMinY < maxY ? rawMinY : maxY - 1.0;
     final spots = projections
         .map((p) => FlSpot(p.day.toDouble(), p.projectedBalance))
         .toList();
