@@ -11,7 +11,12 @@ import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
 import '../widgets/date_range_sheet.dart';
 import '../widgets/runq_card.dart';
+import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
+import '../widgets/swipe_action.dart';
+import 'invoices_screen.dart' show StatChip;
+import 'package:flutter_slidable/flutter_slidable.dart';
+import '../api/repos.dart' show billsRepo;
 
 class _Tab {
   final String key, label;
@@ -27,14 +32,19 @@ const _tabs = <_Tab>[
 ];
 
 class BillsScreen extends ConsumerStatefulWidget {
-  const BillsScreen({super.key});
+  /// Optional starting tab key (e.g. `'to_approve'`). The hub tile uses this
+  /// so tapping "5 pending" lands on the screen pre-filtered.
+  final String? initialTab;
+  const BillsScreen({super.key, this.initialTab});
 
   @override
   ConsumerState<BillsScreen> createState() => _BillsScreenState();
 }
 
 class _BillsScreenState extends ConsumerState<BillsScreen> {
-  String tabKey = 'all';
+  late String tabKey = _tabs.any((t) => t.key == widget.initialTab)
+      ? widget.initialTab!
+      : 'all';
   String search = '';
   bool searchOpen = false;
   DateTime? dateFrom;
@@ -52,6 +62,18 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     );
   }
 
+  Future<void> _refresh() async {
+    // Invalidate every per-tab list so the badge counts and the active list
+    // update together after a swipe action; await the active filter so this
+    // future completes only when fresh data has landed.
+    ref.invalidate(billsSummaryProvider);
+    for (final t in _tabs) {
+      ref.invalidate(billsProvider(BillFilter(status: t.statusFilter)));
+    }
+    ref.invalidate(billsProvider(_filter));
+    await ref.read(billsProvider(_filter).future).catchError((_) => throw 0);
+  }
+
   Future<void> _openFilterSheet() async {
     final result = await showDateRangeSheet(context, initialFrom: dateFrom, initialTo: dateTo);
     if (result == null) return;
@@ -66,15 +88,37 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     final list = ref.watch(billsProvider(_filter));
     final summary = ref.watch(billsSummaryProvider);
 
-    // Header subtitle — count from the active list, total outstanding from
-    // the summary so it doesn't shift between tabs.
-    final (countLabel, totalLabel) = list.maybeWhen(
-      data: (page) {
-        final outstanding = summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null);
-        return ('${page.total}', outstanding != null ? '${formatINR(outstanding)} outstanding' : '—');
-      },
-      orElse: () => ('—', '—'),
-    );
+    // Header stat chips — both count and amount track the active tab.
+    // We use summary fields where the tenant-wide total is meaningful and
+    // sum the loaded page (limit 50) elsewhere as a quick read.
+    final count = list.maybeWhen(data: (page) => page.total, orElse: () => null);
+    final (double? amount, String amountLabel) = switch (tabKey) {
+      'to_approve' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, b) => s + b.totalAmount),
+            orElse: () => null,
+          ),
+          'pending',
+        ),
+      'approved' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, b) => s + b.balanceDue),
+            orElse: () => null,
+          ),
+          'to pay',
+        ),
+      'paid' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, b) => s + b.amountPaid),
+            orElse: () => null,
+          ),
+          'paid',
+        ),
+      _ => (
+          summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null),
+          'to pay',
+        ),
+    };
 
     // Counts on every tab. Pagination meta gives accurate `total` regardless
     // of page size, so each filter combo costs one cached request.
@@ -86,13 +130,15 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
         if (cnt(t.statusFilter) != null) t.key: cnt(t.statusFilter)!,
     };
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
           _Header(
-            countLabel: countLabel,
-            totalLabel: totalLabel,
+            count: count,
+            amount: amount,
+            amountLabel: amountLabel,
             searchOpen: searchOpen,
             searchValue: search,
             onSearchToggle: () => setState(() {
@@ -112,11 +158,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
           Expanded(
             child: RefreshIndicator(
               color: RT(context).brand,
-              onRefresh: () async {
-                ref.invalidate(billsProvider(_filter));
-                ref.invalidate(billsSummaryProvider);
-                await ref.read(billsProvider(_filter).future).catchError((_) => throw 0);
-              },
+              onRefresh: _refresh,
               child: AsyncSlot<PaginatedResponse<Bill>>(
                 value: list,
                 onRetry: () => ref.invalidate(billsProvider(_filter)),
@@ -135,29 +177,36 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                     itemCount: page.data.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _BillRow(bill: page.data[i]),
+                    itemBuilder: (_, i) => BillRow(
+                      bill: page.data[i],
+                      onAfterAction: _refresh,
+                    ),
                   );
                 },
               ),
             ),
           ),
         ],
+        ),
       ),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  final String countLabel, totalLabel;
   final bool searchOpen;
   final String searchValue;
   final VoidCallback onSearchToggle;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onFilter;
   final bool filterActive;
+  final int? count;
+  final double? amount;
+  final String amountLabel;
   const _Header({
-    required this.countLabel,
-    required this.totalLabel,
+    required this.count,
+    required this.amount,
+    required this.amountLabel,
     required this.searchOpen,
     required this.searchValue,
     required this.onSearchToggle,
@@ -169,8 +218,9 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final canPop = Navigator.of(context).canPop();
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 16, searchOpen ? 16 : 14),
+      padding: EdgeInsets.fromLTRB(canPop ? 8 : 20, 8, 16, searchOpen ? 16 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -178,20 +228,16 @@ class _Header extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Bills', style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$countLabel · $totalLabel',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 13),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              if (canPop) ...[
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.arrow_back_rounded, color: t.ink),
                 ),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text('Bills',
+                    style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
               ),
               const SizedBox(width: 12),
               _IconChip(
@@ -207,6 +253,27 @@ class _Header extends StatelessWidget {
               const SizedBox(width: 8),
               _ScanButton(onTap: () => startBillIntake(context)),
             ],
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: EdgeInsets.only(left: canPop ? 8 : 0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                StatChip(
+                  icon: Icons.description_rounded,
+                  label: count == null ? '—' : '$count',
+                  sub: count == 1 ? 'bill' : 'bills',
+                ),
+                StatChip(
+                  icon: Icons.account_balance_wallet_rounded,
+                  label: amount == null ? '—' : formatINR(amount!, compact: true),
+                  sub: amountLabel,
+                  tinted: true,
+                ),
+              ],
+            ),
           ),
           if (searchOpen) ...[
             const SizedBox(height: 12),
@@ -464,9 +531,12 @@ class _TabPill extends StatelessWidget {
   }
 }
 
-class _BillRow extends StatelessWidget {
+class BillRow extends ConsumerWidget {
   final Bill bill;
-  const _BillRow({required this.bill});
+  /// Optional refresh callback wired from the host screen so swipe actions
+  /// share the same fetch path as pull-to-refresh.
+  final Future<void> Function()? onAfterAction;
+  const BillRow({super.key, required this.bill, this.onAfterAction});
 
   String _date(DateTime d) {
     const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -474,8 +544,9 @@ class _BillRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return RunqCard(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actions = _buildActions(context, ref);
+    final card = RunqCard(
       onTap: () => context.push('/bills/${bill.id}'),
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -511,6 +582,117 @@ class _BillRow extends StatelessWidget {
         ],
       ),
     );
+    if (actions.isEmpty) return card;
+    return Slidable(
+      groupTag: 'bills',
+      key: ValueKey('bill-${bill.id}'),
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: actions.length == 1 ? 0.28 : 0.52,
+        children: actions,
+      ),
+      child: card,
+    );
+  }
+
+  List<Widget> _buildActions(BuildContext context, WidgetRef ref) {
+    final s = bill.status;
+    // API approval rules (three-way-match.service.ts:97):
+    //   - bill with PO    → must be 'matched'
+    //   - bill without PO → 'draft' or 'matched'
+    // Anything else (pending_match, pending_approval) is never directly
+    // approvable and must not show an Approve swipe — it would always fail.
+    final canApprove = s == 'matched' || (s == 'draft' && !bill.hasPO);
+    final canDelete = s == 'draft' || s == 'pending_match' || s == 'pending_approval';
+    if (canApprove || canDelete) {
+      return [
+        if (canApprove)
+          SwipeAction(
+            icon: Icons.check_rounded,
+            label: 'Approve',
+            color: const Color(0xFF047857),
+            onTap: () => _approve(context, ref),
+          ),
+        if (canDelete)
+          SwipeAction(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: RunqColors.redInk,
+            onTap: () => _delete(context, ref),
+          ),
+      ];
+    }
+    if (s == 'approved' || s == 'partially_paid') {
+      return [
+        SwipeAction(
+          icon: Icons.check_rounded,
+          label: 'Mark paid',
+          color: const Color(0xFF047857),
+          onTap: () => _markPaid(context, ref),
+        ),
+      ];
+    }
+    return const [];
+  }
+
+  Future<void> _refreshAll(WidgetRef ref) async {
+    ref.invalidate(billsProvider);
+    ref.invalidate(billsSummaryProvider);
+    ref.invalidate(billDetailProvider(bill.id));
+    if (onAfterAction != null) await onAfterAction!();
+  }
+
+  Future<void> _approve(BuildContext context, WidgetRef ref) async {
+    try {
+      await billsRepo.approve(bill.id);
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Approved ${bill.invoiceNumber}',
+          kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't approve: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete bill?'),
+        content: Text('Remove ${bill.invoiceNumber} from ${bill.vendorName}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: RunqColors.redInk,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+    try {
+      await billsRepo.remove(bill.id);
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Bill removed', kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't delete: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
+    // The bill mark-paid flow lives in the detail screen — there's no
+    // 1-click mark-paid endpoint, and bills usually need a bank-account
+    // selection. So swipe nudges into the detail's payment sheet.
+    if (bill.id.isEmpty) return;
+    context.push('/bills/${bill.id}');
   }
 }
 

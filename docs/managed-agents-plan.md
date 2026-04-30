@@ -16,14 +16,25 @@ Based on [Anthropic's Managed Agents](https://aiblewmymind.substack.com/p/claude
 
 **What the agent does — end-to-end AP autopilot:**
 
-### Continuous intake (no human trigger)
-- Watches a dedicated email inbox (e.g. bills@company.runq.in) for incoming vendor invoices
-- Accepts WhatsApp-forwarded bills via Gupshup webhook
-- Polls a shared folder/Drive where accountant dumps scans
-- Processes immediately — no one needs to click "upload"
+### Intake via Flutter App (zero external API cost)
 
-### Orchestrated pipeline (extract → match → approve)
-- Extracts using existing 2-tier cascade (local heuristic → Claude Vision)
+Indian SMEs receive invoices through fragmented channels: WhatsApp (personal numbers), hard copies, email (rare), informal WhatsApp messages (no GST invoice), photos of handwritten invoices. The Flutter app acts as the single funnel — the user is the router.
+
+**Three intake modes:**
+1. **Share-to-runQ** — App registered as OS share target (Android intent filter / iOS share extension). User shares image/PDF from WhatsApp/email → lands in pipeline
+2. **Camera Capture** — In-app camera with document edge detection + auto-crop for hard copies and handwritten invoices
+3. **Quick Input Form** — Vendor combobox (search/create), line items (item, qty, rate, GST%), auto-calc totals. For informal purchases with no paper invoice
+
+**Invoice classification:**
+| Type | GST Input Credit | Treatment |
+|------|-----------------|-----------|
+| GST Invoice (PDF/image) | Yes | Full extraction, match to GSTIN |
+| Informal / handwritten | No | Track for expense, flag "no GST credit" |
+| Text-only (no document) | No | Manual entry via quick form |
+
+### Orchestrated pipeline (extract → review → match → approve)
+- Modes 1 & 2 → server-side AI vision extraction (vendor, items, amounts, GST) → pre-fill Quick Input Form → user reviews/corrects → submit → Draft AP Bill
+- Mode 3 → submit directly → Draft AP Bill
 - Auto-resolves vendor (fuzzy match + learned aliases)
 - Links to open PO, runs 3-way match (PO + GRN + Invoice)
 - If clean (within 2% qty tolerance, price match): auto-approve → queue for payment

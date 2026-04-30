@@ -38,7 +38,12 @@ export interface InvoiceListParams {
 }
 
 export interface InvoiceListResult {
-  data: (SalesInvoice & { customerName: string; customerNickname: string | null })[];
+  data: (SalesInvoice & {
+    customerName: string;
+    customerNickname: string | null;
+    customerEmail: string | null;
+    customerPhone: string | null;
+  })[];
   meta: PaginationMeta;
 }
 
@@ -72,6 +77,8 @@ export class InvoiceService {
           invoice: salesInvoices,
           customerName: customers.name,
           customerNickname: customers.nickname,
+          customerEmail: customers.email,
+          customerPhone: customers.phone,
         })
         .from(salesInvoices)
         .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
@@ -90,6 +97,8 @@ export class InvoiceService {
       ...this.toInvoice(r.invoice),
       customerName: r.customerName,
       customerNickname: r.customerNickname ?? null,
+      customerEmail: r.customerEmail ?? null,
+      customerPhone: r.customerPhone ?? null,
     }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
@@ -100,6 +109,8 @@ export class InvoiceService {
         invoice: salesInvoices,
         customerName: customers.name,
         customerNickname: customers.nickname,
+        customerEmail: customers.email,
+        customerPhone: customers.phone,
       })
       .from(salesInvoices)
       .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
@@ -114,6 +125,8 @@ export class InvoiceService {
       ...this.toInvoice(row.invoice),
       customerName: row.customerName,
       customerNickname: row.customerNickname ?? null,
+      customerEmail: row.customerEmail ?? null,
+      customerPhone: row.customerPhone ?? null,
       items: itemRows,
     };
   }
@@ -342,7 +355,7 @@ export class InvoiceService {
         .returning();
 
       const [customerRow] = await tx
-        .select({ name: customers.name, nickname: customers.nickname })
+        .select({ name: customers.name, nickname: customers.nickname, email: customers.email, phone: customers.phone })
         .from(customers)
         .where(eq(customers.id, input.customerId))
         .limit(1);
@@ -351,6 +364,8 @@ export class InvoiceService {
         ...this.toInvoice(invoice!),
         customerName: customerRow?.name ?? '',
         customerNickname: customerRow?.nickname ?? null,
+        customerEmail: customerRow?.email ?? null,
+        customerPhone: customerRow?.phone ?? null,
         items: items.map(this.toInvoiceItem),
       };
       await this.audit().log({ userId, action: 'created', entityType: 'sales_invoice', entityId: invoice!.id });
@@ -924,6 +939,8 @@ export class InvoiceService {
         ...this.toInvoice(row!),
         customerName: existing.customerName,
         customerNickname: existing.customerNickname ?? null,
+        customerEmail: existing.customerEmail ?? null,
+        customerPhone: existing.customerPhone ?? null,
         items: itemRows.map(this.toInvoiceItem),
       };
     });

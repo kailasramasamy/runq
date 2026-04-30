@@ -91,12 +91,31 @@ class InvoicesRepo {
     });
   }
 
-  Future<void> markPaid(String id, {required double amount, required String paymentMethod, String? referenceNumber, DateTime? receiptDate}) async {
+  /// Mark an invoice paid. The API server currently hardcodes the receipt's
+  /// `paymentMethod` to 'bank_transfer' (DB enum is single-valued), so the
+  /// user-picked method is stashed into `notes` to preserve intent until the
+  /// schema grows real method values.
+  Future<void> markPaid(
+    String id, {
+    required String paymentMethod,
+    String? referenceNumber,
+    DateTime? paymentDate,
+  }) async {
+    const labels = {
+      'upi': 'UPI',
+      'bank_transfer': 'Bank transfer',
+      'cash': 'Cash',
+      'cheque': 'Cheque',
+      'card': 'Card',
+    };
+    final label = labels[paymentMethod] ?? paymentMethod;
+    final note = referenceNumber == null || referenceNumber.isEmpty
+        ? 'Paid via $label'
+        : 'Paid via $label · ref $referenceNumber';
     await apiClient.post('/ar/invoices/$id/mark-paid', {
-      'amount': amount,
-      'paymentMethod': paymentMethod,
+      'paymentDate': (paymentDate ?? DateTime.now()).toIso8601String().substring(0, 10),
       if (referenceNumber != null) 'referenceNumber': referenceNumber,
-      'receiptDate': (receiptDate ?? DateTime.now()).toIso8601String().substring(0, 10),
+      'notes': note,
     });
   }
 

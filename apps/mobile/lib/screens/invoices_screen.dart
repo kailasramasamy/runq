@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
 import '../api/models.dart';
+import '../api/repos.dart';
+import '../api/dunning_repo.dart';
 import '../providers/data_providers.dart';
+import '../providers/dunning_providers.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
+import '../widgets/reminder_channel_sheet.dart';
+import '../widgets/runq_snack.dart';
 import '../widgets/date_range_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/status_pill.dart';
+import '../widgets/swipe_action.dart';
 
 class _Tab {
   final String key, label;
@@ -20,20 +28,26 @@ class _Tab {
 
 const _tabs = <_Tab>[
   _Tab('all', 'All', null),
+  _Tab('draft', 'Draft', 'draft'),
   _Tab('overdue', 'Overdue', 'overdue'),
   _Tab('unpaid', 'Unpaid', 'sent'),
   _Tab('paid', 'Paid', 'paid'),
 ];
 
 class InvoicesScreen extends ConsumerStatefulWidget {
-  const InvoicesScreen({super.key});
+  /// Optional starting tab key (e.g. `'draft'` or `'overdue'`). The hub tiles
+  /// use this so tapping "20 draft" lands on the screen pre-filtered.
+  final String? initialTab;
+  const InvoicesScreen({super.key, this.initialTab});
 
   @override
   ConsumerState<InvoicesScreen> createState() => _InvoicesScreenState();
 }
 
 class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
-  String tabKey = 'all';
+  late String tabKey = _tabs.any((t) => t.key == widget.initialTab)
+      ? widget.initialTab!
+      : 'all';
   String search = '';
   bool searchOpen = false;
   DateTime? dateFrom;
@@ -51,6 +65,19 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     );
   }
 
+  Future<void> _refresh() async {
+    // Invalidate every filter the screen could be showing — current tab list
+    // plus the per-tab badges — so swipe-action results land everywhere
+    // instantly. We then await the active filter's future so callers can rely
+    // on the data being fresh by the time `_refresh()` resolves.
+    ref.invalidate(invoiceSummaryProvider);
+    for (final t in _tabs) {
+      ref.invalidate(invoicesProvider(InvoiceFilter(status: t.statusFilter)));
+    }
+    ref.invalidate(invoicesProvider(_filter));
+    await ref.read(invoicesProvider(_filter).future).catchError((_) => throw 0);
+  }
+
   Future<void> _openFilterSheet() async {
     final result = await showDateRangeSheet(context, initialFrom: dateFrom, initialTo: dateTo);
     if (result == null) return;
@@ -65,16 +92,43 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     final summary = ref.watch(invoiceSummaryProvider);
     final list = ref.watch(invoicesProvider(_filter));
 
-    // Active tab's list — also drives the header subtitle ("8 · ₹14,23,900").
-    final (countLabel, totalLabel) = list.maybeWhen(
-      data: (page) {
-        final count = page.total;
-        final sum = summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null);
-        final amount = sum != null ? '${formatINR(sum)} outstanding' : '—';
-        return ('$count', amount);
-      },
-      orElse: () => ('—', '—'),
-    );
+    // Header stat chips — count + amount, both tab-aware so they stay in
+    // sync with what the user is looking at. Amounts come from the summary
+    // when there's a tenant-wide total available; otherwise we sum the
+    // loaded page (acceptable since lists are paginated at 50 — the chip
+    // is a quick read, not an audit-grade total).
+    final count = list.maybeWhen(data: (page) => page.total, orElse: () => null);
+    final (double? amount, String amountLabel) = switch (tabKey) {
+      'overdue' => (
+          summary.maybeWhen(data: (s) => s.overdueAmount, orElse: () => null),
+          'overdue',
+        ),
+      'draft' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, i) => s + i.totalAmount),
+            orElse: () => null,
+          ),
+          'drafted',
+        ),
+      'paid' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, i) => s + i.amountReceived),
+            orElse: () => null,
+          ),
+          'collected',
+        ),
+      'unpaid' => (
+          list.maybeWhen(
+            data: (p) => p.data.fold<double>(0, (s, i) => s + i.balanceDue),
+            orElse: () => null,
+          ),
+          'outstanding',
+        ),
+      _ => (
+          summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null),
+          'outstanding',
+        ),
+    };
 
     // One badge per tab — pagination meta gives accurate `total` regardless
     // of page size, so each filter combo costs one cached request.
@@ -86,13 +140,17 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
         if (cnt(t.statusFilter) != null) t.key: cnt(t.statusFilter)!,
     };
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
+    // Wrap in Scaffold so the screen carries its own scaffoldBackgroundColor
+    // when pushed outside the section-hub shell (which previously provided it).
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
           _Header(
-            countLabel: countLabel,
-            totalLabel: totalLabel,
+            count: count,
+            amount: amount,
+            amountLabel: amountLabel,
             searchOpen: searchOpen,
             searchValue: search,
             onSearchToggle: () => setState(() {
@@ -112,11 +170,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
           Expanded(
             child: RefreshIndicator(
               color: RT(context).brand,
-              onRefresh: () async {
-                ref.invalidate(invoicesProvider(_filter));
-                ref.invalidate(invoiceSummaryProvider);
-                await ref.read(invoicesProvider(_filter).future).catchError((_) => throw 0);
-              },
+              onRefresh: _refresh,
               child: AsyncSlot<PaginatedResponse<Invoice>>(
                 value: list,
                 onRetry: () => ref.invalidate(invoicesProvider(_filter)),
@@ -135,20 +189,26 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                     itemCount: page.data.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _InvoiceRow(invoice: page.data[i]),
+                    itemBuilder: (_, i) => InvoiceRow(
+                      invoice: page.data[i],
+                      onAfterAction: _refresh,
+                    ),
                   );
                 },
               ),
             ),
           ),
         ],
+        ),
       ),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  final String countLabel, totalLabel;
+  final int? count;
+  final double? amount;
+  final String amountLabel;
   final bool searchOpen;
   final String searchValue;
   final VoidCallback onSearchToggle;
@@ -156,8 +216,9 @@ class _Header extends StatelessWidget {
   final VoidCallback onFilter;
   final bool filterActive;
   const _Header({
-    required this.countLabel,
-    required this.totalLabel,
+    required this.count,
+    required this.amount,
+    required this.amountLabel,
     required this.searchOpen,
     required this.searchValue,
     required this.onSearchToggle,
@@ -169,8 +230,9 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final canPop = Navigator.of(context).canPop();
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 16, searchOpen ? 16 : 14),
+      padding: EdgeInsets.fromLTRB(canPop ? 8 : 20, 8, 16, searchOpen ? 16 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -178,20 +240,16 @@ class _Header extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Invoices', style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$countLabel · $totalLabel',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 13),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              if (canPop) ...[
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.arrow_back_rounded, color: t.ink),
                 ),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text('Invoices',
+                    style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
               ),
               const SizedBox(width: 12),
               _IconChip(
@@ -206,10 +264,85 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: EdgeInsets.only(left: canPop ? 8 : 0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                StatChip(
+                  icon: Icons.receipt_long_rounded,
+                  label: count == null ? '—' : '$count',
+                  sub: count == 1 ? 'invoice' : 'invoices',
+                ),
+                StatChip(
+                  icon: Icons.account_balance_wallet_rounded,
+                  label: amount == null ? '—' : formatINR(amount!, compact: true),
+                  sub: amountLabel,
+                  tinted: true,
+                ),
+              ],
+            ),
+          ),
           if (searchOpen) ...[
             const SizedBox(height: 12),
             _InlineSearch(value: searchValue, onChanged: onSearchChanged),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Inline pill showing a number + unit, used in the screen header.
+/// Has a "tinted" variant that picks up the brand color so the second
+/// chip in a row reads as the primary metric (e.g. money outstanding).
+class StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final bool tinted;
+  const StatChip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.sub,
+    this.tinted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final fg = tinted ? t.brand : t.ink;
+    final bg = tinted ? t.brandSubtle : t.bgWarmer;
+    final border = tinted ? t.brand.withValues(alpha: 0.18) : t.hairline;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: RunqText.tabular(size: 14, w: FontWeight.w700, color: fg),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            sub,
+            style: RunqText.caption.copyWith(
+              color: tinted ? t.brand.withValues(alpha: 0.85) : t.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -427,9 +560,14 @@ class _TabPill extends StatelessWidget {
   }
 }
 
-class _InvoiceRow extends StatelessWidget {
+class InvoiceRow extends ConsumerWidget {
   final Invoice invoice;
-  const _InvoiceRow({required this.invoice});
+  /// Optional callback invoked after a successful swipe action so the host
+  /// screen can do a full refresh (the same one its pull-to-refresh uses).
+  /// Pure family invalidation has shown to occasionally not propagate to
+  /// currently-mounted watchers, so we let the screen drive the refetch.
+  final Future<void> Function()? onAfterAction;
+  const InvoiceRow({super.key, required this.invoice, this.onAfterAction});
 
   String _date(DateTime d) {
     const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -437,9 +575,10 @@ class _InvoiceRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isPartial = invoice.status == 'partially_paid';
-    return RunqCard(
+    final actions = _buildActions(context, ref);
+    final card = RunqCard(
       onTap: () {
         if (invoice.id.isEmpty) return;
         context.push('/invoices/${invoice.id}');
@@ -476,6 +615,177 @@ class _InvoiceRow extends StatelessWidget {
         ],
       ),
     );
+    if (actions.isEmpty) return card;
+    return Slidable(
+      groupTag: 'invoices',
+      key: ValueKey('invoice-${invoice.id}'),
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: actions.length == 1 ? 0.28 : 0.52,
+        children: actions,
+      ),
+      child: card,
+    );
+  }
+
+  List<Widget> _buildActions(BuildContext context, WidgetRef ref) {
+    switch (invoice.status) {
+      case 'draft':
+        return [
+          SwipeAction(
+            icon: Icons.send_rounded,
+            label: 'Send',
+            color: const Color(0xFF4338CA),
+            onTap: () => _send(context, ref),
+          ),
+          SwipeAction(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: RunqColors.redInk,
+            onTap: () => _delete(context, ref),
+          ),
+        ];
+      case 'sent':
+      case 'overdue':
+      case 'partially_paid':
+        return [
+          SwipeAction(
+            icon: Icons.notifications_active_rounded,
+            label: 'Remind',
+            color: const Color(0xFFB45309),
+            onTap: () => _remind(context, ref),
+          ),
+          SwipeAction(
+            icon: Icons.check_rounded,
+            label: 'Mark paid',
+            color: const Color(0xFF047857),
+            onTap: () => _markPaid(context, ref),
+          ),
+        ];
+      default:
+        return const [];
+    }
+  }
+
+  Future<void> _refreshAll(WidgetRef ref) async {
+    ref.invalidate(invoicesProvider);
+    ref.invalidate(invoiceSummaryProvider);
+    ref.invalidate(invoiceDetailProvider(invoice.id));
+    if (onAfterAction != null) await onAfterAction!();
+  }
+
+  Future<void> _send(BuildContext context, WidgetRef ref) async {
+    try {
+      await invoicesRepo.send(invoice.id);
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(
+        context,
+        'Sent ${invoice.invoiceNumber} to ${invoice.customerName}',
+        kind: SnackKind.success,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't send: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete invoice?'),
+        content: Text('Permanently remove draft ${invoice.invoiceNumber}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: RunqColors.redInk,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+    try {
+      await apiClient.delete('/ar/invoices/${invoice.id}/hard');
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Invoice deleted', kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't delete: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _remind(BuildContext context, WidgetRef ref) async {
+    final choice = await showReminderChannelSheet(
+      context,
+      customerEmail: invoice.customerEmail,
+      customerPhone: invoice.customerPhone,
+    );
+    if (choice == null || !context.mounted) return;
+    try {
+      // Pick the dunning rule whose escalation level matches this invoice's
+      // overdue severity — same logic the auto-run uses.
+      final rules = await ref.read(dunningRulesProvider.future);
+      final daysOverdue = invoice.dueDate.isBefore(DateTime.now())
+          ? DateTime.now().difference(invoice.dueDate).inDays
+          : 0;
+      final level = daysOverdue >= 45 ? 4 : daysOverdue >= 30 ? 3 : daysOverdue >= 15 ? 2 : 1;
+      final rule = rules.firstWhere(
+        (r) => r.escalationLevel == level && r.isActive,
+        orElse: () => rules.firstWhere((r) => r.isActive, orElse: () => rules.first),
+      );
+
+      if (choice.hasEmail) {
+        await dunningRepo.sendReminders(
+          invoiceIds: [invoice.id],
+          ruleId: rule.id,
+          channel: 'email',
+        );
+      }
+      if (choice.hasWhatsapp) {
+        await dunningRepo.sendReminders(
+          invoiceIds: [invoice.id],
+          ruleId: rule.id,
+          channel: 'whatsapp',
+        );
+      }
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      reportReminderOutcome(context, choice);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't send reminder: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
+    final result = await showPaymentMethodSheet(context, invoice.balanceDue);
+    if (result == null) return;
+    if (!context.mounted) return;
+    try {
+      await invoicesRepo.markPaid(
+        invoice.id,
+        paymentMethod: result.method,
+        referenceNumber: result.reference,
+      );
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(
+        context,
+        'Marked ${formatINR(invoice.balanceDue, compact: true)} paid',
+        kind: SnackKind.success,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't mark paid: $e", kind: SnackKind.error);
+    }
   }
 }
 

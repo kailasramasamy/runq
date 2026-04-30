@@ -16,10 +16,23 @@ export interface OverdueInvoice {
   invoiceNumber: string;
   customerId: string;
   customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
   dueDate: string;
   totalAmount: number;
   balanceDue: number;
   daysOverdue: number;
+}
+
+export interface RenderedDunningMessage {
+  channel: 'whatsapp' | 'sms' | 'email';
+  customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  subject?: string;
+  text: string;
+  invoiceCount: number;
+  totalDue: number;
 }
 
 export interface DunningLogListResult {
@@ -135,6 +148,8 @@ export class DunningService {
         invoiceNumber: salesInvoices.invoiceNumber,
         customerId: salesInvoices.customerId,
         customerName: customers.name,
+        customerPhone: customers.phone,
+        customerEmail: customers.email,
         dueDate: salesInvoices.dueDate,
         totalAmount: salesInvoices.totalAmount,
         balanceDue: salesInvoices.balanceDue,
@@ -157,6 +172,8 @@ export class DunningService {
       invoiceNumber: r.invoiceNumber,
       customerId: r.customerId,
       customerName: r.customerName,
+      customerPhone: r.customerPhone ?? null,
+      customerEmail: r.customerEmail ?? null,
       dueDate: r.dueDate,
       totalAmount: parseFloat(r.totalAmount),
       balanceDue: parseFloat(r.balanceDue),
@@ -164,7 +181,81 @@ export class DunningService {
     }));
   }
 
-  async sendReminders(input: SendRemindersInput): Promise<{ logged: number; sent: number; failed: number }> {
+  /**
+   * Render a single, ready-to-send dunning message for one customer's overdue
+   * invoices. Used by the mobile app, which then either deeplinks into
+   * WhatsApp/SMS using the returned text, or falls back to the email send
+   * pipeline. Server-side rendering keeps the wording consistent across
+   * channels and means the client never composes the message.
+   */
+  async renderForCustomer(
+    customerId: string,
+    channel: 'whatsapp' | 'sms' | 'email',
+  ): Promise<RenderedDunningMessage> {
+    const all = await this.getOverdueInvoices();
+    const ours = all.filter((i) => i.customerId === customerId);
+    if (ours.length === 0) {
+      throw new NotFoundError('No overdue invoices for this customer');
+    }
+    const totalDue = ours.reduce((s, i) => s + i.balanceDue, 0);
+    const maxDays = ours.reduce((m, i) => Math.max(m, i.daysOverdue), 0);
+    const companyName = await getTenantName(this.db, this.tenantId);
+    const first = ours[0]!;
+
+    if (channel === 'email') {
+      const items: OverdueInvoiceItem[] = ours.map((i) => ({
+        invoiceNumber: i.invoiceNumber,
+        amount: i.balanceDue,
+        dueDate: i.dueDate,
+        daysOverdue: i.daysOverdue,
+      }));
+      // Match the escalation level to the worst-offending invoice so wording
+      // stays consistent with the auto-run pipeline.
+      const escalationLevel = maxDays >= 45 ? 4 : maxDays >= 30 ? 3 : maxDays >= 15 ? 2 : 1;
+      const action = escalationLevel >= 4 ? 'stop_supply' : 'send_reminder';
+      const tpl = overdueReminder({
+        customerName: first.customerName,
+        invoices: items,
+        totalDue,
+        companyName,
+        escalationLevel,
+        action,
+      });
+      return {
+        channel,
+        customerName: first.customerName,
+        customerPhone: first.customerPhone,
+        customerEmail: first.customerEmail,
+        subject: tpl.subject,
+        text: tpl.text,
+        invoiceCount: ours.length,
+        totalDue,
+      };
+    }
+
+    // Short-form channels: WhatsApp / SMS — single concise message that lists
+    // the offending invoices and asks for payment.
+    const lines = ours
+      .map((i) => `• ${i.invoiceNumber} — ₹${i.balanceDue.toLocaleString('en-IN')} (${i.daysOverdue}d overdue)`)
+      .join('\n');
+    const opener = channel === 'whatsapp'
+      ? `Hi ${first.customerName}, this is a friendly reminder from ${companyName}.`
+      : `${companyName}: Hi ${first.customerName}, payment reminder.`;
+    const text =
+      `${opener}\n\nThe following ${ours.length === 1 ? 'invoice is' : `${ours.length} invoices are`} past due:\n${lines}\n\nTotal outstanding: ₹${totalDue.toLocaleString('en-IN')}\n\nKindly arrange payment at the earliest. Reply here if you have already paid so we can update our records.\n\nThanks,\n${companyName}`;
+
+    return {
+      channel,
+      customerName: first.customerName,
+      customerPhone: first.customerPhone,
+      customerEmail: first.customerEmail,
+      text,
+      invoiceCount: ours.length,
+      totalDue,
+    };
+  }
+
+  async sendReminders(input: SendRemindersInput): Promise<{ logged: number; queued: number }> {
     const ruleId = await this.resolveRuleId(input);
 
     // Fetch the matched rule for escalation context
@@ -202,8 +293,30 @@ export class DunningService {
 
     const logByInvoice = new Map(logRows.map((r) => [r.invoiceId, r.id]));
 
+    // Fire-and-forget delivery so the request returns quickly. Email/SMS/
+    // WhatsApp dispatch can take seconds (SMTP, Gupshup) and shouldn't block
+    // the user. The dunning_log row stays 'pending' until the background
+    // task flips it to 'sent' or 'failed'. Callers should treat the
+    // response as "queued, not delivered" and inspect the log later for
+    // actual outcomes.
     if (input.channel === 'email') {
-      const results = await this.sendDunningEmails(invoiceRows, rule?.escalationLevel, rule?.action);
+      void this.deliverEmailsInBackground(invoiceRows, logByInvoice, rule?.escalationLevel, rule?.action);
+    }
+    // SMS/WhatsApp delivery is not yet wired (Gupshup TBD). Rows stay
+    // 'pending' until that integration lands; until then the dunning log
+    // surfaces a clear "queued" state.
+
+    return { logged: invoiceRows.length, queued: invoiceRows.length };
+  }
+
+  private async deliverEmailsInBackground(
+    invoiceRows: Parameters<DunningService['sendDunningEmails']>[0],
+    logByInvoice: Map<string, string>,
+    escalationLevel: number | undefined,
+    action: string | undefined,
+  ): Promise<void> {
+    try {
+      const results = await this.sendDunningEmails(invoiceRows, escalationLevel, action);
       for (const r of results) {
         const logId = logByInvoice.get(r.invoiceId);
         if (logId) {
@@ -212,16 +325,15 @@ export class DunningService {
             .where(eq(dunningLog.id, logId));
         }
       }
-      const sent = results.filter((r) => r.success).length;
-      return { logged: invoiceRows.length, sent, failed: results.length - sent };
+    } catch (err) {
+      console.error('Background dunning email dispatch failed:', err);
+      const ids = [...logByInvoice.values()];
+      if (ids.length > 0) {
+        await this.db.update(dunningLog)
+          .set({ status: 'failed' })
+          .where(inArray(dunningLog.id, ids));
+      }
     }
-
-    // SMS/WhatsApp: mark as sent (delivery TBD)
-    await this.db.update(dunningLog)
-      .set({ status: 'sent' })
-      .where(inArray(dunningLog.id, logRows.map((r) => r.id)));
-
-    return { logged: invoiceRows.length, sent: 0, failed: 0 };
   }
 
   private async sendDunningEmails(
@@ -525,25 +637,39 @@ export class DunningService {
   }
 
   private async resolveRuleId(input: SendRemindersInput): Promise<string> {
-    if (input.templateId) {
+    if (input.ruleId) {
       const [rule] = await this.db
         .select({ id: dunningRules.id })
         .from(dunningRules)
-        .where(and(eq(dunningRules.id, input.templateId), eq(dunningRules.tenantId, this.tenantId)))
+        .where(and(eq(dunningRules.id, input.ruleId), eq(dunningRules.tenantId, this.tenantId)))
         .limit(1);
 
       if (!rule) throw new NotFoundError('Dunning rule');
       return rule.id;
     }
 
-    const [rule] = await this.db
+    // Fallback: pick any active rule for this channel. If none exists for
+    // the requested channel (e.g. tenant only has email rules but is sending
+    // WhatsApp), fall back to any active rule — the rule provides escalation
+    // context and the body template, both of which are channel-agnostic.
+    const byChannel = await this.db
       .select({ id: dunningRules.id })
       .from(dunningRules)
       .where(and(eq(dunningRules.tenantId, this.tenantId), eq(dunningRules.channel, input.channel), eq(dunningRules.isActive, true)))
       .limit(1);
 
-    if (!rule) throw new ConflictError(`No active dunning rule found for channel: ${input.channel}`);
-    return rule.id;
+    if (byChannel[0]) return byChannel[0].id;
+
+    const anyActive = await this.db
+      .select({ id: dunningRules.id })
+      .from(dunningRules)
+      .where(and(eq(dunningRules.tenantId, this.tenantId), eq(dunningRules.isActive, true)))
+      .limit(1);
+
+    if (!anyActive[0]) {
+      throw new ConflictError('No active dunning rule configured for this tenant');
+    }
+    return anyActive[0].id;
   }
 
   private toRule(row: typeof dunningRules.$inferSelect): DunningRule {

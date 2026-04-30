@@ -69,4 +69,6 @@ export interface SalesInvoiceWithDetails extends SalesInvoice {
   items: SalesInvoiceItem[];
   customerName: string;
   customerNickname: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
 }

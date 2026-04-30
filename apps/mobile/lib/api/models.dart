@@ -216,6 +216,8 @@ class InvoiceSummary {
 class Invoice {
   final String id, invoiceNumber, customerId, status;
   final String customerName;
+  final String? customerEmail;
+  final String? customerPhone;
   final double subtotal, taxAmount, totalAmount, amountReceived, balanceDue;
   final double cgst, sgst, igst, cess;
   final bool isInterState;
@@ -239,6 +241,8 @@ class Invoice {
     required this.isInterState,
     required this.invoiceDate,
     required this.dueDate,
+    this.customerEmail,
+    this.customerPhone,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> j) => Invoice(
@@ -247,6 +251,8 @@ class Invoice {
         customerId: _strOr(j['customerId'], ''),
         status: _strOr(j['status'], 'draft'),
         customerName: _strOr(j['customerName'] ?? j['customerNickname'], '—'),
+        customerEmail: _str(j['customerEmail']),
+        customerPhone: _str(j['customerPhone']),
         subtotal: _num(j['subtotal']),
         taxAmount: _num(j['taxAmount']),
         totalAmount: _num(j['totalAmount']),
@@ -315,6 +321,8 @@ class InvoiceWithDetails extends Invoice {
     required super.invoiceDate,
     required super.dueDate,
     required this.items,
+    super.customerEmail,
+    super.customerPhone,
   });
 
   factory InvoiceWithDetails.fromJson(Map<String, dynamic> j) {
@@ -342,6 +350,8 @@ class InvoiceWithDetails extends Invoice {
       invoiceDate: base.invoiceDate,
       dueDate: base.dueDate,
       items: items,
+      customerEmail: base.customerEmail,
+      customerPhone: base.customerPhone,
     );
   }
 }

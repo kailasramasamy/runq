@@ -14,7 +14,7 @@ export const dunningRuleSchema = z.object({
 export const sendRemindersSchema = z.object({
   invoiceIds: z.array(z.string().uuid()).min(1, 'Select at least one invoice'),
   channel: z.enum(['email', 'sms', 'whatsapp']).default('email'),
-  templateId: z.string().uuid().nullish(),
+  ruleId: z.string().uuid().nullish(),
 });
 
 export const dunningLogFilterSchema = z.object({

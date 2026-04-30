@@ -1,0 +1,260 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/data_providers.dart';
+import '../theme/runq_theme.dart';
+import '../theme/runq_tokens.dart';
+import '../utils/format_inr.dart';
+import '../widgets/hub_header.dart';
+import '../widgets/hub_quick_chip.dart';
+import '../widgets/hub_section_tile.dart';
+import '../widgets/section_head.dart';
+import '../widgets/sparkline.dart';
+
+class MoneyHubScreen extends ConsumerWidget {
+  const MoneyHubScreen({super.key});
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(dashboardSummaryProvider);
+    ref.invalidate(cashTrendProvider);
+    ref.invalidate(bankAccountsProvider);
+    await ref.read(dashboardSummaryProvider.future).catchError((_) => throw 0);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        color: RT(context).brand,
+        onRefresh: () => _refresh(ref),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            const SliverToBoxAdapter(
+              child: HubHeader(eyebrow: 'Money status', title: 'Money'),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              sliver: SliverToBoxAdapter(child: _MoneyHero()),
+            ),
+            SliverToBoxAdapter(
+              child: HubQuickChipRow(
+                chips: [
+                  HubQuickChip(
+                    icon: Icons.show_chart_rounded,
+                    label: 'Cash flow',
+                    onTap: () => context.push('/money/cash-flow'),
+                  ),
+                  HubQuickChip(
+                    icon: Icons.bar_chart_rounded,
+                    label: 'P&L & analytics',
+                    onTap: () => context.push('/money/reports'),
+                  ),
+                  HubQuickChip(
+                    icon: Icons.account_balance_outlined,
+                    label: 'Banking',
+                    onTap: () => context.push('/money/banking'),
+                  ),
+                ],
+              ),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+              sliver: SliverToBoxAdapter(child: SectionHead(title: 'Insights')),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
+              sliver: SliverToBoxAdapter(child: _MoneyGrid()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MoneyHero extends ConsumerWidget {
+  const _MoneyHero();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(dashboardSummaryProvider);
+    final trend = ref.watch(cashTrendProvider);
+    final accounts = ref.watch(bankAccountsProvider);
+    final accountCount =
+        accounts.maybeWhen(data: (l) => l.length, orElse: () => 0);
+    final spark = trend.maybeWhen(data: (t) => t.spark, orElse: () => const <double>[]);
+    final delta = trend.maybeWhen(data: (t) => t.weeklyDelta, orElse: () => 0.0);
+    final cash = trend.maybeWhen(
+      data: (t) => t.cashPosition,
+      orElse: () => summary.maybeWhen(data: (s) => s.cashPosition, orElse: () => 0.0),
+    );
+    final loaded = summary.hasValue || trend.hasValue;
+    final hasMovement = spark.length >= 2 && spark.any((v) => v != spark.first);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: RunqColors.heroGradient,
+        borderRadius: BorderRadius.circular(RunqRadii.hero),
+        boxShadow: const [
+          BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CASH POSITION',
+                      style: RunqText.label.copyWith(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 11,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (accountCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$accountCount ${accountCount == 1 ? 'account' : 'accounts'}',
+                          style: RunqText.caption.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  loaded ? formatINR(cash) : '—',
+                  style: RunqText.display
+                      .copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+                ),
+                const SizedBox(height: 6),
+                if (trend.hasValue)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        delta >= 0
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.78),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${delta >= 0 ? '+' : '−'}${formatINR(delta.abs())} this week',
+                        style: RunqText.caption.copyWith(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          if (hasMovement)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+              child: SizedBox(
+                height: 64,
+                child: Sparkline(
+                  data: spark,
+                  stroke: Colors.white,
+                  fill: const Color(0x33FFFFFF),
+                  height: 64,
+                ),
+              ),
+            )
+          else
+            const SizedBox(height: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoneyGrid extends ConsumerWidget {
+  const _MoneyGrid();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(bankAccountsProvider);
+    final summary = ref.watch(dashboardSummaryProvider);
+    final t = RT(context);
+
+    final accountCount =
+        accounts.maybeWhen(data: (l) => l.length, orElse: () => 0);
+    final totalBalance = accounts.maybeWhen(
+      data: (l) => l.fold<double>(0, (s, a) => s + a.currentBalance),
+      orElse: () => 0.0,
+    );
+    final receivables = summary.maybeWhen(
+      data: (s) => s.outstandingReceivables,
+      orElse: () => 0.0,
+    );
+
+    return HubSectionGrid(
+      tiles: [
+        HubSectionTile(
+          icon: Icons.account_balance_rounded,
+          iconBg: const Color(0xFFE0E7FF),
+          iconFg: const Color(0xFF4338CA),
+          title: 'BANKING',
+          metric: accountCount > 0
+              ? formatINR(totalBalance, compact: true)
+              : 'Add account',
+          caption: accountCount > 0
+              ? '$accountCount ${accountCount == 1 ? 'account' : 'accounts'}'
+              : 'no accounts yet',
+          onTap: () => context.push('/money/banking'),
+        ),
+        HubSectionTile(
+          icon: Icons.show_chart_rounded,
+          iconBg: const Color(0xFFD1FAE5),
+          iconFg: const Color(0xFF047857),
+          title: 'CASH FLOW',
+          metric: '90 days',
+          caption: 'projection & forecast',
+          onTap: () => context.push('/money/cash-flow'),
+        ),
+        HubSectionTile(
+          icon: Icons.bar_chart_rounded,
+          iconBg: const Color(0xFFEDE9FE),
+          iconFg: const Color(0xFF6D28D9),
+          title: 'P&L & ANALYTICS',
+          metric: 'This month',
+          caption: 'revenue · expenses',
+          onTap: () => context.push('/money/reports'),
+        ),
+        HubSectionTile(
+          icon: Icons.handshake_outlined,
+          iconBg: const Color(0xFFFEF3C7),
+          iconFg: const Color(0xFF92400E),
+          title: 'RECEIVABLES',
+          metric: formatINR(receivables, compact: true),
+          caption: 'outstanding from customers',
+          captionColor: t.muted,
+          onTap: () => context.push('/sales/collections'),
+        ),
+      ],
+    );
+  }
+}

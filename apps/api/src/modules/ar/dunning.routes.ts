@@ -1,7 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { dunningRuleSchema, sendRemindersSchema, dunningLogFilterSchema, paginationSchema, uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { DunningService } from './dunning.service';
+
+const renderSchema = z.object({
+  customerId: z.string().uuid(),
+  channel: z.enum(['whatsapp', 'sms', 'email']),
+});
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -47,6 +53,17 @@ export const dunningRoutes: FastifyPluginAsync = async (app) => {
       const service = new DunningService(request.server.db, request.tenantId);
       const invoices = await service.getOverdueInvoices();
       return { data: invoices };
+    },
+  );
+
+  app.post(
+    '/render',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const input = renderSchema.parse(request.body);
+      const service = new DunningService(request.server.db, request.tenantId);
+      const message = await service.renderForCustomer(input.customerId, input.channel);
+      return { data: message };
     },
   );
 

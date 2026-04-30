@@ -10,6 +10,14 @@ import 'dart:io';
 import 'screens/bills_screen.dart';
 import 'screens/bill_extract_screen.dart';
 import 'screens/banking_screen.dart';
+import 'screens/sales_hub_screen.dart';
+import 'screens/purchases_hub_screen.dart';
+import 'screens/money_hub_screen.dart';
+import 'screens/cash_flow_screen.dart';
+import 'screens/reports_screen.dart';
+import 'screens/collections_screen.dart';
+import 'screens/pay_runs_screen.dart';
+import 'screens/pay_run_detail_screen.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/activity_screen.dart';
 import 'screens/agent_screen.dart';
@@ -42,7 +50,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
       redirect: (ctx, state) {
         final auth = ref.read(authProvider);
         final loc = state.matchedLocation;
-        const protected = {'/home', '/invoices', '/bills', '/banking', '/approvals', '/agent', '/po', '/profile'};
+        // Aliases from the old feature-tab nav. Keeps any cached deep-link or
+        // share-extension target valid after the section-hub redesign.
+        const aliases = {
+          '/invoices': '/sales/invoices',
+          '/bills': '/purchases/bills',
+          '/banking': '/money/banking',
+        };
+        final aliased = aliases[loc];
+        if (aliased != null) return aliased;
+        const protected = {
+          '/home', '/sales', '/purchases', '/money',
+          '/invoices', '/bills', '/banking',
+          '/approvals', '/agent', '/po', '/profile',
+        };
         final isProtected = protected.any(loc.startsWith);
         if (auth.sessionExpired && loc != '/signin' && loc != '/splash') {
           return '/signin?session=expired';
@@ -79,10 +100,60 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           builder: (context, state, child) => RootShell(state: state, child: child),
           routes: [
             GoRoute(path: '/home', pageBuilder: _fadePage((_) => const DashboardScreen())),
-            GoRoute(path: '/invoices', pageBuilder: _fadePage((_) => const InvoicesScreen())),
-            GoRoute(path: '/bills', pageBuilder: _fadePage((_) => const BillsScreen())),
-            GoRoute(path: '/banking', pageBuilder: _fadePage((_) => const BankingScreen())),
+            GoRoute(path: '/sales', pageBuilder: _fadePage((_) => const SalesHubScreen())),
+            GoRoute(path: '/purchases', pageBuilder: _fadePage((_) => const PurchasesHubScreen())),
+            GoRoute(path: '/money', pageBuilder: _fadePage((_) => const MoneyHubScreen())),
           ],
+        ),
+        // Section-hub sub-screens. Existing list/detail screens live under
+        // their hub's URL space. Old paths (/invoices, /bills, /banking) are
+        // redirected to these by the alias map at the top of the router.
+        GoRoute(
+          path: '/sales/invoices',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InvoicesScreen(initialTab: state.uri.queryParameters['tab']),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/sales/collections',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const CollectionsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchases/bills',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            BillsScreen(initialTab: state.uri.queryParameters['tab']),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/purchases/pay-runs',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const PayRunsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchases/pay-runs/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(PayRunDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/banking',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const BankingScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/cash-flow',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const CashFlowScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/reports',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const ReportsScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/invoices/:id',

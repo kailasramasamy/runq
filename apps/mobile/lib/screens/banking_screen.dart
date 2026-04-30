@@ -25,9 +25,10 @@ class BankingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(bankAccountsProvider);
-    return SafeArea(
-      bottom: false,
-      child: RefreshIndicator(
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
         color: RT(context).brand,
         onRefresh: () async {
           ref.invalidate(bankAccountsProvider);
@@ -58,6 +59,7 @@ class BankingScreen extends ConsumerWidget {
             final selected = list.firstWhere((a) => a.id == selectedId, orElse: () => list.first);
             return _Body(accounts: list, selected: selected);
           },
+        ),
         ),
       ),
     );
@@ -200,14 +202,22 @@ class _BankingHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final canPop = Navigator.of(context).canPop();
     final countLabel = accountCount == 0
         ? 'No accounts'
         : '$accountCount ${accountCount == 1 ? 'account' : 'accounts'} · ${formatINR(totalBalance)}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 16, 14),
+      padding: EdgeInsets.fromLTRB(canPop ? 8 : 20, 8, 16, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          if (canPop) ...[
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: Icon(Icons.arrow_back_rounded, color: t.ink),
+            ),
+            const SizedBox(width: 4),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

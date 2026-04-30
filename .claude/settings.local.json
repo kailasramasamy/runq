@@ -18,7 +18,8 @@
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:developer.sandbox.co.in)",
       "WebFetch(domain:open.substack.com)",
-      "WebFetch(domain:aiblewmymind.substack.com)"
+      "WebFetch(domain:aiblewmymind.substack.com)",
+      "WebFetch(domain:www.runq.in)"
     ]
   }
 }

@@ -72,7 +72,16 @@ void showRunqSnack(
           ),
           child: Row(
             children: [
-              Icon(icon, color: accent, size: 20),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: accent, size: 20),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

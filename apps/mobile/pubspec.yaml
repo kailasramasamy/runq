@@ -35,6 +35,10 @@ dependencies:
   path_provider: ^2.1.5
   # In-app PDF preview for bill attachments.
   flutter_pdfview: ^1.4.0+1
+  # Charts for cash-flow forecast, P&L, revenue/expense analytics.
+  fl_chart: ^0.69.2
+  # Swipe-to-reveal action buttons on invoice/bill rows.
+  flutter_slidable: ^3.1.1
 
 dev_dependencies:
   flutter_test:
