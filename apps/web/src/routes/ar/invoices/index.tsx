@@ -244,13 +244,13 @@ export function InvoiceListPage() {
       />
 
       {summaryLoading ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
       ) : summaryData?.data ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <StatsCard
             title="Total Sales"
             value={summaryData.data.totalSales}
