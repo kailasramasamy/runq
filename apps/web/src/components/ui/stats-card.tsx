@@ -34,10 +34,10 @@ export function StatsCard({ title, value, icon: Icon, trend, onClick, className,
           <Icon className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12" />
         </div>
       )}
-      <p className="mb-1 truncate pr-8 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-xs">
+      <p className="mb-1 pr-8 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[11px] lg:text-xs">
         {title}
       </p>
-      <p className="truncate font-mono text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-xl lg:text-2xl">
+      <p className="font-mono text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-base md:text-lg lg:text-xl xl:text-2xl">
         {displayValue}
       </p>
       {trend !== undefined && (
