@@ -35,6 +35,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3003',
         changeOrigin: true,
+        ws: true,                  // pass-through WebSocket upgrades for /api/v1/support/ws
       },
     },
   },

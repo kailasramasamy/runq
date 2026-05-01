@@ -12,6 +12,7 @@ import {
   Smartphone,
   LogOut,
   History,
+  LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
@@ -25,6 +26,7 @@ const NAV: Array<{ label: string; path: string; icon: React.ComponentType<{ clas
   { label: 'Feature Flags', path: '/admin/feature-flags', icon: Flag },
   { label: 'App Config', path: '/admin/app-config', icon: Smartphone },
   { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },
+  { label: 'Support', path: '/admin/support', icon: LifeBuoy },
   { label: 'Audit Log', path: '/admin/audit-log', icon: History },
   { label: 'Settings', path: '/admin/settings', icon: Settings },
 ];

@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { FinanceAgent } from '../components/agent/finance-agent';
+import { SupportWidget } from '../components/support/support-widget';
 import { ImpersonationBanner } from '../components/admin/impersonation-banner';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
@@ -128,6 +129,7 @@ import { HelpTopicPage } from './help/topic';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { AdminOverviewPage } from './admin/overview';
 import { AdminAuditLogPage } from './admin/audit-log';
+import { AdminSupportPage } from './admin/support';
 import { AdminTenantsPage } from './admin/tenants';
 import { AdminTenantDetailPage } from './admin/tenant-detail';
 import {
@@ -187,6 +189,7 @@ const dashboardLayoutRoute = createRoute({
         </main>
         <MobileBottomNav />
         <FinanceAgent />
+        <SupportWidget />
       </div>
     </div>
   ),
@@ -1715,6 +1718,7 @@ const auditRoute = createRoute({
   component: () => <Outlet />,
 });
 
+
 const gapScanRoute = createRoute({
   getParentRoute: () => auditRoute,
   path: '/gap-scan',
@@ -1816,6 +1820,12 @@ const adminAuditLogRoute = createRoute({
   component: AdminAuditLogPage,
 });
 
+const adminSupportRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/admin/support',
+  component: AdminSupportPage,
+});
+
 const adminSettingsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/admin/settings',
@@ -1845,6 +1855,7 @@ export const routeTree = rootRoute.addChildren([
     adminAppConfigRoute,
     adminAnnouncementsRoute,
     adminAuditLogRoute,
+    adminSupportRoute,
     adminSettingsRoute,
   ]),
   dashboardLayoutRoute.addChildren([
