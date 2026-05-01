@@ -539,9 +539,27 @@ const customerDetailRoute = createRoute({
   },
 });
 
+type InvoiceStatusFilter = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
+const INVOICE_STATUS_VALUES: readonly InvoiceStatusFilter[] = ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled'];
+
 const invoicesRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/invoices',
+  validateSearch: (search: Record<string, unknown>): {
+    customer?: string;
+    status?: InvoiceStatusFilter;
+    q?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  } => ({
+    customer: typeof search.customer === 'string' ? search.customer : undefined,
+    status: INVOICE_STATUS_VALUES.includes(search.status as InvoiceStatusFilter) ? (search.status as InvoiceStatusFilter) : undefined,
+    q: typeof search.q === 'string' ? search.q : undefined,
+    from: typeof search.from === 'string' ? search.from : undefined,
+    to: typeof search.to === 'string' ? search.to : undefined,
+    page: typeof search.page === 'number' && search.page > 1 ? search.page : undefined,
+  }),
   component: InvoiceListPage,
 });
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle, TrendingUp, Clock } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
@@ -110,12 +110,44 @@ function InvoiceRow({
 export function InvoiceListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [search, setSearch] = useState('');
-  const [customerFilter, setCustomerFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
+  const params = useSearch({ strict: false }) as {
+    customer?: string;
+    status?: SalesInvoiceStatus;
+    q?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  };
+  const search = params.q ?? '';
+  const customerFilter = params.customer ?? '';
+  const statusFilter = params.status ?? '';
+  const dateFrom = params.from ?? '';
+  const dateTo = params.to ?? '';
+  const page = params.page ?? 1;
+
+  function updateSearch(patch: Partial<typeof params>, resetPage = true): void {
+    navigate({
+      to: '/ar/invoices',
+      search: (prev) => {
+        const next = { ...(prev as typeof params), ...patch };
+        if (resetPage) next.page = undefined;
+        // Drop empty values so URL stays clean
+        for (const k of Object.keys(next) as (keyof typeof next)[]) {
+          if (next[k] === '' || next[k] === undefined) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
+  const setSearch = (v: string) => updateSearch({ q: v || undefined });
+  const setCustomerFilter = (v: string) => updateSearch({ customer: v || undefined });
+  const setStatusFilter = (v: string) => updateSearch({ status: (v || undefined) as SalesInvoiceStatus | undefined });
+  const setDateFrom = (v: string) => updateSearch({ from: v || undefined });
+  const setDateTo = (v: string) => updateSearch({ to: v || undefined });
+  const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const batchMutation = useBatchUpdateStatus();
 
