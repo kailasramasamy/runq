@@ -70,9 +70,12 @@ export async function sendEmail(params: {
   html: string;
   text?: string;
   fromName?: string;
+  /** Override the From address (otherwise uses MAIL_FROM). */
+  fromAddress?: string;
 }): Promise<boolean> {
   const senderName = params.fromName || process.env.SMTP_FROM_NAME || 'runQ';
-  const from = `${senderName} <${process.env.MAIL_FROM || 'noreply@runq.in'}>`;
+  const fromAddr = params.fromAddress || process.env.MAIL_FROM || 'noreply@runq.in';
+  const from = `${senderName} <${fromAddr}>`;
 
   if (useResend) {
     return sendViaResend({ ...params, from });

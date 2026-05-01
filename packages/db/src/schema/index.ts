@@ -60,3 +60,4 @@ export * from './ar/invoice-import-aliases';
 export * from './ar/customer-buyer-aliases';
 export * from './fa/fixed-assets';
 export * from './gst/gst-returns';
+export * from './support/conversations';

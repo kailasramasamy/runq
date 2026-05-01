@@ -10,6 +10,7 @@ import { appConfigAdminRoutes } from './app-config.routes';
 import { announcementsAdminRoutes } from './announcements.routes';
 import { analyticsRoutes } from './analytics.routes';
 import { systemRoutes } from './system.routes';
+import { adminSupportRoutes } from './support.routes';
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   await app.register(impersonationRoutes);
@@ -23,4 +24,5 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   await app.register(announcementsAdminRoutes);
   await app.register(analyticsRoutes);
   await app.register(systemRoutes);
+  await app.register(adminSupportRoutes);
 };

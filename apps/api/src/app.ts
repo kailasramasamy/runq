@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
+import websocket from '@fastify/websocket';
 import { dbPlugin } from './plugins/db';
 import { redisPlugin } from './plugins/redis';
 import { authPlugin } from './plugins/auth';
@@ -37,6 +38,8 @@ import { contactRoutes } from './modules/public/contact.routes';
 import { appConfigRoutes } from './modules/public/app-config.routes';
 import { otpRoutes } from './modules/public/otp.routes';
 import { agentRoutes } from './modules/agent/routes';
+import { supportRoutes } from './modules/support/routes';
+import { supportWsRoutes } from './modules/support/ws';
 import { adminRoutes } from './modules/admin/routes';
 
 export async function buildApp() {
@@ -64,6 +67,7 @@ export async function buildApp() {
   await app.register(redisPlugin);
   await app.register(authPlugin);
   await app.register(tenantContextPlugin);
+  await app.register(websocket);
 
   // Public routes (no auth required)
   await app.register(async (authScope) => {
@@ -107,7 +111,12 @@ export async function buildApp() {
     await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
     await scope.register(agentRoutes, { prefix: '/api/v1/agent' });
+    await scope.register(supportRoutes, { prefix: '/api/v1/support' });
   });
+
+  // Support WebSocket — auth handled via query param token, must NOT be
+  // inside the authenticated scope (which would block WS upgrade requests).
+  await app.register(supportWsRoutes, { prefix: '/api/v1/support' });
 
   // Platform admin routes (super-admin only — gated per-route by authenticatePlatform)
   await app.register(adminRoutes, { prefix: '/api/v1/admin' });
