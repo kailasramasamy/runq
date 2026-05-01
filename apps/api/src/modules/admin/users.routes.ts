@@ -154,6 +154,47 @@ export const adminUsersRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // ── Change own password (any platform user can change their own) ─────
+  app.post('/me/password', async (request, reply) => {
+    const schema = z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(8).max(200),
+    });
+    const { currentPassword, newPassword } = schema.parse(request.body);
+
+    const platformUserId = request.user.platformUserId;
+    if (!platformUserId) {
+      return reply.code(401).send({ error: 'Not a platform user' });
+    }
+
+    const [current] = await app.db
+      .select({ id: platformUsers.id, passwordHash: platformUsers.passwordHash })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, platformUserId))
+      .limit(1);
+    if (!current) return reply.code(404).send({ error: 'User not found' });
+
+    const valid = await argon2.verify(current.passwordHash, currentPassword);
+    if (!valid) {
+      return reply.code(400).send({ error: 'Current password is incorrect' });
+    }
+
+    const newHash = await argon2.hash(newPassword);
+    await app.db
+      .update(platformUsers)
+      .set({ passwordHash: newHash, updatedAt: new Date() })
+      .where(eq(platformUsers.id, platformUserId));
+
+    await logPlatformAction(app, request, {
+      action: 'platform_user.password_changed',
+      targetType: 'platform_user',
+      targetId: platformUserId,
+      metadata: {},
+    });
+
+    return { data: { changed: true } };
+  });
+
   app.patch<{ Params: { id: string } }>(
     '/platform-users/:id',
     { preHandler: [app.requirePlatformRole('super_admin')] },
