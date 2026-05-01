@@ -35,6 +35,8 @@ import 'screens/personal_info_screen.dart';
 import 'screens/notifications_settings_screen.dart';
 import 'screens/appearance_screen.dart';
 import 'screens/help_screen.dart';
+import 'screens/support_chat_screen.dart';
+import 'screens/support_inbox_screen.dart';
 import 'screens/po_draft_review_screen.dart';
 import 'screens/po_processing_screen.dart';
 import 'screens/search_screen.dart';
@@ -263,7 +265,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const AppearanceScreen(), key: state.pageKey),
         ),
         GoRoute(
+          path: '/profile/support',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const SupportInboxScreen(), key: state.pageKey),
+        ),
+        GoRoute(
           path: '/profile/help',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            SupportChatScreen(initialConversationId: state.uri.queryParameters['id']),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/profile/help/contact',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HelpScreen(), key: state.pageKey),
         ),

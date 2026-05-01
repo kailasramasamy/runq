@@ -100,9 +100,9 @@ class ProfileScreen extends ConsumerWidget {
                         onTap: () => context.push('/profile/appearance'),
                       ),
                       _RowSpec(
-                        icon: Icons.help_outline_rounded,
-                        label: 'Help & support',
-                        onTap: () => context.push('/profile/help'),
+                        icon: Icons.support_agent_rounded,
+                        label: 'Support',
+                        onTap: () => context.push('/profile/support'),
                       ),
                       _RowSpec(
                         icon: Icons.info_outline_rounded,

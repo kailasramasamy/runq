@@ -561,3 +561,143 @@ final approvalsRepo = ApprovalsRepo();
 final agentRepo = AgentRepo();
 final poRepo = PoRepo();
 final gstRepo = GstRepo();
+final supportRepo = SupportRepo();
+
+// ── Support agent (in-app help chat) ──────────────────────────────────
+
+class SupportConversationSummary {
+  final String id;
+  final String? subject;
+  final String? preview;
+  final String status;
+  final DateTime lastMessageAt;
+  SupportConversationSummary({
+    required this.id,
+    required this.subject,
+    required this.preview,
+    required this.status,
+    required this.lastMessageAt,
+  });
+  factory SupportConversationSummary.fromJson(Map<String, dynamic> j) => SupportConversationSummary(
+        id: j['id'] as String,
+        subject: j['subject'] as String?,
+        preview: j['preview'] as String?,
+        status: j['status'] as String,
+        lastMessageAt: DateTime.parse(j['lastMessageAt'] as String),
+      );
+}
+
+class SupportMessage {
+  final String id;
+  final String role;       // user | agent | human
+  final String content;
+  final DateTime createdAt;
+  SupportMessage({required this.id, required this.role, required this.content, required this.createdAt});
+  factory SupportMessage.fromJson(Map<String, dynamic> j) => SupportMessage(
+        id: j['id'] as String,
+        role: j['role'] as String,
+        content: j['content'] as String,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+      );
+}
+
+class SupportStreamEvent {
+  final String type;       // conversation | text_delta | tool_use_start | tool_result | escalated | done | error
+  final String? text;
+  final String? toolName;
+  final String? conversationId;
+  final String? message;
+  final String? summary;
+  SupportStreamEvent({required this.type, this.text, this.toolName, this.conversationId, this.message, this.summary});
+
+  factory SupportStreamEvent.fromJson(Map<String, dynamic> j) => SupportStreamEvent(
+        type: (j['type'] ?? 'unknown').toString(),
+        text: j['text'] as String?,
+        toolName: j['toolName'] as String?,
+        conversationId: j['id'] as String? ?? (j['result'] is Map ? (j['result'] as Map)['conversationId'] as String? : null),
+        message: j['message'] as String?,
+        summary: j['summary'] as String?,
+      );
+}
+
+class SupportRepo {
+  Future<List<SupportConversationSummary>> list({required String token}) async {
+    final res = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/support/conversations'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: 'Failed to load conversations');
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = (body['data'] as List).cast<Map<String, dynamic>>();
+    return data.map(SupportConversationSummary.fromJson).toList();
+  }
+
+  Future<List<SupportMessage>> messages({required String token, required String conversationId}) async {
+    final res = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/support/conversations/$conversationId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: 'Failed to load messages');
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = body['data'] as Map<String, dynamic>;
+    final msgs = (data['messages'] as List).cast<Map<String, dynamic>>();
+    return msgs.map(SupportMessage.fromJson).toList();
+  }
+
+  /// Streams a turn — either creates a new conversation (if [conversationId]
+  /// is null) or appends to an existing one. Yields parsed SSE events.
+  Stream<SupportStreamEvent> stream({
+    required String token,
+    required String message,
+    String? conversationId,
+  }) async* {
+    final path = conversationId == null
+        ? '/support/conversations/stream'
+        : '/support/conversations/$conversationId/stream';
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final req = http.Request('POST', uri)
+      ..headers['Content-Type'] = 'application/json'
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Accept'] = 'text/event-stream'
+      ..body = jsonEncode({'message': message});
+
+    final streamed = await req.send();
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      throw ApiException(statusCode: streamed.statusCode, message: 'Support request failed (${streamed.statusCode})');
+    }
+    var buffer = '';
+    await for (final chunk in streamed.stream.transform(utf8.decoder)) {
+      buffer += chunk;
+      final lines = buffer.split('\n');
+      buffer = lines.removeLast();
+      for (final raw in lines) {
+        final line = raw.trim();
+        if (!line.startsWith('data: ')) continue;
+        final json = line.substring(6).trim();
+        if (json.isEmpty) continue;
+        try {
+          yield SupportStreamEvent.fromJson(jsonDecode(json) as Map<String, dynamic>);
+        } catch (_) {/* skip malformed */}
+      }
+    }
+    if (buffer.trim().startsWith('data: ')) {
+      try {
+        yield SupportStreamEvent.fromJson(jsonDecode(buffer.trim().substring(6)) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> resolve({required String token, required String conversationId}) async {
+    await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/support/conversations/$conversationId/resolve'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+  }
+
+  /// Build the WebSocket URL for a specific conversation. Caller is responsible
+  /// for opening + closing the channel and reconnecting on disconnect.
+  Uri wsUrl({required String token, required String conversationId}) {
+    final base = ApiConfig.baseUrl.replaceFirst(RegExp(r'^http'), 'ws');
+    return Uri.parse('$base/support/ws?conversationId=$conversationId&token=$token');
+  }
+}

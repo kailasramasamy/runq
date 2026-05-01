@@ -1,7 +1,7 @@
 name: runq_mobile
 description: "runQ Mobile — on-the-go companion for runQ ERP."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.10.4
@@ -39,6 +39,10 @@ dependencies:
   fl_chart: ^0.69.2
   # Swipe-to-reveal action buttons on invoice/bill rows.
   flutter_slidable: ^3.1.1
+  # Markdown rendering for support agent chat bubbles.
+  flutter_markdown: ^0.7.4
+  # Realtime updates over WebSocket for support conversations.
+  web_socket_channel: ^3.0.1
 
 dev_dependencies:
   flutter_test:
