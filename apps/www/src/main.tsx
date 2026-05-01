@@ -12,6 +12,9 @@ import Pricing from '@/routes/pricing';
 import About from '@/routes/about';
 import Contact from '@/routes/contact';
 import GetStarted from '@/routes/get-started';
+import Privacy from '@/routes/privacy';
+import Terms from '@/routes/terms';
+import Support from '@/routes/support';
 import NotFound from '@/routes/not-found';
 
 function AppRoutes() {
@@ -25,6 +28,9 @@ function AppRoutes() {
   if (path.startsWith('/about')) return <About />;
   if (path.startsWith('/contact')) return <Contact />;
   if (path.startsWith('/get-started')) return <GetStarted />;
+  if (path.startsWith('/privacy')) return <Privacy />;
+  if (path.startsWith('/terms')) return <Terms />;
+  if (path.startsWith('/support')) return <Support />;
   return <NotFound />;
 }
 

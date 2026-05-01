@@ -58,8 +58,13 @@ export function Footer() {
         </div>
 
         {/* Bottom row */}
-        <div className="mt-8 pt-6 border-t border-zinc-800/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-zinc-600">
+        <div className="mt-8 pt-6 border-t border-zinc-800/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-600">
           <p>&copy; {year} Quartex Technologies. All rights reserved.</p>
+          <nav className="flex items-center gap-x-5">
+            <NavLink to="/privacy" className="hover:text-zinc-300 transition-colors">Privacy</NavLink>
+            <NavLink to="/terms" className="hover:text-zinc-300 transition-colors">Terms</NavLink>
+            <NavLink to="/support" className="hover:text-zinc-300 transition-colors">Support</NavLink>
+          </nav>
           <p>Made with ❤️ in Bangalore, India</p>
         </div>
       </div>
