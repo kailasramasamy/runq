@@ -9,6 +9,7 @@ import type {
 } from '@runq/validators';
 
 interface InvoiceSummary {
+  totalSales: number;
   totalOutstanding: number;
   overdueCount: number;
   overdueAmount: number;
@@ -16,11 +17,20 @@ interface InvoiceSummary {
   receivedThisMonth: number;
 }
 
+interface InvoiceSummaryFilters {
+  customerId?: string;
+  status?: 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  [key: string]: unknown;
+}
+
 const INVOICE_KEYS = {
   all: ['invoices'] as const,
   list: (filters?: Record<string, unknown>) => ['invoices', 'list', filters] as const,
   detail: (id: string) => ['invoices', 'detail', id] as const,
-  summary: ['invoices', 'summary'] as const,
+  summary: (filters?: Record<string, unknown>) => ['invoices', 'summary', filters] as const,
 };
 
 interface InvoiceFilters {
@@ -34,10 +44,17 @@ interface InvoiceFilters {
   [key: string]: unknown;
 }
 
-export function useInvoiceSummary() {
+export function useInvoiceSummary(filters?: InvoiceSummaryFilters) {
+  const params = new URLSearchParams();
+  if (filters?.customerId) params.set('customerId', filters.customerId);
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.search) params.set('search', filters.search);
+  if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+  if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+  const qs = params.toString();
   return useQuery({
-    queryKey: INVOICE_KEYS.summary,
-    queryFn: () => api.get<{ data: InvoiceSummary }>('/ar/invoices/summary'),
+    queryKey: INVOICE_KEYS.summary(filters),
+    queryFn: () => api.get<{ data: InvoiceSummary }>(`/ar/invoices/summary${qs ? `?${qs}` : ''}`),
   });
 }
 

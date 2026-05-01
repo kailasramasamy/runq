@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle, TrendingUp } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
 import { useInvoices, useInvoiceSummary, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
@@ -156,7 +156,15 @@ export function InvoiceListPage() {
     }
   }
 
-  const { data: summaryData, isLoading: summaryLoading } = useInvoiceSummary();
+  // Status filter is intentionally NOT passed: each summary card already has
+  // its own status semantics (Drafts, Overdue, Received), so scoping by status
+  // would zero out unrelated cards. Customer / date / search do scope cards.
+  const { data: summaryData, isLoading: summaryLoading } = useInvoiceSummary({
+    customerId: customerFilter || undefined,
+    search: search || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  });
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data ?? [];
   const customerOptions = [
@@ -236,13 +244,18 @@ export function InvoiceListPage() {
       />
 
       {summaryLoading ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
       ) : summaryData?.data ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <StatsCard
+            title="Total Sales"
+            value={summaryData.data.totalSales}
+            icon={TrendingUp}
+          />
           <StatsCard
             title="Total Outstanding"
             value={summaryData.data.totalOutstanding}

@@ -28,8 +28,9 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     '/summary',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
+      const filters = salesInvoiceFilterSchema.parse(request.query);
       const service = new InvoiceService(request.server.db, request.tenantId);
-      const summary = await service.summary();
+      const summary = await service.summary(filters);
       return { data: summary };
     },
   );

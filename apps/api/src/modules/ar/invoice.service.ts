@@ -24,6 +24,7 @@ import type { TaxCategory, TaxBreakdown } from '@runq/types';
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
 export interface InvoiceSummary {
+  totalSales: number;
   totalOutstanding: number;
   overdueCount: number;
   overdueAmount: number;
@@ -1067,16 +1068,41 @@ export class InvoiceService {
     );
   }
 
-  async summary(): Promise<InvoiceSummary> {
+  async summary(filters: SalesInvoiceFilter = {}): Promise<InvoiceSummary> {
     const today = new Date().toISOString().split('T')[0]!;
     const monthStart = today.slice(0, 7) + '-01';
 
-    const [outstanding, overdue, drafts, receivedThisMonth] = await Promise.all([
+    // Common filter scope: customer, date range, and free-text search apply to
+    // every metric. We intentionally do NOT apply `status` here so individual
+    // metric cards (drafts, overdue, received) still mean what their label
+    // says — `status` filter scopes the table, not the breakdown cards.
+    const tenant = eq(salesInvoices.tenantId, this.tenantId);
+    const customerScope = filters.customerId ? eq(salesInvoices.customerId, filters.customerId) : undefined;
+    const dateFrom = filters.dateFrom ? gte(salesInvoices.invoiceDate, filters.dateFrom) : undefined;
+    const dateTo = filters.dateTo ? lte(salesInvoices.invoiceDate, filters.dateTo) : undefined;
+    const search = filters.search
+      ? sql`(${salesInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'}
+          OR ${customers.name} ILIKE ${'%' + filters.search + '%'}
+          OR ${customers.nickname} ILIKE ${'%' + filters.search + '%'})`
+      : undefined;
+
+    // Always inner-join customers so the same WHERE shape works whether or not
+    // search is provided. Every invoice has a customer, so the join is total.
+    const [sales, outstanding, overdue, drafts, receivedThisMonth] = await Promise.all([
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text` })
+        .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
+        .where(and(
+          tenant, customerScope, dateFrom, dateTo, search,
+          sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+        )),
       this.db
         .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text` })
         .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
         .where(and(
-          eq(salesInvoices.tenantId, this.tenantId),
+          tenant, customerScope, dateFrom, dateTo, search,
           sql`${salesInvoices.status} NOT IN ('paid', 'cancelled', 'draft')`,
         )),
       this.db
@@ -1085,8 +1111,9 @@ export class InvoiceService {
           amount: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text`,
         })
         .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
         .where(and(
-          eq(salesInvoices.tenantId, this.tenantId),
+          tenant, customerScope, dateFrom, dateTo, search,
           sql`${salesInvoices.dueDate} < ${today}`,
           sql`${salesInvoices.status} IN ('sent', 'partially_paid')`,
           sql`${salesInvoices.balanceDue} > 0`,
@@ -1094,21 +1121,24 @@ export class InvoiceService {
       this.db
         .select({ count: sql<number>`COUNT(*)::int` })
         .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
         .where(and(
-          eq(salesInvoices.tenantId, this.tenantId),
+          tenant, customerScope, dateFrom, dateTo, search,
           eq(salesInvoices.status, 'draft'),
         )),
       this.db
         .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.amountReceived}), 0)::text` })
         .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
         .where(and(
-          eq(salesInvoices.tenantId, this.tenantId),
+          tenant, customerScope, dateFrom, dateTo, search,
           sql`${salesInvoices.status} IN ('paid', 'partially_paid')`,
           gte(salesInvoices.updatedAt, new Date(monthStart)),
         )),
     ]);
 
     return {
+      totalSales: Number(sales[0]?.total ?? 0),
       totalOutstanding: Number(outstanding[0]?.total ?? 0),
       overdueCount: overdue[0]?.count ?? 0,
       overdueAmount: Number(overdue[0]?.amount ?? 0),
