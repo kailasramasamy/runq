@@ -11,9 +11,12 @@ interface StatsCardProps {
   onClick?: () => void;
   className?: string;
   formatValue?: (v: number) => string;
+  /** "default" = fixed text-2xl (matches inline stat tiles).
+   *  "compact" = responsive sm/base/lg/xl/base — use when many cards share a row at narrow widths. */
+  size?: 'default' | 'compact';
 }
 
-export function StatsCard({ title, value, icon: Icon, trend, onClick, className, formatValue }: StatsCardProps) {
+export function StatsCard({ title, value, icon: Icon, trend, onClick, className, formatValue, size = 'default' }: StatsCardProps) {
   const isPositive = trend !== undefined && trend >= 0;
   const displayValue = formatValue ? formatValue(value) : formatINR(value);
 
@@ -30,14 +33,27 @@ export function StatsCard({ title, value, icon: Icon, trend, onClick, className,
       )}
     >
       {Icon && (
-        <div className="pointer-events-none absolute right-2 top-2 hidden opacity-5 dark:opacity-10 xl:block">
-          <Icon className="h-10 w-10 2xl:h-12 2xl:w-12" />
+        <div className={cn(
+          'pointer-events-none absolute right-2 top-2 opacity-5 dark:opacity-10',
+          size === 'compact' ? 'hidden xl:block' : '',
+        )}>
+          <Icon className={size === 'compact' ? 'h-10 w-10 2xl:h-12 2xl:w-12' : 'h-12 w-12'} />
         </div>
       )}
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[11px] lg:text-xs">
+      <p className={cn(
+        'mb-1 font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400',
+        size === 'compact'
+          ? 'text-[10px] sm:text-[11px] lg:text-xs'
+          : 'text-xs',
+      )}>
         {title}
       </p>
-      <p className="font-mono text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-base md:text-lg lg:text-xl 2xl:text-base">
+      <p className={cn(
+        'font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100',
+        size === 'compact'
+          ? 'text-sm sm:text-base md:text-lg lg:text-xl 2xl:text-base'
+          : 'text-2xl',
+      )}>
         {displayValue}
       </p>
       {trend !== undefined && (

@@ -284,27 +284,32 @@ export function InvoiceListPage() {
       ) : summaryData?.data ? (
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
           <StatsCard
+            size="compact"
             title="Total Sales"
             value={summaryData.data.totalSales}
             icon={TrendingUp}
           />
           <StatsCard
+            size="compact"
             title="Total Received"
             value={summaryData.data.totalReceived}
             icon={CheckCircle}
           />
           <StatsCard
+            size="compact"
             title="Total Outstanding"
             value={summaryData.data.totalOutstanding}
             icon={IndianRupee}
           />
           <StatsCard
+            size="compact"
             title="Pending Invoices"
             value={summaryData.data.pendingCount}
             icon={Clock}
             formatValue={(v) => String(v)}
           />
           <StatsCard
+            size="compact"
             title="Overdue"
             value={summaryData.data.overdueAmount}
             icon={AlertTriangle}
@@ -312,6 +317,7 @@ export function InvoiceListPage() {
             formatValue={(v) => `${formatINR(v)} (${summaryData.data.overdueCount})`}
           />
           <StatsCard
+            size="compact"
             title="Drafts"
             value={summaryData.data.draftCount}
             icon={FileEdit}
