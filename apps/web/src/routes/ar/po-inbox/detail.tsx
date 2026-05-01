@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import {
   ArrowLeft,
   ChevronRight,
@@ -146,6 +146,11 @@ function ReviewActions({
   queue: ReviewQueue | null;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/po-inbox' });
+  }
   const { toast } = useToast();
   const approve = useApprovePoDraft();
   const reparse = useReparsePoUpload();
@@ -224,6 +229,9 @@ function ReviewActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" onClick={goBack}>
+        <ArrowLeft className="h-4 w-4" /> Back
+      </Button>
       <StatusBadge draft={draft} />
       {!isLocked && (
         <>

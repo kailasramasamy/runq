@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { FileText, Receipt, Trash2, ExternalLink, Copy, Check } from 'lucide-react';
+import { FileText, Receipt, Trash2, ExternalLink, Copy, Check, ArrowLeft } from 'lucide-react';
 import { useCustomer, useDeleteCustomer, useUpdateCustomer } from '@/hooks/queries/use-customers';
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
@@ -195,6 +195,11 @@ function EditCustomerDialog({
 
 export function CustomerDetailPage({ customerId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/customers' });
+  }
   const { data, isLoading, isError } = useCustomer(customerId);
   const deleteMutation = useDeleteCustomer();
   const [showDelete, setShowDelete] = useState(false);
@@ -242,6 +247,9 @@ export function CustomerDetailPage({ customerId }: Props) {
         }
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Badge variant={customer.isActive ? 'success' : 'default'}>
               {customer.isActive ? 'Active' : 'Inactive'}
             </Badge>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { Check, X, AlertTriangle, FileWarning, Pencil, Trash2 } from 'lucide-react';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
+import { Check, X, AlertTriangle, FileWarning, Pencil, Trash2, ArrowLeft } from 'lucide-react';
 import {
   usePurchaseInvoice,
   useThreeWayMatch,
@@ -705,6 +705,11 @@ function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
 
 export function BillDetailPage({ billId }: { billId: string }) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/bills' });
+  }
   const { data, isLoading, isError } = usePurchaseInvoice(billId);
   const invoice = data?.data;
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -747,6 +752,9 @@ export function BillDetailPage({ billId }: { billId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Badge variant={STATUS_BADGE_VARIANT[invoice.status]}>
               {STATUS_LABELS[invoice.status]}
             </Badge>

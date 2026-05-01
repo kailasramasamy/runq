@@ -1,4 +1,5 @@
-import { Send } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { Send, ArrowLeft } from 'lucide-react';
 import { useDebitNote, useIssueDebitNote, useApplyDebitNote } from '../../../hooks/queries/use-debit-notes';
 import { useVendor } from '../../../hooks/queries/use-vendors';
 import type { DebitNote, DebitNoteStatus } from '@runq/types';
@@ -67,6 +68,12 @@ function DebitNoteActions({ dn, onIssue, onApply, issuing, applying }: {
 interface Props { debitNoteId: string }
 
 export function DebitNoteDetailPage({ debitNoteId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/debit-notes' });
+  }
   const { data, isLoading, isError } = useDebitNote(debitNoteId);
   const issueMutation = useIssueDebitNote();
   const applyMutation = useApplyDebitNote();
@@ -111,7 +118,14 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
           { label: 'Debit Notes', href: '/ap/debit-notes' },
           { label: dn.debitNoteNumber },
         ]}
-        actions={<DebitNoteActions dn={dn} onIssue={handleIssue} onApply={handleApply} issuing={issueMutation.isPending} applying={applyMutation.isPending} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
+            <DebitNoteActions dn={dn} onIssue={handleIssue} onApply={handleApply} issuing={issueMutation.isPending} applying={applyMutation.isPending} />
+          </div>
+        }
       />
 
       {/* Hero amount row */}

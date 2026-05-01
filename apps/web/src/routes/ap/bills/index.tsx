@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Plus, FileText, Download, Upload, Send, IndianRupee, AlertTriangle, Clock, CheckCircle, Search, ScanLine } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice } from '../../../hooks/queries/use-purchase-invoices';
@@ -88,13 +88,46 @@ const LIMIT = 20;
 export function BillListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [vendorId, setVendorId] = useState('');
-  const [status, setStatus] = useState('');
-  const [category, setCategory] = useState('');
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
+  const params = useSearch({ strict: false }) as {
+    vendor?: string;
+    status?: PurchaseInvoiceStatus;
+    category?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  };
+  const vendorId = params.vendor ?? '';
+  const status = params.status ?? '';
+  const category = params.category ?? '';
+  const search = params.q ?? '';
+  const dateFrom = params.from ?? '';
+  const dateTo = params.to ?? '';
+  const page = params.page ?? 1;
+
+  function updateSearch(patch: Partial<typeof params>, resetPage = true): void {
+    navigate({
+      to: '/ap/bills',
+      search: (prev) => {
+        const next = { ...(prev as typeof params), ...patch };
+        if (resetPage) next.page = undefined;
+        for (const k of Object.keys(next) as (keyof typeof next)[]) {
+          if (next[k] === '' || next[k] === undefined) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
+  const setVendorId = (v: string) => updateSearch({ vendor: v || undefined });
+  const setStatus = (v: string) => updateSearch({ status: (v || undefined) as PurchaseInvoiceStatus | undefined });
+  const setCategory = (v: string) => updateSearch({ category: v || undefined });
+  const setSearch = (v: string) => updateSearch({ q: v || undefined });
+  const setDateFrom = (v: string) => updateSearch({ from: v || undefined });
+  const setDateTo = (v: string) => updateSearch({ to: v || undefined });
+  const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const filters = {

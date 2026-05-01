@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { CheckCircle, XCircle, CreditCard, ArrowLeft } from 'lucide-react';
 import {
   usePGSettlement,
   useReconcilePGSettlement,
@@ -98,6 +99,12 @@ interface Props {
 }
 
 export function PGSettlementDetailPage({ settlementId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/banking/pg-recon' });
+  }
   const { toast } = useToast();
   const [reconcileResult, setReconcileResult] = useState<{
     matched: number;
@@ -170,14 +177,19 @@ export function PGSettlementDetailPage({ settlementId }: Props) {
         title="Settlement Detail"
         description={`${settlement.date}`}
         actions={
-          <Button
-            onClick={handleReconcile}
-            loading={reconcileMutation.isPending}
-            disabled={reconcileMutation.isPending}
-          >
-            <CheckCircle size={16} />
-            Reconcile
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
+            <Button
+              onClick={handleReconcile}
+              loading={reconcileMutation.isPending}
+              disabled={reconcileMutation.isPending}
+            >
+              <CheckCircle size={16} />
+              Reconcile
+            </Button>
+          </div>
         }
       />
 

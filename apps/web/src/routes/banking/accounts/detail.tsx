@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { ArrowUpDown, Landmark, Pencil } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { ArrowUpDown, Landmark, Pencil, ArrowLeft } from 'lucide-react';
 import { useBankAccount, useUpdateBankAccount } from '@/hooks/queries/use-bank-accounts';
 import { useBankTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR } from '@/lib/utils';
@@ -151,6 +151,11 @@ interface Props {
 
 export function BankAccountDetailPage({ accountId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/banking/accounts' });
+  }
   const [showEdit, setShowEdit] = useState(false);
   const { data: accountData, isLoading } = useBankAccount(accountId);
   const { data: txnData, isLoading: txnLoading } = useBankTransactions({
@@ -190,6 +195,9 @@ export function BankAccountDetailPage({ accountId }: Props) {
         description={`${account.bankName} — ${account.ifscCode}`}
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Button variant="outline" onClick={() => setShowEdit(true)}>
               <Pencil size={14} />
               Edit

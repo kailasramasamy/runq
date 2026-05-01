@@ -1,4 +1,5 @@
-import { FileMinus } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { FileMinus, ArrowLeft } from 'lucide-react';
 import { useCreditNote, useIssueCreditNote, useApplyCreditNote } from '../../../hooks/queries/use-credit-notes';
 import type { CreditNoteStatus } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
@@ -32,6 +33,12 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 interface Props { creditNoteId: string }
 
 export function CreditNoteDetailPage({ creditNoteId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/credit-notes' });
+  }
   const { data, isLoading, isError } = useCreditNote(creditNoteId);
   const issueMutation = useIssueCreditNote();
   const applyMutation = useApplyCreditNote();
@@ -78,6 +85,9 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
         ]}
         actions={
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Badge variant={STATUS_VARIANT[cn.status]} className="capitalize px-3 py-1 text-sm">
               {cn.status}
             </Badge>

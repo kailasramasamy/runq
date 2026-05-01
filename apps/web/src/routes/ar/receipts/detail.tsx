@@ -1,4 +1,5 @@
-import { ArrowDownToLine } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { ArrowDownToLine, ArrowLeft } from 'lucide-react';
 import { useReceipt } from '../../../hooks/queries/use-receipts';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import type { ReceiptAllocationDetail } from '../../../hooks/queries/use-receipts';
@@ -6,6 +7,7 @@ import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
   Badge,
+  Button,
   Card,
   CardHeader,
   CardContent,
@@ -55,6 +57,12 @@ function AllocationRow({ alloc }: { alloc: ReceiptAllocationDetail }) {
 interface Props { receiptId: string }
 
 export function ReceiptDetailPage({ receiptId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/receipts' });
+  }
   const { data, isLoading, isError } = useReceipt(receiptId);
   const { data: bankData } = useBankAccounts();
   const receipt = data?.data;
@@ -86,6 +94,11 @@ export function ReceiptDetailPage({ receiptId }: Props) {
           { label: 'Receipts', href: '/ar/receipts' },
           { label: receipt.referenceNumber ?? receipt.id },
         ]}
+        actions={
+          <Button variant="outline" size="sm" onClick={goBack}>
+            <ArrowLeft size={14} /> Back
+          </Button>
+        }
       />
 
       {/* Amount hero */}

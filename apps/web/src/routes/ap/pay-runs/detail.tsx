@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { CheckCircle2, XCircle, Download, Play, UserPlus, FileText } from 'lucide-react';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
+import { CheckCircle2, XCircle, Download, Play, UserPlus, FileText, ArrowLeft } from 'lucide-react';
 import { usePaymentRun, useApproveLines, useRejectLines, useExecuteRun } from '../../../hooks/queries/use-payment-runs';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import { useCreateVendor } from '../../../hooks/queries/use-vendors';
@@ -334,6 +334,12 @@ function ActionBar({ runId, runStatus, selected, lines, onClearSelection }: Acti
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function PayRunDetailPage({ runId }: { runId: string }) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/pay-runs' });
+  }
   const [selected, setSelected] = useState<string[]>([]);
   const { data, isLoading } = usePaymentRun(runId);
   const run = data?.data;
@@ -358,11 +364,16 @@ export function PayRunDetailPage({ runId }: { runId: string }) {
           { label: run?.runId ?? '…' },
         ]}
         actions={
-          run && (
-            <Badge variant={RUN_STATUS_VARIANT[run.status]}>
-              {RUN_STATUS_LABEL[run.status]}
-            </Badge>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
+            {run && (
+              <Badge variant={RUN_STATUS_VARIANT[run.status]}>
+                {RUN_STATUS_LABEL[run.status]}
+              </Badge>
+            )}
+          </div>
         }
       />
 

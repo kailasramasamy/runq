@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Banknote, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { Banknote, CheckCircle, XCircle, RotateCcw, ArrowLeft } from 'lucide-react';
 import { useVendorPayment, useApprovePayment, useRejectPayment, useReversePayment } from '../../../hooks/queries/use-payments';
 import { ApprovalPanel } from '@/components/approval-panel';
 import type { VendorPaymentWithAllocations, PaymentStatus } from '@runq/types';
@@ -7,6 +8,7 @@ import { formatINR } from '../../../lib/utils';
 import {
   PageHeader,
   Badge,
+  Button,
   Card,
   CardHeader,
   CardContent,
@@ -132,6 +134,12 @@ function AllocationsCard({ payment }: { payment: VendorPaymentWithAllocations })
 interface Props { paymentId: string }
 
 export function PaymentDetailPage({ paymentId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/payments' });
+  }
   const { data, isLoading, isError } = useVendorPayment(paymentId);
   const payment = data?.data;
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -165,6 +173,9 @@ export function PaymentDetailPage({ paymentId }: Props) {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize text-sm px-3 py-1">
               {payment.status}
             </Badge>

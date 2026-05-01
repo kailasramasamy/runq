@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { ExternalLink } from 'lucide-react';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
+import { ExternalLink, ArrowLeft } from 'lucide-react';
 import {
   useFixedAsset, useDisposeAsset, useTransferAsset,
 } from '@/hooks/queries/use-fixed-assets';
@@ -249,6 +249,12 @@ function DepreciationTable({ entries }: { entries: DepreciationEntry[] }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function AssetDetailPage({ assetId }: { assetId: string }) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/fa/assets' });
+  }
   const { data, isLoading, isError } = useFixedAsset(assetId);
   const asset = data?.data;
   const [showDispose, setShowDispose] = useState(false);
@@ -287,6 +293,9 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             {isActive && (
               <>
                 <Button size="sm" variant="outline" onClick={() => { setShowTransfer((v) => !v); setShowDispose(false); }}>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { Pencil, Power, ArrowLeft, Download } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { usePriceList, useTogglePriceList, type PriceListItemRow } from '@/hooks/queries/use-price-lists';
@@ -97,6 +97,11 @@ const profitColor = (profit: number) =>
 
 export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/masters/price-lists' });
+  }
   const { data, isLoading, isError } = usePriceList(priceListId);
   const toggle = useTogglePriceList();
   const { toast } = useToast();
@@ -236,6 +241,9 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Button variant="outline" size="sm" onClick={exportXlsx}>
               <Download size={14} /> Export XLSX
             </Button>

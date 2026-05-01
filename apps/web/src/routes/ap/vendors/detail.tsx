@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { CreditCard, FileText, Trash2, Pencil, ExternalLink, Copy, Check } from 'lucide-react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { CreditCard, FileText, Trash2, Pencil, ExternalLink, Copy, Check, ArrowLeft } from 'lucide-react';
 import { useVendor, useDeleteVendor, useUpdateVendor } from '@/hooks/queries/use-vendors';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
@@ -176,6 +176,11 @@ interface Props { vendorId: string }
 
 export function VendorDetailPage({ vendorId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/vendors' });
+  }
   const { data, isLoading, isError } = useVendor(vendorId);
   const deleteMutation = useDeleteVendor();
   const [showDelete, setShowDelete] = useState(false);
@@ -213,6 +218,9 @@ export function VendorDetailPage({ vendorId }: Props) {
         title={vendor.name}
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <StatusBadgeCell active={vendor.isActive} />
             <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
               <Pencil size={14} /> Edit

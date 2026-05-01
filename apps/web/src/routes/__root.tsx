@@ -302,9 +302,29 @@ const vendorDetailRoute = createRoute({
   },
 });
 
+type BillStatusFilter = 'draft' | 'pending_match' | 'matched' | 'approved' | 'partially_paid' | 'paid' | 'cancelled';
+const BILL_STATUS_VALUES: readonly BillStatusFilter[] = ['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled'];
+
 const billsRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/bills',
+  validateSearch: (search: Record<string, unknown>): {
+    vendor?: string;
+    status?: BillStatusFilter;
+    category?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  } => ({
+    vendor: typeof search.vendor === 'string' ? search.vendor : undefined,
+    status: BILL_STATUS_VALUES.includes(search.status as BillStatusFilter) ? (search.status as BillStatusFilter) : undefined,
+    category: typeof search.category === 'string' ? search.category : undefined,
+    q: typeof search.q === 'string' ? search.q : undefined,
+    from: typeof search.from === 'string' ? search.from : undefined,
+    to: typeof search.to === 'string' ? search.to : undefined,
+    page: typeof search.page === 'number' && search.page > 1 ? search.page : undefined,
+  }),
   component: BillListPage,
 });
 
