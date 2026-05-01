@@ -48,13 +48,13 @@ class GstHubScreen extends ConsumerWidget {
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                sliver: SliverToBoxAdapter(child: _ReconcileTile()),
+                sliver: SliverToBoxAdapter(child: _ActionTiles()),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                 sliver: SliverToBoxAdapter(
                   child: SectionHead(
-                    title: 'Returns',
+                    title: 'Recent returns',
                     action: 'See all',
                     onAction: () => context.push('/gst/returns'),
                   ),
@@ -127,7 +127,13 @@ class _ReadinessCard extends StatelessWidget {
     final passing = readiness.signals.where((s) => s.ok).length;
     final total = readiness.signals.length;
 
-    return Container(
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(RunqRadii.card),
+      child: InkWell(
+      borderRadius: BorderRadius.circular(RunqRadii.card),
+      onTap: () => context.push('/gst/returns'),
+      child: Container(
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: BorderRadius.circular(RunqRadii.card),
@@ -187,6 +193,8 @@ class _ReadinessCard extends StatelessWidget {
           ],
         ],
       ),
+    ),
+    ),
     );
   }
 }
@@ -231,51 +239,82 @@ class _SignalRow extends StatelessWidget {
   }
 }
 
-class _ReconcileTile extends StatelessWidget {
+class _ActionTiles extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ActionTile(
+            icon: Icons.description_outlined,
+            label: 'Returns',
+            sub: 'GSTR-1 & 3B',
+            onTap: () => context.push('/gst/returns'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _ActionTile(
+            icon: Icons.sync_alt_rounded,
+            label: 'Reconcile 2B',
+            sub: 'Match ITC claims',
+            onTap: () => context.push('/gst/2b'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final VoidCallback onTap;
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.sub,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return InkWell(
+    return Material(
+      color: t.surface,
       borderRadius: BorderRadius.circular(RunqRadii.card),
-      onTap: () => context.push('/gst/2b'),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(RunqRadii.card),
-          border: Border.all(color: t.hairline, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40, height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: RunqColors.indigo.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(RunqRadii.card),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(RunqRadii.card),
+            border: Border.all(color: t.hairline, width: 0.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36, height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: RunqColors.indigo.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: RunqColors.indigo, size: 18),
               ),
-              child: const Icon(
-                Icons.sync_alt_rounded,
-                color: RunqColors.indigo,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('GSTR-2B reconciliation',
-                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  const SizedBox(height: 2),
-                  Text('Match purchases against vendor uploads',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
-          ],
+              const SizedBox(height: 10),
+              Text(label,
+                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+              const SizedBox(height: 2),
+              Text(sub,
+                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+            ],
+          ),
         ),
       ),
     );

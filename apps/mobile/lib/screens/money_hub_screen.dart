@@ -210,6 +210,21 @@ class _MoneyGrid extends ConsumerWidget {
       data: (s) => s.outstandingReceivables,
       orElse: () => 0.0,
     );
+    final readiness = ref.watch(gstReadinessProvider);
+    final gstMetric = readiness.maybeWhen(
+      data: (g) => g == null ? 'Set up' : '${g.score}% ready',
+      orElse: () => '—',
+    );
+    final gstCaption = readiness.maybeWhen(
+      data: (g) {
+        if (g == null) return 'add GSTIN to begin';
+        final days = g.daysToGstr1;
+        if (days == null) return g.periodLabel.toLowerCase();
+        if (days < 0) return 'overdue · ${g.periodLabel.toLowerCase()}';
+        return 'GSTR-1 due in $days ${days == 1 ? 'day' : 'days'}';
+      },
+      orElse: () => 'filing readiness',
+    );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -255,6 +270,15 @@ class _MoneyGrid extends ConsumerWidget {
           caption: 'outstanding from customers',
           captionColor: t.muted,
           onTap: () => context.push('/sales/collections'),
+        ),
+        HubSectionTile(
+          icon: Icons.receipt_long_outlined,
+          iconBg: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE),
+          iconFg: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+          title: 'GST FILING',
+          metric: gstMetric,
+          caption: gstCaption,
+          onTap: () => context.push('/gst'),
         ),
       ],
     );

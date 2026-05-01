@@ -141,29 +141,29 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          PopupMenuButton<String>(
-            enabled: !busy,
-            tooltip: 'Generate draft',
-            onSelected: onGenerate,
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'gstr1', child: Text('Generate GSTR-1')),
-              PopupMenuItem(value: 'gstr3b', child: Text('Generate GSTR-3B')),
-            ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: RunqColors.indigo,
-                borderRadius: BorderRadius.circular(999),
+          Material(
+            color: RunqColors.indigo,
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: busy
+                  ? null
+                  : () async {
+                      final picked = await _pickGenerateType(context);
+                      if (picked != null) onGenerate(picked);
+                    },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: busy
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text('Generate',
+                        style: RunqText.bodyStrong
+                            .copyWith(color: Colors.white, fontSize: 13)),
               ),
-              child: busy
-                  ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text('Generate',
-                      style: RunqText.bodyStrong
-                          .copyWith(color: Colors.white, fontSize: 13)),
             ),
           ),
         ],
@@ -273,6 +273,115 @@ class _Row extends StatelessWidget {
             GstStatusChip(status: ret.status),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<String?> _pickGenerateType(BuildContext context) async {
+  final t = RT(context);
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: t.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Row(
+                children: [
+                  Text('Generate draft',
+                      style: RunqText.bodyStrong
+                          .copyWith(color: t.ink, fontSize: 15)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            _GenerateTile(
+              icon: Icons.description_outlined,
+              tint: RunqColors.indigo,
+              title: 'GSTR-1',
+              subtitle: 'Outward supplies — invoices, B2B, B2C, HSN summary',
+              onTap: () => Navigator.pop(context, 'gstr1'),
+            ),
+            _GenerateTile(
+              icon: Icons.account_balance_wallet_outlined,
+              tint: const Color(0xFF06B6D4),
+              title: 'GSTR-3B',
+              subtitle: 'Summary return — tax payable, ITC, net liability',
+              onTap: () => Navigator.pop(context, 'gstr3b'),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _GenerateTile extends StatelessWidget {
+  final IconData icon;
+  final Color tint;
+  final String title, subtitle;
+  final VoidCallback onTap;
+  const _GenerateTile({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: tint, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: RunqText.caption
+                          .copyWith(color: t.muted, fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2),
           ],
         ),
       ),
