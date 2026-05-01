@@ -1,4 +1,5 @@
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardContent } from '@/components/ui';
 import { api } from '@/lib/api-client';
@@ -116,10 +117,25 @@ function InsightCard({ item }: { item: InsightItem }) {
   );
 }
 
+const COLLAPSED_KEY = 'dashboard:ai-snapshot-collapsed';
+
 export function AIInsightsWidget() {
   const { data, isLoading, isError, error } = useAISummary();
   const queryClient = useQueryClient();
   const summary = data?.data;
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(COLLAPSED_KEY) === '1';
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
+      }
+      return next;
+    });
+  };
 
   const isNotConfigured = isError && (error as { statusCode?: number })?.statusCode === 500;
 
@@ -136,7 +152,12 @@ export function AIInsightsWidget() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex items-center gap-2 rounded text-left hover:opacity-80"
+            aria-expanded={!collapsed}
+          >
             <Sparkles size={14} className="text-indigo-500" />
             <span className="text-sm font-semibold">AI Snapshot</span>
             {summary && (
@@ -144,8 +165,9 @@ export function AIInsightsWidget() {
                 {new Date(summary.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-          </div>
-          {summary && (
+            {collapsed ? <ChevronDown size={14} className="text-zinc-400" /> : <ChevronUp size={14} className="text-zinc-400" />}
+          </button>
+          {summary && !collapsed && (
             <button
               onClick={handleRefresh}
               className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
@@ -156,6 +178,7 @@ export function AIInsightsWidget() {
           )}
         </div>
       </CardHeader>
+      {!collapsed && (
       <CardContent>
         {isLoading ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -175,6 +198,7 @@ export function AIInsightsWidget() {
           <p className="text-sm text-zinc-400">Unable to load insights</p>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

@@ -265,9 +265,6 @@ export function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* AI Snapshot */}
-      <AIInsightsWidget />
-
       {/* Row 1: Stats */}
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -329,6 +326,9 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* AI Snapshot */}
+      <AIInsightsWidget />
 
       {/* Row 2: Aging Charts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
