@@ -28,6 +28,7 @@ interface AutoReceiptResult {
   receiptId: string;
   allocations: { invoiceId: string; amount: number; status: 'paid' | 'partially_paid' }[];
   unallocated: number;
+  skippedDrafts: { invoiceId: string; invoiceNumber: string; invoiceDate: string; totalAmount: string }[];
 }
 
 export class AutoReceiptService {
@@ -61,7 +62,8 @@ export class AutoReceiptService {
     // 2. Fetch all unpaid invoices for this customer (oldest first)
     const invoices = await this.findUnpaidInvoices(params.customerId);
     if (invoices.length > 0) {
-      return this.createReceiptWithAllocations(params, invoices, arGlId);
+      const skippedDrafts = await this.findSkippedDrafts(params.customerId, params.transactionDate);
+      return this.createReceiptWithAllocations(params, invoices, arGlId, skippedDrafts);
     }
 
     // 3. No invoices — just tag with customerId, leave unreconciled for manual handling.
@@ -101,6 +103,33 @@ export class AutoReceiptService {
   }
 
   /**
+   * Drafts dated on or before the receipt date are silently skipped by the
+   * waterfall (status filter). They get reported back so the caller can warn
+   * the user — otherwise newer sent invoices get cleared while older drafts
+   * stay open, breaking sequential reconciliation.
+   */
+  private async findSkippedDrafts(
+    customerId: string,
+    receiptDate: string,
+  ): Promise<AutoReceiptResult['skippedDrafts']> {
+    return this.db
+      .select({
+        invoiceId: salesInvoices.id,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        invoiceDate: salesInvoices.invoiceDate,
+        totalAmount: salesInvoices.totalAmount,
+      })
+      .from(salesInvoices)
+      .where(and(
+        eq(salesInvoices.tenantId, this.tenantId),
+        eq(salesInvoices.customerId, customerId),
+        eq(salesInvoices.status, 'draft'),
+        sql`${salesInvoices.invoiceDate} <= ${receiptDate}::date`,
+      ))
+      .orderBy(salesInvoices.invoiceDate);
+  }
+
+  /**
    * Waterfall allocation: walk invoices oldest-first, fully pay each until
    * the receipt amount runs out. The last touched invoice may be partially paid.
    */
@@ -108,8 +137,13 @@ export class AutoReceiptService {
     params: AutoReceiptParams,
     invoices: { id: string; balanceDue: string }[],
     arGlId: string | null,
+    skippedDrafts: AutoReceiptResult['skippedDrafts'],
   ): Promise<AutoReceiptResult> {
     const gl = new GLService(this.db, this.tenantId);
+
+    const draftWarning = skippedDrafts.length > 0
+      ? ` · ${skippedDrafts.length} older draft${skippedDrafts.length === 1 ? '' : 's'} skipped (#${skippedDrafts.map((d) => d.invoiceNumber).join(', #')})`
+      : '';
 
     const result = await this.db.transaction(async (tx) => {
       // Create single receipt for the full bank amount
@@ -121,7 +155,7 @@ export class AutoReceiptService {
         amount: String(params.amount),
         paymentMethod: 'bank_transfer',
         referenceNumber: params.reference,
-        notes: `Auto-created from bank transaction`,
+        notes: `Auto-created from bank transaction${draftWarning}`,
       }).returning();
 
       const receiptId = receipt!.id;
@@ -167,7 +201,7 @@ export class AutoReceiptService {
         .set({ customerId: params.customerId, glAccountId: arGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, params.bankTransactionId));
 
-      return { receiptId, allocations, unallocated: Math.round(remaining * 100) / 100 };
+      return { receiptId, allocations, unallocated: Math.round(remaining * 100) / 100, skippedDrafts };
     });
 
     // Post receipt JE for the full amount
@@ -188,6 +222,7 @@ export class AutoReceiptService {
         amount: params.amount,
         allocations: result.allocations,
         unallocated: result.unallocated,
+        skippedDrafts: result.skippedDrafts,
       },
     });
 
