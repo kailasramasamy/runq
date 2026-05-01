@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../providers/auth_provider.dart';
 import '../theme/runq_theme.dart';
@@ -486,7 +487,12 @@ class _SignInCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: () {},
+              onTap: () => _launchEmail(
+                context,
+                subject: 'Password reset for runQ',
+                body:
+                    'Hello runQ team,\n\nPlease help me reset the password for my runQ account.\n\nEmail: \n\nThanks.',
+              ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text(
@@ -551,25 +557,54 @@ class _SignInCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Center(
-            child: Text.rich(
-              TextSpan(
-                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 12),
-                children: [
-                  const TextSpan(text: 'New to runQ? '),
+            child: GestureDetector(
+              onTap: () => _launchEmail(
+                context,
+                subject: 'Request access to runQ',
+                body:
+                    'Hello runQ team,\n\nI would like to request access to runQ for my business.\n\nCompany name: \nName: \nWork email: \nPhone (optional): \n\nThanks.',
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text.rich(
                   TextSpan(
-                    text: 'Request access',
-                    style: RunqText.caption.copyWith(
-                      color: palette.linkInk,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 12),
+                    children: [
+                      const TextSpan(text: 'New to runQ? '),
+                      TextSpan(
+                        text: 'Request access',
+                        style: RunqText.caption.copyWith(
+                          color: palette.linkInk,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+Future<void> _launchEmail(
+  BuildContext context, {
+  required String subject,
+  required String body,
+}) async {
+  final uri = Uri(
+    scheme: 'mailto',
+    path: 'support@runq.in',
+    query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+  );
+  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Email support@runq.in to get started.')),
     );
   }
 }
