@@ -9,6 +9,10 @@ import {
   CreditCard,
   Landmark,
   ArrowRight,
+  ChevronDown,
+  ScanLine,
+  Upload,
+  ClipboardList,
 } from 'lucide-react';
 import { OnboardingWizard, OnboardingProgressWidget } from '@/components/onboarding/onboarding-wizard';
 import { useOnboarding } from '@/hooks/queries/use-settings';
@@ -31,7 +35,6 @@ import { ExpenseAlertsWidget } from '@/components/dashboard/expense-alerts';
 import { AIInsightsWidget } from '@/components/dashboard/ai-insights';
 import { CashPositionWidget } from '@/components/dashboard/cash-position';
 import { GstReadinessWidget } from '@/components/dashboard/gst-readiness';
-import { PDCCalendarWidget } from '@/components/dashboard/pdc-calendar';
 import { QuickInvoiceWidget } from '@/components/dashboard/quick-invoice';
 
 // ─── Aging Bar Chart ──────────────────────────────────────────────────────────
@@ -91,13 +94,76 @@ function QuickAction({ icon, label, to }: QuickActionProps) {
   return (
     <button
       onClick={() => navigate({ to: to as '/' })}
-      className="group flex flex-col items-center gap-2 rounded-lg border border-zinc-200 bg-white p-4 text-center transition-all duration-150 hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 hover:dark:border-indigo-700"
+      className="group flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-left transition-all duration-150 hover:border-indigo-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 hover:dark:border-indigo-700"
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400 dark:group-hover:bg-indigo-900/50">
+      <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400 dark:group-hover:bg-indigo-900/50">
         {icon}
-      </div>
-      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
+      </span>
+      <span className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
     </button>
+  );
+}
+
+interface QuickActionMenuOption {
+  icon: React.ReactNode;
+  label: string;
+  to: string;
+}
+
+interface QuickActionMenuProps {
+  icon: React.ReactNode;
+  label: string;
+  options: QuickActionMenuOption[];
+}
+
+function QuickActionMenu({ icon, label, options }: QuickActionMenuProps) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="group flex w-full items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-left transition-all duration-150 hover:border-indigo-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 hover:dark:border-indigo-700"
+      >
+        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-400 dark:group-hover:bg-indigo-900/50">
+          {icon}
+        </span>
+        <span className="flex flex-1 items-center justify-between gap-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <span className="truncate">{label}</span>
+          <ChevronDown size={12} className={`flex-none transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+          {options.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => {
+                setOpen(false);
+                navigate({ to: opt.to as '/' });
+              }}
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-zinc-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-300 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+            >
+              <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                {opt.icon}
+              </span>
+              <span>{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -168,6 +234,36 @@ export function DashboardPage() {
           Finance & Accounting overview
         </p>
       </div>
+
+      {/* Quick Actions — pinned near top for easy access */}
+      <Card>
+        <CardHeader title="Quick Actions" />
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+            <QuickActionMenu
+              icon={<Plus size={20} />}
+              label="New Bill"
+              options={[
+                { icon: <ScanLine size={14} />, label: 'Scan Invoice', to: '/ap/bills/scan' },
+                { icon: <Upload size={14} />, label: 'Import CSV', to: '/ap/bills/import' },
+                { icon: <Plus size={14} />, label: 'New Bill', to: '/ap/bills/new' },
+              ]}
+            />
+            <QuickActionMenu
+              icon={<FileText size={20} />}
+              label="New Invoice"
+              options={[
+                { icon: <ClipboardList size={14} />, label: 'Create Invoice from PO', to: '/ar/po-inbox' },
+                { icon: <Upload size={14} />, label: 'Import', to: '/ar/invoices/import' },
+                { icon: <FileText size={14} />, label: 'New Invoice', to: '/ar/invoices/new' },
+              ]}
+            />
+            <QuickAction icon={<CreditCard size={20} />} label="Record Payment" to="/ap/payments/new" />
+            <QuickAction icon={<CreditCard size={20} />} label="Record Receipt" to="/ar/receipts/new" />
+            <QuickAction icon={<Landmark size={20} />} label="Import Bank Statement" to="/banking/transactions/import" />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* AI Snapshot */}
       <AIInsightsWidget />
@@ -285,25 +381,8 @@ export function DashboardPage() {
       {/* Row 4b: GST Readiness */}
       <GstReadinessWidget />
 
-      {/* Row 5: Upcoming PDCs */}
-      <PDCCalendarWidget />
-
       {/* Row 6: Quick Invoice */}
       <QuickInvoiceWidget />
-
-      {/* Row 7: Quick Actions */}
-      <Card>
-        <CardHeader title="Quick Actions" />
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-            <QuickAction icon={<Plus size={20} />} label="New Bill" to="/ap/bills/new" />
-            <QuickAction icon={<FileText size={20} />} label="New Invoice" to="/ar/invoices/new" />
-            <QuickAction icon={<CreditCard size={20} />} label="Record Payment" to="/ap/payments/new" />
-            <QuickAction icon={<CreditCard size={20} />} label="Record Receipt" to="/ar/receipts/new" />
-            <QuickAction icon={<Landmark size={20} />} label="Import Bank Statement" to="/banking/transactions/import" />
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

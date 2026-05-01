@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, inArray, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, inArray, desc, isNotNull } from 'drizzle-orm';
 import { bankTransactions, bankAccounts, accounts, cheques, vendors, customers } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
@@ -121,7 +121,6 @@ export class TransactionService {
     const importBatchId = randomUUID();
     const newRows: typeof bankTransactions.$inferInsert[] = [];
     let duplicatesSkipped = 0;
-    let lastBalance: number | null = null;
 
     for (const row of rows) {
       if (this.isDuplicateRow(existingKeys, row)) {
@@ -142,17 +141,13 @@ export class TransactionService {
         reconStatus: 'unreconciled',
         importBatchId,
       });
-
-      if (row.runningBalance !== null) lastBalance = row.runningBalance;
     }
 
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
     }
 
-    if (lastBalance !== null) {
-      await this.updateAccountBalance(bankAccountId, lastBalance);
-    }
+    await this.syncCurrentBalanceFromStatement(bankAccountId);
 
     await this.autoClearCheques(bankAccountId);
 
@@ -179,7 +174,6 @@ export class TransactionService {
     const importBatchId = randomUUID();
     const newRows: typeof bankTransactions.$inferInsert[] = [];
     let duplicatesSkipped = 0;
-    let lastBalance: number | null = null;
 
     for (const txn of feedTxns) {
       const row: ParsedRow = {
@@ -210,17 +204,13 @@ export class TransactionService {
         reconStatus: 'unreconciled',
         importBatchId,
       });
-
-      if (row.runningBalance !== null) lastBalance = row.runningBalance;
     }
 
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
     }
 
-    if (lastBalance !== null) {
-      await this.updateAccountBalance(bankAccountId, lastBalance);
-    }
+    await this.syncCurrentBalanceFromStatement(bankAccountId);
 
     await this.autoClearCheques(bankAccountId);
 
@@ -290,6 +280,29 @@ export class TransactionService {
       .update(bankAccounts)
       .set({ currentBalance: balance.toString(), updatedAt: new Date() })
       .where(eq(bankAccounts.id, bankAccountId));
+  }
+
+  /**
+   * Sync `bankAccounts.currentBalance` to the latest statement closing balance:
+   * the runningBalance of the most recent transaction (by transactionDate, then
+   * createdAt) that has a non-null runningBalance. Order-agnostic and works
+   * even if a re-import was all duplicates.
+   */
+  private async syncCurrentBalanceFromStatement(bankAccountId: string): Promise<void> {
+    const [latest] = await this.db
+      .select({ runningBalance: bankTransactions.runningBalance })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, bankAccountId),
+          isNotNull(bankTransactions.runningBalance),
+        ),
+      )
+      .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
+      .limit(1);
+    if (!latest?.runningBalance) return;
+    await this.updateAccountBalance(bankAccountId, parseFloat(latest.runningBalance));
   }
 
   /**

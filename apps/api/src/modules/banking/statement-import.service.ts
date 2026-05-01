@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNotNull } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
 import { bankAccounts, bankTransactions, bankStatementFormatAliases } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -286,7 +286,6 @@ export class StatementImportService {
     const importBatchId = randomUUID();
     const newRows: typeof bankTransactions.$inferInsert[] = [];
     let duplicatesSkipped = 0;
-    let lastBalance: number | null = null;
     const errors: { row: number; message: string }[] = [];
 
     for (let i = 0; i < transactions.length; i++) {
@@ -301,7 +300,6 @@ export class StatementImportService {
           runningBalance: txn.runningBalance?.toString() ?? null,
           reconStatus: 'unreconciled', importBatchId,
         });
-        if (txn.runningBalance !== null) lastBalance = txn.runningBalance;
       } catch (err) {
         errors.push({ row: i + 1, message: (err as Error).message });
       }
@@ -310,9 +308,24 @@ export class StatementImportService {
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
     }
-    if (lastBalance !== null) {
+
+    // Sync currentBalance to the closing balance of the latest dated txn
+    // that has a runningBalance — works even when an import is all duplicates.
+    const [latest] = await this.db
+      .select({ runningBalance: bankTransactions.runningBalance })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, accountId),
+          isNotNull(bankTransactions.runningBalance),
+        ),
+      )
+      .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
+      .limit(1);
+    if (latest?.runningBalance) {
       await this.db.update(bankAccounts)
-        .set({ currentBalance: lastBalance.toString(), updatedAt: new Date() })
+        .set({ currentBalance: latest.runningBalance, updatedAt: new Date() })
         .where(eq(bankAccounts.id, accountId));
     }
 
