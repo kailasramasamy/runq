@@ -30,14 +30,14 @@ export function StatsCard({ title, value, icon: Icon, trend, onClick, className,
       )}
     >
       {Icon && (
-        <div className="absolute right-4 top-4 opacity-5 dark:opacity-10">
-          <Icon size={48} />
+        <div className="pointer-events-none absolute right-3 top-3 opacity-5 dark:opacity-10">
+          <Icon className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12" />
         </div>
       )}
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      <p className="mb-1 truncate pr-8 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-xs">
         {title}
       </p>
-      <p className="font-mono text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+      <p className="truncate font-mono text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-xl lg:text-2xl">
         {displayValue}
       </p>
       {trend !== undefined && (
