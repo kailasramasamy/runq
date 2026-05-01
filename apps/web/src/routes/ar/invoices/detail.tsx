@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent, Trash2 } from 'lucide-react';
+import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent, Trash2, ArrowLeft } from 'lucide-react';
 import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice } from '@/hooks/queries/use-invoices';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
@@ -35,6 +35,13 @@ interface InterestData { principal: number; rate: number; daysOverdue: number; i
 
 export function InvoiceDetailPage({ invoiceId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
+
+  function goBack(): void {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/invoices' });
+  }
+
   const { user } = useAuth();
   const { data, isLoading, isError } = useInvoice(invoiceId);
   const { data: receiptsData } = useInvoiceReceipts(invoiceId);
@@ -231,6 +238,9 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
         title={invoice.invoiceNumber}
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft size={14} /> Back
+            </Button>
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
             <PrintButtons />
             {upiData?.data && (
