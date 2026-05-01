@@ -235,6 +235,8 @@ export function AdminPlatformUsersPage() {
 
   const refresh = () => setReloadKey((k) => k + 1);
 
+  const [resetUser, setResetUser] = useState<PlatformUser | null>(null);
+
   const toggleActive = async (u: PlatformUser) => {
     try {
       await api.patch(`/admin/platform-users/${u.id}`, { isActive: !u.isActive });
@@ -290,6 +292,9 @@ export function AdminPlatformUsersPage() {
                       {u.isActive ? <Badge variant="success">Active</Badge> : <Badge variant="default">Inactive</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setResetUser(u)} title="Reset password">
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => toggleActive(u)}>
                         {u.isActive ? 'Deactivate' : 'Activate'}
                       </Button>
@@ -311,7 +316,86 @@ export function AdminPlatformUsersPage() {
           }}
         />
       )}
+
+      {resetUser && (
+        <ResetPasswordModal
+          user={resetUser}
+          onClose={() => setResetUser(null)}
+          onDone={() => setResetUser(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function ResetPasswordModal({
+  user,
+  onClose,
+  onDone,
+}: { user: PlatformUser; onClose: () => void; onDone: () => void }) {
+  const { toast } = useToast();
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (next.length < 8) return setError('Password must be at least 8 characters.');
+    if (next !== confirm) return setError('Passwords do not match.');
+    setBusy(true);
+    try {
+      await api.patch(`/admin/platform-users/${user.id}`, { password: next });
+      toast('Password reset', 'success');
+      onDone();
+    } catch (err: unknown) {
+      setError((err as { message?: string })?.message ?? 'Failed to reset password');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Reset password — ${user.name}`}>
+      <form onSubmit={submit} className="space-y-3">
+        <div className="rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+          {user.email}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-zinc-600 dark:text-zinc-400">New password (min 8 chars)</label>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            required
+            minLength={8}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-zinc-600 dark:text-zinc-400">Confirm password</label>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+          />
+        </div>
+        {error && (
+          <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy || !next || !confirm}>
+            {busy ? 'Resetting…' : 'Reset password'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

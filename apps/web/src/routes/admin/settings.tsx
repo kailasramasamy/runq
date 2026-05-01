@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Webhook, Database, Lock, FileText, RefreshCw, KeyRound, Loader2, CheckCircle2 } from 'lucide-react';
+import { Webhook, Database, Lock, FileText, RefreshCw } from 'lucide-react';
 import {
   PageHeader,
   Card,
@@ -52,8 +52,6 @@ export function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Platform Settings" description="Internal tools, webhooks, data ops" />
-
-      <ChangePasswordCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -220,103 +218,3 @@ function WebhookEventsCard() {
   );
 }
 
-function ChangePasswordCard() {
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-  const { toast } = useToast();
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setDone(false);
-    if (next.length < 8) {
-      setError('New password must be at least 8 characters.');
-      return;
-    }
-    if (next !== confirm) {
-      setError('New password and confirmation do not match.');
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.post('/admin/me/password', { currentPassword: current, newPassword: next });
-      setCurrent(''); setNext(''); setConfirm('');
-      setDone(true);
-      toast('Password updated', 'success');
-    } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message ?? 'Failed to update password';
-      setError(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-indigo-500" />
-          <h3 className="text-base font-semibold">Change my password</h3>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="grid max-w-md gap-3">
-          <label className="text-sm">
-            <span className="block mb-1 text-zinc-600 dark:text-zinc-400">Current password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-              required
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="block mb-1 text-zinc-600 dark:text-zinc-400">New password (min 8 chars)</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-              required
-              minLength={8}
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="block mb-1 text-zinc-600 dark:text-zinc-400">Confirm new password</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-          </label>
-          {error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300">
-              {error}
-            </div>
-          )}
-          {done && (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Password updated successfully.
-            </div>
-          )}
-          <div>
-            <Button type="submit" disabled={busy || !current || !next || !confirm}>
-              {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-              Update password
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
