@@ -10,11 +10,12 @@ import type {
 
 interface InvoiceSummary {
   totalSales: number;
+  totalReceived: number;
   totalOutstanding: number;
   overdueCount: number;
   overdueAmount: number;
   draftCount: number;
-  receivedThisMonth: number;
+  pendingCount: number;
 }
 
 interface InvoiceSummaryFilters {

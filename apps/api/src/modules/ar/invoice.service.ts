@@ -25,11 +25,12 @@ type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
 export interface InvoiceSummary {
   totalSales: number;
+  totalReceived: number;
   totalOutstanding: number;
   overdueCount: number;
   overdueAmount: number;
   draftCount: number;
-  receivedThisMonth: number;
+  pendingCount: number;
 }
 
 export interface InvoiceListParams {
@@ -1070,7 +1071,6 @@ export class InvoiceService {
 
   async summary(filters: SalesInvoiceFilter = {}): Promise<InvoiceSummary> {
     const today = new Date().toISOString().split('T')[0]!;
-    const monthStart = today.slice(0, 7) + '-01';
 
     // Common filter scope: customer, date range, and free-text search apply to
     // every metric. We intentionally do NOT apply `status` here so individual
@@ -1088,7 +1088,7 @@ export class InvoiceService {
 
     // Always inner-join customers so the same WHERE shape works whether or not
     // search is provided. Every invoice has a customer, so the join is total.
-    const [sales, outstanding, overdue, drafts, receivedThisMonth] = await Promise.all([
+    const [sales, outstanding, overdue, drafts, totalReceived, pending] = await Promise.all([
       this.db
         .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text` })
         .from(salesInvoices)
@@ -1132,18 +1132,27 @@ export class InvoiceService {
         .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
         .where(and(
           tenant, customerScope, dateFrom, dateTo, search,
-          sql`${salesInvoices.status} IN ('paid', 'partially_paid')`,
-          gte(salesInvoices.updatedAt, new Date(monthStart)),
+          sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+        )),
+      this.db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(salesInvoices)
+        .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
+        .where(and(
+          tenant, customerScope, dateFrom, dateTo, search,
+          sql`${salesInvoices.status} IN ('sent', 'partially_paid')`,
+          sql`${salesInvoices.balanceDue} > 0`,
         )),
     ]);
 
     return {
       totalSales: Number(sales[0]?.total ?? 0),
+      totalReceived: Number(totalReceived[0]?.total ?? 0),
       totalOutstanding: Number(outstanding[0]?.total ?? 0),
       overdueCount: overdue[0]?.count ?? 0,
       overdueAmount: Number(overdue[0]?.amount ?? 0),
       draftCount: drafts[0]?.count ?? 0,
-      receivedThisMonth: Number(receivedThisMonth[0]?.total ?? 0),
+      pendingCount: pending[0]?.count ?? 0,
     };
   }
 

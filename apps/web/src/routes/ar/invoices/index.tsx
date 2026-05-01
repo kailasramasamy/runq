@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle, TrendingUp } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle, TrendingUp, Clock } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
 import { useInvoices, useInvoiceSummary, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
@@ -244,22 +244,33 @@ export function InvoiceListPage() {
       />
 
       {summaryLoading ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
           ))}
         </div>
       ) : summaryData?.data ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
           <StatsCard
             title="Total Sales"
             value={summaryData.data.totalSales}
             icon={TrendingUp}
           />
           <StatsCard
+            title="Total Received"
+            value={summaryData.data.totalReceived}
+            icon={CheckCircle}
+          />
+          <StatsCard
             title="Total Outstanding"
             value={summaryData.data.totalOutstanding}
             icon={IndianRupee}
+          />
+          <StatsCard
+            title="Pending Invoices"
+            value={summaryData.data.pendingCount}
+            icon={Clock}
+            formatValue={(v) => String(v)}
           />
           <StatsCard
             title="Overdue"
@@ -274,11 +285,6 @@ export function InvoiceListPage() {
             icon={FileEdit}
             formatValue={(v) => String(v)}
             onClick={() => { setStatusFilter('draft'); setPage(1); }}
-          />
-          <StatsCard
-            title="Received This Month"
-            value={summaryData.data.receivedThisMonth}
-            icon={CheckCircle}
           />
         </div>
       ) : null}
