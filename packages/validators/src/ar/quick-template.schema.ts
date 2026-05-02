@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 const quickTemplateItemSchema = z.object({
   itemId: z.string().uuid(),
   description: z.string().min(1).max(500),
-  hsnSacCode: z.string().max(8).nullish(),
+  hsnSacCode: hsnSacCodeSchema.nullish(),
   unitPrice: z.number().nonnegative(),
   taxRate: z.number().min(0).max(100).nullish(),
   taxCategory: z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated']).nullish(),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 /**
  * Validators for the invoice import endpoints.
@@ -37,7 +38,7 @@ const parsedLineItemSchema = z.object({
   sourceName: z.string().min(1),
   quantity: z.number().positive(),
   unitPrice: z.number().nonnegative(),
-  hsnSacCode: z.string().max(8).nullable(),
+  hsnSacCode: hsnSacCodeSchema.nullable(),
   taxRate: z.number().min(0).max(100).nullable(),
   lineTotal: z.number().nonnegative(),
   match: matchResultSchema,

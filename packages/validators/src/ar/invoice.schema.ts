@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 const taxCategorySchema = z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated', 'reverse_charge']);
 
@@ -10,7 +11,7 @@ const invoiceItemSchema = z.object({
   unitPrice: z.number().nonnegative('Unit price must be non-negative'),
   amount: z.number().positive('Amount must be positive'),
   // GST fields (optional for backward compat)
-  hsnSacCode: z.string().max(8).nullish(),
+  hsnSacCode: hsnSacCodeSchema.nullish(),
   taxCategory: taxCategorySchema.nullish(),
   taxRate: z.number().min(0).max(100).nullish(),
   cessRate: z.number().min(0).max(100).nullish(),

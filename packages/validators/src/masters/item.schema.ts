@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 /**
  * Zod validator for a single catalogue attribute field. Mirrors the
@@ -46,7 +47,7 @@ export const createItemSchema = z.object({
   name: z.string().min(1).max(255),
   sku: z.string().max(50).nullish(),
   type: z.enum(['product', 'service']),
-  hsnSacCode: z.string().max(8).nullish(),
+  hsnSacCode: hsnSacCodeSchema.nullish(),
   unit: z.string().max(20).nullish(),
   defaultSellingPrice: z.number().min(0).nullish(),
   defaultPurchasePrice: z.number().min(0).nullish(),

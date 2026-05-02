@@ -1,5 +1,6 @@
 export * from './common/pagination.schema';
 export * from './common/id.schema';
+export * from './common/hsn.schema';
 export * from './auth/login.schema';
 export * from './ap/vendor.schema';
 export * from './ap/purchase-invoice.schema';

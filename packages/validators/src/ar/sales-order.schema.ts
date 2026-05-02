@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 const salesOrderItemSchema = z.object({
   description: z.string().min(1).max(500),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().nonnegative('Unit price must be non-negative'),
   amount: z.number().positive('Amount must be positive'),
-  hsnSacCode: z.string().max(8).nullish(),
+  hsnSacCode: hsnSacCodeSchema.nullish(),
   taxRate: z.number().min(0).max(100).nullish(),
   itemId: z.string().uuid().nullish(),
 });

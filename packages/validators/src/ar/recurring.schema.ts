@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { hsnSacCodeSchema } from '../common/hsn.schema';
 
 const recurringLineItemSchema = z.object({
   description: z.string().min(1).max(500),
   quantity: z.number().positive(),
   unitPrice: z.number().nonnegative(),
   amount: z.number().positive(),
-  hsnSacCode: z.string().max(8).nullish(),
+  hsnSacCode: hsnSacCodeSchema.nullish(),
   taxRate: z.number().min(0).max(100).nullish(),
   taxCategory: z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated']).nullish(),
 });
