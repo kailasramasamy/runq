@@ -70,6 +70,7 @@ function VendorDropdown({ transactionId, hasAssigned, onDone }: { transactionId:
   const vendors = data?.data ?? [];
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -83,18 +84,30 @@ function VendorDropdown({ transactionId, hasAssigned, onDone }: { transactionId:
 
   async function handleSelect(vendorId: string) {
     setLoading(true);
-    await api.put(`/banking/accounts/transactions/${transactionId}/vendor`, { vendorId });
-    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
-    setLoading(false);
-    onDone();
+    setError(null);
+    try {
+      await api.put(`/banking/accounts/transactions/${transactionId}/vendor`, { vendorId });
+      qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to assign vendor');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRemove() {
     setLoading(true);
-    await api.delete(`/banking/accounts/transactions/${transactionId}/vendor`);
-    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
-    setLoading(false);
-    onDone();
+    setError(null);
+    try {
+      await api.delete(`/banking/accounts/transactions/${transactionId}/vendor`);
+      qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove vendor');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCreated(vendor: Vendor) {
@@ -121,14 +134,20 @@ function VendorDropdown({ transactionId, hasAssigned, onDone }: { transactionId:
       )}
       <ul className="max-h-60 overflow-auto py-1">
         {loading && <li className="px-3 py-2 text-xs text-zinc-400">Working…</li>}
-        {!loading && filtered.map((v) => (
+        {error && !loading && (
+          <li className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            {error}
+            <button type="button" onClick={() => setError(null)} className="ml-2 underline">dismiss</button>
+          </li>
+        )}
+        {!loading && !error && filtered.map((v) => (
           <li key={v.id} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelect(v.id)}
             className="cursor-pointer px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
             <span className="text-zinc-900 dark:text-zinc-100">{v.name}</span>
             {v.category && <span className="ml-2 text-xs text-zinc-400">{v.category}</span>}
           </li>
         ))}
-        {!loading && filtered.length === 0 && <li className="px-3 py-2 text-xs text-zinc-400">No matching vendors</li>}
+        {!loading && !error && filtered.length === 0 && <li className="px-3 py-2 text-xs text-zinc-400">No matching vendors</li>}
       </ul>
       {!loading && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 px-3 py-2">
@@ -150,6 +169,7 @@ function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionI
   const customerList = data?.data ?? [];
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -163,18 +183,30 @@ function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionI
 
   async function handleSelect(customerId: string) {
     setLoading(true);
-    await api.put(`/banking/accounts/transactions/${transactionId}/customer`, { customerId });
-    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
-    setLoading(false);
-    onDone();
+    setError(null);
+    try {
+      await api.put(`/banking/accounts/transactions/${transactionId}/customer`, { customerId });
+      qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to assign customer');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRemove() {
     setLoading(true);
-    await api.delete(`/banking/accounts/transactions/${transactionId}/customer`);
-    qc.invalidateQueries({ queryKey: ['bank-transactions'] });
-    setLoading(false);
-    onDone();
+    setError(null);
+    try {
+      await api.delete(`/banking/accounts/transactions/${transactionId}/customer`);
+      qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove customer');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCreated(customer: { id: string }) {
@@ -201,13 +233,19 @@ function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionI
       )}
       <ul className="max-h-60 overflow-auto py-1">
         {loading && <li className="px-3 py-2 text-xs text-zinc-400">Working…</li>}
-        {!loading && filtered.map((c) => (
+        {error && !loading && (
+          <li className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            {error}
+            <button type="button" onClick={() => setError(null)} className="ml-2 underline">dismiss</button>
+          </li>
+        )}
+        {!loading && !error && filtered.map((c) => (
           <li key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelect(c.id)}
             className="cursor-pointer px-3 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
             <span className="text-zinc-900 dark:text-zinc-100">{c.name}</span>
           </li>
         ))}
-        {!loading && filtered.length === 0 && <li className="px-3 py-2 text-xs text-zinc-400">No matching customers</li>}
+        {!loading && !error && filtered.length === 0 && <li className="px-3 py-2 text-xs text-zinc-400">No matching customers</li>}
       </ul>
       {!loading && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 px-3 py-2">
