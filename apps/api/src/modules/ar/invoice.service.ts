@@ -574,6 +574,68 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * HSN/SAC classification fix for already-issued invoices.
+   *
+   * Bypasses the draft-only edit block because HSN is a tax classification,
+   * not a financial figure — changing it does not affect GL, totals, or
+   * balance due. Allowed on any non-cancelled invoice (sent, partially_paid,
+   * paid, overdue) so the user can fix GSTR-1 readiness on already-paid
+   * invoices without issuing a credit note.
+   *
+   * Touches only sales_invoice_items.hsn_sac_code. Audit-logged.
+   */
+  async updateLineHsn(
+    id: string,
+    items: Array<{ id: string; hsnSacCode: string }>,
+    userId?: string,
+  ): Promise<SalesInvoiceWithDetails> {
+    const existing = await this.getById(id);
+    if (existing.status === 'cancelled') {
+      throw new ConflictError('Cannot update HSN on a cancelled invoice');
+    }
+
+    const before = existing.items
+      .filter((it) => items.some((x) => x.id === it.id))
+      .reduce<Record<string, string | null>>((acc, it) => {
+        acc[it.id] = it.hsnSacCode ?? null;
+        return acc;
+      }, {});
+
+    await this.db.transaction(async (tx) => {
+      for (const item of items) {
+        await tx
+          .update(salesInvoiceItems)
+          .set({ hsnSacCode: item.hsnSacCode, updatedAt: new Date() })
+          .where(and(
+            eq(salesInvoiceItems.id, item.id),
+            eq(salesInvoiceItems.invoiceId, id),
+            eq(salesInvoiceItems.tenantId, this.tenantId),
+          ));
+      }
+      await tx
+        .update(salesInvoices)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
+    });
+
+    const audit = new AuditService(this.db, this.tenantId);
+    const changes = items.reduce<Record<string, { old: unknown; new: unknown }>>((acc, it) => {
+      acc[`item.${it.id}.hsnSacCode`] = { old: before[it.id] ?? null, new: it.hsnSacCode };
+      return acc;
+    }, {});
+    await audit.log({
+      userId,
+      action: 'updated_hsn',
+      entityType: 'sales_invoice',
+      entityId: id,
+      changes,
+      metadata: { reason: 'GST classification fix on issued invoice', invoiceStatus: existing.status },
+    });
+
+    return this.getById(id);
+  }
+
   async cancel(id: string): Promise<SalesInvoice> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {

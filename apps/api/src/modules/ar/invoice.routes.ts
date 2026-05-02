@@ -94,6 +94,26 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // HSN/SAC classification fix — allowed on issued invoices (sent/paid/etc).
+  // See InvoiceService.updateLineHsn for rationale (HSN is tax metadata, not
+  // a financial figure).
+  app.patch(
+    '/:id/hsn',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const body = z.object({
+        items: z.array(z.object({
+          id: z.string().uuid(),
+          hsnSacCode: z.string().min(2).max(8),
+        })).min(1),
+      }).parse(request.body);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const invoice = await service.updateLineHsn(id, body.items, request.user?.userId);
+      return { data: invoice };
+    },
+  );
+
   app.delete(
     '/:id',
     { preHandler: [rbacHook([...OWNER_ROLES])] },

@@ -123,6 +123,18 @@ export function useUpdateInvoice() {
   });
 }
 
+export function useUpdateInvoiceHsn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, items }: { id: string; items: Array<{ id: string; hsnSacCode: string }> }) =>
+      api.patch<ApiSuccess<SalesInvoice>>(`/ar/invoices/${id}/hsn`, { items }),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) });
+    },
+  });
+}
+
 export function useSendInvoice() {
   const qc = useQueryClient();
   return useMutation({

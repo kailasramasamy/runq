@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle, AlertTriangle, ChevronDown, ChevronRight,
-  ExternalLink, Calendar, Shield,
+  ExternalLink, Calendar, Shield, Zap,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
   PageHeader, Card, CardHeader, CardContent, Badge, Button,
-  CardSkeleton,
+  CardSkeleton, HsnSacCombobox, useToast,
 } from '@/components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -58,6 +58,101 @@ function scoreColor(score: number) {
   if (score >= 90) return { bg: 'bg-green-500', text: 'text-green-600 dark:text-green-400' };
   if (score >= 70) return { bg: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' };
   return { bg: 'bg-red-500', text: 'text-red-600 dark:text-red-400' };
+}
+
+// ── Bulk HSN Assign by Item ────────────────────────────────────────────
+
+interface MissingHsnGroup {
+  description: string;
+  occurrences: number;
+  invoiceCount: number;
+  suggestedHsn: string | null;
+}
+
+function BulkHsnAssignPanel() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery({
+    queryKey: ['gst', 'readiness', 'missing-hsn-grouped'],
+    queryFn: () => api.get<{ data: MissingHsnGroup[] }>('/gst/readiness/missing-hsn-grouped'),
+    staleTime: 60_000,
+  });
+
+  const groups = data?.data ?? [];
+  const [hsnByDesc, setHsnByDesc] = useState<Record<string, string>>({});
+
+  const mutation = useMutation({
+    mutationFn: (assignments: Array<{ description: string; hsnSacCode: string }>) =>
+      api.post<{ data: Array<{ description: string; updated: number }> }>('/gst/readiness/bulk-assign-hsn', { assignments }),
+    onSuccess: (res) => {
+      const total = (res.data ?? []).reduce((s, r) => s + r.updated, 0);
+      toast(`Assigned HSN to ${total} line item${total !== 1 ? 's' : ''}.`, 'success');
+      setHsnByDesc({});
+      qc.invalidateQueries({ queryKey: ['gst', 'readiness'] });
+    },
+    onError: () => toast('Failed to assign HSN. Try again.', 'error'),
+  });
+
+  if (isLoading) return <p className="text-xs text-zinc-500 mb-3">Loading items…</p>;
+  if (groups.length === 0) return null;
+
+  function setHsn(desc: string, code: string) {
+    setHsnByDesc((prev) => ({ ...prev, [desc]: code }));
+  }
+
+  function handleApply() {
+    const assignments = Object.entries(hsnByDesc)
+      .filter(([, v]) => v && v.trim() !== '')
+      .map(([description, hsnSacCode]) => ({ description, hsnSacCode: hsnSacCode.trim() }));
+    if (assignments.length === 0) {
+      toast('Pick an HSN code for at least one item.', 'info');
+      return;
+    }
+    mutation.mutate(assignments);
+  }
+
+  const pickedCount = Object.values(hsnByDesc).filter((v) => v && v.trim()).length;
+  const affectedLines = groups
+    .filter((g) => hsnByDesc[g.description] && hsnByDesc[g.description]!.trim())
+    .reduce((s, g) => s + g.occurrences, 0);
+
+  return (
+    <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+      <div className="mb-2 flex items-center gap-2">
+        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Bulk assign by item</p>
+      </div>
+      <p className="mb-3 text-xs text-zinc-600 dark:text-zinc-400">
+        Pick one HSN per unique line description. We&apos;ll fill it in across every paid/sent invoice in the period — no need to edit invoices one by one.
+      </p>
+      <div className="space-y-2">
+        {groups.map((g) => (
+          <div key={g.description} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_240px] sm:items-center">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">{g.description}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {g.occurrences} line{g.occurrences > 1 ? 's' : ''} across {g.invoiceCount} invoice{g.invoiceCount > 1 ? 's' : ''}
+                {g.suggestedHsn && ` · prior HSN: ${g.suggestedHsn}`}
+              </div>
+            </div>
+            <HsnSacCombobox
+              value={hsnByDesc[g.description] ?? g.suggestedHsn ?? ''}
+              onChange={(code) => setHsn(g.description, code)}
+              placeholder="Pick HSN…"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {pickedCount > 0 ? `${pickedCount} item${pickedCount > 1 ? 's' : ''} → ${affectedLines} line${affectedLines !== 1 ? 's' : ''}` : ''}
+        </span>
+        <Button onClick={handleApply} disabled={mutation.isPending || pickedCount === 0}>
+          {mutation.isPending ? 'Applying…' : `Apply${pickedCount > 0 ? ` (${pickedCount})` : ''}`}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 // ── Signal Row (expandable) ────────────────────────────────────────────
@@ -112,6 +207,8 @@ function SignalRow({ signal }: { signal: SignalDetail }) {
               <p className="text-sm text-blue-900 dark:text-blue-200">{signal.howToFix}</p>
             </div>
           )}
+
+          {signal.key === 'invoices_with_hsn' && <BulkHsnAssignPanel />}
 
           {signal.affectedItems.length > 0 && (
             <div className="space-y-1.5">

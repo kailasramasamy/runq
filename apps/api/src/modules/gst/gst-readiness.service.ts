@@ -467,6 +467,98 @@ export class GstReadinessService {
     return row?.count ?? 0;
   }
 
+  /**
+   * Group missing-HSN line items by item name across the current GST period.
+   * Each group represents one classification decision the user has to make
+   * (e.g. "Coconut Oil 1L" → 15131900) instead of editing N invoices line by line.
+   */
+  async getMissingHsnGrouped(): Promise<Array<{
+    description: string;
+    occurrences: number;
+    invoiceCount: number;
+    suggestedHsn: string | null;
+  }>> {
+    const base = await this.compute();
+    const { periodStart, periodEnd } = this.periodToDateRange(base.period);
+
+    const rows = await this.db
+      .select({
+        description: salesInvoiceItems.description,
+        occurrences: sql<number>`COUNT(*)::int`,
+        invoiceCount: sql<number>`COUNT(DISTINCT ${salesInvoiceItems.invoiceId})::int`,
+        suggestedHsn: sql<string | null>`(
+          SELECT hsn_sac_code FROM sales_invoice_items sii2
+          WHERE sii2.tenant_id = ${this.tenantId}
+            AND sii2.description = ${salesInvoiceItems.description}
+            AND sii2.hsn_sac_code IS NOT NULL AND sii2.hsn_sac_code <> ''
+          ORDER BY sii2.created_at DESC LIMIT 1
+        )`,
+      })
+      .from(salesInvoiceItems)
+      .innerJoin(salesInvoices, eq(salesInvoices.id, salesInvoiceItems.invoiceId))
+      .where(and(
+        eq(salesInvoices.tenantId, this.tenantId),
+        gte(salesInvoices.invoiceDate, periodStart),
+        lte(salesInvoices.invoiceDate, periodEnd),
+        notInArray(salesInvoices.status, ['draft', 'cancelled']),
+        or(isNull(salesInvoiceItems.hsnSacCode), eq(salesInvoiceItems.hsnSacCode, '')),
+      ))
+      .groupBy(salesInvoiceItems.description)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    return rows;
+  }
+
+  /**
+   * Bulk apply HSN by item name across the current GST period — for each
+   * (itemName, hsnSacCode) pair, fill in hsn_sac_code on all matching line
+   * items that are currently missing it.
+   *
+   * Only touches line items on non-draft, non-cancelled invoices in the
+   * current readiness period. Returns the count updated per item name.
+   */
+  async bulkAssignHsnByItem(
+    assignments: Array<{ description: string; hsnSacCode: string }>,
+  ): Promise<Array<{ description: string; updated: number }>> {
+    const base = await this.compute();
+    const { periodStart, periodEnd } = this.periodToDateRange(base.period);
+    const results: Array<{ description: string; updated: number }> = [];
+
+    for (const a of assignments) {
+      if (!a.hsnSacCode || !a.description) continue;
+
+      const ids = await this.db
+        .select({ id: salesInvoiceItems.id })
+        .from(salesInvoiceItems)
+        .innerJoin(salesInvoices, eq(salesInvoices.id, salesInvoiceItems.invoiceId))
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          gte(salesInvoices.invoiceDate, periodStart),
+          lte(salesInvoices.invoiceDate, periodEnd),
+          notInArray(salesInvoices.status, ['draft', 'cancelled']),
+          eq(salesInvoiceItems.description, a.description),
+          or(isNull(salesInvoiceItems.hsnSacCode), eq(salesInvoiceItems.hsnSacCode, '')),
+        ));
+
+      if (ids.length === 0) {
+        results.push({ description: a.description, updated: 0 });
+        continue;
+      }
+
+      await this.db
+        .update(salesInvoiceItems)
+        .set({ hsnSacCode: a.hsnSacCode, updatedAt: new Date() })
+        .where(and(
+          eq(salesInvoiceItems.tenantId, this.tenantId),
+          inArray(salesInvoiceItems.id, ids.map((r) => r.id)),
+        ));
+
+      results.push({ description: a.description, updated: ids.length });
+    }
+
+    return results;
+  }
+
   private async getExistingReturns(period: string) {
     const rows = await this.db
       .select({ returnType: gstReturns.returnType, status: gstReturns.status })

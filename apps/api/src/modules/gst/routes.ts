@@ -196,4 +196,20 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     const svc = new GstReadinessService(request.server.db, request.tenantId);
     return { data: await svc.computeDetails() };
   });
+
+  app.get('/readiness/missing-hsn-grouped', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const svc = new GstReadinessService(request.server.db, request.tenantId);
+    return { data: await svc.getMissingHsnGrouped() };
+  });
+
+  app.post('/readiness/bulk-assign-hsn', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const body = z.object({
+      assignments: z.array(z.object({
+        description: z.string().min(1),
+        hsnSacCode: z.string().min(2).max(8),
+      })).min(1),
+    }).parse(request.body);
+    const svc = new GstReadinessService(request.server.db, request.tenantId);
+    return { data: await svc.bulkAssignHsnByItem(body.assignments) };
+  });
 };
