@@ -487,12 +487,7 @@ class _SignInCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: () => _launchEmail(
-                context,
-                subject: 'Password reset for runQ',
-                body:
-                    'Hello runQ team,\n\nPlease help me reset the password for my runQ account.\n\nEmail: \n\nThanks.',
-              ),
+              onTap: () => _openContactPage(context),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text(
@@ -558,12 +553,7 @@ class _SignInCard extends StatelessWidget {
           const SizedBox(height: 14),
           Center(
             child: GestureDetector(
-              onTap: () => _launchEmail(
-                context,
-                subject: 'Request access to runQ',
-                body:
-                    'Hello runQ team,\n\nI would like to request access to runQ for my business.\n\nCompany name: \nName: \nWork email: \nPhone (optional): \n\nThanks.',
-              ),
+              onTap: () => _openContactPage(context),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text.rich(
@@ -591,20 +581,12 @@ class _SignInCard extends StatelessWidget {
   }
 }
 
-Future<void> _launchEmail(
-  BuildContext context, {
-  required String subject,
-  required String body,
-}) async {
-  final uri = Uri(
-    scheme: 'mailto',
-    path: 'support@runq.in',
-    query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
-  );
+Future<void> _openContactPage(BuildContext context) async {
+  final uri = Uri.parse('https://www.runq.in/contact');
   final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!ok && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Email support@runq.in to get started.')),
+      const SnackBar(content: Text('Visit www.runq.in/contact to get in touch.')),
     );
   }
 }
