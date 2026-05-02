@@ -274,9 +274,14 @@ export class AutoReceiptService {
               eq(journalEntries.sourceType, 'receipt'),
               eq(journalEntries.sourceId, receipt.id),
             ));
+          // Delete the recon match BEFORE the receipt — recon_matches.receipt_id
+          // FKs the receipt with default RESTRICT, so deleting the receipt
+          // first throws a constraint violation.
+          await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
           await tx.delete(paymentReceipts).where(eq(paymentReceipts.id, receipt.id));
+        } else {
+          await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
         }
-        await tx.delete(reconciliationMatches).where(eq(reconciliationMatches.id, match.id));
       }
 
       await tx.update(bankTransactions).set({
