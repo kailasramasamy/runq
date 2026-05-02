@@ -131,9 +131,14 @@ export class Gstr1Generator {
     }
 
     // ── Nil/exempt aggregation ──
-
+    // Aggregate nil/exempt portions from ALL B2C invoices (b2cs/b2cl/nil).
+    // Mixed B2C invoices (some taxable + some nil lines) need their nil
+    // portion reported in Table 8, since rate=0 is invalid in B2CS.
     const nilAgg = this.aggregateNil(invoicesWithItems.filter(
-      (iw) => classifyInvoice(iw.invoice, iw.customer, iw.items) === 'nil',
+      (iw) => {
+        const section = classifyInvoice(iw.invoice, iw.customer, iw.items);
+        return section === 'nil' || section === 'b2cs' || section === 'b2cl';
+      },
     ));
 
     // ── Document summary ──
@@ -256,6 +261,9 @@ export class Gstr1Generator {
 
     for (const item of items) {
       const rate = Number(item.taxRate ?? 0);
+      // GSTN B2CS schema rejects rate=0 — nil-rated/exempt portions of mixed
+      // B2C invoices belong in the nil-rated section (Table 8), not B2CS.
+      if (rate === 0) continue;
       const key = `${pos}|${supplyType}|${rate}`;
 
       const existing = map.get(key);

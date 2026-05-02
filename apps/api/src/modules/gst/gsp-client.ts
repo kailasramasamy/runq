@@ -575,12 +575,11 @@ export class WhiteBooksGspClient implements GspClient {
     };
     if (h.igstAmount > 0) {
       entry.iamt = Number(h.igstAmount.toFixed(2));
-    } else if (h.cgstAmount > 0 || h.sgstAmount > 0) {
+    } else {
+      // Intra-state: emit camt+samt even when both are 0 (nil-rated entries)
+      // so the HSN summary's intra-state schema branch is satisfied.
       entry.camt = Number(h.cgstAmount.toFixed(2));
       entry.samt = Number(h.sgstAmount.toFixed(2));
-    } else {
-      // Default to inter-state with 0
-      entry.iamt = 0;
     }
     if (h.cessAmount > 0) {
       entry.csamt = Number(h.cessAmount.toFixed(2));
