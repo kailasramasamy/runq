@@ -12,7 +12,7 @@ const commaEmails = z.string().max(500).refine(
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   nickname: z.string().max(100).nullish(),
-  type: z.enum(['b2b', 'payment_gateway']).default('b2b'),
+  type: z.enum(['b2b', 'b2c', 'payment_gateway']).default('b2b'),
   email: commaEmails.nullish(),
   ccEmail: commaEmails.nullish(),
   phone: z.string().max(20).nullish(),
@@ -35,7 +35,7 @@ export const updateCustomerSchema = createCustomerSchema.partial();
 
 export const customerFilterSchema = z.object({
   search: z.string().optional(),
-  type: z.enum(['b2b', 'payment_gateway']).optional(),
+  type: z.enum(['b2b', 'b2c', 'payment_gateway']).optional(),
   hasOutstanding: z.coerce.boolean().optional(),
 });
 

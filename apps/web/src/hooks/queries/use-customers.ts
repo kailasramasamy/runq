@@ -11,7 +11,7 @@ const CUSTOMER_KEYS = {
 
 interface CustomerFilters {
   search?: string;
-  type?: 'b2b' | 'payment_gateway';
+  type?: 'b2b' | 'b2c' | 'payment_gateway';
   page?: number;
   limit?: number;
   [key: string]: unknown;

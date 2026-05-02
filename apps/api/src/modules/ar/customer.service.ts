@@ -210,7 +210,7 @@ export class CustomerService {
     const typeRaw = get('type');
     return {
       name: get('name'),
-      type: (typeRaw === 'payment_gateway' ? 'payment_gateway' : 'b2b') as 'b2b' | 'payment_gateway',
+      type: (typeRaw === 'payment_gateway' ? 'payment_gateway' : typeRaw === 'b2c' ? 'b2c' : 'b2b') as 'b2b' | 'b2c' | 'payment_gateway',
       phone: get('phone') || undefined,
       email: get('email') || undefined,
       gstin: get('gstin') || undefined,

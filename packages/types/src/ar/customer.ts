@@ -1,4 +1,4 @@
-export type CustomerType = 'b2b' | 'payment_gateway';
+export type CustomerType = 'b2b' | 'b2c' | 'payment_gateway';
 
 export interface Customer {
   id: string;

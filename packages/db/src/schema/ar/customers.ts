@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, integer, decimal, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 
-export const customerTypeEnum = pgEnum('customer_type', ['b2b', 'payment_gateway']);
+export const customerTypeEnum = pgEnum('customer_type', ['b2b', 'b2c', 'payment_gateway']);
 
 export const customers = pgTable('customers', {
   id: uuid('id').primaryKey().defaultRandom(),

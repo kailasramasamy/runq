@@ -41,7 +41,8 @@ function buildInitial(c?: Customer): FormState {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'b2b', label: 'B2B' },
+  { value: 'b2b', label: 'B2B (registered business)' },
+  { value: 'b2c', label: 'B2C (aggregated end consumers / platform)' },
   { value: 'payment_gateway', label: 'Payment Gateway' },
 ];
 

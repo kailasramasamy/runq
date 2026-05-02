@@ -16,6 +16,7 @@ const LIMIT = 20;
 const TYPE_FILTER_OPTIONS = [
   { value: '', label: 'All Types' },
   { value: 'b2b', label: 'B2B' },
+  { value: 'b2c', label: 'B2C' },
   { value: 'payment_gateway', label: 'Payment Gateway' },
 ];
 
@@ -138,7 +139,7 @@ export function CustomerListPage() {
 
   const { data, isLoading } = useCustomers({
     search: search || undefined,
-    type: typeFilter as 'b2b' | 'payment_gateway' | undefined || undefined,
+    type: typeFilter as 'b2b' | 'b2c' | 'payment_gateway' | undefined || undefined,
     page,
     limit: LIMIT,
   });
