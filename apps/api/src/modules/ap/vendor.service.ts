@@ -330,6 +330,7 @@ export class VendorService {
       category: row.category ?? null,
       expenseAccountCode: row.expenseAccountCode ?? null,
       treatNoBillAsAdvance: row.treatNoBillAsAdvance,
+      requiresInvoice: row.requiresInvoice,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

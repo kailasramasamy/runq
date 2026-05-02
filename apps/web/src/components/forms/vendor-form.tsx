@@ -71,6 +71,7 @@ function buildInitial(v?: Vendor): FormState {
     bankName: v.bankName ?? undefined,
     paymentTermsDays: v.paymentTermsDays,
     treatNoBillAsAdvance: v.treatNoBillAsAdvance ?? false,
+    requiresInvoice: v.requiresInvoice ?? false,
     earlyPaymentDiscountPercent: v.earlyPaymentDiscountPercent ?? undefined,
     earlyPaymentDiscountDays: v.earlyPaymentDiscountDays ?? undefined,
     category: v.category ?? undefined,
@@ -300,6 +301,22 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
               <span className="block text-xs text-zinc-500 dark:text-zinc-400">
                 Pre-bill payments accrue as advances (1104 Advance to Suppliers) instead of direct expense.
                 Auto-applied when the consolidated bill is created.
+              </span>
+            </span>
+          </label>
+          <label className="col-span-1 sm:col-span-2 mt-2 flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={!!form.requiresInvoice}
+              onChange={(e) => set('requiresInvoice', e.target.checked)}
+              className="mt-0.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
+            />
+            <span>
+              <span className="font-medium">Requires tax invoice</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                Vendor issues a GST invoice for every bill (oil, packaging, etc.). Bills without an
+                attached invoice will appear in Audit → Missing Invoices. Uncheck for unregistered
+                suppliers (milk farmers, casual labour).
               </span>
             </span>
           </label>

@@ -26,6 +26,7 @@ export const createVendorSchema = z.object({
   category: z.string().max(50).nullish(),
   expenseAccountCode: z.string().max(20).nullish(),
   treatNoBillAsAdvance: z.boolean().optional(),
+  requiresInvoice: z.boolean().optional(),
 });
 
 export const updateVendorSchema = createVendorSchema.partial();

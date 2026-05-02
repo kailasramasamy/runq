@@ -41,6 +41,14 @@ const FIX_GUIDES: Record<string, { steps: string[]; autoFix?: { label: string; r
     ],
     autoFix: { label: 'Go to Bills', route: '/ap/bills' },
   },
+  bills_missing_invoice: {
+    steps: [
+      'These bills are from GST-registered vendors but have no invoice file attached',
+      'Open each bill and upload the tax invoice (PDF or image)',
+      'For vendors that never issue invoices (milk farmers, casual labour), uncheck "Requires tax invoice" on the vendor profile',
+    ],
+    autoFix: { label: 'Go to Bills', route: '/ap/bills' },
+  },
   unposted_invoices: {
     steps: [
       'These invoices exist but have no accounting entry in the General Ledger',

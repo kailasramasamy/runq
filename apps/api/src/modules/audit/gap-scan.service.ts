@@ -7,6 +7,7 @@ import {
   paymentReceipts,
   vendors,
   customers,
+  documentAttachments,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { toNumber } from '../../utils/decimal';
@@ -45,6 +46,7 @@ const GAP_DEFINITIONS: Array<{ key: string; title: string; description: string; 
   { key: 'customer_credit_no_invoice', title: 'Customer Payments Without Invoices', description: 'Bank credit matched to customer but no invoice exists — create invoice to complete reconciliation', severity: 'error' },
   { key: 'matched_without_je', title: 'Matched Without Journal Entries', description: 'Reconciled but no accounting entry — books incomplete', severity: 'error' },
   { key: 'unposted_bills', title: 'Bills Without Journal Entries', description: 'Approved bills not posted to GL', severity: 'error' },
+  { key: 'bills_missing_invoice', title: 'Bills Missing Invoice Attachment', description: 'GST-registered vendors require a tax invoice — attach it to claim ITC and survive audit', severity: 'warning' },
   { key: 'unposted_invoices', title: 'Invoices Without Journal Entries', description: 'Sent invoices not posted to GL', severity: 'error' },
   { key: 'unpaid_bills', title: 'Unpaid Bills', description: 'Outstanding vendor balance', severity: 'warning' },
   { key: 'unpaid_invoices', title: 'Unpaid Invoices', description: 'Outstanding customer balance', severity: 'warning' },
@@ -66,6 +68,7 @@ export class GapScanService {
       this.customerCreditNoInvoiceCount(since),
       this.matchedWithoutJECount(since),
       this.unpostedBillsCount(since),
+      this.billsMissingInvoiceCount(since),
       this.unpostedInvoicesCount(since),
       this.unpaidBillsCount(since),
       this.unpaidInvoicesCount(since),
@@ -146,6 +149,17 @@ export class GapScanService {
     )));
   }
 
+  private billsMissingInvoiceCount(since: string) {
+    return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(purchaseInvoices)
+      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
+        sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+        eq(vendors.requiresInvoice, true),
+        sql`NOT EXISTS (SELECT 1 FROM ${documentAttachments} da WHERE da.entity_type = 'purchase_invoice' AND da.entity_id = ${purchaseInvoices.id})`,
+      )));
+  }
+
   private unpostedInvoicesCount(since: string) {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(and(
       eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since),
@@ -220,6 +234,18 @@ export class GapScanService {
         .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`, sql`${purchaseInvoices.invoiceNumber} NOT LIKE 'OB-%'`, sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'purchase_invoice' AND je.source_id = ${purchaseInvoices.id})`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/bills/${r.id}` }));
+    },
+    bills_missing_invoice: async (since) => {
+      const rows = await this.db.select({ id: purchaseInvoices.id, num: purchaseInvoices.invoiceNumber, amt: purchaseInvoices.totalAmount, date: purchaseInvoices.invoiceDate, vname: vendors.name, gstin: vendors.gstin })
+        .from(purchaseInvoices).innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
+          sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+          eq(vendors.requiresInvoice, true),
+          sql`NOT EXISTS (SELECT 1 FROM ${documentAttachments} da WHERE da.entity_type = 'purchase_invoice' AND da.entity_id = ${purchaseInvoices.id})`,
+        ))
+        .limit(50);
+      return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}${r.gstin ? ` · GSTIN ${r.gstin}` : ''}`, date: r.date, url: `/ap/bills/${r.id}` }));
     },
     unposted_invoices: async (since) => {
       const rows = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, date: salesInvoices.invoiceDate, cname: customers.name })
