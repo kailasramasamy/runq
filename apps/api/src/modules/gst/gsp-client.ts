@@ -565,6 +565,26 @@ export class WhiteBooksGspClient implements GspClient {
     };
   }
 
+  /** Normalize free-form UoM strings ("500ml", "1kg", "200g") to GSTN's
+   *  valid UQC enum (MLT, KGS, GMS, LTR, NOS, etc). Returns NOS as a safe
+   *  default if no match — GSTN accepts NOS for "numbers/unspecified". */
+  private normalizeUqc(uom: string | undefined | null): string {
+    if (!uom) return 'NOS';
+    const s = uom.trim().toLowerCase();
+    if (/(^|[\d\s])kg$/.test(s) || s === 'kgs' || s === 'kilogram') return 'KGS';
+    if (/(^|[\d\s])g$/.test(s) || s === 'gms' || s === 'gram') return 'GMS';
+    if (/(^|[\d\s])(ml)$/.test(s) || s === 'mlt' || s === 'milliliter') return 'MLT';
+    if (/(^|[\d\s])l$/.test(s) || /litre/.test(s) || /liter/.test(s) || s === 'ltr') return 'LTR';
+    if (s === 'pcs' || s === 'pc' || s === 'piece' || s === 'pieces') return 'PCS';
+    if (s === 'nos' || s === 'no' || s === 'unit' || s === 'each') return 'NOS';
+    if (s === 'box' || s === 'boxes') return 'BOX';
+    if (s === 'pkt' || s === 'pkts' || s === 'pack') return 'PAC';
+    if (s === 'mtr' || s === 'meter' || s === 'metre') return 'MTR';
+    if (s === 'set' || s === 'sets') return 'SET';
+    if (s === 'doz' || s === 'dozen') return 'DOZ';
+    return 'NOS';
+  }
+
   /** Build a single HSN summary entry. GSTN's HSN schema uses `oneOf`:
    *  inter-state (iamt only) OR intra-state (camt+samt only).
    *  Sending all 4 fields matches neither — must conditionally omit. */
@@ -577,7 +597,7 @@ export class WhiteBooksGspClient implements GspClient {
       num,
       hsn_sc: h.hsnCode,
       desc: cleanDesc,
-      uqc: h.uqc,
+      uqc: this.normalizeUqc(h.uqc),
       qty: Number(h.totalQuantity.toFixed(2)),
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
