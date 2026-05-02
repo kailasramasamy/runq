@@ -565,8 +565,14 @@ export class WhiteBooksGspClient implements GspClient {
       // HSN summary — WhiteBooks expects { data: [...] } envelope (per
       // GST-api-postman-collection.json). Newer 2024-25 GSTN spec uses
       // { hsn_b2b, hsn_b2c } but our GSP version doesn't accept that.
+      // Filter out 0%-rate entries — those are reported in the nil section
+      // (Table 8). HSN summary (Table 12) is for taxable supplies only in
+      // the GSP version we're targeting; rt=0/iamt=0 fails the schema's
+      // taxable subschema and there's no nil-rated subschema for HSN here.
       hsn: {
-        data: data.hsn.map((h, idx) => this.buildHsnEntry(h, idx + 1)),
+        data: data.hsn
+          .filter((h) => Number(h.gstRate) > 0)
+          .map((h, idx) => this.buildHsnEntry(h, idx + 1)),
       },
       doc_issue: {
         doc_det: data.docs.map((d, idx) => ({
