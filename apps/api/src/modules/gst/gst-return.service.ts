@@ -91,10 +91,11 @@ export class GstReturnService {
     );
 
     if (existing) {
-      // Update existing draft
+      // Update existing draft. Clear errorDetails so stale validation errors
+      // from a previous run don't linger after the user regenerates.
       const [updated] = await this.db
         .update(gstReturns)
-        .set({ data, status: 'draft', updatedAt: new Date() })
+        .set({ data, status: 'draft', errorDetails: null, updatedAt: new Date() })
         .where(eq(gstReturns.id, existing.id))
         .returning();
 
@@ -167,7 +168,7 @@ export class GstReturnService {
     if (existing) {
       const [updated] = await this.db
         .update(gstReturns)
-        .set({ data, notes, status: 'draft', updatedAt: new Date() })
+        .set({ data, notes, status: 'draft', errorDetails: null, updatedAt: new Date() })
         .where(eq(gstReturns.id, existing.id))
         .returning();
       return updated;
