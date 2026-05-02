@@ -543,6 +543,19 @@ export class WhiteBooksGspClient implements GspClient {
       })),
       // CDN: group by buyer GSTIN, dedupe note numbers
       cdnr: this.buildCdnr(data.cdn, supplierState),
+      // Nil-rated / exempt / non-GST supplies (Table 8). WhiteBooks schema:
+      //   nil: { inv: [{ sply_ty, expt_amt, nil_amt, ngsup_amt }] }
+      // sply_ty values: INTRB2B / INTRB2C / INTERB2B / INTERB2C
+      nil: {
+        inv: data.nil
+          .filter((n) => n.exemptAmount > 0 || n.nilRatedAmount > 0 || n.nonGstAmount > 0)
+          .map((n) => ({
+            sply_ty: n.supplyType === 'INTER' ? 'INTERB2C' : 'INTRB2C',
+            expt_amt: Number(n.exemptAmount.toFixed(2)),
+            nil_amt: Number(n.nilRatedAmount.toFixed(2)),
+            ngsup_amt: Number(n.nonGstAmount.toFixed(2)),
+          })),
+      },
       // HSN summary — WhiteBooks expects { data: [...] } envelope (per
       // GST-api-postman-collection.json). Newer 2024-25 GSTN spec uses
       // { hsn_b2b, hsn_b2c } but our GSP version doesn't accept that.
@@ -607,18 +620,13 @@ export class WhiteBooksGspClient implements GspClient {
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
     };
-    // WhiteBooks HSN schema (postman doc) lists only iamt + csamt — no
-    // camt/samt. Treat iamt as total tax (cgst+sgst+igst combined).
-    // The 2 subschemas in the oneOf are likely "with-tax" vs "nil-rated":
-    //   - taxable: iamt > 0
-    //   - nil:     iamt field omitted entirely
+    // Per WhiteBooks canonical sample payload, every HSN entry must include
+    // both iamt and csamt as numeric fields (with 0 for nil-rated rows).
+    // iamt represents total tax (cgst+sgst+igst combined) — the section-level
+    // payload (B2B/B2CS) carries the intra/inter breakdown.
     const totalTax = Number(h.igstAmount) + Number(h.cgstAmount) + Number(h.sgstAmount);
-    if (totalTax > 0) {
-      entry.iamt = Number(totalTax.toFixed(2));
-    }
-    if (h.cessAmount > 0) {
-      entry.csamt = Number(h.cessAmount.toFixed(2));
-    }
+    entry.iamt = Number(totalTax.toFixed(2));
+    entry.csamt = Number(h.cessAmount.toFixed(2));
     return entry;
   }
 
