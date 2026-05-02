@@ -543,11 +543,11 @@ export class WhiteBooksGspClient implements GspClient {
       })),
       // CDN: group by buyer GSTIN, dedupe note numbers
       cdnr: this.buildCdnr(data.cdn, supplierState),
-      // HSN summary (2024-25 spec) — split into B2B and B2C arrays directly.
-      // Since this generator currently only emits B2B/CDN, all HSN goes to b2b.
+      // HSN summary — WhiteBooks expects { data: [...] } envelope (per
+      // GST-api-postman-collection.json). Newer 2024-25 GSTN spec uses
+      // { hsn_b2b, hsn_b2c } but our GSP version doesn't accept that.
       hsn: {
-        hsn_b2b: data.hsn.map((h, idx) => this.buildHsnEntry(h, idx + 1)),
-        hsn_b2c: [],
+        data: data.hsn.map((h, idx) => this.buildHsnEntry(h, idx + 1)),
       },
       doc_issue: {
         doc_det: data.docs.map((d, idx) => ({
