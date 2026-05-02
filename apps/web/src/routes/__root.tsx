@@ -559,8 +559,8 @@ const customerDetailRoute = createRoute({
   },
 });
 
-type InvoiceStatusFilter = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
-const INVOICE_STATUS_VALUES: readonly InvoiceStatusFilter[] = ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled'];
+type InvoiceStatusFilter = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled' | 'unpaid';
+const INVOICE_STATUS_VALUES: readonly InvoiceStatusFilter[] = ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled', 'unpaid'];
 
 const invoicesRoute = createRoute({
   getParentRoute: () => arRoute,

@@ -31,6 +31,7 @@ const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
   { value: 'sent', label: 'Sent' },
+  { value: 'unpaid', label: 'Unpaid (Pending)' },
   { value: 'partially_paid', label: 'Partially Paid' },
   { value: 'paid', label: 'Paid' },
   { value: 'overdue', label: 'Overdue' },
@@ -307,6 +308,7 @@ export function InvoiceListPage() {
             value={summaryData.data.pendingCount}
             icon={Clock}
             formatValue={(v) => String(v)}
+            onClick={() => { setStatusFilter('unpaid'); setPage(1); }}
           />
           <StatsCard
             size="compact"
