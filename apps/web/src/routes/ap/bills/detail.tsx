@@ -6,6 +6,8 @@ import {
   useThreeWayMatch,
   useApproveInvoice,
   useDeletePurchaseInvoice,
+  useVendorAdvanceBalance,
+  useApplyAdvanceToBill,
 } from '../../../hooks/queries/use-purchase-invoices';
 import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
 import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, DebitNote } from '@runq/types';
@@ -716,6 +718,9 @@ export function BillDetailPage({ billId }: { billId: string }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const approveMutation = useApproveInvoice();
   const deleteMutation = useDeletePurchaseInvoice();
+  const advanceQ = useVendorAdvanceBalance(invoice?.vendorId ?? null);
+  const advanceBalance = advanceQ.data?.data?.balance ?? 0;
+  const applyAdvanceMutation = useApplyAdvanceToBill();
 
   if (isLoading) {
     return (
@@ -776,6 +781,17 @@ export function BillDetailPage({ billId }: { billId: string }) {
             {isDraft && (
               <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
                 <Trash2 size={14} /> Delete
+              </Button>
+            )}
+            {advanceBalance > 0 && Number(invoice.balanceDue) > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => applyAdvanceMutation.mutate(invoice.id)}
+                loading={applyAdvanceMutation.isPending}
+                title={`Apply ${formatINR(Math.min(advanceBalance, Number(invoice.balanceDue)))} from open vendor advance`}
+              >
+                <Check size={14} /> Apply Advance ({formatINR(Math.min(advanceBalance, Number(invoice.balanceDue)))})
               </Button>
             )}
           </div>

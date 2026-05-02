@@ -204,6 +204,19 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.post(
+    '/:id/apply-advance',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
+      const applied = await service.applyAdvancesToBill(id);
+      if (applied <= 0) return reply.status(400).send({ error: 'No advance available to apply' });
+      const invoice = await service.getById(id);
+      return { data: invoice, meta: { advanceApplied: applied } };
+    },
+  );
+
+  app.post(
     '/check-duplicates',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request) => {

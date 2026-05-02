@@ -75,6 +75,21 @@ export function useVendorAdvanceBalance(vendorId: string | null | undefined) {
   });
 }
 
+export function useApplyAdvanceToBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (billId: string) =>
+      api.post<ApiSuccess<PurchaseInvoiceWithDetails> & { meta?: { advanceApplied: number } }>(
+        `/ap/purchase-invoices/${billId}/apply-advance`,
+      ),
+    onSuccess: (_res, billId) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(billId) });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['vendor-advance-balance'] });
+    },
+  });
+}
+
 export function useCreatePurchaseInvoice() {
   const qc = useQueryClient();
   return useMutation({
