@@ -25,6 +25,7 @@ export const createVendorSchema = z.object({
   wmsVendorId: z.string().max(100).nullish(),
   category: z.string().max(50).nullish(),
   expenseAccountCode: z.string().max(20).nullish(),
+  treatNoBillAsAdvance: z.boolean().optional(),
 });
 
 export const updateVendorSchema = createVendorSchema.partial();

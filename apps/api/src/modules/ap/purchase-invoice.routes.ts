@@ -79,6 +79,19 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.get(
+    '/vendor-advance-balance/:vendorId',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { vendorId } = (uuidParamSchema.transform((v) => ({ vendorId: v.id }))).parse(
+        { id: (request.params as { vendorId: string }).vendorId },
+      );
+      const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
+      const balance = await service.getOpenAdvanceBalance(vendorId);
+      return { data: { vendorId, balance } };
+    },
+  );
+
   app.post(
     '/',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
@@ -95,6 +108,11 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
         vendorName: invoice.vendorName,
       });
 
+      let advanceApplied = 0;
+      if (input.applyAdvance !== false) {
+        advanceApplied = await service.applyAdvancesToBill(invoice.id);
+      }
+
       const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
       void webhooks.deliver('bill.created', {
         invoiceId: invoice.id,
@@ -103,7 +121,8 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
         totalAmount: invoice.totalAmount,
       });
 
-      return reply.status(201).send({ data: invoice });
+      const finalInvoice = advanceApplied > 0 ? await service.getById(invoice.id) : invoice;
+      return reply.status(201).send({ data: finalInvoice, meta: { advanceApplied } });
     },
   );
 

@@ -329,6 +329,7 @@ export class VendorService {
       wmsVendorId: row.wmsVendorId,
       category: row.category ?? null,
       expenseAccountCode: row.expenseAccountCode ?? null,
+      treatNoBillAsAdvance: row.treatNoBillAsAdvance,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

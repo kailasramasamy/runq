@@ -70,6 +70,7 @@ function buildInitial(v?: Vendor): FormState {
     bankIfsc: v.bankIfsc ?? undefined,
     bankName: v.bankName ?? undefined,
     paymentTermsDays: v.paymentTermsDays,
+    treatNoBillAsAdvance: v.treatNoBillAsAdvance ?? false,
     earlyPaymentDiscountPercent: v.earlyPaymentDiscountPercent ?? undefined,
     earlyPaymentDiscountDays: v.earlyPaymentDiscountDays ?? undefined,
     category: v.category ?? undefined,
@@ -150,7 +151,7 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
     ];
   }
 
-  function set(field: keyof FormState, value: string | number) {
+  function set(field: keyof FormState, value: string | number | boolean) {
     setForm((prev) => ({ ...prev, [field]: value === '' ? undefined : value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   }
@@ -287,6 +288,21 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             onChange={(e) => set('earlyPaymentDiscountDays', e.target.value ? Number(e.target.value) : '')}
             error={errors.earlyPaymentDiscountDays}
           />
+          <label className="col-span-1 sm:col-span-2 mt-2 flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={!!form.treatNoBillAsAdvance}
+              onChange={(e) => set('treatNoBillAsAdvance', e.target.checked)}
+              className="mt-0.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
+            />
+            <span>
+              <span className="font-medium">Bills issued monthly</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                Pre-bill payments accrue as advances (1104 Advance to Suppliers) instead of direct expense.
+                Auto-applied when the consolidated bill is created.
+              </span>
+            </span>
+          </label>
           {form.earlyPaymentDiscountPercent && form.earlyPaymentDiscountDays && (
             <p className="sm:col-span-2 text-xs text-zinc-500">
               {form.earlyPaymentDiscountPercent}% discount if paid within {form.earlyPaymentDiscountDays} days (i.e. {form.earlyPaymentDiscountPercent}/{form.earlyPaymentDiscountDays} net {form.paymentTermsDays ?? 30})

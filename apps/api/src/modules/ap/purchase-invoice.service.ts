@@ -1,5 +1,6 @@
-import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
-import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants } from '@runq/db';
+import { eq, and, sql, gte, lte, desc, isNull } from 'drizzle-orm';
+import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments, paymentAllocations } from '@runq/db';
+import { GLService } from '../gl/gl.service';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
@@ -188,6 +189,106 @@ export class PurchaseInvoiceService {
       await this.audit().log({ userId, action: 'created', entityType: 'purchase_invoice', entityId: invoice!.id });
       return result;
     });
+  }
+
+  /**
+   * Sum of vendor advances (payments without any allocation) — i.e., money
+   * paid to the vendor before any bill exists, sitting in 1104 Advance to
+   * Suppliers. Used by the bill create form to surface "apply advance" UX.
+   */
+  async getOpenAdvanceBalance(vendorId: string): Promise<number> {
+    const [row] = await this.db
+      .select({
+        amount: sql<string>`COALESCE(SUM(${payments.amount}::numeric - COALESCE((
+          SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id=${payments.id}
+        ), 0)), 0)::text`,
+      })
+      .from(payments)
+      .where(and(
+        eq(payments.tenantId, this.tenantId),
+        eq(payments.vendorId, vendorId),
+        eq(payments.status, 'completed'),
+      ));
+    return parseFloat(row?.amount ?? '0');
+  }
+
+  /**
+   * Apply open vendor advances to a freshly-created bill (FIFO by payment_date).
+   * Posts:
+   *   - Per advance: a payment_allocation linking advance → bill.
+   *   - One JE per applied total: DR 2101 AP / CR 1104 Advance to Suppliers.
+   *   - Updates bill amount_paid / balance_due / status.
+   * Returns the total applied. Idempotent: only applies up to bill balance.
+   */
+  async applyAdvancesToBill(billId: string): Promise<number> {
+    const [bill] = await this.db.select().from(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.id, billId), eq(purchaseInvoices.tenantId, this.tenantId))).limit(1);
+    if (!bill) return 0;
+    const billBalance = parseFloat(bill.balanceDue);
+    if (billBalance <= 0.01) return 0;
+
+    const [vendor] = await this.db.select({ name: vendors.name }).from(vendors)
+      .where(eq(vendors.id, bill.vendorId)).limit(1);
+    if (!vendor) return 0;
+
+    const openAdvances = await this.db
+      .select({
+        id: payments.id,
+        amount: payments.amount,
+        date: payments.paymentDate,
+        allocated: sql<string>`COALESCE((SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id=${payments.id}), 0)::text`,
+      })
+      .from(payments)
+      .where(and(
+        eq(payments.tenantId, this.tenantId),
+        eq(payments.vendorId, bill.vendorId),
+        eq(payments.status, 'completed'),
+      ))
+      .orderBy(payments.paymentDate);
+
+    let remaining = billBalance;
+    let totalApplied = 0;
+    await this.db.transaction(async (tx) => {
+      for (const adv of openAdvances) {
+        if (remaining <= 0.01) break;
+        const advBalance = parseFloat(adv.amount) - parseFloat(adv.allocated);
+        if (advBalance <= 0.01) continue;
+        const applyAmount = Math.round(Math.min(advBalance, remaining) * 100) / 100;
+
+        await tx.insert(paymentAllocations).values({
+          tenantId: this.tenantId,
+          paymentId: adv.id,
+          invoiceId: billId,
+          amount: String(applyAmount),
+        });
+        totalApplied = Math.round((totalApplied + applyAmount) * 100) / 100;
+        remaining = Math.round((remaining - applyAmount) * 100) / 100;
+      }
+
+      if (totalApplied > 0) {
+        const newPaid = parseFloat(bill.amountPaid) + totalApplied;
+        const newBal = parseFloat(bill.totalAmount) - newPaid;
+        await tx.update(purchaseInvoices).set({
+          amountPaid: String(Math.round(newPaid * 100) / 100),
+          balanceDue: String(Math.max(0, Math.round(newBal * 100) / 100)),
+          status: newBal <= 0.01 ? 'paid' : 'partially_paid',
+          updatedAt: new Date(),
+        }).where(eq(purchaseInvoices.id, billId));
+      }
+    });
+
+    if (totalApplied > 0) {
+      const gl = new GLService(this.db, this.tenantId);
+      await gl.postAdvanceApplication({
+        amount: totalApplied,
+        date: bill.invoiceDate,
+        billId,
+        vendorName: vendor.name,
+      });
+    }
+
+    void isNull;
+    return totalApplied;
   }
 
   private async computeGstForBill(

@@ -4,6 +4,7 @@ import { createPurchaseInvoiceSchema } from '@runq/validators';
 import type { CreatePurchaseInvoiceInput } from '@runq/validators';
 import { useVendors } from '../../hooks/queries/use-vendors';
 import { useItems } from '../../hooks/queries/use-items';
+import { useVendorAdvanceBalance } from '../../hooks/queries/use-purchase-invoices';
 import { formatINR } from '../../lib/utils';
 import { api } from '../../lib/api-client';
 import { DuplicateWarning } from './duplicate-warning';
@@ -96,6 +97,9 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
   const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
 
   const [vendorId, setVendorId] = useState('');
+  const [applyAdvance, setApplyAdvance] = useState(true);
+  const advanceBalanceQ = useVendorAdvanceBalance(vendorId || null);
+  const advanceBalance = advanceBalanceQ.data?.data?.balance ?? 0;
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -200,6 +204,7 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
       taxAmount: Math.round(tax * 100) / 100,
       totalAmount: total,
       notes: notes || null,
+      applyAdvance,
       items: lines.map((l) => ({
         itemName: l.itemName,
         sku: l.sku || null,
@@ -469,6 +474,24 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
                 {formatINR(total)}
               </span>
             </div>
+            {advanceBalance > 0 && (
+              <label className="mt-3 flex w-full max-w-md cursor-pointer items-start gap-2 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/20">
+                <input
+                  type="checkbox"
+                  checked={applyAdvance}
+                  onChange={(e) => setApplyAdvance(e.target.checked)}
+                  className="mt-0.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  <span className="font-medium text-indigo-900 dark:text-indigo-200">
+                    Apply {formatINR(Math.min(advanceBalance, total))} from open advance
+                  </span>
+                  <span className="block text-xs text-indigo-700 dark:text-indigo-300">
+                    Vendor has {formatINR(advanceBalance)} of advance to suppliers (1104). FIFO-applied to this bill on save.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -65,6 +65,16 @@ export function usePurchaseInvoice(id: string) {
   });
 }
 
+export function useVendorAdvanceBalance(vendorId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['vendor-advance-balance', vendorId],
+    queryFn: () => api.get<ApiSuccess<{ vendorId: string; balance: number }>>(
+      `/ap/purchase-invoices/vendor-advance-balance/${vendorId}`,
+    ),
+    enabled: !!vendorId,
+  });
+}
+
 export function useCreatePurchaseInvoice() {
   const qc = useQueryClient();
   return useMutation({

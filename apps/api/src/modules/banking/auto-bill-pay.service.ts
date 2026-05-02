@@ -7,6 +7,7 @@ import {
   reconciliationMatches,
   accounts,
   journalEntries,
+  vendors,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -69,21 +70,82 @@ export class AutoBillPayService {
       return result;
     }
 
-    // 3. Nothing exists — post direct expense JE, no bill
+    // 3. Nothing exists — branch by vendor's monthly-billing flag.
+    //    Vendors that issue consolidated bills (e.g., milk suppliers paid 3-4×
+    //    a month then invoiced at month-end) should accrue pre-bill payments
+    //    as advances (1104), not direct expense (wrong-period recognition,
+    //    GST ITC timing issues). Other vendors keep the direct-expense path
+    //    for one-off purchases (fuel, parking, courier) without invoices.
+    const [vendor] = await this.db.select({ treatNoBillAsAdvance: vendors.treatNoBillAsAdvance })
+      .from(vendors).where(and(eq(vendors.id, params.vendorId), eq(vendors.tenantId, this.tenantId))).limit(1);
+    if (vendor?.treatNoBillAsAdvance) {
+      const result = await this.postAdvance(params);
+      await this.logAudit('posted_advance', result.paymentId ?? '', params, null);
+      return result;
+    }
     const result = await this.postDirectExpense(params, expenseGlId);
     await this.logAudit('posted_direct_expense', result.journalEntryId ?? '', params, null);
     return result;
   }
 
+  /**
+   * Vendor expects a bill but none has arrived yet — book the bank debit as
+   * an advance (1104 Advance to Suppliers). When the real bill is created
+   * later, the advance is applied to it via PurchaseInvoiceService.
+   * JE: Dr 1104 Advance to Suppliers, Cr Bank.
+   */
+  private async postAdvance(params: AutoBillPayParams): Promise<AutoBillPayResult> {
+    const gl = new GLService(this.db, this.tenantId);
+
+    const paymentId = await this.db.transaction(async (tx) => {
+      const [payment] = await tx.insert(payments).values({
+        tenantId: this.tenantId,
+        vendorId: params.vendorId,
+        bankAccountId: params.bankAccountId,
+        paymentDate: params.transactionDate,
+        amount: String(params.amount),
+        paymentMethod: 'bank_transfer',
+        utrNumber: params.reference,
+        status: 'completed',
+        notes: 'Advance — bill pending. Auto-applied when bill is created.',
+      }).returning();
+
+      await tx.insert(reconciliationMatches).values({
+        tenantId: this.tenantId,
+        bankTransactionId: params.bankTransactionId,
+        paymentId: payment!.id,
+        matchType: 'auto_amount_date',
+      });
+
+      await tx.update(bankTransactions)
+        .set({ vendorId: params.vendorId, reconStatus: 'matched', updatedAt: new Date() })
+        .where(eq(bankTransactions.id, params.bankTransactionId));
+
+      return payment!.id;
+    });
+
+    await gl.postVendorAdvance({
+      amount: params.amount,
+      date: params.transactionDate,
+      id: paymentId,
+      vendorName: params.vendorName,
+      bankAccountCode: params.bankGlAccountCode,
+    });
+
+    return { billId: null, paymentId };
+  }
+
   private async logAudit(
-    flow: 'linked' | 'matched_existing_bill' | 'posted_direct_expense',
+    flow: 'linked' | 'matched_existing_bill' | 'posted_direct_expense' | 'posted_advance',
     entityId: string,
     params: AutoBillPayParams,
     billId: string | null,
   ): Promise<void> {
+    const entityType: 'payment' | 'journal_entry' =
+      flow === 'posted_direct_expense' ? 'journal_entry' : 'payment';
     await new AuditService(this.db, this.tenantId).log({
       action: 'auto_created_from_bank_txn',
-      entityType: flow === 'posted_direct_expense' ? 'journal_entry' : 'payment',
+      entityType,
       entityId,
       metadata: {
         flow,

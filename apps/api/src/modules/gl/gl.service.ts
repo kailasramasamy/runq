@@ -223,6 +223,43 @@ export class GLService {
     });
   }
 
+  /**
+   * Vendor advance payment — money out before the bill arrives. Sits in
+   * 1104 Advance to Suppliers until applied to a real bill via
+   * `postAdvanceApplication`.
+   */
+  async postVendorAdvance(payment: { amount: number; date: string; id: string; vendorName: string; bankAccountCode?: string }): Promise<void> {
+    if (await this.isAlreadyPosted('payment', payment.id)) return;
+    await this.createJournalEntry({
+      date: payment.date,
+      description: `Advance to ${payment.vendorName}`,
+      sourceType: 'payment',
+      sourceId: payment.id,
+      lines: [
+        { accountCode: '1104', debit: payment.amount },
+        { accountCode: payment.bankAccountCode ?? '1101', credit: payment.amount },
+      ],
+    });
+  }
+
+  /**
+   * Apply vendor advances against a newly-created bill. Moves the advance
+   * out of 1104 and into AP, where the bill's CR sits — they offset, leaving
+   * only the residual bill balance in AP.
+   */
+  async postAdvanceApplication(application: { amount: number; date: string; billId: string; vendorName: string }): Promise<void> {
+    await this.createJournalEntry({
+      date: application.date,
+      description: `Apply advance to bill — ${application.vendorName}`,
+      sourceType: 'advance_application',
+      sourceId: application.billId,
+      lines: [
+        { accountCode: '2101', debit: application.amount },
+        { accountCode: '1104', credit: application.amount },
+      ],
+    });
+  }
+
   async postReceipt(receipt: { amount: number; date: string; id: string; customerName: string }): Promise<void> {
     if (await this.isAlreadyPosted('receipt', receipt.id)) return;
     await this.createJournalEntry({

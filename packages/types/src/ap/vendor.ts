@@ -23,6 +23,7 @@ export interface Vendor {
   wmsVendorId: string | null;
   category: string | null;
   expenseAccountCode: string | null;
+  treatNoBillAsAdvance: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

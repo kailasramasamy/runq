@@ -37,6 +37,9 @@ export const createPurchaseInvoiceSchema = z.object({
   reverseCharge: z.boolean().default(false),
   // TDS header-level
   tdsSection: z.string().max(20).nullish(),
+  // Apply any open advance to suppliers from this vendor against this bill
+  // (FIFO, up to bill total). Default true — set false to keep advance for a later bill.
+  applyAdvance: z.boolean().optional(),
 });
 
 export const updatePurchaseInvoiceSchema = createPurchaseInvoiceSchema.partial();
