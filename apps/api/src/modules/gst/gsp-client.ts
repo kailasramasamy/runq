@@ -607,12 +607,15 @@ export class WhiteBooksGspClient implements GspClient {
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
     };
-    // WhiteBooks HSN schema (per GST-api-postman-collection.json) takes
-    // iamt as the TOTAL tax for the HSN row regardless of intra/inter.
-    // The intra/inter breakdown is reported at section level (B2B/B2CS),
-    // not in the HSN summary. Sum cgst+sgst+igst into iamt.
+    // WhiteBooks HSN schema (postman doc) lists only iamt + csamt — no
+    // camt/samt. Treat iamt as total tax (cgst+sgst+igst combined).
+    // The 2 subschemas in the oneOf are likely "with-tax" vs "nil-rated":
+    //   - taxable: iamt > 0
+    //   - nil:     iamt field omitted entirely
     const totalTax = Number(h.igstAmount) + Number(h.cgstAmount) + Number(h.sgstAmount);
-    entry.iamt = Number(totalTax.toFixed(2));
+    if (totalTax > 0) {
+      entry.iamt = Number(totalTax.toFixed(2));
+    }
     if (h.cessAmount > 0) {
       entry.csamt = Number(h.cessAmount.toFixed(2));
     }
