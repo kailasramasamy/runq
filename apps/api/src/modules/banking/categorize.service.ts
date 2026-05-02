@@ -46,6 +46,10 @@ const HARDCODED_RULES: Array<{
   confidence: number;
   txnType?: 'credit' | 'debit';
 }> = [
+  // Payment-aggregator settlements are wallet recharges, not customer-AR
+  // receipts. Route to "Advance from Customers" (2102) so AR isn't polluted
+  // and the wallet liability is tracked correctly.
+  { patterns: [/RAZORPAY/i, /PAYMENT\s+AGGREGATOR/i, /\bPG\s+SETTLEMENT/i], code: '2102', confidence: 0.95, txnType: 'credit' },
   { patterns: [/BANK\s*CHARGES?/i, /\bCHARGES?\b/i, /\bCHG\b/i], code: '5007', confidence: 0.95 },
   { patterns: [/SALARY/i, /\bSAL[-\/]/i], code: '5003', confidence: 0.95 },
   { patterns: [/\bRENT\b/i], code: '5004', confidence: 0.90 },
@@ -423,24 +427,26 @@ export class CategorizeService {
       }
     }
 
-    // 2. Vendor/customer name matching
+    // 2. Hardcoded pattern rules — checked BEFORE party-name matching so
+    //    specific keywords (Razorpay, salary, bank charges) aren't
+    //    accidentally pulled into a customer/vendor bucket by fuzzy substring.
+    for (const rule of HARDCODED_RULES) {
+      if (rule.txnType && rule.txnType !== type) continue;
+      if (rule.patterns.some((p) => p.test(upper))) {
+        return { accountCode: rule.code, confidence: rule.confidence };
+      }
+    }
+
+    // 3. Vendor/customer name matching
     const partyMatch = this.matchPartyNames(upper, type, vendorList, customerList);
     if (partyMatch) return partyMatch;
 
-    // 3. Learned GL narration rules (no vendor/customer)
+    // 4. Learned GL narration rules (no vendor/customer)
     for (const rule of narrationRules) {
       if (rule.vendorId || rule.customerId) continue; // already handled above
       if (rule.txnType && rule.txnType !== type) continue;
       if (upper.includes(rule.pattern.toUpperCase())) {
         return { accountId: rule.glAccountId, confidence: 0.95, autoReconcile: rule.autoReconcile };
-      }
-    }
-
-    // 4. Hardcoded pattern rules
-    for (const rule of HARDCODED_RULES) {
-      if (rule.txnType && rule.txnType !== type) continue;
-      if (rule.patterns.some((p) => p.test(upper))) {
-        return { accountCode: rule.code, confidence: rule.confidence };
       }
     }
 
