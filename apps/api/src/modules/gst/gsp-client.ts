@@ -188,6 +188,12 @@ export class WhiteBooksGspClient implements GspClient {
     };
 
     const payload = this.transformGstr1ForUpload(gstin, period, data);
+    // Debug: log the exact payload being sent so we can diagnose schema errors.
+    // Logs only the HSN section by default — full payload is huge.
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] uploadGstr1 HSN payload:', JSON.stringify(payload.hsn, null, 2).substring(0, 4000));
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] uploadGstr1 nil + b2cs payload:', JSON.stringify({ nil: payload.nil, b2cs: payload.b2cs }, null, 2));
     const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) });
     const result = await res.json();
 
