@@ -237,6 +237,26 @@ export class GLService {
     });
   }
 
+  /**
+   * Wallet receipt — settles AR against the customer-wallet liability
+   * (2102 Advance from Customers) instead of cash. Used for prepaid /
+   * stored-value purchases where the bank credit was already booked
+   * earlier as a wallet recharge.
+   */
+  async postWalletReceipt(receipt: { amount: number; date: string; id: string; customerName: string }): Promise<void> {
+    if (await this.isAlreadyPosted('receipt', receipt.id)) return;
+    await this.createJournalEntry({
+      date: receipt.date,
+      description: `Wallet receipt from ${receipt.customerName}`,
+      sourceType: 'receipt',
+      sourceId: receipt.id,
+      lines: [
+        { accountCode: '2102', debit: receipt.amount },
+        { accountCode: '1103', credit: receipt.amount },
+      ],
+    });
+  }
+
   async postPurchaseInvoice(invoice: {
     totalAmount: number; date: string; id: string; vendorName: string; expenseAccountCode?: string;
   }): Promise<void> {

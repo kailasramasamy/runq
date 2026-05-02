@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Send, CheckCircle, AlertTriangle, Bell, Printer, CreditCard, Percent, Trash2, ArrowLeft } from 'lucide-react';
-import { useInvoice, useSendInvoice, useMarkPaid, useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice } from '@/hooks/queries/use-invoices';
+import { useInvoice, useSendInvoice, useMarkPaid, useMarkPaidFromWallet, useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice } from '@/hooks/queries/use-invoices';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
 import { useAuth } from '@/providers/auth-provider';
 import { api } from '@/lib/api-client';
@@ -47,6 +47,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const { data: receiptsData } = useInvoiceReceipts(invoiceId);
   const sendMutation = useSendInvoice();
   const markPaidMutation = useMarkPaid();
+  const markPaidFromWalletMutation = useMarkPaidFromWallet();
   const deleteMutation = useDeleteInvoice();
   const hardDeleteMutation = useHardDeleteInvoice();
   const { toast } = useToast();
@@ -111,6 +112,12 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     markPaidMutation.mutate(
       { id: invoiceId, data: { paymentDate, referenceNumber: referenceNumber || undefined } },
       { onSuccess: () => setShowMarkPaid(false) },
+    );
+  }
+
+  function handleMarkPaidFromWallet() {
+    markPaidFromWalletMutation.mutate(
+      { id: invoiceId, data: { paymentDate: invoice!.invoiceDate } },
     );
   }
 
@@ -204,8 +211,14 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           >
             <CheckCircle size={14} /> Mark as Paid
           </Button>
-          <Button variant="outline" size="sm" disabled title="Coming soon">
-            Record Receipt
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMarkPaidFromWallet}
+            loading={markPaidFromWalletMutation.isPending}
+            title="Settle this invoice against the customer wallet (2102 Advance from Customers)"
+          >
+            <CheckCircle size={14} /> Paid from Wallet
           </Button>
         </>
       );

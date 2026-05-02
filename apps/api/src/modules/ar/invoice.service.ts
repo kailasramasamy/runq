@@ -948,6 +948,84 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * Settle a sales invoice against the customer wallet (2102 Advance from
+   * Customers). For wallet/prepaid platforms — the bank credit was booked
+   * earlier as a wallet recharge, so the receipt JE moves the liability
+   * down instead of moving cash up. Same shape as `markPaid` otherwise.
+   */
+  async markPaidFromWallet(id: string, input: MarkPaidInput): Promise<SalesInvoiceWithDetails> {
+    const existing = await this.getById(id);
+    if (!['sent', 'partially_paid', 'overdue', 'draft'].includes(existing.status)) {
+      throw new ConflictError('Invoice cannot be marked as paid in its current status');
+    }
+
+    const allocationSum = await this.db
+      .select({ total: sql<number>`coalesce(sum(${receiptAllocations.amount}), 0)::float` })
+      .from(receiptAllocations)
+      .where(and(eq(receiptAllocations.invoiceId, id), eq(receiptAllocations.tenantId, this.tenantId)));
+
+    const alreadyAllocated = allocationSum[0]?.total ?? 0;
+    const balanceDue = existing.totalAmount - alreadyAllocated;
+    if (balanceDue <= 0) throw new ConflictError('Invoice already fully paid');
+
+    return this.db.transaction(async (tx) => {
+      const [receipt] = await tx
+        .insert(paymentReceipts)
+        .values({
+          tenantId: this.tenantId,
+          customerId: existing.customerId,
+          receiptDate: input.paymentDate,
+          amount: String(balanceDue),
+          paymentMethod: 'bank_transfer',
+          referenceNumber: input.referenceNumber ?? null,
+          notes: input.notes ?? 'Paid from customer wallet',
+        })
+        .returning();
+
+      await tx.insert(receiptAllocations).values({
+        tenantId: this.tenantId,
+        receiptId: receipt!.id,
+        invoiceId: id,
+        amount: String(balanceDue),
+      });
+
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      await gl.postWalletReceipt({
+        amount: balanceDue,
+        date: input.paymentDate,
+        id: receipt!.id,
+        customerName: existing.customerName,
+      });
+
+      const newAmountReceived = alreadyAllocated + balanceDue;
+      const [row] = await tx
+        .update(salesInvoices)
+        .set({
+          status: 'paid',
+          amountReceived: String(newAmountReceived),
+          balanceDue: '0',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
+        .returning();
+
+      const itemRows = await tx
+        .select()
+        .from(salesInvoiceItems)
+        .where(and(eq(salesInvoiceItems.invoiceId, id), eq(salesInvoiceItems.tenantId, this.tenantId)));
+
+      return {
+        ...this.toInvoice(row!),
+        customerName: existing.customerName,
+        customerNickname: existing.customerNickname ?? null,
+        customerEmail: existing.customerEmail ?? null,
+        customerPhone: existing.customerPhone ?? null,
+        items: itemRows.map(this.toInvoiceItem),
+      };
+    });
+  }
+
   async getReceiptsForInvoice(invoiceId: string) {
     const rows = await this.db
       .select({

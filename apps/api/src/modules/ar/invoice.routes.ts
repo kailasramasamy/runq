@@ -213,6 +213,27 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.post(
+    '/:id/mark-paid-from-wallet',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = markPaidSchema.parse(request.body);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const invoice = await service.markPaidFromWallet(id, input);
+
+      const webhooks = new WebhookEndpointService(request.server.db, request.tenantId);
+      void webhooks.deliver('invoice.paid', {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        amountPaid: invoice.totalAmount,
+        paidDate: invoice.invoiceDate,
+      });
+
+      return { data: invoice };
+    },
+  );
+
   app.get(
     '/:id/upi-link',
     { preHandler: [rbacHook([...READ_ROLES])] },

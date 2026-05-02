@@ -147,6 +147,18 @@ export function useMarkPaid() {
   });
 }
 
+export function useMarkPaidFromWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: MarkPaidInput }) =>
+      api.post<ApiSuccess<SalesInvoice>>(`/ar/invoices/${id}/mark-paid-from-wallet`, data),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) });
+    },
+  });
+}
+
 export function useDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({
