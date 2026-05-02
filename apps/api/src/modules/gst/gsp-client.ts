@@ -509,17 +509,26 @@ export class WhiteBooksGspClient implements GspClient {
       gstin,
       fp: period,
       b2b,
-      b2cs: data.b2cs.map((e) => ({
-        pos: e.placeOfSupply,
-        sply_ty: e.supplyType,
-        rt: e.gstRate,
-        txval: e.taxableValue,
-        iamt: e.igstAmount,
-        camt: e.cgstAmount,
-        samt: e.sgstAmount,
-        csamt: e.cessAmount,
-        typ: 'OE',
-      })),
+      // GSTN B2CS schema is oneOf inter/intra — emit ONLY the matching tax
+      // fields. Sending both iamt and camt+samt fails the oneOf even when one
+      // pair is zero.
+      b2cs: data.b2cs.map((e) => {
+        const base: Record<string, unknown> = {
+          pos: e.placeOfSupply,
+          sply_ty: e.supplyType,
+          rt: Number(e.gstRate),
+          txval: Number(e.taxableValue.toFixed(2)),
+          typ: 'OE',
+        };
+        if (e.supplyType === 'INTER') {
+          base.iamt = Number(e.igstAmount.toFixed(2));
+        } else {
+          base.camt = Number(e.cgstAmount.toFixed(2));
+          base.samt = Number(e.sgstAmount.toFixed(2));
+        }
+        if (e.cessAmount > 0) base.csamt = Number(e.cessAmount.toFixed(2));
+        return base;
+      }),
       b2cl: data.b2cl.map((inv) => ({
         pos: inv.placeOfSupply,
         inv: [{
