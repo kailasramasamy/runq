@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
@@ -646,10 +645,12 @@ class _Footer extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            SvgPicture.asset(
-              'assets/branding/runq-app-logo.svg',
-              width: 32,
-              height: 32,
+            Image.asset(
+              Theme.of(context).brightness == Brightness.dark
+                  ? 'assets/branding/runq-wordmark-light.png'
+                  : 'assets/branding/runq-wordmark-dark.png',
+              height: 22,
+              fit: BoxFit.contain,
             ),
             const SizedBox(height: 6),
             Text(
