@@ -67,7 +67,7 @@ class HelpScreen extends StatelessWidget {
                           tile: t.hairlineSoft,
                           ink: t.muted,
                           label: 'App version',
-                          value: kAppVersion,
+                          value: kAppVersionLabel,
                           onTap: null,
                         ),
                       ],

@@ -5,10 +5,12 @@ import 'providers/theme_mode_provider.dart';
 import 'router.dart';
 import 'services/share_intake.dart';
 import 'theme/runq_theme.dart';
+import 'utils/app_info.dart';
 import 'widgets/app_update_gate.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadAppInfo();
   runApp(const ProviderScope(child: RunqApp()));
 }
 

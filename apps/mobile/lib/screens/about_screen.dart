@@ -219,7 +219,7 @@ class _Footer extends StatelessWidget {
     final t = RT(context);
     return Column(
       children: [
-        Text('Version $kAppVersion',
+        Text('Version $kAppVersionLabel',
             style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
         const SizedBox(height: 4),
         Text('© runQ · Built for Indian SMEs',

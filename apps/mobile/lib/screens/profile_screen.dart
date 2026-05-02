@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
@@ -641,27 +642,18 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Center(
         child: Column(
           children: [
-            RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF605A52),
-                  letterSpacing: 0.02,
-                ),
-                children: [
-                  TextSpan(text: 'run'),
-                  TextSpan(text: 'Q', style: TextStyle(color: RT(context).brand)),
-                ],
-              ),
+            SvgPicture.asset(
+              'assets/branding/runq-app-logo.svg',
+              width: 32,
+              height: 32,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              'Version $kAppVersion',
+              'Version $kAppVersionLabel',
               style: const TextStyle(fontSize: 11, color: Color(0xFF9C9489)),
             ),
           ],
