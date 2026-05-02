@@ -593,9 +593,14 @@ export class WhiteBooksGspClient implements GspClient {
     num: number,
   ): Record<string, unknown> {
     const cleanDesc = h.description.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
+    // GSTR-1 HSN master is 6-digit (CBIC Notification 78/2020). 8-digit codes
+    // belong to the customs HSN master and aren't recognized by the filing
+    // validator. Truncate to 6-digit for the payload while keeping our source
+    // data 8-digit (more granular for internal reports).
+    const hsnForFiling = h.hsnCode.length === 8 ? h.hsnCode.substring(0, 6) : h.hsnCode;
     const entry: Record<string, unknown> = {
       num,
-      hsn_sc: h.hsnCode,
+      hsn_sc: hsnForFiling,
       desc: cleanDesc,
       uqc: this.normalizeUqc(h.uqc),
       qty: Number(h.totalQuantity.toFixed(2)),
