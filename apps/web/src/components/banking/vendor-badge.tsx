@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, Store, User, Plus } from 'lucide-react';
-import { Badge } from '@/components/ui';
+import { Search, Plus } from 'lucide-react';
 import { useVendors } from '@/hooks/queries/use-vendors';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
@@ -34,8 +33,6 @@ export function VendorBadge({ transactionId, type, assignedName }: PartyBadgePro
   }, []);
 
   const isDebit = type === 'debit';
-  const Icon = isDebit ? Store : User;
-  const fallback = isDebit ? 'Assign Vendor' : 'Assign Customer';
   const isAssigned = !!assignedName;
 
   return (
@@ -44,17 +41,16 @@ export function VendorBadge({ transactionId, type, assignedName }: PartyBadgePro
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className="cursor-pointer"
-        title={isAssigned ? 'Click to change' : (isDebit ? 'Assign a vendor' : 'Assign a customer')}
+        title={isAssigned ? 'Click to change' : (isDebit ? 'Click to assign a vendor (optional)' : 'Click to assign a customer (optional)')}
       >
         {isAssigned ? (
           <span className="text-sm text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300">
             {assignedName}
           </span>
         ) : (
-          <Badge variant="default">
-            <Icon className="mr-1 inline h-3 w-3" />
-            {fallback}
-          </Badge>
+          <span className="text-sm text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400">
+            —
+          </span>
         )}
       </button>
       {open && (
