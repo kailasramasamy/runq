@@ -634,12 +634,16 @@ export class WhiteBooksGspClient implements GspClient {
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
     };
-    // Per WhiteBooks canonical sample payload, every HSN entry must include
-    // both iamt and csamt as numeric fields (with 0 for nil-rated rows).
-    // iamt represents total tax (cgst+sgst+igst combined) — the section-level
-    // payload (B2B/B2CS) carries the intra/inter breakdown.
-    const totalTax = Number(h.igstAmount) + Number(h.cgstAmount) + Number(h.sgstAmount);
-    entry.iamt = Number(totalTax.toFixed(2));
+    // GSTN's HSN entry schema is oneOf intra-state vs inter-state. Emit
+    // exactly the matching tax fields; sending both pairs (or sending iamt
+    // when igst is 0) fails validation. csamt is always present (0 if no
+    // cess) per the canonical sample.
+    if (Number(h.igstAmount) > 0) {
+      entry.iamt = Number(Number(h.igstAmount).toFixed(2));
+    } else {
+      entry.camt = Number(Number(h.cgstAmount).toFixed(2));
+      entry.samt = Number(Number(h.sgstAmount).toFixed(2));
+    }
     entry.csamt = Number(h.cessAmount.toFixed(2));
     return entry;
   }
