@@ -239,13 +239,23 @@ export class WhiteBooksGspClient implements GspClient {
         return { status: 'P' };
       }
       if (status === 'PE') {
-        // Processed with Error — extract details
-        const errorReport = data?.data?.error_report;
-        const firstError = errorReport?.b2b?.[0]?.error_msg || errorReport?.cdnr?.[0]?.error_msg || 'Validation failed on GSTN';
+        // Processed with Error — surface ALL section errors, not just first
+        const errorReport = data?.data?.error_report ?? data?.error_report;
+        const messages: string[] = [];
+        for (const section of ['b2b', 'b2cs', 'b2cl', 'cdnr', 'cdnur', 'hsn', 'nil', 'doc_issue', 'exp']) {
+          const errs = errorReport?.[section];
+          if (Array.isArray(errs)) {
+            errs.slice(0, 5).forEach((e: { error_msg?: string; error_cd?: string }) => {
+              if (e.error_msg) messages.push(`[${section}] ${e.error_cd || ''} ${e.error_msg}`);
+            });
+          }
+        }
+        // eslint-disable-next-line no-console
+        console.log('[gsp-client] retstatus error_report:', JSON.stringify(errorReport).substring(0, 4000));
         return {
           status: 'PE',
           errorCode: 'GSTN_VALIDATION',
-          errorMessage: firstError,
+          errorMessage: messages.length > 0 ? messages.join(' | ') : 'Validation failed on GSTN',
           errorReport,
         };
       }
