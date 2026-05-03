@@ -122,12 +122,19 @@ export class WhiteBooksGspClient implements GspClient {
   async requestOtp(gstin: string, username: string): Promise<OtpChallenge> {
     const stateCode = stateCodeFromGstin(gstin);
     const url = withEmail('/authentication/otprequest');
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: commonHeaders(username, stateCode),
-    });
+    const headers = commonHeaders(username, stateCode);
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] OTP REQUEST URL:', url);
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] OTP REQUEST HEADERS:', JSON.stringify({
+      ...headers,
+      client_secret: '<redacted>',
+    }));
+    const res = await fetch(url, { method: 'GET', headers });
 
     const data = await res.json();
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] OTP RESPONSE:', JSON.stringify(data));
     const success = data.status_cd === '1' || data.status === 1;
 
     return {
