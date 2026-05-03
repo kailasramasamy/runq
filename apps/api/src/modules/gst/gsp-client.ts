@@ -564,18 +564,14 @@ export class WhiteBooksGspClient implements GspClient {
             ngsup_amt: Number(n.nonGstAmount.toFixed(2)),
           })),
       },
-      // HSN summary — WhiteBooks expects { data: [...] } envelope (per
-      // GST-api-postman-collection.json). Newer 2024-25 GSTN spec uses
-      // { hsn_b2b, hsn_b2c } but our GSP version doesn't accept that.
-      // Filter out 0%-rate entries — those are reported in the nil section
-      // (Table 8). HSN summary (Table 12) is for taxable supplies only in
-      // the GSP version we're targeting; rt=0/iamt=0 fails the schema's
-      // taxable subschema and there's no nil-rated subschema for HSN here.
-      hsn: {
-        data: data.hsn
-          .filter((h) => Number(h.gstRate) > 0)
-          .map((h, idx) => this.buildHsnEntry(h, idx + 1)),
-      },
+      // HSN summary — try flat array form. WhiteBooks postman doc shows
+      // `hsn: { data: [...] }` envelope but the schema's "no subschema
+      // matched out of 2" error suggests it accepts either flat array or
+      // wrapped object. Flat array is the older GSTN format and matches
+      // what most GSP implementations actually accept.
+      hsn: data.hsn
+        .filter((h) => Number(h.gstRate) > 0)
+        .map((h, idx) => this.buildHsnEntry(h, idx + 1)),
       doc_issue: {
         doc_det: data.docs.map((d, idx) => ({
           doc_num: this.docTypeCode(d.docType),
