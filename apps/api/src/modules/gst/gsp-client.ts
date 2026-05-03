@@ -525,6 +525,9 @@ export class WhiteBooksGspClient implements GspClient {
     return {
       gstin,
       fp: period,
+      // Required by WhiteBooks per Offline Tool v3.2.4 generated payload.
+      version: 'GST3.2.4',
+      hash: 'hash',
       b2b,
       // GSTN B2CS schema is oneOf inter/intra — emit ONLY the matching tax
       // fields. Sending both iamt and camt+samt fails the oneOf even when one
@@ -576,10 +579,12 @@ export class WhiteBooksGspClient implements GspClient {
             },
           }
         : {}),
-      // HSN — { hsn_b2b, hsn_b2c } format that worked for Mar 2026 filing.
+      // HSN summary — { hsn_b2b: [...] } envelope per Offline Tool v3.2.4.
+      // Verified working against WhiteBooks prod /gstr1/retsave 2026-05-03.
       hsn: {
-        hsn_b2b: data.hsn.map((h, idx) => this.buildHsnEntry(h, idx + 1)),
-        hsn_b2c: [],
+        hsn_b2b: data.hsn
+          .filter((h) => Number(h.gstRate) > 0)
+          .map((h, idx) => this.buildHsnEntry(h, idx + 1)),
       },
       doc_issue: {
         doc_det: data.docs.map((d, idx) => ({
@@ -600,20 +605,26 @@ export class WhiteBooksGspClient implements GspClient {
   /** Normalize free-form UoM strings ("500ml", "1kg", "200g") to GSTN's
    *  valid UQC enum (MLT, KGS, GMS, LTR, NOS, etc). Returns NOS as a safe
    *  default if no match — GSTN accepts NOS for "numbers/unspecified". */
+  /** GSTN's authoritative UQC enum (extracted from GSTR-1 Excel template
+   *  V2.2 master sheet, Oct 2025). Format: <CODE>-<DESCRIPTION>.
+   *  Spelling matters — "GRAMMES" not "GRAMS", "MILILITRE" not "MILLILITRES". */
   private normalizeUqc(uom: string | undefined | null): string {
     if (!uom) return 'NOS';
     const s = uom.trim().toLowerCase();
-    if (/(^|[\d\s])kg$/.test(s) || s === 'kgs' || s === 'kilogram') return 'KGS';
-    if (/(^|[\d\s])g$/.test(s) || s === 'gms' || s === 'gram') return 'GMS';
-    if (/(^|[\d\s])(ml)$/.test(s) || s === 'mlt' || s === 'milliliter') return 'MLT';
+    if (/(^|[\d\s])kg$/.test(s) || s === 'kgs' || s === 'kilogram' || s === 'kilograms') return 'KGS';
+    if (/(^|[\d\s])g$/.test(s) || s === 'gms' || s === 'gram' || s === 'grams' || s === 'grammes') return 'GMS';
+    if (/(^|[\d\s])(ml)$/.test(s) || s === 'mlt' || s === 'milliliter' || s === 'mililitre') return 'MLT';
     if (/(^|[\d\s])l$/.test(s) || /litre/.test(s) || /liter/.test(s) || s === 'ltr') return 'LTR';
     if (s === 'pcs' || s === 'pc' || s === 'piece' || s === 'pieces') return 'PCS';
     if (s === 'nos' || s === 'no' || s === 'unit' || s === 'each') return 'NOS';
     if (s === 'box' || s === 'boxes') return 'BOX';
-    if (s === 'pkt' || s === 'pkts' || s === 'pack') return 'PAC';
-    if (s === 'mtr' || s === 'meter' || s === 'metre') return 'MTR';
+    if (s === 'pkt' || s === 'pkts' || s === 'pack' || s === 'packs') return 'PAC';
+    if (s === 'mtr' || s === 'meter' || s === 'metre' || s === 'meters') return 'MTR';
     if (s === 'set' || s === 'sets') return 'SET';
-    if (s === 'doz' || s === 'dozen') return 'DOZ';
+    if (s === 'doz' || s === 'dozen' || s === 'dozens') return 'DOZ';
+    if (s === 'btl' || s === 'bottle' || s === 'bottles') return 'BTL';
+    if (s === 'bag' || s === 'bags') return 'BAG';
+    if (s === 'box' || s === 'cartons' || s === 'ctn') return 'CTN';
     return 'OTH';
   }
 
@@ -624,29 +635,26 @@ export class WhiteBooksGspClient implements GspClient {
     h: { hsnCode: string; description: string; uqc: string; totalQuantity: number; gstRate: number; taxableValue: number; igstAmount: number; cgstAmount: number; sgstAmount: number; cessAmount: number },
     num: number,
   ): Record<string, unknown> {
-    // Exact format that worked for Mar 2026 sandbox filing.
+    // Verified format from GSTR-1 Offline Tool v3.2.4 generated payload
+    // (2026-05-03). Required fields: num, hsn_sc, desc, user_desc, uqc,
+    // qty, rt, txval, iamt, camt, samt, csamt — ALL present even if zero.
+    // UQC is short code (KGS, LTR, NOS) — NOT the dash-separated form.
     const cleanDesc = h.description.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
-    const entry: Record<string, unknown> = {
+    const hsnForFiling = h.hsnCode.length === 8 ? h.hsnCode.substring(0, 6) : h.hsnCode;
+    return {
       num,
-      hsn_sc: h.hsnCode,
+      hsn_sc: hsnForFiling,
       desc: cleanDesc,
-      uqc: h.uqc,
+      user_desc: cleanDesc,
+      uqc: this.normalizeUqc(h.uqc),
       qty: Number(h.totalQuantity.toFixed(2)),
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
+      iamt: Number(Number(h.igstAmount).toFixed(2)),
+      camt: Number(Number(h.cgstAmount).toFixed(2)),
+      samt: Number(Number(h.sgstAmount).toFixed(2)),
+      csamt: Number(Number(h.cessAmount).toFixed(2)),
     };
-    if (h.igstAmount > 0) {
-      entry.iamt = Number(h.igstAmount.toFixed(2));
-    } else if (h.cgstAmount > 0 || h.sgstAmount > 0) {
-      entry.camt = Number(h.cgstAmount.toFixed(2));
-      entry.samt = Number(h.sgstAmount.toFixed(2));
-    } else {
-      entry.iamt = 0;
-    }
-    if (h.cessAmount > 0) {
-      entry.csamt = Number(h.cessAmount.toFixed(2));
-    }
-    return entry;
   }
 
   /** Build itm_det respecting GSTN's strict schema:
