@@ -191,13 +191,15 @@ export class WhiteBooksGspClient implements GspClient {
     // Debug: log payload sections in a single atomic line each (no \n inside)
     // so log streams don't interleave concurrent writes.
     // eslint-disable-next-line no-console
-    console.log('[gsp-client] HSN section: ' + JSON.stringify(payload.hsn).substring(0, 4000));
+    console.log('[gsp-client] HSN section: ' + JSON.stringify(payload.hsn ?? null).substring(0, 4000));
     // eslint-disable-next-line no-console
     console.log('[gsp-client] nil section: ' + JSON.stringify(payload.nil));
     // eslint-disable-next-line no-console
     console.log('[gsp-client] b2cs section: ' + JSON.stringify(payload.b2cs));
     const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) });
     const result = await res.json();
+    // eslint-disable-next-line no-console
+    console.log('[gsp-client] FULL response: ' + JSON.stringify(result));
 
     const success = result.status_cd === '1' || result.status === 1;
     const refid = result.data?.reference_id || result.reference_id || result.refid;
@@ -551,27 +553,27 @@ export class WhiteBooksGspClient implements GspClient {
       })),
       // CDN: group by buyer GSTIN, dedupe note numbers
       cdnr: this.buildCdnr(data.cdn, supplierState),
-      // Nil-rated / exempt / non-GST supplies (Table 8). WhiteBooks schema:
-      //   nil: { inv: [{ sply_ty, expt_amt, nil_amt, ngsup_amt }] }
-      // sply_ty values: INTRB2B / INTRB2C / INTERB2B / INTERB2C
-      nil: {
-        inv: data.nil
-          .filter((n) => n.exemptAmount > 0 || n.nilRatedAmount > 0 || n.nonGstAmount > 0)
-          .map((n) => ({
-            sply_ty: n.supplyType === 'INTER' ? 'INTERB2C' : 'INTRB2C',
-            expt_amt: Number(n.exemptAmount.toFixed(2)),
-            nil_amt: Number(n.nilRatedAmount.toFixed(2)),
-            ngsup_amt: Number(n.nonGstAmount.toFixed(2)),
-          })),
+      // Nil-rated / exempt / non-GST supplies (Table 8). Only emit when
+      // there are actual entries — empty `nil: { inv: [] }` fails validation.
+      ...(data.nil.some((n) => n.exemptAmount > 0 || n.nilRatedAmount > 0 || n.nonGstAmount > 0)
+        ? {
+            nil: {
+              inv: data.nil
+                .filter((n) => n.exemptAmount > 0 || n.nilRatedAmount > 0 || n.nonGstAmount > 0)
+                .map((n) => ({
+                  sply_ty: n.supplyType === 'INTER' ? 'INTERB2C' : 'INTRB2C',
+                  expt_amt: Number(n.exemptAmount.toFixed(2)),
+                  nil_amt: Number(n.nilRatedAmount.toFixed(2)),
+                  ngsup_amt: Number(n.nonGstAmount.toFixed(2)),
+                })),
+            },
+          }
+        : {}),
+      // HSN — { hsn_b2b, hsn_b2c } format that worked for Mar 2026 filing.
+      hsn: {
+        hsn_b2b: data.hsn.map((h, idx) => this.buildHsnEntry(h, idx + 1)),
+        hsn_b2c: [],
       },
-      // HSN summary — try flat array form. WhiteBooks postman doc shows
-      // `hsn: { data: [...] }` envelope but the schema's "no subschema
-      // matched out of 2" error suggests it accepts either flat array or
-      // wrapped object. Flat array is the older GSTN format and matches
-      // what most GSP implementations actually accept.
-      hsn: data.hsn
-        .filter((h) => Number(h.gstRate) > 0)
-        .map((h, idx) => this.buildHsnEntry(h, idx + 1)),
       doc_issue: {
         doc_det: data.docs.map((d, idx) => ({
           doc_num: this.docTypeCode(d.docType),
@@ -605,7 +607,7 @@ export class WhiteBooksGspClient implements GspClient {
     if (s === 'mtr' || s === 'meter' || s === 'metre') return 'MTR';
     if (s === 'set' || s === 'sets') return 'SET';
     if (s === 'doz' || s === 'dozen') return 'DOZ';
-    return 'NOS';
+    return 'OTH';
   }
 
   /** Build a single HSN summary entry. GSTN's HSN schema uses `oneOf`:
@@ -615,32 +617,28 @@ export class WhiteBooksGspClient implements GspClient {
     h: { hsnCode: string; description: string; uqc: string; totalQuantity: number; gstRate: number; taxableValue: number; igstAmount: number; cgstAmount: number; sgstAmount: number; cessAmount: number },
     num: number,
   ): Record<string, unknown> {
+    // Exact format that worked for Mar 2026 sandbox filing.
     const cleanDesc = h.description.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
-    // GSTR-1 HSN master is 6-digit (CBIC Notification 78/2020). 8-digit codes
-    // belong to the customs HSN master and aren't recognized by the filing
-    // validator. Truncate to 6-digit for the payload while keeping our source
-    // data 8-digit (more granular for internal reports).
-    const hsnForFiling = h.hsnCode.length === 8 ? h.hsnCode.substring(0, 6) : h.hsnCode;
     const entry: Record<string, unknown> = {
       num,
-      hsn_sc: hsnForFiling,
+      hsn_sc: h.hsnCode,
       desc: cleanDesc,
-      uqc: this.normalizeUqc(h.uqc),
+      uqc: h.uqc,
       qty: Number(h.totalQuantity.toFixed(2)),
       rt: Number(h.gstRate),
       txval: Number(h.taxableValue.toFixed(2)),
     };
-    // GSTN's HSN entry schema is oneOf intra-state vs inter-state. Emit
-    // exactly the matching tax fields; sending both pairs (or sending iamt
-    // when igst is 0) fails validation. csamt is always present (0 if no
-    // cess) per the canonical sample.
-    if (Number(h.igstAmount) > 0) {
-      entry.iamt = Number(Number(h.igstAmount).toFixed(2));
+    if (h.igstAmount > 0) {
+      entry.iamt = Number(h.igstAmount.toFixed(2));
+    } else if (h.cgstAmount > 0 || h.sgstAmount > 0) {
+      entry.camt = Number(h.cgstAmount.toFixed(2));
+      entry.samt = Number(h.sgstAmount.toFixed(2));
     } else {
-      entry.camt = Number(Number(h.cgstAmount).toFixed(2));
-      entry.samt = Number(Number(h.sgstAmount).toFixed(2));
+      entry.iamt = 0;
     }
-    entry.csamt = Number(h.cessAmount.toFixed(2));
+    if (h.cessAmount > 0) {
+      entry.csamt = Number(h.cessAmount.toFixed(2));
+    }
     return entry;
   }
 
