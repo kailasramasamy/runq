@@ -122,19 +122,12 @@ export class WhiteBooksGspClient implements GspClient {
   async requestOtp(gstin: string, username: string): Promise<OtpChallenge> {
     const stateCode = stateCodeFromGstin(gstin);
     const url = withEmail('/authentication/otprequest');
-    const headers = commonHeaders(username, stateCode);
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] OTP REQUEST URL:', url);
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] OTP REQUEST HEADERS:', JSON.stringify({
-      ...headers,
-      client_secret: '<redacted>',
-    }));
-    const res = await fetch(url, { method: 'GET', headers });
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: commonHeaders(username, stateCode),
+    });
 
     const data = await res.json();
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] OTP RESPONSE:', JSON.stringify(data));
     const success = data.status_cd === '1' || data.status === 1;
 
     return {
@@ -195,18 +188,8 @@ export class WhiteBooksGspClient implements GspClient {
     };
 
     const payload = this.transformGstr1ForUpload(gstin, period, data);
-    // Debug: log payload sections in a single atomic line each (no \n inside)
-    // so log streams don't interleave concurrent writes.
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] HSN section: ' + JSON.stringify(payload.hsn ?? null).substring(0, 4000));
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] nil section: ' + JSON.stringify(payload.nil));
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] b2cs section: ' + JSON.stringify(payload.b2cs));
     const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) });
     const result = await res.json();
-    // eslint-disable-next-line no-console
-    console.log('[gsp-client] FULL response: ' + JSON.stringify(result));
 
     const success = result.status_cd === '1' || result.status === 1;
     const refid = result.data?.reference_id || result.reference_id || result.refid;
@@ -525,9 +508,17 @@ export class WhiteBooksGspClient implements GspClient {
     return {
       gstin,
       fp: period,
-      // Required by WhiteBooks per Offline Tool v3.2.4 generated payload.
-      version: 'GST3.2.4',
+      // Schema version per GSTR-1 Offline Tool. Bump via env when GSTN
+      // releases a new version (e.g. GST3.2.5).
+      version: process.env.GSTR1_SCHEMA_VERSION || 'GST3.2.4',
+      // Literal string "hash" — not a computed value. Offline Tool emits
+      // exactly this. Don't try to compute a real hash; that breaks it.
       hash: 'hash',
+      // Gross turnover fields — required at top level. 0 is acceptable for
+      // sandbox / partial data; populate from real cumulative turnover when
+      // available.
+      gt: 0,
+      cur_gt: 0,
       b2b,
       // GSTN B2CS schema is oneOf inter/intra — emit ONLY the matching tax
       // fields. Sending both iamt and camt+samt fails the oneOf even when one
@@ -608,6 +599,9 @@ export class WhiteBooksGspClient implements GspClient {
   /** GSTN's authoritative UQC enum (extracted from GSTR-1 Excel template
    *  V2.2 master sheet, Oct 2025). Format: <CODE>-<DESCRIPTION>.
    *  Spelling matters — "GRAMMES" not "GRAMS", "MILILITRE" not "MILLILITRES". */
+  /** GSTN's authoritative UQC enum (extracted from GSTR-1 Excel template
+   *  V2.2 master sheet, Oct 2025). Wire format uses the SHORT 3-char code
+   *  (KGS, LTR, NOS) — NOT the dash-separated description form. */
   private normalizeUqc(uom: string | undefined | null): string {
     if (!uom) return 'NOS';
     const s = uom.trim().toLowerCase();
@@ -616,15 +610,34 @@ export class WhiteBooksGspClient implements GspClient {
     if (/(^|[\d\s])(ml)$/.test(s) || s === 'mlt' || s === 'milliliter' || s === 'mililitre') return 'MLT';
     if (/(^|[\d\s])l$/.test(s) || /litre/.test(s) || /liter/.test(s) || s === 'ltr') return 'LTR';
     if (s === 'pcs' || s === 'pc' || s === 'piece' || s === 'pieces') return 'PCS';
-    if (s === 'nos' || s === 'no' || s === 'unit' || s === 'each') return 'NOS';
+    if (s === 'nos' || s === 'no' || s === 'unit' || s === 'unt' || s === 'each') return 'NOS';
     if (s === 'box' || s === 'boxes') return 'BOX';
-    if (s === 'pkt' || s === 'pkts' || s === 'pack' || s === 'packs') return 'PAC';
+    if (s === 'pkt' || s === 'pkts' || s === 'pack' || s === 'packs' || s === 'pac') return 'PAC';
     if (s === 'mtr' || s === 'meter' || s === 'metre' || s === 'meters') return 'MTR';
     if (s === 'set' || s === 'sets') return 'SET';
     if (s === 'doz' || s === 'dozen' || s === 'dozens') return 'DOZ';
     if (s === 'btl' || s === 'bottle' || s === 'bottles') return 'BTL';
     if (s === 'bag' || s === 'bags') return 'BAG';
-    if (s === 'box' || s === 'cartons' || s === 'ctn') return 'CTN';
+    if (s === 'cartons' || s === 'ctn') return 'CTN';
+    if (s === 'bdl' || s === 'bundle' || s === 'bundles') return 'BDL';
+    if (s === 'bun' || s === 'bunches' || s === 'bunch') return 'BUN';
+    if (s === 'can' || s === 'cans') return 'CAN';
+    if (s === 'cms' || s === 'cm' || s === 'centimeter') return 'CMS';
+    if (s === 'cbm' || s === 'cubic meter' || s === 'cubic metre') return 'CBM';
+    if (s === 'drm' || s === 'drum' || s === 'drums') return 'DRM';
+    if (s === 'kme' || s === 'kilometer' || s === 'kilometre' || s === 'km') return 'KME';
+    if (s === 'klr' || s === 'kilolitre' || s === 'kilolitres') return 'KLR';
+    if (s === 'mts' || s === 'metric ton' || s === 'mt') return 'MTS';
+    if (s === 'ton' || s === 'tonne' || s === 'tonnes') return 'TON';
+    if (s === 'qtl' || s === 'quintal' || s === 'quintals') return 'QTL';
+    if (s === 'rol' || s === 'roll' || s === 'rolls') return 'ROL';
+    if (s === 'sqf' || s === 'sqft' || s === 'square feet') return 'SQF';
+    if (s === 'sqm' || s === 'square meter' || s === 'square metre') return 'SQM';
+    if (s === 'sqy' || s === 'square yard') return 'SQY';
+    if (s === 'tbs' || s === 'tablet' || s === 'tablets') return 'TBS';
+    if (s === 'tub' || s === 'tube' || s === 'tubes') return 'TUB';
+    if (s === 'prs' || s === 'pair' || s === 'pairs') return 'PRS';
+    if (s === 'yds' || s === 'yard' || s === 'yards') return 'YDS';
     return 'OTH';
   }
 
