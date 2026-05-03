@@ -1,7 +1,7 @@
 import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
 import {
   salesInvoices, salesInvoiceItems, customers,
-  creditNotes, tenants, invoiceSequences,
+  creditNotes, tenants, invoiceSequences, hsnSacCodes,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
@@ -103,7 +103,7 @@ export class Gstr1Generator {
       classifiedInvoices.push({ invoiceId: invoice.id, section });
 
       // Accumulate HSN from every invoice regardless of section
-      this.accumulateHSN(hsnMap, items);
+      await this.accumulateHSN(hsnMap, items);
 
       switch (section) {
         case 'b2b':
@@ -335,70 +335,29 @@ export class Gstr1Generator {
 
   // ── HSN aggregation ──────────────────────────────────────────────────
 
-  /** Generic HSN-master descriptions for common codes used in GSTR-1 HSN
-   *  summary. When multiple SKUs share an HSN, the summary should describe
-   *  the HSN bucket — not one specific SKU's marketing name. Keep ≤30 chars. */
-  private static readonly HSN_DESCRIPTIONS: Record<string, string> = {
-    // Dairy (Chapter 04)
-    '04011000': 'Milk and cream not concentrate',
-    '04012000': 'Cow and buffalo milk',
-    '04013000': 'Milk and cream high fat',
-    '04015000': 'Cream',
-    '04031000': 'Curd / yogurt',
-    '04039090': 'Buttermilk',
-    '04051000': 'Butter',
-    '04059020': 'Ghee clarified butter',
-    '04061000': 'Paneer fresh cheese',
-    // Pulses + cereals
-    '07139099': 'Dried legumes pulses',
-    '10063090': 'Rice',
-    '11010000': 'Wheat flour atta',
-    '11029090': 'Other cereal flours',
-    '12079990': 'Other oilseeds',
-    // Dry fruits + spices
-    '08013200': 'Cashew nuts shelled',
-    '08062010': 'Raisins dried grapes',
-    '09083100': 'Cardamom seeds',
-    '09109929': 'Spices and methi',
-    // Edible oils (Chapter 15)
-    '15081000': 'Groundnut oil',
-    '15121110': 'Sunflower oil crude',
-    '15121910': 'Sunflower oil',
-    '15131100': 'Coconut oil',
-    '15141100': 'Mustard oil',
-    '15149120': 'Mustard oil',
-    '15151110': 'Castor oil',
-    '15155010': 'Sesame oil',
-    // Sugar / salt
-    '17011490': 'Jaggery',
-    '17019100': 'Refined sugar',
-    '17019990': 'Other sugars',
-    '25010020': 'Rock salt',
-    // Pharma + soap + others
-    '30049011': 'Ayurvedic medicaments',
-    '31010099': 'Animal manure',
-    '34011190': 'Soap and body wash',
-  };
+  /** Cache HSN-master descriptions for the duration of one generate() call. */
+  private hsnDescCache: Map<string, string> | null = null;
 
-  private hsnDescriptionFor(hsn: string, fallback: string): string {
-    const exact = Gstr1Generator.HSN_DESCRIPTIONS[hsn];
-    if (exact) return exact;
-    // Try 6-digit prefix
-    if (hsn.length === 8) {
-      const six = hsn.substring(0, 6);
-      const sixMatch = Object.entries(Gstr1Generator.HSN_DESCRIPTIONS).find(([k]) => k.startsWith(six));
-      if (sixMatch) return sixMatch[1];
-    }
-    // Try 4-digit prefix
-    if (hsn.length >= 4) {
-      const four = hsn.substring(0, 4);
-      const fourMatch = Object.entries(Gstr1Generator.HSN_DESCRIPTIONS).find(([k]) => k.startsWith(four));
-      if (fourMatch) return fourMatch[1];
-    }
+  /** Look up the official HSN-master description for an 8/6/4-digit code.
+   *  Tries exact match → 6-digit prefix → 4-digit prefix → fallback. The
+   *  `hsn_sac_codes` master table is the source of truth (seed it with
+   *  industry-wide HSN list; this generator stays industry-agnostic). */
+  private async hsnDescriptionFor(hsn: string, fallback: string): Promise<string> {
+    if (!this.hsnDescCache) await this.loadHsnDescCache();
+    const cache = this.hsnDescCache!;
+    if (cache.has(hsn)) return cache.get(hsn)!;
+    if (hsn.length === 8 && cache.has(hsn.substring(0, 6))) return cache.get(hsn.substring(0, 6))!;
+    if (hsn.length >= 4 && cache.has(hsn.substring(0, 4))) return cache.get(hsn.substring(0, 4))!;
     return fallback;
   }
 
-  private accumulateHSN(map: Map<string, Gstr1HSNEntry>, items: InvoiceItemRow[]): void {
+  private async loadHsnDescCache(): Promise<void> {
+    const rows = await this.db.select({ code: hsnSacCodes.code, description: hsnSacCodes.description })
+      .from(hsnSacCodes);
+    this.hsnDescCache = new Map(rows.map((r) => [r.code, r.description]));
+  }
+
+  private async accumulateHSN(map: Map<string, Gstr1HSNEntry>, items: InvoiceItemRow[]): Promise<void> {
     for (const item of items) {
       const hsn = item.hsnSacCode ?? '';
       if (!hsn) continue;
@@ -417,8 +376,9 @@ export class Gstr1Generator {
       } else {
         map.set(key, {
           hsnCode: hsn,
-          // Use generic HSN-master description, not first SKU's name
-          description: this.hsnDescriptionFor(hsn, item.description),
+          // Use generic HSN-master description (industry-agnostic).
+          // Falls back to the first SKU's description if HSN isn't in master.
+          description: await this.hsnDescriptionFor(hsn, item.description),
           uqc: item.uom ?? 'NOS',
           totalQuantity: Number(item.quantity),
           taxableValue: Number(item.amount),
