@@ -337,34 +337,20 @@ export class WhiteBooksGspClient implements GspClient {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = gstin.substring(2, 12);
 
-    // Step 1: Trigger summary generation. Try several variants of the
-    // proceedfile call since WhiteBooks docs are inconsistent about
-    // `type` value and `isNil` necessity. We try in order until one
-    // succeeds, surfacing all errors if none do.
+    // Step 1: Move the return to "ready to file" state via newproceedfile.
+    // Verified shape (2026-05-04): /all/newproceedfile?gstin=...&retperiod=...&type=GSTR1
+    // — without isNil. RET00003 "Return Form already ready to be filed"
+    // means a prior call succeeded; skip ahead.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
-    const variants: Array<{ label: string; url: string }> = [
-      { label: 'newproceedfile/GSTR1+isNil', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' }) },
-      { label: 'newproceedfile/GSTR1', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' }) },
-      { label: 'newproceedfile/R1+isNil', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'R1', isNil: 'N' }) },
-      { label: 'proceedfile/GSTR1', url: withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' }) },
-      { label: 'proceedfile/R1', url: withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'R1' }) },
-    ];
-    let proceedOk = false;
-    const proceedErrors: string[] = [];
-    for (const v of variants) {
-      console.log(`[gst-file] proceed try ${v.label}`);
-      const res = await fetch(v.url, { method: 'GET', headers: headersForProceed });
-      const data = await res.json();
-      console.log(`[gst-file] proceed response ${v.label}:`, JSON.stringify(data).slice(0, 400));
-      if (data.status_cd === '1' || data.status === 1) { proceedOk = true; break; }
-      // RET00003 "Return Form already ready to be filed" means a prior call
-      // succeeded — treat as success and skip remaining variants.
-      if (data?.error?.error_cd === 'RET00003') { proceedOk = true; console.log('[gst-file] already ready to file — skipping remaining variants'); break; }
-      const e = data?.error?.message || data?.error?.error_msg || JSON.stringify(data);
-      proceedErrors.push(`${v.label}: ${e}`);
-    }
+    const proceedUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' });
+    const proceedRes = await fetch(proceedUrl, { method: 'GET', headers: headersForProceed });
+    const proceedData = await proceedRes.json();
+    console.log('[gst-file] proceedfile response:', JSON.stringify(proceedData).slice(0, 400));
+    const proceedOk = proceedData.status_cd === '1' || proceedData.status === 1
+      || proceedData?.error?.error_cd === 'RET00003';
     if (!proceedOk) {
-      return { success: false, errors: [{ code: 'PROCEED_FAILED', message: `All proceedfile variants failed. ${proceedErrors.join(' | ')}` }] };
+      const e = proceedData?.error?.message || proceedData?.error?.error_msg || 'Could not move return to ready-to-file state';
+      return { success: false, errors: [{ code: proceedData?.error?.error_cd || 'PROCEED_FAILED', message: e }] };
     }
 
     // Step 2: Poll summary endpoint for the LATEST checksum. GSTN can take
