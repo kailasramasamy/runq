@@ -340,7 +340,7 @@ export class WhiteBooksGspClient implements GspClient {
     // Step 1: Trigger summary generation via newproceedfile (modern endpoint).
     // Surface failures clearly — silent fallback hid stale-summary issues.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
-    const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' });
+    const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'R1', isNil: 'N' });
     console.log('[gst-file] newproceedfile request', { url: newUrl.replace(/email=[^&]+/, 'email=***') });
     const newRes = await fetch(newUrl, { method: 'GET', headers: headersForProceed });
     const newData = await newRes.json();
@@ -349,7 +349,7 @@ export class WhiteBooksGspClient implements GspClient {
 
     // Fall back to older /all/proceedfile if new endpoint rejected the call.
     if (!proceedOk) {
-      const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' });
+      const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'R1' });
       console.log('[gst-file] proceedfile fallback request', { url: oldUrl.replace(/email=[^&]+/, 'email=***') });
       const oldRes = await fetch(oldUrl, { method: 'GET', headers: headersForProceed });
       const oldData = await oldRes.json();
