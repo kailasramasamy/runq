@@ -1,92 +1,110 @@
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { BrowserFrame } from '@/components/ui/browser-frame';
+import { ArrowRight, Play, ShieldCheck, Smartphone, Sparkles, Users } from 'lucide-react';
 import { useRouter } from '@/lib/router';
-
-const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay, ease: 'easeOut' as const },
-});
+import { MockDashboard } from '@/components/mockups/mock-dashboard';
+import { WindowChrome } from '@/components/mockups/window-chrome';
 
 export function Hero() {
   const { navigate } = useRouter();
+
+  const trust: Array<[string, typeof ShieldCheck]> = [
+    ['GST-ready', ShieldCheck],
+    ['100% mobile', Smartphone],
+    ['AI-first', Sparkles],
+    ['CA-friendly', Users],
+  ];
+
   return (
-    <section className="relative flex items-center justify-center min-h-[calc(100vh-4rem)] overflow-hidden">
-      {/* Radial glow background */}
+    <section className="relative overflow-hidden">
+      <div className="aurora" />
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-      >
-        <div
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 60% at 50% 40%, oklch(0.5 0.2 264 / 0.18) 0%, transparent 70%)',
-          }}
-          className="absolute inset-0"
-        />
-        <div
-          style={{
-            background:
-              'radial-gradient(ellipse 40% 30% at 60% 30%, oklch(0.5 0.18 290 / 0.12) 0%, transparent 60%)',
-          }}
-          className="absolute inset-0"
-        />
+        className="absolute inset-0 line-grid-light opacity-60"
+        style={{
+          maskImage: 'radial-gradient(ellipse at 50% 30%, black 0%, transparent 70%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at 50% 30%, black 0%, transparent 70%)',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-[1200px] px-5 pb-10 pt-16 lg:px-8 lg:pb-16 lg:pt-24">
+        <div className="reveal flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs text-zinc-700 shadow-sm backdrop-blur">
+            <span className="pulse-dot relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 text-emerald-500" />
+            Now in early access — free forever plan
+            <span className="text-zinc-300">·</span>
+            <span className="text-zinc-500">No credit card</span>
+          </div>
+        </div>
+
+        <h1
+          className="reveal mx-auto mt-6 max-w-4xl text-center leading-[1] tracking-tight text-zinc-900"
+          style={{ fontSize: 'clamp(2.4rem, 6.4vw, 5.2rem)', textWrap: 'balance' }}
+        >
+          <span className="font-semibold">Modern books for</span>
+          <br />
+          <span className="font-display italic grad-text">modern Indian businesses.</span>
+        </h1>
+
+        <p
+          className="reveal mx-auto mt-6 max-w-2xl text-center text-base text-zinc-600 lg:text-lg"
+          style={{ textWrap: 'pretty' }}
+        >
+          GST invoicing, bank reconciliation, AI bill capture — all in one mobile-first platform that owners actually open and CAs love at month-end.
+        </p>
+
+        <div className="reveal mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <button
+            onClick={() => navigate('/get-started')}
+            className="inline-flex items-center gap-2 rounded-md bg-zinc-900 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-zinc-900/20 transition-colors hover:bg-zinc-800"
+          >
+            Get started free <ArrowRight size={15} />
+          </button>
+          <a
+            href="#showcase"
+            className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white/80 px-5 py-3 text-sm font-medium text-zinc-800 backdrop-blur transition-colors hover:bg-white"
+          >
+            <Play size={11} /> See how it works
+          </a>
+        </div>
+
+        <div className="reveal mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-500">
+          {trust.map(([label, Icon]) => (
+            <span key={label} className="inline-flex items-center gap-1.5">
+              <Icon size={13} className="text-brand-500" />
+              {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Dashboard mockup */}
+        <div className="reveal relative mt-14">
+          <div
+            className="absolute inset-x-0 -top-12 -bottom-20 -z-10 mx-auto"
+            style={{
+              background: 'radial-gradient(60% 50% at 50% 50%, oklch(0.78 0.18 264 / .35), transparent 70%)',
+              filter: 'blur(40px)',
+            }}
+          />
+          <div className="mx-auto max-w-[1080px]">
+            <div className="mockup-shadow rounded-2xl border border-zinc-200/80 bg-zinc-950 p-1.5 ring-1 ring-zinc-200/60">
+              <WindowChrome url="app.runq.in/dashboard" height={600}>
+                <MockDashboard />
+              </WindowChrome>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
-        <motion.div {...fadeUp(0)}>
-          <span className="inline-block mb-6 px-3.5 py-1 rounded-full text-xs font-semibold tracking-wide bg-primary-950 text-primary-300 border border-primary-800">
-            Now in early access — free forever plan
-          </span>
-        </motion.div>
-
-        <motion.h1
-          {...fadeUp(0.1)}
-          className="font-display text-5xl sm:text-6xl md:text-7xl leading-[1.08] tracking-tight text-zinc-50"
-        >
-          Run your business,
-          <br />
-          <span className="gradient-text">not your books.</span>
-        </motion.h1>
-
-        <motion.p
-          {...fadeUp(0.2)}
-          className="mt-6 max-w-2xl mx-auto text-lg sm:text-xl text-zinc-400 leading-relaxed"
-        >
-          The modern ERP built for Indian businesses. GST invoicing, bank
-          reconciliation, vendor management — powered by AI, built for speed.
-        </motion.p>
-
-        <motion.div
-          {...fadeUp(0.3)}
-          className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
-        >
-          <Button variant="primary" size="lg" className="w-full sm:w-auto" onClick={() => navigate('/get-started')}>
-            Get Started Free
-          </Button>
-          <Button variant="ghost" size="lg" className="w-full sm:w-auto" onClick={() => navigate('/finance')}>
-            See How It Works
-          </Button>
-        </motion.div>
-
-        <motion.p
-          {...fadeUp(0.4)}
-          className="mt-6 text-sm text-zinc-500"
-        >
-          No credit card required · Free forever plan · Setup in 2 minutes
-        </motion.p>
-
-        <motion.div
-          {...fadeUp(0.5)}
-          className="mt-14"
-        >
-          <BrowserFrame
-            src="/images/dashboard.webp"
-            alt="runQ Dashboard — cash position, receivables, payables, aging charts"
-            className="glow"
-          />
-        </motion.div>
+      {/* Logo strip */}
+      <div className="relative border-y border-zinc-200/60 bg-white/40 py-6 backdrop-blur-sm">
+        <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-y-3 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
+            <span>Built for Indian SMEs from</span>
+            {['Bengaluru', 'Mumbai', 'Delhi NCR', 'Chennai', 'Pune', 'Ahmedabad', 'Hyderabad'].map((c) => (
+              <span key={c} className="font-mono text-zinc-500">
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );

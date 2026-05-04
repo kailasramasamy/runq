@@ -1,7 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'outline-light' | 'ghost-light';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -13,7 +13,7 @@ const variantClasses: Record<Variant, string> = {
   primary: [
     'bg-gradient-to-r from-primary-600 to-violet-600 text-white font-semibold',
     'hover:from-primary-500 hover:to-violet-500',
-    'hover:shadow-[0_0_24px_-4px_oklch(0.59_0.2_264/0.6)]',
+    'hover:shadow-[0_8px_24px_-6px_oklch(0.59_0.2_264/0.55)]',
     'active:from-primary-700 active:to-violet-700 active:scale-[0.98]',
   ].join(' '),
   secondary: [
@@ -25,6 +25,16 @@ const variantClasses: Record<Variant, string> = {
     'bg-transparent text-zinc-300 font-medium',
     'hover:bg-zinc-800/60 hover:text-zinc-100',
     'active:bg-zinc-800 active:scale-[0.98]',
+  ].join(' '),
+  'outline-light': [
+    'bg-white text-zinc-900 font-semibold border border-zinc-200',
+    'hover:border-zinc-300 hover:bg-zinc-50',
+    'shadow-sm active:scale-[0.98]',
+  ].join(' '),
+  'ghost-light': [
+    'bg-transparent text-zinc-700 font-medium',
+    'hover:bg-zinc-100 hover:text-zinc-900',
+    'active:scale-[0.98]',
   ].join(' '),
 };
 
@@ -43,7 +53,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           'inline-flex items-center justify-center gap-2 cursor-pointer',
           'transition-all duration-200 ease-out',
           'disabled:opacity-50 disabled:pointer-events-none',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
           variantClasses[variant],
           sizeClasses[size],
           className,

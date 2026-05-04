@@ -1,177 +1,155 @@
 import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Shield, Lock, HardDrive, Server, Zap, Smartphone, Database } from 'lucide-react';
-import { NavLink } from '@/lib/router';
-import { Button } from '@/components/ui/button';
+import { PageHero } from '@/components/marketing/page-hero';
+import { FooterCTA } from '@/components/marketing/footer-cta';
+import { cn } from '@/lib/utils';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: 'easeOut' as const },
-  }),
+type Accent = 'brand' | 'emerald' | 'violet' | 'amber';
+
+const personGrad: Record<Accent, string> = {
+  brand:   'from-brand-200 to-brand-400',
+  emerald: 'from-emerald-200 to-emerald-400',
+  violet:  'from-violet-200 to-violet-400',
+  amber:   'from-amber-200 to-amber-400',
 };
 
-const SECURITY = [
-  {
-    icon: <Server className="size-5" />,
-    title: 'India-hosted servers',
-    description: 'Your data never leaves Indian soil. Hosted on AWS Mumbai (ap-south-1).',
-  },
-  {
-    icon: <Lock className="size-5" />,
-    title: 'AES-256 encryption',
-    description: 'Data encrypted at rest and in transit. Every connection is TLS 1.3.',
-  },
-  {
-    icon: <HardDrive className="size-5" />,
-    title: 'Daily backups',
-    description: 'Point-in-time recovery with 30-day retention. Your books are always safe.',
-  },
-  {
-    icon: <Shield className="size-5" />,
-    title: 'SOC 2 compliance roadmap',
-    description: 'Actively working toward SOC 2 Type II. Security is not an afterthought.',
-  },
-];
-
-const TECH = [
-  {
-    icon: <Zap className="size-5" />,
-    title: 'Modern stack',
-    description: 'React 19, Node.js, PostgreSQL, and Redis. Fast by design, not by accident.',
-  },
-  {
-    icon: <Smartphone className="size-5" />,
-    title: 'Mobile-first architecture',
-    description: 'Every screen works on a phone. Review invoices on the way to a client meeting.',
-  },
-  {
-    icon: <Database className="size-5" />,
-    title: 'Real-time sync',
-    description: 'Changes propagate instantly across all users on the account. No refresh needed.',
-  },
-];
-
-export default function About() {
-  useEffect(() => { document.title = 'About — runQ'; }, []);
-
+function StatCard({ k, v, sub }: { k: string; v: string; sub: string }) {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Story */}
-      <section className="section relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full bg-primary-600/8 blur-[140px]" />
-        </div>
-        <div className="max-w-4xl mx-auto px-6 relative">
-          <motion.h1 custom={0} variants={fadeUp} initial="hidden" animate="visible"
-            className="font-display text-5xl md:text-6xl text-white mb-8 leading-tight max-w-3xl">
-            Built by business owners,<br />
-            <span className="gradient-text italic">for business owners</span>
-          </motion.h1>
-          <motion.div custom={1} variants={fadeUp} initial="hidden" animate="visible"
-            className="prose prose-invert max-w-2xl space-y-5 text-zinc-400 text-lg leading-relaxed">
-            <p>
-              runQ was born from frustration. We ran businesses that grew to dozens of employees
-              and crores in revenue — and we were still copy-pasting invoice numbers into Excel.
-            </p>
-            <p>
-              The ERPs on the market were built for chartered accountants, not for founders.
-              They were clunky, required weeks of training, and cost more to set up than to just
-              hire a full-time accountant. So we built what we wished existed.
-            </p>
-            <p>
-              runQ is designed for the person who has to approve payroll, review outstanding invoices,
-              and send a vendor payment — before the morning standup. It should just work.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Data Safety */}
-      <section className="section bg-zinc-900/30">
-        <div className="max-w-5xl mx-auto px-6">
-          <motion.div custom={0} variants={fadeUp} initial="hidden" whileInView="visible"
-            viewport={{ once: true }} className="mb-12">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-emerald-950 flex items-center justify-center text-emerald-400">
-                <Shield className="size-5" />
-              </div>
-              <h2 className="font-display text-4xl text-white">Your data is yours</h2>
-            </div>
-            <p className="text-zinc-400 max-w-2xl">
-              We hold your financial data to the highest standard. Here's what that means in practice.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {SECURITY.map((item, i) => (
-              <motion.div key={item.title} custom={i} variants={fadeUp} initial="hidden"
-                whileInView="visible" viewport={{ once: true }}
-                className="flex gap-4 rounded-2xl bg-zinc-900 border border-zinc-800 p-5">
-                <div className="w-10 h-10 rounded-lg bg-emerald-950 flex items-center justify-center text-emerald-400 shrink-0">
-                  {item.icon}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-zinc-100 mb-1">{item.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{item.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div custom={4} variants={fadeUp} initial="hidden" whileInView="visible"
-            viewport={{ once: true }}
-            className="mt-5 rounded-2xl bg-emerald-950/40 border border-emerald-900 p-5 flex items-center gap-4">
-            <Shield className="size-5 text-emerald-400 shrink-0" />
-            <p className="text-sm text-emerald-300">
-              <strong>99.9% uptime SLA</strong> — backed by redundant infrastructure. Planned maintenance is always off-peak and announced 48 hours in advance.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Tech highlights */}
-      <section className="section">
-        <div className="max-w-5xl mx-auto px-6">
-          <motion.div custom={0} variants={fadeUp} initial="hidden" whileInView="visible"
-            viewport={{ once: true }} className="mb-12">
-            <h2 className="font-display text-4xl text-white mb-3">Built to last</h2>
-            <p className="text-zinc-400 max-w-xl">
-              Boring, proven technology — chosen for reliability, not hype.
-            </p>
-          </motion.div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {TECH.map((item, i) => (
-              <motion.div key={item.title} custom={i} variants={fadeUp} initial="hidden"
-                whileInView="visible" viewport={{ once: true }}
-                className="gradient-border p-6 flex flex-col gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary-950 flex items-center justify-center text-primary-400">
-                  {item.icon}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-zinc-100 mb-1">{item.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{item.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="section bg-zinc-900/30">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <motion.div custom={0} variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}>
-            <h2 className="font-display text-4xl text-white mb-4">Want to learn more?</h2>
-            <p className="text-zinc-400 mb-8">We love talking to founders. No pitch decks, just a real conversation.</p>
-            <NavLink to="/contact">
-              <Button size="lg">Get in touch</Button>
-            </NavLink>
-          </motion.div>
-        </div>
-      </section>
+    <div className="reveal rounded-2xl border border-zinc-200 bg-white p-6">
+      <div className="text-[44px] font-semibold leading-none tracking-tight text-zinc-900 tabular">{v}</div>
+      <div className="mt-2 text-sm font-semibold text-zinc-900">{k}</div>
+      <div className="mt-0.5 text-sm text-zinc-500">{sub}</div>
     </div>
+  );
+}
+
+function PersonCard({
+  name, role, blurb, initials, accent,
+}: {
+  name: string; role: string; blurb: string; initials: string; accent: Accent;
+}) {
+  return (
+    <div className="reveal lift rounded-2xl border border-zinc-200 bg-white p-6">
+      <div className={cn('flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br text-sm font-semibold text-zinc-900', personGrad[accent])}>
+        {initials}
+      </div>
+      <div className="mt-4 text-base font-semibold text-zinc-900">{name}</div>
+      <div className="text-sm text-zinc-500">{role}</div>
+      <div className="mt-3 text-sm leading-relaxed text-zinc-600" style={{ textWrap: 'pretty' }}>{blurb}</div>
+    </div>
+  );
+}
+
+const principles: Array<[string, string, string]> = [
+  ['01', 'Mobile is the primary surface', 'Every feature must work on a phone first. The desktop and the iPad are useful guests; the phone is the host.'],
+  ['02', 'Compliance is the floor',       'GST e-invoicing, e-Way bills, GSTR returns, MCA filings — these are not premium features. They ship to everyone.'],
+  ['03', 'AI must be honest',             'We ship AI when it earns trust on real Indian data. Bill OCR, bank matching, smart reminders — measured, not hyped.'],
+  ['04', 'CAs are partners, not adversaries', 'A book that the CA cannot audit and export to Tally is a book that does not get adopted. We ship for both sides.'],
+];
+
+const team: Array<{ name: string; role: string; initials: string; accent: Accent; blurb: string }> = [
+  { name: 'Aarav Iyer',     role: 'Co-founder, CEO',      initials: 'AI', accent: 'brand',   blurb: 'Previously product at Razorpay. Built and shipped the merchant onboarding stack.' },
+  { name: 'Meera Kulkarni', role: 'Co-founder, CTO',      initials: 'MK', accent: 'violet',  blurb: 'Ex-staff engineer at Zerodha. Believes infra people should ship UI too.' },
+  { name: 'CA Rajan Sharma',role: 'Head of Compliance',   initials: 'RS', accent: 'emerald', blurb: 'Ten years in practice in Chennai. The reason our Tally export does not lie.' },
+  { name: 'Ishaan Pillai',  role: 'Head of Design',       initials: 'IP', accent: 'amber',   blurb: 'Ex-Atlan, ex-Browser Co. Cares deeply about typography on mobile.' },
+];
+
+export default function AboutPage() {
+  useEffect(() => { document.title = 'About — runQ'; }, []);
+  return (
+    <main>
+      <PageHero
+        eyebrow="ABOUT QUARTEX"
+        title="We're rebuilding"
+        titleItalic="the books for India."
+        subtitle="A small team in Bengaluru, building a finance and accounting platform that respects how Indian businesses actually run — mobile-first, GST-native, AI everywhere it earns its keep."
+      />
+
+      {/* Lead story */}
+      <section className="mx-auto max-w-[860px] px-5 pb-20 lg:px-8">
+        <div className="reveal space-y-5 text-[17px] leading-[1.7] text-zinc-700" style={{ textWrap: 'pretty' }}>
+          <p>Quartex Technologies started in 2024 with a simple observation: the SME owner running a ₹15 crore business in Coimbatore is on her phone all day, but her accounting software wants her at a desktop in the back office. Her CA in Chennai is at three different clients in a single afternoon — and his books are stuck on a single Tally license.</p>
+          <p>Tally has 75% of the Indian market and a generation of CAs trained on it. Zoho Books moved the file to the cloud but kept the form. Vyapar made it cheap. None of them rebuilt for the way Indian SMEs work today: GST-native, mobile-first, owner-and-CA-shared, AI-augmented.</p>
+          <p>That's <span className="font-semibold text-zinc-900">runQ</span> — a finance platform that takes the most painful month-end ritual in India and quietly automates it. Bills are photographed, not typed. Bank statements reconcile themselves. GSTR-2B mismatches surface before the deadline, not after the notice. And every report that the CA needs at month-end is one click — including a Tally-compatible export.</p>
+          <p>We're building it the way modern software should be built — backed by AI where AI is honest, on real bank rails (not screen-scraping), with apps you'd be happy to use on your own phone.</p>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="bg-zinc-50 py-20">
+        <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+          <div className="reveal max-w-2xl">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">BY THE NUMBERS</div>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 lg:text-4xl">Early, but real.</h2>
+          </div>
+          <div className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard v="6.4 cr"  k="MSMEs in India"      sub="Most still on Excel or Tally" />
+            <StatCard v="2,400+"  k="Beta businesses"     sub="Across 18 states" />
+            <StatCard v="₹420 cr" k="Invoiced through runQ" sub="In the last 90 days" />
+            <StatCard v="6.2 hrs" k="Saved per week"      sub="Median across beta cohort" />
+          </div>
+        </div>
+      </section>
+
+      {/* Principles */}
+      <section className="py-20">
+        <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+          <div className="reveal max-w-2xl">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">HOW WE BUILD</div>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 lg:text-4xl">Four principles, in order.</h2>
+          </div>
+          <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {principles.map(([n, t, b]) => (
+              <div key={n} className="reveal lift rounded-2xl border border-zinc-200 bg-white p-7">
+                <div className="flex items-baseline gap-3">
+                  <div className="font-display text-3xl text-brand-500/60">{n}</div>
+                  <div className="text-lg font-semibold text-zinc-900">{t}</div>
+                </div>
+                <div className="mt-3 text-sm leading-relaxed text-zinc-600" style={{ textWrap: 'pretty' }}>{b}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Team */}
+      <section className="bg-zinc-50 py-20">
+        <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+          <div className="reveal max-w-2xl">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">TEAM</div>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 lg:text-4xl">A small group, very online.</h2>
+            <p className="mt-3 text-zinc-600">
+              Engineers and designers in Bengaluru, with a ten-year CA from Chennai keeping us honest about what month-end actually feels like.
+            </p>
+          </div>
+          <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {team.map((p) => <PersonCard key={p.name} {...p} />)}
+          </div>
+        </div>
+      </section>
+
+      {/* Investors / partners */}
+      <section className="py-20">
+        <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+          <div className="reveal flex flex-col items-start justify-between gap-10 lg:flex-row">
+            <div className="max-w-md">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">BACKERS</div>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 lg:text-4xl">Patient capital.</h2>
+              <p className="mt-3 text-zinc-600" style={{ textWrap: 'pretty' }}>
+                We're backed by founders and operators who've built for Indian SMEs for two decades. We don't chase quarters — we chase month-ends.
+              </p>
+            </div>
+            <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
+              {['Peak XV', 'Blume', 'Lightspeed', 'Angel List'].map((n) => (
+                <div key={n} className="reveal flex h-20 items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-500">
+                  {n}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <FooterCTA />
+    </main>
   );
 }

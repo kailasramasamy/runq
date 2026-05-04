@@ -1,116 +1,112 @@
-import { motion } from 'framer-motion';
-import { Check, X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface Row {
-  label: string;
-  runq: boolean | string;
-  tally: boolean | string;
-  zoho: boolean | string;
-  vyapar: boolean | string;
-}
+type Cellv = boolean | string;
 
-const rows: Row[] = [
-  { label: 'Monthly Cost',        runq: 'Free / ₹999',  tally: '₹18,000/yr', zoho: '₹2,500/mo',  vyapar: '₹1,999/yr'  },
-  { label: 'GST Compliant',       runq: true,   tally: true,    zoho: true,    vyapar: true   },
-  { label: 'Bank Reconciliation', runq: true,   tally: true,    zoho: true,    vyapar: false  },
-  { label: 'AI Features',         runq: true,   tally: false,   zoho: false,   vyapar: false  },
-  { label: 'Mobile App',          runq: true,   tally: false,   zoho: true,    vyapar: true   },
-  { label: 'Multi-user',          runq: true,   tally: true,    zoho: true,    vyapar: false  },
-  { label: 'API Access',          runq: true,   tally: false,   zoho: true,    vyapar: false  },
-  { label: 'Vendor Portal',       runq: true,   tally: false,   zoho: false,   vyapar: false  },
-  { label: 'CA Portal',           runq: true,   tally: false,   zoho: false,   vyapar: false  },
+const cols = ['runQ', 'Tally', 'Zoho Books', 'Vyapar'];
+
+const rows: Array<[string, Cellv[]]> = [
+  ['Pricing',                ['Free → ₹599/mo', '₹18,000/yr', '₹2,500/mo', '₹329/mo']],
+  ['Native mobile apps',     [true, false, 'partial', true]],
+  ['AI bill OCR',            [true, false, 'beta', false]],
+  ['AI bank matching',       [true, false, false, false]],
+  ['GSTR-2B reconciliation', [true, 'manual', true, false]],
+  ['e-Invoice & e-Way bill', [true, true, true, 'limited']],
+  ['CA read-only portal',    [true, false, false, false]],
+  ['Tally-compatible export',[true, '—', false, false]],
+  ['Setup time',             ['10 min', '~2 days', '~1 hr', '20 min']],
+  ['Multi-device sync',      [true, false, true, 'partial']],
 ];
 
-const headers = ['Feature', 'runQ', 'Tally', 'Zoho Books', 'Vyapar'];
-
-function Cell({ value, highlight }: { value: boolean | string; highlight: boolean }) {
-  if (typeof value === 'string') {
+function Cell({ v, highlight }: { v: Cellv; highlight: boolean }) {
+  const base = cn('px-3 py-3.5 text-sm tabular', highlight && 'bg-brand-50/60');
+  if (v === true) {
     return (
-      <span className={cn('text-sm font-medium', highlight ? 'text-primary-300' : 'text-zinc-300')}>
-        {value}
-      </span>
+      <td className={base}>
+        <CheckCircle2 size={16} className={highlight ? 'text-brand-600' : 'text-emerald-500'} />
+      </td>
     );
   }
-  return value ? (
-    <Check className={cn('w-5 h-5 mx-auto', highlight ? 'text-emerald-400' : 'text-zinc-400')} />
-  ) : (
-    <X className="w-5 h-5 mx-auto text-zinc-700" />
+  if (v === false) {
+    return (
+      <td className={base}>
+        <X size={16} className="text-zinc-300" />
+      </td>
+    );
+  }
+  return (
+    <td
+      className={cn(
+        base,
+        'text-zinc-700',
+        typeof v === 'string' && v.includes('partial') && 'text-amber-600',
+      )}
+    >
+      {v}
+    </td>
   );
 }
 
 export function Comparison() {
   return (
-    <section className="section">
-      <div className="mx-auto max-w-5xl px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-14"
-        >
-          <h2 className="font-display text-3xl sm:text-4xl text-zinc-50 mb-4">
-            Why businesses choose runQ
+    <section id="compare" className="bg-white py-24">
+      <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
+        <div className="reveal mx-auto max-w-2xl text-center">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">vs the rest</div>
+          <h2 className="mt-3 text-4xl tracking-tight text-zinc-900 lg:text-5xl">
+            We're <span className="font-display italic grad-text">honest</span> about the tradeoffs.
           </h2>
-          <p className="text-zinc-400 max-w-xl mx-auto">
-            Modern features at a fraction of the price. No compromises.
+          <p className="mt-4 text-zinc-600">
+            Tally has 30 years and an army of CAs. Zoho has reach. Vyapar is cheap. Here's where we win, lose, and tie.
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="overflow-x-auto rounded-2xl border border-zinc-800"
-        >
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                {headers.map((h, i) => (
-                  <th
-                    key={h}
-                    className={cn(
-                      'px-5 py-4 text-xs font-semibold uppercase tracking-wider',
-                      i === 0
-                        ? 'text-zinc-400 text-left w-44'
-                        : i === 1
-                        ? 'text-primary-400 text-center bg-primary-950/40'
-                        : 'text-zinc-400 text-center',
-                    )}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, ri) => (
-                <tr
-                  key={row.label}
-                  className={cn(
-                    'border-b border-zinc-800/60 last:border-0',
-                    ri % 2 === 0 ? 'bg-zinc-900/40' : 'bg-transparent',
-                  )}
-                >
-                  <td className="px-5 py-3.5 text-sm text-zinc-300 font-medium">{row.label}</td>
-                  {(['runq', 'tally', 'zoho', 'vyapar'] as const).map((col) => (
-                    <td
-                      key={col}
+        <div className="reveal mt-12 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px]">
+              <thead>
+                <tr className="bg-zinc-50">
+                  <th className="w-[28%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500" />
+                  {cols.map((c, i) => (
+                    <th
+                      key={c}
                       className={cn(
-                        'px-5 py-3.5 text-center',
-                        col === 'runq' ? 'bg-primary-950/30' : '',
+                        'px-3 py-4 text-left text-sm font-semibold',
+                        i === 0 ? 'bg-brand-50/60 text-brand-700' : 'text-zinc-700',
                       )}
                     >
-                      <Cell value={row[col]} highlight={col === 'runq'} />
-                    </td>
+                      <div className="flex items-center gap-2">
+                        {i === 0 ? (
+                          <>
+                            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-500 text-[11px] font-bold text-white">
+                              Q
+                            </span>
+                            <span>runQ</span>
+                          </>
+                        ) : (
+                          <span>{c}</span>
+                        )}
+                      </div>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </motion.div>
+              </thead>
+              <tbody>
+                {rows.map(([label, vals], rIdx) => (
+                  <tr key={label} className={rIdx ? 'border-t border-zinc-100' : ''}>
+                    <td className="px-4 py-3.5 text-sm font-medium text-zinc-800">{label}</td>
+                    {vals.map((v, i) => (
+                      <Cell key={i} v={v} highlight={i === 0} />
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p className="reveal mt-3 text-center text-[11px] text-zinc-400">
+          Pricing as published by competitors at the time of writing. We'll keep this page honest as they ship.
+        </p>
       </div>
     </section>
   );

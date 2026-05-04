@@ -107,17 +107,17 @@ function ProgressBar({ step }: { step: number }) {
               'w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all',
               i < step ? 'bg-primary-600 text-white' :
               i === step ? 'bg-primary-600 text-white ring-4 ring-primary-600/30' :
-              'bg-zinc-800 text-zinc-500',
+              'bg-zinc-100 text-zinc-500',
             )}>
               {i < step ? <Check className="size-4" /> : i + 1}
             </div>
-            <span className={cn('text-xs hidden sm:block', i === step ? 'text-zinc-200' : 'text-zinc-500')}>
+            <span className={cn('text-xs hidden sm:block', i === step ? 'text-zinc-800' : 'text-zinc-500')}>
               {label}
             </span>
           </div>
         ))}
       </div>
-      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="h-1 bg-zinc-100 rounded-full overflow-hidden">
         <motion.div
           className="h-full bg-gradient-to-r from-primary-600 to-violet-600 rounded-full"
           animate={{ width: `${((step) / (STEPS.length - 1)) * 100}%` }}
@@ -131,21 +131,21 @@ function ProgressBar({ step }: { step: number }) {
 function Step1({ form, setForm }: { form: FormData; setForm: React.Dispatch<React.SetStateAction<FormData>> }) {
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-2xl font-semibold text-white mb-1">Tell us about your business</h2>
+      <h2 className="text-2xl font-semibold text-zinc-900 mb-1">Tell us about your business</h2>
       <Input label="Company name" placeholder="Acme Pvt Ltd" value={form.company}
         onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} required />
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-zinc-300">Industry</label>
+        <label className="text-sm font-medium text-zinc-700">Industry</label>
         <select value={form.industry} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}
-          className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500">
+          className="w-full rounded-xl bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500">
           <option value="">Select industry…</option>
           {INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
         </select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-zinc-300">State</label>
+        <label className="text-sm font-medium text-zinc-700">State</label>
         <select value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
-          className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500">
+          className="w-full rounded-xl bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500">
           <option value="">Select state…</option>
           {STATES.map((s) => <option key={s.code} value={s.name}>{s.name}</option>)}
         </select>
@@ -219,7 +219,7 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-2xl font-semibold text-white mb-1">Create your account</h2>
+      <h2 className="text-2xl font-semibold text-zinc-900 mb-1">Create your account</h2>
       <Input label="Full name" placeholder="Priya Sharma" value={form.name}
         onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
 
@@ -244,13 +244,13 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
           )}
         </div>
         {form.emailVerified && (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-400">
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700">
             <CheckCircle2 className="size-3.5" /> Email verified — complete your details below
           </p>
         )}
         {otpSent && !form.emailVerified && (
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <label className="text-sm font-medium text-zinc-300 mb-2 block">We sent a 6-digit code to <span className="text-white">{form.email}</span></label>
+          <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+            <label className="text-sm font-medium text-zinc-700 mb-2 block">We sent a 6-digit code to <span className="text-zinc-900 font-semibold">{form.email}</span></label>
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <input
@@ -261,7 +261,7 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="000000"
-                  className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-center text-lg font-mono tracking-[0.3em] text-zinc-100 border border-zinc-700 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 focus:border-transparent"
+                  className="w-full rounded-xl bg-zinc-50 px-4 py-2.5 text-center text-lg font-mono tracking-[0.3em] text-zinc-900 border border-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
               <Button size="md" onClick={verifyOtp} disabled={otpLoading || otpCode.length !== 6} className="shrink-0">
@@ -274,14 +274,14 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
                 type="button"
                 onClick={sendOtp}
                 disabled={cooldown > 0}
-                className="text-primary-400 hover:text-primary-300 disabled:text-zinc-600 disabled:cursor-not-allowed"
+                className="text-primary-600 hover:text-primary-700 disabled:text-zinc-600 disabled:cursor-not-allowed"
               >
                 {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
               </button>
             </p>
           </div>
         )}
-        {otpError && <p className="mt-1.5 text-xs text-red-400">{otpError}</p>}
+        {otpError && <p className="mt-1.5 text-xs text-red-700">{otpError}</p>}
       </div>
 
       {/* Phone + Password — only shown after email verification */}
@@ -293,9 +293,9 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
           className="flex flex-col gap-5"
         >
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-zinc-300">Phone</label>
-            <div className="flex rounded-xl border border-zinc-700 bg-zinc-900 focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary-500 focus-within:border-transparent">
-              <span className="flex items-center px-3 text-sm text-zinc-400 border-r border-zinc-700 select-none">+91</span>
+            <label className="text-sm font-medium text-zinc-700">Phone</label>
+            <div className="flex rounded-xl border border-zinc-300 bg-zinc-50 focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary-500 focus-within:border-transparent">
+              <span className="flex items-center px-3 text-sm text-zinc-600 border-r border-zinc-300 select-none">+91</span>
               <input
                 type="tel"
                 inputMode="numeric"
@@ -303,7 +303,7 @@ function Step2({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
                 value={form.phone}
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
                 required
-                className="flex-1 bg-transparent px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+                className="flex-1 bg-transparent px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none"
               />
             </div>
           </div>
@@ -320,34 +320,34 @@ function Step3({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-2xl font-semibold text-white mb-1">Choose your plan</h2>
+      <h2 className="text-2xl font-semibold text-zinc-900 mb-1">Choose your plan</h2>
       <div className="flex flex-col gap-4">
         {PLANS.map((plan) => (
           <button key={plan.name} type="button" onClick={() => setForm((p) => ({ ...p, plan: plan.name }))}
             className={cn(
               'text-left rounded-2xl border p-5 transition-all',
               form.plan === plan.name
-                ? 'border-primary-500 bg-primary-950/50 ring-2 ring-primary-500/30'
-                : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700',
+                ? 'border-primary-500 bg-primary-50/50 ring-2 ring-primary-500/30'
+                : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300',
             )}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{plan.name}</span>
+                <span className="font-semibold text-zinc-900">{plan.name}</span>
                 {plan.popular && (
                   <span className="text-xs bg-primary-600 text-white px-2 py-0.5 rounded-full">Popular</span>
                 )}
                 {plan.trial && (
-                  <span className="text-xs bg-emerald-900/60 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded-full">14-day free trial</span>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-700/50 px-2 py-0.5 rounded-full">14-day free trial</span>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-white">{plan.price}</span>
-                {form.plan === plan.name && <Check className="size-4 text-primary-400" />}
+                <span className="font-bold text-zinc-900">{plan.price}</span>
+                {form.plan === plan.name && <Check className="size-4 text-primary-600" />}
               </div>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {plan.features.map((f) => (
-                <span key={f} className="text-xs text-zinc-400 flex items-center gap-1">
+                <span key={f} className="text-xs text-zinc-600 flex items-center gap-1">
                   <span className="w-1 h-1 rounded-full bg-zinc-600 inline-block" />{f}
                 </span>
               ))}
@@ -358,12 +358,12 @@ function Step3({ form, setForm }: { form: FormData; setForm: React.Dispatch<Reac
 
       {/* Contextual note based on selected plan */}
       {selected?.trial && (
-        <div className="rounded-xl bg-emerald-950/30 border border-emerald-800/40 px-4 py-3 text-sm text-emerald-300">
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
           Your 14-day free trial starts now — no payment needed. We'll remind you before it ends.
         </div>
       )}
       {selected?.enterprise && (
-        <div className="rounded-xl bg-primary-950/30 border border-primary-800/40 px-4 py-3 text-sm text-primary-300">
+        <div className="rounded-xl bg-primary-50/30 border border-primary-200/40 px-4 py-3 text-sm text-primary-700">
           Our team will reach out within 24 hours to set up your account with custom onboarding.
         </div>
       )}
@@ -384,12 +384,12 @@ function Step4({ form, setForm, onSubmit, loading, error }: { form: FormData; se
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-2xl font-semibold text-white mb-1">Review &amp; submit</h2>
-      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+      <h2 className="text-2xl font-semibold text-zinc-900 mb-1">Review &amp; submit</h2>
+      <div className="rounded-2xl bg-zinc-50 border border-zinc-200 overflow-hidden">
         {rows.map((row, i) => (
-          <div key={row.label} className={cn('flex justify-between px-5 py-3 text-sm', i > 0 && 'border-t border-zinc-800')}>
+          <div key={row.label} className={cn('flex justify-between px-5 py-3 text-sm', i > 0 && 'border-t border-zinc-200')}>
             <span className="text-zinc-500">{row.label}</span>
-            <span className="text-zinc-200 font-medium">{row.value}</span>
+            <span className="text-zinc-800 font-medium">{row.value}</span>
           </div>
         ))}
       </div>
@@ -398,17 +398,17 @@ function Step4({ form, setForm, onSubmit, loading, error }: { form: FormData; se
           type="checkbox"
           checked={form.terms}
           onChange={(e) => setForm((p) => ({ ...p, terms: e.target.checked }))}
-          className="mt-0.5 rounded border-zinc-600 bg-zinc-900 text-primary-600 focus:ring-primary-500"
+          className="mt-0.5 rounded border-zinc-300 bg-zinc-50 text-primary-600 focus:ring-primary-500"
         />
-        <span className="text-sm text-zinc-400">
+        <span className="text-sm text-zinc-600">
           I agree to the{' '}
-          <span className="text-primary-400 underline underline-offset-2 cursor-pointer">Terms of Service</span>
+          <span className="text-primary-600 underline underline-offset-2 cursor-pointer">Terms of Service</span>
           {' '}and{' '}
-          <span className="text-primary-400 underline underline-offset-2 cursor-pointer">Privacy Policy</span>
+          <span className="text-primary-600 underline underline-offset-2 cursor-pointer">Privacy Policy</span>
         </span>
       </label>
       {error && (
-        <p className="text-sm text-red-400 bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2">{error}</p>
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>
       )}
       <Button type="button" size="lg" className="w-full" onClick={onSubmit} disabled={!form.terms || loading}>
         {loading ? 'Creating account...' : form.plan === 'Growth' ? 'Start free trial' : form.plan === 'Enterprise' ? 'Submit request' : 'Create account'} <ArrowRight className="size-4" />
@@ -423,18 +423,18 @@ function SuccessScreen({ name, email, plan }: { name: string; email: string; pla
   const isTrial = plan === 'Growth';
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
+    <div className="min-h-screen bg-white flex items-center justify-center px-6">
       <div className="max-w-md w-full text-center">
-        <CheckCircle2 className="size-16 text-emerald-400 mx-auto mb-6" />
-        <h1 className="font-display text-4xl text-white mb-3">
+        <CheckCircle2 className="size-16 text-emerald-700 mx-auto mb-6" />
+        <h1 className="font-display text-4xl text-zinc-900 mb-3">
           {isEnterprise ? 'Request received' : 'You\'re all set'}
         </h1>
-        <p className="text-zinc-400 mb-2">Welcome to runQ, {firstName}.</p>
+        <p className="text-zinc-600 mb-2">Welcome to runQ, {firstName}.</p>
 
         {isEnterprise ? (
           <div className="space-y-3 mt-4">
             <p className="text-zinc-500 text-sm">
-              Our team will reach out to <span className="text-zinc-300">{email}</span> within 24 hours to set up your Enterprise account with custom onboarding.
+              Our team will reach out to <span className="text-zinc-700">{email}</span> within 24 hours to set up your Enterprise account with custom onboarding.
             </p>
             <p className="text-zinc-600 text-xs">
               In the meantime, your account is active on the Starter plan.
@@ -443,7 +443,7 @@ function SuccessScreen({ name, email, plan }: { name: string; email: string; pla
         ) : isTrial ? (
           <div className="space-y-3 mt-4">
             <p className="text-zinc-500 text-sm">
-              Your <span className="text-emerald-400 font-medium">14-day Growth trial</span> is active. Full access, no restrictions.
+              Your <span className="text-emerald-700 font-medium">14-day Growth trial</span> is active. Full access, no restrictions.
             </p>
             <p className="text-zinc-600 text-xs">
               We'll send a reminder to {email} before your trial ends. No surprise charges.
@@ -557,10 +557,10 @@ export default function GetStarted() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-start pt-16 px-6 pb-16">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-start pt-16 px-6 pb-16">
       <div className="w-full max-w-lg">
         <div className="mb-10 text-center">
-          <h1 className="font-display text-3xl sm:text-4xl text-white mb-2">
+          <h1 className="font-display text-3xl sm:text-4xl text-zinc-900 mb-2">
             Let's get you <span className="gradient-text italic">running</span>
           </h1>
           <p className="text-sm text-zinc-500">Setup takes under 2 minutes. No credit card required.</p>
@@ -575,7 +575,7 @@ export default function GetStarted() {
         </div>
         <StepNav step={step} onNext={next} onBack={back} />
         {error && step < STEPS.length - 1 && (
-          <p className="mt-4 text-sm text-red-400 bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2">{error}</p>
+          <p className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>
         )}
       </div>
     </div>
