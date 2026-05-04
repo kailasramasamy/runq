@@ -59,11 +59,11 @@ export interface GspClient {
   requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B', signatoryPan?: string): Promise<{ success: boolean; message?: string }>;
   uploadGstr1(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr1Data): Promise<UploadResult>;
   getGstr1Summary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr1Summary>;
-  fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult>;
+  fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult>;
 
   getAutoPopulated3b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr3bData>;
   saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult>;
-  fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult>;
+  fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult>;
 
   getGstr2b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<unknown>;
 }
@@ -333,9 +333,11 @@ export class WhiteBooksGspClient implements GspClient {
     };
   }
 
-  async fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult> {
+  async fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult> {
     const stateCode = stateCodeFromGstin(gstin);
-    const pan = gstin.substring(2, 12);
+    // PAN must match the AUTHORIZED SIGNATORY registered on GST portal,
+    // not the firm/entity PAN embedded in the GSTIN.
+    const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
 
     // Step 1: Move the return to "ready to file" state via newproceedfile.
     // Verified shape (2026-05-04): /all/newproceedfile?gstin=...&retperiod=...&type=GSTR1
@@ -448,9 +450,9 @@ export class WhiteBooksGspClient implements GspClient {
     };
   }
 
-  async fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult> {
+  async fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult> {
     const stateCode = stateCodeFromGstin(gstin);
-    const pan = gstin.substring(2, 12);
+    const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
 
     // Step 1: Submit
     const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };

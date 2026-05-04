@@ -439,9 +439,12 @@ export class GstReturnService {
 
     const profile = await this.getTenantGstProfile();
     const token = await this.getValidToken(ret.gstin);
+    const [t] = await this.db.select().from(tenants).where(eq(tenants.id, this.tenantId));
+    const settings = (t?.settings ?? {}) as { gstAuthSignatoryPan?: string };
+    const signatoryPan = settings.gstAuthSignatoryPan?.trim().toUpperCase();
     const result = ret.returnType === 'gstr1'
-      ? await this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc)
-      : await this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc);
+      ? await this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan)
+      : await this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan);
 
     if (result.success) {
       await this.db
