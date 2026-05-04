@@ -351,17 +351,23 @@ export class WhiteBooksGspClient implements GspClient {
       await fetch(newUrl, { method: 'GET', headers: headersForProceed });
     }
 
-    // Wait for summary generation (server-side processing)
-    await new Promise((r) => setTimeout(r, 5000));
-
-    // Step 2: Fetch summary to get checksum
+    // Step 2: Poll summary endpoint until checksum is ready. GSTN can take
+    // 30-60s to regenerate the summary after proceedfile, especially for
+    // larger returns. Try every 6s for up to 90s before giving up.
     const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period });
-    const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
-    const sumData = await sumRes.json();
-    const chksum = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
+    let chksum: string | undefined;
+    let lastSumData: { error?: { message?: string; error_cd?: string } } | undefined;
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise((r) => setTimeout(r, 6000));
+      const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
+      const sumData = await sumRes.json();
+      lastSumData = sumData;
+      chksum = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
+      if (chksum) break;
+    }
     if (!chksum) {
-      const errMsg = sumData?.error?.message || 'Could not fetch GSTR-1 checksum from GSTN summary';
-      return { success: false, errors: [{ code: sumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
+      const errMsg = lastSumData?.error?.message || 'Latest Summary is not available. Please retry filing in a moment.';
+      return { success: false, errors: [{ code: lastSumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
     }
 
     const url = withEmail('/gstr1/retevcfile', { pan, evcotp: evc });
