@@ -41,7 +41,7 @@ function stepIndex(status: GstReturn['status']): number {
     case 'draft': return 0;
     case 'validated': return 2;
     case 'uploaded': return 4;
-    case 'filed': return 5;
+    case 'filed': return 6;
     case 'error': return 0;
     default: return 0;
   }
