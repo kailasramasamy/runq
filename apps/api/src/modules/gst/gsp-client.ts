@@ -663,10 +663,9 @@ export class WhiteBooksGspClient implements GspClient {
     // qty, rt, txval, iamt, camt, samt, csamt — ALL present even if zero.
     // UQC is short code (KGS, LTR, NOS) — NOT the dash-separated form.
     const cleanDesc = h.description.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
-    const hsnForFiling = h.hsnCode.length === 8 ? h.hsnCode.substring(0, 6) : h.hsnCode;
     return {
       num,
-      hsn_sc: hsnForFiling,
+      hsn_sc: h.hsnCode,
       desc: cleanDesc,
       user_desc: cleanDesc,
       uqc: this.normalizeUqc(h.uqc),
