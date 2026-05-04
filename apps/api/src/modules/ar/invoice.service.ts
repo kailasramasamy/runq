@@ -17,6 +17,7 @@ import { sendEmail } from '../../utils/email';
 import { invoiceSent } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
 import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
+import { defaultPackSize } from '../gst/hsn-canonical-uqc';
 import { getMessageProvider } from '../../utils/messaging';
 import type { TaxCategory, TaxBreakdown } from '@runq/types';
 
@@ -337,6 +338,10 @@ export class InvoiceService {
               itemId: item.itemId ?? null,
               description: item.description,
               uom: item.uom ?? null,
+              ...(item.itemId ? {} : (() => {
+                const def = defaultPackSize(item.hsnSacCode, item.uom);
+                return { packSizeValue: String(def.packSizeValue), packSizeUqc: def.packSizeUqc };
+              })()),
               quantity: String(item.quantity),
               unitPrice: String(item.unitPrice),
               amount: String(item.amount),
@@ -1149,19 +1154,23 @@ export class InvoiceService {
       .where(and(eq(salesInvoiceItems.invoiceId, invoiceId), eq(salesInvoiceItems.tenantId, this.tenantId)));
 
     await this.db.insert(salesInvoiceItems).values(
-      items.map((item) => ({
-        tenantId: this.tenantId,
-        invoiceId,
-        itemId: item.itemId ?? null,
-        description: item.description!,
-        uom: item.uom ?? null,
-        quantity: String(item.quantity),
-        unitPrice: String(item.unitPrice),
-        amount: String(item.amount),
-        hsnSacCode: item.hsnSacCode ?? null,
-        taxCategory: (item.taxCategory as TaxCategory) ?? null,
-        taxRate: item.taxRate != null ? String(item.taxRate) : null,
-      })),
+      items.map((item) => {
+        const pack = item.itemId ? null : defaultPackSize(item.hsnSacCode, item.uom);
+        return {
+          tenantId: this.tenantId,
+          invoiceId,
+          itemId: item.itemId ?? null,
+          description: item.description!,
+          uom: item.uom ?? null,
+          ...(pack ? { packSizeValue: String(pack.packSizeValue), packSizeUqc: pack.packSizeUqc } : {}),
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice),
+          amount: String(item.amount),
+          hsnSacCode: item.hsnSacCode ?? null,
+          taxCategory: (item.taxCategory as TaxCategory) ?? null,
+          taxRate: item.taxRate != null ? String(item.taxRate) : null,
+        };
+      }),
     );
   }
 
@@ -1184,12 +1193,14 @@ export class InvoiceService {
     await tx.insert(salesInvoiceItems).values(
       items.map((item, i) => {
         const tax = itemTaxes[i]!;
+        const pack = item.itemId ? null : defaultPackSize(item.hsnSacCode, item.uom);
         return {
           tenantId: this.tenantId,
           invoiceId,
           itemId: item.itemId ?? null,
           description: item.description!,
           uom: item.uom ?? null,
+          ...(pack ? { packSizeValue: String(pack.packSizeValue), packSizeUqc: pack.packSizeUqc } : {}),
           quantity: String(item.quantity),
           unitPrice: String(item.unitPrice),
           amount: String(item.amount),

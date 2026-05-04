@@ -8,6 +8,17 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
+import { defaultPackSize } from '../gst/hsn-canonical-uqc';
+
+/** Resolve pack_size_value/uqc for a create input. Defaults from HSN
+ *  family so GSTR-1 reports in canonical LTR/KGS without manual setup. */
+function resolvePackSizeForCreate(input: CreateItemInput): { packSizeValue: string; packSizeUqc: string } {
+  const def = defaultPackSize(input.hsnSacCode, input.unit);
+  return {
+    packSizeValue: (input.packSizeValue ?? def.packSizeValue).toString(),
+    packSizeUqc: input.packSizeUqc ?? def.packSizeUqc,
+  };
+}
 
 export interface ItemListParams {
   page: number;
@@ -108,6 +119,7 @@ export class ItemService {
       margin: input.margin?.toString() ?? null,
       basicPrice: input.basicPrice?.toString() ?? null,
       gstValue: input.gstValue?.toString() ?? null,
+      ...resolvePackSizeForCreate(input),
     };
 
     const [row] = await this.db.insert(items).values(values).returning();
@@ -129,6 +141,7 @@ export class ItemService {
       'margin',
       'basicPrice',
       'gstValue',
+      'packSizeValue',
     ] as const;
     for (const key of decimalKeys) {
       if (input[key] !== undefined) {

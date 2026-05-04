@@ -115,6 +115,30 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── Get GSTN summary ─────────────────────────────────────────────
 
+  // ─── Download GSTN-wire-format JSON (for direct portal upload) ──────
+
+  app.get('/returns/:id/payload.json', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
+    const { id } = idParam.parse(request.params);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    const { payload, gstin, period } = await svc.getGstr1UploadPayload(id);
+    const filename = `GSTR1_${gstin}_${period}.json`;
+    reply.header('Content-Type', 'application/json');
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    return payload;
+  });
+
+  // ─── HSN summary breakdown (drill-down to invoice lines) ────────────
+
+  app.get('/returns/:id/hsn-breakdown', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { id } = idParam.parse(request.params);
+    const { hsn, rate } = z.object({
+      hsn: z.string().min(2).max(8),
+      rate: z.coerce.number().min(0).max(40),
+    }).parse(request.query);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    return { data: await svc.getHsnBreakdown(id, hsn, rate) };
+  });
+
   app.get('/returns/:id/summary', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const { id } = idParam.parse(request.params);
     const svc = new GstReturnService(request.server.db, request.tenantId);

@@ -1,5 +1,6 @@
-import { eq, and, desc } from 'drizzle-orm';
-import { gstReturns, gstReturnInvoices, gspAuthTokens, tenants } from '@runq/db';
+import { eq, and, gte, lte, desc, inArray } from 'drizzle-orm';
+import { gstReturns, gstReturnInvoices, gspAuthTokens, tenants, salesInvoiceItems, salesInvoices, customers } from '@runq/db';
+import { WhiteBooksGspClient } from './gsp-client';
 import type { Db } from '@runq/db';
 import type { Gstr1Data, Gstr3bData } from '@runq/db';
 import { Gstr1Generator } from './gstr1-generator';
@@ -351,6 +352,59 @@ export class GstReturnService {
   }
 
   // ── Get GSTN summary ─────────────────────────────────────────────────
+
+  /** Build the GSTN-wire-format JSON payload for a GSTR-1 return so the
+   *  user can download it and upload to GST portal directly (bypass GSP). */
+  async getGstr1UploadPayload(id: string): Promise<{ payload: unknown; gstin: string; period: string }> {
+    const ret = await this.getById(id);
+    if (ret.returnType !== 'gstr1') throw new ConflictError('Only GSTR-1 supports JSON download');
+    if (!ret.data) throw new ConflictError('Return has no data — generate first');
+    const client = new WhiteBooksGspClient();
+    const payload = client.transformGstr1ForUpload(ret.gstin, ret.period, ret.data as Gstr1Data);
+    return { payload, gstin: ret.gstin, period: ret.period };
+  }
+
+  /** Return the invoice line items that aggregated into one HSN+rate row
+   *  of the GSTR-1 HSN summary. Lets users drill down to verify groupings. */
+  async getHsnBreakdown(id: string, hsn: string, rate: number) {
+    const ret = await this.getById(id);
+    const period = ret.period; // MMYYYY
+    const month = period.slice(0, 2);
+    const year = period.slice(2);
+    const periodStart = `${year}-${month}-01`;
+    const periodEnd = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10);
+
+    const rows = await this.db
+      .select({
+        lineId: salesInvoiceItems.id,
+        description: salesInvoiceItems.description,
+        quantity: salesInvoiceItems.quantity,
+        unitPrice: salesInvoiceItems.unitPrice,
+        amount: salesInvoiceItems.amount,
+        uom: salesInvoiceItems.uom,
+        packSizeValue: salesInvoiceItems.packSizeValue,
+        packSizeUqc: salesInvoiceItems.packSizeUqc,
+        cgstAmount: salesInvoiceItems.cgstAmount,
+        sgstAmount: salesInvoiceItems.sgstAmount,
+        igstAmount: salesInvoiceItems.igstAmount,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        invoiceDate: salesInvoices.invoiceDate,
+        customerName: customers.name,
+      })
+      .from(salesInvoiceItems)
+      .innerJoin(salesInvoices, eq(salesInvoices.id, salesInvoiceItems.invoiceId))
+      .leftJoin(customers, eq(customers.id, salesInvoices.customerId))
+      .where(and(
+        eq(salesInvoiceItems.tenantId, this.tenantId),
+        eq(salesInvoiceItems.hsnSacCode, hsn),
+        eq(salesInvoiceItems.taxRate, String(rate)),
+        gte(salesInvoices.invoiceDate, periodStart),
+        lte(salesInvoices.invoiceDate, periodEnd),
+        inArray(salesInvoices.status, ['sent', 'partially_paid', 'paid', 'overdue']),
+      ));
+
+    return rows;
+  }
 
   async getGstnSummary(id: string) {
     const ret = await this.getById(id);

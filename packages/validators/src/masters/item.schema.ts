@@ -49,6 +49,10 @@ export const createItemSchema = z.object({
   type: z.enum(['product', 'service']),
   hsnSacCode: hsnSacCodeSchema.nullish(),
   unit: z.string().max(20).nullish(),
+  // Pack size used by GSTR-1 HSN summary to normalize variant SKUs to a
+  // canonical UQC. e.g. "100 ML" → packSizeValue=100, packSizeUqc='ML'.
+  packSizeValue: z.number().positive().nullish(),
+  packSizeUqc: z.string().max(10).nullish(),
   defaultSellingPrice: z.number().min(0).nullish(),
   defaultPurchasePrice: z.number().min(0).nullish(),
   gstRate: z.number().min(0).max(100).nullish(),

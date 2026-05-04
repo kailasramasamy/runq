@@ -471,7 +471,7 @@ export class WhiteBooksGspClient implements GspClient {
 
   // ── Transform helpers ────────────────────────────────────────────────
 
-  private transformGstr1ForUpload(gstin: string, period: string, data: Gstr1Data) {
+  public transformGstr1ForUpload(gstin: string, period: string, data: Gstr1Data) {
     const supplierState = gstin.substring(0, 2);
 
     // Group B2B invoices by buyer GSTIN. When duplicate invoice numbers exist

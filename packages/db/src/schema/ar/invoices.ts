@@ -73,6 +73,11 @@ export const salesInvoiceItems = pgTable('sales_invoice_items', {
   // Unit of measure (kg, L, pcs, packets, etc) — copied from items.unit at
   // invoice creation time for line items linked to the items master.
   uom: varchar('uom', { length: 20 }),
+  // Pack size for ad-hoc lines (no item_id). Mirrors items.packSize* and is
+  // used by the GSTR-1 HSN summary to convert qty to canonical UQC.
+  // Defaults to 1 NOS (one piece per line-quantity unit).
+  packSizeValue: decimal('pack_size_value', { precision: 12, scale: 4 }).notNull().default('1'),
+  packSizeUqc: varchar('pack_size_uqc', { length: 10 }),
   quantity: decimal('quantity', { precision: 12, scale: 3 }).notNull(),
   unitPrice: decimal('unit_price', { precision: 15, scale: 2 }).notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),

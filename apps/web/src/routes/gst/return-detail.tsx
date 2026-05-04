@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
-  CheckCircle, Upload, FileCheck, Shield, AlertTriangle, ArrowLeft,
+  CheckCircle, Upload, FileCheck, Shield, AlertTriangle, ArrowLeft, Download, ChevronRight, ChevronDown,
 } from 'lucide-react';
 import {
   useGstReturn, useValidateReturn, useRequestOtp, useVerifyOtp,
-  useUploadReturn, useFileReturn, useGstnSummary, useForceLogout,
+  useUploadReturn, useFileReturn, useGstnSummary, useForceLogout, useHsnBreakdown,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
@@ -121,12 +121,88 @@ function B2CSSection({ data }: { data: any[] }) {
   );
 }
 
-function HSNSection({ data }: { data: any[] }) {
+async function downloadGstr1Json(id: string, gstin: string, period: string) {
+  const token = localStorage.getItem('runq-token');
+  const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/gst/returns/${id}/payload.json`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) { alert('Failed to download JSON'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `GSTR1_${gstin}_${period}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function HSNRow({ returnId, h }: { returnId: string; h: any }) {
+  const [open, setOpen] = useState(false);
+  const breakdown = useHsnBreakdown(returnId, open ? h.hsnCode : null, open ? h.gstRate : null);
+  return (
+    <>
+      <TableRow className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40" onClick={() => setOpen(!open)}>
+        <TableCell>
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </TableCell>
+        <TableCell className="font-mono">{h.hsnCode}</TableCell>
+        <TableCell className="text-xs">{h.description}</TableCell>
+        <TableCell>{h.uqc}</TableCell>
+        <TableCell className="text-right">{h.totalQuantity}</TableCell>
+        <TableCell className="text-right">{formatINR(h.taxableValue)}</TableCell>
+        <TableCell>{h.gstRate}%</TableCell>
+      </TableRow>
+      {open && (
+        <TableRow>
+          <TableCell colSpan={7} className="bg-zinc-50 dark:bg-zinc-900/40 p-3">
+            {breakdown.isLoading ? (
+              <p className="text-xs text-zinc-500">Loading lines…</p>
+            ) : !breakdown.data?.data?.length ? (
+              <p className="text-xs text-zinc-500">No invoice lines found</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <Th>Invoice</Th>
+                    <Th>Date</Th>
+                    <Th>Customer</Th>
+                    <Th>Description</Th>
+                    <Th className="text-right">Qty</Th>
+                    <Th>Pack</Th>
+                    <Th className="text-right">Unit ₹</Th>
+                    <Th className="text-right">Amount</Th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {breakdown.data.data.map((l) => (
+                    <TableRow key={l.lineId}>
+                      <TableCell className="font-mono text-xs">{l.invoiceNumber}</TableCell>
+                      <TableCell className="text-xs">{l.invoiceDate}</TableCell>
+                      <TableCell className="text-xs">{l.customerName ?? '—'}</TableCell>
+                      <TableCell className="text-xs">{l.description}</TableCell>
+                      <TableCell className="text-right text-xs">{Number(l.quantity)}</TableCell>
+                      <TableCell className="text-xs">{Number(l.packSizeValue)} {l.packSizeUqc ?? l.uom ?? ''}</TableCell>
+                      <TableCell className="text-right text-xs">{formatINR(Number(l.unitPrice))}</TableCell>
+                      <TableCell className="text-right text-xs">{formatINR(Number(l.amount))}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
+function HSNSection({ returnId, data }: { returnId: string; data: any[] }) {
   if (!data?.length) return <p className="text-sm text-zinc-500 px-4 py-6 text-center">No HSN data</p>;
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          <Th></Th>
           <Th>HSN</Th>
           <Th>Description</Th>
           <Th>UQC</Th>
@@ -137,14 +213,7 @@ function HSNSection({ data }: { data: any[] }) {
       </TableHeader>
       <TableBody>
         {data.map((h: any, i: number) => (
-          <TableRow key={i}>
-            <TableCell className="font-mono">{h.hsnCode}</TableCell>
-            <TableCell className="text-xs">{h.description}</TableCell>
-            <TableCell>{h.uqc}</TableCell>
-            <TableCell className="text-right">{h.totalQuantity}</TableCell>
-            <TableCell className="text-right">{formatINR(h.taxableValue)}</TableCell>
-            <TableCell>{h.gstRate}%</TableCell>
-          </TableRow>
+          <HSNRow key={i} returnId={returnId} h={h} />
         ))}
       </TableBody>
     </Table>
@@ -337,9 +406,17 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
           { label: periodLabel(ret.period) },
         ]}
         actions={
-          <Badge variant={STATUS_COLORS[ret.status] ?? 'default'} className="text-sm">
-            {ret.status.toUpperCase()}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {ret.returnType === 'gstr1' && ret.status !== 'draft' && (
+              <Button variant="secondary" size="sm" onClick={() => downloadGstr1Json(ret.id, ret.gstin, ret.period)}>
+                <Download className="h-4 w-4" />
+                Download JSON
+              </Button>
+            )}
+            <Badge variant={STATUS_COLORS[ret.status] ?? 'default'} className="text-sm">
+              {ret.status.toUpperCase()}
+            </Badge>
+          </div>
         }
       />
 
@@ -457,7 +534,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
           {activeTab === 'b2cs' && <B2CSSection data={data?.b2cs} />}
           {activeTab === 'b2cl' && <B2BSection data={data?.b2cl} />}
           {activeTab === 'cdn' && <CDNSection data={data?.cdn} />}
-          {activeTab === 'hsn' && <HSNSection data={data?.hsn} />}
+          {activeTab === 'hsn' && <HSNSection returnId={ret.id} data={data?.hsn} />}
           {activeTab === 'docs' && (
             <Table>
               <TableHeader>

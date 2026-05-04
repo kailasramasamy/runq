@@ -10,7 +10,7 @@ import { eq, and } from 'drizzle-orm';
 import { gstReturns, tenants } from '@runq/db';
 import { WhiteBooksGspClient } from '../modules/gst/gsp-client';
 
-const TENANT_ID = 'a0365382-afa0-48b6-92cd-4db615a7d98b';
+const TENANT_ID = 'c74fabbb-f342-4741-a2a5-e96043449546';
 const PERIOD = '042026';
 
 async function main() {

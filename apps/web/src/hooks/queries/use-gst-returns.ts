@@ -68,6 +68,31 @@ export function useGstReturn(id: string) {
   });
 }
 
+interface HsnBreakdownLine {
+  lineId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  amount: string;
+  uom: string | null;
+  packSizeValue: string;
+  packSizeUqc: string | null;
+  cgstAmount: string;
+  sgstAmount: string;
+  igstAmount: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string | null;
+}
+
+export function useHsnBreakdown(id: string, hsn: string | null, rate: number | null) {
+  return useQuery({
+    queryKey: ['gst-returns', id, 'hsn-breakdown', hsn, rate],
+    queryFn: () => api.get<ApiSuccess<HsnBreakdownLine[]>>(`/gst/returns/${id}/hsn-breakdown?hsn=${hsn}&rate=${rate}`),
+    enabled: !!id && !!hsn && rate !== null,
+  });
+}
+
 export function useGstnSummary(id: string, enabled: boolean) {
   return useQuery({
     queryKey: GST_KEYS.summary(id),

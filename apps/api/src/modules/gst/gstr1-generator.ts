@@ -1,8 +1,9 @@
 import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
 import {
   salesInvoices, salesInvoiceItems, customers,
-  creditNotes, tenants, invoiceSequences, hsnSacCodes,
+  creditNotes, tenants, invoiceSequences, hsnSacCodes, items as itemsTable,
 } from '@runq/db';
+import { toCanonical } from './uqc-conversion';
 import type { Db } from '@runq/db';
 import type {
   Gstr1Data, Gstr1B2BInvoice, Gstr1B2CSEntry, Gstr1CDNEntry,
@@ -338,6 +339,9 @@ export class Gstr1Generator {
   /** Cache HSN-master descriptions for the duration of one generate() call. */
   private hsnDescCache: Map<string, string> | null = null;
 
+  /** Cache item pack-size + uqc for HSN canonical-UQC conversion. */
+  private itemPackCache: Map<string, { packValue: number; packUqc: string }> | null = null;
+
   /** Look up the official HSN-master description for an 8/6/4-digit code.
    *  Tries exact match → 6-digit prefix → 4-digit prefix → fallback. The
    *  `hsn_sac_codes` master table is the source of truth (seed it with
@@ -357,7 +361,29 @@ export class Gstr1Generator {
     this.hsnDescCache = new Map(rows.map((r) => [r.code, r.description]));
   }
 
+  private async loadItemPackCache(): Promise<void> {
+    const rows = await this.db
+      .select({ id: itemsTable.id, packValue: itemsTable.packSizeValue, packUqc: itemsTable.packSizeUqc })
+      .from(itemsTable)
+      .where(eq(itemsTable.tenantId, this.tenantId));
+    this.itemPackCache = new Map(rows.map((r) => [r.id, { packValue: Number(r.packValue), packUqc: r.packUqc }]));
+  }
+
+  /**
+   * Aggregate invoice line items into the GSTR-1 HSN summary, converting
+   * each line's (qty, uom) to a canonical UQC via the item's pack_size
+   * (e.g. 100ml × 4 packs → 0.4 LTR). Lines with item_id resolve via the
+   * items master; lines without a linked item fall back to the line's
+   * own uom × quantity (pack_size assumed 1).
+   *
+   * Throws if a single HSN+rate bucket sees mixed canonical UQC families
+   * (e.g. one line in LTR and another in KGS) — that's a data error and
+   * we'd rather fail loud than silently mis-report.
+   */
   private async accumulateHSN(map: Map<string, Gstr1HSNEntry>, items: InvoiceItemRow[]): Promise<void> {
+    if (!this.itemPackCache) await this.loadItemPackCache();
+    const packCache = this.itemPackCache!;
+
     for (const item of items) {
       const hsn = item.hsnSacCode ?? '';
       if (!hsn) continue;
@@ -365,9 +391,36 @@ export class Gstr1Generator {
       const rate = Number(item.taxRate ?? 0);
       const key = `${hsn}|${rate}`;
 
+      // Resolution order: explicit line-level pack_size_uqc → items
+      // master → line uom. Honoring an explicit per-line pack_size lets
+      // one SKU sell variant pack sizes (e.g. 100ml + 1L of the same
+      // cold-pressed oil) without forcing a separate items-master row.
+      const lineUqc = item.packSizeUqc && item.packSizeUqc.trim() !== '' ? item.packSizeUqc : null;
+      const masterPack = item.itemId ? packCache.get(item.itemId) : undefined;
+      const packValue = lineUqc
+        ? Number(item.packSizeValue ?? 1)
+        : (masterPack ? masterPack.packValue : Number(item.packSizeValue ?? 1));
+      const sourceUom = lineUqc ?? masterPack?.packUqc ?? item.uom ?? 'NOS';
+
+      const totalSourceQty = Number(item.quantity) * packValue;
+      const canonical = toCanonical(totalSourceQty, sourceUom);
+      if (!canonical) {
+        throw new Error(
+          `[GSTR-1 HSN] Unrecognised UoM "${sourceUom}" on invoice item ${item.id} (HSN ${hsn}). ` +
+          `Add it to UQC_RULES in uqc-conversion.ts or fix the item master.`,
+        );
+      }
+
       const existing = map.get(key);
       if (existing) {
-        existing.totalQuantity += Number(item.quantity);
+        if (existing.uqc !== canonical.uqc) {
+          throw new Error(
+            `[GSTR-1 HSN] Mixed UQC for HSN ${hsn} @ ${rate}%: existing=${existing.uqc}, new=${canonical.uqc} ` +
+            `(invoice item ${item.id}). All variants of the same HSN must convert to the same canonical UQC. ` +
+            `Check pack_size_uqc on the item master.`,
+          );
+        }
+        existing.totalQuantity += canonical.qty;
         existing.taxableValue += Number(item.amount);
         existing.igstAmount += Number(item.igstAmount);
         existing.cgstAmount += Number(item.cgstAmount);
@@ -379,8 +432,8 @@ export class Gstr1Generator {
           // Use generic HSN-master description (industry-agnostic).
           // Falls back to the first SKU's description if HSN isn't in master.
           description: await this.hsnDescriptionFor(hsn, item.description),
-          uqc: item.uom ?? 'NOS',
-          totalQuantity: Number(item.quantity),
+          uqc: canonical.uqc,
+          totalQuantity: canonical.qty,
           taxableValue: Number(item.amount),
           igstAmount: Number(item.igstAmount),
           cgstAmount: Number(item.cgstAmount),

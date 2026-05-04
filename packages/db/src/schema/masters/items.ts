@@ -16,6 +16,11 @@ export const items = pgTable(
     type: itemTypeEnum('type').notNull(),
     hsnSacCode: varchar('hsn_sac_code', { length: 8 }),
     unit: varchar('unit', { length: 20 }),
+    // Pack size used by GSTR-1 HSN summary to normalize variant SKUs
+    // (e.g. 100ml, 250ml, 500ml, 1L of the same product) to a canonical
+    // UQC. value is expressed in pack_size_uqc units.
+    packSizeValue: decimal('pack_size_value', { precision: 12, scale: 4 }).notNull().default('1'),
+    packSizeUqc: varchar('pack_size_uqc', { length: 10 }).notNull(),
     defaultSellingPrice: decimal('default_selling_price', { precision: 15, scale: 2 }),
     defaultPurchasePrice: decimal('default_purchase_price', { precision: 15, scale: 2 }),
     gstRate: decimal('gst_rate', { precision: 5, scale: 2 }),
