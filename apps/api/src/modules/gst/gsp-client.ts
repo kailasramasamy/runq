@@ -341,15 +341,19 @@ export class WhiteBooksGspClient implements GspClient {
     // Surface failures clearly — silent fallback hid stale-summary issues.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
     const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' });
+    console.log('[gst-file] newproceedfile request', { url: newUrl.replace(/email=[^&]+/, 'email=***') });
     const newRes = await fetch(newUrl, { method: 'GET', headers: headersForProceed });
     const newData = await newRes.json();
+    console.log('[gst-file] newproceedfile response', JSON.stringify(newData));
     let proceedOk = newData.status_cd === '1' || newData.status === 1;
 
     // Fall back to older /all/proceedfile if new endpoint rejected the call.
     if (!proceedOk) {
       const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' });
+      console.log('[gst-file] proceedfile fallback request', { url: oldUrl.replace(/email=[^&]+/, 'email=***') });
       const oldRes = await fetch(oldUrl, { method: 'GET', headers: headersForProceed });
       const oldData = await oldRes.json();
+      console.log('[gst-file] proceedfile response', JSON.stringify(oldData));
       proceedOk = oldData.status_cd === '1' || oldData.status === 1;
       if (!proceedOk) {
         const errMsg = newData?.error?.message || oldData?.error?.message ||
@@ -371,6 +375,7 @@ export class WhiteBooksGspClient implements GspClient {
       lastSumData = sumData;
       const ok = sumData?.status_cd === '1' || sumData?.status === 1;
       const candidate = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
+      console.log(`[gst-file] retsum attempt ${attempt + 1}`, JSON.stringify(sumData).slice(0, 500));
       if (ok && candidate) {
         chksum = candidate;
         break;
@@ -380,6 +385,7 @@ export class WhiteBooksGspClient implements GspClient {
       const errMsg = lastSumData?.error?.message || 'Latest summary not available from GSTN after 90s. Try again in a few minutes.';
       return { success: false, errors: [{ code: lastSumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
     }
+    console.log('[gst-file] chksum acquired', chksum.slice(0, 12) + '…');
 
     const url = withEmail('/gstr1/retevcfile', { pan, evcotp: evc });
     const headers = {
