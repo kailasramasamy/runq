@@ -337,29 +337,31 @@ export class WhiteBooksGspClient implements GspClient {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = gstin.substring(2, 12);
 
-    // Step 1: Trigger summary generation via newproceedfile (modern endpoint).
-    // Surface failures clearly — silent fallback hid stale-summary issues.
+    // Step 1: Trigger summary generation. Try several variants of the
+    // proceedfile call since WhiteBooks docs are inconsistent about
+    // `type` value and `isNil` necessity. We try in order until one
+    // succeeds, surfacing all errors if none do.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
-    const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'R1', isNil: 'N' });
-    console.log('[gst-file] newproceedfile request', { url: newUrl.replace(/email=[^&]+/, 'email=***') });
-    const newRes = await fetch(newUrl, { method: 'GET', headers: headersForProceed });
-    const newData = await newRes.json();
-    console.log('[gst-file] newproceedfile response', JSON.stringify(newData));
-    let proceedOk = newData.status_cd === '1' || newData.status === 1;
-
-    // Fall back to older /all/proceedfile if new endpoint rejected the call.
+    const variants: Array<{ label: string; url: string }> = [
+      { label: 'newproceedfile/GSTR1+isNil', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' }) },
+      { label: 'newproceedfile/GSTR1', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' }) },
+      { label: 'newproceedfile/R1+isNil', url: withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'R1', isNil: 'N' }) },
+      { label: 'proceedfile/GSTR1', url: withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' }) },
+      { label: 'proceedfile/R1', url: withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'R1' }) },
+    ];
+    let proceedOk = false;
+    const proceedErrors: string[] = [];
+    for (const v of variants) {
+      console.log(`[gst-file] proceed try ${v.label}`);
+      const res = await fetch(v.url, { method: 'GET', headers: headersForProceed });
+      const data = await res.json();
+      console.log(`[gst-file] proceed response ${v.label}:`, JSON.stringify(data).slice(0, 400));
+      if (data.status_cd === '1' || data.status === 1) { proceedOk = true; break; }
+      const e = data?.error?.message || data?.error?.error_msg || JSON.stringify(data);
+      proceedErrors.push(`${v.label}: ${e}`);
+    }
     if (!proceedOk) {
-      const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'R1' });
-      console.log('[gst-file] proceedfile fallback request', { url: oldUrl.replace(/email=[^&]+/, 'email=***') });
-      const oldRes = await fetch(oldUrl, { method: 'GET', headers: headersForProceed });
-      const oldData = await oldRes.json();
-      console.log('[gst-file] proceedfile response', JSON.stringify(oldData));
-      proceedOk = oldData.status_cd === '1' || oldData.status === 1;
-      if (!proceedOk) {
-        const errMsg = newData?.error?.message || oldData?.error?.message ||
-          'Could not trigger GSTN summary generation. Try again in a few minutes.';
-        return { success: false, errors: [{ code: newData?.error?.error_cd || oldData?.error?.error_cd || 'PROCEED_FAILED', message: errMsg }] };
-      }
+      return { success: false, errors: [{ code: 'PROCEED_FAILED', message: `All proceedfile variants failed. ${proceedErrors.join(' | ')}` }] };
     }
 
     // Step 2: Poll summary endpoint for the LATEST checksum. GSTN can take
