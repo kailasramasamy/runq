@@ -121,6 +121,64 @@ function B2CSSection({ data }: { data: any[] }) {
   );
 }
 
+/** Stepped progress UI for the GSTR-1 filing flow. The backend call is
+ *  one mutation, but it internally runs proceedfile → poll-summary →
+ *  retevcfile. We approximate progress by elapsed time since each step
+ *  has a typical duration. Total expected: ~60-90s. */
+function FilingProgress() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => clearInterval(t);
+  }, []);
+
+  const steps = [
+    { label: 'Triggering GSTN summary generation', startsAt: 0, endsAt: 4 },
+    { label: 'Waiting for GSTN to compute summary', startsAt: 4, endsAt: 70 },
+    { label: 'Submitting filing with EVC', startsAt: 70, endsAt: 90 },
+  ];
+  const totalDuration = 90;
+  const pct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+
+  return (
+    <div className="mt-4 p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50 space-y-3">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">Filing in progress</span>
+        <span className="text-zinc-500">{elapsed}s elapsed · ~60–90s typical</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+        <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <ol className="space-y-2">
+        {steps.map((s) => {
+          const active = elapsed >= s.startsAt && elapsed < s.endsAt;
+          const done = elapsed >= s.endsAt;
+          return (
+            <li key={s.label} className="flex items-center gap-2 text-xs">
+              <span
+                className={[
+                  'inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px]',
+                  done ? 'bg-green-500 text-white'
+                    : active ? 'bg-indigo-500 text-white'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500',
+                ].join(' ')}
+              >
+                {done ? '✓' : active ? '•' : ''}
+              </span>
+              <span className={done ? 'text-zinc-500' : active ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-zinc-400'}>
+                {s.label}
+                {active && <span className="ml-1 inline-block animate-pulse">…</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="text-[11px] text-zinc-500">Don't close this window. GSTN can take up to 90 seconds for larger returns.</p>
+    </div>
+  );
+}
+
 async function downloadGstr1Json(id: string, gstin: string, period: string) {
   const token = localStorage.getItem('runq-token');
   const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/gst/returns/${id}/payload.json`, {
@@ -693,8 +751,9 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
             />
           </div>
           <Button onClick={handleFile} disabled={fileMutation.isPending} className="w-full">
-            {fileMutation.isPending ? 'Filing...' : 'File Return'}
+            {fileMutation.isPending ? 'Filing…' : 'File Return'}
           </Button>
+          {fileMutation.isPending && <FilingProgress />}
         </div>
       </Modal>
     </div>
