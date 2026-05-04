@@ -673,7 +673,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
             Click "Send EVC" to receive a one-time code on your GST-registered mobile/email, then enter it below to file the return.
           </p>
           <Button
-            variant="secondary"
+            variant="outline"
             onClick={() => requestEvcMutation.mutate(ret.id, {
               onSuccess: (res) => toast(res.data.message ?? 'EVC OTP sent', res.data.success ? 'success' : 'error'),
               onError: (e: unknown) => toast((e as { message?: string })?.message ?? 'Failed to send EVC', 'error'),
