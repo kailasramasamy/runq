@@ -337,36 +337,47 @@ export class WhiteBooksGspClient implements GspClient {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = gstin.substring(2, 12);
 
-    // Step 1: Trigger summary generation. Try both old and new proceedfile endpoints.
+    // Step 1: Trigger summary generation via newproceedfile (modern endpoint).
+    // Surface failures clearly — silent fallback hid stale-summary issues.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
+    const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' });
+    const newRes = await fetch(newUrl, { method: 'GET', headers: headersForProceed });
+    const newData = await newRes.json();
+    let proceedOk = newData.status_cd === '1' || newData.status === 1;
 
-    // Try old /all/proceedfile first (simpler params)
-    const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' });
-    const oldRes = await fetch(oldUrl, { method: 'GET', headers: headersForProceed });
-    const oldData = await oldRes.json();
-
-    // If old endpoint failed, try /all/newproceedfile
-    if (oldData.status_cd !== '1' && oldData.status !== 1) {
-      const newUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1', isNil: 'N' });
-      await fetch(newUrl, { method: 'GET', headers: headersForProceed });
+    // Fall back to older /all/proceedfile if new endpoint rejected the call.
+    if (!proceedOk) {
+      const oldUrl = withEmail('/all/proceedfile', { gstin, retperiod: period, type: 'GSTR1' });
+      const oldRes = await fetch(oldUrl, { method: 'GET', headers: headersForProceed });
+      const oldData = await oldRes.json();
+      proceedOk = oldData.status_cd === '1' || oldData.status === 1;
+      if (!proceedOk) {
+        const errMsg = newData?.error?.message || oldData?.error?.message ||
+          'Could not trigger GSTN summary generation. Try again in a few minutes.';
+        return { success: false, errors: [{ code: newData?.error?.error_cd || oldData?.error?.error_cd || 'PROCEED_FAILED', message: errMsg }] };
+      }
     }
 
-    // Step 2: Poll summary endpoint until checksum is ready. GSTN can take
-    // 30-60s to regenerate the summary after proceedfile, especially for
-    // larger returns. Try every 6s for up to 90s before giving up.
-    const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period });
+    // Step 2: Poll summary endpoint for the LATEST checksum. GSTN can take
+    // 30-60s to regenerate the summary after proceedfile. We pass summ_typ=L
+    // to force latest (not cached). Poll every 6s for up to 90s.
+    const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period, summ_typ: 'L' });
     let chksum: string | undefined;
-    let lastSumData: { error?: { message?: string; error_cd?: string } } | undefined;
+    let lastSumData: { status_cd?: string; status?: number; error?: { message?: string; error_cd?: string } } | undefined;
     for (let attempt = 0; attempt < 15; attempt++) {
       await new Promise((r) => setTimeout(r, 6000));
       const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
       const sumData = await sumRes.json();
       lastSumData = sumData;
-      chksum = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
-      if (chksum) break;
+      const ok = sumData?.status_cd === '1' || sumData?.status === 1;
+      const candidate = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
+      if (ok && candidate) {
+        chksum = candidate;
+        break;
+      }
     }
     if (!chksum) {
-      const errMsg = lastSumData?.error?.message || 'Latest Summary is not available. Please retry filing in a moment.';
+      const errMsg = lastSumData?.error?.message || 'Latest summary not available from GSTN after 90s. Try again in a few minutes.';
       return { success: false, errors: [{ code: lastSumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
     }
 
