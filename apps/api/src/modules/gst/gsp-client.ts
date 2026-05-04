@@ -56,7 +56,7 @@ export interface GspClient {
   verifyOtp(gstin: string, username: string, otp: string, txn: string): Promise<GspAuthToken>;
   logout(gstin: string, username: string, txn: string): Promise<{ success: boolean; message: string }>;
 
-  requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B'): Promise<{ success: boolean; message?: string }>;
+  requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B', signatoryPan?: string): Promise<{ success: boolean; message?: string }>;
   uploadGstr1(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr1Data): Promise<UploadResult>;
   getGstr1Summary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr1Summary>;
   fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult>;
@@ -313,9 +313,11 @@ export class WhiteBooksGspClient implements GspClient {
   /** Trigger GSTN to send a fresh EVC OTP to the taxpayer's registered
    *  mobile/email for filing. Must be called before /retevcfile so the
    *  user has the OTP to enter. WhiteBooks endpoint: /authentication/otpforevc. */
-  async requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B'): Promise<{ success: boolean; message?: string }> {
+  async requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B', signatoryPan?: string): Promise<{ success: boolean; message?: string }> {
     const stateCode = stateCodeFromGstin(gstin);
-    const pan = gstin.substring(2, 12);
+    // PAN must be the AUTHORIZED SIGNATORY's PAN (partner/director registered
+    // on GST portal), not the firm/entity PAN embedded in the GSTIN.
+    const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
     // GSTN expects the short form code: R1 / R3B (not the full "GSTR1").
     const gstnFormCode = formType === 'GSTR1' ? 'R1' : 'R3B';
     const url = withEmail('/authentication/otpforevc', { gstin, pan, form_type: gstnFormCode });

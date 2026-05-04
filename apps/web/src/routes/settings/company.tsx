@@ -57,6 +57,7 @@ export function CompanySettingsPage() {
   const [savedIndustry, setSavedIndustry] = useState<string>('');
   const [gstin, setGstin] = useState('');
   const [gstUsername, setGstUsername] = useState('');
+  const [gstAuthSignatoryPan, setGstAuthSignatoryPan] = useState('');
   const [legalName, setLegalName] = useState('');
   const [state, setState] = useState('');
   const [stateCode, setStateCode] = useState('');
@@ -76,6 +77,7 @@ export function CompanySettingsPage() {
       setSavedIndustry(data.data.industry ?? '');
       setGstin(data.data.gstin ?? '');
       setGstUsername(data.data.gstUsername ?? '');
+      setGstAuthSignatoryPan(data.data.gstAuthSignatoryPan ?? '');
       setLegalName(data.data.legalName ?? '');
       setState(data.data.state ?? '');
       setStateCode(data.data.stateCode ?? '');
@@ -119,6 +121,7 @@ export function CompanySettingsPage() {
         industry: industry ? (industry as Industry) : null,
         gstin: gstin || null,
         gstUsername: gstUsername || null,
+        gstAuthSignatoryPan: gstAuthSignatoryPan ? gstAuthSignatoryPan.toUpperCase() : null,
         legalName: legalName || null,
         state: state || null,
         stateCode: stateCode || null,
@@ -251,6 +254,15 @@ export function CompanySettingsPage() {
               onChange={(e) => setGstUsername(e.target.value)}
               placeholder="Your gst.gov.in login username"
               helper="Auto-populated when authenticating to file GSTR-1 / GSTR-3B."
+            />
+
+            <Input
+              label="Authorized Signatory PAN"
+              value={gstAuthSignatoryPan}
+              onChange={(e) => setGstAuthSignatoryPan(e.target.value.toUpperCase())}
+              placeholder="e.g. ABCDE1234F"
+              maxLength={10}
+              helper="PAN of the partner/director registered as authorized signatory on the GST portal. Required for EVC OTP. Often differs from the firm PAN embedded in the GSTIN."
             />
 
             <Input

@@ -412,7 +412,14 @@ export class GstReturnService {
     const ret = await this.getById(id);
     const profile = await this.getTenantGstProfile();
     const token = await this.getValidToken(ret.gstin);
-    return this.gsp.requestEvcOtp(token, ret.gstin, profile.gstUsername, ret.returnType === 'gstr1' ? 'GSTR1' : 'GSTR3B');
+    const [t] = await this.db.select().from(tenants).where(eq(tenants.id, this.tenantId));
+    const settings = (t?.settings ?? {}) as { gstAuthSignatoryPan?: string };
+    const signatoryPan = settings.gstAuthSignatoryPan?.trim().toUpperCase();
+    return this.gsp.requestEvcOtp(
+      token, ret.gstin, profile.gstUsername,
+      ret.returnType === 'gstr1' ? 'GSTR1' : 'GSTR3B',
+      signatoryPan,
+    );
   }
 
   async getGstnSummary(id: string) {

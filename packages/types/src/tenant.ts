@@ -23,6 +23,10 @@ export interface TenantSettings {
   gstin?: string;
   // GST portal username — used to auto-populate authentication in GST filing flow
   gstUsername?: string;
+  // PAN of the authorized signatory (partner/director registered on GST portal)
+  // Used for EVC OTP requests during filing. May differ from the firm/entity
+  // PAN that's embedded in the GSTIN.
+  gstAuthSignatoryPan?: string;
   // First period (MMYYYY) for which runq manages GST filing. Periods before
   // this are assumed filed externally (e.g. by a CA) and skipped by the
   // readiness tracker and scheduler.
