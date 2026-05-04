@@ -357,6 +357,9 @@ export class WhiteBooksGspClient implements GspClient {
       const data = await res.json();
       console.log(`[gst-file] proceed response ${v.label}:`, JSON.stringify(data).slice(0, 400));
       if (data.status_cd === '1' || data.status === 1) { proceedOk = true; break; }
+      // RET00003 "Return Form already ready to be filed" means a prior call
+      // succeeded — treat as success and skip remaining variants.
+      if (data?.error?.error_cd === 'RET00003') { proceedOk = true; console.log('[gst-file] already ready to file — skipping remaining variants'); break; }
       const e = data?.error?.message || data?.error?.error_msg || JSON.stringify(data);
       proceedErrors.push(`${v.label}: ${e}`);
     }
