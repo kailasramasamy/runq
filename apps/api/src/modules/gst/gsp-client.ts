@@ -370,20 +370,23 @@ export class WhiteBooksGspClient implements GspClient {
     const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period, smrytyp: 'L' });
     let chksum: string | undefined;
     let lastSumData: { status_cd?: string; status?: number; error?: { message?: string; error_cd?: string } } | undefined;
+    let summary: { chksum?: string; newSumFlag?: boolean; sec_sum?: unknown[] } | undefined;
     for (let attempt = 0; attempt < 15; attempt++) {
       await new Promise((r) => setTimeout(r, 6000));
       const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
       const sumData = await sumRes.json();
       lastSumData = sumData;
       const ok = sumData?.status_cd === '1' || sumData?.status === 1;
-      const candidate = sumData?.data?.chksum || sumData?.chksum || sumData?.data?.summ?.chksum || sumData?.header?.chksum;
-      console.log(`[gst-file] retsum attempt ${attempt + 1}`, JSON.stringify(sumData).slice(0, 500));
+      const inner = sumData?.data ?? sumData;
+      const candidate = inner?.chksum;
+      console.log(`[gst-file] retsum attempt ${attempt + 1}`, JSON.stringify(sumData).slice(0, 400));
       if (ok && candidate) {
         chksum = candidate;
+        summary = inner;
         break;
       }
     }
-    if (!chksum) {
+    if (!chksum || !summary) {
       const errMsg = lastSumData?.error?.message || 'Latest summary not available from GSTN after 90s. Try again in a few minutes.';
       return { success: false, errors: [{ code: lastSumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
     }
@@ -396,12 +399,14 @@ export class WhiteBooksGspClient implements GspClient {
       'ret_period': period,
     };
 
-    // Body per WhiteBooks /gstr1/retevcfile spec — no isnil field.
+    // Body per WhiteBooks /gstr1/retevcfile schema: requires newSumFlag and
+    // sec_sum from the retsum response, not just chksum. Pass them through.
     const body = {
       gstin,
       ret_period: period,
       chksum,
-      summ_typ: 'L',
+      newSumFlag: summary.newSumFlag ?? true,
+      sec_sum: summary.sec_sum ?? [],
     };
 
     const res = await fetch(url, {
