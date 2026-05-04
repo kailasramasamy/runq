@@ -361,7 +361,7 @@ export class WhiteBooksGspClient implements GspClient {
     // Step 2: Poll summary endpoint for the LATEST checksum. GSTN can take
     // 30-60s to regenerate the summary after proceedfile. We pass summ_typ=L
     // to force latest (not cached). Poll every 6s for up to 90s.
-    const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period, summ_typ: 'L' });
+    const sumUrl = withEmail('/gstr1/retsum', { gstin, retperiod: period, smrytyp: 'L' });
     let chksum: string | undefined;
     let lastSumData: { status_cd?: string; status?: number; error?: { message?: string; error_cd?: string } } | undefined;
     for (let attempt = 0; attempt < 15; attempt++) {
