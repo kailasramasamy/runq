@@ -68,6 +68,13 @@ export function useGstReturn(id: string) {
   });
 }
 
+export function useRequestEvcOtp() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<ApiSuccess<{ success: boolean; message?: string }>>(`/gst/returns/${id}/request-evc`),
+  });
+}
+
 interface HsnBreakdownLine {
   lineId: string;
   description: string;

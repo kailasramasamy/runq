@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import {
   useGstReturn, useValidateReturn, useRequestOtp, useVerifyOtp,
-  useUploadReturn, useFileReturn, useGstnSummary, useForceLogout, useHsnBreakdown,
+  useUploadReturn, useFileReturn, useGstnSummary, useForceLogout, useHsnBreakdown, useRequestEvcOtp,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
@@ -270,6 +270,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
   const verifyOtpMutation = useVerifyOtp();
   const uploadMutation = useUploadReturn();
   const fileMutation = useFileReturn();
+  const requestEvcMutation = useRequestEvcOtp();
   const forceLogoutMutation = useForceLogout();
   const { data: companyData } = useCompanySettings();
 
@@ -669,8 +670,19 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
       <Modal open={showEvcModal} title="File Return" onClose={() => setShowEvcModal(false)}>
         <div className="space-y-4">
           <p className="text-sm text-zinc-500">
-            An EVC (Electronic Verification Code) will be sent to your registered mobile. Enter it below to file the return.
+            Click "Send EVC" to receive a one-time code on your GST-registered mobile/email, then enter it below to file the return.
           </p>
+          <Button
+            variant="secondary"
+            onClick={() => requestEvcMutation.mutate(ret.id, {
+              onSuccess: (res) => toast(res.data.message ?? 'EVC OTP sent', res.data.success ? 'success' : 'error'),
+              onError: (e: unknown) => toast((e as { message?: string })?.message ?? 'Failed to send EVC', 'error'),
+            })}
+            disabled={requestEvcMutation.isPending}
+            className="w-full"
+          >
+            {requestEvcMutation.isPending ? 'Sending…' : 'Send EVC OTP'}
+          </Button>
           <div>
             <label className="text-sm font-medium block mb-1">EVC Code</label>
             <Input

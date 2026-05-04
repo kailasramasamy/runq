@@ -406,6 +406,15 @@ export class GstReturnService {
     return rows;
   }
 
+  /** Trigger GSTN to send EVC OTP for filing the given return.
+   *  User receives OTP on the registered mobile/email. */
+  async requestEvcOtp(id: string): Promise<{ success: boolean; message?: string }> {
+    const ret = await this.getById(id);
+    const profile = await this.getTenantGstProfile();
+    const token = await this.getValidToken(ret.gstin);
+    return this.gsp.requestEvcOtp(token, ret.gstin, profile.gstUsername, ret.returnType === 'gstr1' ? 'GSTR1' : 'GSTR3B');
+  }
+
   async getGstnSummary(id: string) {
     const ret = await this.getById(id);
     const profile = await this.getTenantGstProfile();

@@ -56,6 +56,7 @@ export interface GspClient {
   verifyOtp(gstin: string, username: string, otp: string, txn: string): Promise<GspAuthToken>;
   logout(gstin: string, username: string, txn: string): Promise<{ success: boolean; message: string }>;
 
+  requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B'): Promise<{ success: boolean; message?: string }>;
   uploadGstr1(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr1Data): Promise<UploadResult>;
   getGstr1Summary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr1Summary>;
   fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string): Promise<FilingResult>;
@@ -306,6 +307,25 @@ export class WhiteBooksGspClient implements GspClient {
       },
       hsn: { count: d.hsn?.ttl_rec ?? d.sec_sum?.hsn?.ttl_rec ?? 0 },
       docs: { count: d.doc_issue?.ttl_rec ?? d.sec_sum?.doc_issue?.ttl_rec ?? 0 },
+    };
+  }
+
+  /** Trigger GSTN to send a fresh EVC OTP to the taxpayer's registered
+   *  mobile/email for filing. Must be called before /retevcfile so the
+   *  user has the OTP to enter. WhiteBooks endpoint: /authentication/otpforevc. */
+  async requestEvcOtp(token: GspAuthToken, gstin: string, username: string, formType: 'GSTR1' | 'GSTR3B'): Promise<{ success: boolean; message?: string }> {
+    const stateCode = stateCodeFromGstin(gstin);
+    const pan = gstin.substring(2, 12);
+    const url = withEmail('/authentication/otpforevc', { gstin, pan, form_type: formType });
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: commonHeaders(username, stateCode, token.txn),
+    });
+    const data = await res.json();
+    const success = data.status_cd === '1' || data.status === 1;
+    return {
+      success,
+      message: success ? 'EVC OTP sent to registered mobile/email' : (data?.error?.message || data?.error?.error_msg || 'Failed to send EVC OTP'),
     };
   }
 

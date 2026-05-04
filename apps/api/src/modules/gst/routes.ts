@@ -147,6 +147,14 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── File return with EVC ──────────────────────────────────────────
 
+  // ─── Request EVC OTP (sent to registered mobile/email) ─────────────
+
+  app.post('/returns/:id/request-evc', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = idParam.parse(request.params);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    return { data: await svc.requestEvcOtp(id) };
+  });
+
   app.post('/returns/:id/file', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
     const { id } = idParam.parse(request.params);
     const { evc } = fileSchema.parse(request.body);
