@@ -388,12 +388,12 @@ export class WhiteBooksGspClient implements GspClient {
       'ret_period': period,
     };
 
+    // Body per WhiteBooks /gstr1/retevcfile spec — no isnil field.
     const body = {
       gstin,
       ret_period: period,
       chksum,
       summ_typ: 'L',
-      isnil: 'N',
     };
 
     const res = await fetch(url, {
@@ -402,6 +402,9 @@ export class WhiteBooksGspClient implements GspClient {
       body: JSON.stringify(body),
     });
     const result = await res.json();
+    // Log the raw GSTN response so production failures surface in logs
+    // (Railway shows console.log).
+    console.log('[gstr1/retevcfile] response:', JSON.stringify(result));
 
     return {
       success: result.status_cd === '1' || result.status === 1,
