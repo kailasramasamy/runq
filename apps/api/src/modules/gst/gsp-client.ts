@@ -339,29 +339,15 @@ export class WhiteBooksGspClient implements GspClient {
     // not the firm/entity PAN embedded in the GSTIN.
     const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
 
-    // Step 1: Move the return to "ready to file" state with a FRESH signed
-    // summary. GSTN rejects retevcfile with "Signed summary is not the
-    // latest" if proceedfile was called too long ago, so when RET00003
-    // comes back ("already ready") we explicitly reset and re-proceed.
+    // Step 1: Move the return to "ready to file" state via newproceedfile.
+    // RET00003 "already ready" is treated as success.
     const headersForProceed = commonHeaders(username, stateCode, token.txn);
-    const callProceed = async () => {
-      const url = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' });
-      const res = await fetch(url, { method: 'GET', headers: headersForProceed });
-      const data = await res.json();
-      console.log('[gst-file] proceedfile response:', JSON.stringify(data).slice(0, 400));
-      return data;
-    };
-    let proceedData = await callProceed();
-    if (proceedData?.error?.error_cd === 'RET00003') {
-      // Already ready — that signed summary may be stale. Reset and re-proceed.
-      console.log('[gst-file] already ready; calling reset to refresh signed summary');
-      const resetUrl = withEmail('/gstr1/reset', { gstin, ret_period: period });
-      const resetRes = await fetch(resetUrl, { method: 'POST', headers: { ...headersForProceed, gstin, ret_period: period } });
-      const resetData = await resetRes.json();
-      console.log('[gst-file] reset response:', JSON.stringify(resetData).slice(0, 400));
-      proceedData = await callProceed();
-    }
-    const proceedOk = proceedData.status_cd === '1' || proceedData.status === 1;
+    const proceedUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' });
+    const proceedRes = await fetch(proceedUrl, { method: 'GET', headers: headersForProceed });
+    const proceedData = await proceedRes.json();
+    console.log('[gst-file] proceedfile response:', JSON.stringify(proceedData).slice(0, 400));
+    const proceedOk = proceedData.status_cd === '1' || proceedData.status === 1
+      || proceedData?.error?.error_cd === 'RET00003';
     if (!proceedOk) {
       const e = proceedData?.error?.message || proceedData?.error?.error_msg || 'Could not move return to ready-to-file state';
       return { success: false, errors: [{ code: proceedData?.error?.error_cd || 'PROCEED_FAILED', message: e }] };

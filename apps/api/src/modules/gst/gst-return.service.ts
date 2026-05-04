@@ -442,9 +442,20 @@ export class GstReturnService {
     const [t] = await this.db.select().from(tenants).where(eq(tenants.id, this.tenantId));
     const settings = (t?.settings ?? {}) as { gstAuthSignatoryPan?: string };
     const signatoryPan = settings.gstAuthSignatoryPan?.trim().toUpperCase();
-    const result = ret.returnType === 'gstr1'
-      ? await this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan)
-      : await this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan);
+    const callFile = () => ret.returnType === 'gstr1'
+      ? this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan)
+      : this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan);
+    let result = await callFile();
+    // Auto-heal: if GSTN says the signed summary is stale (RT_FIL_09),
+    // re-upload the saved data — that invalidates the frozen ready-to-file
+    // state and the next proceedfile generates a fresh signed summary.
+    const stale = result.errors?.some((e) => e.code === 'RT_FIL_09');
+    if (!result.success && stale && ret.returnType === 'gstr1' && ret.data) {
+      console.log('[gst-file] signed summary stale — re-uploading then retrying file');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await this.gsp.uploadGstr1(token, ret.gstin, profile.gstUsername, ret.period, ret.data as any);
+      result = await callFile();
+    }
 
     if (result.success) {
       await this.db
