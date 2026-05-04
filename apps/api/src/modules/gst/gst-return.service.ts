@@ -406,6 +406,65 @@ export class GstReturnService {
     return rows;
   }
 
+  /** Build a multi-section CSV of a filed (or draft) GSTR-1 return for
+   *  archival/record-keeping. Sections: header, HSN, B2B, B2CS, CDN, Docs. */
+  async exportGstr1Csv(id: string): Promise<{ csv: string; filename: string }> {
+    const ret = await this.getById(id);
+    if (ret.returnType !== 'gstr1') throw new ConflictError('Only GSTR-1 export is supported');
+    if (!ret.data) throw new ConflictError('Return has no data');
+    const data = ret.data as Gstr1Data;
+    const lines: string[] = [];
+    const csvVal = (v: unknown): string => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const row = (cols: unknown[]) => lines.push(cols.map(csvVal).join(','));
+
+    row(['GSTR-1 Filed Return']);
+    row(['GSTIN', ret.gstin]);
+    row(['Period', ret.period]);
+    row(['Status', ret.status]);
+    row(['ARN', ret.arn ?? '']);
+    row(['Filed At', ret.filedAt ? new Date(ret.filedAt).toISOString() : '']);
+    row([]);
+
+    row(['HSN Summary']);
+    row(['HSN', 'Description', 'UQC', 'Quantity', 'Rate %', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Cess']);
+    for (const h of data.hsn ?? []) {
+      row([h.hsnCode, h.description, h.uqc, h.totalQuantity, h.gstRate, h.taxableValue, h.cgstAmount, h.sgstAmount, h.igstAmount, h.cessAmount]);
+    }
+    row([]);
+
+    row(['B2B Invoices']);
+    row(['Buyer GSTIN', 'Invoice No', 'Invoice Date', 'Invoice Value', 'Place of Supply', 'Reverse Charge', 'Invoice Type']);
+    for (const inv of data.b2b ?? []) {
+      row([inv.buyerGstin, inv.invoiceNumber, inv.invoiceDate, inv.invoiceValue, inv.placeOfSupply, inv.reverseCharge ? 'Y' : 'N', inv.invoiceType]);
+    }
+    row([]);
+
+    row(['B2CS (intra-state aggregated)']);
+    row(['POS', 'Supply Type', 'Rate %', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Cess']);
+    for (const e of data.b2cs ?? []) {
+      row([e.placeOfSupply, e.supplyType, e.gstRate, e.taxableValue, e.cgstAmount, e.sgstAmount, e.igstAmount, e.cessAmount]);
+    }
+    row([]);
+
+    row(['Credit/Debit Notes']);
+    row(['Buyer GSTIN', 'Note No', 'Note Date', 'Type', 'Note Value', 'Original Invoice', 'Original Date']);
+    for (const c of data.cdn ?? []) {
+      row([c.buyerGstin, c.noteNumber, c.noteDate, c.noteType, c.noteValue, c.originalInvoiceNumber, c.originalInvoiceDate]);
+    }
+    row([]);
+
+    row(['Document Issuance']);
+    row(['Doc Type', 'From', 'To', 'Total Issued', 'Cancelled', 'Net Issued']);
+    for (const d of data.docs ?? []) {
+      row([d.docType, d.fromSerial, d.toSerial, d.totalIssued, d.totalCancelled, d.netIssued]);
+    }
+
+    return { csv: lines.join('\n'), filename: `GSTR1_${ret.gstin}_${ret.period}.csv` };
+  }
+
   /** Trigger GSTN to send EVC OTP for filing the given return.
    *  User receives OTP on the registered mobile/email. */
   async requestEvcOtp(id: string): Promise<{ success: boolean; message?: string }> {

@@ -180,16 +180,22 @@ function FilingProgress() {
 }
 
 async function downloadGstr1Json(id: string, gstin: string, period: string) {
+  await downloadFile(`/gst/returns/${id}/payload.json`, `GSTR1_${gstin}_${period}.json`);
+}
+async function downloadGstr1Csv(id: string, gstin: string, period: string) {
+  await downloadFile(`/gst/returns/${id}/export.csv`, `GSTR1_${gstin}_${period}.csv`);
+}
+async function downloadFile(path: string, filename: string) {
   const token = localStorage.getItem('runq-token');
-  const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/gst/returns/${id}/payload.json`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) { alert('Failed to download JSON'); return; }
+  if (!res.ok) { alert('Failed to download'); return; }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `GSTR1_${gstin}_${period}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -467,10 +473,16 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
         actions={
           <div className="flex items-center gap-2">
             {ret.returnType === 'gstr1' && ret.status !== 'draft' && (
-              <Button variant="secondary" size="sm" onClick={() => downloadGstr1Json(ret.id, ret.gstin, ret.period)}>
-                <Download className="h-4 w-4" />
-                Download JSON
-              </Button>
+              <>
+                <Button variant="secondary" size="sm" onClick={() => downloadGstr1Json(ret.id, ret.gstin, ret.period)}>
+                  <Download className="h-4 w-4" />
+                  JSON
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => downloadGstr1Csv(ret.id, ret.gstin, ret.period)}>
+                  <Download className="h-4 w-4" />
+                  CSV
+                </Button>
+              </>
             )}
             <Badge variant={STATUS_COLORS[ret.status] ?? 'default'} className="text-sm">
               {ret.status.toUpperCase()}

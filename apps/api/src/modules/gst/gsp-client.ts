@@ -345,7 +345,6 @@ export class WhiteBooksGspClient implements GspClient {
     const proceedUrl = withEmail('/all/newproceedfile', { gstin, retperiod: period, type: 'GSTR1' });
     const proceedRes = await fetch(proceedUrl, { method: 'GET', headers: headersForProceed });
     const proceedData = await proceedRes.json();
-    console.log('[gst-file] proceedfile response:', JSON.stringify(proceedData).slice(0, 400));
     const proceedOk = proceedData.status_cd === '1' || proceedData.status === 1
       || proceedData?.error?.error_cd === 'RET00003';
     if (!proceedOk) {
@@ -370,7 +369,6 @@ export class WhiteBooksGspClient implements GspClient {
       const ok = sumData?.status_cd === '1' || sumData?.status === 1;
       const inner = sumData?.data ?? sumData;
       const candidate = inner?.chksum;
-      console.log(`[gst-file] retsum attempt ${attempt + 1}`, JSON.stringify(sumData).slice(0, 400));
       if (ok && candidate) {
         chksum = candidate;
         summary = inner;
@@ -381,7 +379,6 @@ export class WhiteBooksGspClient implements GspClient {
       const errMsg = lastSumData?.error?.message || 'Latest summary not available from GSTN after 90s. Try again in a few minutes.';
       return { success: false, errors: [{ code: lastSumData?.error?.error_cd || 'NO_CHKSUM', message: errMsg }] };
     }
-    console.log('[gst-file] chksum acquired', chksum.slice(0, 12) + '…');
 
     const url = withEmail('/gstr1/retevcfile', { pan, evcotp: evc });
     const headers = {
@@ -406,14 +403,11 @@ export class WhiteBooksGspClient implements GspClient {
       body: JSON.stringify(body),
     });
     const result = await res.json();
-    // Log the raw GSTN response so production failures surface in logs
-    // (Railway shows console.log).
-    console.log('[gstr1/retevcfile] response:', JSON.stringify(result));
 
     return {
       success: result.status_cd === '1' || result.status === 1,
-      arn: result.ack_num || result.arn,
-      filedAt: result.ack_dt,
+      arn: result?.data?.ack_num || result.ack_num || result.arn,
+      filedAt: result?.data?.ack_dt || result.ack_dt,
       errors: result.error ? [{ code: result.error.error_cd || '', message: result.error.message || '' }] : undefined,
     };
   }
@@ -490,8 +484,8 @@ export class WhiteBooksGspClient implements GspClient {
 
     return {
       success: result.status_cd === '1' || result.status === 1,
-      arn: result.ack_num || result.arn,
-      filedAt: result.ack_dt,
+      arn: result?.data?.ack_num || result.ack_num || result.arn,
+      filedAt: result?.data?.ack_dt || result.ack_dt,
       errors: result.error ? [{ code: result.error.error_cd || '', message: result.error.message || '' }] : undefined,
     };
   }

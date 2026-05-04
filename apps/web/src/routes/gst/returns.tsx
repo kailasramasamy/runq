@@ -50,10 +50,23 @@ export function GstReturnsPage() {
   const [deleteTarget, setDeleteTarget] = useState<GstReturn | null>(null);
 
   const returns: GstReturn[] = returnsData?.data ?? [];
-  const periodOptions = generatePeriodOptions();
+  // Build a set of (period, returnType) keys that are already filed so we
+  // can disable those options in the period picker.
+  const filedKeys = new Set(returns.filter((r) => r.status === 'filed').map((r) => `${r.period}|${r.returnType}`));
+  const baseOptions = generatePeriodOptions();
+  const currentReturnType = showGenerate === 'gstr3b' ? 'gstr3b' : 'gstr1';
+  const periodOptions = baseOptions.map((o) => {
+    const isFiled = filedKeys.has(`${o.value}|${currentReturnType}`);
+    return isFiled ? { ...o, label: `${o.label} (already filed)` } : o;
+  });
+  const selectedAlreadyFiled = !!selectedPeriod && filedKeys.has(`${selectedPeriod}|${currentReturnType}`);
 
   function handleGenerate() {
     if (!selectedPeriod) { toast('Select a filing period', 'error'); return; }
+    if (selectedAlreadyFiled) {
+      toast('This period is already filed. Pick another period.', 'error');
+      return;
+    }
     const mutation = showGenerate === 'gstr3b' ? generate3bMutation : generateMutation;
     const label = showGenerate === 'gstr3b' ? 'GSTR-3B' : 'GSTR-1';
     mutation.mutate(selectedPeriod, {
@@ -104,7 +117,7 @@ export function GstReturnsPage() {
                   placeholder="Select month..."
                 />
               </div>
-              <Button onClick={handleGenerate} disabled={generateMutation.isPending || generate3bMutation.isPending}>
+              <Button onClick={handleGenerate} disabled={generateMutation.isPending || generate3bMutation.isPending || selectedAlreadyFiled}>
                 {(generateMutation.isPending || generate3bMutation.isPending) ? 'Generating...' : `Generate ${showGenerate === 'gstr3b' ? 'GSTR-3B' : 'GSTR-1'}`}
               </Button>
               <Button variant="ghost" onClick={() => setShowGenerate(null)}>Cancel</Button>

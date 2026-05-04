@@ -117,6 +117,17 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── Download GSTN-wire-format JSON (for direct portal upload) ──────
 
+  // ─── Export filed return as CSV (record-keeping) ────────────────────
+
+  app.get('/returns/:id/export.csv', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
+    const { id } = idParam.parse(request.params);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    const { csv, filename } = await svc.exportGstr1Csv(id);
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    return csv;
+  });
+
   app.get('/returns/:id/payload.json', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
     const { id } = idParam.parse(request.params);
     const svc = new GstReturnService(request.server.db, request.tenantId);
