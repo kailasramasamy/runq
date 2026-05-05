@@ -131,13 +131,14 @@ export function Sparkline({
   const range = max - min || 1;
   const w = width;
   const h = height;
-  // Reserve top + bottom padding so the line never sits on the edge —
-  // important when values are constant (would otherwise render flat at
-  // y=0 with no visible area-fill below).
+  // Reserve top + bottom padding so the line never sits on the edge.
+  // The area-fill baseline lives BELOW the line's minimum-y so the fill
+  // stays visible even when consecutive values are flat at the minimum
+  // (otherwise the area collapses to 0px and looks like a broken sparkline).
   const padTop = 4;
-  const padBottom = 4;
+  const lineBottomGap = 5;
   const sideInset = 1;
-  const usableH = h - padTop - padBottom;
+  const usableH = h - padTop - lineBottomGap;
   const stepX = (w - sideInset * 2) / (values.length - 1);
   const points = values.map((v, i) => {
     const x = sideInset + i * stepX;
@@ -148,7 +149,8 @@ export function Sparkline({
   // overshoot in check while removing the sharp zigzag look from raw
   // straight segments on noisy data.
   const linePath = catmullRomToBezier(points);
-  const areaPath = `${linePath} L ${points[points.length - 1]!.x.toFixed(1)} ${h - padBottom} L ${points[0]!.x.toFixed(1)} ${h - padBottom} Z`;
+  const areaBaselineY = h - 1;
+  const areaPath = `${linePath} L ${points[points.length - 1]!.x.toFixed(1)} ${areaBaselineY} L ${points[0]!.x.toFixed(1)} ${areaBaselineY} Z`;
   const last = points[points.length - 1]!;
   const fg = TONE_FG[tone];
   // Stable id so multiple gradients in the page don't collide.
@@ -178,6 +180,7 @@ export function Sparkline({
         strokeWidth={1.75}
         strokeLinecap="round"
         strokeLinejoin="round"
+        pathLength={1}
         className="spark-draw"
       />
       {endDot && (

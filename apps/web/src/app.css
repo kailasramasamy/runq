@@ -115,13 +115,15 @@ body {
 }
 .pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
 
-/* Sparkline draw-on-mount */
+/* Sparkline draw-on-mount. Uses pathLength="1" on the <path> so the
+   dash pattern is normalized regardless of the actual path length —
+   a hardcoded dasharray would repeat on long zigzag paths. */
 @keyframes spark-draw {
-  from { stroke-dashoffset: 200; }
+  from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
 .spark-draw {
-  stroke-dasharray: 200;
+  stroke-dasharray: 1;
   animation: spark-draw 1.2s ease-out forwards;
 }
 
