@@ -51,14 +51,14 @@ export function AiBand() {
 
         {/* Big stat callout */}
         <div className="reveal mt-12">
-          <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-brand-950/40 via-zinc-900/40 to-zinc-950 p-8 lg:p-12">
+          <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-brand-950/40 via-zinc-900/40 to-zinc-950 p-6 sm:p-8 lg:p-12">
             <div className="absolute inset-0 dot-grid opacity-30" />
             <div className="relative flex flex-col items-center justify-between gap-6 lg:flex-row">
-              <div>
+              <div className="min-w-0">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Average finance team</div>
                 <div
-                  className="mt-2 flex items-baseline gap-3 leading-none"
-                  style={{ fontSize: 'clamp(3rem, 8vw, 7rem)' }}
+                  className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 leading-[1.05]"
+                  style={{ fontSize: 'clamp(2rem, 8vw, 7rem)' }}
                 >
                   <span className="font-display italic grad-text-light">saves</span>
                   <span className="font-bold text-white">6+</span>
