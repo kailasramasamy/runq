@@ -7,6 +7,36 @@ import { useCashflowForecast } from '../../hooks/queries/use-dashboard';
 
 const RANGES = ['3M', '6M', 'YTD'] as const;
 
+/** Compact axis label: 60L, 1.2Cr, 0 — no currency symbol, no decimals on round values. */
+function formatAxisTick(v: number): string {
+  if (v === 0) return '0';
+  const abs = Math.abs(v);
+  if (abs >= 10000000) {
+    const cr = v / 10000000;
+    return `${Number.isInteger(cr) ? cr : cr.toFixed(1)}Cr`;
+  }
+  if (abs >= 100000) {
+    const l = v / 100000;
+    return `${Number.isInteger(l) ? l : l.toFixed(1)}L`;
+  }
+  if (abs >= 1000) return `${Math.round(v / 1000)}K`;
+  return String(Math.round(v));
+}
+
+/** Pick 4 round-number ticks (0 + 3 above) that comfortably cover `max`. */
+function buildAxisTicks(max: number): number[] {
+  if (max <= 0) return [0, 1, 2, 3];
+  const niceStep = (raw: number): number => {
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / pow;
+    const stepNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return stepNorm * pow;
+  };
+  const step = niceStep(max / 3);
+  const top = Math.ceil(max / step) * step;
+  return [0, top / 3, (2 * top) / 3, top].map((v) => Math.round(v));
+}
+
 export function CashflowForecast() {
   const navigate = useNavigate();
   const [range, setRange] = useState<typeof RANGES[number]>('6M');
@@ -122,45 +152,77 @@ export function CashflowForecast() {
           Not enough data yet — record a few transactions to see your cash flow.
         </div>
       ) : (
-        <div className="flex h-44 gap-2 pt-2">
-          {months.map((m) => {
-            const hIn = (m.in / max) * 100;
-            const hOut = (m.out / max) * 100;
-            return (
-              <div key={m.ym} className="group flex h-full flex-1 flex-col items-center gap-1">
-                <div
-                  className="relative flex w-full flex-1 items-end justify-center gap-0.5"
-                  title={`${m.label} · in ${formatINRShort(m.in)} · out ${formatINRShort(m.out)}`}
-                >
-                  <div
-                    className="w-1/2 rounded-t"
-                    style={{
-                      height: `${hIn}%`,
-                      background: m.forecast ? 'transparent' : 'var(--pos)',
-                      border: m.forecast ? `1.5px dashed var(--pos)` : 'none',
-                      opacity: m.forecast ? 0.7 : 1,
-                    }}
-                  />
-                  <div
-                    className="w-1/2 rounded-t"
-                    style={{
-                      height: `${hOut}%`,
-                      background: m.forecast ? 'transparent' : 'var(--neg)',
-                      border: m.forecast ? `1.5px dashed var(--neg)` : 'none',
-                      opacity: m.forecast ? 0.7 : 1,
-                    }}
-                  />
-                </div>
-                <span
-                  className="text-[10px]"
-                  style={{ color: m.forecast ? 'var(--text-3)' : 'var(--text-2)' }}
-                >
-                  {m.label}{m.forecast && '*'}
-                </span>
+        (() => {
+          const ticks = buildAxisTicks(max);
+          const axisMax = ticks[ticks.length - 1]!;
+          return (
+            <div className="flex gap-2 pt-2">
+              {/* Y-axis labels */}
+              <div className="relative flex h-44 w-9 shrink-0 flex-col justify-between text-right text-[10px]" style={{ color: 'var(--text-3)' }}>
+                {[...ticks].reverse().map((t) => (
+                  <span key={t} className="num leading-none">{formatAxisTick(t)}</span>
+                ))}
               </div>
-            );
-          })}
-        </div>
+              {/* Plot area */}
+              <div className="relative flex flex-1 flex-col">
+                <div className="relative flex h-44 gap-2">
+                  {/* Gridlines */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
+                    {ticks.map((t, i) => (
+                      <div
+                        key={t}
+                        className="h-px w-full"
+                        style={{ background: i === 0 ? 'var(--border)' : 'var(--border-soft)' }}
+                      />
+                    ))}
+                  </div>
+                  {/* Bars */}
+                  {months.map((m) => {
+                    const hIn = (m.in / axisMax) * 100;
+                    const hOut = (m.out / axisMax) * 100;
+                    return (
+                      <div key={m.ym} className="group relative flex h-full flex-1 flex-col items-center">
+                        <div
+                          className="relative flex w-full flex-1 items-end justify-center gap-0.5"
+                          title={`${m.label} · in ${formatINRShort(m.in)} · out ${formatINRShort(m.out)}`}
+                        >
+                          <div
+                            className="w-1/2 rounded-t"
+                            style={{
+                              height: `${hIn}%`,
+                              background: m.forecast ? 'color-mix(in oklab, var(--pos) 22%, transparent)' : 'var(--pos)',
+                              border: m.forecast ? `1.5px dashed var(--pos)` : 'none',
+                            }}
+                          />
+                          <div
+                            className="w-1/2 rounded-t"
+                            style={{
+                              height: `${hOut}%`,
+                              background: m.forecast ? 'color-mix(in oklab, var(--neg) 22%, transparent)' : 'var(--neg)',
+                              border: m.forecast ? `1.5px dashed var(--neg)` : 'none',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Month labels */}
+                <div className="mt-1 flex gap-2">
+                  {months.map((m) => (
+                    <span
+                      key={m.ym}
+                      className="flex-1 text-center text-[10px]"
+                      style={{ color: m.forecast ? 'var(--text-3)' : 'var(--text-2)' }}
+                    >
+                      {m.label}{m.forecast && '*'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()
       )}
 
       <div className="mt-3 text-[10.5px]" style={{ color: 'var(--text-3)' }}>
