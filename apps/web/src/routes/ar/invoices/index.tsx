@@ -1,112 +1,32 @@
 import { useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, IndianRupee, AlertTriangle, FileEdit, CheckCircle, TrendingUp, Clock } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, CheckCircle2, SlidersHorizontal } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
 import { useInvoices, useInvoiceSummary, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
-import type { PaginatedResponse } from '@runq/types';
+import type { PaginatedResponse, SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
 import { useCustomers } from '@/hooks/queries/use-customers';
-import { formatINR } from '@/lib/utils';
-import type { SalesInvoiceWithDetails, SalesInvoiceStatus } from '@runq/types';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import {
-  PageHeader, Badge, Button, Select, DateInput, Combobox,
+  PageHeader, Button, Input, Select, StatTile, StatusBadge,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, Pagination, StatsCard, useToast,
-} from '@/components/ui';
+  Pagination, EmptyState, formatDate, daysBetween,
+} from '@/components/ar/primitives';
+import { NewInvoiceMenu } from '@/components/ar/new-invoice-menu';
+import { Combobox, useToast } from '@/components/ui';
 
-const LIMIT = 20;
-
-type BadgeVariant = 'default' | 'info' | 'success' | 'danger' | 'outline' | 'primary' | 'cyan';
-
-const STATUS_BADGE: Record<SalesInvoiceStatus, { variant: BadgeVariant; label: string }> = {
-  draft: { variant: 'default', label: 'Draft' },
-  sent: { variant: 'info', label: 'Sent' },
-  partially_paid: { variant: 'cyan', label: 'Partial' },
-  paid: { variant: 'success', label: 'Paid' },
-  overdue: { variant: 'danger', label: 'Overdue' },
-  cancelled: { variant: 'outline', label: 'Cancelled' },
-};
+const LIMIT = 10;
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'All Statuses' },
+  { value: '', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
   { value: 'sent', label: 'Sent' },
   { value: 'unpaid', label: 'Unpaid (Pending)' },
-  { value: 'partially_paid', label: 'Partially Paid' },
+  { value: 'partially_paid', label: 'Partially paid' },
   { value: 'paid', label: 'Paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
-
-function InvoiceCard({
-  invoice,
-  onView,
-}: {
-  invoice: SalesInvoiceWithDetails;
-  onView: (id: string) => void;
-}) {
-  const statusInfo = STATUS_BADGE[invoice.status];
-  return (
-    <div
-      className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-      onClick={() => onView(invoice.id)}
-    >
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{invoice.invoiceNumber}</span>
-        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-      </div>
-      <div className="mt-1 flex items-center gap-2">
-        {invoice.customerNickname && (
-          <span className="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400">{invoice.customerNickname}</span>
-        )}
-        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{invoice.customerName}</span>
-      </div>
-      <div className="mt-1 flex items-center text-xs text-zinc-500 dark:text-zinc-400">
-        <span>{invoice.invoiceDate}</span>
-        <span className="ml-auto font-mono text-zinc-900 dark:text-zinc-100">{formatINR(invoice.balanceDue)}</span>
-      </div>
-    </div>
-  );
-}
-
-function InvoiceRow({
-  invoice,
-  onView,
-  selected,
-  onToggleSelect,
-}: {
-  invoice: SalesInvoiceWithDetails;
-  onView: (id: string) => void;
-  selected: boolean;
-  onToggleSelect: (id: string) => void;
-}) {
-  const statusInfo = STATUS_BADGE[invoice.status];
-  return (
-    <TableRow className="cursor-pointer" onClick={() => onView(invoice.id)}>
-      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(invoice.id)}
-          className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
-        />
-      </TableCell>
-      <TableCell className="font-mono text-sm font-medium">{invoice.invoiceNumber}</TableCell>
-      <TableCell className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-        {invoice.customerNickname ?? ''}
-      </TableCell>
-      <TableCell>{invoice.customerName}</TableCell>
-      <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.invoiceDate}</TableCell>
-      <TableCell className="text-zinc-500 dark:text-zinc-400">{invoice.dueDate}</TableCell>
-      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.totalAmount)}</TableCell>
-      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.amountReceived)}</TableCell>
-      <TableCell align="right" numeric className="font-mono text-sm">{formatINR(invoice.balanceDue)}</TableCell>
-      <TableCell>
-        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-      </TableCell>
-    </TableRow>
-  );
-}
 
 export function InvoiceListPage() {
   const navigate = useNavigate();
@@ -126,13 +46,12 @@ export function InvoiceListPage() {
   const dateTo = params.to ?? '';
   const page = params.page ?? 1;
 
-  function updateSearch(patch: Partial<typeof params>, resetPage = true): void {
+  function updateSearch(patch: Partial<typeof params>, resetPage = true) {
     navigate({
       to: '/ar/invoices',
       search: (prev) => {
         const next = { ...(prev as typeof params), ...patch };
         if (resetPage) next.page = undefined;
-        // Drop empty values so URL stays clean
         for (const k of Object.keys(next) as (keyof typeof next)[]) {
           if (next[k] === '' || next[k] === undefined) delete next[k];
         }
@@ -141,12 +60,9 @@ export function InvoiceListPage() {
       replace: true,
     });
   }
-
   const setSearch = (v: string) => updateSearch({ q: v || undefined });
   const setCustomerFilter = (v: string) => updateSearch({ customer: v || undefined });
   const setStatusFilter = (v: string) => updateSearch({ status: (v || undefined) as SalesInvoiceStatus | undefined });
-  const setDateFrom = (v: string) => updateSearch({ from: v || undefined });
-  const setDateTo = (v: string) => updateSearch({ to: v || undefined });
   const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -159,17 +75,16 @@ export function InvoiceListPage() {
       return next;
     });
   }
-
   function toggleSelectAll(invoices: SalesInvoiceWithDetails[]) {
     setSelected((prev) => {
-      const allOnPage = invoices.map((i) => i.id);
-      const allSelected = allOnPage.every((id) => prev.has(id));
+      const ids = invoices.map((i) => i.id);
+      const allSelected = ids.every((id) => prev.has(id));
       if (allSelected) {
         const next = new Set(prev);
-        allOnPage.forEach((id) => next.delete(id));
+        ids.forEach((id) => next.delete(id));
         return next;
       }
-      return new Set([...prev, ...allOnPage]);
+      return new Set([...prev, ...ids]);
     });
   }
 
@@ -189,10 +104,7 @@ export function InvoiceListPage() {
     }
   }
 
-  // Status filter is intentionally NOT passed: each summary card already has
-  // its own status semantics (Drafts, Overdue, Received), so scoping by status
-  // would zero out unrelated cards. Customer / date / search do scope cards.
-  const { data: summaryData, isLoading: summaryLoading } = useInvoiceSummary({
+  const { data: summaryData } = useInvoiceSummary({
     customerId: customerFilter || undefined,
     search: search || undefined,
     dateFrom: dateFrom || undefined,
@@ -201,13 +113,13 @@ export function InvoiceListPage() {
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data ?? [];
   const customerOptions = [
-    { value: '', label: 'All Customers' },
+    { value: '', label: 'All customers' },
     ...customers.map((c) => ({ value: c.id, label: c.name })),
   ];
 
   const { data, isLoading } = useInvoices({
     customerId: customerFilter || undefined,
-    status: statusFilter as SalesInvoiceStatus | undefined || undefined,
+    status: (statusFilter || undefined) as SalesInvoiceStatus | undefined,
     search: search || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -226,14 +138,14 @@ export function InvoiceListPage() {
 
   async function handleExportCSV() {
     try {
-      const params = new URLSearchParams();
-      if (customerFilter) params.set('customerId', customerFilter);
-      if (statusFilter) params.set('status', statusFilter);
-      if (search) params.set('search', search);
-      if (dateFrom) params.set('dateFrom', dateFrom);
-      if (dateTo) params.set('dateTo', dateTo);
-      params.set('limit', '10000');
-      const qs = params.toString();
+      const exportParams = new URLSearchParams();
+      if (customerFilter) exportParams.set('customerId', customerFilter);
+      if (statusFilter) exportParams.set('status', statusFilter);
+      if (search) exportParams.set('search', search);
+      if (dateFrom) exportParams.set('dateFrom', dateFrom);
+      if (dateTo) exportParams.set('dateTo', dateTo);
+      exportParams.set('limit', '10000');
+      const qs = exportParams.toString();
       const res = await api.get<PaginatedResponse<SalesInvoiceWithDetails>>(
         `/ar/invoices${qs ? `?${qs}` : ''}`,
       );
@@ -253,259 +165,221 @@ export function InvoiceListPage() {
     }
   }
 
+  const summary = summaryData?.data;
+
   return (
     <div>
       <PageHeader
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Invoices' }]}
         title="Invoices"
-        description="Track sales invoices, payments, and outstanding balances."
+        description="Sales invoices and e-Invoice status across all customers."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <Download size={14} /> Export CSV
+          <>
+            <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={handleExportCSV}>
+              Export
             </Button>
-            <Button variant="outline" onClick={() => navigate({ to: '/ar/invoices/import' })}>
-              <Upload size={16} />
+            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/invoices/import' })}>
               Import
             </Button>
-            <Button onClick={() => navigate({ to: '/ar/invoices/new' })}>
-              <Plus size={16} />
-              New Invoice
-            </Button>
-          </div>
+            <NewInvoiceMenu>
+              {(open) => (
+                <Button size="sm" icon={<Plus size={13} />} onClick={open}>
+                  New invoice
+                </Button>
+              )}
+            </NewInvoiceMenu>
+          </>
         }
       />
 
-      {summaryLoading ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[88px] animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))}
-        </div>
-      ) : summaryData?.data ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
-          <StatsCard
-            size="compact"
-            title="Total Sales"
-            value={summaryData.data.totalSales}
-            icon={TrendingUp}
-          />
-          <StatsCard
-            size="compact"
-            title="Total Received"
-            value={summaryData.data.totalReceived}
-            icon={CheckCircle}
-          />
-          <StatsCard
-            size="compact"
-            title="Total Outstanding"
-            value={summaryData.data.totalOutstanding}
-            icon={IndianRupee}
-          />
-          <StatsCard
-            size="compact"
-            title="Pending Invoices"
-            value={summaryData.data.pendingCount}
-            icon={Clock}
-            formatValue={(v) => String(v)}
-            onClick={() => { setStatusFilter('unpaid'); setPage(1); }}
-          />
-          <StatsCard
-            size="compact"
-            title="Overdue"
-            value={summaryData.data.overdueAmount}
-            icon={AlertTriangle}
-            className="border-red-200 dark:border-red-900/50"
-            formatValue={(v) => `${formatINR(v)} (${summaryData.data.overdueCount})`}
-          />
-          <StatsCard
-            size="compact"
-            title="Drafts"
-            value={summaryData.data.draftCount}
-            icon={FileEdit}
-            formatValue={(v) => String(v)}
-            onClick={() => { setStatusFilter('draft'); setPage(1); }}
-          />
-        </div>
-      ) : null}
+      {/* KPI strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          label="Outstanding"
+          value={summary ? formatINRShort(summary.totalOutstanding) : '—'}
+          sub={summary ? `${summary.pendingCount} open invoices` : undefined}
+        />
+        <StatTile
+          label="Overdue"
+          value={summary ? formatINRShort(summary.overdueAmount) : '—'}
+          sub={summary ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'}` : undefined}
+          tone="neg"
+        />
+        <StatTile
+          label="Drafts"
+          value={summary?.draftCount ?? '—'}
+          sub="Awaiting send"
+          tone="warn"
+        />
+        <StatTile
+          label="Received"
+          value={summary ? formatINRShort(summary.totalReceived) : '—'}
+          sub="Cleared invoices"
+          tone="pos"
+        />
+      </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
-        <div className="relative col-span-2 sm:w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Search invoice #, customer..."
+      {/* Filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="w-72 max-w-full">
+          <Input
+            icon={<Search size={13} />}
+            placeholder="Search invoice # or customer…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="block w-full rounded-md border border-zinc-300 bg-white py-2 pl-8 pr-3 text-sm text-zinc-900 placeholder-zinc-400 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-indigo-400"
           />
         </div>
-        <div className="sm:w-52">
+        <Select
+          value={statusFilter}
+          options={STATUS_OPTIONS}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+        />
+        <div className="w-56">
           <Combobox
             options={customerOptions}
             value={customerFilter}
             onChange={(v) => { setCustomerFilter(v); setPage(1); }}
-            placeholder="All Customers"
+            placeholder="All customers"
           />
         </div>
-        <div className="sm:w-44">
-          <Select
-            options={STATUS_OPTIONS}
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          />
-        </div>
-        <div className="sm:w-40">
-          <DateInput
-            placeholder="From date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          />
-        </div>
-        <div className="sm:w-40">
-          <DateInput
-            placeholder="To date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          />
-        </div>
+        <Button variant="outline" size="sm" icon={<SlidersHorizontal size={13} />}>More filters</Button>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} invoices</span>
       </div>
 
       {/* Batch action bar */}
       {selected.size > 0 && (
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 dark:border-indigo-900 dark:bg-indigo-950/30">
-          <span className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
-            {selected.size} selected
-          </span>
-          <Button
-            size="sm"
-            onClick={() => handleBatchStatus('sent')}
-            loading={batchMutation.isPending}
-          >
-            <Send size={14} /> Mark as Sent
+        <div
+          className="mb-3 flex items-center gap-3 rounded-md border px-3 py-2 text-[12.5px]"
+          style={{ background: 'var(--accent-soft)', borderColor: 'color-mix(in oklab, var(--accent) 30%, transparent)', color: 'var(--accent-text)' }}
+        >
+          <span className="font-medium">{selected.size} selected</span>
+          <Button size="sm" icon={<Send size={13} />} loading={batchMutation.isPending} onClick={() => handleBatchStatus('sent')}>
+            Mark as sent
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleBatchStatus('cancelled')}
-            loading={batchMutation.isPending}
-          >
-            Cancel Selected
+          <Button size="sm" variant="outline" loading={batchMutation.isPending} onClick={() => handleBatchStatus('cancelled')}>
+            Cancel selected
           </Button>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="ml-auto rounded p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            className="ml-auto rounded p-1 hover:bg-black/5"
             title="Clear selection"
           >
-            <XIcon size={16} />
+            <XIcon size={14} />
           </button>
         </div>
       )}
 
-      {/* Mobile card view */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))
-        ) : invoices.length === 0 ? (
-          <EmptyState
-            icon={FileText}
-            title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
-            description={
-              statusFilter || customerFilter
-                ? 'Try adjusting your filters.'
-                : 'Create your first invoice to get started.'
-            }
-            action={
-              !statusFilter && !customerFilter ? (
-                <Button size="sm" onClick={() => navigate({ to: '/ar/invoices/new' })}>
-                  <Plus size={14} /> New Invoice
-                </Button>
-              ) : undefined
-            }
-            helpHref={!statusFilter && !customerFilter ? '/help/recipes/03-create-invoice' : undefined}
-          />
-        ) : (
-          invoices.map((inv) => (
-            <InvoiceCard key={inv.id} invoice={inv} onView={handleView} />
-          ))
-        )}
-      </div>
-
-      {/* Desktop table view */}
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>
+              <input
+                type="checkbox"
+                checked={invoices.length > 0 && invoices.every((i) => selected.has(i.id))}
+                onChange={() => toggleSelectAll(invoices)}
+                aria-label="Select all on page"
+              />
+            </Th>
+            <Th>Invoice #</Th>
+            <Th>Customer</Th>
+            <Th>Issued</Th>
+            <Th>Due</Th>
+            <Th align="right">Total</Th>
+            <Th align="right">Balance</Th>
+            <Th>Status</Th>
+            <Th>e-Inv</Th>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 9 }).map((__, j) => (
+                  <TableCell key={j}>
+                    <div className="h-3 w-full max-w-[120px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : invoices.length === 0 ? (
             <tr>
-              <Th className="w-10">
-                <input
-                  type="checkbox"
-                  checked={invoices.length > 0 && invoices.every((i) => selected.has(i.id))}
-                  onChange={() => toggleSelectAll(invoices)}
-                  className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800"
+              <td colSpan={9}>
+                <EmptyState
+                  icon={<FileText size={18} />}
+                  title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
+                  description={statusFilter || customerFilter ? 'Try adjusting your filters.' : 'Create your first invoice to get started.'}
+                  action={!statusFilter && !customerFilter && (
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/invoices/new' })}>
+                      New invoice
+                    </Button>
+                  )}
                 />
-              </Th>
-              <Th>Invoice #</Th>
-              <Th>Nickname</Th>
-              <Th>Customer</Th>
-              <Th>Date</Th>
-              <Th>Due Date</Th>
-              <Th align="right">Amount</Th>
-              <Th align="right">Received</Th>
-              <Th align="right">Balance</Th>
-              <Th>Status</Th>
+              </td>
             </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={6} cols={10} />
-            ) : invoices.length === 0 ? (
-              <tr>
-                <td colSpan={10}>
-                  <EmptyState
-                    icon={FileText}
-                    title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
-                    description={
-                      statusFilter || customerFilter
-                        ? 'Try adjusting your filters.'
-                        : 'Create your first invoice to get started.'
-                    }
-                    action={
-                      !statusFilter && !customerFilter ? (
-                        <Button size="sm" onClick={() => navigate({ to: '/ar/invoices/new' })}>
-                          <Plus size={14} /> New Invoice
-                        </Button>
-                      ) : undefined
-                    }
+          ) : invoices.map((inv) => {
+            const overdueDays = inv.status === 'overdue' ? daysBetween(inv.dueDate) : null;
+            const hasEinvoice = !!inv.irnNumber;
+            return (
+              <TableRow key={inv.id} onClick={() => handleView(inv.id)}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(inv.id)}
+                    onChange={() => toggleSelect(inv.id)}
+                    aria-label={`Select ${inv.invoiceNumber}`}
                   />
-                </td>
-              </tr>
-            ) : (
-              invoices.map((inv) => (
-                <InvoiceRow
-                  key={inv.id}
-                  invoice={inv}
-                  onView={handleView}
-                  selected={selected.has(inv.id)}
-                  onToggleSelect={toggleSelect}
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                </TableCell>
+                <TableCell>
+                  <div className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                    {inv.invoiceNumber}
+                  </div>
+                  {inv.poNumber && (
+                    <div className="num text-[10.5px]" style={{ color: 'var(--text-3)' }}>{inv.poNumber}</div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium" style={{ color: 'var(--text-1)' }}>{inv.customerName}</div>
+                  {inv.customerNickname && (
+                    <div className="text-[10.5px]" style={{ color: 'var(--text-3)' }}>{inv.customerNickname}</div>
+                  )}
+                </TableCell>
+                <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(inv.invoiceDate)}</TableCell>
+                <TableCell>
+                  <div className="num text-[12.5px]" style={{ color: 'var(--text-2)' }}>{formatDate(inv.dueDate)}</div>
+                  {overdueDays !== null && overdueDays > 0 && (
+                    <div className="num text-[10.5px] font-medium" style={{ color: 'var(--neg)' }}>
+                      {overdueDays}d overdue
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell align="right" numeric>{formatINR(inv.totalAmount)}</TableCell>
+                <TableCell align="right" numeric className="font-semibold">
+                  {inv.balanceDue > 0 ? formatINR(inv.balanceDue) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+                </TableCell>
+                <TableCell><StatusBadge status={inv.status} /></TableCell>
+                <TableCell>
+                  {hasEinvoice ? (
+                    <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-2)' }} title={`IRN: ${inv.irnNumber}`}>
+                      <CheckCircle2 size={12} style={{ color: 'var(--pos)' }} />
+                      <span className="num text-[10.5px]">
+                        {inv.irnNumber!.slice(0, 4)}…{inv.irnNumber!.slice(-4)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
-        <div className="mt-4">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={LIMIT}
-            onPageChange={setPage}
-          />
+        <div className="mt-3">
+          <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
     </div>

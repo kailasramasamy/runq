@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, ClipboardList, ExternalLink } from 'lucide-react';
+import { UserPlus, ClipboardList, Phone, Mail, Pencil, User, Calendar, Clock, Bell } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import { useUsers } from '@/hooks/queries/use-settings';
 import { useInvoices } from '@/hooks/queries/use-invoices';
 import {
-  PageHeader, Badge, Button, Select, Combobox, Input, Textarea,
+  PageHeader, Button, Select as ArSelect, StatTile, StatusBadge, Avatar,
+  EmptyState, formatDate, daysBetween,
+} from '@/components/ar/primitives';
+import {
+  Combobox, Textarea, DateInput, useToast,
   Card, CardHeader, CardContent, CardFooter,
-  Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, useToast, DateInput,
+  Button as UIButton,
 } from '@/components/ui';
 
 interface CollectionAssignment {
@@ -25,17 +28,10 @@ interface CollectionAssignment {
   status: string;
   notes: string | null;
   followUpDate: string | null;
+  dueDate?: string | null;
 }
 
 type AssignmentStatus = 'open' | 'contacted' | 'promised' | 'resolved' | 'escalated';
-
-const STATUS_BADGE: Record<string, { variant: 'default' | 'info' | 'success' | 'danger' | 'warning' | 'cyan'; label: string }> = {
-  open: { variant: 'warning', label: 'Open' },
-  contacted: { variant: 'info', label: 'Contacted' },
-  promised: { variant: 'cyan', label: 'Promised' },
-  resolved: { variant: 'success', label: 'Resolved' },
-  escalated: { variant: 'danger', label: 'Escalated' },
-};
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
@@ -76,71 +72,188 @@ function useUpdateAssignment() {
 }
 
 export function CollectionsPage() {
+  const navigate = useNavigate();
   const { data, isLoading } = useCollections();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
 
   const assignments = data?.data ?? [];
+  const totalAtRisk = assignments.reduce((a, c) => a + c.balanceDue, 0);
+  const byStatus = assignments.reduce<Record<string, number>>((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div>
       <PageHeader
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Collections' }]}
-        title="Collection Assignments"
-        description="Assign overdue invoices to team members for follow-up."
+        title="Collections"
+        description="Track follow-ups on overdue invoices, assign to teammates, and log outcomes."
         actions={
-          <Button onClick={() => setShowForm((v) => !v)}>
-            <UserPlus size={16} />
-            {showForm ? 'Cancel' : 'New Assignment'}
-          </Button>
+          <>
+            <Button variant="outline" size="sm" icon={<Bell size={13} />} onClick={() => navigate({ to: '/ar/dunning' })}>
+              Dunning rules
+            </Button>
+            <Button size="sm" icon={<UserPlus size={13} />} onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Cancel' : 'New collection'}
+            </Button>
+          </>
         }
       />
 
-      {showForm && <AssignForm onSuccess={() => { setShowForm(false); toast('Assignment created.', 'success'); }} />}
-
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : assignments.length === 0
-            ? <EmptyState icon={ClipboardList} title="No collection assignments" description="Assign overdue invoices to your team for follow-up." />
-            : assignments.map((a) => <AssignmentCard key={a.id} assignment={a} />)
-        }
+      {/* KPI strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatTile
+          label="Total at risk"
+          value={formatINR(totalAtRisk)}
+          sub={`${assignments.length} cases`}
+          tone="neg"
+        />
+        <StatTile label="Open" value={byStatus.open ?? 0} sub="No contact yet" tone="warn" />
+        <StatTile label="Contacted" value={byStatus.contacted ?? 0} sub="Awaiting response" />
+        <StatTile label="Promised" value={byStatus.promised ?? 0} sub="Payment commitment" tone="pos" />
+        <StatTile label="Escalated" value={byStatus.escalated ?? 0} sub="Manager involved" tone="neg" />
       </div>
 
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>Invoice</Th>
-              <Th>Customer</Th>
-              <Th align="right">Balance Due</Th>
-              <Th>Assigned To</Th>
-              <Th>Status</Th>
-              <Th>Follow-up</Th>
-              <Th>Notes</Th>
-              <Th>Actions</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={4} cols={8} />
-            ) : assignments.length === 0 ? (
-              <tr>
-                <td colSpan={8}>
-                  <EmptyState
-                    icon={ClipboardList}
-                    title="No collection assignments"
-                    description="Assign overdue invoices to your team for follow-up."
-                  />
-                </td>
-              </tr>
-            ) : (
-              assignments.map((a) => <AssignmentRow key={a.id} assignment={a} />)
+      {showForm && (
+        <AssignForm
+          onSuccess={() => { setShowForm(false); toast('Assignment created.', 'success'); }}
+        />
+      )}
+
+      {/* Cases */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-xl border"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+            />
+          ))}
+        </div>
+      ) : assignments.length === 0 ? (
+        <div
+          className="rounded-xl border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <EmptyState
+            icon={<ClipboardList size={18} />}
+            title="No collection assignments"
+            description="Assign overdue invoices to your team for follow-up."
+            action={
+              <Button size="sm" icon={<UserPlus size={13} />} onClick={() => setShowForm(true)}>
+                New collection
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {assignments.map((c) => (
+            <CaseCard key={c.id} assignment={c} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CaseCard({ assignment }: { assignment: CollectionAssignment }) {
+  const navigate = useNavigate();
+  const updateMutation = useUpdateAssignment();
+  const { toast } = useToast();
+  const overdueDays = assignment.dueDate ? daysBetween(assignment.dueDate) : 0;
+
+  function handleStatusChange(newStatus: string) {
+    updateMutation.mutate(
+      { id: assignment.id, data: { status: newStatus as AssignmentStatus } },
+      {
+        onSuccess: () => toast('Status updated.', 'success'),
+        onError: () => toast('Failed to update.', 'error'),
+      },
+    );
+  }
+
+  function goToInvoice() {
+    navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } });
+  }
+
+  return (
+    <div
+      className="rounded-xl border p-4 transition-shadow hover:shadow-sm"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+    >
+      <div className="flex items-start gap-4">
+        <Avatar name={assignment.customerName} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[14px] font-semibold" style={{ color: 'var(--text-1)' }}>
+              {assignment.customerName}
+            </span>
+            <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>·</span>
+            <button
+              onClick={goToInvoice}
+              className="num text-[12px] font-medium hover:underline"
+              style={{ color: 'var(--accent-text)' }}
+            >
+              {assignment.invoiceNumber}
+            </button>
+            <StatusBadge status={assignment.status} />
+            {overdueDays > 0 && (
+              <span className="num text-[10.5px] font-medium" style={{ color: 'var(--neg)' }}>
+                {overdueDays}d overdue
+              </span>
             )}
-          </TableBody>
-        </Table>
+          </div>
+          <div className="mt-1.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
+            {assignment.notes ? (
+              assignment.notes
+            ) : (
+              <span className="italic" style={{ color: 'var(--text-3)' }}>
+                No notes yet — log first contact attempt to keep the case warm.
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px]" style={{ color: 'var(--text-3)' }}>
+            <span className="inline-flex items-center gap-1.5">
+              <User size={11} />
+              Assigned to <span className="font-medium" style={{ color: 'var(--text-2)' }}>{assignment.assigneeName}</span>
+            </span>
+            {assignment.followUpDate && (
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={11} />
+                Follow-up <span className="num" style={{ color: 'var(--text-2)' }}>{formatDate(assignment.followUpDate)}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <Clock size={11} />
+              Assigned <span className="num" style={{ color: 'var(--text-2)' }}>
+                {formatDate(assignment.assignedAt.slice(0, 10))}
+              </span>
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[10.5px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+            Balance
+          </div>
+          <div className="num text-[18px] font-semibold tabular-nums" style={{ color: 'var(--neg)' }}>
+            {formatINR(assignment.balanceDue)}
+          </div>
+          <div className="mt-2 flex items-center justify-end gap-1.5">
+            <Button size="sm" variant="outline" icon={<Phone size={12} />}>Log call</Button>
+            <Button size="sm" variant="outline" icon={<Mail size={12} />}>Email</Button>
+            <ArSelect
+              options={STATUS_OPTIONS}
+              value={assignment.status}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="!h-7 !text-[11.5px]"
+            />
+            <Button size="sm" variant="outline" icon={<Pencil size={12} />}>Update</Button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -180,13 +293,13 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <Card className="mb-6">
-      <CardHeader title="Assign Invoice for Collection" />
+    <Card className="mb-5">
+      <CardHeader title="Assign invoice for collection" />
       <form onSubmit={handleSubmit}>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Combobox
-              label="Overdue Invoice"
+              label="Overdue invoice"
               options={invoiceOptions}
               value={invoiceId}
               onChange={setInvoiceId}
@@ -194,7 +307,7 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
               required
             />
             <Combobox
-              label="Assign To"
+              label="Assign to"
               options={userOptions}
               value={assignedTo}
               onChange={setAssignedTo}
@@ -202,7 +315,7 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
               required
             />
             <DateInput
-              label="Follow-up Date"
+              label="Follow-up date"
               value={followUpDate}
               onChange={(e) => setFollowUpDate(e.target.value)}
             />
@@ -218,108 +331,11 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button type="submit" loading={createMutation.isPending} disabled={!invoiceId || !assignedTo}>
+          <UIButton type="submit" loading={createMutation.isPending} disabled={!invoiceId || !assignedTo}>
             Assign
-          </Button>
+          </UIButton>
         </CardFooter>
       </form>
     </Card>
-  );
-}
-
-function useAssignmentActions(assignment: CollectionAssignment) {
-  const navigate = useNavigate();
-  const updateMutation = useUpdateAssignment();
-  const { toast } = useToast();
-
-  function handleStatusChange(newStatus: string) {
-    updateMutation.mutate(
-      { id: assignment.id, data: { status: newStatus as AssignmentStatus } },
-      {
-        onSuccess: () => toast('Status updated.', 'success'),
-        onError: () => toast('Failed to update.', 'error'),
-      },
-    );
-  }
-
-  function goToInvoice() {
-    navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } });
-  }
-
-  return { handleStatusChange, goToInvoice };
-}
-
-function AssignmentCard({ assignment }: { assignment: CollectionAssignment }) {
-  const { handleStatusChange, goToInvoice } = useAssignmentActions(assignment);
-  const badge = STATUS_BADGE[assignment.status] ?? STATUS_BADGE.open;
-
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={goToInvoice}
-          className="flex items-center gap-1 font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
-        >
-          {assignment.invoiceNumber}
-          <ExternalLink size={12} />
-        </button>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
-      </div>
-      <div className="mt-1 text-sm text-zinc-800 dark:text-zinc-200">{assignment.customerName}</div>
-      <div className="mt-0.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-        <span>{assignment.assigneeName}</span>
-        <span>{assignment.followUpDate ?? '—'}</span>
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="font-mono text-sm font-medium text-red-600 dark:text-red-400">
-          {formatINR(assignment.balanceDue)}
-        </span>
-        <Select
-          options={STATUS_OPTIONS}
-          value={assignment.status}
-          onChange={(e) => handleStatusChange(e.target.value)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function AssignmentRow({ assignment }: { assignment: CollectionAssignment }) {
-  const { handleStatusChange, goToInvoice } = useAssignmentActions(assignment);
-  const badge = STATUS_BADGE[assignment.status] ?? STATUS_BADGE.open;
-
-  return (
-    <TableRow>
-      <TableCell>
-        <button
-          onClick={goToInvoice}
-          className="flex items-center gap-1 font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
-        >
-          {assignment.invoiceNumber}
-          <ExternalLink size={12} />
-        </button>
-      </TableCell>
-      <TableCell>{assignment.customerName}</TableCell>
-      <TableCell align="right" numeric className="font-mono font-medium text-red-600 dark:text-red-400">
-        {formatINR(assignment.balanceDue)}
-      </TableCell>
-      <TableCell>{assignment.assigneeName}</TableCell>
-      <TableCell>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
-      </TableCell>
-      <TableCell className="text-zinc-500 dark:text-zinc-400">
-        {assignment.followUpDate ?? '—'}
-      </TableCell>
-      <TableCell className="max-w-[200px] truncate text-xs text-zinc-500 dark:text-zinc-400">
-        {assignment.notes ?? '—'}
-      </TableCell>
-      <TableCell>
-        <Select
-          options={STATUS_OPTIONS}
-          value={assignment.status}
-          onChange={(e) => handleStatusChange(e.target.value)}
-        />
-      </TableCell>
-    </TableRow>
   );
 }

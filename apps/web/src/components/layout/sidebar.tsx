@@ -1,67 +1,157 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
-  LayoutDashboard,
-  ArrowUpFromLine,
-  ArrowDownToLine,
-  Landmark,
-  BookOpen,
-  Settings,
-  Sun,
-  Moon,
-  BarChart3,
-  GitBranch,
-  Users,
-  Package,
-  Receipt,
-  Menu,
-  X,
-  Zap,
-  LogOut,
-  HelpCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ShieldCheck,
-  Building2,
-  FileText,
+  LayoutDashboard, Sparkles, Inbox, Folder,
+  FileText, ClipboardList, Truck, FileMinus, Receipt, Users, AlarmClock,
+  FileInput, ClipboardCheck, PackageCheck, FileX, CreditCard, Building2, Wallet, Split,
+  Package, Warehouse, MoveRight,
+  Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target,
+  ShieldCheck, FileCheck2, ScrollText, History,
+  GitBranch, Layers, UserCog, Plug, Settings,
+  Zap, LifeBuoy, Command, Bell,
+  PanelLeftClose, PanelLeftOpen, Menu, X,
+  ArrowDownToLine, ArrowUpFromLine,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
-import { useAuth } from '../../providers/auth-provider';
-import { useCompanySettings } from '../../hooks/queries/use-settings';
 
-const ICON_SIZE = 20;
+export type NavItem = {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  path: string;
+  count?: number;
+  badge?: string;
+};
+export type NavGroup = { label: string | null; items: NavItem[] };
 
-const navItems = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Accounts Payable', path: '/ap', icon: ArrowUpFromLine },
-  { label: 'Accounts Receivable', path: '/ar', icon: ArrowDownToLine },
-  { label: 'Banking', path: '/banking', icon: Landmark },
-  { label: 'General Ledger', path: '/gl', icon: BookOpen },
-  { label: 'Fixed Assets', path: '/fa', icon: Building2 },
-  { label: 'GST Filing', path: '/gst', icon: FileText },
-  { label: 'Masters', path: '/masters', icon: Package },
-  { label: 'Reports', path: '/reports', icon: BarChart3 },
-  { label: 'Expenses', path: '/expenses', icon: Receipt },
-  { label: 'Workflows', path: '/workflows', icon: GitBranch },
-  { label: 'Vendor Mgmt', path: '/vendor-management', icon: Users },
-  { label: 'Audit', path: '/audit/gap-scan', icon: ShieldCheck },
-  { label: 'Settings', path: '/settings', icon: Settings },
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+    ],
+  },
+  {
+    label: 'Money in',
+    items: [
+      { key: 'invoices', label: 'Invoices', icon: FileText, path: '/ar/invoices' },
+      { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/ar/quotes' },
+      { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/ar/credit-notes' },
+      { key: 'receipts', label: 'Receipts', icon: Receipt, path: '/ar/receipts' },
+      { key: 'customers', label: 'Customers', icon: Users, path: '/ar/customers' },
+      { key: 'collections', label: 'Collections', icon: AlarmClock, path: '/ar/collections' },
+    ],
+  },
+  {
+    label: 'Money out',
+    items: [
+      { key: 'bills', label: 'Bills', icon: FileInput, path: '/ap/bills' },
+      { key: 'debitnotes', label: 'Debit notes', icon: FileX, path: '/ap/debit-notes' },
+      { key: 'payments', label: 'Payments', icon: CreditCard, path: '/ap/payments' },
+      { key: 'vendors', label: 'Vendors', icon: Building2, path: '/ap/vendors' },
+      { key: 'expenses', label: 'Expenses', icon: Wallet, path: '/expenses' },
+      { key: 'payruns', label: 'Pay runs', icon: Split, path: '/ap/pay-runs' },
+    ],
+  },
+  {
+    label: 'Inventory',
+    items: [
+      { key: 'items', label: 'Items', icon: Package, path: '/masters/items' },
+      { key: 'categories', label: 'Categories', icon: Layers, path: '/masters/categories' },
+      { key: 'price-lists', label: 'Price lists', icon: BarChart3, path: '/masters/price-lists' },
+    ],
+  },
+  {
+    label: 'Books',
+    items: [
+      { key: 'banking', label: 'Banking', icon: Landmark, path: '/banking' },
+      { key: 'journal', label: 'Journal entries', icon: NotebookPen, path: '/gl/journals' },
+      { key: 'ledger', label: 'General ledger', icon: BookOpen, path: '/gl' },
+      { key: 'assets', label: 'Fixed assets', icon: Boxes, path: '/fa' },
+      { key: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
+      { key: 'budgets', label: 'Budgets', icon: Target, path: '/budgets' },
+    ],
+  },
+  {
+    label: 'Compliance',
+    items: [
+      { key: 'gst-returns', label: 'GST returns', icon: ShieldCheck, path: '/gst/returns' },
+      { key: 'gst-recon', label: 'GST reconciliation', icon: ClipboardCheck, path: '/gst/reconciliation' },
+      { key: 'gst-readiness', label: 'GST readiness', icon: FileCheck2, path: '/gst/readiness' },
+      { key: 'audit', label: 'Audit trail', icon: History, path: '/audit/gap-scan' },
+    ],
+  },
+  {
+    label: 'Setup',
+    items: [
+      { key: 'wf-approvals', label: 'Approvals', icon: ClipboardCheck, path: '/workflows/approvals' },
+      { key: 'wf-tasks', label: 'Tasks', icon: ScrollText, path: '/workflows/tasks' },
+      { key: 'workflows', label: 'Workflows', icon: GitBranch, path: '/workflows' },
+      { key: 'users', label: 'Users & roles', icon: UserCog, path: '/settings/users' },
+      { key: 'settings', label: 'Settings', icon: Settings, path: '/settings/setup' },
+    ],
+  },
 ];
 
-const navLinkClasses = (isActive: boolean, collapsed: boolean) =>
-  cn(
-    'flex items-center rounded-md transition-colors',
-    collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2 text-sm',
-    isActive
-      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
-      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200',
+function NavItemRow({
+  item, active, collapsed, onClick,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+  onClick?: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <Link
+      to={item.path}
+      onClick={onClick}
+      title={collapsed ? item.label : undefined}
+      className={cn(
+        'relative flex items-center rounded-md transition-colors',
+        collapsed ? 'mx-auto h-9 w-9 justify-center' : 'gap-2.5 px-2.5 py-1.5',
+        active
+          ? 'nav-active'
+          : '',
+      )}
+      style={{
+        color: active ? 'var(--text-1)' : 'var(--text-2)',
+        background: active ? 'var(--surface-2)' : 'transparent',
+      }}
+    >
+      <Icon size={16} strokeWidth={active ? 2 : 1.75} />
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate text-[13px]">{item.label}</span>
+          {item.count != null ? (
+            <span
+              className="num rounded border px-1 py-0.5 text-[10px]"
+              style={{
+                background: 'var(--surface-2)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-2)',
+              }}
+            >
+              {item.count}
+            </span>
+          ) : item.badge ? (
+            <span
+              className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]"
+              style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+            >
+              {item.badge}
+            </span>
+          ) : null}
+        </>
+      )}
+    </Link>
   );
+}
 
 function SidebarContent({
-  onNavigate,
-  collapsed = false,
-  onToggleCollapse,
+  onNavigate, collapsed = false, onToggleCollapse,
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
@@ -69,150 +159,186 @@ function SidebarContent({
 }) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
-  const { theme, toggleTheme } = useTheme();
-  const { logout } = useAuth();
-  const { data: companyData } = useCompanySettings();
-  const companyName = companyData?.data?.name;
+  const { theme } = useTheme();
 
-  const isActivePath = (path: string) =>
-    path === '/' ? currentPath === '/' : currentPath.startsWith(path);
+  const allPaths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.path));
+  const bestMatch = allPaths
+    .filter((p) => (p === '/' ? currentPath === '/' : currentPath === p || currentPath.startsWith(p + '/')))
+    .reduce((a, b) => (b.length > a.length ? b : a), '');
+  const isActivePath = (path: string) => path === bestMatch;
 
   return (
     <>
-      {/* ── Logo + sidebar toggle ── */}
-      <div className={cn('shrink-0', collapsed ? 'px-2 pt-3 pb-1' : 'px-4 pt-3 pb-1')}>
-        <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-          {collapsed ? (
-            /* Favicon by default; on hover swap to expand icon */
-            onToggleCollapse ? (
-              <button
-                onClick={onToggleCollapse}
-                title="Expand sidebar"
-                className="flex h-8 w-8 items-center justify-center rounded-md transition-colors group-hover/sidebar:bg-zinc-100 dark:group-hover/sidebar:bg-zinc-800"
-              >
-                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6 group-hover/sidebar:hidden" />
-                <PanelLeftOpen size={18} className="hidden text-zinc-400 group-hover/sidebar:block" />
-              </button>
-            ) : (
-              <Link to="/" onClick={onNavigate}>
-                <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-6 w-6" />
-              </Link>
-            )
-          ) : (
-            <>
-              <Link to="/" className="flex items-center gap-2" onClick={onNavigate}>
-                <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-7" />
-                <span className="rounded border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">Finance</span>
-              </Link>
-              {onToggleCollapse && (
-                <button
-                  onClick={onToggleCollapse}
-                  title="Collapse sidebar"
-                  className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                >
-                  <PanelLeftClose size={16} />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ── Main nav — scrollbar hidden until hover ── */}
-      <nav className={cn(
-        'mt-1 flex-1 space-y-0.5 overflow-y-auto',
-        '[scrollbar-width:none] hover:[scrollbar-width:thin]',
-        '[&::-webkit-scrollbar]:w-0 hover:[&::-webkit-scrollbar]:w-1.5',
-        '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700',
-        '[&::-webkit-scrollbar-track]:bg-transparent',
-        collapsed ? 'px-1.5' : 'px-2',
-      )}>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={onNavigate}
-              title={collapsed ? item.label : undefined}
-              className={navLinkClasses(isActivePath(item.path), collapsed)}
-            >
-              <Icon size={ICON_SIZE} strokeWidth={1.75} />
-              {!collapsed && item.label}
-            </Link>
-          );
-        })}
-
-        {/* ── Bottom nav items (Help, Sign out) ── */}
-        <div className={cn('!mt-3 border-t border-zinc-200 pt-2 dark:border-zinc-800', collapsed ? 'mx-0' : 'mx-1')}>
-          <Link
-            to="/help"
-            onClick={onNavigate}
-            title={collapsed ? 'Help' : undefined}
-            className={navLinkClasses(isActivePath('/help'), collapsed)}
-          >
-            <HelpCircle size={ICON_SIZE} strokeWidth={1.75} />
-            {!collapsed && 'Help'}
-          </Link>
-          <button
-            onClick={logout}
-            title={collapsed ? 'Sign out' : undefined}
-            className={cn(
-              navLinkClasses(false, collapsed),
-              'w-full',
-            )}
-          >
-            <LogOut size={ICON_SIZE} strokeWidth={1.75} />
-            {!collapsed && 'Sign out'}
-          </button>
-        </div>
-      </nav>
-
-      {/* ── Footer: avatar + company + theme ── */}
-      <div className={cn(
-        'shrink-0 border-t border-zinc-200 dark:border-zinc-800',
-        collapsed ? 'flex flex-col items-center py-2.5' : 'flex items-center gap-2 px-3 py-2.5',
-      )}>
+      {/* Logo + collapse toggle */}
+      <div
+        className={cn(
+          'flex h-[52px] shrink-0 items-center border-b',
+          collapsed ? 'justify-center px-2' : 'justify-between px-4',
+        )}
+        style={{ borderColor: 'var(--border-soft)' }}
+      >
         {collapsed ? (
-          <>
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white"
-              title={companyName ?? 'Company'}
-            >
-              {(companyName ?? 'C')[0].toUpperCase()}
-            </div>
+          onToggleCollapse ? (
             <button
-              onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="mt-1.5 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+              onClick={onToggleCollapse}
+              title="Expand sidebar"
+              className="group/toggle relative flex h-8 w-8 items-center justify-center rounded-md hover:bg-[color:var(--surface-2)]"
             >
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+              <img
+                src={`${import.meta.env.BASE_URL}runq-favicon.png`}
+                alt="runQ"
+                className="absolute h-5 w-5 transition-opacity group-hover/toggle:opacity-0"
+              />
+              <span
+                className="opacity-0 transition-opacity group-hover/toggle:opacity-100"
+                style={{ color: 'var(--text-2)' }}
+              >
+                <PanelLeftOpen size={15} />
+              </span>
             </button>
-          </>
+          ) : (
+            <Link to="/" onClick={onNavigate}>
+              <img src={`${import.meta.env.BASE_URL}runq-favicon.png`} alt="runQ" className="h-5 w-5" />
+            </Link>
+          )
         ) : (
           <>
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white">
-              {(companyName ?? 'C')[0].toUpperCase()}
-            </div>
-            <span className="flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
-              {companyName ?? 'Company'}
-            </span>
-            <button
-              onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
+            <Link to="/" className="flex min-w-0 items-center gap-2" onClick={onNavigate}>
+              <img
+                src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`}
+                alt="runQ"
+                className="h-[22px] shrink-0"
+              />
+              <span
+                className="whitespace-nowrap rounded px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.1em]"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+              >
+                Finance
+              </span>
+            </Link>
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                title="Collapse sidebar"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-2)]"
+                style={{ color: 'var(--text-3)' }}
+              >
+                <PanelLeftClose size={15} />
+              </button>
+            )}
           </>
         )}
+      </div>
+
+      {/* Nav */}
+      <nav
+        className={cn(
+          'flex-1 space-y-3 overflow-y-auto scrollbar-auto',
+          collapsed ? 'py-2' : 'px-3 py-3',
+        )}
+      >
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={gi} className="space-y-0.5">
+            {!collapsed && group.label ? (
+              <div
+                className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                style={{ color: 'var(--text-3)' }}
+              >
+                {group.label}
+              </div>
+            ) : collapsed && gi > 0 ? (
+              <div
+                className="mx-3 my-2 border-t"
+                style={{ borderColor: 'var(--border-soft)' }}
+              />
+            ) : null}
+            <div className={collapsed ? 'space-y-0.5' : 'space-y-[1px]'}>
+              {group.items.map((it) => (
+                <NavItemRow
+                  key={it.key}
+                  item={it}
+                  active={isActivePath(it.path)}
+                  collapsed={collapsed}
+                  onClick={onNavigate}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Upgrade card */}
+      {!collapsed && (
+        <div className="px-3 pb-3">
+          <div
+            className="relative overflow-hidden rounded-lg border p-3"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+          >
+            <div
+              className="absolute -right-8 -top-8 h-24 w-24 rounded-full"
+              style={{ background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)' }}
+            />
+            <div className="relative">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Zap size={12} style={{ color: 'var(--accent-text)' }} className="shrink-0" />
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-1)' }}>
+                  runQ Agent Pro
+                </span>
+              </div>
+              <p className="mb-2 text-[11px] leading-snug" style={{ color: 'var(--text-3)' }}>
+                Auto-reconcile, draft GST, send reminders — hands-free.
+              </p>
+              <button
+                className="w-full rounded-md py-1.5 text-[11px] font-medium text-white hover:opacity-90"
+                style={{ background: 'var(--accent)' }}
+              >
+                Upgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer: help + ⌘K */}
+      <div
+        className={cn(
+          'border-t',
+          collapsed ? 'flex flex-col items-center gap-1 p-2' : 'flex items-center gap-1 px-3 py-2',
+        )}
+        style={{ borderColor: 'var(--border-soft)' }}
+      >
+        <Link
+          to="/help"
+          title="Help & docs"
+          className={cn(
+            'flex items-center rounded-md text-[12px] hover:bg-[color:var(--surface-2)]',
+            collapsed ? 'h-8 w-8 justify-center' : 'h-7 flex-1 gap-2 px-2',
+          )}
+          style={{ color: 'var(--text-3)' }}
+        >
+          <LifeBuoy size={13} />
+          {!collapsed && <span>Help & docs</span>}
+        </Link>
+        <button
+          onClick={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+          }}
+          title="Keyboard shortcuts (⌘K)"
+          className={cn(
+            'flex items-center justify-center rounded-md hover:bg-[color:var(--surface-2)]',
+            collapsed ? 'h-8 w-8' : 'h-7 w-7',
+          )}
+          style={{ color: 'var(--text-3)' }}
+        >
+          <Command size={13} />
+        </button>
       </div>
     </>
   );
 }
 
 const COLLAPSED_KEY = 'runq-sidebar-collapsed';
-const WIDE_QUERY = '(min-width: 1440px)';
+const WIDE_QUERY = '(min-width: 1280px)';
 
 function useIsWideScreen(): boolean {
   return useSyncExternalStore(
@@ -226,14 +352,6 @@ function useIsWideScreen(): boolean {
   );
 }
 
-/**
- * Desktop sidebar — visible at md+ (768px).
- *
- *   - Below 1440px: defaults to collapsed (icon-only, w-16). User can
- *     still toggle to expand if they want — it's a default, not forced.
- *   - At 1440px+: defaults to expanded (w-60). User can collapse.
- *   - State persisted in localStorage across sessions.
- */
 export function Sidebar() {
   const isWide = useIsWideScreen();
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(() => {
@@ -243,13 +361,11 @@ export function Sidebar() {
     } catch { return null; }
   });
 
-  // If user has never toggled (null), auto-collapse on narrow screens.
-  // If user HAS toggled, respect their choice regardless of screen size.
   const collapsed = userCollapsed != null ? userCollapsed : !isWide;
 
   function toggle() {
     setUserCollapsed((prev) => {
-      const next = prev != null ? !prev : isWide; // first toggle: opposite of auto-default
+      const next = prev != null ? !prev : isWide;
       try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0'); } catch { /* noop */ }
       return next;
     });
@@ -258,38 +374,45 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'group/sidebar hidden md:flex h-screen flex-col border-r border-zinc-200 bg-white text-zinc-900 transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100',
-        collapsed ? 'w-16' : 'w-60',
+        'group/sidebar hidden h-screen flex-col border-r transition-[width] duration-200 md:flex',
+        collapsed ? 'w-[60px]' : 'w-[232px]',
       )}
+      style={{
+        background: 'var(--surface)',
+        borderColor: 'var(--border-soft)',
+        color: 'var(--text-1)',
+      }}
     >
       <SidebarContent collapsed={collapsed} onToggleCollapse={toggle} />
     </aside>
   );
 }
 
-/** Mobile top bar with hamburger — visible only on mobile */
 export function MobileHeader() {
   const [open, setOpen] = useState(false);
   const { theme } = useTheme();
   const routerState = useRouterState();
 
   useEffect(() => { setOpen(false); }, [routerState.location.pathname]);
-
   useEffect(() => {
-    if (open) { document.body.style.overflow = 'hidden'; }
-    else { document.body.style.overflow = ''; }
+    if (open) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   return (
     <div className="md:hidden">
-      <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <header
+        className="flex h-14 items-center justify-between border-b px-4"
+        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      >
         <Link to="/" className="flex items-center gap-2">
           <img src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`} alt="runQ" className="h-6" />
         </Link>
         <button
           onClick={() => setOpen(true)}
-          className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md p-2 hover:bg-[color:var(--surface-2)]"
+          style={{ color: 'var(--text-2)' }}
           aria-label="Open menu"
         >
           <Menu size={22} />
@@ -299,10 +422,14 @@ export function MobileHeader() {
       {open && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden="true" />
-          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-zinc-900 animate-slide-in-left">
+          <aside
+            className="animate-slide-in-left relative flex h-full w-72 max-w-[85vw] flex-col shadow-xl"
+            style={{ background: 'var(--surface)' }}
+          >
             <button
               onClick={() => setOpen(false)}
-              className="absolute right-3 top-4 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="absolute right-3 top-4 rounded-md p-1.5 hover:bg-[color:var(--surface-2)]"
+              style={{ color: 'var(--text-3)' }}
               aria-label="Close menu"
             >
               <X size={20} />
@@ -323,37 +450,40 @@ const mobileBottomItems = [
   { label: 'Banking', path: '/banking', icon: Landmark },
 ];
 
-/** Mobile bottom navigation — visible only on phones */
 export function MobileBottomNav() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-zinc-800 dark:bg-zinc-900">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 border-t pb-[env(safe-area-inset-bottom)] md:hidden"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+    >
       <div className="flex items-center justify-around px-1">
         {mobileBottomItems.map((item) => {
           const isActive = item.path === '/' ? currentPath === '/' : currentPath.startsWith(item.path);
           const Icon = item.icon;
-
           if (item.primary) {
             return (
-              <Link key={item.path} to={item.path} className="flex flex-col items-center -mt-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:bg-indigo-700">
+              <Link key={item.path} to={item.path} className="-mt-4 flex flex-col items-center">
+                <div
+                  className="flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg"
+                  style={{ background: 'var(--accent)' }}
+                >
                   <Icon size={22} />
                 </div>
-                <span className="mt-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">{item.label}</span>
+                <span className="mt-0.5 text-[10px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                  {item.label}
+                </span>
               </Link>
             );
           }
-
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={cn(
-                'flex flex-col items-center gap-0.5 py-2 px-3 text-[10px] font-medium transition-colors',
-                isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500',
-              )}
+              className="flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors"
+              style={{ color: isActive ? 'var(--accent-text)' : 'var(--text-3)' }}
             >
               <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
               {item.label}

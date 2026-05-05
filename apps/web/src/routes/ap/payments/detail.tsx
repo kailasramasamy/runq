@@ -1,145 +1,25 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { Banknote, CheckCircle, XCircle, RotateCcw, ArrowLeft } from 'lucide-react';
-import { useVendorPayment, useApprovePayment, useRejectPayment, useReversePayment } from '../../../hooks/queries/use-payments';
-import { ApprovalPanel } from '@/components/approval-panel';
-import type { VendorPaymentWithAllocations, PaymentStatus } from '@runq/types';
-import { formatINR } from '../../../lib/utils';
 import {
-  PageHeader,
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  CardContent,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  Th,
-  Skeleton,
-  ConfirmationDialog,
-} from '@/components/ui';
-
-const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | 'outline'> = {
-  pending: 'warning',
-  completed: 'success',
-  failed: 'danger',
-  reversed: 'outline',
-};
-
-function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
-      <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{value ?? '—'}</p>
-    </div>
-  );
-}
-
-function PaymentInfoCard({ payment }: { payment: VendorPaymentWithAllocations }) {
-  return (
-    <Card>
-      <CardHeader title="Payment Information" />
-      <CardContent>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
-          <DetailRow label="Vendor" value={payment.vendorName} />
-          <DetailRow label="Payment Date" value={payment.paymentDate} />
-          <DetailRow label="Method" value={payment.paymentMethod.replace(/_/g, ' ')} />
-          <DetailRow label="UTR / Reference" value={payment.utrNumber} />
-          <DetailRow label="Bank Account" value={payment.bankAccountId} />
-          {payment.approvedBy && (
-            <DetailRow label="Approved By" value={payment.approvedBy} />
-          )}
-          {payment.approvedAt && (
-            <DetailRow label="Approved At" value={new Date(payment.approvedAt).toLocaleString()} />
-          )}
-          {payment.notes && (
-            <div className="sm:col-span-2 md:col-span-3">
-              <DetailRow label="Notes" value={payment.notes} />
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AllocationsCard({ payment }: { payment: VendorPaymentWithAllocations }) {
-  if (payment.allocations.length === 0) return null;
-  return (
-    <Card>
-      <CardHeader title="Invoice Allocations" />
-
-      {/* Mobile cards */}
-      <div className="md:hidden p-3 space-y-2">
-        {payment.allocations.map((alloc) => (
-          <div key={alloc.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="flex items-start justify-between gap-2">
-              <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">{alloc.invoiceNumber}</span>
-              <Badge variant="default" className="capitalize">—</Badge>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <div>
-                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Allocated</span>
-                <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">{formatINR(alloc.amount)}</span>
-              </div>
-              <div>
-                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Bill Total</span>
-                <span className="tabular-nums">{formatINR(alloc.invoiceTotal)}</span>
-              </div>
-              <div>
-                <span className="block font-medium text-zinc-700 dark:text-zinc-300">Balance</span>
-                <span className="tabular-nums">{formatINR(alloc.invoiceBalanceDue)}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Invoice #</Th>
-                <Th align="right">Allocated</Th>
-                <Th align="right">Invoice Total</Th>
-                <Th align="right">Balance After</Th>
-                <Th>Invoice Status</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {payment.allocations.map((alloc) => (
-                <TableRow key={alloc.id}>
-                  <TableCell className="font-mono text-xs">{alloc.invoiceNumber}</TableCell>
-                  <TableCell align="right" numeric className="font-medium">{formatINR(alloc.amount)}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(alloc.invoiceTotal)}</TableCell>
-                  <TableCell align="right" numeric>{formatINR(alloc.invoiceBalanceDue)}</TableCell>
-                  <TableCell>
-                    <Badge variant="default" className="capitalize">—</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </div>
-    </Card>
-  );
-}
+  Banknote, CheckCircle, XCircle, RotateCcw, ArrowLeft,
+  CreditCard, FileText, History, Hash, User as UserIcon,
+} from 'lucide-react';
+import { useVendorPayment, useApprovePayment, useRejectPayment, useReversePayment } from '@/hooks/queries/use-payments';
+import { ApprovalPanel } from '@/components/approval-panel';
+import { formatINR, formatINRShort } from '@/lib/utils';
+import {
+  PageHeader, Button, StatTile, StatusBadge, PaymentMethodBadge, Avatar,
+  DetailCard, DetailRow,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  formatDate,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog } from '@/components/ui';
 
 interface Props { paymentId: string }
 
 export function PaymentDetailPage({ paymentId }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
-  function goBack(): void {
-    if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/payments' });
-  }
   const { data, isLoading, isError } = useVendorPayment(paymentId);
   const payment = data?.data;
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -148,22 +28,35 @@ export function PaymentDetailPage({ paymentId }: Props) {
   const rejectMutation = useRejectPayment();
   const reverseMutation = useReversePayment();
 
+  function goBack() {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/payments' });
+  }
+
   if (isLoading) {
     return (
-      <div className="max-w-3xl space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
+      <div className="space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-xl border"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+          />
+        ))}
       </div>
     );
   }
 
   if (isError || !payment) {
-    return <p className="text-sm text-red-500">Payment not found.</p>;
+    return <p className="text-[13px]" style={{ color: 'var(--neg)' }}>Payment not found.</p>;
   }
 
+  const allocCount = payment.allocations.length;
+  const allocTotal = payment.allocations.reduce((a, x) => a + Number(x.amount), 0);
+  const unallocated = Number(payment.amount) - allocTotal;
+
   return (
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         title={`Payment ${payment.id.slice(0, 8)}…`}
         breadcrumbs={[
@@ -171,92 +64,217 @@ export function PaymentDetailPage({ paymentId }: Props) {
           { label: 'Payments', href: '/ap/payments' },
           { label: payment.id.slice(0, 8) + '…' },
         ]}
+        titleBadge={<StatusBadge status={payment.status} />}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft size={14} /> Back
-            </Button>
-            <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize text-sm px-3 py-1">
-              {payment.status}
-            </Badge>
+          <>
+            <Button variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>Back</Button>
             {payment.status === 'pending' && (
               <>
-                <button
+                <Button
+                  size="sm"
+                  icon={<CheckCircle size={13} />}
+                  loading={approveMutation.isPending}
                   onClick={() => approveMutation.mutate(paymentId)}
-                  disabled={approveMutation.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  <CheckCircle size={15} />
                   Approve
-                </button>
-                <button
-                  onClick={() => setShowRejectDialog(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-                >
-                  <XCircle size={15} />
+                </Button>
+                <Button variant="outline" size="sm" icon={<XCircle size={13} />} onClick={() => setShowRejectDialog(true)}>
                   Reject
-                </button>
+                </Button>
               </>
             )}
             {payment.status === 'completed' && (
-              <button
-                onClick={() => setShowReverseDialog(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
-              >
-                <RotateCcw size={15} />
+              <Button variant="outline" size="sm" icon={<RotateCcw size={13} />} onClick={() => setShowReverseDialog(true)}>
                 Reverse
-              </button>
+              </Button>
             )}
-          </div>
+          </>
         }
       />
 
       {payment.status === 'pending' && (
-        <div className="mb-4">
+        <div className="mb-5">
           <ApprovalPanel entityType="payment" entityId={paymentId} amount={payment.amount} />
         </div>
       )}
 
-      {/* Amount hero row */}
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="sm:col-span-2">
-          <CardContent className="flex items-center gap-4 py-5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
-              <Banknote size={22} className="text-indigo-600 dark:text-indigo-400" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Left: amount hero + info + allocations */}
+        <div className="space-y-4 lg:col-span-2">
+          {/* Amount hero */}
+          <div
+            className="relative overflow-hidden rounded-xl border p-5"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          >
+            <div
+              className="absolute -right-12 -top-12 h-44 w-44 rounded-full opacity-50"
+              style={{ background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)' }}
+            />
+            <div className="relative flex items-center gap-4">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+              >
+                <Banknote size={22} />
+              </div>
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                  Payment amount
+                </div>
+                <div className="num mt-1 text-[32px] font-semibold leading-none tabular-nums" style={{ color: 'var(--text-1)' }}>
+                  {formatINR(Number(payment.amount))}
+                </div>
+                <div className="mt-2 flex items-center gap-3 text-[12px]" style={{ color: 'var(--text-3)' }}>
+                  <PaymentMethodBadge method={payment.paymentMethod} />
+                  {payment.utrNumber && (
+                    <>
+                      <span>·</span>
+                      <span className="num">{payment.utrNumber}</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total Amount</p>
-              <p className="mt-0.5 text-3xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                {formatINR(payment.amount)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex h-full flex-col justify-center py-5">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Status</p>
-            <div className="mt-2">
-              <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize">
-                {payment.status}
-              </Badge>
-            </div>
-            <p className="mt-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">Method</p>
-            <p className="mt-0.5 text-sm capitalize text-zinc-900 dark:text-zinc-100">
-              {payment.paymentMethod.replace(/_/g, ' ')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      <div className="flex flex-col gap-4">
-        <PaymentInfoCard payment={payment} />
-        <AllocationsCard payment={payment} />
+          {/* Info */}
+          <DetailCard title="Payment information" icon={<UserIcon size={14} />}>
+            <DetailRow label="Vendor" value={payment.vendorName} />
+            <DetailRow label="Payment date" value={formatDate(payment.paymentDate)} mono />
+            <DetailRow label="Method" value={payment.paymentMethod.replace(/_/g, ' ')} />
+            <DetailRow label="UTR / Reference" value={payment.utrNumber} mono />
+            <DetailRow label="Bank account" value={payment.bankAccountId} mono />
+            {payment.approvedBy && <DetailRow label="Approved by" value={payment.approvedBy} />}
+            {payment.approvedAt && (
+              <DetailRow label="Approved at" value={new Date(payment.approvedAt).toLocaleString()} />
+            )}
+          </DetailCard>
+
+          {payment.notes && (
+            <div
+              className="rounded-xl border p-4"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            >
+              <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                Notes
+              </div>
+              <div className="text-[12.5px]" style={{ color: 'var(--text-1)' }}>{payment.notes}</div>
+            </div>
+          )}
+
+          {/* Allocations */}
+          <div
+            className="overflow-hidden rounded-xl border"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          >
+            <div className="flex items-center gap-2 border-b px-5 py-3" style={{ borderColor: 'var(--border-soft)' }}>
+              <FileText size={14} style={{ color: 'var(--text-2)' }} />
+              <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Bill allocations</h3>
+              <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({allocCount})</span>
+            </div>
+            {allocCount === 0 ? (
+              <div className="px-5 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>
+                Unallocated payment — no bills linked yet.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <Th>Bill #</Th>
+                    <Th align="right">Allocated</Th>
+                    <Th align="right">Bill total</Th>
+                    <Th align="right">Balance after</Th>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {payment.allocations.map((alloc) => (
+                    <TableRow key={alloc.id}>
+                      <TableCell>
+                        <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                          {alloc.invoiceNumber}
+                        </span>
+                      </TableCell>
+                      <TableCell align="right" numeric className="font-semibold">{formatINR(Number(alloc.amount))}</TableCell>
+                      <TableCell align="right" numeric>{formatINR(Number(alloc.invoiceTotal))}</TableCell>
+                      <TableCell align="right" numeric>{formatINR(Number(alloc.invoiceBalanceDue))}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+
+        {/* Right rail */}
+        <div className="space-y-4">
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          >
+            <div className="mb-2 flex items-center gap-2.5">
+              <Avatar name={payment.vendorName ?? '?'} size={32} />
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>
+                  {payment.vendorName ?? `${payment.vendorId.slice(0, 8)}…`}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>Vendor</div>
+              </div>
+            </div>
+            <button
+              className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border py-1.5 text-[11.5px] font-medium hover:bg-[var(--surface-2)]"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+              onClick={() => navigate({ to: '/ap/vendors/$vendorId', params: { vendorId: payment.vendorId } })}
+            >
+              View vendor
+            </button>
+          </div>
+
+          <StatTile label="Allocated" value={formatINRShort(allocTotal)} sub={`${allocCount} bill${allocCount === 1 ? '' : 's'}`} />
+          {unallocated > 0 && (
+            <StatTile label="Unallocated" value={formatINRShort(unallocated)} sub="Open advance" tone="warn" />
+          )}
+
+          {payment.utrNumber && (
+            <div
+              className="rounded-xl border p-4"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <Hash size={14} style={{ color: 'var(--text-2)' }} />
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--text-1)' }}>Reference</div>
+              </div>
+              <div className="num text-[12.5px]" style={{ color: 'var(--text-1)' }}>{payment.utrNumber}</div>
+            </div>
+          )}
+
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <History size={14} style={{ color: 'var(--text-2)' }} />
+              <div className="text-[12px] font-semibold" style={{ color: 'var(--text-1)' }}>Status</div>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]" style={{ color: 'var(--text-2)' }}>
+              <div className="flex items-center gap-2">
+                <CreditCard size={11} style={{ color: 'var(--text-3)' }} />
+                Recorded {formatDate(payment.paymentDate)}
+              </div>
+              {payment.approvedAt && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={11} style={{ color: 'var(--pos)' }} />
+                  Approved {new Date(payment.approvedAt).toLocaleDateString('en-IN')}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       <ConfirmationDialog
         open={showRejectDialog}
         title="Reject Payment"
-        description="Are you sure you want to reject this payment? Any invoice allocations will be reversed."
+        description="Are you sure you want to reject this payment? Any bill allocations will be reversed."
         confirmLabel="Reject"
         variant="danger"
         loading={rejectMutation.isPending}
@@ -270,7 +288,7 @@ export function PaymentDetailPage({ paymentId }: Props) {
       <ConfirmationDialog
         open={showReverseDialog}
         title="Reverse Payment"
-        description="This will reverse the payment, restore invoice balances, and reverse the GL journal entry. This cannot be undone."
+        description="This will reverse the payment, restore bill balances, and reverse the GL journal entry. This cannot be undone."
         confirmLabel="Reverse"
         variant="danger"
         loading={reverseMutation.isPending}

@@ -1,23 +1,15 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { FileText, Upload, CheckCircle, AlertCircle, Clock, Plus, Trash2 } from 'lucide-react';
+import { FileText, Plus, Trash2, ChevronRight } from 'lucide-react';
 import { useGstReturns, useGenerateGstr1, useGenerateGstr3b, useDeleteReturn } from '@/hooks/queries/use-gst-returns';
-import { ConfirmationDialog } from '@/components/ui';
+import { ConfirmationDialog, Combobox } from '@/components/ui';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
-import { formatINR } from '@/lib/utils';
 import {
-  PageHeader, Button, Card, CardContent, Badge, Combobox,
-  Table, TableHeader, TableBody, TableRow, TableCell, Th,
-  TableSkeleton, EmptyState, useToast,
-} from '@/components/ui';
-
-const STATUS_COLORS: Record<string, 'default' | 'success' | 'warning' | 'danger'> = {
-  draft: 'default',
-  validated: 'warning',
-  uploaded: 'warning',
-  filed: 'success',
-  error: 'danger',
-};
+  PageHeader, Button, Badge, StatTile, StatusBadge,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { useToast } from '@/components/ui';
 
 function periodLabel(period: string): string {
   const month = parseInt(period.substring(0, 2), 10);
@@ -50,8 +42,6 @@ export function GstReturnsPage() {
   const [deleteTarget, setDeleteTarget] = useState<GstReturn | null>(null);
 
   const returns: GstReturn[] = returnsData?.data ?? [];
-  // Build a set of (period, returnType) keys that are already filed so we
-  // can disable those options in the period picker.
   const filedKeys = new Set(returns.filter((r) => r.status === 'filed').map((r) => `${r.period}|${r.returnType}`));
   const baseOptions = generatePeriodOptions();
   const currentReturnType = showGenerate === 'gstr3b' ? 'gstr3b' : 'gstr1';
@@ -75,7 +65,7 @@ export function GstReturnsPage() {
         setShowGenerate(null);
         setSelectedPeriod('');
       },
-      onError: (err: any) => toast(err?.message ?? 'Failed to generate', 'error'),
+      onError: (err: unknown) => toast((err as { message?: string })?.message ?? 'Failed to generate', 'error'),
     });
   }
 
@@ -83,112 +73,137 @@ export function GstReturnsPage() {
     if (!deleteTarget) return;
     deleteMutation.mutate(deleteTarget.id, {
       onSuccess: () => { toast('Return deleted', 'success'); setDeleteTarget(null); },
-      onError: (err: any) => toast(err?.message ?? 'Failed to delete', 'error'),
+      onError: (err: unknown) => toast((err as { message?: string })?.message ?? 'Failed to delete', 'error'),
     });
   }
 
+  const filedCount = returns.filter((r) => r.status === 'filed').length;
+  const draftCount = returns.filter((r) => r.status === 'draft' || r.status === 'validated').length;
+  const errorCount = returns.filter((r) => r.status === 'error').length;
+  const gstr1Count = returns.filter((r) => r.returnType === 'gstr1').length;
+  const gstr3bCount = returns.filter((r) => r.returnType === 'gstr3b').length;
+
   return (
-    <div className="max-w-5xl">
+    <div>
       <PageHeader
-        title="GST Returns"
+        title="GST returns"
         description="Generate, validate, and file GSTR-1 and GSTR-3B returns."
         actions={
-          <div className="flex gap-2">
-            <Button onClick={() => setShowGenerate(showGenerate === 'gstr1' ? null : 'gstr1')}>
-              <Plus className="h-4 w-4 mr-2" /> Generate GSTR-1
+          <>
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => setShowGenerate(showGenerate === 'gstr1' ? null : 'gstr1')}>
+              Generate GSTR-1
             </Button>
-            <Button variant="outline" onClick={() => setShowGenerate(showGenerate === 'gstr3b' ? null : 'gstr3b')}>
-              <Plus className="h-4 w-4 mr-2" /> Generate GSTR-3B
+            <Button variant="outline" size="sm" icon={<Plus size={13} />} onClick={() => setShowGenerate(showGenerate === 'gstr3b' ? null : 'gstr3b')}>
+              Generate GSTR-3B
             </Button>
-          </div>
+          </>
         }
       />
 
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Total returns" value={returns.length} sub={`${gstr1Count} GSTR-1 · ${gstr3bCount} GSTR-3B`} />
+        <StatTile label="Filed" value={filedCount} sub="Submitted to GSTN" tone="pos" />
+        <StatTile label="Drafts" value={draftCount} sub="Awaiting filing" tone={draftCount > 0 ? 'warn' : 'neutral'} />
+        <StatTile label="Errors" value={errorCount} sub="Need review" tone={errorCount > 0 ? 'neg' : 'neutral'} />
+      </div>
+
       {showGenerate && (
-        <Card className="mb-6">
-          <CardContent className="pt-4">
-            <div className="flex items-end gap-4">
-              <div className="flex-1 max-w-xs">
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 block">Filing Period</label>
-                <Combobox
-                  options={periodOptions}
-                  value={selectedPeriod}
-                  onChange={setSelectedPeriod}
-                  placeholder="Select month..."
-                />
-              </div>
-              <Button onClick={handleGenerate} disabled={generateMutation.isPending || generate3bMutation.isPending || selectedAlreadyFiled}>
-                {(generateMutation.isPending || generate3bMutation.isPending) ? 'Generating...' : `Generate ${showGenerate === 'gstr3b' ? 'GSTR-3B' : 'GSTR-1'}`}
-              </Button>
-              <Button variant="ghost" onClick={() => setShowGenerate(null)}>Cancel</Button>
+        <div
+          className="mb-5 rounded-xl border p-4"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[260px] flex-1">
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                Filing period
+              </label>
+              <Combobox
+                options={periodOptions}
+                value={selectedPeriod}
+                onChange={setSelectedPeriod}
+                placeholder="Select month..."
+              />
             </div>
-          </CardContent>
-        </Card>
+            <Button
+              size="sm"
+              loading={generateMutation.isPending || generate3bMutation.isPending}
+              disabled={selectedAlreadyFiled}
+              onClick={handleGenerate}
+            >
+              Generate {showGenerate === 'gstr3b' ? 'GSTR-3B' : 'GSTR-1'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowGenerate(null)}>Cancel</Button>
+          </div>
+        </div>
       )}
 
-      {isLoading ? (
-        <TableSkeleton />
-      ) : returns.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title="No GST Returns"
-          description="Generate your first GSTR-1 to get started."
-        />
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Period</Th>
-                <Th>Type</Th>
-                <Th>Status</Th>
-                <Th>ARN</Th>
-                <Th>Filed At</Th>
-                <Th />
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Period</Th>
+            <Th>Type</Th>
+            <Th>Status</Th>
+            <Th>ARN</Th>
+            <Th>Filed at</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 6 }).map((__, j) => (
+                  <TableCell key={j}>
+                    <div className="h-3 w-full max-w-[120px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
+                  </TableCell>
+                ))}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {returns.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{periodLabel(r.period)}</TableCell>
-                  <TableCell>
-                    <Badge variant="default">{r.returnType.toUpperCase()}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_COLORS[r.status] ?? 'default'}>
-                      {r.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-zinc-500">{r.arn ?? '—'}</TableCell>
-                  <TableCell className="text-xs text-zinc-500">
-                    {r.filedAt ? new Date(r.filedAt).toLocaleDateString('en-IN') : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        to={(r.returnType === 'gstr3b' ? '/gst/returns/$returnId/3b' : '/gst/returns/$returnId') as '/'}
-                        params={{ returnId: r.id }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-primary-500 text-white hover:bg-primary-600 transition-colors"
-                      >
-                        {r.status === 'filed' ? 'View' : 'Continue'}
-                      </Link>
-                      {r.status !== 'filed' && (
-                        <button
-                          onClick={() => setDeleteTarget(r)}
-                          className="p-1.5 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          title="Delete draft"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
+            ))
+          ) : returns.length === 0 ? (
+            <tr>
+              <td colSpan={6}>
+                <EmptyState
+                  icon={<FileText size={18} />}
+                  title="No GST returns yet"
+                  description="Generate your first GSTR-1 or GSTR-3B to get started."
+                />
+              </td>
+            </tr>
+          ) : returns.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell numeric className="font-medium" style={{ color: 'var(--text-1)' }}>{periodLabel(r.period)}</TableCell>
+              <TableCell><Badge variant="default">{r.returnType.toUpperCase()}</Badge></TableCell>
+              <TableCell><StatusBadge status={r.status} /></TableCell>
+              <TableCell numeric style={{ color: 'var(--text-3)' }}>{r.arn ?? '—'}</TableCell>
+              <TableCell numeric style={{ color: 'var(--text-3)' }}>
+                {r.filedAt ? formatDate(r.filedAt) : '—'}
+              </TableCell>
+              <TableCell align="right">
+                <div className="flex items-center justify-end gap-1">
+                  <Link
+                    to={(r.returnType === 'gstr3b' ? '/gst/returns/$returnId/3b' : '/gst/returns/$returnId') as '/'}
+                    params={{ returnId: r.id }}
+                    className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11.5px] font-medium hover:opacity-90"
+                    style={{ background: 'var(--accent)', color: 'white' }}
+                  >
+                    {r.status === 'filed' ? 'View' : 'Continue'} <ChevronRight size={12} />
+                  </Link>
+                  {r.status !== 'filed' && (
+                    <button
+                      onClick={() => setDeleteTarget(r)}
+                      className="rounded p-1 hover:bg-[var(--neg-soft)]"
+                      style={{ color: 'var(--neg)' }}
+                      title="Delete draft"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       <ConfirmationDialog
         open={!!deleteTarget}

@@ -1,36 +1,24 @@
 import { useState, useMemo } from 'react';
-import { Bell, BookOpen, History, Search, Send } from 'lucide-react';
+import { Bell, BookOpen, History, Search, Send, Mail, MessageCircle, Pencil, Play, Plus } from 'lucide-react';
 import {
   useOverdueInvoices,
   useSendReminders,
   useDunningRules,
   useCreateDunningRule,
-  useUpdateDunningRule,
   useDunningLog,
-} from '../../../hooks/queries/use-dunning';
-import type { DunningRule, DunningLogEntry, DunningChannel, DunningAction } from '@runq/types';
-import type { OverdueInvoice } from '../../../hooks/queries/use-dunning';
-import { formatINR } from '../../../lib/utils';
+} from '@/hooks/queries/use-dunning';
+import type { DunningRule, DunningChannel, DunningAction } from '@runq/types';
+import type { OverdueInvoice } from '@/hooks/queries/use-dunning';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import {
-  PageHeader,
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  CardContent,
-  CardFooter,
-  Select,
-  Input,
-  Textarea,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  Th,
-  TableSkeleton,
-  EmptyState,
-  useToast,
+  PageHeader, Button, Input, Select as ArSelect, StatTile, StatusBadge, Badge,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  EmptyState, Tabs, Toggle, formatDate,
+} from '@/components/ar/primitives';
+import {
+  Card, CardHeader, CardContent, CardFooter,
+  Select, Input as UIInput, Textarea, TableSkeleton, useToast,
+  Button as UIButton,
 } from '@/components/ui';
 
 type Tab = 'overdue' | 'rules' | 'log';
@@ -47,19 +35,76 @@ const ACTION_OPTIONS = [
   { value: 'escalate_to_manager', label: 'Escalate to Manager' },
 ];
 
-const CHANNEL_FILTER_OPTIONS = [
-  { value: 'email', label: 'Email' },
-  { value: 'sms', label: 'SMS' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-];
+function daysOverdueOf(dueDate: string): number {
+  const due = new Date(dueDate);
+  const today = new Date();
+  return Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86400000));
+}
 
-const LOG_STATUS_VARIANT: Record<string, 'info' | 'success' | 'danger'> = {
-  sent: 'info',
-  delivered: 'success',
-  failed: 'danger',
-};
+// ─── Header / Page ──────────────────────────────────────────────────────────
 
-// ─── Overdue Invoices Tab ─────────────────────────────────────────────────────
+export function DunningPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('overdue');
+
+  const { data: overdueData } = useOverdueInvoices();
+  const { data: rulesData } = useDunningRules();
+  const { data: logData } = useDunningLog();
+
+  const overdue = overdueData?.data ?? [];
+  const rules = (rulesData?.data ?? []) as DunningRule[];
+  const log = logData?.data ?? [];
+
+  const totalBalance = overdue.reduce((a, o) => a + o.balanceDue, 0);
+  const activeRules = rules.filter((r) => r.isActive).length;
+  const delivered = log.filter((l: any) => l.status === 'delivered').length;
+  const failed = log.filter((l: any) => l.status === 'failed').length;
+
+  return (
+    <div>
+      <PageHeader
+        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Dunning' }]}
+        title="Dunning"
+        description="Automated reminders, escalation rules, and a log of every nudge sent."
+        actions={
+          <>
+            <Button variant="outline" size="sm" icon={<Play size={13} />}>Run dunning now</Button>
+            <Button size="sm" icon={<Plus size={13} />}>
+              {activeTab === 'rules' ? 'New rule' : 'Send reminder'}
+            </Button>
+          </>
+        }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          label="Overdue invoices"
+          value={overdue.length}
+          sub={formatINRShort(totalBalance)}
+          tone="neg"
+        />
+        <StatTile label="Active rules" value={activeRules} sub={`of ${rules.length} configured`} />
+        <StatTile label="Reminders sent" value={log.length} sub={`${delivered} delivered`} />
+        <StatTile label="Failed deliveries" value={failed} sub="Need review" tone={failed > 0 ? 'warn' : 'neutral'} />
+      </div>
+
+      <Tabs<Tab>
+        active={activeTab}
+        onChange={setActiveTab}
+        tabs={[
+          { id: 'overdue', label: 'Overdue invoices', count: overdue.length },
+          { id: 'rules', label: 'Rules', count: rules.length },
+          { id: 'log', label: 'Activity log', count: log.length },
+        ]}
+      />
+
+      {activeTab === 'overdue' && <OverdueTab />}
+      {activeTab === 'rules' && <RulesTab />}
+      {activeTab === 'log' && <LogTab />}
+    </div>
+  );
+}
+
+// ─── Overdue tab ────────────────────────────────────────────────────────────
 
 function OverdueTab() {
   const { data, isLoading } = useOverdueInvoices();
@@ -75,31 +120,29 @@ function OverdueTab() {
     if (!search.trim()) return allInvoices;
     const q = search.toLowerCase();
     return allInvoices.filter(
-      (inv) =>
-        inv.invoiceNumber.toLowerCase().includes(q) ||
-        inv.customerName?.toLowerCase().includes(q),
+      (inv) => inv.invoiceNumber.toLowerCase().includes(q) || inv.customerName?.toLowerCase().includes(q),
     );
   }, [allInvoices, search]);
 
-  function toggleAll() {
-    if (selected.size === invoices.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(invoices.map((inv) => inv.id)));
-    }
-  }
+  const { data: rulesData } = useDunningRules();
+  const rules = (rulesData?.data ?? []) as DunningRule[];
 
+  function toggleAll() {
+    if (selected.size === invoices.length) setSelected(new Set());
+    else setSelected(new Set(invoices.map((inv) => inv.id)));
+  }
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
-
-  function handleSend() {
+  function handleSend(ids?: string[]) {
+    const target = ids ?? Array.from(selected);
+    if (target.length === 0) return;
     sendMutation.mutate(
-      { invoiceIds: Array.from(selected), channel },
+      { invoiceIds: target, channel },
       {
         onSuccess: (res) => {
           const { logged, sent, failed } = res.data;
@@ -114,190 +157,131 @@ function OverdueTab() {
     );
   }
 
-  function daysOverdue(dueDate: string): number {
-    const due = new Date(dueDate);
-    const today = new Date();
-    return Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86400000));
+  function nextRuleFor(daysOverdue: number): DunningRule | undefined {
+    return rules
+      .filter((r) => r.isActive && r.daysAfterDue <= daysOverdue)
+      .sort((a, b) => b.daysAfterDue - a.daysAfterDue)[0];
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="relative sm:w-64">
-            <input
-              type="text"
-              placeholder="Search by invoice # or customer…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            />
-            <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          </div>
-          <div className="sm:w-44">
-            <Select
-              label="Channel"
-              options={CHANNEL_OPTIONS}
-              value={channel}
-              onChange={(e) => setChannel(e.target.value as DunningChannel)}
-            />
-          </div>
-          <Button
-            onClick={handleSend}
-            loading={sendMutation.isPending}
-            disabled={selected.size === 0 || sendMutation.isPending}
-          >
-            <Send size={14} className="mr-1.5" />
-            Send Reminders ({selected.size})
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : invoices.length === 0
-            ? <EmptyState icon={Bell} title="No overdue invoices" description="All customer invoices are within their payment terms." />
-            : invoices.map((inv: OverdueInvoice) => (
-                <OverdueCard key={inv.id} inv={inv} selected={selected} toggleOne={toggleOne} daysOverdue={daysOverdue} />
-              ))
-        }
-      </div>
-
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th className="w-10">
-                <input
-                  type="checkbox"
-                  checked={selected.size > 0 && selected.size === invoices.length}
-                  onChange={toggleAll}
-                  className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
-                />
-              </Th>
-              <Th>Invoice #</Th>
-              <Th>Customer</Th>
-              <Th>Due Date</Th>
-              <Th align="right">Days Overdue</Th>
-              <Th align="right">Amount</Th>
-              <Th align="right">Balance Due</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={6} cols={7} />
-            ) : invoices.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <EmptyState
-                    icon={Bell}
-                    title="No overdue invoices"
-                    description="All customer invoices are within their payment terms."
-                  />
-                </td>
-              </tr>
-            ) : (
-              invoices.map((inv: OverdueInvoice) => (
-                <TableRow key={inv.id} className={selected.has(inv.id) ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}>
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(inv.id)}
-                      onChange={() => toggleOne(inv.id)}
-                      className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
-                    />
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{inv.invoiceNumber}</TableCell>
-                  <TableCell className="text-zinc-700 dark:text-zinc-300">
-                    {inv.customerName || inv.customerId.slice(0, 8)}
-                  </TableCell>
-                  <TableCell className="text-zinc-600 dark:text-zinc-400">{inv.dueDate}</TableCell>
-                  <TableCell align="right" numeric>
-                    <span className="font-semibold text-red-600 dark:text-red-400">
-                      {daysOverdue(inv.dueDate)}d
-                    </span>
-                  </TableCell>
-                  <TableCell align="right" numeric>{formatINR(inv.totalAmount)}</TableCell>
-                  <TableCell align="right" numeric className="font-medium">{formatINR(inv.balanceDue)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function OverdueCard({
-  inv,
-  selected,
-  toggleOne,
-  daysOverdue,
-}: {
-  inv: OverdueInvoice;
-  selected: Set<string>;
-  toggleOne: (id: string) => void;
-  daysOverdue: (dueDate: string) => number;
-}) {
-  const isSelected = selected.has(inv.id);
-  return (
-    <div
-      className={[
-        'rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900',
-        isSelected ? 'border-amber-300 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10' : '',
-      ].join(' ')}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => toggleOne(inv.id)}
-            className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:checked:bg-indigo-600"
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-72 max-w-full">
+          <Input
+            icon={<Search size={13} />}
+            placeholder="Search invoice # or customer…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
-          <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">{inv.invoiceNumber}</span>
         </div>
-        <span className="rounded-full bg-red-100 px-2 py-0.5 font-mono text-xs font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">
-          {daysOverdue(inv.dueDate)}d overdue
-        </span>
+        <ArSelect
+          options={CHANNEL_OPTIONS}
+          value={channel}
+          onChange={(e) => setChannel(e.target.value as DunningChannel)}
+        />
+        <Button
+          size="sm"
+          icon={<Send size={13} />}
+          onClick={() => handleSend()}
+          loading={sendMutation.isPending}
+          disabled={selected.size === 0}
+        >
+          Send reminders ({selected.size})
+        </Button>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{invoices.length} overdue</span>
       </div>
-      {inv.customerName && (
-        <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{inv.customerName}</div>
-      )}
-      <div className="mt-1.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-        <span>{inv.dueDate}</span>
-        <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">{formatINR(inv.balanceDue)}</span>
-      </div>
+
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>
+              <input
+                type="checkbox"
+                checked={selected.size > 0 && selected.size === invoices.length}
+                onChange={toggleAll}
+                aria-label="Select all"
+              />
+            </Th>
+            <Th>Invoice</Th>
+            <Th>Customer</Th>
+            <Th>Due</Th>
+            <Th align="right">Days overdue</Th>
+            <Th align="right">Balance</Th>
+            <Th>Next rule</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableSkeleton rows={5} cols={8} />
+          ) : invoices.length === 0 ? (
+            <tr>
+              <td colSpan={8}>
+                <EmptyState
+                  icon={<Bell size={18} />}
+                  title="No overdue invoices"
+                  description="All customer invoices are within their payment terms."
+                />
+              </td>
+            </tr>
+          ) : invoices.map((inv: OverdueInvoice) => {
+            const days = daysOverdueOf(inv.dueDate);
+            const rule = nextRuleFor(days);
+            return (
+              <TableRow key={inv.id}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(inv.id)}
+                    onChange={() => toggleOne(inv.id)}
+                    aria-label={`Select ${inv.invoiceNumber}`}
+                  />
+                </TableCell>
+                <TableCell>
+                  <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                    {inv.invoiceNumber}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium" style={{ color: 'var(--text-1)' }}>
+                    {inv.customerName ?? `${inv.customerId.slice(0, 8)}…`}
+                  </div>
+                </TableCell>
+                <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(inv.dueDate)}</TableCell>
+                <TableCell align="right" numeric>
+                  <span className="font-semibold" style={{ color: days >= 30 ? 'var(--neg)' : 'var(--warn)' }}>
+                    {days}d
+                  </span>
+                </TableCell>
+                <TableCell align="right" numeric className="font-semibold">{formatINR(inv.balanceDue)}</TableCell>
+                <TableCell>
+                  {rule ? (
+                    <span className="text-[11.5px]" style={{ color: 'var(--text-2)' }}>{rule.name}</span>
+                  ) : (
+                    <span className="text-[11.5px]" style={{ color: 'var(--text-3)' }}>—</span>
+                  )}
+                </TableCell>
+                <TableCell align="right">
+                  <Button
+                    size="sm"
+                    icon={<Send size={12} />}
+                    onClick={() => handleSend([inv.id])}
+                    loading={sendMutation.isPending}
+                  >
+                    Send now
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-// ─── Rules Tab ────────────────────────────────────────────────────────────────
-
-function RuleRow({ rule }: { rule: DunningRule }) {
-  return (
-    <TableRow>
-      <TableCell className="font-medium text-zinc-900 dark:text-zinc-100">{rule.name}</TableCell>
-      <TableCell align="right" numeric>{rule.daysAfterDue}d</TableCell>
-      <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">{rule.channel}</TableCell>
-      <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">
-        {(rule.action ?? 'send_reminder').replace(/_/g, ' ')}
-      </TableCell>
-      <TableCell className="max-w-[240px] truncate text-xs text-zinc-500 dark:text-zinc-400">
-        {rule.bodyTemplate}
-      </TableCell>
-      <TableCell>
-        <Badge variant={rule.isActive ? 'success' : 'outline'}>
-          {rule.isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      </TableCell>
-    </TableRow>
-  );
-}
+// ─── Rules tab ──────────────────────────────────────────────────────────────
 
 function RulesTab() {
   const { data, isLoading } = useDunningRules();
@@ -333,48 +317,24 @@ function RulesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : 'New Rule'}
+        <Button size="sm" icon={<Plus size={13} />} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Cancel' : 'New rule'}
         </Button>
       </div>
 
       {showForm && (
         <Card>
-          <CardHeader title="Create Dunning Rule" />
+          <CardHeader title="Create dunning rule" />
           <form onSubmit={handleCreate}>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Rule Name"
-                  required
-                  placeholder="e.g. 7-day reminder"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <Input
-                  label="Days After Due"
-                  required
-                  type="number"
-                  min={1}
-                  placeholder="7"
-                  value={daysAfterDue}
-                  onChange={(e) => setDaysAfterDue(e.target.value)}
-                />
-                <Select
-                  label="Channel"
-                  options={CHANNEL_OPTIONS}
-                  value={channel}
-                  onChange={(e) => setChannel(e.target.value as DunningChannel)}
-                />
-                <Select
-                  label="Action"
-                  options={ACTION_OPTIONS}
-                  value={action}
-                  onChange={(e) => setAction(e.target.value as DunningAction)}
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <UIInput label="Rule name" required placeholder="e.g. 7-day reminder" value={name} onChange={(e) => setName(e.target.value)} />
+                <UIInput label="Days after due" required type="number" min={1} placeholder="7" value={daysAfterDue} onChange={(e) => setDaysAfterDue(e.target.value)} />
+                <Select label="Channel" options={CHANNEL_OPTIONS} value={channel} onChange={(e) => setChannel(e.target.value as DunningChannel)} />
+                <Select label="Action" options={ACTION_OPTIONS} value={action} onChange={(e) => setAction(e.target.value as DunningAction)} />
                 <div className="col-span-2">
                   <Textarea
-                    label="Body Template"
+                    label="Body template"
                     required
                     placeholder="Dear {{customer_name}}, your invoice {{invoice_number}} is overdue…"
                     value={bodyTemplate}
@@ -384,215 +344,144 @@ function RulesTab() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-end">
-              <Button type="submit" loading={createMutation.isPending}>
-                Save Rule
-              </Button>
+              <UIButton type="submit" loading={createMutation.isPending}>Save rule</UIButton>
             </CardFooter>
           </form>
         </Card>
       )}
 
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : rules.length === 0
-            ? <EmptyState icon={BookOpen} title="No dunning rules" description="Create rules to automate payment reminders for overdue invoices." />
-            : rules.map((rule) => <RuleCard key={rule.id} rule={rule} />)
-        }
-      </div>
-
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>Name</Th>
-              <Th align="right">Days After Due</Th>
-              <Th>Channel</Th>
-              <Th>Action</Th>
-              <Th>Template Preview</Th>
-              <Th>Status</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={4} cols={6} />
-            ) : rules.length === 0 ? (
-              <tr>
-                <td colSpan={6}>
-                  <EmptyState
-                    icon={BookOpen}
-                    title="No dunning rules"
-                    description="Create rules to automate payment reminders for overdue invoices."
-                  />
-                </td>
-              </tr>
-            ) : (
-              rules.map((rule) => <RuleRow key={rule.id} rule={rule} />)
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function RuleCard({ rule }: { rule: DunningRule }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-zinc-900 dark:text-zinc-100">{rule.name}</span>
-        <Badge variant={rule.isActive ? 'success' : 'outline'}>
-          {rule.isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-        <span className="capitalize">{rule.channel}</span>
-        <span>·</span>
-        <span className="capitalize">{(rule.action ?? 'send_reminder').replace(/_/g, ' ')}</span>
-        <span>·</span>
-        <span>{rule.daysAfterDue}d after due</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Log Tab ──────────────────────────────────────────────────────────────────
-
-function LogEntryCard({ entry }: { entry: any }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-zinc-900 dark:text-zinc-100">
-          {entry.invoiceNumber ?? entry.invoiceId.slice(0, 8)}
-        </span>
-        <Badge variant={LOG_STATUS_VARIANT[entry.status] ?? 'outline'} className="capitalize">
-          {entry.status}
-        </Badge>
-      </div>
-      <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{entry.customerName ?? '—'}</div>
-      <div className="mt-0.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-        <span className="capitalize">{entry.channel}</span>
-        <span>{new Date(entry.sentAt).toLocaleDateString()}</span>
-      </div>
-      {entry.customerEmail && (
-        <div className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{entry.customerEmail}</div>
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-xl border"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+            />
+          ))}
+        </div>
+      ) : rules.length === 0 ? (
+        <div className="rounded-xl border" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <EmptyState
+            icon={<BookOpen size={18} />}
+            title="No dunning rules"
+            description="Create rules to automate payment reminders for overdue invoices."
+          />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rules.map((r) => <RuleCard key={r.id} rule={r} />)}
+        </div>
       )}
     </div>
   );
 }
 
-function LogTab() {
-  const { data, isLoading } = useDunningLog();
-  const entries = data?.data ?? [];
-
+function RuleCard({ rule }: { rule: DunningRule }) {
+  const ChannelIcon = rule.channel === 'whatsapp' ? MessageCircle : Mail;
+  const level = rule.escalationLevel ?? 1;
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : entries.length === 0
-            ? <EmptyState icon={History} title="No reminders sent yet" description="Sent reminders will appear here." />
-            : entries.map((entry: any) => <LogEntryCard key={entry.id} entry={entry} />)
-        }
-      </div>
-
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <tr>
-              <Th>Invoice #</Th>
-              <Th>Customer</Th>
-              <Th>Channel</Th>
-              <Th>Sent At</Th>
-              <Th>Status</Th>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={6} cols={5} />
-            ) : entries.length === 0 ? (
-              <tr>
-                <td colSpan={5}>
-                  <EmptyState
-                    icon={History}
-                    title="No reminders sent yet"
-                    description="Sent reminders will appear here."
-                  />
-                </td>
-              </tr>
-            ) : (
-              entries.map((entry: any) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="font-medium">{entry.invoiceNumber ?? entry.invoiceId.slice(0, 8)}</TableCell>
-                  <TableCell>
-                    <div>{entry.customerName ?? '—'}</div>
-                    {entry.customerEmail && (
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">{entry.customerEmail}</div>
-                    )}
-                  </TableCell>
-                  <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">{entry.channel}</TableCell>
-                  <TableCell className="text-zinc-600 dark:text-zinc-400">
-                    {new Date(entry.sentAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={LOG_STATUS_VARIANT[entry.status] ?? 'outline'} className="capitalize">
-                      {entry.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+    <div
+      className="rounded-xl border p-4"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+    >
+      <div className="flex items-start gap-4">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+        >
+          <ChannelIcon size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[14px] font-semibold" style={{ color: 'var(--text-1)' }}>{rule.name}</span>
+            <Badge variant={level === 3 ? 'danger' : level === 2 ? 'warning' : 'info'}>
+              Level {level}
+            </Badge>
+            <Badge variant="default">{rule.channel}</Badge>
+            {!rule.isActive && <Badge variant="outline">Disabled</Badge>}
+          </div>
+          <div className="mt-1.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
+            Triggers <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{rule.daysAfterDue}</span>
+            {' '}day{rule.daysAfterDue > 1 ? 's' : ''} after due date · Action:{' '}
+            <span style={{ color: 'var(--text-1)' }}>
+              {(rule.action ?? 'send_reminder').replace(/_/g, ' ')}
+            </span>
+          </div>
+          <div
+            className="mt-2.5 rounded-md border px-3 py-2 text-[11.5px] leading-relaxed"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}
+          >
+            {rule.bodyTemplate}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Toggle on={rule.isActive} />
+          <Button size="sm" variant="outline" icon={<Pencil size={12} />}>Edit</Button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Log tab ────────────────────────────────────────────────────────────────
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overdue', label: 'Overdue Invoices' },
-  { id: 'rules', label: 'Rules' },
-  { id: 'log', label: 'Log' },
-];
-
-export function DunningPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('overdue');
+function LogTab() {
+  const { data, isLoading } = useDunningLog();
+  const entries = (data?.data ?? []) as any[];
 
   return (
-    <div>
-      <PageHeader
-        title="Dunning"
-        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Dunning' }]}
-      />
-
-      <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-        <nav className="flex gap-1">
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={[
-                'border-b-2 -mb-px px-4 py-2 text-sm font-medium transition-colors',
-                activeTab === id
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {activeTab === 'overdue' && <OverdueTab />}
-      {activeTab === 'rules' && <RulesTab />}
-      {activeTab === 'log' && <LogTab />}
-    </div>
+    <Table>
+      <TableHeader>
+        <tr>
+          <Th>Sent at</Th>
+          <Th>Invoice</Th>
+          <Th>Customer</Th>
+          <Th>Channel</Th>
+          <Th>Recipient</Th>
+          <Th>Status</Th>
+        </tr>
+      </TableHeader>
+      <TableBody>
+        {isLoading ? (
+          <TableSkeleton rows={6} cols={6} />
+        ) : entries.length === 0 ? (
+          <tr>
+            <td colSpan={6}>
+              <EmptyState
+                icon={<History size={18} />}
+                title="No reminders sent yet"
+                description="Sent reminders will appear here."
+              />
+            </td>
+          </tr>
+        ) : entries.map((e: any) => {
+          const ChannelIcon = e.channel === 'whatsapp' ? MessageCircle : Mail;
+          return (
+            <TableRow key={e.id}>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>
+                {e.sentAt.slice(0, 10)} <span style={{ color: 'var(--text-3)' }}>{e.sentAt.slice(11, 16)}</span>
+              </TableCell>
+              <TableCell>
+                <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                  {e.invoiceNumber ?? `${e.invoiceId.slice(0, 8)}…`}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="font-medium" style={{ color: 'var(--text-1)' }}>{e.customerName ?? '—'}</span>
+              </TableCell>
+              <TableCell>
+                <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: 'var(--text-2)' }}>
+                  <ChannelIcon size={11} style={{ color: 'var(--text-3)' }} />
+                  <span className="capitalize">{e.channel}</span>
+                </span>
+              </TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{e.customerEmail ?? '—'}</TableCell>
+              <TableCell><StatusBadge status={e.status} /></TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

@@ -15,7 +15,6 @@ import { useToast } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import type { BankTransaction, AutoReconciliationResult, Account } from '@runq/types';
 import {
-  PageHeader,
   Badge,
   Button,
   Select,
@@ -34,6 +33,7 @@ import {
   Pagination,
   Combobox,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ar/primitives';
 import { GitCompare, Receipt, Unlink, Search } from 'lucide-react';
 
 interface AutoResult {

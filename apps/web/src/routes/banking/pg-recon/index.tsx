@@ -3,27 +3,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { CreditCard, Upload } from 'lucide-react';
 import { usePGSettlements } from '@/hooks/queries/use-pg-recon';
 import type { PGGateway, PGSettlement, PGSettlementsFilters } from '@/hooks/queries/use-pg-recon';
-import { formatINR } from '@/lib/utils';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import {
-  PageHeader,
-  Badge,
-  Button,
-  Select,
-  DateInput,
-  Card,
-  CardContent,
-  Table,
-  TableHeader,
-  Th,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableSkeleton,
-  EmptyState,
-  Pagination,
-} from '@/components/ui';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+  PageHeader, Button, Badge, Select, StatTile,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  Pagination, EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { DateInput, TableSkeleton } from '@/components/ui';
 
 function gatewayBadge(gateway: PGGateway) {
   const map: Record<PGGateway, { variant: 'primary' | 'info' | 'warning'; label: string }> = {
@@ -31,65 +17,24 @@ function gatewayBadge(gateway: PGGateway) {
     phonepe: { variant: 'info', label: 'PhonePe' },
     paytm: { variant: 'warning', label: 'Paytm' },
   };
-  const { variant, label } = map[gateway] ?? { variant: 'default' as const, label: gateway };
-  return <Badge variant={variant}>{label}</Badge>;
+  const cfg = map[gateway] ?? { variant: 'default' as const, label: gateway };
+  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
 }
 
-function settlementStatus(settlement: PGSettlement) {
-  const { matchedLines, totalLines } = settlement;
-  if (totalLines === 0 || matchedLines === 0) {
-    return <Badge variant="default">Pending</Badge>;
-  }
-  if (matchedLines >= totalLines) {
-    return <Badge variant="success">Reconciled</Badge>;
-  }
+function settlementStatus(s: PGSettlement) {
+  if (s.totalLines === 0 || s.matchedLines === 0) return <Badge variant="default">Pending</Badge>;
+  if (s.matchedLines >= s.totalLines) return <Badge variant="success">Reconciled</Badge>;
   return <Badge variant="warning">Partial</Badge>;
 }
 
 const GATEWAY_OPTIONS = [
-  { value: 'all', label: 'All Gateways' },
+  { value: 'all', label: 'All gateways' },
   { value: 'razorpay', label: 'Razorpay' },
   { value: 'phonepe', label: 'PhonePe' },
   { value: 'paytm', label: 'Paytm' },
 ];
 
 const PAGE_SIZE = 20;
-
-const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
-
-function SettlementCard({ s, onClick }: { s: PGSettlement; onClick: () => void }) {
-  return (
-    <div className={CARD_BASE} onClick={onClick}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-            {s.id.length > 20 ? `${s.id.slice(0, 20)}…` : s.id}
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            {gatewayBadge(s.gateway)}
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">{s.date}</span>
-          </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {formatINR(s.net)}
-          </p>
-          <p className="mt-0.5 text-xs text-red-500 dark:text-red-400">
-            -{formatINR(s.fees)} fees
-          </p>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        {settlementStatus(s)}
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          {s.matchedLines}/{s.totalLines} lines
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function PGReconciliationPage() {
   const navigate = useNavigate();
@@ -105,166 +50,104 @@ export function PGReconciliationPage() {
   const total = data?.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  function handleGatewayChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setGateway(e.target.value as PGGateway | 'all');
-    setPage(1);
-  }
+  const grossTotal = settlements.reduce((a, s) => a + s.gross, 0);
+  const feesTotal = settlements.reduce((a, s) => a + s.fees, 0);
+  const netTotal = settlements.reduce((a, s) => a + s.net, 0);
+  const reconciledCount = settlements.filter((s) => s.totalLines > 0 && s.matchedLines >= s.totalLines).length;
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader
-        breadcrumbs={[{ label: 'Banking', href: '/banking' }, { label: 'PG Reconciliation' }]}
-        title="PG Reconciliation"
-        description="Reconcile payment gateway settlements against your books."
+        breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'PG reconciliation' }]}
+        title="PG reconciliation"
+        description="Reconcile payment gateway settlements (Razorpay, PhonePe, Paytm) against your books."
         actions={
-          <Button onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
-            <Upload size={16} />
-            Import Settlement
+          <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
+            Import settlement
           </Button>
         }
       />
 
-      {/* Filter row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="sm:w-44">
-          <Select
-            label="Gateway"
-            options={GATEWAY_OPTIONS}
-            value={gateway}
-            onChange={handleGatewayChange}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:contents">
-          <div className="sm:w-40">
-            <DateInput
-              label="From"
-              value={from}
-              onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-            />
-          </div>
-          <div className="sm:w-40">
-            <DateInput
-              label="To"
-              value={to}
-              onChange={(e) => { setTo(e.target.value); setPage(1); }}
-            />
-          </div>
-        </div>
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Settlements" value={total} sub={`${reconciledCount} reconciled in view`} />
+        <StatTile label="Gross" value={formatINRShort(grossTotal)} sub="In view" />
+        <StatTile label="Fees" value={formatINRShort(feesTotal)} sub="Gateway charges" tone="neg" />
+        <StatTile label="Net settled" value={formatINRShort(netTotal)} sub="To bank" tone="pos" />
       </div>
 
-      {/* Mobile card list */}
-      <div className="md:hidden">
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))}
-          </div>
-        ) : settlements.length === 0 ? (
-          <EmptyState
-            icon={CreditCard}
-            title="No settlements found"
-            description="Import a PG settlement file to get started."
-            action={
-              <Button size="sm" onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
-                <Upload size={14} />
-                Import Settlement
-              </Button>
-            }
-          />
-        ) : (
-          <div className="space-y-2">
-            {settlements.map((s) => (
-              <SettlementCard
-                key={s.id}
-                s={s}
-                onClick={() => navigate({ to: `/banking/pg-recon/${s.id}` })}
-              />
-            ))}
-          </div>
-        )}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Select
+          options={GATEWAY_OPTIONS}
+          value={gateway}
+          onChange={(e) => { setGateway(e.target.value as PGGateway | 'all'); setPage(1); }}
+        />
+        <div className="w-40">
+          <DateInput value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} placeholder="From" />
+        </div>
+        <div className="w-40">
+          <DateInput value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} placeholder="To" />
+        </div>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} settlements</span>
       </div>
 
-      {/* Desktop table */}
-      <Card className="hidden md:block">
-        <CardContent className="p-0">
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Settlement ID</Th>
+            <Th>Gateway</Th>
+            <Th>Date</Th>
+            <Th align="right">Gross</Th>
+            <Th align="right">Fees</Th>
+            <Th align="right">Net</Th>
+            <Th align="right">Lines</Th>
+            <Th>Status</Th>
+          </tr>
+        </TableHeader>
+        <TableBody>
           {isLoading ? (
-            <div className="p-4">
-              <TableSkeleton rows={6} cols={8} />
-            </div>
+            <TableSkeleton rows={6} cols={8} />
           ) : settlements.length === 0 ? (
-            <EmptyState
-              icon={CreditCard}
-              title="No settlements found"
-              description="Import a PG settlement file to get started."
-              action={
-                <Button size="sm" onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
-                  <Upload size={14} />
-                  Import Settlement
-                </Button>
-              }
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <Th>Settlement ID</Th>
-                    <Th>Gateway</Th>
-                    <Th>Date</Th>
-                    <Th align="right">Gross</Th>
-                    <Th align="right">Fees</Th>
-                    <Th align="right">Net</Th>
-                    <Th align="right">Lines</Th>
-                    <Th>Status</Th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {settlements.map((s) => (
-                    <TableRow
-                      key={s.id}
-                      className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                      onClick={() => navigate({ to: `/banking/pg-recon/${s.id}` })}
-                    >
-                      <TableCell className="font-mono text-xs text-zinc-500">
-                        {s.id.length > 16 ? `${s.id.slice(0, 16)}…` : s.id}
-                      </TableCell>
-                      <TableCell>{gatewayBadge(s.gateway)}</TableCell>
-                      <TableCell className="text-xs text-zinc-500">{s.date}</TableCell>
-                      <TableCell align="right" numeric>
-                        <span className="tabular-nums">{formatINR(s.gross)}</span>
-                      </TableCell>
-                      <TableCell align="right" numeric>
-                        <span className="tabular-nums text-red-600 dark:text-red-400">
-                          {formatINR(s.fees)}
-                        </span>
-                      </TableCell>
-                      <TableCell align="right" numeric>
-                        <span className="font-medium tabular-nums">{formatINR(s.net)}</span>
-                      </TableCell>
-                      <TableCell align="right" numeric>
-                        <span className="text-xs tabular-nums text-zinc-500">
-                          {s.matchedLines}/{s.totalLines}
-                        </span>
-                      </TableCell>
-                      <TableCell>{settlementStatus(s)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <tr>
+              <td colSpan={8}>
+                <EmptyState
+                  icon={<CreditCard size={18} />}
+                  title="No settlements found"
+                  description="Import a PG settlement file to get started."
+                  action={(
+                    <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
+                      Import settlement
+                    </Button>
+                  )}
+                />
+              </td>
+            </tr>
+          ) : settlements.map((s) => (
+            <TableRow
+              key={s.id}
+              onClick={() => navigate({ to: `/banking/pg-recon/${s.id}` as never })}
+            >
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>
+                {s.id.length > 16 ? `${s.id.slice(0, 16)}…` : s.id}
+              </TableCell>
+              <TableCell>{gatewayBadge(s.gateway)}</TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(s.date)}</TableCell>
+              <TableCell align="right" numeric>{formatINR(s.gross)}</TableCell>
+              <TableCell align="right" numeric><span style={{ color: 'var(--neg)' }}>{formatINR(s.fees)}</span></TableCell>
+              <TableCell align="right" numeric className="font-semibold">{formatINR(s.net)}</TableCell>
+              <TableCell align="right" numeric style={{ color: 'var(--text-3)' }}>
+                {s.matchedLines}/{s.totalLines}
+              </TableCell>
+              <TableCell>{settlementStatus(s)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          limit={PAGE_SIZE}
-          onPageChange={setPage}
-        />
+        <div className="mt-3">
+          <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_SIZE} onPageChange={setPage} />
+        </div>
       )}
     </div>
   );

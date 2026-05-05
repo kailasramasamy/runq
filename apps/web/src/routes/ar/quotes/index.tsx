@@ -1,11 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, X, Download, FileText, ArrowRight } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
-  Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, Combobox, DateInput,
-  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
+  Button, Badge, Input, Select, Textarea, Combobox, DateInput,
   TableSkeleton, useToast,
 } from '@/components/ui';
+import {
+  PageHeader, Button as ArButton, StatTile, StatusBadge,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { formatINRShort } from '@/lib/utils';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
 import { formatINR } from '@/lib/utils';
 import { useCustomers } from '@/hooks/queries/use-customers';
@@ -365,33 +370,35 @@ function QuoteCard({ q, onClick }: { q: Quote; onClick: () => void }) {
   );
 }
 
-// ─── Quotes Page ─────────────────────────────────────────────────────────────
+// ─── Quotes section (used by /ar/quotes and the combined Quotes & Orders page) ─
 
-export function QuotesPage() {
+export function useQuotesKpis() {
+  const { data } = useQuotes();
+  const quotes = data?.data ?? [];
+  const openCount = quotes.filter((q) => ['draft', 'sent'].includes(q.status)).length;
+  const openTotal = quotes.filter((q) => ['draft', 'sent'].includes(q.status)).reduce((a, q) => a + q.totalAmount, 0);
+  const acceptedCount = quotes.filter((q) => q.status === 'accepted').length;
+  const convertedCount = quotes.filter((q) => q.status === 'converted').length;
+  const winRate = quotes.length > 0
+    ? Math.round(((acceptedCount + convertedCount) / quotes.length) * 100)
+    : 0;
+  return { quotes, openCount, openTotal, acceptedCount, convertedCount, winRate };
+}
+
+export function QuotesSection({
+  showCreate, setShowCreate,
+}: {
+  showCreate: boolean;
+  setShowCreate: (v: boolean) => void;
+}) {
   const { data, isLoading } = useQuotes();
-  const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
   const quotes = data?.data ?? [];
   const { data: selectedDetail } = useQuote(selectedId);
   const selected = selectedDetail?.data ?? null;
 
   return (
-    <div>
-      <PageHeader
-        title="Sales Quotes"
-        breadcrumbs={[{ label: 'AR' }, { label: 'Quotes' }]}
-        description="Create and manage sales quotations for customers."
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('quotes.csv', ['Quote#', 'Date', 'Customer', 'Amount', 'Status', 'Expiry'], quotes.map(q => [q.quoteNumber, q.quoteDate, q.customerName, String(q.totalAmount), q.status, q.expiryDate ?? '']))}>
-              <Download size={14} /> Export CSV
-            </Button>
-            <Button size="sm" onClick={() => setShowCreate((v) => !v)}><Plus size={14} /> New Quote</Button>
-          </div>
-        }
-      />
-
+    <>
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
 
       <Modal
@@ -402,58 +409,92 @@ export function QuotesPage() {
         {selected && <DetailView quote={selected} onClose={() => setSelectedId(null)} />}
       </Modal>
 
-      {/* Mobile */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : quotes.length === 0
-            ? <p className="py-8 text-center text-sm text-zinc-500">No quotes yet.</p>
-            : quotes.map((q) => <QuoteCard key={q.id} q={q} onClick={() => setSelectedId(q.id)} />)
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Quote #</Th>
+            <Th>Customer</Th>
+            <Th>Issued</Th>
+            <Th>Valid till</Th>
+            <Th align="right">Total</Th>
+            <Th>Status</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableSkeleton rows={5} cols={7} />
+          ) : quotes.length === 0 ? (
+            <tr>
+              <td colSpan={7}>
+                <EmptyState
+                  icon={<FileText size={18} />}
+                  title="No quotes yet"
+                  description="Create your first sales quote to track customer enquiries."
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>New quote</ArButton>}
+                />
+              </td>
+            </tr>
+          ) : quotes.map((q) => (
+            <TableRow key={q.id} onClick={() => setSelectedId(q.id)}>
+              <TableCell>
+                <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>{q.quoteNumber}</span>
+              </TableCell>
+              <TableCell>
+                <span className="font-medium" style={{ color: 'var(--text-1)' }}>{q.customerName}</span>
+              </TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(q.quoteDate)}</TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>
+                {q.expiryDate ? formatDate(q.expiryDate) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell align="right" numeric className="font-semibold">{formatINR(q.totalAmount)}</TableCell>
+              <TableCell><StatusBadge status={q.status} /></TableCell>
+              <TableCell align="right">
+                {q.status === 'accepted' && (
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <ArButton size="sm" variant="outline" icon={<ArrowRight size={12} />} onClick={() => setSelectedId(q.id)}>
+                      Convert
+                    </ArButton>
+                  </span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  );
+}
+
+// Stand-alone Quotes page (when accessed via /ar/quotes directly)
+export function QuotesPage() {
+  const { quotes, openCount, openTotal, acceptedCount, convertedCount, winRate } = useQuotesKpis();
+  const [showCreate, setShowCreate] = useState(false);
+
+  return (
+    <div>
+      <PageHeader
+        title="Sales quotes"
+        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Quotes' }]}
+        description="Pre-invoice documents — track what's quoted, accepted, and converted."
+        actions={
+          <>
+            <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('quotes.csv', ['Quote#', 'Date', 'Customer', 'Amount', 'Status', 'Expiry'], quotes.map(q => [q.quoteNumber, q.quoteDate, q.customerName, String(q.totalAmount), q.status, q.expiryDate ?? '']))}>
+              Export
+            </ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate((v) => !v)}>New quote</ArButton>
+          </>
         }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Open quotes" value={openCount} sub={formatINRShort(openTotal)} />
+        <StatTile label="Accepted" value={acceptedCount} sub="Ready to convert" tone="pos" />
+        <StatTile label="Converted" value={convertedCount} sub="Became invoice / order" />
+        <StatTile label="Win rate" value={`${winRate}%`} sub="Of quotes accepted" tone={winRate >= 50 ? 'pos' : 'neutral'} />
       </div>
 
-      {/* Desktop */}
-      <div className="hidden md:block">
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <tr><Th>Quote#</Th><Th>Date</Th><Th>Customer</Th><Th align="right">Amount</Th><Th>Status</Th><Th>Expiry</Th><Th align="right">Actions</Th></tr>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableSkeleton rows={5} cols={7} />
-                ) : quotes.length === 0 ? (
-                  <TableEmpty colSpan={7} message="No quotes yet." />
-                ) : (
-                  quotes.map((q) => {
-                    const si = STATUS_BADGE[q.status];
-                    return (
-                      <TableRow key={q.id} className="cursor-pointer" onClick={() => setSelectedId(q.id)}>
-                        <TableCell className="font-mono text-xs">{q.quoteNumber}</TableCell>
-                        <TableCell className="text-zinc-500">{q.quoteDate}</TableCell>
-                        <TableCell className="font-medium">{q.customerName}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(q.totalAmount)}</TableCell>
-                        <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
-                        <TableCell className="text-zinc-500">{q.expiryDate ?? '-'}</TableCell>
-                        <TableCell align="right">
-                          {q.status === 'accepted' && (
-                            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                              <Badge variant="success">Ready to convert</Badge>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+      <QuotesSection showCreate={showCreate} setShowCreate={setShowCreate} />
     </div>
   );
 }

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import XLSX from 'xlsx-js-style';
-import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp, ChevronDown, FileSpreadsheet, FileText, Package } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
-  Card, CardContent, PageHeader, Button, Badge, Input,
-  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
-  TableSkeleton, useToast, ConfirmationDialog, Pagination,
+  TableSkeleton, useToast, ConfirmationDialog,
 } from '@/components/ui';
-import { formatINR } from '@/lib/utils';
+import {
+  PageHeader, Button, Badge, Input, StatTile,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  Pagination, EmptyState,
+} from '@/components/ar/primitives';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import type { Item } from '@/hooks/queries/use-items';
 import type { ItemAttributeField, PaginatedResponse } from '@runq/types';
@@ -128,49 +131,68 @@ export function ItemsPage() {
     }
   }
 
+  // KPI computation from current page
+  const activeCount = items.filter((i) => i.isActive).length;
+  const productCount = items.filter((i) => i.type === 'product').length;
+  const serviceCount = items.filter((i) => i.type === 'service').length;
+  const avgMargin = items.length > 0
+    ? Math.round(items.reduce((a, i) => a + (i.margin ?? 0), 0) / items.length)
+    : 0;
+
   return (
     <div>
       <PageHeader
-        title="Item Master"
-        breadcrumbs={[{ label: 'Masters' }, { label: 'Items' }]}
-        description="Manage products and services used across invoices and bills."
+        breadcrumbs={[{ label: 'Inventory', href: '/masters/items' }, { label: 'Items' }]}
+        title="Items"
+        description="Products and services used across invoices and bills."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             <div className="relative" ref={exportRef}>
-              <Button variant="outline" size="sm" onClick={() => setExportOpen((v) => !v)}>
-                <Download size={14} /> Export <ChevronDown size={12} />
+              <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={() => setExportOpen((v) => !v)}>
+                Export <ChevronDown size={12} />
               </Button>
               {exportOpen && (
-                <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                <div
+                  className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-md border py-1"
+                  style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.25)' }}
+                >
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-1)' }}
                     onClick={async () => { setExportOpen(false); const all = await fetchAllItems(); exportItemsCsv(all, schema); }}
                   >
-                    <FileText size={14} /> Export CSV
+                    <FileText size={13} /> Export CSV
                   </button>
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-1)' }}
                     onClick={async () => { setExportOpen(false); const all = await fetchAllItems(); exportItemsForCustomer(all); }}
                   >
-                    <FileSpreadsheet size={14} /> Export for Customer
+                    <FileSpreadsheet size={13} /> Export for customer
                   </button>
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/profitability' })}>
-              <TrendingUp size={14} /> Profitability
+            <Button variant="outline" size="sm" icon={<TrendingUp size={13} />} onClick={() => navigate({ to: '/masters/items/profitability' })}>
+              Profitability
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items/import' })}>
-              <Sparkles size={14} /> Smart Import
+            <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => navigate({ to: '/masters/items/import' })}>
+              Smart import
             </Button>
-            <Button size="sm" onClick={() => navigate({ to: '/masters/items/new' })}>
-              <Plus size={14} /> New Item
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/masters/items/new' })}>
+              New item
             </Button>
-          </div>
+          </>
         }
       />
 
-      {/* Delete confirmation */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Total items" value={total} sub={`${activeCount} active in view`} />
+        <StatTile label="Products" value={productCount} sub="Stock-keeping units" />
+        <StatTile label="Services" value={serviceCount} sub="Non-stock items" />
+        <StatTile label="Avg. margin" value={`${avgMargin}%`} sub="Across listed items" tone={avgMargin > 0 ? 'pos' : 'neutral'} />
+      </div>
+
       <ConfirmationDialog
         open={!!deletingItem}
         onClose={() => setDeletingId(null)}
@@ -186,158 +208,137 @@ export function ItemsPage() {
         loading={remove.isPending}
       />
 
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative sm:w-80">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="w-72 max-w-full">
           <Input
+            icon={<Search size={13} />}
             placeholder="Search by name or SKU…"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="pl-9"
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
-          <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
         </div>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} items</span>
       </div>
 
-      {/* Mobile cards */}
-      {isLoading ? (
-        <div className="space-y-2 md:hidden">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-2 md:hidden">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => openEdit(item.id)}
-            >
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.name}</p>
-                  {item.sku && <p className="font-mono text-xs text-zinc-400">{item.sku}</p>}
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Badge variant={item.type === 'product' ? 'info' : 'primary'}>{item.type}</Badge>
-                  <Badge variant={statusVariant(item.isActive)}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <span>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '—'}</span>
-                {item.gstRate != null && <span>GST {item.gstRate}%</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Desktop table */}
-      <Card className="hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th className="w-[320px] min-w-[280px]">Name</Th>
-                <Th>EAN</Th>
-                <Th>HSN/SAC</Th>
-                <Th align="right">Landing Price</Th>
-                <Th align="right">MRP</Th>
-                <Th align="right">GST%</Th>
-                <Th align="right">Margin%</Th>
-                <Th>Category</Th>
-                <Th>Status</Th>
-                <Th align="right">Actions</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={10} />
-              ) : items.length === 0 ? (
-                <TableEmpty
-                  colSpan={10}
-                  message={search ? `No items match "${search}".` : "No items yet. Click 'New Item' to get started."}
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Name</Th>
+            <Th>EAN</Th>
+            <Th>HSN / SAC</Th>
+            <Th align="right">Selling price</Th>
+            <Th align="right">MRP</Th>
+            <Th align="right">GST</Th>
+            <Th align="right">Margin</Th>
+            <Th>Category</Th>
+            <Th>Status</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableSkeleton rows={6} cols={10} />
+          ) : items.length === 0 ? (
+            <tr>
+              <td colSpan={10}>
+                <EmptyState
+                  icon={<Package size={18} />}
+                  title={search ? `No items match "${search}"` : 'No items yet'}
+                  description={search ? 'Try a different search term.' : 'Add your first item to get started.'}
+                  action={!search && (
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/masters/items/new' })}>
+                      New item
+                    </Button>
+                  )}
                 />
-              ) : (
-                items.map((item) => (
-                  <TableRow key={item.id} className="cursor-pointer" onClick={() => openEdit(item.id)}>
-                    <TableCell>
-                      <div>
-                        <span className="font-medium">{item.name}</span>
-                        {item.unit && <Badge variant="outline" className="ml-1 align-middle">{item.unit}</Badge>}
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-                          {item.sku && <span className="font-mono">{item.sku}</span>}
-                          <Badge variant="default">{item.type}</Badge>
-                          {tableAttributeFields.map((f) => {
-                            const v = formatAttributeValue(item.attributes?.[f.key]);
-                            return v !== '-' ? <span key={f.key}>{v}</span> : null;
-                          })}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{item.ean ?? '-'}</TableCell>
-                    <TableCell className="text-zinc-500">{item.hsnSacCode ?? '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.mrp != null ? formatINR(item.mrp) : '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.gstRate != null ? `${item.gstRate}%` : '-'}</TableCell>
-                    <TableCell align="right" numeric>{item.margin != null ? `${item.margin}%` : '-'}</TableCell>
-                    <TableCell className="text-zinc-500">{item.category ?? '-'}{item.subcategory ? ` / ${item.subcategory}` : ''}</TableCell>
-                    <TableCell><Badge variant={statusVariant(item.isActive)}>{item.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
-                    <TableCell align="right">
-                      <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openAnalysis(item.id)}
-                          aria-label={`Analyse ${item.name}`}
-                          title="Cost & profit analysis"
-                        >
-                          <Calculator size={14} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate({ to: '/masters/items/new', search: { duplicateOf: item.id } })}
-                          aria-label={`Duplicate ${item.name}`}
-                          title="Duplicate to create a variant"
-                        >
-                          <Copy size={14} />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleToggle(item.id)} disabled={toggle.isPending}>
-                          <Power size={14} /> {item.isActive ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDeletingId(item.id)}
-                          aria-label={`Delete ${item.name}`}
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </td>
+            </tr>
+          ) : items.map((item) => (
+            <TableRow key={item.id} onClick={() => openEdit(item.id)}>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium" style={{ color: 'var(--text-1)' }}>{item.name}</span>
+                  {item.unit && <Badge variant="outline">{item.unit}</Badge>}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10.5px]" style={{ color: 'var(--text-3)' }}>
+                  {item.sku && <span className="num">{item.sku}</span>}
+                  <Badge variant="default">{item.type}</Badge>
+                  {tableAttributeFields.map((f) => {
+                    const v = formatAttributeValue(item.attributes?.[f.key]);
+                    return v !== '-' ? <span key={f.key}>{v}</span> : null;
+                  })}
+                </div>
+              </TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{item.ean ?? '—'}</TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{item.hsnSacCode ?? '—'}</TableCell>
+              <TableCell align="right" numeric>
+                {item.defaultSellingPrice != null ? formatINR(item.defaultSellingPrice) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell align="right" numeric style={{ color: 'var(--text-2)' }}>
+                {item.mrp != null ? formatINR(item.mrp) : '—'}
+              </TableCell>
+              <TableCell align="right" numeric style={{ color: 'var(--text-2)' }}>
+                {item.gstRate != null ? `${item.gstRate}%` : '—'}
+              </TableCell>
+              <TableCell align="right" numeric>
+                {item.margin != null ? (
+                  <span style={{ color: item.margin >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{item.margin}%</span>
+                ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                {item.category ? (
+                  <>{item.category}{item.subcategory && <span style={{ color: 'var(--text-3)' }}> / {item.subcategory}</span>}</>
+                ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell>
+                <Badge variant={item.isActive ? 'success' : 'outline'}>{item.isActive ? 'Active' : 'Inactive'}</Badge>
+              </TableCell>
+              <TableCell align="right">
+                <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => openAnalysis(item.id)}
+                    title="Cost & profit analysis"
+                  >
+                    <Calculator size={13} />
+                  </button>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => navigate({ to: '/masters/items/new', search: { duplicateOf: item.id } })}
+                    title="Duplicate"
+                  >
+                    <Copy size={13} />
+                  </button>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => handleToggle(item.id)}
+                    disabled={toggle.isPending}
+                    title={item.isActive ? 'Deactivate' : 'Activate'}
+                  >
+                    <Power size={13} />
+                  </button>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--neg-soft)]"
+                    style={{ color: 'var(--neg)' }}
+                    onClick={() => setDeletingId(item.id)}
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
-        <div className="mt-4">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={LIMIT}
-            onPageChange={setPage}
-          />
+        <div className="mt-3">
+          <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
     </div>

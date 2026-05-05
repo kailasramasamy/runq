@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users, Upload, Download } from 'lucide-react';
+import { Plus, Upload, Download, Building2, Search, ChevronRight, Trash2, MoreHorizontal } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useVendors, useDeleteVendor } from '@/hooks/queries/use-vendors';
-import type { Vendor } from '@runq/types';
 import {
-  PageHeader, Badge, Button, Input, Select,
+  PageHeader, Button, Badge, Input, Select, StatTile,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, Pagination, ConfirmationDialog,
-} from '@/components/ui';
+  Pagination, EmptyState, Avatar,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog } from '@/components/ui';
+
+const LIMIT = 10;
 
 const CATEGORY_OPTIONS = [
-  { value: '', label: 'All Categories' },
-  { value: 'raw_material', label: 'Raw Material' },
-  { value: 'service_provider', label: 'Service Provider' },
+  { value: '', label: 'All categories' },
+  { value: 'raw_material', label: 'Raw material' },
+  { value: 'service_provider', label: 'Service provider' },
   { value: 'logistics', label: 'Logistics' },
   { value: 'utilities', label: 'Utilities' },
   { value: 'equipment', label: 'Equipment' },
@@ -25,54 +27,6 @@ function formatCategory(cat: string | null): string {
   return cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const LIMIT = 20;
-
-function VendorRow({
-  vendor,
-  onView,
-  onDelete,
-}: {
-  vendor: Vendor;
-  onView: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <TableRow className="cursor-pointer" onClick={() => onView(vendor.id)}>
-      <TableCell className="font-medium">{vendor.name}</TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-        {vendor.gstin ?? '—'}
-      </TableCell>
-      <TableCell>{vendor.city ?? '—'}</TableCell>
-      <TableCell>{vendor.state ?? '—'}</TableCell>
-      <TableCell>{formatCategory(vendor.category)}</TableCell>
-      <TableCell>Net {vendor.paymentTermsDays}d</TableCell>
-      <TableCell>
-        <Badge variant={vendor.isActive ? 'success' : 'default'}>
-          {vendor.isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onView(vendor.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            aria-label="View vendor"
-          >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={() => onDelete(vendor.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-            aria-label="Delete vendor"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-}
-
 export function VendorListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -80,7 +34,12 @@ export function VendorListPage() {
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useVendors({ search: search || undefined, category: category || undefined, page, limit: LIMIT });
+  const { data, isLoading } = useVendors({
+    search: search || undefined,
+    category: category || undefined,
+    page,
+    limit: LIMIT,
+  });
   const deleteMutation = useDeleteVendor();
 
   const vendors = data?.data ?? [];
@@ -88,10 +47,13 @@ export function VendorListPage() {
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
 
+  const activeCount = vendors.filter((v) => v.isActive).length;
+  const withGstin = vendors.filter((v) => v.gstin).length;
+  const categoryCount = new Set(vendors.map((v) => v.category).filter(Boolean)).size;
+
   function handleView(id: string) {
     navigate({ to: '/ap/vendors/$vendorId', params: { vendorId: id } });
   }
-
   function handleDeleteConfirm() {
     if (!deleteId) return;
     deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) });
@@ -104,145 +66,160 @@ export function VendorListPage() {
         title="Vendors"
         description="Manage your supplier and vendor relationships."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('vendors.csv', ['Name', 'Email', 'Phone', 'GSTIN', 'Category', 'Payment Terms', 'Status'], vendors.map(v => [v.name, v.email ?? '', v.phone ?? '', v.gstin ?? '', formatCategory(v.category), `Net ${v.paymentTermsDays}d`, v.isActive ? 'Active' : 'Inactive']))}>
-              <Download size={14} /> Export CSV
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Download size={13} />}
+              onClick={() =>
+                downloadCSV(
+                  'vendors.csv',
+                  ['Name', 'Email', 'Phone', 'GSTIN', 'Category', 'Payment Terms', 'Status'],
+                  vendors.map((v) => [
+                    v.name, v.email ?? '', v.phone ?? '', v.gstin ?? '',
+                    formatCategory(v.category), `Net ${v.paymentTermsDays}d`,
+                    v.isActive ? 'Active' : 'Inactive',
+                  ]),
+                )
+              }
+            >
+              Export CSV
             </Button>
-            <Button variant="outline" onClick={() => navigate({ to: '/ap/vendors/import' })}>
-              <Upload size={16} />
-              Import Vendors
+            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/vendors/import' })}>
+              Import vendors
             </Button>
-            <Button onClick={() => navigate({ to: '/ap/vendors/new' })}>
-              <Plus size={16} />
-              New Vendor
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
+              New vendor
             </Button>
-          </div>
+          </>
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
-        <div className="relative col-span-2 sm:w-72">
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatTile label="Total vendors" value={total} sub={`${activeCount} active in view`} />
+        <StatTile label="With GSTIN" value={withGstin} sub="Tax-registered" />
+        <StatTile label="Categories" value={categoryCount} sub="In view" />
+        <StatTile label="Vendors shown" value={vendors.length} sub={`Page ${page} of ${totalPages}`} />
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="w-72 max-w-full">
           <Input
+            icon={<Search size={13} />}
             placeholder="Search vendors…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9"
-          />
-          <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
-        </div>
-        <div className="col-span-2 sm:w-48">
-          <Select
-            label=""
-            options={CATEGORY_OPTIONS}
-            value={category}
-            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
           />
         </div>
+        <Select
+          options={CATEGORY_OPTIONS}
+          value={category}
+          onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+        />
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {total} vendor{total === 1 ? '' : 's'}
+        </span>
       </div>
 
-      {/* Mobile cards */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))
-        ) : vendors.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={search ? 'No vendors match your search' : 'No vendors yet'}
-            description={search ? 'Try a different search term.' : 'Add your first vendor to get started.'}
-            action={
-              !search ? (
-                <Button size="sm" onClick={() => navigate({ to: '/ap/vendors/new' })}>
-                  <Plus size={14} /> New Vendor
-                </Button>
-              ) : undefined
-            }
-            helpHref={!search ? '/help/recipes/05-add-vendor' : undefined}
-          />
-        ) : (
-          vendors.map((v) => (
-            <div
-              key={v.id}
-              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => handleView(v.id)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-zinc-800 dark:text-zinc-200">{v.name}</span>
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleView(v.id)}
-                    className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    aria-label="View vendor"
-                  >
-                    <Eye size={15} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteId(v.id)}
-                    className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                    aria-label="Delete vendor"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{v.email ?? '—'}</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <Badge variant={v.isActive ? 'success' : 'default'}>{v.isActive ? 'Active' : 'Inactive'}</Badge>
-                {v.category && <Badge variant="outline">{formatCategory(v.category)}</Badge>}
-                <span>Net {v.paymentTermsDays}d</span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden md:block">
       <Table>
         <TableHeader>
           <tr>
             <Th>Name</Th>
-            <Th>GSTIN</Th>
-            <Th>City</Th>
-            <Th>State</Th>
             <Th>Category</Th>
+            <Th>Contact</Th>
+            <Th>Location</Th>
             <Th>Terms</Th>
             <Th>Status</Th>
-            <Th>Actions</Th>
+            <Th align="right" />
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={6} cols={8} />
+            Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <TableCell key={j}>
+                    <div className="h-3 w-full max-w-[140px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
           ) : vendors.length === 0 ? (
             <tr>
-              <td colSpan={8}>
+              <td colSpan={7}>
                 <EmptyState
-                  icon={Users}
+                  icon={<Building2 size={18} />}
                   title={search ? 'No vendors match your search' : 'No vendors yet'}
                   description={search ? 'Try a different search term.' : 'Add your first vendor to get started.'}
-                  action={
-                    !search ? (
-                      <Button size="sm" onClick={() => navigate({ to: '/ap/vendors/new' })}>
-                        <Plus size={14} /> New Vendor
-                      </Button>
-                    ) : undefined
-                  }
+                  action={!search && (
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
+                      New vendor
+                    </Button>
+                  )}
                 />
               </td>
             </tr>
-          ) : (
-            vendors.map((v) => (
-              <VendorRow key={v.id} vendor={v} onView={handleView} onDelete={setDeleteId} />
-            ))
-          )}
+          ) : vendors.map((v) => (
+            <TableRow key={v.id} onClick={() => handleView(v.id)}>
+              <TableCell>
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={v.name} size={28} />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{v.name}</div>
+                    {v.gstin && (
+                      <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{v.gstin}</div>
+                    )}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                {v.category ? (
+                  <Badge variant="default">{formatCategory(v.category)}</Badge>
+                ) : (
+                  <span style={{ color: 'var(--text-3)' }}>—</span>
+                )}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                {v.email && <div className="text-[12.5px]">{v.email}</div>}
+                {v.phone && <div className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{v.phone}</div>}
+                {!v.email && !v.phone && <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                {v.city && v.state ? `${v.city}, ${v.state}` : (v.city || v.state || <span style={{ color: 'var(--text-3)' }}>—</span>)}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>Net {v.paymentTermsDays}d</TableCell>
+              <TableCell>
+                <Badge variant={v.isActive ? 'success' : 'outline'}>{v.isActive ? 'Active' : 'Inactive'}</Badge>
+              </TableCell>
+              <TableCell align="right">
+                <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => setDeleteId(v.id)}
+                    aria-label="Delete vendor"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => handleView(v.id)}
+                    aria-label="View vendor"
+                  >
+                    <MoreHorizontal size={13} />
+                  </button>
+                  <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
-      </div>
 
       {totalPages > 1 && (
-        <div className="mt-4">
+        <div className="mt-3">
           <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
@@ -252,7 +229,7 @@ export function VendorListPage() {
         onClose={() => setDeleteId(null)}
         onConfirm={handleDeleteConfirm}
         title="Delete Vendor"
-        description="This vendor will be permanently deleted. Any linked invoices or payments will remain but the vendor record cannot be recovered."
+        description="This vendor will be permanently deleted. Any linked bills or payments will remain but the vendor record cannot be recovered."
         confirmLabel="Delete Vendor"
         loading={deleteMutation.isPending}
       />

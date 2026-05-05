@@ -7,7 +7,6 @@ import { useCreateVendor } from '../../../hooks/queries/use-vendors';
 import type { PaymentRunStatus, PaymentRunLineStatus, PaymentRunLine } from '@runq/types';
 import { formatINR } from '../../../lib/utils';
 import {
-  PageHeader,
   Badge,
   Card,
   CardContent,
@@ -20,10 +19,13 @@ import {
   TableCell,
   Th,
   TableSkeleton,
-  StatsCard,
   Input,
   useToast,
 } from '@/components/ui';
+import {
+  PageHeader, Button as ArButton, StatTile, StatusBadge,
+} from '@/components/ar/primitives';
+import { formatINRShort } from '@/lib/utils';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -64,11 +66,11 @@ interface SummaryProps {
 
 function RunSummary({ totalCount, totalAmount, approvedCount, approvedAmount }: SummaryProps) {
   return (
-    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-      <StatsCard title="Total Count" value={totalCount} formatValue={(v) => String(v)} />
-      <StatsCard title="Total Amount" value={totalAmount} />
-      <StatsCard title="Approved Count" value={approvedCount} formatValue={(v) => String(v)} />
-      <StatsCard title="Approved Amount" value={approvedAmount} />
+    <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StatTile label="Total lines" value={totalCount} sub="In this run" />
+      <StatTile label="Total amount" value={formatINRShort(totalAmount)} sub="To be paid" />
+      <StatTile label="Approved" value={approvedCount} sub={`of ${totalCount}`} tone={approvedCount > 0 ? 'pos' : 'neutral'} />
+      <StatTile label="Approved amount" value={formatINRShort(approvedAmount)} sub="Ready to execute" tone="pos" />
     </div>
   );
 }
@@ -360,20 +362,14 @@ export function PayRunDetailPage({ runId }: { runId: string }) {
         title={run?.runId ?? 'Loading…'}
         breadcrumbs={[
           { label: 'AP', href: '/ap' },
-          { label: 'Pay Runs', href: '/ap/pay-runs' },
+          { label: 'Pay runs', href: '/ap/pay-runs' },
           { label: run?.runId ?? '…' },
         ]}
+        titleBadge={run ? <StatusBadge status={run.status} /> : undefined}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft size={14} /> Back
-            </Button>
-            {run && (
-              <Badge variant={RUN_STATUS_VARIANT[run.status]}>
-                {RUN_STATUS_LABEL[run.status]}
-              </Badge>
-            )}
-          </div>
+          <ArButton variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>
+            Back
+          </ArButton>
         }
       />
 

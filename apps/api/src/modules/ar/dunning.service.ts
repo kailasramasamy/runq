@@ -6,6 +6,7 @@ import type { DunningRuleInput, SendRemindersInput, DunningLogFilter } from '@ru
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AgentFeedService } from '../dashboard/agent-feed.service';
 import { createEmailProvider } from '../../utils/email-provider';
 import { sendEmail } from '../../utils/email';
 import { overdueReminder, type OverdueInvoiceItem } from '../../utils/email-templates';
@@ -306,6 +307,20 @@ export class DunningService {
     // 'pending' until that integration lands; until then the dunning log
     // surfaces a clear "queued" state.
 
+    // Agent feed: record the manual reminder batch. Delivery completes
+    // asynchronously; we log the queued count here.
+    const totalDue = invoiceRows.reduce((s, r) => s + (parseFloat(r.balanceDue) || 0), 0);
+    void new AgentFeedService(this.db, this.tenantId).record({
+      kind: 'send_reminder',
+      severity: 'ok',
+      title: `Sent ${invoiceRows.length} payment reminder${invoiceRows.length === 1 ? '' : 's'}`,
+      detail: `${input.channel.toUpperCase()} · est. ₹${totalDue.toLocaleString('en-IN')} recoverable.`,
+      ctaLabel: 'View list',
+      ctaUrl: '/ar/dunning',
+      relatedEntityType: 'dunning_batch',
+      metadata: { channel: input.channel, count: invoiceRows.length, totalDue },
+    }).catch((err) => { console.error('[agent-feed] dunning event failed:', err); });
+
     return { logged: invoiceRows.length, queued: invoiceRows.length };
   }
 
@@ -525,6 +540,24 @@ export class DunningService {
         .set({ status: newStatus })
         .where(eq(dunningLog.id, row.id));
       if (success) sent++; else failed++;
+    }
+
+    // Agent feed: record the auto-dunning batch outcome. Skip silent runs
+    // (where nothing actually went out) so the feed isn't full of noise.
+    if (sent > 0 || failed > 0) {
+      const severity = failed === 0 ? 'ok' : sent === 0 ? 'warn' : 'info';
+      void new AgentFeedService(this.db, this.tenantId).record({
+        kind: 'send_reminder',
+        severity,
+        title: `Auto-dunning: ${sent} reminder${sent === 1 ? '' : 's'} sent`,
+        detail: failed > 0
+          ? `${failed} delivery failure${failed === 1 ? '' : 's'} · ${overdueInvoices.length - toInsert.length} skipped (already escalated).`
+          : `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? '' : 's'} processed.`,
+        ctaLabel: 'View log',
+        ctaUrl: '/ar/dunning',
+        relatedEntityType: 'dunning_batch',
+        metadata: { sent, failed, overdueCount: overdueInvoices.length, dryRun: isDryRun },
+      }).catch((err) => { console.error('[agent-feed] auto-dunning event failed:', err); });
     }
 
     return { sent, failed, skipped: overdueInvoices.length - toInsert.length };

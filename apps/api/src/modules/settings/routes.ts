@@ -35,6 +35,37 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Active FY for the dashboard FY switcher. Stored on tenants.current_fy
+  // as a 4-char code (e.g. '2526'). Null means "use today's date" — the
+  // FE derives the active FY in that case.
+  app.get(
+    '/current-fy',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const rows = await request.server.db
+        .select({ currentFy: tenants.currentFy })
+        .from(tenants)
+        .where(eq(tenants.id, request.tenantId))
+        .limit(1);
+      return { data: { currentFy: rows[0]?.currentFy ?? null } };
+    },
+  );
+
+  app.put(
+    '/current-fy',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const body = z
+        .object({ currentFy: z.string().regex(/^\d{4}$/).nullable() })
+        .parse(request.body);
+      await request.server.db
+        .update(tenants)
+        .set({ currentFy: body.currentFy, updatedAt: new Date() })
+        .where(eq(tenants.id, request.tenantId));
+      return { data: { currentFy: body.currentFy } };
+    },
+  );
+
   app.get(
     '/invoice-numbering',
     { preHandler: [rbacHook([...ALL_ROLES])] },

@@ -1,134 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Search, Eye, Trash2, Users, Upload, Download } from 'lucide-react';
+import { Plus, Upload, Download, Users, Search, ChevronRight, Trash2, MoreHorizontal } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useCustomers, useDeleteCustomer } from '@/hooks/queries/use-customers';
-import { formatINR } from '@/lib/utils';
-import type { CustomerWithOutstanding } from '@runq/types';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import {
-  PageHeader, Badge, Button, Input, Select,
+  PageHeader, Button, Badge, Input, Select, StatTile,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  TableSkeleton, EmptyState, Pagination, ConfirmationDialog,
-} from '@/components/ui';
+  Pagination, EmptyState, Avatar,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog } from '@/components/ui';
 
-const LIMIT = 20;
+const LIMIT = 10;
 
 const TYPE_FILTER_OPTIONS = [
-  { value: '', label: 'All Types' },
+  { value: '', label: 'All types' },
   { value: 'b2b', label: 'B2B' },
   { value: 'b2c', label: 'B2C' },
-  { value: 'payment_gateway', label: 'Payment Gateway' },
+  { value: 'payment_gateway', label: 'Payment gateway' },
 ];
-
-function CustomerCard({
-  customer,
-  onView,
-  onDelete,
-}: {
-  customer: CustomerWithOutstanding;
-  onView: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <div
-      className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-      onClick={() => onView(customer.id)}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{customer.name}</p>
-            {customer.nickname && <Badge variant="info">{customer.nickname}</Badge>}
-          </div>
-          {customer.email && (
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{customer.email}</p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onView(customer.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            aria-label="View customer"
-          >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={() => onDelete(customer.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-            aria-label="Delete customer"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-        <Badge variant={customer.type === 'b2b' ? 'info' : 'primary'}>
-          {customer.type === 'b2b' ? 'B2B' : 'PG'}
-        </Badge>
-        <Badge variant={customer.isActive ? 'success' : 'default'}>
-          {customer.isActive ? 'Active' : 'Inactive'}
-        </Badge>
-        <span className="text-zinc-500 dark:text-zinc-400">Net {customer.paymentTermsDays}d</span>
-        <span className="ml-auto font-mono font-medium text-zinc-900 dark:text-zinc-100">
-          {formatINR(customer.outstandingAmount)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function CustomerRow({
-  customer,
-  onView,
-  onDelete,
-}: {
-  customer: CustomerWithOutstanding;
-  onView: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <TableRow className="cursor-pointer" onClick={() => onView(customer.id)}>
-      <TableCell className="font-medium">{customer.name}</TableCell>
-      <TableCell>
-        {customer.nickname && <Badge variant="info">{customer.nickname}</Badge>}
-      </TableCell>
-      <TableCell>
-        <Badge variant={customer.type === 'b2b' ? 'info' : 'primary'}>
-          {customer.type === 'b2b' ? 'B2B' : 'Payment Gateway'}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-zinc-500 dark:text-zinc-400">{customer.email ?? '—'}</TableCell>
-      <TableCell className="text-zinc-500 dark:text-zinc-400">{customer.phone ?? '—'}</TableCell>
-      <TableCell>Net {customer.paymentTermsDays}d</TableCell>
-      <TableCell align="right" numeric className="font-mono text-sm">
-        {formatINR(customer.outstandingAmount)}
-      </TableCell>
-      <TableCell>
-        <Badge variant={customer.isActive ? 'success' : 'default'}>
-          {customer.isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onView(customer.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            aria-label="View customer"
-          >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={() => onDelete(customer.id)}
-            className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-            aria-label="Delete customer"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-}
 
 export function CustomerListPage() {
   const navigate = useNavigate();
@@ -139,7 +29,7 @@ export function CustomerListPage() {
 
   const { data, isLoading } = useCustomers({
     search: search || undefined,
-    type: typeFilter as 'b2b' | 'b2c' | 'payment_gateway' | undefined || undefined,
+    type: (typeFilter || undefined) as 'b2b' | 'b2c' | 'payment_gateway' | undefined,
     page,
     limit: LIMIT,
   });
@@ -150,10 +40,13 @@ export function CustomerListPage() {
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
 
+  const totalOutstanding = customers.reduce((a, c) => a + (c.outstandingAmount || 0), 0);
+  const overdueCount = customers.filter((c) => (c.overdueAmount || 0) > 0).length;
+  const activeCount = customers.filter((c) => c.isActive).length;
+
   function handleView(id: string) {
     navigate({ to: '/ar/customers/$customerId', params: { customerId: id } });
   }
-
   function handleDeleteConfirm() {
     if (!deleteId) return;
     deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) });
@@ -166,126 +59,176 @@ export function CustomerListPage() {
         title="Customers"
         description="Manage your customer relationships and outstanding balances."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('customers.csv', ['Name', 'Email', 'Phone', 'GSTIN', 'Outstanding', 'Status'], customers.map(c => [c.name, c.email, c.phone, c.gstin, c.outstandingAmount, c.isActive ? 'Active' : 'Inactive']))}>
-              <Download size={14} /> Export CSV
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Download size={13} />}
+              onClick={() =>
+                downloadCSV(
+                  'customers.csv',
+                  ['Name', 'Email', 'Phone', 'GSTIN', 'Outstanding', 'Status'],
+                  customers.map((c) => [
+                    c.name, c.email, c.phone, c.gstin, c.outstandingAmount, c.isActive ? 'Active' : 'Inactive',
+                  ]),
+                )
+              }
+            >
+              Export CSV
             </Button>
-            <Button variant="outline" onClick={() => navigate({ to: '/ar/customers/import' })}>
-              <Upload size={16} />
-              Import Customers
+            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/customers/import' })}>
+              Import customers
             </Button>
-            <Button onClick={() => navigate({ to: '/ar/customers/new' })}>
-              <Plus size={16} />
-              New Customer
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
+              New customer
             </Button>
-          </div>
+          </>
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
-        <div className="relative col-span-2 sm:w-72">
+      {/* KPI strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatTile
+          label="Total customers"
+          value={total}
+          sub={`${activeCount} active in view`}
+        />
+        <StatTile
+          label="Outstanding (in view)"
+          value={formatINRShort(totalOutstanding)}
+          sub="Across listed accounts"
+        />
+        <StatTile
+          label="Overdue accounts"
+          value={overdueCount}
+          sub="With balance past due"
+          tone={overdueCount > 0 ? 'warn' : 'neutral'}
+        />
+        <StatTile
+          label="Customers shown"
+          value={customers.length}
+          sub={`Page ${page} of ${totalPages}`}
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="w-72 max-w-full">
           <Input
+            icon={<Search size={13} />}
             placeholder="Search customers…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9"
-          />
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-        </div>
-        <div className="col-span-2 sm:w-48">
-          <Select
-            options={TYPE_FILTER_OPTIONS}
-            value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
           />
         </div>
+        <Select
+          options={TYPE_FILTER_OPTIONS}
+          value={typeFilter}
+          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+        />
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {total} customer{total === 1 ? '' : 's'}
+        </span>
       </div>
 
-      {/* Mobile card view */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))
-        ) : customers.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={search ? 'No customers match your search' : 'No customers yet'}
-            description={search ? 'Try a different search term.' : 'Add your first customer to get started.'}
-            action={
-              !search ? (
-                <Button size="sm" onClick={() => navigate({ to: '/ar/customers/new' })}>
-                  <Plus size={14} /> New Customer
-                </Button>
-              ) : undefined
-            }
-            helpHref={!search ? '/help/recipes/02-add-customer' : undefined}
-          />
-        ) : (
-          customers.map((c) => (
-            <CustomerCard key={c.id} customer={c} onView={handleView} onDelete={setDeleteId} />
-          ))
-        )}
-      </div>
-
-      {/* Desktop table view */}
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Name</Th>
+            <Th>Type</Th>
+            <Th>Contact</Th>
+            <Th>Terms</Th>
+            <Th align="right">Outstanding</Th>
+            <Th>Status</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <TableCell key={j}>
+                    <div className="h-3 w-full max-w-[140px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : customers.length === 0 ? (
             <tr>
-              <Th>Name</Th>
-              <Th>Nickname</Th>
-              <Th>Type</Th>
-              <Th>Email</Th>
-              <Th>Phone</Th>
-              <Th>Terms</Th>
-              <Th align="right">Outstanding</Th>
-              <Th>Status</Th>
-              <Th>Actions</Th>
+              <td colSpan={7}>
+                <EmptyState
+                  icon={<Users size={18} />}
+                  title={search ? 'No customers match your search' : 'No customers yet'}
+                  description={search ? 'Try a different search term.' : 'Add your first customer to get started.'}
+                  action={!search && (
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
+                      New customer
+                    </Button>
+                  )}
+                />
+              </td>
             </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton rows={6} cols={9} />
-            ) : customers.length === 0 ? (
-              <tr>
-                <td colSpan={9}>
-                  <EmptyState
-                    icon={Users}
-                    title={search ? 'No customers match your search' : 'No customers yet'}
-                    description={
-                      search
-                        ? 'Try a different search term.'
-                        : 'Add your first customer to get started.'
-                    }
-                    action={
-                      !search ? (
-                        <Button size="sm" onClick={() => navigate({ to: '/ar/customers/new' })}>
-                          <Plus size={14} /> New Customer
-                        </Button>
-                      ) : undefined
-                    }
-                  />
-                </td>
-              </tr>
-            ) : (
-              customers.map((c) => (
-                <CustomerRow key={c.id} customer={c} onView={handleView} onDelete={setDeleteId} />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+          ) : customers.map((c) => (
+            <TableRow key={c.id} onClick={() => handleView(c.id)}>
+              <TableCell>
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={c.name} size={28} />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{c.name}</div>
+                    {c.gstin && (
+                      <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{c.gstin}</div>
+                    )}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant={c.type === 'b2b' ? 'info' : c.type === 'payment_gateway' ? 'primary' : 'default'}>
+                  {c.type === 'b2b' ? 'B2B' : c.type === 'payment_gateway' ? 'Gateway' : 'B2C'}
+                </Badge>
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                {c.contactPerson && <div className="text-[12.5px]">{c.contactPerson}</div>}
+                {c.email && <div className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{c.email}</div>}
+                {!c.contactPerson && !c.email && <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>Net {c.paymentTermsDays}d</TableCell>
+              <TableCell align="right" numeric className="font-semibold">
+                {(c.outstandingAmount ?? 0) > 0 ? formatINR(c.outstandingAmount) : <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell>
+                <Badge variant={c.isActive ? 'success' : 'outline'}>{c.isActive ? 'Active' : 'Inactive'}</Badge>
+              </TableCell>
+              <TableCell align="right">
+                <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => setDeleteId(c.id)}
+                    aria-label="Delete customer"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                  <button
+                    className="rounded p-1 hover:bg-[var(--surface-2)]"
+                    style={{ color: 'var(--text-3)' }}
+                    onClick={() => handleView(c.id)}
+                    aria-label="View customer"
+                  >
+                    <MoreHorizontal size={13} />
+                  </button>
+                  <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {totalPages > 1 && (
-        <div className="mt-4">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={LIMIT}
-            onPageChange={setPage}
-          />
+        <div className="mt-3">
+          <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
 

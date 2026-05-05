@@ -9,21 +9,16 @@ import { VendorBadge } from '@/components/banking/vendor-badge';
 import { DocumentTrail } from '@/components/audit/document-trail';
 import type { BankTransaction, ReconStatus } from '@runq/types';
 import {
-  PageHeader,
   Badge,
-  Button,
-  Select,
   DateInput,
-  Table,
-  TableHeader,
-  Th,
-  TableBody,
-  TableRow,
-  TableCell,
   TableSkeleton,
-  EmptyState,
-  Pagination,
 } from '@/components/ui';
+import {
+  PageHeader, Button, Select, StatTile,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  EmptyState, Pagination,
+} from '@/components/ar/primitives';
+import { formatINRShort } from '@/lib/utils';
 import { ArrowUpDown } from 'lucide-react';
 
 const LIMIT = 25;
@@ -266,33 +261,54 @@ export function TransactionsPage() {
         title="Transactions"
         description="Bank statement entries and reconciliation status."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button
               variant="outline"
+              size="sm"
+              icon={<RefreshCw size={13} className={sync.isPending ? 'animate-spin' : ''} />}
               onClick={() => accountId && sync.mutate({ accountId })}
               disabled={!accountId || sync.isPending}
             >
-              <RefreshCw size={16} className={sync.isPending ? 'animate-spin' : ''} />
-              {sync.isPending ? 'Syncing...' : 'Sync'}
+              {sync.isPending ? 'Syncing…' : 'Sync'}
             </Button>
             <Button
               variant="outline"
+              size="sm"
+              icon={<Sparkles size={13} />}
               onClick={() => accountId && categorize.mutate({ accountId })}
               disabled={!accountId || categorize.isPending}
             >
-              <Sparkles size={16} />
-              {categorize.isPending ? 'Categorizing...' : 'Auto-Categorize'}
+              {categorize.isPending ? 'Categorising…' : 'Auto-categorise'}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate({ to: '/banking/transactions/import' })}
-            >
-              <Upload size={16} />
-              Import Statement
+            <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/transactions/import' })}>
+              Import statement
             </Button>
-          </div>
+          </>
         }
       />
+
+      {/* KPI strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Transactions" value={total} sub={`Page ${page} of ${totalPages}`} />
+        <StatTile
+          label="Total debit"
+          value={totals ? formatINRShort(totals.debit) : '—'}
+          sub="In view"
+          tone="neg"
+        />
+        <StatTile
+          label="Total credit"
+          value={totals ? formatINRShort(totals.credit) : '—'}
+          sub="In view"
+          tone="pos"
+        />
+        <StatTile
+          label="Net change"
+          value={totals ? formatINRShort(totals.credit - totals.debit) : '—'}
+          sub="Credit − debit"
+          tone={totals && totals.credit - totals.debit >= 0 ? 'pos' : 'neg'}
+        />
+      </div>
 
       {lastSyncDate && (
         <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 dark:border-zinc-700 dark:bg-zinc-800/50">
@@ -306,7 +322,6 @@ export function TransactionsPage() {
       <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
         <div className="col-span-2 sm:w-48">
           <Select
-            label="Account"
             options={accountOptions}
             value={accountId}
             onChange={(e) => { setAccountId(e.target.value); setPage(1); }}
@@ -325,22 +340,16 @@ export function TransactionsPage() {
             />
           </div>
         </div>
-        <div className="sm:w-36">
-          <Select
-            label="Type"
-            options={typeOptions}
-            value={type}
-            onChange={(e) => { setType(e.target.value); setPage(1); }}
-          />
-        </div>
-        <div className="sm:w-44">
-          <Select
-            label="Recon Status"
-            options={reconOptions}
-            value={reconStatus}
-            onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
-          />
-        </div>
+        <Select
+          options={typeOptions}
+          value={type}
+          onChange={(e) => { setType(e.target.value); setPage(1); }}
+        />
+        <Select
+          options={reconOptions}
+          value={reconStatus}
+          onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
+        />
         <div className="sm:self-end">
           <button
             type="button"
@@ -380,7 +389,7 @@ export function TransactionsPage() {
           </div>
         ) : transactions.length === 0 ? (
           <EmptyState
-            icon={ArrowUpDown}
+            icon={<ArrowUpDown size={18} />}
             title="No transactions found"
             description="Import a bank statement to view transactions here."
             action={
@@ -419,7 +428,8 @@ export function TransactionsPage() {
               <tr>
                 <td colSpan={9}>
                   <EmptyState
-                    icon={ArrowUpDown}
+                    icon={<ArrowUpDown size={18} />}
+
                     title="No transactions found"
                     description="Import a bank statement to view transactions here."
                     action={

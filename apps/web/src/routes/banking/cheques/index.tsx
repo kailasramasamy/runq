@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Plus, Download } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
@@ -11,22 +11,19 @@ import {
 } from '@/hooks/queries/use-cheques';
 import { useToast } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import { cn } from '@/lib/utils';
 import type { Cheque, ChequeStatus } from '@runq/types';
 import type { CreateChequeInput } from '@runq/validators';
 import {
-  PageHeader,
   Badge,
   Button,
-  EmptyState,
   CardSkeleton,
-  Table,
-  TableHeader,
-  Th,
-  TableBody,
-  TableRow,
-  TableCell,
 } from '@/components/ui';
+import {
+  PageHeader, Button as ArButton, StatTile, Tabs,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState,
+  formatDate,
+} from '@/components/ar/primitives';
+import { formatINRShort } from '@/lib/utils';
 import { ChequeForm } from '@/components/forms/cheque-form';
 
 const STATUS_TABS: { label: string; value: ChequeStatus | 'all' }[] = [
@@ -204,26 +201,44 @@ export function ChequesPage() {
     });
   }
 
+  // KPI calculations
+  const totalAmount = chequesList.reduce((a, c) => a + Number(c.amount), 0);
+  const pendingCount = chequesList.filter((c) => c.status === 'pending').length;
+  const depositedCount = chequesList.filter((c) => c.status === 'deposited').length;
+  const bouncedCount = chequesList.filter((c) => c.status === 'bounced').length;
+
   return (
     <div>
       <PageHeader
-        breadcrumbs={[{ label: 'Banking', href: '/banking' }, { label: 'Cheques' }]}
-        title="Cheque & PDC Management"
+        breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'Cheques' }]}
+        title="Cheques & PDCs"
         description="Track received and issued cheques, manage post-dated cheques."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('cheques.csv', ['Cheque #', 'Date', 'Party', 'Amount', 'Type', 'Status'], chequesList.map(c => [c.chequeNumber, c.chequeDate, c.partyName ?? c.partyId, c.amount, c.type, c.status]))}>
-              <Download size={14} /> Export CSV
-            </Button>
-            <Button onClick={() => setShowForm((v) => !v)}>
-              <Plus size={16} /> New Cheque
-            </Button>
-          </div>
+          <>
+            <ArButton
+              variant="outline"
+              size="sm"
+              icon={<Download size={13} />}
+              onClick={() => downloadCSV('cheques.csv', ['Cheque #', 'Date', 'Party', 'Amount', 'Type', 'Status'], chequesList.map(c => [c.chequeNumber, c.chequeDate, c.partyName ?? c.partyId, c.amount, c.type, c.status]))}
+            >
+              Export
+            </ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowForm((v) => !v)}>
+              New cheque
+            </ArButton>
+          </>
         }
       />
 
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Total amount (in view)" value={formatINRShort(totalAmount)} sub={`${chequesList.length} cheques`} />
+        <StatTile label="Pending" value={pendingCount} sub="Awaiting deposit" tone={pendingCount > 0 ? 'warn' : 'neutral'} />
+        <StatTile label="Deposited" value={depositedCount} sub="In bank pipeline" />
+        <StatTile label="Bounced" value={bouncedCount} sub="Need follow-up" tone={bouncedCount > 0 ? 'neg' : 'neutral'} />
+      </div>
+
       {showForm && (
-        <div className="mb-6">
+        <div className="mb-5">
           <ChequeForm
             onSubmit={handleCreate}
             isLoading={createMutation.isPending}
@@ -232,23 +247,11 @@ export function ChequesPage() {
         </div>
       )}
 
-      {/* Status Tabs */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              activeTab === tab.value
-                ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100'
-                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs<ChequeStatus | 'all'>
+        active={activeTab}
+        onChange={setActiveTab}
+        tabs={STATUS_TABS.map((t) => ({ id: t.value, label: t.label }))}
+      />
 
       {isLoading ? (
         <>
@@ -267,13 +270,13 @@ export function ChequesPage() {
         </>
       ) : chequesList.length === 0 ? (
         <EmptyState
-          icon={Plus}
+          icon={<Plus size={18} />}
           title="No cheques found"
           description="Create a cheque to start tracking payments."
           action={
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus size={14} /> New Cheque
-            </Button>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowForm(true)}>
+              New cheque
+            </ArButton>
           }
         />
       ) : (

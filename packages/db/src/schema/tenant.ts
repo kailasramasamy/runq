@@ -16,6 +16,9 @@ export const tenants = pgTable('tenants', {
   lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   notes: text('notes'),
+  // Short FY code (e.g. '2526' for FY 2025–26). Null means "use today's
+  // date" — the FE derives the active FY from now() in that case.
+  currentFy: varchar('current_fy', { length: 4 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
-import { Check, X, AlertTriangle, FileWarning, Pencil, Trash2, ArrowLeft } from 'lucide-react';
+import { Check, X, AlertTriangle, CheckCircle2, Pencil, Trash2, ArrowLeft, MoreHorizontal } from 'lucide-react';
 import {
   usePurchaseInvoice,
   useThreeWayMatch,
@@ -12,11 +12,10 @@ import {
 import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
 import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, DebitNote } from '@runq/types';
 import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
-import { formatINR } from '../../../lib/utils';
+import { formatINR, formatINRShort } from '../../../lib/utils';
 import { FileUpload } from '@/components/ui/file-upload';
 import { DocumentTrail } from '@/components/audit/document-trail';
 import {
-  PageHeader,
   Badge,
   Button,
   Card,
@@ -29,31 +28,14 @@ import {
   TableRow,
   TableCell,
   Th,
-  StatsCard,
   ConfirmationDialog,
 } from '@/components/ui';
+import {
+  PageHeader, Button as ArButton, StatTile, StatusBadge,
+  formatDate, daysBetween,
+} from '@/components/ar/primitives';
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
-
-const STATUS_BADGE_VARIANT: Record<PurchaseInvoiceStatus, React.ComponentProps<typeof Badge>['variant']> = {
-  draft: 'default',
-  pending_match: 'warning',
-  matched: 'info',
-  approved: 'primary',
-  partially_paid: 'cyan',
-  paid: 'success',
-  cancelled: 'outline',
-};
-
-const STATUS_LABELS: Record<PurchaseInvoiceStatus, string> = {
-  draft: 'Draft',
-  pending_match: 'Pending Match',
-  matched: 'Matched',
-  approved: 'Approved',
-  partially_paid: 'Partially Paid',
-  paid: 'Paid',
-  cancelled: 'Cancelled',
-};
 
 const MATCH_BADGE_VARIANT: Record<MatchStatus, React.ComponentProps<typeof Badge>['variant']> = {
   unmatched: 'outline',
@@ -745,9 +727,14 @@ export function BillDetailPage({ billId }: { billId: string }) {
 
   const isDraft = invoice.status === 'draft';
   const canApproveDirect = isDraft && !invoice.poId;
+  const isOverdue = !['paid', 'cancelled'].includes(invoice.status)
+    && Number(invoice.balanceDue) > 0
+    && new Date(invoice.dueDate).getTime() < Date.now();
+  const isPaid = invoice.status === 'paid';
+  const overdueDays = isOverdue ? daysBetween(invoice.dueDate) : 0;
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <PageHeader
         title={invoice.invoiceNumber}
         breadcrumbs={[
@@ -755,48 +742,80 @@ export function BillDetailPage({ billId }: { billId: string }) {
           { label: 'Bills', href: '/ap/bills' },
           { label: invoice.invoiceNumber },
         ]}
+        titleBadge={<StatusBadge status={invoice.status} />}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft size={14} /> Back
-            </Button>
-            <Badge variant={STATUS_BADGE_VARIANT[invoice.status]}>
-              {STATUS_LABELS[invoice.status]}
-            </Badge>
+          <>
+            <ArButton variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>
+              Back
+            </ArButton>
             <Badge variant={MATCH_BADGE_VARIANT[invoice.matchStatus]}>
               {invoice.matchStatus.replace('_', ' ')}
             </Badge>
             {canApproveDirect && (
-              <Button variant="primary" size="sm" onClick={() => setShowApproveDialog(true)}>
-                <Check size={14} /> Approve
-              </Button>
+              <ArButton size="sm" icon={<Check size={13} />} onClick={() => setShowApproveDialog(true)}>
+                Approve
+              </ArButton>
             )}
             {isDraft && (
               <Link to="/ap/bills/$billId/edit" params={{ billId }}>
-                <Button variant="outline" size="sm">
-                  <Pencil size={14} /> Edit
-                </Button>
+                <ArButton variant="outline" size="sm" icon={<Pencil size={13} />}>Edit</ArButton>
               </Link>
             )}
             {isDraft && (
-              <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 size={14} /> Delete
-              </Button>
+              <ArButton variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={() => setShowDeleteDialog(true)} />
             )}
             {advanceBalance > 0 && Number(invoice.balanceDue) > 0 && (
-              <Button
+              <ArButton
                 variant="outline"
                 size="sm"
+                icon={<Check size={13} />}
                 onClick={() => applyAdvanceMutation.mutate(invoice.id)}
                 loading={applyAdvanceMutation.isPending}
                 title={`Apply ${formatINR(Math.min(advanceBalance, Number(invoice.balanceDue)))} from open vendor advance`}
               >
-                <Check size={14} /> Apply Advance ({formatINR(Math.min(advanceBalance, Number(invoice.balanceDue)))})
-              </Button>
+                Apply advance ({formatINRShort(Math.min(advanceBalance, Number(invoice.balanceDue)))})
+              </ArButton>
             )}
-          </div>
+            <ArButton variant="outline" size="sm" icon={<MoreHorizontal size={13} />} />
+          </>
         }
       />
+
+      {/* Status banner */}
+      {isOverdue && (
+        <div
+          className="mb-5 flex items-start gap-3 rounded-xl border px-4 py-3"
+          style={{
+            background: 'var(--neg-soft)',
+            borderColor: 'color-mix(in oklab, var(--neg) 30%, transparent)',
+          }}
+        >
+          <AlertTriangle size={16} style={{ color: 'var(--neg)' }} className="mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <div className="text-[13px] font-medium" style={{ color: 'var(--neg)' }}>
+              {overdueDays} day{overdueDays === 1 ? '' : 's'} overdue
+            </div>
+            <div className="mt-0.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
+              Due on {formatDate(invoice.dueDate)} — vendor payment is past due.
+            </div>
+          </div>
+        </div>
+      )}
+      {isPaid && (
+        <div
+          className="mb-5 flex items-center gap-3 rounded-xl border px-4 py-3"
+          style={{
+            background: 'var(--pos-soft)',
+            borderColor: 'color-mix(in oklab, var(--pos) 30%, transparent)',
+          }}
+        >
+          <CheckCircle2 size={16} style={{ color: 'var(--pos)' }} className="shrink-0" />
+          <div className="text-[13px] font-medium" style={{ color: 'var(--pos)' }}>Fully paid</div>
+          <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>
+            Cleared on {formatDate(invoice.updatedAt)}.
+          </div>
+        </div>
+      )}
 
       <ConfirmationDialog
         open={showApproveDialog}
@@ -832,11 +851,22 @@ export function BillDetailPage({ billId }: { billId: string }) {
         loading={deleteMutation.isPending}
       />
 
-      {/* Summary Stats */}
-      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatsCard title="Invoice Total" value={invoice.totalAmount} />
-        <StatsCard title="Amount Paid" value={invoice.amountPaid} />
-        <StatsCard title="Balance Due" value={invoice.balanceDue} />
+      {/* KPI strip */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Total" value={formatINRShort(Number(invoice.totalAmount))} sub="Bill amount" />
+        <StatTile label="Paid" value={formatINRShort(Number(invoice.amountPaid))} sub="So far" tone="pos" />
+        <StatTile
+          label="Balance"
+          value={formatINRShort(Number(invoice.balanceDue))}
+          sub={Number(invoice.balanceDue) > 0 ? 'Pending' : 'Settled'}
+          tone={Number(invoice.balanceDue) > 0 ? 'neg' : 'pos'}
+        />
+        <StatTile
+          label="Vendor advance"
+          value={advanceBalance > 0 ? formatINRShort(advanceBalance) : '—'}
+          sub={advanceBalance > 0 ? 'Available' : 'None on file'}
+          tone={advanceBalance > 0 ? 'accent' : 'neutral'}
+        />
       </div>
 
       <div className="flex flex-col gap-4">

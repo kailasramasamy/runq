@@ -1,75 +1,244 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { CreditCard, FileText, Trash2, Pencil, ExternalLink, Copy, Check, ArrowLeft } from 'lucide-react';
-import { useVendor, useDeleteVendor, useUpdateVendor } from '@/hooks/queries/use-vendors';
 import { useMutation } from '@tanstack/react-query';
+import {
+  CreditCard, FileText, Trash2, Pencil, ExternalLink, Copy, Check,
+  ArrowLeft, MoreHorizontal, User, ShieldCheck, Landmark, Plus,
+} from 'lucide-react';
+import { useVendor, useDeleteVendor, useUpdateVendor } from '@/hooks/queries/use-vendors';
+import { usePurchaseInvoices } from '@/hooks/queries/use-purchase-invoices';
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { Vendor } from '@runq/types';
 import type { CreateVendorInput } from '@runq/validators';
 import { VendorForm } from '@/components/forms/vendor-form';
 import {
-  PageHeader, Badge, Button, Card, CardHeader, CardContent,
-  StatsCard, EmptyState, ConfirmationDialog, CardSkeleton,
-  Modal, useToast,
-} from '@/components/ui';
+  PageHeader, Badge, Button, StatusBadge, DetailCard, DetailRow,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog, Modal, useToast } from '@/components/ui';
 
-function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
+interface Props { vendorId: string }
+
+export function VendorDetailPage({ vendorId }: Props) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  const { data, isLoading, isError } = useVendor(vendorId);
+  const deleteMutation = useDeleteVendor();
+  const [showDelete, setShowDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const vendor = data?.data;
+
+  const { data: billsData } = usePurchaseInvoices({ vendorId }, 1, 6);
+  const bills = billsData?.data ?? [];
+
+  function goBack() {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/vendors' });
+  }
+  function handleDeleteConfirm() {
+    deleteMutation.mutate(vendorId, {
+      onSuccess: () => navigate({ to: '/ap/vendors' }),
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-xl border"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError || !vendor) {
+    return <p className="text-[13px]" style={{ color: 'var(--neg)' }}>Vendor not found.</p>;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueCount = bills.filter(
+    (b) => Number(b.balanceDue) > 0 && !['paid', 'cancelled'].includes(b.status) && b.dueDate < today,
+  ).length;
+  const openCount = bills.filter((b) => ['pending_match', 'matched', 'approved', 'partially_paid'].includes(b.status)).length;
+  const outstanding = bills.reduce((a, b) => a + Number(b.balanceDue ?? 0), 0);
+
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{value ?? '—'}</p>
-    </div>
-  );
-}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'AP', href: '/ap' },
+          { label: 'Vendors', href: '/ap/vendors' },
+          { label: vendor.name },
+        ]}
+        title={vendor.name}
+        titleBadge={vendor.category ? <Badge variant="info">{vendor.category.replace(/_/g, ' ')}</Badge> : undefined}
+        actions={
+          <>
+            <Button variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>Back</Button>
+            <Badge variant={vendor.isActive ? 'success' : 'outline'}>
+              {vendor.isActive ? 'Active' : 'Inactive'}
+            </Badge>
+            <Button variant="outline" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEdit(true)}>
+              Edit
+            </Button>
+            <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={() => setShowDelete(true)} />
+            <Button variant="outline" size="sm" icon={<MoreHorizontal size={13} />} />
+          </>
+        }
+      />
 
-function VendorCards({ vendor }: { vendor: Vendor }) {
-  return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailField label="Name" value={vendor.name} />
-          <DetailField label="Status" value={null} />
-          <DetailField label="Email" value={vendor.email} />
-          <DetailField label="Phone" value={vendor.phone} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader title="Tax & Compliance" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailField label="GSTIN" value={vendor.gstin} />
-          <DetailField label="PAN" value={vendor.pan} />
-          <DetailField label="Payment Terms" value={`Net ${vendor.paymentTermsDays} days`} />
-          <DetailField label="Expense Account" value={vendor.expenseAccountCode ?? 'Default (5002)'} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <DetailField
-              label="Address"
-              value={[vendor.addressLine1, vendor.addressLine2].filter(Boolean).join(', ') || null}
-            />
+      {/* Outstanding hero + portal */}
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          className="relative overflow-hidden rounded-xl border p-5 lg:col-span-2"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <div
+            className="absolute -right-12 -top-12 h-44 w-44 rounded-full opacity-50"
+            style={{ background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)' }}
+          />
+          <div className="relative">
+            <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+              Outstanding payable
+            </div>
+            <div className="num mt-2 text-[40px] font-semibold leading-none tabular-nums" style={{ color: 'var(--text-1)' }}>
+              {formatINR(outstanding)}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]" style={{ color: 'var(--text-3)' }}>
+              <span><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{overdueCount}</span> overdue</span>
+              <span>·</span>
+              <span><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{openCount}</span> open</span>
+              <span>·</span>
+              <span>Net <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{vendor.paymentTermsDays}d</span> terms</span>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
+                New bill
+              </Button>
+              <Button variant="outline" size="sm" icon={<CreditCard size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+                Record payment
+              </Button>
+            </div>
           </div>
-          <DetailField label="City" value={vendor.city} />
-          <DetailField label="State" value={vendor.state} />
-          <DetailField label="Pincode" value={vendor.pincode} />
-        </CardContent>
-      </Card>
+        </div>
+        <VendorPortalCard vendorId={vendorId} />
+      </div>
 
-      <Card>
-        <CardHeader title="Bank Details" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailField label="Account Name" value={vendor.bankAccountName} />
-          <DetailField label="Account Number" value={vendor.bankAccountNumber} />
-          <DetailField label="IFSC" value={vendor.bankIfsc} />
-          <DetailField label="Bank Name" value={vendor.bankName} />
-        </CardContent>
-      </Card>
+      {/* Detail cards */}
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DetailCard title="Basic info" icon={<User size={14} />}>
+          <DetailRow label="Email" value={vendor.email} mono />
+          <DetailRow label="Phone" value={vendor.phone} mono />
+          <DetailRow label="Payment terms" value={`Net ${vendor.paymentTermsDays} days`} />
+          <DetailRow
+            label="Early discount"
+            value={
+              vendor.earlyPaymentDiscountPercent != null
+                ? `${vendor.earlyPaymentDiscountPercent}% if paid in ${vendor.earlyPaymentDiscountDays}d`
+                : null
+            }
+          />
+          <DetailRow label="Expense account" value={vendor.expenseAccountCode ?? 'Default (5002)'} mono />
+          <DetailRow
+            label="Address"
+            value={
+              [vendor.addressLine1, vendor.addressLine2, vendor.city, vendor.state, vendor.pincode]
+                .filter(Boolean)
+                .join(', ') || null
+            }
+          />
+        </DetailCard>
+        <DetailCard title="Tax & legal" icon={<ShieldCheck size={14} />}>
+          <DetailRow label="GSTIN" value={vendor.gstin} mono />
+          <DetailRow label="PAN" value={vendor.pan} mono />
+          <DetailRow
+            label="Place of supply"
+            value={vendor.state ? `${vendor.state}${vendor.gstin ? ` (${vendor.gstin.slice(0, 2)})` : ''}` : null}
+          />
+          <DetailRow label="Requires invoice" value={vendor.requiresInvoice ? 'Yes' : 'No'} />
+        </DetailCard>
+      </div>
+
+      {/* Bank details */}
+      <div className="mb-5">
+        <DetailCard title="Bank details" icon={<Landmark size={14} />}>
+          <DetailRow label="Account name" value={vendor.bankAccountName} />
+          <DetailRow label="Account number" value={vendor.bankAccountNumber} mono />
+          <DetailRow label="IFSC" value={vendor.bankIfsc} mono />
+          <DetailRow label="Bank name" value={vendor.bankName} />
+        </DetailCard>
+      </div>
+
+      {/* Bills */}
+      <div
+        className="overflow-hidden rounded-xl border"
+        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: 'var(--border-soft)' }}>
+          <div className="flex items-center gap-2">
+            <FileText size={14} style={{ color: 'var(--text-2)' }} />
+            <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent bills</h3>
+            <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({bills.length})</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ap/bills' })}>View all</Button>
+        </div>
+        {bills.length === 0 ? (
+          <EmptyState
+            icon={<FileText size={18} />}
+            title="No bills yet"
+            description="Bills from this vendor will appear here."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <tr>
+                <Th>Bill #</Th>
+                <Th>Issued</Th>
+                <Th>Due</Th>
+                <Th align="right">Total</Th>
+                <Th align="right">Balance</Th>
+                <Th>Status</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {bills.map((b) => (
+                <TableRow
+                  key={b.id}
+                  onClick={() => navigate({ to: '/ap/bills/$billId', params: { billId: b.id } })}
+                >
+                  <TableCell>
+                    <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                      {b.invoiceNumber}
+                    </span>
+                  </TableCell>
+                  <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(b.invoiceDate)}</TableCell>
+                  <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(b.dueDate)}</TableCell>
+                  <TableCell align="right" numeric>{formatINR(Number(b.totalAmount))}</TableCell>
+                  <TableCell align="right" numeric className="font-semibold">{formatINR(Number(b.balanceDue ?? 0))}</TableCell>
+                  <TableCell><StatusBadge status={b.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <EditVendorModal vendor={vendor} open={showEdit} onClose={() => setShowEdit(false)} />
+
+      <ConfirmationDialog
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Vendor"
+        description={`Delete "${vendor.name}"? This cannot be undone. Any linked bills and payments will remain but the vendor record will be permanently removed.`}
+        confirmLabel="Delete Vendor"
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }
@@ -79,11 +248,9 @@ function VendorPortalCard({ vendorId }: { vendorId: string }) {
   const [copied, setCopied] = useState(false);
 
   const generateSlug = useMutation({
-    mutationFn: () =>
-      api.post<{ data: { slug: string } }>(`/ap/vendors/${vendorId}/portal-slug`),
+    mutationFn: () => api.post<{ data: { slug: string } }>(`/ap/vendors/${vendorId}/portal-slug`),
     onSuccess: (res) => {
-      const slug = res.data.slug;
-      setPortalUrl(`${window.location.origin}/vendor-portal/s/${slug}`);
+      setPortalUrl(`${window.location.origin}/vendor-portal/s/${res.data.slug}`);
     },
   });
 
@@ -95,61 +262,56 @@ function VendorPortalCard({ vendorId }: { vendorId: string }) {
   }
 
   return (
-    <Card>
-      <CardHeader title="Vendor Portal" />
-      <CardContent>
-        {portalUrl ? (
-          <div className="space-y-3">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Share this link with the vendor. They can view POs, bills, and payment history without logging in.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {portalUrl}
-              </code>
-              <Button variant="outline" size="sm" onClick={handleCopy}>
-                {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => window.open(portalUrl, '_blank')}>
-                <ExternalLink size={14} /> Open
-              </Button>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => generateSlug.mutate()} loading={generateSlug.isPending}>
-              Regenerate Link
+    <div
+      className="rounded-xl border p-5"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+          Vendor portal
+        </div>
+        <ExternalLink size={13} style={{ color: 'var(--text-3)' }} />
+      </div>
+      <p className="mb-3 text-[12px]" style={{ color: 'var(--text-2)' }}>
+        Share this link so the vendor can view POs, bills, and payment history — no login required.
+      </p>
+      {portalUrl ? (
+        <>
+          <div
+            className="num mb-2 truncate rounded-md border px-2.5 py-2 text-[11px]"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          >
+            {portalUrl}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={handleCopy}>
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => generateSlug.mutate()} loading={generateSlug.isPending}>
+              Regenerate
             </Button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Generate a portal link so this vendor can view their purchase orders, outstanding bills, and payment history.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => generateSlug.mutate()} loading={generateSlug.isPending}>
-              <ExternalLink size={14} /> Generate Portal Link
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          icon={<ExternalLink size={12} />}
+          onClick={() => generateSlug.mutate()}
+          loading={generateSlug.isPending}
+        >
+          Generate portal link
+        </Button>
+      )}
+    </div>
   );
 }
 
-function StatusBadgeCell({ active }: { active: boolean }) {
-  return <Badge variant={active ? 'success' : 'default'}>{active ? 'Active' : 'Inactive'}</Badge>;
-}
-
 function EditVendorModal({
-  vendor,
-  open,
-  onClose,
-}: {
-  vendor: Vendor;
-  open: boolean;
-  onClose: () => void;
-}) {
+  vendor, open, onClose,
+}: { vendor: Vendor; open: boolean; onClose: () => void }) {
   const updateMutation = useUpdateVendor();
   const { toast } = useToast();
-
   function handleSubmit(data: CreateVendorInput) {
     updateMutation.mutate(
       { id: vendor.id, data },
@@ -159,7 +321,6 @@ function EditVendorModal({
       },
     );
   }
-
   return (
     <Modal open={open} onClose={onClose} title="Edit Vendor" wide>
       <VendorForm
@@ -169,103 +330,5 @@ function EditVendorModal({
         isLoading={updateMutation.isPending}
       />
     </Modal>
-  );
-}
-
-interface Props { vendorId: string }
-
-export function VendorDetailPage({ vendorId }: Props) {
-  const navigate = useNavigate();
-  const router = useRouter();
-  function goBack(): void {
-    if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/vendors' });
-  }
-  const { data, isLoading, isError } = useVendor(vendorId);
-  const deleteMutation = useDeleteVendor();
-  const [showDelete, setShowDelete] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const vendor = data?.data;
-
-  function handleDeleteConfirm() {
-    deleteMutation.mutate(vendorId, {
-      onSuccess: () => navigate({ to: '/ap/vendors' }),
-    });
-  }
-
-  if (isLoading) {
-    return (
-      <div className="max-w-2xl space-y-4">
-        <CardSkeleton />
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    );
-  }
-
-  if (isError || !vendor) {
-    return <p className="text-sm text-red-500">Vendor not found.</p>;
-  }
-
-  return (
-    <div className="max-w-2xl">
-      <PageHeader
-        breadcrumbs={[
-          { label: 'AP', href: '/ap' },
-          { label: 'Vendors', href: '/ap/vendors' },
-          { label: vendor.name },
-        ]}
-        title={vendor.name}
-        actions={
-          <>
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft size={14} /> Back
-            </Button>
-            <StatusBadgeCell active={vendor.isActive} />
-            <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
-              <Pencil size={14} /> Edit
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
-              <Trash2 size={14} /> Delete
-            </Button>
-          </>
-        }
-      />
-
-      <div className="mb-6">
-        <StatsCard title="Outstanding Balance" value={0} formatValue={formatINR} />
-      </div>
-
-      <VendorCards vendor={vendor} />
-      <VendorPortalCard vendorId={vendorId} />
-
-      <div className="mt-6 flex flex-col gap-4">
-        <Card>
-          <CardHeader title="Invoices" />
-          <CardContent>
-            <EmptyState icon={FileText} title="No invoices yet" description="Invoices from this vendor will appear here." />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader title="Payments" />
-          <CardContent>
-            <EmptyState icon={CreditCard} title="No payments yet" description="Payments to this vendor will appear here." />
-          </CardContent>
-        </Card>
-      </div>
-
-      <EditVendorModal vendor={vendor} open={showEdit} onClose={() => setShowEdit(false)} />
-
-      <ConfirmationDialog
-        open={showDelete}
-        onClose={() => setShowDelete(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Vendor"
-        description={`Delete "${vendor.name}"? This cannot be undone. Any linked invoices and payments will remain but the vendor record will be permanently removed.`}
-        confirmLabel="Delete Vendor"
-        loading={deleteMutation.isPending}
-      />
-    </div>
   );
 }

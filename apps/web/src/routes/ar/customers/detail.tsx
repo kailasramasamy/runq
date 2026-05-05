@@ -1,205 +1,30 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { FileText, Receipt, Trash2, ExternalLink, Copy, Check, ArrowLeft } from 'lucide-react';
+import {
+  FileText, Receipt, Trash2, ExternalLink, Copy, Check,
+  ArrowLeft, Pencil, MoreHorizontal, Plus, Bell, User, ShieldCheck,
+} from 'lucide-react';
 import { useCustomer, useDeleteCustomer, useUpdateCustomer } from '@/hooks/queries/use-customers';
+import { useInvoices } from '@/hooks/queries/use-invoices';
+import { useReceipts } from '@/hooks/queries/use-receipts';
 import { api } from '@/lib/api-client';
 import { formatINR } from '@/lib/utils';
 import type { CustomerWithOutstanding } from '@runq/types';
 import type { CreateCustomerInput } from '@runq/validators';
-import { CreditScoreBadge } from '@/components/ar/credit-score-badge';
 import { CustomerForm } from '@/components/forms/customer-form';
 import {
-  PageHeader, Badge, Button, Card, CardHeader, CardContent,
-  StatsCard, EmptyState, ConfirmationDialog, CardSkeleton,
-  Modal, useToast,
-} from '@/components/ui';
-
-function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-        {label}
-      </p>
-      <p className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{value ?? '—'}</p>
-    </div>
-  );
-}
-
-function CustomerCards({ customer }: { customer: CustomerWithOutstanding }) {
-  return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader title="Basic Info" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailField label="Name" value={customer.name} />
-          <DetailField
-            label="Type"
-            value={customer.type === 'b2b' ? 'B2B' : 'Payment Gateway'}
-          />
-          <DetailField label="Email" value={customer.email} />
-          <DetailField label="CC Email" value={customer.ccEmail} />
-          <DetailField label="Phone" value={customer.phone} />
-          <DetailField label="Contact Person" value={customer.contactPerson} />
-          <DetailField label="Payment Terms" value={`Net ${customer.paymentTermsDays} days`} />
-          <DetailField label="Credit Limit" value={customer.creditLimit ? formatINR(Number(customer.creditLimit)) : 'No limit'} />
-          <DetailField
-            label="Overdue Interest Rate"
-            value={customer.overdueInterestRate ? `${customer.overdueInterestRate}% p.a.` : 'Not set'}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader title="Tax Info" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailField label="GSTIN" value={customer.gstin} />
-          <DetailField label="PAN" value={customer.pan} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader title="Address" />
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <DetailField
-              label="Address"
-              value={
-                [customer.addressLine1, customer.addressLine2].filter(Boolean).join(', ') || null
-              }
-            />
-          </div>
-          <DetailField label="City" value={customer.city} />
-          <DetailField label="State" value={customer.state} />
-          <DetailField label="Pincode" value={customer.pincode} />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function PortalLinkCard({ customerId }: { customerId: string }) {
-  const [portalUrl, setPortalUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const generateToken = useMutation({
-    mutationFn: () =>
-      api.post<{ data: { slug: string } }>(`/ar/customers/${customerId}/portal-token`),
-    onSuccess: (res) => {
-      const slug = res.data.slug;
-      setPortalUrl(`${window.location.origin}/portal/s/${slug}`);
-    },
-  });
-
-  function handleCopy() {
-    if (!portalUrl) return;
-    navigator.clipboard.writeText(portalUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <Card>
-      <CardHeader title="Payment Portal" />
-      <CardContent>
-        {portalUrl ? (
-          <div className="space-y-3">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Share this link with the customer. No login required.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {portalUrl}
-              </code>
-              <Button variant="outline" size="sm" onClick={handleCopy}>
-                {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(portalUrl, '_blank')}
-              >
-                <ExternalLink size={14} /> Open
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => generateToken.mutate()}
-              loading={generateToken.isPending}
-            >
-              Regenerate Link
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Generate a portal link so this customer can view their outstanding invoices and pay online.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => generateToken.mutate()}
-              loading={generateToken.isPending}
-            >
-              <ExternalLink size={14} /> Generate Portal Link
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+  PageHeader, Badge, Button, StatusBadge, DetailCard, DetailRow, CreditScorePill,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog, Modal, useToast } from '@/components/ui';
 
 interface Props { customerId: string }
-
 interface CreditScoreData { score: number; risk: 'high' | 'medium' | 'low'; factors: string[] }
-
-function EditCustomerDialog({
-  customer,
-  open,
-  onClose,
-}: {
-  customer: CustomerWithOutstanding;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const updateMutation = useUpdateCustomer();
-  const { toast } = useToast();
-
-  function handleSubmit(data: CreateCustomerInput) {
-    updateMutation.mutate(
-      { id: customer.id, data },
-      {
-        onSuccess: () => {
-          toast('Customer updated.', 'success');
-          onClose();
-        },
-        onError: () => toast('Failed to update.', 'error'),
-      },
-    );
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit Customer" wide>
-      <CustomerForm
-        initialData={customer}
-        onSubmit={handleSubmit}
-        onCancel={onClose}
-        isLoading={updateMutation.isPending}
-      />
-    </Modal>
-  );
-}
 
 export function CustomerDetailPage({ customerId }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
-  function goBack(): void {
-    if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/customers' });
-  }
   const { data, isLoading, isError } = useCustomer(customerId);
   const deleteMutation = useDeleteCustomer();
   const [showDelete, setShowDelete] = useState(false);
@@ -212,7 +37,13 @@ export function CustomerDetailPage({ customerId }: Props) {
     enabled: !!customer,
     retry: false,
   });
+  const { data: invoicesData } = useInvoices({ customerId, limit: 6 });
+  const { data: receiptsData } = useReceipts({ customerId }, 1);
 
+  function goBack() {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ar/customers' });
+  }
   function handleDeleteConfirm() {
     deleteMutation.mutate(customerId, {
       onSuccess: () => navigate({ to: '/ar/customers' }),
@@ -221,20 +52,30 @@ export function CustomerDetailPage({ customerId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <CardSkeleton />
-        <CardSkeleton />
-        <CardSkeleton />
+      <div className="space-y-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-xl border"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+          />
+        ))}
       </div>
     );
   }
 
   if (isError || !customer) {
-    return <p className="text-sm text-red-500">Customer not found.</p>;
+    return <p className="text-[13px]" style={{ color: 'var(--neg)' }}>Customer not found.</p>;
   }
 
+  const invoices = invoicesData?.data ?? [];
+  const receipts = (receiptsData?.data ?? []).slice(0, 6);
+  const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
+  const openCount = invoices.filter((i) => ['sent', 'partially_paid'].includes(i.status)).length;
+  const outstanding = customer.outstandingAmount ?? 0;
+
   return (
-    <div className="max-w-2xl">
+    <div>
       <PageHeader
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
@@ -242,73 +83,201 @@ export function CustomerDetailPage({ customerId }: Props) {
           { label: customer.name },
         ]}
         title={customer.name}
-        titleBadge={
-          customer.nickname ? <Badge variant="info">{customer.nickname}</Badge> : null
-        }
+        titleBadge={customer.nickname ? <Badge variant="info">{customer.nickname}</Badge> : undefined}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft size={14} /> Back
-            </Button>
-            <Badge variant={customer.isActive ? 'success' : 'default'}>
+            <Button variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>Back</Button>
+            <Badge variant={customer.isActive ? 'success' : 'outline'}>
               {customer.isActive ? 'Active' : 'Inactive'}
             </Badge>
             {creditScoreData?.data && (
-              <CreditScoreBadge score={creditScoreData.data.score} risk={creditScoreData.data.risk} />
+              <CreditScorePill score={creditScoreData.data.score} risk={creditScoreData.data.risk} />
             )}
-            <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
+            <Button variant="outline" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEdit(true)}>
               Edit
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
-              <Trash2 size={14} /> Delete
-            </Button>
+            <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={() => setShowDelete(true)} />
+            <Button variant="outline" size="sm" icon={<MoreHorizontal size={13} />} />
           </>
         }
       />
 
-      <div className="mb-6">
-        <StatsCard
-          title="Outstanding Balance"
-          value={customer.outstandingAmount}
-          formatValue={formatINR}
-        />
+      {/* Outstanding hero + portal */}
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          className="relative overflow-hidden rounded-xl border p-5 lg:col-span-2"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <div
+            className="absolute -right-12 -top-12 h-44 w-44 rounded-full opacity-50"
+            style={{ background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)' }}
+          />
+          <div className="relative">
+            <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+              Outstanding balance
+            </div>
+            <div className="num mt-2 text-[40px] font-semibold leading-none tabular-nums" style={{ color: 'var(--text-1)' }}>
+              {formatINR(outstanding)}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]" style={{ color: 'var(--text-3)' }}>
+              <span><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{overdueCount}</span> overdue</span>
+              <span>·</span>
+              <span><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{openCount}</span> open</span>
+              <span>·</span>
+              <span>Net <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{customer.paymentTermsDays}d</span> terms</span>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/invoices/new' })}>
+                New invoice
+              </Button>
+              <Button variant="outline" size="sm" icon={<Receipt size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
+                Record receipt
+              </Button>
+              <Button variant="outline" size="sm" icon={<Bell size={13} />}>Send reminder</Button>
+            </div>
+          </div>
+        </div>
+        <PortalLinkCard customerId={customerId} nickname={customer.nickname} />
       </div>
 
-      <div className="mb-6">
-        <PortalLinkCard customerId={customerId} />
+      {/* Detail cards */}
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DetailCard title="Basic info" icon={<User size={14} />}>
+          <DetailRow
+            label="Type"
+            value={customer.type === 'b2b' ? 'B2B' : customer.type === 'payment_gateway' ? 'Payment gateway' : 'B2C'}
+          />
+          <DetailRow label="Contact person" value={customer.contactPerson} />
+          <DetailRow label="Email" value={customer.email} mono />
+          <DetailRow label="Phone" value={customer.phone} mono />
+          <DetailRow label="Payment terms" value={`Net ${customer.paymentTermsDays} days`} />
+          <DetailRow
+            label="Credit limit"
+            value={customer.creditLimit ? formatINR(Number(customer.creditLimit)) : 'No limit'}
+          />
+        </DetailCard>
+        <DetailCard title="Tax & legal" icon={<ShieldCheck size={14} />}>
+          <DetailRow label="GSTIN" value={customer.gstin} mono />
+          <DetailRow label="PAN" value={customer.pan} mono />
+          <DetailRow
+            label="Place of supply"
+            value={customer.state ? `${customer.state}${customer.gstin ? ` (${customer.gstin.slice(0, 2)})` : ''}` : null}
+          />
+          <DetailRow
+            label="Address"
+            value={
+              [customer.addressLine1, customer.addressLine2, customer.city, customer.state, customer.pincode]
+                .filter(Boolean)
+                .join(', ') || null
+            }
+          />
+        </DetailCard>
       </div>
 
-      <CustomerCards customer={customer} />
-
-      <div className="mt-6 flex flex-col gap-4">
-        <Card>
-          <CardHeader title="Invoices" />
-          <CardContent>
-            <EmptyState
-              icon={FileText}
-              title="No invoices yet"
-              description="Sales invoices for this customer will appear here."
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader title="Receipts" />
-          <CardContent>
-            <EmptyState
-              icon={Receipt}
-              title="No receipts yet"
-              description="Receipts from this customer will appear here."
-            />
-          </CardContent>
-        </Card>
+      {/* Invoices */}
+      <div
+        className="mb-4 overflow-hidden rounded-xl border"
+        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: 'var(--border-soft)' }}>
+          <div className="flex items-center gap-2">
+            <FileText size={14} style={{ color: 'var(--text-2)' }} />
+            <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent invoices</h3>
+            <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({invoices.length})</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ar/invoices', search: { customer: customerId } as any })}>
+            View all
+          </Button>
+        </div>
+        {invoices.length === 0 ? (
+          <EmptyState
+            icon={<FileText size={18} />}
+            title="No invoices yet"
+            description="Sales invoices for this customer will appear here."
+          />
+        ) : (
+          <table className="w-full text-[13px]">
+            <TableHeader>
+              <tr>
+                <Th>Invoice #</Th>
+                <Th>Issued</Th>
+                <Th>Due</Th>
+                <Th align="right">Total</Th>
+                <Th align="right">Balance</Th>
+                <Th>Status</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow
+                  key={inv.id}
+                  onClick={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: inv.id } })}
+                >
+                  <TableCell>
+                    <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
+                      {inv.invoiceNumber}
+                    </span>
+                  </TableCell>
+                  <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(inv.invoiceDate)}</TableCell>
+                  <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(inv.dueDate)}</TableCell>
+                  <TableCell align="right" numeric>{formatINR(inv.totalAmount)}</TableCell>
+                  <TableCell align="right" numeric className="font-semibold">{formatINR(inv.balanceDue)}</TableCell>
+                  <TableCell><StatusBadge status={inv.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </table>
+        )}
       </div>
 
-      <EditCustomerDialog
-        customer={customer}
-        open={showEdit}
-        onClose={() => setShowEdit(false)}
-      />
+      {/* Receipts */}
+      <div
+        className="overflow-hidden rounded-xl border"
+        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: 'var(--border-soft)' }}>
+          <div className="flex items-center gap-2">
+            <Receipt size={14} style={{ color: 'var(--text-2)' }} />
+            <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Receipts</h3>
+            <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({receipts.length})</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ar/receipts' })}>View all</Button>
+        </div>
+        {receipts.length === 0 ? (
+          <EmptyState
+            icon={<Receipt size={18} />}
+            title="No receipts yet"
+            description="Payments from this customer will appear here."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <tr>
+                <Th>Date</Th>
+                <Th>Method</Th>
+                <Th>Reference</Th>
+                <Th align="right">Amount</Th>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {receipts.map((r) => (
+                <TableRow key={r.id} onClick={() => navigate({ to: '/ar/receipts/$receiptId', params: { receiptId: r.id } })}>
+                  <TableCell numeric>{formatDate(r.receiptDate)}</TableCell>
+                  <TableCell className="capitalize" style={{ color: 'var(--text-2)' }}>
+                    {r.paymentMethod.replace(/_/g, ' ')}
+                  </TableCell>
+                  <TableCell numeric style={{ color: 'var(--text-2)' }}>
+                    {r.referenceNumber ?? <span style={{ color: 'var(--text-3)' }}>—</span>}
+                  </TableCell>
+                  <TableCell align="right" numeric className="font-semibold">{formatINR(r.amount)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <EditCustomerDialog customer={customer} open={showEdit} onClose={() => setShowEdit(false)} />
 
       <ConfirmationDialog
         open={showDelete}
@@ -320,5 +289,95 @@ export function CustomerDetailPage({ customerId }: Props) {
         loading={deleteMutation.isPending}
       />
     </div>
+  );
+}
+
+function PortalLinkCard({ customerId, nickname }: { customerId: string; nickname: string | null }) {
+  const [portalUrl, setPortalUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateToken = useMutation({
+    mutationFn: () => api.post<{ data: { slug: string } }>(`/ar/customers/${customerId}/portal-token`),
+    onSuccess: (res) => {
+      setPortalUrl(`${window.location.origin}/portal/s/${res.data.slug}`);
+    },
+  });
+
+  function handleCopy() {
+    if (!portalUrl) return;
+    navigator.clipboard.writeText(portalUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div
+      className="rounded-xl border p-5"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+          Payment portal
+        </div>
+        <ExternalLink size={13} style={{ color: 'var(--text-3)' }} />
+      </div>
+      <p className="mb-3 text-[12px]" style={{ color: 'var(--text-2)' }}>
+        Share this link so {nickname || 'the customer'} can view and pay invoices online — no login required.
+      </p>
+      {portalUrl ? (
+        <>
+          <div
+            className="num mb-2 truncate rounded-md border px-2.5 py-2 text-[11px]"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          >
+            {portalUrl}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={handleCopy}>
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => generateToken.mutate()} loading={generateToken.isPending}>
+              Regenerate
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          icon={<ExternalLink size={12} />}
+          onClick={() => generateToken.mutate()}
+          loading={generateToken.isPending}
+        >
+          Generate portal link
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function EditCustomerDialog({
+  customer, open, onClose,
+}: { customer: CustomerWithOutstanding; open: boolean; onClose: () => void }) {
+  const updateMutation = useUpdateCustomer();
+  const { toast } = useToast();
+  function handleSubmit(data: CreateCustomerInput) {
+    updateMutation.mutate(
+      { id: customer.id, data },
+      {
+        onSuccess: () => { toast('Customer updated.', 'success'); onClose(); },
+        onError: () => toast('Failed to update.', 'error'),
+      },
+    );
+  }
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Customer" wide>
+      <CustomerForm
+        initialData={customer}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+        isLoading={updateMutation.isPending}
+      />
+    </Modal>
   );
 }

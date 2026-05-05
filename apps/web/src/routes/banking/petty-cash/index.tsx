@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 import type { PettyCashAccount, PettyCashTransaction } from '@runq/types';
 import type { CreatePettyCashAccountInput, PettyCashTransactionInput } from '@runq/validators';
 import {
-  PageHeader,
   Badge,
   Button,
   Card,
@@ -29,6 +28,10 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui';
+import {
+  PageHeader, Button as ArButton, StatTile,
+} from '@/components/ar/primitives';
+import { formatINRShort } from '@/lib/utils';
 import { PettyCashAccountForm } from '@/components/forms/petty-cash-account-form';
 import { PettyCashTransactionForm } from '@/components/forms/petty-cash-transaction-form';
 
@@ -389,21 +392,44 @@ export function PettyCashPage() {
   return (
     <div>
       <PageHeader
-        breadcrumbs={[{ label: 'Banking', href: '/banking' }, { label: 'Petty Cash' }]}
-        title="Petty Cash"
-        description="Manage petty cash funds across locations."
+        breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'Petty cash' }]}
+        title="Petty cash"
+        description="Manage petty cash funds across locations — replenishments, expense approvals, balances."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('petty-cash.csv', ['Account', 'Balance', 'Limit', 'Location', 'Status'], accounts.map(a => [a.name, a.currentBalance, a.cashLimit, a.location ?? '', a.isActive ? 'Active' : 'Inactive']))}>
-              <Download size={14} /> Export CSV
-            </Button>
-            <Button onClick={() => setShowAccountForm((v) => !v)}>
-              <Plus size={16} />
-              New Account
-            </Button>
-          </div>
+          <>
+            <ArButton
+              variant="outline"
+              size="sm"
+              icon={<Download size={13} />}
+              onClick={() => downloadCSV('petty-cash.csv', ['Account', 'Balance', 'Limit', 'Location', 'Status'], accounts.map(a => [a.name, a.currentBalance, a.cashLimit, a.location ?? '', a.isActive ? 'Active' : 'Inactive']))}
+            >
+              Export
+            </ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowAccountForm((v) => !v)}>
+              New account
+            </ArButton>
+          </>
         }
       />
+
+      {/* KPI strip */}
+      {accounts.length > 0 && (() => {
+        const totalBalance = accounts.reduce((a, x) => a + Number(x.currentBalance ?? 0), 0);
+        const totalLimit = accounts.reduce((a, x) => a + Number(x.cashLimit ?? 0), 0);
+        const lowFunds = accounts.filter((x) => {
+          const limit = Number(x.cashLimit ?? 0);
+          const bal = Number(x.currentBalance ?? 0);
+          return limit > 0 && bal / limit < 0.2;
+        }).length;
+        return (
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile label="Total balance" value={formatINRShort(totalBalance)} sub={`Across ${accounts.length} account${accounts.length === 1 ? '' : 's'}`} tone="pos" />
+            <StatTile label="Combined limit" value={formatINRShort(totalLimit)} sub="Sanctioned float" />
+            <StatTile label="Utilisation" value={totalLimit > 0 ? `${Math.round((1 - totalBalance / totalLimit) * 100)}%` : '—'} sub="Of float used" />
+            <StatTile label="Low-fund accounts" value={lowFunds} sub="Need replenishment" tone={lowFunds > 0 ? 'warn' : 'neutral'} />
+          </div>
+        );
+      })()}
 
       {showAccountForm && (
         <div className="mb-6">

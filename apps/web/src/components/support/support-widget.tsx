@@ -95,15 +95,6 @@ export function SupportWidget() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-white text-indigo-600 shadow-lg ring-1 ring-zinc-200 transition hover:bg-zinc-50 hover:shadow-xl dark:bg-zinc-800 dark:text-indigo-300 dark:ring-zinc-700 md:bottom-24 md:right-6"
-        aria-label="Open support chat"
-        title="Help & support"
-      >
-        <LifeBuoy className="h-5 w-5" />
-      </button>
-
       <div
         className={`fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-200 ${
           open ? 'opacity-100' : 'pointer-events-none opacity-0'

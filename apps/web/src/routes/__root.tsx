@@ -1,6 +1,8 @@
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
+import { Topbar } from '../components/layout/topbar';
 import { FinanceAgent } from '../components/agent/finance-agent';
+import { AgentActivityPage } from './agent/activity';
 import { SupportWidget } from '../components/support/support-widget';
 import { ImpersonationBanner } from '../components/admin/impersonation-banner';
 import { LoginPage } from './login';
@@ -52,6 +54,7 @@ import { PoInboxPage } from './ar/po-inbox/index';
 import { PoDraftReviewPage } from './ar/po-inbox/detail';
 import { DunningPage } from './ar/dunning/index';
 import { CollectionsPage } from './ar/collections/index';
+import { BankingHubPage } from './banking/index';
 import { BankAccountListPage } from './banking/accounts/index';
 import { NewBankAccountPage } from './banking/accounts/new';
 import { BankAccountDetailPage } from './banking/accounts/detail';
@@ -116,8 +119,7 @@ import { PriceListsPage } from './masters/price-lists';
 import { PriceListDetailPage } from './masters/price-lists/detail';
 import { PriceListEditPage } from './masters/price-lists/edit';
 import { CategoriesPage } from './masters/categories';
-import { QuotesPage } from './ar/quotes/index';
-import { SalesOrdersPage } from './ar/sales-orders/index';
+import { QuotesAndOrdersPage } from './ar/quotes-orders/index';
 import { ExpenseClaimsPage } from './hr/expense-claims';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
@@ -184,9 +186,15 @@ const dashboardLayoutRoute = createRoute({
       <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
         <MobileHeader />
         <Sidebar />
-        <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950 p-4 pb-20 md:p-6 md:pb-6 text-zinc-900 dark:text-zinc-100">
-          <Outlet />
-        </main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar />
+          <main
+            className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6"
+            style={{ background: 'var(--bg)', color: 'var(--text-1)' }}
+          >
+            <Outlet />
+          </main>
+        </div>
         <MobileBottomNav />
         <FinanceAgent />
         <SupportWidget />
@@ -203,70 +211,12 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 });
 
-// ─── AP Sub-navigation ────────────────────────────────────────────────────────
-
-const AP_TABS = [
-  { label: 'Vendors', path: '/ap/vendors' },
-  { label: 'Bills', path: '/ap/bills' },
-  { label: 'Pay Runs', path: '/ap/pay-runs' },
-  { label: 'Payments', path: '/ap/payments' },
-  { label: 'Debit Notes', path: '/ap/debit-notes' },
-];
-
-function ApNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Accounts Payable</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {AP_TABS.map(({ label, path }) =>
-          path ? (
-            <Link
-              key={label}
-              to={path as '/ap/vendors'}
-              className={[
-                'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-                current.startsWith(path)
-                  ? 'border-primary-500 text-primary-500'
-                  : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-              ].join(' ')}
-            >
-              {label}
-            </Link>
-          ) : (
-            <span
-              key={label}
-              className="px-4 py-2 text-sm font-medium border-b-2 -mb-px border-transparent text-zinc-400 dark:text-zinc-600 cursor-default"
-              title="Coming soon"
-            >
-              {label}
-            </span>
-          ),
-        )}
-      </nav>
-    </div>
-  );
-}
-
-function ApLayout() {
-  return (
-    <div>
-      <ApNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // ─── AP Routes ───────────────────────────────────────────────────────────────
 
 const apRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/ap',
-  component: ApLayout,
+  component: () => <Outlet />,
 });
 
 const apIndexRoute = createRoute({
@@ -455,75 +405,12 @@ const debitNoteDetailRoute = createRoute({
   },
 });
 
-// ─── AR Sub-navigation ────────────────────────────────────────────────────────
-
-const AR_TABS: Array<{ label: string; path: string | null }> = [
-  { label: 'Customers', path: '/ar/customers' },
-  { label: 'Quotes', path: '/ar/quotes' },
-  { label: 'Sales Orders', path: '/ar/sales-orders' },
-  { label: 'Invoices', path: '/ar/invoices' },
-  { label: 'Receipts', path: '/ar/receipts' },
-  { label: 'Credit Notes', path: '/ar/credit-notes' },
-  { label: 'PO Inbox', path: '/ar/po-inbox' },
-  { label: 'Dunning', path: '/ar/dunning' },
-  { label: 'Collections', path: '/ar/collections' },
-  { label: 'Quick Templates', path: '/ar/quick-templates' },
-];
-
-function ArNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Accounts Receivable</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {AR_TABS.map(({ label, path }) =>
-          path ? (
-            <Link
-              key={label}
-              to={path as '/ar/customers' | '/ar/invoices' | '/ar/receipts' | '/ar/credit-notes' | '/ar/po-inbox' | '/ar/dunning' | '/ar/collections' | '/ar/quick-templates'}
-              className={[
-                'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-                current.startsWith(path)
-                  ? 'border-primary-500 text-primary-500'
-                  : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-              ].join(' ')}
-            >
-              {label}
-            </Link>
-          ) : (
-            <span
-              key={label}
-              className="px-4 py-2 text-sm font-medium border-b-2 -mb-px border-transparent text-zinc-400 dark:text-zinc-600 cursor-default"
-              title="Coming soon"
-            >
-              {label}
-            </span>
-          ),
-        )}
-      </nav>
-    </div>
-  );
-}
-
-function ArLayout() {
-  return (
-    <div>
-      <ArNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // ─── AR Routes ───────────────────────────────────────────────────────────────
 
 const arRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/ar',
-  component: ArLayout,
+  component: () => <Outlet />,
 });
 
 const arIndexRoute = createRoute({
@@ -685,13 +572,13 @@ const collectionsRoute = createRoute({
 const quotesRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/quotes',
-  component: QuotesPage,
+  component: () => <QuotesAndOrdersPage initialTab="quotes" />,
 });
 
 const salesOrdersRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/sales-orders',
-  component: SalesOrdersPage,
+  component: () => <QuotesAndOrdersPage initialTab="orders" />,
 });
 
 const quickTemplatesRoute = createRoute({
@@ -700,67 +587,18 @@ const quickTemplatesRoute = createRoute({
   component: QuickTemplatesPage,
 });
 
-// ─── Banking Sub-navigation ───────────────────────────────────────────────────
-
-const BANKING_TABS = [
-  { label: 'Accounts', path: '/banking/accounts' },
-  { label: 'Transactions', path: '/banking/transactions' },
-  { label: 'Reconciliation', path: '/banking/reconciliation' },
-  { label: 'PG Reconciliation', path: '/banking/pg-recon' },
-  { label: 'Cheques', path: '/banking/cheques' },
-  { label: 'Petty Cash', path: '/banking/petty-cash' },
-];
-
-function BankingNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Banking</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {BANKING_TABS.map(({ label, path }) => (
-          <Link
-            key={label}
-            to={path as '/banking/accounts' | '/banking/transactions' | '/banking/reconciliation' | '/banking/cheques' | '/banking/pg-recon' | '/banking/petty-cash'}
-            className={[
-              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-              current.startsWith(path)
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
-function BankingLayout() {
-  return (
-    <div>
-      <BankingNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // ─── Banking Routes ───────────────────────────────────────────────────────────
 
 const bankingRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/banking',
-  component: BankingLayout,
+  component: () => <Outlet />,
 });
 
 const bankingIndexRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/',
-  component: () => <Navigate to="/banking/accounts" />,
+  component: BankingHubPage,
 });
 
 const bankAccountsRoute = createRoute({
@@ -1031,46 +869,10 @@ const faImportRoute = createRoute({
 
 // ─── GST Filing Routes ───────────────────────────────────────────────────────
 
-const GST_TABS = [
-  { label: 'Returns', path: '/gst/returns' },
-  { label: 'Reconciliation', path: '/gst/reconciliation' },
-  { label: 'Readiness', path: '/gst/readiness' },
-];
-
-function GstNav() {
-  const router = useRouterState();
-  const current = router.location.pathname;
-  return (
-    <div className="border-b border-zinc-200 dark:border-zinc-700 mb-6">
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {GST_TABS.map(({ label, path }) => (
-          <Link
-            key={label}
-            to={path as '/'}
-            className={[
-              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-              current.startsWith(path)
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
 const gstRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/gst',
-  component: () => (
-    <div>
-      <GstNav />
-      <Outlet />
-    </div>
-  ),
+  component: () => <Outlet />,
 });
 
 const gstIndexRoute = createRoute({
@@ -1115,69 +917,12 @@ const gstReadinessRoute = createRoute({
   component: GstReadinessPage,
 });
 
-// ─── Settings Layout & Sub-navigation ────────────────────────────────────────
-
-const SETTINGS_TABS = [
-  { label: 'Setup', path: '/settings/setup' },
-  { label: 'Company', path: '/settings/company' },
-  { label: 'Invoice Numbering', path: '/settings/invoice-numbering' },
-  { label: 'Catalogue Attributes', path: '/settings/item-attributes' },
-  { label: 'Users', path: '/settings/users' },
-  { label: 'Tally Export', path: '/settings/tally-export' },
-  { label: 'Notifications', path: '/settings/notifications' },
-  { label: 'Integrations', path: '/settings/integrations' },
-  { label: 'Scheduled Reports', path: '/settings/scheduled-reports' },
-  { label: 'Email Provider', path: '/settings/email-provider' },
-  { label: 'CA Portal', path: '/settings/ca-portal' },
-  { label: 'Migrate from Tally', path: '/settings/tally-import' },
-  { label: 'Webhooks', path: '/settings/webhooks' },
-  { label: 'Opening Balances', path: '/settings/opening-balances' },
-];
-
-function SettingsNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Settings</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {SETTINGS_TABS.map(({ label, path }) => (
-          <Link
-            key={label}
-            to={path as '/settings/company' | '/settings/invoice-numbering' | '/settings/users' | '/settings/tally-export' | '/settings/notifications'}
-            className={[
-              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-              current === path
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
-function SettingsLayout() {
-  return (
-    <div>
-      <SettingsNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // ─── Settings Routes ──────────────────────────────────────────────────────────
 
 const settingsRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/settings',
-  component: SettingsLayout,
+  component: () => <Outlet />,
 });
 
 const settingsIndexRoute = createRoute({
@@ -1340,58 +1085,12 @@ const reportsForecastRoute = createRoute({
   component: CashFlowForecastPage,
 });
 
-// ─── Workflows Sub-navigation ────────────────────────────────────────────────
-
-const WORKFLOWS_TABS = [
-  { label: 'Pending Approvals', path: '/workflows/approvals' },
-  { label: 'Workflows', path: '/workflows' },
-  { label: 'Tasks', path: '/workflows/tasks' },
-];
-
-function WorkflowsNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Workflows</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {WORKFLOWS_TABS.map(({ label, path }) => (
-          <Link
-            key={label}
-            to={path as '/workflows'}
-            className={[
-              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-              (path === '/workflows' ? current === '/workflows' || current === '/workflows/' : current.startsWith(path))
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
-function WorkflowsLayout() {
-  return (
-    <div>
-      <WorkflowsNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // ─── Workflows Routes ────────────────────────────────────────────────────────
 
 const workflowsRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/workflows',
-  component: WorkflowsLayout,
+  component: () => <Outlet />,
 });
 
 const workflowsIndexRoute = createRoute({
@@ -1550,57 +1249,11 @@ const settingsWebhooksRoute = createRoute({
   component: WebhooksPage,
 });
 
-// ─── Masters Sub-navigation ──────────────────────────────────────────────────
-
-const MASTERS_TABS = [
-  { label: 'Items', path: '/masters/items' },
-  { label: 'Categories', path: '/masters/categories' },
-  { label: 'Price Lists', path: '/masters/price-lists' },
-];
-
-function MastersNav() {
-  const routerState = useRouterState();
-  const current = routerState.location.pathname;
-
-  return (
-    <div className="mb-6 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mb-4">
-        <h1 className="text-lg sm:text-2xl font-semibold">Masters</h1>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        {MASTERS_TABS.map(({ label, path }) => (
-          <Link
-            key={label}
-            to={path as '/masters/items'}
-            className={[
-              'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
-              current.startsWith(path)
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
-function MastersLayout() {
-  return (
-    <div>
-      <MastersNav />
-      <Outlet />
-    </div>
-  );
-}
-
 // Masters routes
 const mastersRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/masters',
-  component: MastersLayout,
+  component: () => <Outlet />,
 });
 
 const mastersIndexRoute = createRoute({
@@ -1708,6 +1361,14 @@ const expenseClaimsRoute = createRoute({
   getParentRoute: () => expensesRoute,
   path: '/claims',
   component: ExpenseClaimsPage,
+});
+
+// ─── Agent Activity Route ────────────────────────────────────────────────────
+
+const agentActivityRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/agent/activity',
+  component: AgentActivityPage,
 });
 
 // ─── Help / User Guide Routes ────────────────────────────────────────────────
@@ -1898,6 +1559,7 @@ export const routeTree = rootRoute.addChildren([
   ]),
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
+    agentActivityRoute,
     apRoute.addChildren([
       apIndexRoute,
       vendorsRoute,

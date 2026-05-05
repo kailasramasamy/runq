@@ -51,11 +51,11 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, titleBadge, description, breadcrumbs, actions, className }: PageHeaderProps) {
+  // breadcrumbs prop accepted for back-compat but no longer rendered;
+  // the topbar surfaces the active route globally.
+  void breadcrumbs;
   return (
     <div className={cn('mb-6', className)}>
-      {breadcrumbs && breadcrumbs.length > 0 && (
-        <Breadcrumbs items={breadcrumbs} className="mb-2" />
-      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <div className="flex items-center gap-2">

@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { Plus, Trash2, X, Download, FileText } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
-  Card, CardContent, PageHeader, Button, Badge, Input, Textarea, Combobox, DateInput,
-  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
+  Button, Badge, Input, Textarea, Combobox, DateInput,
   TableSkeleton, useToast,
 } from '@/components/ui';
-import { formatINR } from '@/lib/utils';
+import {
+  PageHeader, Button as ArButton, StatTile, StatusBadge,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useItems } from '@/hooks/queries/use-items';
 import type { Item } from '@/hooks/queries/use-items';
@@ -238,86 +242,117 @@ function SalesOrderCard({ o, onClick }: { o: SalesOrder; onClick: () => void }) 
   );
 }
 
-// ─── Sales Orders Page ───────────────────────────────────────────────────────
+// ─── Sales Orders section + page ────────────────────────────────────────────
 
-export function SalesOrdersPage() {
+export function useOrdersKpis() {
+  const { data } = useSalesOrders();
+  const orders = data?.data ?? [];
+  const openCount = orders.filter((o) => o.status === 'confirmed').length;
+  const openTotal = orders.filter((o) => o.status === 'confirmed').reduce((a, o) => a + o.totalAmount, 0);
+  const fulfilledCount = orders.filter((o) => o.status === 'fulfilled').length;
+  const draftCount = orders.filter((o) => o.status === 'draft').length;
+  return { orders, openCount, openTotal, fulfilledCount, draftCount };
+}
+
+export function SalesOrdersSection({
+  showCreate, setShowCreate,
+}: {
+  showCreate: boolean;
+  setShowCreate: (v: boolean) => void;
+}) {
   const { data, isLoading } = useSalesOrders();
-  const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const orders = data?.data ?? [];
   const selected = selectedId ? orders.find((o) => o.id === selectedId) : null;
 
   return (
-    <div>
-      <PageHeader
-        title="Sales Orders"
-        breadcrumbs={[{ label: 'AR' }, { label: 'Sales Orders' }]}
-        description="Manage confirmed sales orders and convert them to invoices."
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadCSV('sales-orders.csv', ['Order#', 'Date', 'Customer', 'Amount', 'Status'], orders.map(o => [o.orderNumber, o.orderDate, o.customerName, String(o.totalAmount), o.status]))}>
-              <Download size={14} /> Export CSV
-            </Button>
-            <Button size="sm" onClick={() => setShowCreate((v) => !v)}><Plus size={14} /> New Order</Button>
-          </div>
-        }
-      />
-
+    <>
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
       {selected && <DetailView order={selected} onClose={() => setSelectedId(null)} />}
 
-      {/* Mobile */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-            ))
-          : orders.length === 0
-            ? <p className="py-8 text-center text-sm text-zinc-500">No sales orders yet.</p>
-            : orders.map((o) => <SalesOrderCard key={o.id} o={o} onClick={() => setSelectedId(o.id)} />)
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Order #</Th>
+            <Th>Customer</Th>
+            <Th>Issued</Th>
+            <Th align="right">Total</Th>
+            <Th>Status</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableSkeleton rows={5} cols={6} />
+          ) : orders.length === 0 ? (
+            <tr>
+              <td colSpan={6}>
+                <EmptyState
+                  icon={<FileText size={18} />}
+                  title="No sales orders yet"
+                  description="Create a sales order to lock in a confirmed customer commitment."
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>New order</ArButton>}
+                />
+              </td>
+            </tr>
+          ) : orders.map((o) => (
+            <TableRow key={o.id} onClick={() => setSelectedId(o.id)}>
+              <TableCell>
+                <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>{o.orderNumber}</span>
+              </TableCell>
+              <TableCell>
+                <span className="font-medium" style={{ color: 'var(--text-1)' }}>{o.customerName}</span>
+              </TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(o.orderDate)}</TableCell>
+              <TableCell align="right" numeric className="font-semibold">{formatINR(o.totalAmount)}</TableCell>
+              <TableCell><StatusBadge status={o.status} /></TableCell>
+              <TableCell align="right">
+                {o.status === 'confirmed' && (
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <ArButton size="sm" variant="outline" icon={<FileText size={12} />} onClick={() => setSelectedId(o.id)}>
+                      Convert
+                    </ArButton>
+                  </span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  );
+}
+
+// Stand-alone Sales Orders page
+export function SalesOrdersPage() {
+  const { orders, openCount, openTotal, fulfilledCount, draftCount } = useOrdersKpis();
+  const [showCreate, setShowCreate] = useState(false);
+
+  return (
+    <div>
+      <PageHeader
+        title="Sales orders"
+        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Sales orders' }]}
+        description="Manage confirmed sales orders and convert them to invoices."
+        actions={
+          <>
+            <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('sales-orders.csv', ['Order#', 'Date', 'Customer', 'Amount', 'Status'], orders.map(o => [o.orderNumber, o.orderDate, o.customerName, String(o.totalAmount), o.status]))}>
+              Export
+            </ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate((v) => !v)}>New order</ArButton>
+          </>
         }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Open orders" value={openCount} sub={formatINRShort(openTotal)} />
+        <StatTile label="Fulfilled" value={fulfilledCount} sub="Delivered to customer" tone="pos" />
+        <StatTile label="Drafts" value={draftCount} sub="Awaiting confirmation" />
+        <StatTile label="Total orders" value={orders.length} sub="In view" />
       </div>
 
-      {/* Desktop */}
-      <div className="hidden md:block">
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <tr><Th>Order#</Th><Th>Date</Th><Th>Customer</Th><Th align="right">Amount</Th><Th>Status</Th><Th align="right">Actions</Th></tr>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableSkeleton rows={5} cols={6} />
-                ) : orders.length === 0 ? (
-                  <TableEmpty colSpan={6} message="No sales orders yet." />
-                ) : (
-                  orders.map((o) => {
-                    const si = STATUS_BADGE[o.status];
-                    return (
-                      <TableRow key={o.id} className="cursor-pointer" onClick={() => setSelectedId(o.id)}>
-                        <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
-                        <TableCell className="text-zinc-500">{o.orderDate}</TableCell>
-                        <TableCell className="font-medium">{o.customerName}</TableCell>
-                        <TableCell align="right" numeric>{formatINR(o.totalAmount)}</TableCell>
-                        <TableCell><Badge variant={si.variant}>{si.label}</Badge></TableCell>
-                        <TableCell align="right">
-                          {o.status === 'confirmed' && (
-                            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                              <Badge variant="info">Ready to convert</Badge>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+      <SalesOrdersSection showCreate={showCreate} setShowCreate={setShowCreate} />
     </div>
   );
 }

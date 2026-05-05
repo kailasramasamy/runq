@@ -28,6 +28,8 @@ export * from './banking/petty-cash';
 export * from './pg-recon/settlements';
 export * from './webhook-events';
 export * from './audit-log';
+export * from './agent-events';
+export * from './notifications';
 export * from './gl/accounts';
 export * from './gl/journal-entries';
 export * from './masters/hsn-sac';

@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, gte, inArray, lt, lte, notInArray, sql, sum } from 'drizzle-orm';
-import { auditLog, bankAccounts, bankTransactions, customers, purchaseInvoices, salesInvoices, users, vendors } from '@runq/db';
+import { auditLog, bankAccounts, bankTransactions, customers, fiscalPeriods, gstReturns, purchaseInvoices, salesInvoices, users, vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 
 export interface AgingBucket {
@@ -291,6 +291,223 @@ export class DashboardService {
       days,
       asOf: now.toISOString(),
     };
+  }
+
+  /**
+   * 6 months actual (from bank credits/debits) + 3 months forecast (from
+   * open SI/PI due dates). Forecast is intentionally simple — it doesn't
+   * model recurrences or new business; it's "what's already on the books".
+   */
+  async getCashflowForecast() {
+    const now = new Date();
+    const startActual = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const startActualIso = this.toDateOnly(startActual);
+    const endActualIso = this.toDateOnly(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    const endForecastIso = this.toDateOnly(new Date(now.getFullYear(), now.getMonth() + 4, 0));
+
+    const [actualRows, siRows, piRows] = await Promise.all([
+      this.db
+        .select({
+          ym: sql<string>`to_char(${bankTransactions.transactionDate}, 'YYYY-MM')`,
+          credits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+          debits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'debit' THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+        })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          gte(bankTransactions.transactionDate, startActualIso),
+          lte(bankTransactions.transactionDate, endActualIso),
+        ))
+        .groupBy(sql`1`),
+      this.db
+        .select({
+          ym: sql<string>`to_char(${salesInvoices.dueDate}, 'YYYY-MM')`,
+          amount: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text`,
+        })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          notInArray(salesInvoices.status, [...EXCLUDED_STATUSES_SI]),
+          gt(salesInvoices.dueDate, endActualIso),
+          lte(salesInvoices.dueDate, endForecastIso),
+        ))
+        .groupBy(sql`1`),
+      this.db
+        .select({
+          ym: sql<string>`to_char(${purchaseInvoices.dueDate}, 'YYYY-MM')`,
+          amount: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text`,
+        })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          notInArray(purchaseInvoices.status, [...EXCLUDED_STATUSES_PI]),
+          gt(purchaseInvoices.dueDate, endActualIso),
+          lte(purchaseInvoices.dueDate, endForecastIso),
+        ))
+        .groupBy(sql`1`),
+    ]);
+
+    const actualMap = new Map(actualRows.map((r) => [r.ym, r]));
+    const siMap = new Map(siRows.map((r) => [r.ym, r.amount]));
+    const piMap = new Map(piRows.map((r) => [r.ym, r.amount]));
+
+    const months: { ym: string; label: string; in: number; out: number; forecast: boolean }[] = [];
+    for (let i = -5; i <= 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-IN', { month: 'short' });
+      const isForecast = i > 0;
+      if (isForecast) {
+        months.push({
+          ym,
+          label,
+          in: parseFloat(siMap.get(ym) ?? '0') || 0,
+          out: parseFloat(piMap.get(ym) ?? '0') || 0,
+          forecast: true,
+        });
+      } else {
+        const a = actualMap.get(ym);
+        months.push({
+          ym,
+          label,
+          in: parseFloat(a?.credits ?? '0') || 0,
+          out: parseFloat(a?.debits ?? '0') || 0,
+          forecast: false,
+        });
+      }
+    }
+
+    const forecastMonths = months.filter((m) => m.forecast);
+    const inflow90 = forecastMonths.reduce((s, m) => s + m.in, 0);
+    const outflow90 = forecastMonths.reduce((s, m) => s + m.out, 0);
+
+    return {
+      months,
+      inflow90: inflow90.toFixed(2),
+      outflow90: outflow90.toFixed(2),
+      net90: (inflow90 - outflow90).toFixed(2),
+    };
+  }
+
+  /**
+   * Period close checklist for the current month. Each item maps to a
+   * concrete data signal:
+   *   - Bank reconciliation → all bank txns in period have recon_status != 'unreconciled'
+   *   - Invoices reviewed   → no SI in period stuck in 'draft'
+   *   - Bills approved      → all PI in period have status in (approved, paid, cancelled, partially_paid)
+   *   - GST filed           → gstr1 + gstr3b for prior month both have status 'filed'
+   *   - Period locked       → fiscal_periods row for this month has status in (closed, locked)
+   */
+  async getPeriodClose() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const startIso = this.toDateOnly(start);
+    const endIso = this.toDateOnly(end);
+    const periodLabel = start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+    // Prior month for GST filing
+    const prior = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const priorPeriod = `${String(prior.getMonth() + 1).padStart(2, '0')}${prior.getFullYear()}`;
+
+    const [bankRow, siRow, piRow, gstRows, fpRow] = await Promise.all([
+      this.db
+        .select({
+          total: sql<number>`COUNT(*)::int`,
+          unreconciled: sql<number>`SUM(CASE WHEN ${bankTransactions.reconStatus} = 'unreconciled' THEN 1 ELSE 0 END)::int`,
+        })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          gte(bankTransactions.transactionDate, startIso),
+          lte(bankTransactions.transactionDate, endIso),
+        )),
+      this.db
+        .select({
+          total: sql<number>`COUNT(*)::int`,
+          drafts: sql<number>`SUM(CASE WHEN ${salesInvoices.status} = 'draft' THEN 1 ELSE 0 END)::int`,
+        })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          gte(salesInvoices.invoiceDate, startIso),
+          lte(salesInvoices.invoiceDate, endIso),
+        )),
+      this.db
+        .select({
+          total: sql<number>`COUNT(*)::int`,
+          pending: sql<number>`SUM(CASE WHEN ${purchaseInvoices.status} IN ('draft', 'pending_match', 'matched') THEN 1 ELSE 0 END)::int`,
+        })
+        .from(purchaseInvoices)
+        .where(and(
+          eq(purchaseInvoices.tenantId, this.tenantId),
+          gte(purchaseInvoices.invoiceDate, startIso),
+          lte(purchaseInvoices.invoiceDate, endIso),
+        )),
+      this.db
+        .select({ returnType: gstReturns.returnType, status: gstReturns.status })
+        .from(gstReturns)
+        .where(and(eq(gstReturns.tenantId, this.tenantId), eq(gstReturns.period, priorPeriod))),
+      this.db
+        .select({ status: fiscalPeriods.status })
+        .from(fiscalPeriods)
+        .where(and(eq(fiscalPeriods.tenantId, this.tenantId), eq(fiscalPeriods.startDate, startIso)))
+        .limit(1),
+    ]);
+
+    const bank = bankRow[0] ?? { total: 0, unreconciled: 0 };
+    const si = siRow[0] ?? { total: 0, drafts: 0 };
+    const pi = piRow[0] ?? { total: 0, pending: 0 };
+    const gstr1Filed = gstRows.some((r) => r.returnType === 'gstr1' && r.status === 'filed');
+    const gstr3bFiled = gstRows.some((r) => r.returnType === 'gstr3b' && r.status === 'filed');
+    const fpStatus = fpRow[0]?.status ?? 'open';
+
+    type ItemStatus = 'done' | 'progress' | 'pending';
+    const items: { key: string; label: string; status: ItemStatus; sub: string }[] = [
+      {
+        key: 'bank_recon',
+        label: 'Bank reconciliation',
+        status: bank.total === 0 ? 'pending' : bank.unreconciled === 0 ? 'done' : 'progress',
+        sub: bank.total === 0
+          ? 'No bank transactions yet'
+          : `${bank.total - bank.unreconciled} of ${bank.total} matched`,
+      },
+      {
+        key: 'invoices_reviewed',
+        label: 'Invoices reviewed',
+        status: si.total === 0 ? 'pending' : si.drafts === 0 ? 'done' : 'progress',
+        sub: si.total === 0 ? 'No invoices this period' : `${si.total - si.drafts} of ${si.total} finalised`,
+      },
+      {
+        key: 'bills_approved',
+        label: 'Bills approved',
+        status: pi.total === 0 ? 'pending' : pi.pending === 0 ? 'done' : 'progress',
+        sub: pi.total === 0 ? 'No bills this period' : `${pi.total - pi.pending} of ${pi.total} approved`,
+      },
+      {
+        key: 'gst_filed',
+        label: 'GST filed',
+        status: gstr1Filed && gstr3bFiled ? 'done' : (gstr1Filed || gstr3bFiled) ? 'progress' : 'pending',
+        sub: gstr1Filed && gstr3bFiled
+          ? `Filed for ${prior.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`
+          : `Pending: ${[!gstr1Filed && 'GSTR-1', !gstr3bFiled && 'GSTR-3B'].filter(Boolean).join(', ')}`,
+      },
+      {
+        key: 'period_lock',
+        label: 'Period locked',
+        status: fpStatus === 'locked' || fpStatus === 'closed' ? 'done' : 'pending',
+        sub: fpStatus === 'locked' ? 'Period locked' : fpStatus === 'closed' ? 'Closed, awaiting lock' : 'Run after GST',
+      },
+    ];
+
+    const doneCount = items.filter((i) => i.status === 'done').length;
+    const progressPct = Math.round((doneCount / items.length) * 100);
+
+    return { periodLabel, progressPct, items };
+  }
+
+  private toDateOnly(d: Date): string {
+    return d.toISOString().split('T')[0]!;
   }
 
   private bucketiseAging(rows: { bucket: string; count: number; amount: string }[]): AgingResult {

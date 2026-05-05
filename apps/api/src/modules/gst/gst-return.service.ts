@@ -10,6 +10,7 @@ import { validateGstr1 } from './gstr1-validator';
 import { createGspClient } from './gsp-client';
 import type { GspAuthToken, GspClient } from './gsp-client';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { AgentFeedService } from '../dashboard/agent-feed.service';
 
 type GstReturn = typeof gstReturns.$inferSelect;
 
@@ -104,6 +105,7 @@ export class GstReturnService {
       await this.db.delete(gstReturnInvoices).where(eq(gstReturnInvoices.returnId, existing.id));
       await this.insertReturnInvoiceLinks(existing.id, classifiedInvoices, classifiedCreditNotes);
 
+      this.recordReturnDraftedEvent('gstr1', period, updated.id, classifiedInvoices.length);
       return updated;
     }
 
@@ -121,7 +123,39 @@ export class GstReturnService {
       .returning();
 
     await this.insertReturnInvoiceLinks(created.id, classifiedInvoices, classifiedCreditNotes);
+    this.recordReturnDraftedEvent('gstr1', period, created.id, classifiedInvoices.length);
     return created;
+  }
+
+  /**
+   * Fire-and-forget agent feed event when a return draft is generated.
+   * Surfaces in the dashboard "Agent feed". Errors are swallowed so the
+   * generator path never fails on telemetry.
+   */
+  private recordReturnDraftedEvent(
+    returnType: 'gstr1' | 'gstr3b',
+    period: string,
+    returnId: string,
+    invoiceCount: number,
+  ): void {
+    const label = returnType === 'gstr1' ? 'GSTR-1' : 'GSTR-3B';
+    // period is MMYYYY → human-friendly "Mon YYYY"
+    const mm = parseInt(period.slice(0, 2), 10);
+    const yyyy = parseInt(period.slice(2), 10);
+    const periodLabel = new Date(yyyy, mm - 1, 1).toLocaleDateString('en-IN', {
+      month: 'short', year: 'numeric',
+    });
+    void new AgentFeedService(this.db, this.tenantId).record({
+      kind: 'gst_draft',
+      severity: 'info',
+      title: `${label} draft prepared`,
+      detail: `${periodLabel}${invoiceCount > 0 ? ` — ${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'}` : ''}.`,
+      ctaLabel: 'Open draft',
+      ctaUrl: `/gst`,
+      relatedEntityType: 'gst_return',
+      relatedEntityId: returnId,
+      metadata: { returnType, period, invoiceCount },
+    }).catch((err) => { console.error('[agent-feed] gst_draft event failed:', err); });
   }
 
   // ── Generate GSTR-3B draft ──────────────────────────────────────────
@@ -172,6 +206,7 @@ export class GstReturnService {
         .set({ data, notes, status: 'draft', errorDetails: null, updatedAt: new Date() })
         .where(eq(gstReturns.id, existing.id))
         .returning();
+      this.recordReturnDraftedEvent('gstr3b', period, updated.id, 0);
       return updated;
     }
 
@@ -188,6 +223,7 @@ export class GstReturnService {
       })
       .returning();
 
+    this.recordReturnDraftedEvent('gstr3b', period, created.id, 0);
     return created;
   }
 

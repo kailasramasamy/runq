@@ -8,10 +8,11 @@ import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { Gstr2bMatch, ReconSummary } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
-  PageHeader, Button, Card, CardContent, Badge, Combobox,
+  Button, Card, CardContent, Badge, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Modal, Input, useToast,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ar/primitives';
 
 function periodLabel(period: string): string {
   const month = parseInt(period.substring(0, 2), 10);
@@ -218,7 +219,7 @@ export function ReconciliationPage() {
   return (
     <div className="max-w-6xl">
       <PageHeader
-        title="GSTR-2B Reconciliation"
+        title="GSTR-2B reconciliation"
         description="Match your purchase invoices against supplier-reported data in GSTR-2B."
       />
 

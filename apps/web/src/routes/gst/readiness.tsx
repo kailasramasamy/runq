@@ -7,9 +7,10 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
-  PageHeader, Card, CardHeader, CardContent, Badge, Button,
+  Card, CardHeader, CardContent, Badge, Button,
   CardSkeleton, HsnSacCombobox, useToast,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ar/primitives';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ export function GstReadinessPage() {
   if (!readiness) {
     return (
       <div className="max-w-3xl">
-        <PageHeader title="GST Readiness" description="Configure GSTIN in Settings → Company to enable readiness tracking." />
+        <PageHeader title="GST readiness" description="Configure GSTIN in Settings → Company to enable readiness tracking." />
       </div>
     );
   }
@@ -273,11 +274,7 @@ export function GstReadinessPage() {
   return (
     <div className="max-w-3xl">
       <PageHeader
-        title="GST Readiness"
-        breadcrumbs={[
-          { label: 'GST', href: '/gst/returns' },
-          { label: 'Readiness' },
-        ]}
+        title="GST readiness"
         description={filedExternally
           ? `${readiness.periodLabel} — filed externally. runq filing starts from ${filingStartLabel ?? 'next period'}.`
           : isPreparing

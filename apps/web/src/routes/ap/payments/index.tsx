@@ -1,101 +1,22 @@
 import { useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { CreditCard, Plus, Download, CheckCircle, XCircle } from 'lucide-react';
-import { useVendorPayments, useApprovePayment, useRejectPayment } from '../../../hooks/queries/use-payments';
-import { useVendors } from '../../../hooks/queries/use-vendors';
-import type { VendorPayment, PaymentStatus } from '@runq/types';
-import { formatINR } from '../../../lib/utils';
+import { useNavigate } from '@tanstack/react-router';
+import { CreditCard, Plus, Download, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
+import { useVendorPayments, useApprovePayment, useRejectPayment } from '@/hooks/queries/use-payments';
+import { useVendors } from '@/hooks/queries/use-vendors';
+import type { VendorPayment } from '@runq/types';
+import { formatINR, formatINRShort } from '@/lib/utils';
 import {
-  PageHeader,
-  Badge,
-  Card,
-  CardContent,
-  Select,
-  DateInput,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  Th,
-  TableSkeleton,
-  EmptyState,
-  Pagination,
-  ConfirmationDialog,
-} from '@/components/ui';
+  PageHeader, Button, Select, StatTile, StatusBadge, PaymentMethodBadge, Avatar,
+  Table, TableHeader, Th, TableBody, TableRow, TableCell,
+  Pagination, EmptyState, formatDate,
+} from '@/components/ar/primitives';
+import { ConfirmationDialog } from '@/components/ui';
 
-const STATUS_VARIANT: Record<PaymentStatus, 'warning' | 'success' | 'danger' | 'outline'> = {
-  pending: 'warning',
-  completed: 'success',
-  failed: 'danger',
-  reversed: 'outline',
-};
-
-function PaymentRow({
-  payment,
-  onApprove,
-  onReject,
-}: {
-  payment: VendorPayment & { vendorName?: string };
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-}) {
-  return (
-    <TableRow>
-      <TableCell>
-        <Link
-          to="/ap/payments/$paymentId"
-          params={{ paymentId: payment.id }}
-          className="font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400"
-        >
-          {payment.id.slice(0, 8)}…
-        </Link>
-      </TableCell>
-      <TableCell className="text-sm">{payment.vendorName ?? payment.vendorId.slice(0, 8)}</TableCell>
-      <TableCell className="text-zinc-600 dark:text-zinc-400">{payment.paymentDate}</TableCell>
-      <TableCell align="right" numeric>{formatINR(payment.amount)}</TableCell>
-      <TableCell className="capitalize text-zinc-600 dark:text-zinc-400">
-        {payment.paymentMethod.replace('_', ' ')}
-      </TableCell>
-      <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-        {payment.utrNumber ?? '—'}
-      </TableCell>
-      <TableCell>
-        <Badge variant={STATUS_VARIANT[payment.status]} className="capitalize">
-          {payment.status}
-        </Badge>
-      </TableCell>
-      <TableCell>
-        {payment.status === 'pending' && (
-          <div className="flex gap-1">
-            <button
-              onClick={() => onApprove(payment.id)}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
-              title="Approve"
-            >
-              <CheckCircle size={14} />
-              Approve
-            </button>
-            <button
-              onClick={() => onReject(payment.id)}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-              title="Reject"
-            >
-              <XCircle size={14} />
-              Reject
-            </button>
-          </div>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
+const LIMIT = 20;
 
 export function PaymentListPage() {
   const navigate = useNavigate();
   const [vendorId, setVendorId] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
@@ -105,171 +26,169 @@ export function PaymentListPage() {
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data ?? [];
 
-  const { data, isLoading } = useVendorPayments({
-    vendorId: vendorId || undefined,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
-  }, page);
+  const { data, isLoading } = useVendorPayments(
+    { vendorId: vendorId || undefined },
+    page,
+  );
 
-  const payments = data?.data ?? [];
+  const payments = (data?.data ?? []) as Array<VendorPayment & { vendorName?: string }>;
   const meta = data?.meta;
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
 
+  const totalAmount = payments.reduce((a, p) => a + Number(p.amount), 0);
+  const completedCount = payments.filter((p) => p.status === 'completed').length;
+  const pendingCount = payments.filter((p) => p.status === 'pending').length;
+  const failedCount = payments.filter((p) => p.status === 'failed').length;
+
   const vendorOptions = [
-    { value: '', label: 'All Vendors' },
+    { value: '', label: 'All vendors' },
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
   ];
-
-  function getExportUrl() {
-    const params = new URLSearchParams();
-    if (dateFrom) params.set('dateFrom', dateFrom);
-    if (dateTo) params.set('dateTo', dateTo);
-    return `/api/v1/ap/payments/export-csv?${params.toString()}`;
-  }
 
   return (
     <div>
       <PageHeader
-        title="Payments"
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Payments' }]}
+        title="Payments"
+        description="Vendor payments — RTGS / NEFT / cheque / UPI, advances and bulk runs."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => window.open(getExportUrl(), '_blank')}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Download size={13} />}
+              onClick={() => window.open(`/api/v1/ap/payments/export-csv`, '_blank')}
             >
-              <Download size={16} />
-              Export CSV
-            </button>
-            <Link to="/ap/payments/advance">
-              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                Advance Payment
-              </button>
-            </Link>
-            <Link to="/ap/payments/direct">
-              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                Direct Payment
-              </button>
-            </Link>
-            <Link to="/ap/payments/bulk">
-              <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-transparent px-4 text-sm font-medium text-zinc-900 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                Bulk Payment
-              </button>
-            </Link>
-            <Link to="/ap/payments/new">
-              <button className="inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-indigo-700">
-                <Plus size={16} />
-                New Payment
-              </button>
-            </Link>
-          </div>
+              Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/advance' })}>
+              Advance
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/direct' })}>
+              Direct
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/bulk' })}>
+              Bulk
+            </Button>
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+              New payment
+            </Button>
+          </>
         }
       />
 
-      <Card className="mb-4">
-        <CardContent className="grid grid-cols-2 gap-3 py-3 sm:flex sm:flex-wrap sm:items-end">
-          <div className="col-span-2 sm:w-52">
-            <Select
-              label="Vendor"
-              options={vendorOptions}
-              value={vendorId}
-              onChange={(e) => { setVendorId(e.target.value); setPage(1); }}
-            />
-          </div>
-          <div className="sm:w-44">
-            <DateInput
-              label="From"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-            />
-          </div>
-          <div className="sm:w-44">
-            <DateInput
-              label="To"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Mobile cards */}
-      <div className="flex flex-col gap-2 md:hidden">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
-          ))
-        ) : payments.length === 0 ? (
-          <EmptyState
-            icon={CreditCard}
-            title="No payments found"
-            description="Record a new payment against vendor invoices or log an advance payment."
-          />
-        ) : (
-          payments.map((p) => (
-            <div
-              key={p.id}
-              className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => navigate({ to: '/ap/payments/$paymentId', params: { paymentId: p.id } })}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300">{p.id.slice(0, 8)}…</span>
-                <Badge variant={STATUS_VARIANT[p.status]} className="capitalize">{p.status}</Badge>
-              </div>
-              <div className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                {(p as any).vendorName ?? p.vendorId.slice(0, 8)}
-              </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                <span>{p.paymentDate}</span>
-                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300 ml-auto">{formatINR(p.amount)}</span>
-              </div>
-            </div>
-          ))
-        )}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          label="Total paid (in view)"
+          value={formatINRShort(totalAmount)}
+          sub={`${payments.length} payment${payments.length === 1 ? '' : 's'}`}
+          tone="pos"
+        />
+        <StatTile label="Completed" value={completedCount} sub="Cleared" tone="pos" />
+        <StatTile label="Pending approval" value={pendingCount} sub="Awaiting review" tone={pendingCount > 0 ? 'warn' : 'neutral'} />
+        <StatTile label="Failed" value={failedCount} sub="Need attention" tone={failedCount > 0 ? 'neg' : 'neutral'} />
       </div>
 
-      {/* Desktop table */}
-      <div className="hidden md:block">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="w-56">
+          <Select
+            options={vendorOptions}
+            value={vendorId}
+            onChange={(e) => { setVendorId(e.target.value); setPage(1); }}
+          />
+        </div>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} payments</span>
+      </div>
+
       <Table>
         <TableHeader>
           <tr>
-            <Th>Payment ID</Th>
-            <Th>Vendor</Th>
             <Th>Date</Th>
-            <Th align="right">Amount</Th>
+            <Th>Vendor</Th>
             <Th>Method</Th>
             <Th>UTR / Reference</Th>
+            <Th align="right">Amount</Th>
             <Th>Status</Th>
-            <Th>Actions</Th>
+            <Th align="right" />
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={8} cols={8} />
+            Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <TableCell key={j}>
+                    <div className="h-3 w-full max-w-[120px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
           ) : payments.length === 0 ? (
             <tr>
-              <td colSpan={8}>
+              <td colSpan={7}>
                 <EmptyState
-                  icon={CreditCard}
+                  icon={<CreditCard size={18} />}
                   title="No payments found"
-                  description="Record a new payment against vendor invoices or log an advance payment."
+                  description="Record a new payment against vendor bills or log an advance payment."
+                  action={(
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+                      New payment
+                    </Button>
+                  )}
                 />
               </td>
             </tr>
-          ) : (
-            payments.map((p) => (
-              <PaymentRow
-                key={p.id}
-                payment={p}
-                onApprove={(id) => approveMutation.mutate(id)}
-                onReject={(id) => setRejectingId(id)}
-              />
-            ))
-          )}
+          ) : payments.map((p) => (
+            <TableRow
+              key={p.id}
+              onClick={() => navigate({ to: '/ap/payments/$paymentId', params: { paymentId: p.id } })}
+            >
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(p.paymentDate)}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Avatar name={p.vendorName ?? '?'} size={24} />
+                  <span className="font-medium" style={{ color: 'var(--text-1)' }}>
+                    {p.vendorName ?? `${p.vendorId.slice(0, 8)}…`}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell><PaymentMethodBadge method={p.paymentMethod} /></TableCell>
+              <TableCell numeric style={{ color: 'var(--text-2)' }}>
+                {p.utrNumber ?? <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell align="right" numeric className="font-semibold">{formatINR(Number(p.amount))}</TableCell>
+              <TableCell><StatusBadge status={p.status} /></TableCell>
+              <TableCell align="right">
+                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  {p.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => approveMutation.mutate(p.id)}
+                        className="rounded p-1 hover:bg-[var(--pos-soft)]"
+                        style={{ color: 'var(--pos)' }}
+                        title="Approve"
+                      >
+                        <CheckCircle size={14} />
+                      </button>
+                      <button
+                        onClick={() => setRejectingId(p.id)}
+                        className="rounded p-1 hover:bg-[var(--neg-soft)]"
+                        style={{ color: 'var(--neg)' }}
+                        title="Reject"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    </>
+                  )}
+                  <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
-      </div>
 
       <ConfirmationDialog
         open={!!rejectingId}
@@ -285,14 +204,8 @@ export function PaymentListPage() {
       />
 
       {totalPages > 1 && (
-        <div className="mt-4">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={20}
-            onPageChange={setPage}
-          />
+        <div className="mt-3">
+          <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
     </div>

@@ -8,10 +8,11 @@ import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
-  PageHeader, Button, Card, CardHeader, CardContent, Badge, Input,
+  Button, Card, CardHeader, CardContent, Badge, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   CardSkeleton, useToast, Modal,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ar/primitives';
 
 function periodLabel(period: string): string {
   const month = parseInt(period.substring(0, 2), 10);

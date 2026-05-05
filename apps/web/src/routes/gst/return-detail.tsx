@@ -11,10 +11,11 @@ import type { GstReturn } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
 import {
-  PageHeader, Button, Card, CardHeader, CardContent, Badge, Input,
+  Button, Card, CardHeader, CardContent, Badge, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   CardSkeleton, useToast, Modal,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ar/primitives';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 

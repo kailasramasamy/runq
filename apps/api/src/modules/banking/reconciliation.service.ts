@@ -24,6 +24,7 @@ import type { SmartMatchResult } from './smart-match.service';
 import { SmartMatchService } from './smart-match.service';
 import { TdsMatchService } from './tds-match.service';
 import { AutoReceiptService } from './auto-receipt.service';
+import { AgentFeedService } from '../dashboard/agent-feed.service';
 
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
@@ -193,6 +194,28 @@ export class ReconciliationService {
     const totalBankTxns = txns.length;
     const autoMatched = matched.length;
     const matchRate = totalBankTxns > 0 ? `${Math.round((autoMatched / totalBankTxns) * 100)}%` : '0%';
+
+    // Record agent event for the dashboard feed. Only when something
+    // actually happened — silent runs (0 txns scanned) shouldn't pollute.
+    if (totalBankTxns > 0) {
+      const remaining = totalBankTxns - autoMatched;
+      const severity = remaining === 0 ? 'ok' : remaining > autoMatched ? 'warn' : 'info';
+      const detail = remaining === 0
+        ? `All ${autoMatched} bank transactions matched.`
+        : `Matched ${autoMatched} of ${totalBankTxns} (${matchRate}). ${remaining} parked for review.`;
+      // Fire-and-forget — agent-feed errors must not fail the reconcile call.
+      void new AgentFeedService(this.db, this.tenantId).record({
+        kind: 'reconcile',
+        severity,
+        title: `Reconciled ${autoMatched} transaction${autoMatched === 1 ? '' : 's'}`,
+        detail,
+        ctaLabel: remaining > 0 ? 'Review' : undefined,
+        ctaUrl: remaining > 0 ? '/banking' : undefined,
+        relatedEntityType: 'bank_account',
+        relatedEntityId: bankAccountId,
+        metadata: { totalBankTxns, autoMatched, remaining, matchRate },
+      }).catch((err) => { console.error('[agent-feed] reconcile event failed:', err); });
+    }
 
     return {
       matched,

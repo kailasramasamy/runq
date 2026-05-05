@@ -11,6 +11,8 @@ import { AISummaryService } from './ai-summary.service';
 import { AIChatService } from './ai-chat.service';
 import { WidgetService } from './widget.service';
 import { ScheduledReportService } from './scheduled-report.service';
+import { AgentFeedService } from './agent-feed.service';
+import { NotificationsService } from './notifications.service';
 import { runReportNow } from '../../scheduler/report-scheduler';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -18,6 +20,7 @@ const aiSummaryQuerySchema = z.object({ refresh: z.string().optional() });
 const aiChatBodySchema = z.object({ question: z.string().min(1).max(500) });
 const cashTrendQuerySchema = z.object({ days: z.coerce.number().int().min(2).max(90).optional() });
 const activityQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() });
+const limitQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() });
 
 export const dashboardRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -68,6 +71,71 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
       const service = new DashboardService(request.server.db, request.tenantId);
       const data = await service.getCashTrend(days);
       return { data };
+    },
+  );
+
+  app.get(
+    '/cashflow-forecast',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new DashboardService(request.server.db, request.tenantId);
+      const data = await service.getCashflowForecast();
+      return { data };
+    },
+  );
+
+  app.get(
+    '/period-close',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const service = new DashboardService(request.server.db, request.tenantId);
+      const data = await service.getPeriodClose();
+      return { data };
+    },
+  );
+
+  // Agent feed — tenant-wide history of automated work runQ has done.
+  app.get(
+    '/agent-feed',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { limit = 10 } = limitQuerySchema.parse(request.query);
+      const svc = new AgentFeedService(request.server.db, request.tenantId);
+      const data = await svc.list(limit);
+      return { data };
+    },
+  );
+
+  // Per-user notifications.
+  app.get(
+    '/notifications',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { limit = 20 } = limitQuerySchema.parse(request.query);
+      const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
+      const [items, unread] = await Promise.all([svc.list(limit), svc.unreadCount()]);
+      return { data: { items, unread } };
+    },
+  );
+
+  app.put(
+    '/notifications/mark-all-read',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
+      await svc.markAllRead();
+      return { success: true };
+    },
+  );
+
+  app.put(
+    '/notifications/:id/read',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
+      await svc.markRead(id);
+      return { success: true };
     },
   );
 
