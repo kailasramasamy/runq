@@ -16,7 +16,8 @@ const rows: Row[] = [
 
 function ReconMockup() {
   return (
-    <div className="rounded-2xl bg-zinc-950 p-1.5 mockup-shadow">
+    <div className="-mx-5 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+    <div className="min-w-[560px] rounded-2xl bg-zinc-950 p-1.5 mockup-shadow md:min-w-0">
       <div className="overflow-hidden rounded-xl bg-zinc-950 ring-1 ring-white/10">
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3 text-xs text-zinc-400">
           <div className="flex gap-1">
@@ -70,6 +71,7 @@ function ReconMockup() {
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 }

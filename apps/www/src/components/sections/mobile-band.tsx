@@ -28,7 +28,7 @@ export function MobileBand() {
   return (
     <section id="mobile" className="relative bg-white py-24">
       <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
-        <div className="grid grid-cols-12 items-center gap-10">
+        <div className="grid grid-cols-12 items-center gap-6 md:gap-10">
           {/* Phones */}
           <div className="reveal col-span-12 lg:col-span-7">
             <div className="relative h-[580px]">

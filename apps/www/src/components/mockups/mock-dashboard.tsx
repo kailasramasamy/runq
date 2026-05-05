@@ -42,7 +42,7 @@ const aging = [
 export function MockDashboard() {
   const maxAging = Math.max(...aging.map((a) => a.value));
   return (
-    <div className="flex h-full overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-full min-w-[960px] overflow-hidden bg-zinc-950 text-zinc-100">
       <MockSidebar active="Dashboard" />
       <div className="flex flex-1 flex-col">
         {/* Top bar */}

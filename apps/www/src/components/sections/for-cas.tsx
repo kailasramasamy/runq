@@ -26,7 +26,7 @@ export function ForCAs() {
   return (
     <section id="for-cas" className="ca-bg relative py-24">
       <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
-        <div className="grid grid-cols-12 gap-10">
+        <div className="grid grid-cols-12 gap-6 md:gap-10">
           {/* Sticky left */}
           <div className="col-span-12 lg:col-span-5">
             <div className="lg:sticky lg:top-24">

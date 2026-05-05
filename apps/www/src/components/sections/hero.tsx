@@ -26,11 +26,11 @@ export function Hero() {
 
       <div className="relative mx-auto max-w-[1200px] px-5 pb-10 pt-16 lg:px-8 lg:pb-16 lg:pt-24">
         <div className="reveal flex justify-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs text-zinc-700 shadow-sm backdrop-blur">
-            <span className="pulse-dot relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 text-emerald-500" />
-            Now in early access — free forever plan
-            <span className="text-zinc-300">·</span>
-            <span className="text-zinc-500">No credit card</span>
+          <div className="inline-flex max-w-full items-center gap-2 whitespace-nowrap rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs text-zinc-700 shadow-sm backdrop-blur">
+            <span className="pulse-dot relative inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 text-emerald-500" />
+            <span>Now in early access — free forever</span>
+            <span className="hidden text-zinc-300 sm:inline">·</span>
+            <span className="hidden text-zinc-500 sm:inline">No credit card</span>
           </div>
         </div>
 
@@ -85,9 +85,13 @@ export function Hero() {
           />
           <div className="mx-auto max-w-[1080px]">
             <div className="mockup-shadow rounded-2xl border border-zinc-200/80 bg-zinc-950 p-1.5 ring-1 ring-zinc-200/60">
-              <WindowChrome url="app.runq.in/dashboard" height={600}>
-                <MockDashboard />
-              </WindowChrome>
+              <div className="-mx-5 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+                <div className="min-w-[960px] md:min-w-0">
+                  <WindowChrome url="app.runq.in/dashboard" height={600}>
+                    <MockDashboard />
+                  </WindowChrome>
+                </div>
+              </div>
             </div>
           </div>
         </div>

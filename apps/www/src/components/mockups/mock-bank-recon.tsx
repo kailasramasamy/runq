@@ -31,7 +31,7 @@ const summary: Array<[string, string, string, 'emerald' | 'brand' | 'amber' | 'z
 
 export function MockBankRecon() {
   return (
-    <div className="flex h-full bg-zinc-950 text-zinc-100">
+    <div className="flex h-full min-w-[960px] bg-zinc-950 text-zinc-100">
       <MockSidebar active="Banking" dense />
       <div className="flex flex-1 flex-col">
         <div className="flex shrink-0 items-center gap-3 border-b border-zinc-800/80 px-5 py-3">

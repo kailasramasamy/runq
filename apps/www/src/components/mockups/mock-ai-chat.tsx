@@ -5,7 +5,7 @@ const monthly = [18, 22, 28, 19, 31, 24, 36, 29, 33, 27, 31, 42];
 
 export function MockAiChat() {
   return (
-    <div className="flex h-full bg-zinc-950 text-zinc-100">
+    <div className="flex h-full min-w-[960px] bg-zinc-950 text-zinc-100">
       <MockSidebar active="Reports" dense />
       <div className="flex flex-1 flex-col">
         <div className="flex shrink-0 items-center gap-3 border-b border-zinc-800/80 px-5 py-3">

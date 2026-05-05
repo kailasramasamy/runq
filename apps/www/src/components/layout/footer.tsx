@@ -51,7 +51,7 @@ export function Footer() {
     <footer className="relative overflow-hidden bg-zinc-950 pt-20 pb-8 text-zinc-400">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-500/40 to-transparent" />
       <div className="mx-auto max-w-[1200px] px-5 lg:px-8">
-        <div className="grid grid-cols-12 gap-10">
+        <div className="grid grid-cols-12 gap-6 md:gap-10">
           <div className="col-span-12 lg:col-span-4">
             <NavLink to="/" className="inline-flex items-center gap-2">
               <img src="/runq-light.png" alt="runQ" className="h-7" />

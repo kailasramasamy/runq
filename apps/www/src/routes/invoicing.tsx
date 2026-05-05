@@ -17,7 +17,8 @@ function InvoiceMockup() {
     ['Industrial dye',   '3204', '12',  '₹2,400', '₹28,800'],
   ];
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-1.5 mockup-shadow-light shadow-xl shadow-brand-500/10">
+    <div className="-mx-5 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+    <div className="min-w-[640px] rounded-2xl border border-zinc-200 bg-white p-1.5 mockup-shadow-light shadow-xl shadow-brand-500/10 md:min-w-0">
       <div className="rounded-xl bg-white">
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
           <div className="flex items-center gap-2">
@@ -94,6 +95,7 @@ function InvoiceMockup() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

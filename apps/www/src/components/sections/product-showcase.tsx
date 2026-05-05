@@ -83,21 +83,25 @@ export function ProductShowcase() {
             }}
           />
           <div className="mockup-shadow mx-auto max-w-[1080px] overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 p-1.5">
-            <WindowChrome url={`app.runq.in/${active}`} height={580}>
-              <AnimatePresence mode="wait" initial={false} custom={direction}>
-                <motion.div
-                  key={active}
-                  custom={direction}
-                  initial={{ x: 60 * direction, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -60 * direction, opacity: 0 }}
-                  transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
-                  className="h-full"
-                >
-                  <ActiveMock />
-                </motion.div>
-              </AnimatePresence>
-            </WindowChrome>
+            <div className="-mx-5 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+              <div className="min-w-[960px] md:min-w-0">
+                <WindowChrome url={`app.runq.in/${active}`} height={580}>
+                  <AnimatePresence mode="wait" initial={false} custom={direction}>
+                    <motion.div
+                      key={active}
+                      custom={direction}
+                      initial={{ x: 60 * direction, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: -60 * direction, opacity: 0 }}
+                      transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+                      className="h-full"
+                    >
+                      <ActiveMock />
+                    </motion.div>
+                  </AnimatePresence>
+                </WindowChrome>
+              </div>
+            </div>
           </div>
         </div>
       </div>

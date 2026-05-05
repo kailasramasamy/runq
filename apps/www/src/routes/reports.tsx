@@ -10,7 +10,8 @@ const bars = [38, 52, 47, 61, 58, 72, 68, 81, 76, 88, 92, 84];
 
 function ReportsMockup() {
   return (
-    <div className="rounded-2xl bg-zinc-950 p-1.5 mockup-shadow">
+    <div className="-mx-5 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+    <div className="min-w-[640px] rounded-2xl bg-zinc-950 p-1.5 mockup-shadow md:min-w-0">
       <div className="rounded-xl ring-1 ring-white/10">
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3 text-xs">
           <div className="flex gap-1">
@@ -57,6 +58,7 @@ function ReportsMockup() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

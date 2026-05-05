@@ -18,7 +18,7 @@ export function AiBand() {
     <section className="relative overflow-hidden bg-zinc-950 py-24 text-zinc-100">
       <div className="aurora aurora-dark" />
       <div className="absolute inset-0 dot-grid opacity-40" />
-      <div className="rupee-watermark pointer-events-none absolute -right-10 -top-20 select-none text-[28rem] leading-none">
+      <div className="rupee-watermark pointer-events-none absolute -right-10 -top-20 hidden select-none text-[28rem] leading-none md:block">
         ₹
       </div>
 
