@@ -294,9 +294,12 @@ export class DashboardService {
   }
 
   /**
-   * 6 months actual (from bank credits/debits) + 3 months forecast (from
-   * open SI/PI due dates). Forecast is intentionally simple — it doesn't
-   * model recurrences or new business; it's "what's already on the books".
+   * 6 months actual (from bank credits/debits) + 3 months forecast.
+   *
+   * Forecast per month = max(open invoices due that month, trailing 3-month
+   * baseline from bank txns). Baseline ensures the chart is populated even
+   * when the books carry no future-dated invoices, which is the common case
+   * for businesses on 30-day terms.
    */
   async getCashflowForecast() {
     const now = new Date();
@@ -305,7 +308,7 @@ export class DashboardService {
     const endActualIso = this.toDateOnly(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     const endForecastIso = this.toDateOnly(new Date(now.getFullYear(), now.getMonth() + 4, 0));
 
-    const [actualRows, siRows, piRows] = await Promise.all([
+    const [actualRows, siRows, piRows, overdueRow] = await Promise.all([
       this.db
         .select({
           ym: sql<string>`to_char(${bankTransactions.transactionDate}, 'YYYY-MM')`,
@@ -345,26 +348,51 @@ export class DashboardService {
           lte(purchaseInvoices.dueDate, endForecastIso),
         ))
         .groupBy(sql`1`),
+      this.db
+        .select({
+          ar: sql<string>`COALESCE((SELECT SUM(${salesInvoices.balanceDue}) FROM ${salesInvoices} WHERE ${salesInvoices.tenantId} = ${this.tenantId} AND ${salesInvoices.status} NOT IN ('paid','cancelled','draft') AND ${salesInvoices.dueDate} <= ${endActualIso}), 0)::text`,
+          ap: sql<string>`COALESCE((SELECT SUM(${purchaseInvoices.balanceDue}) FROM ${purchaseInvoices} WHERE ${purchaseInvoices.tenantId} = ${this.tenantId} AND ${purchaseInvoices.status} NOT IN ('paid','cancelled','draft') AND ${purchaseInvoices.dueDate} <= ${endActualIso}), 0)::text`,
+        })
+        .from(sql`(SELECT 1) AS dummy`),
     ]);
 
     const actualMap = new Map(actualRows.map((r) => [r.ym, r]));
     const siMap = new Map(siRows.map((r) => [r.ym, r.amount]));
     const piMap = new Map(piRows.map((r) => [r.ym, r.amount]));
 
-    const months: { ym: string; label: string; in: number; out: number; forecast: boolean }[] = [];
+    // Trailing baseline: average of months with bank activity (skip empty months
+    // so a tenant with one month of seed data doesn't get its baseline divided
+    // by 6).
+    const activeMonths = actualRows.filter(
+      (r) => parseFloat(r.credits) > 0 || parseFloat(r.debits) > 0,
+    );
+    const baselineIn = activeMonths.length
+      ? activeMonths.reduce((s, r) => s + parseFloat(r.credits), 0) / activeMonths.length
+      : 0;
+    const baselineOut = activeMonths.length
+      ? activeMonths.reduce((s, r) => s + parseFloat(r.debits), 0) / activeMonths.length
+      : 0;
+
+    const overdueAr = parseFloat(overdueRow[0]?.ar ?? '0') || 0;
+    const overdueAp = parseFloat(overdueRow[0]?.ap ?? '0') || 0;
+
+    const months: { ym: string; label: string; in: number; out: number; forecast: boolean; basis?: string }[] = [];
     for (let i = -5; i <= 3; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('en-IN', { month: 'short' });
       const isForecast = i > 0;
       if (isForecast) {
-        months.push({
-          ym,
-          label,
-          in: parseFloat(siMap.get(ym) ?? '0') || 0,
-          out: parseFloat(piMap.get(ym) ?? '0') || 0,
-          forecast: true,
-        });
+        const dueIn = parseFloat(siMap.get(ym) ?? '0') || 0;
+        const dueOut = parseFloat(piMap.get(ym) ?? '0') || 0;
+        // First forecast month also collects already-overdue AR/AP.
+        const overdueInflow = i === 1 ? overdueAr : 0;
+        const overdueOutflow = i === 1 ? overdueAp : 0;
+        const projectedIn = Math.max(dueIn + overdueInflow, baselineIn);
+        const projectedOut = Math.max(dueOut + overdueOutflow, baselineOut);
+        const basis =
+          projectedIn === dueIn + overdueInflow && projectedIn > 0 ? 'invoices' : 'baseline';
+        months.push({ ym, label, in: projectedIn, out: projectedOut, forecast: true, basis });
       } else {
         const a = actualMap.get(ym);
         months.push({
@@ -386,6 +414,7 @@ export class DashboardService {
       inflow90: inflow90.toFixed(2),
       outflow90: outflow90.toFixed(2),
       net90: (inflow90 - outflow90).toFixed(2),
+      baseline: { in: baselineIn.toFixed(2), out: baselineOut.toFixed(2), monthsUsed: activeMonths.length },
     };
   }
 

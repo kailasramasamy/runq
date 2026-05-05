@@ -122,14 +122,14 @@ export function CashflowForecast() {
           Not enough data yet — record a few transactions to see your cash flow.
         </div>
       ) : (
-        <div className="flex h-44 items-end gap-2 pt-2">
+        <div className="flex h-44 gap-2 pt-2">
           {months.map((m) => {
             const hIn = (m.in / max) * 100;
             const hOut = (m.out / max) * 100;
             return (
-              <div key={m.ym} className="group flex flex-1 flex-col items-center gap-1">
+              <div key={m.ym} className="group flex h-full flex-1 flex-col items-center gap-1">
                 <div
-                  className="relative flex h-full w-full items-end justify-center gap-0.5"
+                  className="relative flex w-full flex-1 items-end justify-center gap-0.5"
                   title={`${m.label} · in ${formatINRShort(m.in)} · out ${formatINRShort(m.out)}`}
                 >
                   <div
