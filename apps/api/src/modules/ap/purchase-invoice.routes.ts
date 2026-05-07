@@ -7,6 +7,7 @@ import {
   threeWayMatchSchema,
   approveInvoiceSchema,
   importBillsCSVSchema,
+  previewBillsCSVSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -50,9 +51,20 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     '/import',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request) => {
-      const { csvData, category, periodMonth, periodYear } = importBillsCSVSchema.parse(request.body);
+      const { csvData, category, periodMonth, periodYear, vendorOverrides } = importBillsCSVSchema.parse(request.body);
       const service = new BillImportService(request.server.db, request.tenantId);
-      const result = await service.importFromCSV(csvData, category, { periodMonth, periodYear });
+      const result = await service.importFromCSV(csvData, category, { periodMonth, periodYear, vendorOverrides });
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/import/preview',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { csvData, category, periodMonth, periodYear } = previewBillsCSVSchema.parse(request.body);
+      const service = new BillImportService(request.server.db, request.tenantId);
+      const result = await service.previewFromCSV(csvData, category, { periodMonth, periodYear });
       return { data: result };
     },
   );

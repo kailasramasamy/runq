@@ -4,6 +4,26 @@ import type { Db } from '@runq/db';
 import type { BillCategory } from '@runq/validators';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 
+export interface PreviewRow {
+  rowNum: number;
+  vendorName: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  itemName: string;
+  amount: number;
+  matchStatus: 'matched' | 'ambiguous' | 'not_found' | 'parse_error';
+  vendorId?: string;
+  matchedVendorName?: string;
+  candidates: Array<{ id: string; name: string }>;
+  parseError?: string;
+}
+
+export interface PreviewResult {
+  rows: PreviewRow[];
+  headerErrors: string[];
+}
+
 interface ImportError {
   row: number;
   vendorName: string;
@@ -61,48 +81,23 @@ export class BillImportService {
   async importFromCSV(
     csvData: string,
     category: BillCategory,
-    opts: { periodMonth?: number; periodYear?: number } = {},
+    opts: { periodMonth?: number; periodYear?: number; vendorOverrides?: Record<string, string> } = {},
   ): Promise<ImportResult> {
-    const lines = csvData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(Boolean);
-    if (lines.length < 2) return { created: 0, errors: [{ row: 0, vendorName: '', message: 'No data rows found' }] };
+    const parsedRows = this.parseRowsFromCsv(csvData, category, opts);
+    if (parsedRows.headerErrors) return { created: 0, errors: parsedRows.headerErrors };
 
-    // BOM cleanup — Excel-generated CSVs prepend U+FEFF to the first cell.
-    const headers = this.parseCSVLine(lines[0]!).map((h) => h.toLowerCase().trim().replace(/^﻿/, ''));
     const invoiceService = new PurchaseInvoiceService(this.db, this.tenantId);
-    const isSalary = category === 'employee_salary' || category === 'delivery_boys';
-    const period = this.resolvePeriod(category, opts);
-
+    const overrides = opts.vendorOverrides ?? {};
     let created = 0;
     const errors: ImportError[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = this.parseCSVLine(lines[i]!);
-      const rowNum = i + 1;
-      const get = (key: string) => {
-        // Synonym lookup so salary CSVs with "Name"/"Salary" headers still parse.
-        const aliases = HEADER_SYNONYMS[key] ?? [];
-        for (const k of [key, ...aliases]) {
-          const idx = headers.indexOf(k);
-          if (idx >= 0) return cols[idx]?.trim() ?? '';
-        }
-        return '';
-      };
-
+    for (const row of parsedRows.rows) {
+      const { rowNum, parsed, parseError, get } = row;
       try {
-        const parsed = this.parseRow(category, get);
+        if (parseError) { errors.push({ row: rowNum, vendorName: parsed?.vendorName ?? '', message: parseError }); continue; }
+        if (!parsed) continue;
 
-        if (isSalary && period) {
-          if (!parsed.invoiceNumber) parsed.invoiceNumber = `${period.prefix}-${period.year}${String(period.month).padStart(2, '0')}-${String(i).padStart(3, '0')}`;
-          if (!parsed.invoiceDate) parsed.invoiceDate = period.invoiceDate;
-          if (!parsed.dueDate) parsed.dueDate = period.dueDate;
-          if (!parsed.itemName) parsed.itemName = period.itemName;
-        }
-
-        if (!parsed.vendorName) { errors.push({ row: rowNum, vendorName: '', message: 'Vendor Name is required' }); continue; }
-        if (!parsed.invoiceNumber) { errors.push({ row: rowNum, vendorName: parsed.vendorName, message: 'Invoice Number is required (or supply a period for salary imports)' }); continue; }
-        if (!parsed.amount || parsed.amount <= 0) { errors.push({ row: rowNum, vendorName: parsed.vendorName, message: 'Amount must be positive' }); continue; }
-
-        const vendorId = await this.resolveVendorId(parsed.vendorName);
+        const vendorId = overrides[String(rowNum)] ?? (await this.resolveVendor(parsed.vendorName)).vendorId;
         if (!vendorId) {
           errors.push({ row: rowNum, vendorName: parsed.vendorName, message: `Vendor "${parsed.vendorName}" not found` });
           continue;
@@ -138,6 +133,107 @@ export class BillImportService {
     }
 
     return { created, errors };
+  }
+
+  /**
+   * Parse + resolve every row in the CSV without writing anything. Used by
+   * the importer's preview step so the user can fix vendor mismatches
+   * (pick from candidates, or create a new vendor inline) before commit.
+   */
+  async previewFromCSV(
+    csvData: string,
+    category: BillCategory,
+    opts: { periodMonth?: number; periodYear?: number } = {},
+  ): Promise<PreviewResult> {
+    const parsedRows = this.parseRowsFromCsv(csvData, category, opts);
+    if (parsedRows.headerErrors) {
+      return { rows: [], headerErrors: parsedRows.headerErrors.map((e) => e.message) };
+    }
+
+    const out: PreviewRow[] = [];
+    for (const row of parsedRows.rows) {
+      const p = row.parsed;
+      if (row.parseError || !p) {
+        out.push({
+          rowNum: row.rowNum,
+          vendorName: p?.vendorName ?? '',
+          invoiceNumber: p?.invoiceNumber ?? '',
+          invoiceDate: p?.invoiceDate ?? '',
+          dueDate: p?.dueDate ?? '',
+          itemName: p?.itemName ?? '',
+          amount: p?.amount ?? 0,
+          matchStatus: 'parse_error',
+          candidates: [],
+          parseError: row.parseError,
+        });
+        continue;
+      }
+      const resolution = await this.resolveVendor(p.vendorName);
+      out.push({
+        rowNum: row.rowNum,
+        vendorName: p.vendorName,
+        invoiceNumber: p.invoiceNumber,
+        invoiceDate: p.invoiceDate,
+        dueDate: p.dueDate,
+        itemName: p.itemName,
+        amount: p.amount,
+        matchStatus: resolution.status,
+        vendorId: resolution.vendorId ?? undefined,
+        matchedVendorName: resolution.matchedVendorName ?? undefined,
+        candidates: resolution.candidates,
+      });
+    }
+    return { rows: out, headerErrors: [] };
+  }
+
+  /**
+   * Single-pass CSV parsing used by both preview and import. Returns
+   * structured per-row parses plus any header-level errors.
+   */
+  private parseRowsFromCsv(
+    csvData: string,
+    category: BillCategory,
+    opts: { periodMonth?: number; periodYear?: number },
+  ): { headerErrors?: ImportError[]; rows: Array<{ rowNum: number; parsed?: ParsedRow; parseError?: string; get: (k: string) => string }> } {
+    const lines = csvData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(Boolean);
+    if (lines.length < 2) {
+      return { headerErrors: [{ row: 0, vendorName: '', message: 'No data rows found' }], rows: [] };
+    }
+    const headers = this.parseCSVLine(lines[0]!).map((h) => h.toLowerCase().trim().replace(/^﻿/, ''));
+    const isSalary = category === 'employee_salary' || category === 'delivery_boys';
+    const period = this.resolvePeriod(category, opts);
+
+    const rows: Array<{ rowNum: number; parsed?: ParsedRow; parseError?: string; get: (k: string) => string }> = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = this.parseCSVLine(lines[i]!);
+      const rowNum = i + 1;
+      const get = (key: string) => {
+        const aliases = HEADER_SYNONYMS[key] ?? [];
+        for (const k of [key, ...aliases]) {
+          const idx = headers.indexOf(k);
+          if (idx >= 0) return cols[idx]?.trim() ?? '';
+        }
+        return '';
+      };
+
+      try {
+        const parsed = this.parseRow(category, get);
+        if (isSalary && period) {
+          if (!parsed.invoiceNumber) parsed.invoiceNumber = `${period.prefix}-${period.year}${String(period.month).padStart(2, '0')}-${String(i).padStart(3, '0')}`;
+          if (!parsed.invoiceDate) parsed.invoiceDate = period.invoiceDate;
+          if (!parsed.dueDate) parsed.dueDate = period.dueDate;
+          if (!parsed.itemName) parsed.itemName = period.itemName;
+        }
+        let parseError: string | undefined;
+        if (!parsed.vendorName) parseError = 'Vendor name is required';
+        else if (!parsed.invoiceNumber) parseError = 'Invoice number is required (or supply a period for salary imports)';
+        else if (!parsed.amount || parsed.amount <= 0) parseError = 'Amount must be positive';
+        rows.push({ rowNum, parsed, parseError, get });
+      } catch (err) {
+        rows.push({ rowNum, parseError: err instanceof Error ? err.message : String(err), get });
+      }
+    }
+    return { rows };
   }
 
   private resolvePeriod(
@@ -228,23 +324,37 @@ export class BillImportService {
     }
   }
 
-  private async resolveVendorId(vendorName: string): Promise<string | null> {
+  /**
+   * Resolve a CSV vendor name to a runQ vendor. Returns the matched id when
+   * unambiguous, or the candidate list when multiple vendors match — the
+   * caller (import preview UI) surfaces candidates to the user.
+   */
+  private async resolveVendor(vendorName: string): Promise<{
+    status: 'matched' | 'ambiguous' | 'not_found';
+    vendorId?: string;
+    matchedVendorName?: string;
+    candidates: Array<{ id: string; name: string }>;
+  }> {
     const cleanName = vendorName.replace(/\r/g, '').trim();
-    const exact = await this.db.select({ id: vendors.id }).from(vendors)
-      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, cleanName))).limit(1);
-    if (exact.length === 1) return exact[0]!.id;
+    if (!cleanName) return { status: 'not_found', candidates: [] };
 
-    const contains = await this.db.select({ id: vendors.id }).from(vendors)
-      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `%${vendorName}%`))).limit(2);
-    if (contains.length === 1) return contains[0]!.id;
+    const exact = await this.db.select({ id: vendors.id, name: vendors.name }).from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, cleanName))).limit(2);
+    if (exact.length === 1) return { status: 'matched', vendorId: exact[0]!.id, matchedVendorName: exact[0]!.name, candidates: exact };
 
-    const firstWord = vendorName.trim().split(/\s+/)[0];
-    if (!firstWord || firstWord.length < 2) return null;
-    const partial = await this.db.select({ id: vendors.id }).from(vendors)
-      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `${firstWord}%`))).limit(2);
-    if (partial.length === 1) return partial[0]!.id;
+    const contains = await this.db.select({ id: vendors.id, name: vendors.name }).from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `%${cleanName}%`))).limit(5);
+    if (contains.length === 1) return { status: 'matched', vendorId: contains[0]!.id, matchedVendorName: contains[0]!.name, candidates: contains };
+    if (contains.length > 1) return { status: 'ambiguous', candidates: contains };
 
-    return null;
+    const firstWord = cleanName.split(/\s+/)[0];
+    if (firstWord && firstWord.length >= 2) {
+      const partial = await this.db.select({ id: vendors.id, name: vendors.name }).from(vendors)
+        .where(and(eq(vendors.tenantId, this.tenantId), ilike(vendors.name, `${firstWord}%`))).limit(5);
+      if (partial.length === 1) return { status: 'matched', vendorId: partial[0]!.id, matchedVendorName: partial[0]!.name, candidates: partial };
+      if (partial.length > 1) return { status: 'ambiguous', candidates: partial };
+    }
+    return { status: 'not_found', candidates: [] };
   }
 
   private parseCSVLine(line: string): string[] {

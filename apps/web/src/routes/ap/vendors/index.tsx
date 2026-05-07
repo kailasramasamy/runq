@@ -10,7 +10,7 @@ import {
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
 
-const LIMIT = 10;
+const LIMIT = 25;
 
 const CATEGORY_OPTIONS = [
   { value: '', label: 'All categories' },
