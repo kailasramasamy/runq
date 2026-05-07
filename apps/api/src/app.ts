@@ -26,6 +26,8 @@ import { portalRoutes } from './modules/ar/portal.routes';
 import { vendorPortalRoutes } from './modules/ap/vendor-portal.routes';
 import { reportsRoutes } from './modules/reports/routes';
 import { integrationRoutes } from './modules/integrations/routes';
+import { billSyncPushRoutes } from './modules/bill-sync/push.routes';
+import { billSyncAdminRoutes } from './modules/bill-sync/admin.routes';
 import { workflowRoutes } from './modules/workflows/routes';
 import { vendorManagementRoutes } from './modules/vendor-management/routes';
 import { caPortalRoutes } from './modules/ca-portal/routes';
@@ -82,6 +84,7 @@ export async function buildApp() {
     await publicScope.register(appConfigRoutes);
   }, { prefix: '/api/v1/public' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
+  await app.register(billSyncPushRoutes, { prefix: '/api/v1/bill-sync' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   await app.register(portalRoutes, { prefix: '/api/v1/ar' });
   await app.register(vendorPortalRoutes, { prefix: '/api/v1/ap' });
@@ -103,6 +106,7 @@ export async function buildApp() {
     await scope.register(attachmentRoutes, { prefix: '/api/v1/common' });
     await scope.register(reportsRoutes, { prefix: '/api/v1/reports' });
     await scope.register(integrationRoutes, { prefix: '/api/v1/integrations' });
+    await scope.register(billSyncAdminRoutes, { prefix: '/api/v1/bill-sync/admin' });
     await scope.register(workflowRoutes, { prefix: '/api/v1/workflows' });
     await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
     await scope.register(hrRoutes, { prefix: '/api/v1/hr' });

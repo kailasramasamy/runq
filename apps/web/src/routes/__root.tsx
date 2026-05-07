@@ -105,6 +105,8 @@ import { PaymentSchedulesPage } from './vendor-management/payment-schedules';
 import { EarlyDiscountsPage } from './vendor-management/early-discounts';
 // Phase 4: Settings additions
 import { IntegrationsPage } from './settings/integrations';
+import { BillSyncSettingsPage } from './settings/bill-sync';
+import { BillSyncSourceDetailPage } from './settings/bill-sync-detail';
 import { ScheduledReportsPage } from './settings/scheduled-reports';
 import { EmailProviderPage } from './settings/email-provider';
 import { CAPortalSettingsPage } from './settings/ca-portal';
@@ -1219,6 +1221,21 @@ const settingsIntegrationsRoute = createRoute({
   component: IntegrationsPage,
 });
 
+const settingsBillSyncRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/bill-sync',
+  component: BillSyncSettingsPage,
+});
+
+const settingsBillSyncDetailRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/bill-sync/$id',
+  component: () => {
+    const { id } = settingsBillSyncDetailRoute.useParams();
+    return <BillSyncSourceDetailPage id={id} />;
+  },
+});
+
 const settingsScheduledReportsRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/scheduled-reports',
@@ -1684,6 +1701,8 @@ export const routeTree = rootRoute.addChildren([
       settingsTallyExportRoute,
       settingsNotificationsRoute,
       settingsIntegrationsRoute,
+      settingsBillSyncRoute,
+      settingsBillSyncDetailRoute,
       settingsScheduledReportsRoute,
       settingsEmailProviderRoute,
       settingsCAPortalRoute,

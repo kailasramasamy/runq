@@ -50,9 +50,9 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     '/import',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request) => {
-      const { csvData, category } = importBillsCSVSchema.parse(request.body);
+      const { csvData, category, periodMonth, periodYear } = importBillsCSVSchema.parse(request.body);
       const service = new BillImportService(request.server.db, request.tenantId);
-      const result = await service.importFromCSV(csvData, category);
+      const result = await service.importFromCSV(csvData, category, { periodMonth, periodYear });
       return { data: result };
     },
   );

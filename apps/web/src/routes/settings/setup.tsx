@@ -45,6 +45,7 @@ const GROUPS: SetupGroup[] = [
     label: 'Integrations',
     items: [
       { label: 'Integrations', description: 'Razorpay, Stripe, GSP, and other connectors.', to: '/settings/integrations', icon: Plug },
+      { label: 'Bill sync', description: 'Ingest bills from external systems via API or CSV.', to: '/settings/bill-sync', icon: Plug },
       { label: 'Email provider', description: 'SMTP / Postmark / Resend for outbound mail.', to: '/settings/email-provider', icon: Bell },
       { label: 'Webhooks', description: 'Push events to external systems.', to: '/settings/webhooks', icon: Plug },
     ],

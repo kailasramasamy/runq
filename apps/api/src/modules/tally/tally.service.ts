@@ -323,6 +323,8 @@ ${ledgers.join('\n')}
         cgstAmount: purchaseInvoices.cgstAmount, sgstAmount: purchaseInvoices.sgstAmount,
         igstAmount: purchaseInvoices.igstAmount, cessAmount: purchaseInvoices.cessAmount,
         tdsSection: purchaseInvoices.tdsSection, tdsAmount: purchaseInvoices.tdsAmount,
+        sourceId: purchaseInvoices.sourceId, externalId: purchaseInvoices.externalId,
+        externalVersion: purchaseInvoices.externalVersion,
         createdAt: purchaseInvoices.createdAt, updatedAt: purchaseInvoices.updatedAt,
         vendorName: vendors.name,
       })

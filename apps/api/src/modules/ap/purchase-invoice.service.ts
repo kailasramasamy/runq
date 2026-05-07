@@ -554,6 +554,9 @@ export class PurchaseInvoiceService {
       reverseCharge: row.reverseCharge,
       tdsSection: row.tdsSection ?? null,
       tdsAmount: Number(row.tdsAmount),
+      sourceId: row.sourceId ?? null,
+      externalId: row.externalId ?? null,
+      externalVersion: row.externalVersion,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

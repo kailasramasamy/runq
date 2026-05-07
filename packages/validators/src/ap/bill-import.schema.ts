@@ -13,6 +13,11 @@ export type BillCategory = z.infer<typeof billCategoryEnum>;
 export const importBillsCSVSchema = z.object({
   csvData: z.string().min(1, 'CSV data required'),
   category: billCategoryEnum,
+  // Optional period for salary-style imports — used to auto-fill missing
+  // invoice_date, due_date, invoice_number, item_name when the CSV doesn't
+  // carry them. month: 1-12, year: 4-digit.
+  periodMonth: z.coerce.number().int().min(1).max(12).optional(),
+  periodYear: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
 export type ImportBillsCSVInput = z.infer<typeof importBillsCSVSchema>;

@@ -67,7 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Books',
     items: [
       { key: 'banking', label: 'Banking', icon: Landmark, path: '/banking' },
-      { key: 'journal', label: 'Journal entries', icon: NotebookPen, path: '/gl/journals' },
+      { key: 'journal', label: 'Journal entries', icon: NotebookPen, path: '/gl/journal-entries' },
       { key: 'ledger', label: 'General ledger', icon: BookOpen, path: '/gl' },
       { key: 'assets', label: 'Fixed assets', icon: Boxes, path: '/fa' },
       { key: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },

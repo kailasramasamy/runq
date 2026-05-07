@@ -1,892 +1,418 @@
-import { useState } from 'react';
+import './detail-tokens.css';
+import { useState, useCallback } from 'react';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
-import { Check, X, AlertTriangle, CheckCircle2, Pencil, Trash2, ArrowLeft, MoreHorizontal } from 'lucide-react';
 import {
-  usePurchaseInvoice,
-  useThreeWayMatch,
-  useApproveInvoice,
-  useDeletePurchaseInvoice,
-  useVendorAdvanceBalance,
-  useApplyAdvanceToBill,
+  Download, MoreHorizontal, ArrowLeft, CircleCheck, AlertTriangle,
+  Pencil, Trash2,
+} from 'lucide-react';
+import {
+  usePurchaseInvoice, useApproveInvoice, useDeletePurchaseInvoice,
+  useVendorAdvanceBalance, useApplyAdvanceToBill,
 } from '../../../hooks/queries/use-purchase-invoices';
-import { useDebitNotes } from '../../../hooks/queries/use-debit-notes';
-import type { PurchaseInvoiceWithDetails, PurchaseInvoiceStatus, MatchStatus, DebitNote } from '@runq/types';
-import type { MatchLineResult, ThreeWayMatchResult } from '@runq/types';
-import { formatINR, formatINRShort } from '../../../lib/utils';
+import { useBillSyncSources } from '../../../hooks/queries/use-bill-sync';
+import type { PurchaseInvoiceWithDetails } from '@runq/types';
+import { ConfirmationDialog } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
 import { DocumentTrail } from '@/components/audit/document-trail';
 import {
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  CardContent,
-  Input,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  Th,
-  ConfirmationDialog,
-} from '@/components/ui';
-import {
-  PageHeader, Button as ArButton, StatTile, StatusBadge,
-  formatDate, daysBetween,
-} from '@/components/ar/primitives';
+  AutoFixSidekick, ActivityTimeline, useDerivedGaps, useDerivedActivity,
+} from './detail-rail';
 
-// ─── Badge helpers ────────────────────────────────────────────────────────────
-
-const MATCH_BADGE_VARIANT: Record<MatchStatus, React.ComponentProps<typeof Badge>['variant']> = {
-  unmatched: 'outline',
-  matched: 'success',
-  mismatch: 'danger',
+const fmtINR = (n: number, decimals = 2) => {
+  if (!Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  const formatted = abs.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return `${n < 0 ? '−' : ''}₹${formatted}`;
 };
+const fmtQty = (n: number | null | undefined) => {
+  if (n == null) return '—';
+  return n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
+};
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// ─── Match Form ───────────────────────────────────────────────────────────────
-
-function MatchForm({ invoiceId, onDone }: { invoiceId: string; onDone: () => void }) {
-  const [poId, setPoId] = useState('');
-  const [grnId, setGrnId] = useState('');
-  const matchMutation = useThreeWayMatch();
-
-  function handleMatch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!poId || !grnId) return;
-    matchMutation.mutate({ id: invoiceId, poId, grnId }, { onSuccess: onDone });
-  }
-
-  return (
-    <form onSubmit={handleMatch}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <Input
-          label="PO ID (UUID)"
-          value={poId}
-          onChange={(e) => setPoId(e.target.value)}
-          placeholder="xxxxxxxx-xxxx-…"
-        />
-        <Input
-          label="GRN ID (UUID)"
-          value={grnId}
-          onChange={(e) => setGrnId(e.target.value)}
-          placeholder="xxxxxxxx-xxxx-…"
-        />
-      </div>
-      <div className="flex items-center gap-3">
-        <Button
-          type="submit"
-          variant="primary"
-          size="sm"
-          loading={matchMutation.isPending}
-          disabled={!poId || !grnId}
-        >
-          Run Match
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onDone}>
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
+function getInitials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || '?';
 }
-
-// ─── Match Result Panel ───────────────────────────────────────────────────────
-
-function MatchResultPanel({ result }: { result: ThreeWayMatchResult }) {
-  return (
-    <Card className="mt-4">
-      <CardHeader title="Match Result" />
-      <CardContent>
-        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-sm">
-          <div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">PO Total</p>
-            <p className="font-mono font-medium tabular-nums">{formatINR(result.summary.poTotal)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">GRN Total</p>
-            <p className="font-mono font-medium tabular-nums">{formatINR(result.summary.grnTotal)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">Invoice Total</p>
-            <p className="font-mono font-medium tabular-nums">{formatINR(result.summary.invoiceTotal)}</p>
-          </div>
-        </div>
-
-        {/* Mobile cards */}
-        <div className="md:hidden space-y-2">
-          {result.lines.map((line: MatchLineResult, i: number) => {
-            const isMatched = line.status === 'matched';
-            return (
-              <div key={i} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{line.itemName}</span>
-                  {isMatched ? (
-                    <Check size={14} className="shrink-0 text-green-600 dark:text-green-400 mt-0.5" />
-                  ) : (
-                    <X size={14} className="shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
-                  )}
-                </div>
-                {line.sku && (
-                  <p className="font-mono text-xs text-zinc-400 mb-2">{line.sku}</p>
-                )}
-                <div className="grid grid-cols-3 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  <div><span className="block font-medium">PO Qty</span>{line.qty.po}</div>
-                  <div><span className="block font-medium">GRN Qty</span>{line.qty.grn}</div>
-                  <div><span className="block font-medium">Inv Qty</span>{line.qty.invoice}</div>
-                  <div><span className="block font-medium">PO Price</span>{formatINR(line.unitPrice.po)}</div>
-                  <div><span className="block font-medium">Inv Price</span>{formatINR(line.unitPrice.invoice)}</div>
-                </div>
-                {line.message && (
-                  <p className="mt-2 text-xs text-zinc-400">{line.message}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Desktop table */}
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>Item</Th>
-                <Th>SKU</Th>
-                <Th align="right">PO Qty</Th>
-                <Th align="right">GRN Qty</Th>
-                <Th align="right">Inv Qty</Th>
-                <Th align="right">PO Price</Th>
-                <Th align="right">Inv Price</Th>
-                <Th>Result</Th>
-                <Th>Notes</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {result.lines.map((line: MatchLineResult, i: number) => {
-                const isMatched = line.status === 'matched';
-                return (
-                  <TableRow
-                    key={i}
-                    className={
-                      isMatched
-                        ? 'bg-green-50 dark:bg-green-950/20'
-                        : 'bg-red-50 dark:bg-red-950/20'
-                    }
-                  >
-                    <TableCell>{line.itemName}</TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs">{line.sku ?? '—'}</span>
-                    </TableCell>
-                    <TableCell align="right" numeric>{line.qty.po}</TableCell>
-                    <TableCell align="right" numeric>{line.qty.grn}</TableCell>
-                    <TableCell align="right" numeric>{line.qty.invoice}</TableCell>
-                    <TableCell align="right" numeric>{formatINR(line.unitPrice.po)}</TableCell>
-                    <TableCell align="right" numeric>{formatINR(line.unitPrice.invoice)}</TableCell>
-                    <TableCell>
-                      {isMatched ? (
-                        <Check size={14} className="text-green-600 dark:text-green-400" />
-                      ) : (
-                        <X size={14} className="text-red-600 dark:text-red-400" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {line.message ?? '—'}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Actions Panel ────────────────────────────────────────────────────────────
-
-function ActionsPanel({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
-  const navigate = useNavigate();
-  const [showMatchForm, setShowMatchForm] = useState(false);
-  const [matchResult, setMatchResult] = useState<ThreeWayMatchResult | null>(null);
-  const [showApproveDialog, setShowApproveDialog] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const approveMutation = useApproveInvoice();
-  const deleteMutation = useDeletePurchaseInvoice();
-
-  const approveDialog = (
-    <ConfirmationDialog
-      open={showApproveDialog}
-      onClose={() => setShowApproveDialog(false)}
-      onConfirm={() => {
-        approveMutation.mutate({ id: invoice.id }, { onSuccess: () => setShowApproveDialog(false) });
-      }}
-      title="Approve Bill"
-      description={`Approve bill ${invoice.invoiceNumber} for ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}? Once approved, it will be available for payment.`}
-      confirmLabel="Approve"
-      variant="warning"
-      loading={approveMutation.isPending}
-    />
-  );
-
-  // Drafts get a real "Delete" — server hard-removes the bill, items, and
-  // attached scanned originals. Other statuses get the soft "Cancel" path
-  // which preserves audit trail.
-  const isDraft = invoice.status === 'draft';
-  const cancelDialog = (
-    <ConfirmationDialog
-      open={showCancelDialog}
-      onClose={() => setShowCancelDialog(false)}
-      onConfirm={() => {
-        deleteMutation.mutate(invoice.id, {
-          onSuccess: () => {
-            setShowCancelDialog(false);
-            // Navigate away — for hard-deletes the bill is gone, for cancels
-            // the list view is friendlier than landing on a "cancelled" detail.
-            if (isDraft) navigate({ to: '/ap/bills' });
-          },
-        });
-      }}
-      title={isDraft ? 'Delete Bill' : 'Cancel Bill'}
-      description={
-        isDraft
-          ? `Permanently delete bill ${invoice.invoiceNumber}? The line items and any attached scanned document will be removed. This cannot be undone.`
-          : `Cancel bill ${invoice.invoiceNumber}? You can create a revised bill afterwards.`
-      }
-      confirmLabel={isDraft ? 'Delete Bill' : 'Cancel Bill'}
-      variant="danger"
-      loading={deleteMutation.isPending}
-    />
-  );
-
-  if (invoice.status === 'draft' && !invoice.poId) {
-    // Approve / Edit / Delete have moved to the page header (top right).
-    // The body card here is just for the optional PO-linking flow, which
-    // expands inline and would crowd the header.
-    return (
-      <Card>
-        <CardHeader title="Link a Purchase Order" />
-        <CardContent>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-            Optional: link this bill to a Purchase Order for 3-way matching against the PO and GRN.
-          </p>
-          {showMatchForm ? (
-            <MatchForm
-              invoiceId={invoice.id}
-              onDone={() => { setShowMatchForm(false); setMatchResult(null); }}
-            />
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setShowMatchForm(true)}>
-              Link PO &amp; Match
-            </Button>
-          )}
-          {matchResult && <MatchResultPanel result={matchResult} />}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (invoice.status === 'draft' && invoice.poId) {
-    return (
-      <Card>
-        <CardHeader title="3-Way Match Required" />
-        <CardContent>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-            This bill is linked to a PO. Run 3-way matching before approval.
-          </p>
-          <MatchForm
-            invoiceId={invoice.id}
-            onDone={() => { setShowMatchForm(false); setMatchResult(null); }}
-          />
-          {matchResult && <MatchResultPanel result={matchResult} />}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (invoice.status === 'pending_match') {
-    return (
-      <Card className="border-amber-200 dark:border-amber-800">
-        <CardHeader title="Mismatch Detected" />
-        <CardContent>
-          <div className="mb-4 flex items-start gap-3 rounded-md bg-amber-50 dark:bg-amber-900/20 p-3">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                Match failed — review the details below before re-running.
-              </p>
-              {invoice.matchNotes && (
-                <p className="mt-1 whitespace-pre-wrap text-xs text-amber-700 dark:text-amber-400">
-                  {invoice.matchNotes}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {showMatchForm ? (
-              <MatchForm invoiceId={invoice.id} onDone={() => setShowMatchForm(false)} />
-            ) : (
-              <>
-                <Button variant="primary" size="sm" onClick={() => setShowMatchForm(true)}>
-                  Re-run Match
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowCancelDialog(true)}
-                >
-                  Cancel Bill
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-        {cancelDialog}
-      </Card>
-    );
-  }
-
-  if (invoice.status === 'matched') {
-    return (
-      <Card className="border-green-200 dark:border-green-800">
-        <CardHeader title="Match Successful" />
-        <CardContent>
-          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-            All line items matched. Review and approve this bill to proceed to payment.
-          </p>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setShowApproveDialog(true)}
-          >
-            Approve Bill
-          </Button>
-        </CardContent>
-        {approveDialog}
-      </Card>
-    );
-  }
-
-  if (invoice.status === 'approved') {
-    return (
-      <Card className="border-indigo-200 dark:border-indigo-800">
-        <CardHeader title="Approved" />
-        <CardContent>
-          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-            This bill has been approved. You can now record a payment against it.
-          </p>
-          <Button variant="outline" size="sm" disabled>
-            Record Payment (coming soon)
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (invoice.status === 'partially_paid' || invoice.status === 'paid') {
-    return (
-      <Card>
-        <CardHeader title="Payment History" />
-        <CardContent>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Payment history will be shown here once payments are recorded.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return null;
-}
-
-// ─── Line Items Table ─────────────────────────────────────────────────────────
-
-function LineItemsTable({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
-  const hasTds = invoice.items.some((item) => item.tdsSection);
-
-  return (
-    <Card>
-      <CardHeader title="Line Items" />
-
-      {/* Mobile card view */}
-      <div className="md:hidden p-3 space-y-2">
-        {invoice.items.map((item) => {
-          const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
-          return (
-            <div key={item.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-              <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{item.itemName}</p>
-              {item.sku && <p className="font-mono text-xs text-zinc-400 mt-0.5">{item.sku}</p>}
-              {item.hsnSacCode && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">HSN/SAC: <span className="font-mono">{item.hsnSacCode}</span></p>
-              )}
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-zinc-500 dark:text-zinc-400">{item.quantity} × {formatINR(item.unitPrice)}</span>
-                <span className="font-medium tabular-nums">{formatINR(item.amount)}</span>
-              </div>
-              {(itemTax > 0 || item.taxRate != null) && (
-                <div className="mt-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                  <span>Tax {item.taxRate != null ? `@ ${item.taxRate}%` : ''}</span>
-                  <span className="tabular-nums">{formatINR(itemTax)}</span>
-                </div>
-              )}
-              {item.tdsSection && (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  TDS: {item.tdsSection} @ {item.tdsRate}%
-                </p>
-              )}
-            </div>
-          );
-        })}
-        {/* Mobile summary */}
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
-            <span className="font-mono tabular-nums">{formatINR(invoice.subtotal)}</span>
-          </div>
-          {invoice.cgstAmount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-zinc-500 dark:text-zinc-400">CGST</span>
-              <span className="font-mono tabular-nums">{formatINR(invoice.cgstAmount)}</span>
-            </div>
-          )}
-          {invoice.sgstAmount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-zinc-500 dark:text-zinc-400">SGST</span>
-              <span className="font-mono tabular-nums">{formatINR(invoice.sgstAmount)}</span>
-            </div>
-          )}
-          {invoice.igstAmount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-zinc-500 dark:text-zinc-400">IGST</span>
-              <span className="font-mono tabular-nums">{formatINR(invoice.igstAmount)}</span>
-            </div>
-          )}
-          {invoice.cessAmount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-zinc-500 dark:text-zinc-400">Cess</span>
-              <span className="font-mono tabular-nums">{formatINR(invoice.cessAmount)}</span>
-            </div>
-          )}
-          {invoice.tdsAmount > 0 && (
-            <div className="flex justify-between text-amber-600 dark:text-amber-400">
-              <span>TDS ({invoice.tdsSection ?? ''})</span>
-              <span className="font-mono tabular-nums">-{formatINR(invoice.tdsAmount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-zinc-200 pt-1 dark:border-zinc-700 font-semibold text-zinc-900 dark:text-zinc-100">
-            <span>Total</span>
-            <span className="font-mono tabular-nums">{formatINR(invoice.totalAmount)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden md:block">
-        <CardContent className="p-0 overflow-x-auto">
-          <Table className="min-w-[900px]">
-            <TableHeader>
-              <tr>
-                <Th>Item</Th>
-                <Th>HSN/SAC</Th>
-                <Th>Qty</Th>
-                <Th align="right">Unit Price</Th>
-                <Th align="right">Amount</Th>
-                <Th align="right">Tax Rate</Th>
-                <Th align="right">Tax Amount</Th>
-                {hasTds && <Th align="right">TDS</Th>}
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {invoice.items.map((item) => {
-                const itemTax = item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount;
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      {item.itemName}
-                      {item.sku && (
-                        <span className="ml-2 font-mono text-xs text-zinc-400">{item.sku}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{item.hsnSacCode ?? '—'}</TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell align="right" numeric>{formatINR(item.unitPrice)}</TableCell>
-                    <TableCell align="right" numeric>{formatINR(item.amount)}</TableCell>
-                    <TableCell align="right" numeric>{item.taxRate != null ? `${item.taxRate}%` : '—'}</TableCell>
-                    <TableCell align="right" numeric>{formatINR(itemTax)}</TableCell>
-                    {hasTds && (
-                      <TableCell align="right" numeric>
-                        {item.tdsSection ? (
-                          <span className="text-amber-600 dark:text-amber-400">
-                            {item.tdsSection} @ {item.tdsRate}%
-                          </span>
-                        ) : '—'}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <div className="flex justify-end gap-8 px-4 py-3 text-sm border-t border-zinc-200 dark:border-zinc-800">
-          <div className="flex flex-col items-end gap-1.5">
-            <SummaryRow label="Subtotal" value={formatINR(invoice.subtotal)} />
-            {invoice.cgstAmount > 0 && <SummaryRow label="CGST" value={formatINR(invoice.cgstAmount)} />}
-            {invoice.sgstAmount > 0 && <SummaryRow label="SGST" value={formatINR(invoice.sgstAmount)} />}
-            {invoice.igstAmount > 0 && <SummaryRow label="IGST" value={formatINR(invoice.igstAmount)} />}
-            {invoice.cessAmount > 0 && <SummaryRow label="Cess" value={formatINR(invoice.cessAmount)} />}
-            {invoice.tdsAmount > 0 && (
-              <SummaryRow
-                label={`TDS (${invoice.tdsSection ?? ''})`}
-                value={`-${formatINR(invoice.tdsAmount)}`}
-                className="text-amber-600 dark:text-amber-400"
-              />
-            )}
-            <div className="flex w-56 justify-between gap-6 border-t border-zinc-200 pt-1.5 dark:border-zinc-700">
-              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
-              <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                {formatINR(invoice.totalAmount)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function SummaryRow({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div className="flex w-56 justify-between gap-6">
-      <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
-      <span className={`font-mono tabular-nums ${className ?? ''}`}>{value}</span>
-    </div>
-  );
-}
-
-// ─── Debit Note Adjustments ──────────────────────────────────────────────────
-
-function DebitNoteAdjustments({ invoiceId }: { invoiceId: string }) {
-  const { data } = useDebitNotes({ invoiceId });
-  const debitNotes = (data?.data ?? []).filter((dn: DebitNote) => dn.status === 'adjusted' || dn.status === 'issued');
-
-  if (debitNotes.length === 0) return null;
-
-  const totalAdjusted = debitNotes
-    .filter((dn: DebitNote) => dn.status === 'adjusted')
-    .reduce((sum: number, dn: DebitNote) => sum + dn.amount, 0);
-
-  return (
-    <Card className="border-amber-200 dark:border-amber-800">
-      <CardHeader title="Debit Note Adjustments" />
-
-      {/* Mobile cards */}
-      <div className="md:hidden p-3 space-y-2">
-        {debitNotes.map((dn: DebitNote) => (
-          <div key={dn.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="flex items-start justify-between gap-2">
-              <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{dn.debitNoteNumber}</span>
-              <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
-                {dn.status}
-              </Badge>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{dn.issueDate}</p>
-            {dn.reason && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">{dn.reason}</p>
-            )}
-            <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400 tabular-nums">
-              -{formatINR(dn.amount)}
-            </p>
-          </div>
-        ))}
-        {totalAdjusted > 0 && (
-          <div className="flex justify-between px-1 py-1 text-sm font-medium">
-            <span className="text-amber-700 dark:text-amber-400">Total Adjusted</span>
-            <span className="font-mono tabular-nums text-red-600 dark:text-red-400">-{formatINR(totalAdjusted)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <tr>
-                <Th>DN #</Th>
-                <Th>Date</Th>
-                <Th>Reason</Th>
-                <Th align="right">Amount</Th>
-                <Th>Status</Th>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {debitNotes.map((dn: DebitNote) => (
-                <TableRow key={dn.id}>
-                  <TableCell className="font-medium">{dn.debitNoteNumber}</TableCell>
-                  <TableCell className="text-zinc-500 dark:text-zinc-400">{dn.issueDate}</TableCell>
-                  <TableCell className="max-w-[250px] truncate text-sm text-zinc-500 dark:text-zinc-400">{dn.reason}</TableCell>
-                  <TableCell align="right" numeric>
-                    <span className="text-red-600 dark:text-red-400">-{formatINR(dn.amount)}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={dn.status === 'adjusted' ? 'success' : 'warning'} className="capitalize">
-                      {dn.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {totalAdjusted > 0 && (
-            <div className="flex justify-end px-4 py-2 text-sm border-t border-amber-200 dark:border-amber-800">
-              <div className="flex w-52 justify-between gap-6">
-                <span className="font-medium text-amber-700 dark:text-amber-400">Total Adjusted</span>
-                <span className="font-mono font-medium tabular-nums text-red-600 dark:text-red-400">
-                  -{formatINR(totalAdjusted)}
-                </span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </div>
-    </Card>
-  );
-}
-
-// ─── Bill Info Card ───────────────────────────────────────────────────────────
-
-function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
-  const fields = [
-    { label: 'Vendor', value: invoice.vendorName },
-    { label: 'Invoice Date', value: invoice.invoiceDate },
-    { label: 'Due Date', value: invoice.dueDate },
-    { label: 'PO Reference', value: invoice.poId ?? '—' },
-    { label: 'GRN Reference', value: invoice.grnId ?? '—' },
-    ...(invoice.placeOfSupply ? [{ label: 'Place of Supply', value: `${invoice.placeOfSupply} (${invoice.placeOfSupplyCode})` }] : []),
-    ...(invoice.isInterState != null ? [{ label: 'Supply Type', value: invoice.isInterState ? 'Inter-State' : 'Intra-State' }] : []),
-    ...(invoice.tdsSection ? [{ label: 'TDS Section', value: invoice.tdsSection }] : []),
-    ...(invoice.reverseCharge ? [{ label: 'Reverse Charge', value: 'Yes' }] : []),
-  ];
-
-  return (
-    <Card>
-      <CardHeader title="Bill Info" />
-      <CardContent>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          {fields.map(({ label, value }) => (
-            <div key={label}>
-              <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
-              <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Main Detail Page ─────────────────────────────────────────────────────────
 
 export function BillDetailPage({ billId }: { billId: string }) {
   const navigate = useNavigate();
   const router = useRouter();
-  function goBack(): void {
-    if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/bills' });
-  }
   const { data, isLoading, isError } = usePurchaseInvoice(billId);
   const invoice = data?.data;
+
+  if (isLoading) return <BillDetailSkeleton />;
+  if (isError || !invoice) {
+    return <div className="bill-detail-page p-6 text-sm text-[color:var(--bd-neg)]">Bill not found.</div>;
+  }
+  return <BillDetailContent invoice={invoice} navigate={navigate} router={router} />;
+}
+
+function BillDetailSkeleton() {
+  return (
+    <div className="bill-detail-page p-7">
+      <div className="mb-6 h-6 w-48 animate-pulse rounded bg-[color:var(--bd-surface-3)]" />
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-6">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-24 animate-pulse rounded-xl border bd-card" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface ContentProps {
+  invoice: PurchaseInvoiceWithDetails;
+  navigate: ReturnType<typeof useNavigate>;
+  router: ReturnType<typeof useRouter>;
+}
+
+function BillDetailContent({ invoice, navigate, router }: ContentProps) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const approveMutation = useApproveInvoice();
   const deleteMutation = useDeletePurchaseInvoice();
-  const advanceQ = useVendorAdvanceBalance(invoice?.vendorId ?? null);
+  const advanceQ = useVendorAdvanceBalance(invoice.vendorId);
   const advanceBalance = advanceQ.data?.data?.balance ?? 0;
   const applyAdvanceMutation = useApplyAdvanceToBill();
 
-  if (isLoading) {
-    return (
-      <div className="max-w-6xl">
-        <div className="mb-6 h-6 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800" />
-          ))}
-        </div>
-      </div>
-    );
+  const onApprove = useCallback(() => setShowApproveDialog(true), []);
+  const onRecordPayment = useCallback(() => {
+    // Navigation to payment recording — stub: scroll to attachments / or future modal.
+    navigate({ to: '/ap/payments' });
+  }, [navigate]);
+  const onApplyAdvance = useCallback(() => {
+    applyAdvanceMutation.mutate(invoice.id);
+  }, [applyAdvanceMutation, invoice.id]);
+  const onLinkPo = useCallback(() => {
+    navigate({ to: '/ap/bills/$billId/edit', params: { billId: invoice.id } });
+  }, [navigate, invoice.id]);
+
+  const gaps = useDerivedGaps(invoice, advanceBalance, { onApprove, onRecordPayment, onApplyAdvance, onLinkPo });
+  const activity = useDerivedActivity(invoice);
+
+  function goBack() {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/ap/bills' });
   }
 
-  if (isError || !invoice) {
-    return (
-      <div className="max-w-6xl">
-        <p className="text-sm text-red-500">Bill not found.</p>
-      </div>
-    );
-  }
+  const balance = Number(invoice.balanceDue);
+  const total = Number(invoice.totalAmount);
+  const paid = Number(invoice.amountPaid);
+  const overdueDays = Math.max(0, Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000));
+  const isOverdue = balance > 0 && overdueDays > 0 && invoice.status !== 'paid' && invoice.status !== 'cancelled';
+  const visibleGapCount = gaps.filter((g) => !dismissed.has(g.id)).length;
 
-  const isDraft = invoice.status === 'draft';
-  const canApproveDirect = isDraft && !invoice.poId;
-  const isOverdue = !['paid', 'cancelled'].includes(invoice.status)
-    && Number(invoice.balanceDue) > 0
-    && new Date(invoice.dueDate).getTime() < Date.now();
-  const isPaid = invoice.status === 'paid';
-  const overdueDays = isOverdue ? daysBetween(invoice.dueDate) : 0;
+  function fixAll() {
+    gaps.forEach((g, i) => {
+      if (dismissed.has(g.id)) return;
+      setTimeout(() => g.onFix(), i * 250);
+    });
+  }
 
   return (
-    <div>
-      <PageHeader
-        title={invoice.invoiceNumber}
-        breadcrumbs={[
-          { label: 'AP', href: '/ap' },
-          { label: 'Bills', href: '/ap/bills' },
-          { label: invoice.invoiceNumber },
-        ]}
-        titleBadge={<StatusBadge status={invoice.status} />}
-        actions={
-          <>
-            <ArButton variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>
-              Back
-            </ArButton>
-            <Badge variant={MATCH_BADGE_VARIANT[invoice.matchStatus]}>
-              {invoice.matchStatus.replace('_', ' ')}
-            </Badge>
-            {canApproveDirect && (
-              <ArButton size="sm" icon={<Check size={13} />} onClick={() => setShowApproveDialog(true)}>
-                Approve
-              </ArButton>
-            )}
-            {isDraft && (
-              <Link to="/ap/bills/$billId/edit" params={{ billId }}>
-                <ArButton variant="outline" size="sm" icon={<Pencil size={13} />}>Edit</ArButton>
-              </Link>
-            )}
-            {isDraft && (
-              <ArButton variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={() => setShowDeleteDialog(true)} />
-            )}
-            {advanceBalance > 0 && Number(invoice.balanceDue) > 0 && (
-              <ArButton
-                variant="outline"
-                size="sm"
-                icon={<Check size={13} />}
-                onClick={() => applyAdvanceMutation.mutate(invoice.id)}
-                loading={applyAdvanceMutation.isPending}
-                title={`Apply ${formatINR(Math.min(advanceBalance, Number(invoice.balanceDue)))} from open vendor advance`}
-              >
-                Apply advance ({formatINRShort(Math.min(advanceBalance, Number(invoice.balanceDue)))})
-              </ArButton>
-            )}
-            <ArButton variant="outline" size="sm" icon={<MoreHorizontal size={13} />} />
-          </>
-        }
-      />
+    <div className="bill-detail-page">
+      <div className="mx-auto max-w-[1480px] px-6 py-7 pb-16">
+        <BillHeader
+          invoice={invoice}
+          balance={balance} total={total} paid={paid}
+          overdueDays={overdueDays}
+          isOverdue={isOverdue}
+          gapCount={visibleGapCount}
+          onBack={goBack}
+          onApprove={onApprove}
+          onDelete={() => setShowDeleteDialog(true)}
+          onRecordPayment={onRecordPayment}
+        />
 
-      {/* Status banner */}
-      {isOverdue && (
-        <div
-          className="mb-5 flex items-start gap-3 rounded-xl border px-4 py-3"
-          style={{
-            background: 'var(--neg-soft)',
-            borderColor: 'color-mix(in oklab, var(--neg) 30%, transparent)',
-          }}
-        >
-          <AlertTriangle size={16} style={{ color: 'var(--neg)' }} className="mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <div className="text-[13px] font-medium" style={{ color: 'var(--neg)' }}>
-              {overdueDays} day{overdueDays === 1 ? '' : 's'} overdue
-            </div>
-            <div className="mt-0.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
-              Due on {formatDate(invoice.dueDate)} — vendor payment is past due.
-            </div>
+        <div className="bd-grid">
+          <div className="bd-grid-main">
+            <BillInfoCard invoice={invoice} />
+            <LineItemsCard invoice={invoice} />
+            <AttachmentsCard invoice={invoice} />
+            <ActivityTimeline history={activity} />
+          </div>
+          <div className="bd-grid-rail">
+            <AutoFixSidekick
+              gaps={gaps}
+              dismissedIds={dismissed}
+              onDismiss={(id) => setDismissed((s) => new Set([...s, id]))}
+              onFixAll={fixAll}
+            />
+            <DocumentTrailCard invoice={invoice} />
           </div>
         </div>
-      )}
-      {isPaid && (
-        <div
-          className="mb-5 flex items-center gap-3 rounded-xl border px-4 py-3"
-          style={{
-            background: 'var(--pos-soft)',
-            borderColor: 'color-mix(in oklab, var(--pos) 30%, transparent)',
-          }}
-        >
-          <CheckCircle2 size={16} style={{ color: 'var(--pos)' }} className="shrink-0" />
-          <div className="text-[13px] font-medium" style={{ color: 'var(--pos)' }}>Fully paid</div>
-          <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>
-            Cleared on {formatDate(invoice.updatedAt)}.
-          </div>
-        </div>
-      )}
+      </div>
 
       <ConfirmationDialog
         open={showApproveDialog}
         onClose={() => setShowApproveDialog(false)}
         onConfirm={() =>
-          approveMutation.mutate(
-            { id: invoice.id },
-            { onSuccess: () => setShowApproveDialog(false) },
-          )
+          approveMutation.mutate({ id: invoice.id }, { onSuccess: () => setShowApproveDialog(false) })
         }
         title="Approve Bill"
-        description={`Approve bill ${invoice.invoiceNumber} for ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}? Once approved, it will be available for payment.`}
+        description={`Approve bill ${invoice.invoiceNumber} for ${fmtINR(total)}? Once approved, it will be available for payment.`}
         confirmLabel="Approve"
         variant="warning"
         loading={approveMutation.isPending}
       />
-
       <ConfirmationDialog
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={() =>
           deleteMutation.mutate(invoice.id, {
-            onSuccess: () => {
-              setShowDeleteDialog(false);
-              navigate({ to: '/ap/bills' });
-            },
+            onSuccess: () => { setShowDeleteDialog(false); navigate({ to: '/ap/bills' }); },
           })
         }
-        title="Delete Bill"
-        description={`Permanently delete bill ${invoice.invoiceNumber}? The line items and any attached scanned document will be removed. This cannot be undone.`}
-        confirmLabel="Delete Bill"
+        title={invoice.status === 'draft' ? 'Delete Bill' : 'Cancel Bill'}
+        description={
+          invoice.status === 'draft'
+            ? `Permanently delete bill ${invoice.invoiceNumber}? Line items and attachments will be removed.`
+            : `Cancel bill ${invoice.invoiceNumber}?`
+        }
+        confirmLabel={invoice.status === 'draft' ? 'Delete Bill' : 'Cancel Bill'}
         variant="danger"
         loading={deleteMutation.isPending}
       />
+    </div>
+  );
+}
 
-      {/* KPI strip */}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Total" value={formatINRShort(Number(invoice.totalAmount))} sub="Bill amount" />
-        <StatTile label="Paid" value={formatINRShort(Number(invoice.amountPaid))} sub="So far" tone="pos" />
-        <StatTile
-          label="Balance"
-          value={formatINRShort(Number(invoice.balanceDue))}
-          sub={Number(invoice.balanceDue) > 0 ? 'Pending' : 'Settled'}
-          tone={Number(invoice.balanceDue) > 0 ? 'neg' : 'pos'}
-        />
-        <StatTile
-          label="Vendor advance"
-          value={advanceBalance > 0 ? formatINRShort(advanceBalance) : '—'}
-          sub={advanceBalance > 0 ? 'Available' : 'None on file'}
-          tone={advanceBalance > 0 ? 'accent' : 'neutral'}
-        />
+interface HeaderProps {
+  invoice: PurchaseInvoiceWithDetails;
+  balance: number; total: number; paid: number;
+  overdueDays: number; isOverdue: boolean; gapCount: number;
+  onBack: () => void;
+  onApprove: () => void;
+  onDelete: () => void;
+  onRecordPayment: () => void;
+}
+
+function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gapCount, onBack, onApprove, onDelete, onRecordPayment }: HeaderProps) {
+  const { data: sourcesData } = useBillSyncSources();
+  const source = invoice.sourceId ? sourcesData?.data.find((s) => s.id === invoice.sourceId) : null;
+  const isPaid = invoice.status === 'paid';
+  const isDraft = invoice.status === 'draft';
+  const initials = getInitials(invoice.vendorName);
+  const taxAmount = invoice.cgstAmount + invoice.sgstAmount + invoice.igstAmount + invoice.cessAmount;
+
+  return (
+    <div className="bd-page-header">
+      <div className="bd-ph-top">
+        <div className="bd-ph-identity">
+          <button onClick={onBack} className="bd-icon-btn" title="Back" aria-label="Back">
+            <ArrowLeft size={16} />
+          </button>
+          <div className="bd-vendor-avatar">{initials}</div>
+          <div className="bd-ph-meta">
+            <div className="bd-ph-eyebrow">
+              {isOverdue && (
+                <span className="bd-pill bd-pill-warn"><AlertTriangle size={12} />{overdueDays} day{overdueDays === 1 ? '' : 's'} overdue</span>
+              )}
+              {isPaid && <span className="bd-pill bd-pill-success"><CircleCheck size={12} />Paid</span>}
+              {!isPaid && !isOverdue && <span className="bd-pill bd-pill-neutral">{invoice.status.replace('_', ' ')}</span>}
+              {source && <span className="bd-pill bd-pill-info">{source.name} · v{invoice.externalVersion}</span>}
+              <span className="bd-ph-id">#{invoice.invoiceNumber}</span>
+            </div>
+            <h1 className="bd-ph-title">{invoice.vendorName}</h1>
+            <div className="bd-ph-sub">
+              <span>Invoice {fmtDate(invoice.invoiceDate)}</span>
+              <span className="bd-dot">·</span>
+              <span>Due {fmtDate(invoice.dueDate)}</span>
+              {invoice.placeOfSupply && (<><span className="bd-dot">·</span><span>{invoice.placeOfSupply}</span></>)}
+            </div>
+          </div>
+        </div>
+        <div className="bd-ph-actions">
+          <button className="bd-btn bd-btn-ghost" disabled><Download size={15} />PDF</button>
+          {isDraft && (
+            <Link to="/ap/bills/$billId/edit" params={{ billId: invoice.id }}>
+              <button className="bd-btn bd-btn-ghost"><Pencil size={15} />Edit</button>
+            </Link>
+          )}
+          <button className="bd-btn bd-btn-ghost" aria-label="More"><MoreHorizontal size={15} /></button>
+          {!isPaid && invoice.status !== 'cancelled' && (
+            <button className="bd-btn bd-btn-danger" onClick={onDelete}>
+              <Trash2 size={15} />{isDraft ? 'Delete' : 'Cancel'}
+            </button>
+          )}
+          {isDraft && (
+            <button className="bd-btn bd-btn-secondary" onClick={onApprove}>Approve</button>
+          )}
+          {!isPaid && balance > 0 && invoice.status !== 'draft' && invoice.status !== 'cancelled' && (
+            <button className="bd-btn bd-btn-primary" onClick={onRecordPayment}>
+              <CircleCheck size={15} />Record payment
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <BillInfoCard invoice={invoice} />
-        <LineItemsTable invoice={invoice} />
-        <DebitNoteAdjustments invoiceId={invoice.id} />
-        <Card>
-          <CardHeader title="Attachments" />
-          <CardContent>
-            <FileUpload entityType="purchase_invoice" entityId={invoice.id} />
-          </CardContent>
-        </Card>
-        <ActionsPanel invoice={invoice} />
-        <Card>
-          <CardHeader title="Audit Trail" />
-          <CardContent>
-            <DocumentTrail entityType="purchase_invoice" entityId={invoice.id} />
-          </CardContent>
-        </Card>
+      <div className="bd-amount-grid">
+        <AmountTile label="Amount due" value={balance} accent="warn" big sub={isOverdue ? `${overdueDays} days late` : balance === 0 ? 'Settled' : 'Outstanding'} />
+        <AmountTile label="Bill total" value={total} sub={taxAmount > 0 ? 'Incl. tax' : 'No tax'} />
+        <AmountTile label="Paid so far" value={paid} sub={paid === 0 ? 'No payments' : 'Cumulative'} />
+        <AmountTile label="Audit gaps" count={gapCount} accent="info" sub={gapCount === 0 ? 'All clear' : 'Auto-Fix available'} />
       </div>
     </div>
   );
 }
+
+function AmountTile({ label, value, count, sub, accent, big }: { label: string; value?: number; count?: number; sub?: string; accent?: 'warn' | 'info'; big?: boolean }) {
+  const cls = `bd-amt-tile ${accent ? `bd-amt-${accent}` : ''} ${big ? 'bd-amt-big' : ''}`;
+  return (
+    <div className={cls}>
+      <div className="bd-amt-label">{label}</div>
+      <div>
+        <span className="bd-amt-num">{count != null ? count : value != null ? fmtINR(value) : '—'}</span>
+      </div>
+      {sub && <div className="bd-amt-sub">{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Bill Info ────────────────────────────────────────────────────────────────
+
+function BillInfoCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
+  const fields = [
+    { label: 'Vendor', value: invoice.vendorName },
+    { label: 'Invoice number', value: invoice.invoiceNumber, mono: true },
+    { label: 'Invoice date', value: fmtDate(invoice.invoiceDate) },
+    { label: 'Due date', value: fmtDate(invoice.dueDate), accent: 'warn' as const },
+    { label: 'PO reference', value: invoice.poId, missing: !invoice.poId },
+    { label: 'GRN reference', value: invoice.grnId, missing: !invoice.grnId },
+    { label: 'Place of supply', value: invoice.placeOfSupply, missing: !invoice.placeOfSupply },
+    { label: 'Supply type', value: invoice.isInterState != null ? (invoice.isInterState ? 'Inter-State' : 'Intra-State') : null, missing: invoice.isInterState == null },
+  ];
+  return (
+    <section className="bd-card">
+      <header className="bd-card-header">
+        <div className="bd-card-title">Bill info</div>
+      </header>
+      <div className="bd-info-grid">
+        {fields.map((f, i) => (
+          <div key={i} className="bd-info-field">
+            <div className="bd-info-label">{f.label}</div>
+            <div className={`bd-info-value ${f.mono ? 'bd-mono' : ''} ${f.missing ? 'bd-info-missing' : ''} ${'accent' in f && f.accent === 'warn' ? 'bd-info-warn' : ''}`}>
+              {f.value || 'Not set'}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Line Items ───────────────────────────────────────────────────────────────
+
+function LineItemsCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
+  const tax = invoice.cgstAmount + invoice.sgstAmount + invoice.igstAmount + invoice.cessAmount;
+  return (
+    <section className="bd-card">
+      <header className="bd-card-header">
+        <div className="flex items-baseline gap-2.5">
+          <div className="bd-card-title">Line items</div>
+          <div className="bd-card-meta">{invoice.items.length} item{invoice.items.length === 1 ? '' : 's'}</div>
+        </div>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="bd-line-table">
+          <thead>
+            <tr>
+              <th style={{ width: '40%' }}>Item</th>
+              <th className="bd-col-num">Qty</th>
+              <th className="bd-col-num">Unit price</th>
+              <th className="bd-col-num">Tax</th>
+              <th className="bd-col-num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <div className="bd-item-name">{item.itemName}</div>
+                  {item.hsnSacCode && <div className="bd-item-desc">HSN/SAC {item.hsnSacCode}</div>}
+                </td>
+                <td className="bd-col-num bd-mono">{fmtQty(item.quantity)}</td>
+                <td className="bd-col-num bd-mono">{fmtINR(item.unitPrice)}</td>
+                <td className="bd-col-num bd-mono bd-dim">{item.taxRate != null ? `${item.taxRate}%` : '—'}</td>
+                <td className={`bd-col-num bd-mono ${item.amount < 0 ? 'bd-neg' : ''}`}>{fmtINR(item.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bd-totals">
+        <div className="bd-totals-grid">
+          <div className="bd-totals-row">
+            <span className="bd-totals-label">Subtotal</span>
+            <span className="bd-totals-val bd-mono">{fmtINR(invoice.subtotal)}</span>
+          </div>
+          {invoice.cgstAmount > 0 && (
+            <div className="bd-totals-row">
+              <span className="bd-totals-label">CGST</span>
+              <span className="bd-totals-val bd-mono bd-dim">{fmtINR(invoice.cgstAmount)}</span>
+            </div>
+          )}
+          {invoice.sgstAmount > 0 && (
+            <div className="bd-totals-row">
+              <span className="bd-totals-label">SGST</span>
+              <span className="bd-totals-val bd-mono bd-dim">{fmtINR(invoice.sgstAmount)}</span>
+            </div>
+          )}
+          {invoice.igstAmount > 0 && (
+            <div className="bd-totals-row">
+              <span className="bd-totals-label">IGST</span>
+              <span className="bd-totals-val bd-mono bd-dim">{fmtINR(invoice.igstAmount)}</span>
+            </div>
+          )}
+          {invoice.tdsAmount > 0 && (
+            <div className="bd-totals-row">
+              <span className="bd-totals-label">TDS{invoice.tdsSection ? ` (${invoice.tdsSection})` : ''}</span>
+              <span className="bd-totals-val bd-mono">−{fmtINR(invoice.tdsAmount)}</span>
+            </div>
+          )}
+          {tax > 0 && invoice.cgstAmount === 0 && invoice.sgstAmount === 0 && invoice.igstAmount === 0 && (
+            <div className="bd-totals-row">
+              <span className="bd-totals-label">Tax</span>
+              <span className="bd-totals-val bd-mono bd-dim">{fmtINR(tax)}</span>
+            </div>
+          )}
+          <div className="bd-totals-row bd-totals-grand">
+            <span className="bd-totals-label">Total</span>
+            <span className="bd-totals-val bd-mono">{fmtINR(invoice.totalAmount)}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Attachments ──────────────────────────────────────────────────────────────
+
+function AttachmentsCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
+  return (
+    <section className="bd-card">
+      <header className="bd-card-header">
+        <div className="bd-card-title">Attachments</div>
+      </header>
+      <div className="p-3">
+        <FileUpload entityType="purchase_invoice" entityId={invoice.id} />
+      </div>
+    </section>
+  );
+}
+
+function DocumentTrailCard({ invoice }: { invoice: PurchaseInvoiceWithDetails }) {
+  return (
+    <section className="bd-card">
+      <header className="bd-card-header">
+        <div className="bd-card-title">Document trail</div>
+        <div className="bd-card-meta">Linked entities and reconciliation gaps</div>
+      </header>
+      <div className="p-4">
+        <DocumentTrail entityType="purchase_invoice" entityId={invoice.id} />
+      </div>
+    </section>
+  );
+}
+

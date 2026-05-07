@@ -130,6 +130,7 @@ export function VendorListPage() {
             <Th>Contact</Th>
             <Th>Location</Th>
             <Th>Terms</Th>
+            <Th>Invoice required</Th>
             <Th>Status</Th>
             <Th align="right" />
           </tr>
@@ -138,7 +139,7 @@ export function VendorListPage() {
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 7 }).map((__, j) => (
+                {Array.from({ length: 8 }).map((__, j) => (
                   <TableCell key={j}>
                     <div className="h-3 w-full max-w-[140px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
                   </TableCell>
@@ -147,7 +148,7 @@ export function VendorListPage() {
             ))
           ) : vendors.length === 0 ? (
             <tr>
-              <td colSpan={7}>
+              <td colSpan={8}>
                 <EmptyState
                   icon={<Building2 size={18} />}
                   title={search ? 'No vendors match your search' : 'No vendors yet'}
@@ -189,6 +190,11 @@ export function VendorListPage() {
                 {v.city && v.state ? `${v.city}, ${v.state}` : (v.city || v.state || <span style={{ color: 'var(--text-3)' }}>—</span>)}
               </TableCell>
               <TableCell style={{ color: 'var(--text-2)' }}>Net {v.paymentTermsDays}d</TableCell>
+              <TableCell>
+                <Badge variant={v.requiresInvoice ? 'warning' : 'outline'}>
+                  {v.requiresInvoice ? 'Yes' : 'No'}
+                </Badge>
+              </TableCell>
               <TableCell>
                 <Badge variant={v.isActive ? 'success' : 'outline'}>{v.isActive ? 'Active' : 'Inactive'}</Badge>
               </TableCell>

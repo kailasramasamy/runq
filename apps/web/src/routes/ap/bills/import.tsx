@@ -19,12 +19,54 @@ import {
 } from '@/components/ui';
 
 const CATEGORY_OPTIONS = [
-  { value: 'employee_salary', label: 'Employee Salary' },
-  { value: 'delivery_boys', label: 'Delivery Boys' },
-  { value: 'farmers_suppliers', label: 'Farmers / Suppliers' },
-  { value: 'rent_fixed', label: 'Rent / Fixed Payments' },
-  { value: 'general', label: 'General' },
+  { value: 'employee_salary', label: 'Salary / Payroll' },
+  { value: 'delivery_boys', label: 'Gig & Contract Payouts' },
+  { value: 'farmers_suppliers', label: 'Goods / Raw Materials' },
+  { value: 'rent_fixed', label: 'Rent & Recurring Payments' },
+  { value: 'general', label: 'General / Mixed' },
 ];
+
+const CATEGORY_DESCRIPTIONS: Record<BillCategory, { title: string; body: string; minimal?: string }> = {
+  employee_salary: {
+    title: 'Salary / Payroll',
+    body: 'Monthly or one-off employee payouts with statutory TDS withholding (194J professional fees, etc.). Auto-fills invoice number and dates from a chosen period.',
+    minimal: 'Minimal CSV: Name + Salary',
+  },
+  delivery_boys: {
+    title: 'Gig & Contract Payouts',
+    body: 'Simple flat payouts to gig workers, drivers, contract labour, freelancers — no TDS, no GST. Auto-fills invoice number and dates from a chosen period.',
+    minimal: 'Minimal CSV: Name + Amount',
+  },
+  farmers_suppliers: {
+    title: 'Goods / Raw Materials',
+    body: 'Bulk purchase of physical goods bought by quantity × unit price, with HSN code and GST tax rate per line.',
+  },
+  rent_fixed: {
+    title: 'Rent & Recurring Payments',
+    body: 'Fixed-amount recurring bills (rent, utilities, telecom, software subscriptions). Supports statutory TDS (194I rent etc.).',
+  },
+  general: {
+    title: 'General / Mixed',
+    body: 'Full template with every field available — for one-off purchases that don\'t fit the other categories. Use when in doubt.',
+  },
+};
+
+const MONTHS = [
+  { value: '1', label: 'January' }, { value: '2', label: 'February' },
+  { value: '3', label: 'March' }, { value: '4', label: 'April' },
+  { value: '5', label: 'May' }, { value: '6', label: 'June' },
+  { value: '7', label: 'July' }, { value: '8', label: 'August' },
+  { value: '9', label: 'September' }, { value: '10', label: 'October' },
+  { value: '11', label: 'November' }, { value: '12', label: 'December' },
+];
+
+const YEAR_OPTIONS = (() => {
+  const now = new Date().getFullYear();
+  return Array.from({ length: 5 }, (_, i) => {
+    const y = now - 2 + i;
+    return { value: String(y), label: String(y) };
+  });
+})();
 
 const TEMPLATES: Record<BillCategory, { headers: string; example: string }> = {
   employee_salary: {
@@ -120,6 +162,17 @@ export function ImportBillsPage() {
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  // Period picker — only used for salary-style categories that auto-fill
+  // missing invoice fields. Defaults to last completed month.
+  const lastMonth = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return { month: d.getMonth() + 1, year: d.getFullYear() };
+  }, []);
+  const [periodMonth, setPeriodMonth] = useState<number>(lastMonth.month);
+  const [periodYear, setPeriodYear] = useState<number>(lastMonth.year);
+  const isSalaryCategory = category === 'employee_salary' || category === 'delivery_boys';
   const importMutation = useImportBillsCSV();
 
   // Fetch vendors matching the selected category
@@ -169,7 +222,9 @@ export function ImportBillsPage() {
 
   function handleImport() {
     importMutation.mutate(
-      { csvData, category },
+      isSalaryCategory
+        ? { csvData, category, periodMonth, periodYear }
+        : { csvData, category },
       {
         onSuccess: (res) => {
           setResult(res.data);
@@ -216,6 +271,37 @@ export function ImportBillsPage() {
               </Button>
             </div>
           </div>
+
+          <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/40">
+            <div className="font-medium text-zinc-900 dark:text-zinc-100">{CATEGORY_DESCRIPTIONS[category].title}</div>
+            <p className="mt-1 text-zinc-600 dark:text-zinc-400">{CATEGORY_DESCRIPTIONS[category].body}</p>
+            {CATEGORY_DESCRIPTIONS[category].minimal && (
+              <p className="mt-1 text-indigo-700 dark:text-indigo-300">{CATEGORY_DESCRIPTIONS[category].minimal}</p>
+            )}
+          </div>
+
+          {isSalaryCategory && (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+              <p className="text-xs text-indigo-900 dark:text-indigo-200">
+                Pick the period — invoice number, dates, and item name auto-fill from it so you don't need those columns in the CSV.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <Select
+                  label="Period month"
+                  value={String(periodMonth)}
+                  onChange={(e) => setPeriodMonth(parseInt(e.target.value, 10))}
+                  options={MONTHS}
+                />
+                <Select
+                  label="Period year"
+                  value={String(periodYear)}
+                  onChange={(e) => setPeriodYear(parseInt(e.target.value, 10))}
+                  options={YEAR_OPTIONS}
+                />
+              </div>
+            </div>
+          )}
+
           <DropZone
             fileName={fileName}
             onFile={(name, content) => { setFileName(name); setCsvData(content); }}

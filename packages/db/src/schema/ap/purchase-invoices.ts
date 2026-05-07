@@ -1,10 +1,11 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, integer, text, timestamp, pgEnum, index, uniqueIndex, boolean } from 'drizzle-orm/pg-core';
 import { taxCategoryEnum } from '../ar/invoices';
 import { tenants } from '../tenant';
 import { vendors } from './vendors';
 import { purchaseOrders, purchaseOrderItems } from './purchase-orders';
 import { goodsReceiptNotes } from './grns';
 import { users } from '../user';
+import { billSyncSources } from '../integrations/bill-sync-sources';
 
 export const purchaseInvoiceStatusEnum = pgEnum('purchase_invoice_status', ['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled']);
 export const matchStatusEnum = pgEnum('match_status', ['unmatched', 'matched', 'mismatch']);
@@ -41,12 +42,16 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   // TDS fields
   tdsSection: varchar('tds_section', { length: 20 }),
   tdsAmount: decimal('tds_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  sourceId: uuid('source_id').references(() => billSyncSources.id),
+  externalId: varchar('external_id', { length: 255 }),
+  externalVersion: integer('external_version').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_pi_tenant_status').on(t.tenantId, t.status),
   index('idx_pi_tenant_vendor').on(t.tenantId, t.vendorId),
   index('idx_pi_tenant_due_date').on(t.tenantId, t.dueDate),
+  uniqueIndex('uq_pi_source_external').on(t.sourceId, t.externalId),
 ]);
 
 export const purchaseInvoiceItems = pgTable('purchase_invoice_items', {

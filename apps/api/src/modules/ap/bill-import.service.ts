@@ -40,18 +40,37 @@ const CATEGORY_HEADERS: Record<BillCategory, string[]> = {
 
 export { CATEGORY_HEADERS };
 
+// Header aliases — accepts common alternative names so users don't have to
+// reformat their CSVs. Keys are the canonical lowercase header the parser
+// looks up; values are alternatives also matched.
+const HEADER_SYNONYMS: Record<string, string[]> = {
+  'vendor name': ['name', 'employee', 'employee name', 'staff name', 'driver', 'driver name'],
+  'amount': ['salary', 'pay', 'payout', 'wage', 'wages'],
+  'invoice number': ['invoice no', 'invoice #', 'bill number', 'bill no'],
+  'invoice date': ['date', 'bill date'],
+  'due date': ['payment due'],
+  'item name': ['description', 'particulars', 'narration'],
+};
+
 export class BillImportService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
   ) {}
 
-  async importFromCSV(csvData: string, category: BillCategory): Promise<ImportResult> {
+  async importFromCSV(
+    csvData: string,
+    category: BillCategory,
+    opts: { periodMonth?: number; periodYear?: number } = {},
+  ): Promise<ImportResult> {
     const lines = csvData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(Boolean);
     if (lines.length < 2) return { created: 0, errors: [{ row: 0, vendorName: '', message: 'No data rows found' }] };
 
-    const headers = this.parseCSVLine(lines[0]!).map((h) => h.toLowerCase().trim());
+    // BOM cleanup — Excel-generated CSVs prepend U+FEFF to the first cell.
+    const headers = this.parseCSVLine(lines[0]!).map((h) => h.toLowerCase().trim().replace(/^﻿/, ''));
     const invoiceService = new PurchaseInvoiceService(this.db, this.tenantId);
+    const isSalary = category === 'employee_salary' || category === 'delivery_boys';
+    const period = this.resolvePeriod(category, opts);
 
     let created = 0;
     const errors: ImportError[] = [];
@@ -59,12 +78,28 @@ export class BillImportService {
     for (let i = 1; i < lines.length; i++) {
       const cols = this.parseCSVLine(lines[i]!);
       const rowNum = i + 1;
-      const get = (key: string) => cols[headers.indexOf(key)]?.trim() ?? '';
+      const get = (key: string) => {
+        // Synonym lookup so salary CSVs with "Name"/"Salary" headers still parse.
+        const aliases = HEADER_SYNONYMS[key] ?? [];
+        for (const k of [key, ...aliases]) {
+          const idx = headers.indexOf(k);
+          if (idx >= 0) return cols[idx]?.trim() ?? '';
+        }
+        return '';
+      };
 
       try {
         const parsed = this.parseRow(category, get);
+
+        if (isSalary && period) {
+          if (!parsed.invoiceNumber) parsed.invoiceNumber = `${period.prefix}-${period.year}${String(period.month).padStart(2, '0')}-${String(i).padStart(3, '0')}`;
+          if (!parsed.invoiceDate) parsed.invoiceDate = period.invoiceDate;
+          if (!parsed.dueDate) parsed.dueDate = period.dueDate;
+          if (!parsed.itemName) parsed.itemName = period.itemName;
+        }
+
         if (!parsed.vendorName) { errors.push({ row: rowNum, vendorName: '', message: 'Vendor Name is required' }); continue; }
-        if (!parsed.invoiceNumber) { errors.push({ row: rowNum, vendorName: parsed.vendorName, message: 'Invoice Number is required' }); continue; }
+        if (!parsed.invoiceNumber) { errors.push({ row: rowNum, vendorName: parsed.vendorName, message: 'Invoice Number is required (or supply a period for salary imports)' }); continue; }
         if (!parsed.amount || parsed.amount <= 0) { errors.push({ row: rowNum, vendorName: parsed.vendorName, message: 'Amount must be positive' }); continue; }
 
         const vendorId = await this.resolveVendorId(parsed.vendorName);
@@ -103,6 +138,24 @@ export class BillImportService {
     }
 
     return { created, errors };
+  }
+
+  private resolvePeriod(
+    category: BillCategory,
+    opts: { periodMonth?: number; periodYear?: number },
+  ): { invoiceDate: string; dueDate: string; itemName: string; prefix: string; year: number; month: number } | null {
+    if (!opts.periodMonth || !opts.periodYear) return null;
+    const month = opts.periodMonth;
+    const year = opts.periodYear;
+    const lastDay = new Date(year, month, 0).getDate();
+    const invoiceDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const due = new Date(year, month - 1, lastDay);
+    due.setDate(due.getDate() + 15);
+    const dueDate = due.toISOString().split('T')[0]!;
+    const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+    const itemName = `${monthName} ${year} ${category === 'delivery_boys' ? 'delivery payout' : 'salary'}`;
+    const prefix = category === 'delivery_boys' ? 'DEL' : 'SAL';
+    return { invoiceDate, dueDate, itemName, prefix, year, month };
   }
 
   private normalizeDate(raw: string): string {

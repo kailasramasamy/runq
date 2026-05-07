@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, decimal, boolean, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, decimal, boolean, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 
 export const vendors = pgTable('vendors', {
@@ -27,8 +27,11 @@ export const vendors = pgTable('vendors', {
   treatNoBillAsAdvance: boolean('treat_no_bill_as_advance').notNull().default(false),
   requiresInvoice: boolean('requires_invoice').notNull().default(false),
   portalSlug: varchar('portal_slug', { length: 32 }).unique(),
+  externalRefs: jsonb('external_refs').notNull().default({}),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (t) => [
+  index('idx_vendors_external_refs').using('gin', t.externalRefs),
+]);

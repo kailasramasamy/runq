@@ -35,6 +35,10 @@ export interface PurchaseInvoice {
   // TDS fields
   tdsSection: string | null;
   tdsAmount: number;
+  // External sync provenance
+  sourceId: string | null;
+  externalId: string | null;
+  externalVersion: number;
   createdAt: string;
   updatedAt: string;
 }
