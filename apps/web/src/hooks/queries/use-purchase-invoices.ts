@@ -135,6 +135,34 @@ export function useApproveInvoice() {
   });
 }
 
+export function useBulkApproveInvoices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      // Run approvals in parallel; some may fail (e.g. bills that need a
+      // 3-way match before approval) — surface counts so the UI can report.
+      const results = await Promise.allSettled(
+        ids.map((id) => api.post<ApiSuccess<PurchaseInvoice>>(`/ap/purchase-invoices/${id}/approve`, {})),
+      );
+      const succeeded: string[] = [];
+      const failed: Array<{ id: string; reason: string }> = [];
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') succeeded.push(ids[i]!);
+        else {
+          const reason = (r.reason as { error?: string; message?: string })?.error
+            ?? (r.reason as { message?: string })?.message
+            ?? 'unknown';
+          failed.push({ id: ids[i]!, reason });
+        }
+      });
+      return { succeeded, failed };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+    },
+  });
+}
+
 export function useDeletePurchaseInvoice() {
   const qc = useQueryClient();
   return useMutation({

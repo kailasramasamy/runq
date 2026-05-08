@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, FileText, Download, Upload, Send, Search, ScanLine, X as XIcon, SlidersHorizontal } from 'lucide-react';
+import { Plus, FileText, Download, Upload, Send, Search, ScanLine, X as XIcon, SlidersHorizontal, Check } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
-import { usePurchaseInvoices, useDeletePurchaseInvoice } from '@/hooks/queries/use-purchase-invoices';
+import { usePurchaseInvoices, useDeletePurchaseInvoice, useBulkApproveInvoices } from '@/hooks/queries/use-purchase-invoices';
 import { useVendors } from '@/hooks/queries/use-vendors';
 import { useCreateRunFromBills } from '@/hooks/queries/use-payment-runs';
 import type { PurchaseInvoice, PurchaseInvoiceStatus } from '@runq/types';
@@ -39,6 +39,14 @@ const CATEGORY_OPTIONS = [
 
 function isEligibleForPayRun(bill: PurchaseInvoice): boolean {
   return (bill.status === 'approved' || bill.status === 'partially_paid') && Number(bill.balanceDue) > 0;
+}
+
+function isApprovable(bill: PurchaseInvoice): boolean {
+  return bill.status === 'draft' || bill.status === 'matched';
+}
+
+function isSelectable(bill: PurchaseInvoice): boolean {
+  return isEligibleForPayRun(bill) || isApprovable(bill);
 }
 
 export function BillListPage() {
@@ -82,7 +90,9 @@ export function BillListPage() {
   const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const bulkApprove = useBulkApproveInvoices();
 
   const filters = {
     vendorId: vendorId || undefined,
@@ -123,34 +133,76 @@ export function BillListPage() {
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
   ];
 
-  const eligibleBills = useMemo(() => bills.filter(isEligibleForPayRun), [bills]);
+  const selectableBills = useMemo(() => bills.filter(isSelectable), [bills]);
   const selectedBills = useMemo(
-    () => eligibleBills.filter((b) => selectedIds.includes(b.id)),
-    [eligibleBills, selectedIds],
+    () => selectableBills.filter((b) => selectedIds.includes(b.id)),
+    [selectableBills, selectedIds],
   );
   const selectedTotal = selectedBills.reduce((s, b) => s + Number(b.balanceDue), 0);
-  const allEligibleSelected = eligibleBills.length > 0 && selectedBills.length === eligibleBills.length;
+  const allSelectableSelected = selectableBills.length > 0 && selectedBills.length === selectableBills.length;
 
-  function toggleOne(id: string) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Action eligibility — only matters for the bulk action buttons.
+  const selectedApprovable = selectedBills.filter(isApprovable);
+  const selectedPayable = selectedBills.filter(isEligibleForPayRun);
+
+  function toggleOne(id: string, shiftKey: boolean) {
+    setSelectedIds((prev) => {
+      // Shift-click range: extend selection from last-clicked to this row,
+      // taking only currently-selectable bills in that range.
+      if (shiftKey && lastClickedId && lastClickedId !== id) {
+        const startIdx = selectableBills.findIndex((b) => b.id === lastClickedId);
+        const endIdx = selectableBills.findIndex((b) => b.id === id);
+        if (startIdx >= 0 && endIdx >= 0) {
+          const [lo, hi] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+          const rangeIds = selectableBills.slice(lo, hi + 1).map((b) => b.id);
+          // If the anchor was selected, the range adds; otherwise it removes.
+          const adding = prev.includes(lastClickedId);
+          const set = new Set(prev);
+          rangeIds.forEach((rid) => { if (adding) set.add(rid); else set.delete(rid); });
+          return Array.from(set);
+        }
+      }
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      return next;
+    });
+    setLastClickedId(id);
   }
-  function toggleAllEligible() {
-    setSelectedIds((prev) => prev.length === eligibleBills.length ? [] : eligibleBills.map((b) => b.id));
+  function toggleAllSelectable() {
+    setSelectedIds((prev) => prev.length === selectableBills.length ? [] : selectableBills.map((b) => b.id));
+    setLastClickedId(null);
   }
   function handleAddToPayRun() {
-    if (selectedIds.length === 0) return;
+    if (selectedPayable.length === 0) return;
+    const ids = selectedPayable.map((b) => b.id);
     createRunFromBills.mutate(
-      { billIds: selectedIds },
+      { billIds: ids },
       {
         onSuccess: (res) => {
           const run = (res as { data: { id: string; runId: string } }).data;
-          toast(`Created pay run ${run.runId} with ${selectedIds.length} bill(s)`, 'success');
+          toast(`Created pay run ${run.runId} with ${ids.length} bill(s)`, 'success');
           setSelectedIds([]);
           navigate({ to: '/ap/pay-runs/$runId', params: { runId: run.id } });
         },
         onError: () => toast('Failed to create pay run', 'error'),
       },
     );
+  }
+  function handleBulkApprove() {
+    if (selectedApprovable.length === 0) return;
+    const ids = selectedApprovable.map((b) => b.id);
+    bulkApprove.mutate(ids, {
+      onSuccess: ({ succeeded, failed }) => {
+        if (failed.length === 0) {
+          toast(`Approved ${succeeded.length} bill${succeeded.length === 1 ? '' : 's'}`, 'success');
+        } else if (succeeded.length === 0) {
+          toast(`All ${failed.length} approval${failed.length === 1 ? '' : 's'} failed: ${failed[0]!.reason}`, 'error');
+        } else {
+          toast(`Approved ${succeeded.length}, ${failed.length} failed (e.g. ${failed[0]!.reason})`, 'info');
+        }
+        setSelectedIds(selectedIds.filter((id) => !succeeded.includes(id)));
+      },
+      onError: () => toast('Bulk approve failed', 'error'),
+    });
   }
   function handleRowClick(bill: PurchaseInvoice) {
     navigate({ to: '/ap/bills/$billId', params: { billId: bill.id } });
@@ -261,9 +313,16 @@ export function BillListPage() {
           <span className="font-medium">
             {selectedIds.length} selected · <span className="num">{formatINR(selectedTotal)}</span>
           </span>
-          <Button size="sm" icon={<Send size={13} />} loading={createRunFromBills.isPending} onClick={handleAddToPayRun}>
-            Add to pay run
-          </Button>
+          {selectedApprovable.length > 0 && (
+            <Button size="sm" icon={<Check size={13} />} loading={bulkApprove.isPending} onClick={handleBulkApprove}>
+              Approve {selectedApprovable.length}
+            </Button>
+          )}
+          {selectedPayable.length > 0 && (
+            <Button size="sm" icon={<Send size={13} />} loading={createRunFromBills.isPending} onClick={handleAddToPayRun}>
+              Add {selectedPayable.length} to pay run
+            </Button>
+          )}
           <button
             type="button"
             onClick={() => setSelectedIds([])}
@@ -279,12 +338,12 @@ export function BillListPage() {
         <TableHeader>
           <tr>
             <Th>
-              {eligibleBills.length > 0 ? (
+              {selectableBills.length > 0 ? (
                 <input
                   type="checkbox"
-                  checked={allEligibleSelected}
-                  onChange={toggleAllEligible}
-                  aria-label="Select all eligible"
+                  checked={allSelectableSelected}
+                  onChange={toggleAllSelectable}
+                  aria-label="Select all"
                 />
               ) : null}
             </Th>
@@ -330,11 +389,12 @@ export function BillListPage() {
             return (
               <TableRow key={bill.id} onClick={() => handleRowClick(bill)}>
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  {isEligibleForPayRun(bill) ? (
+                  {isSelectable(bill) ? (
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(bill.id)}
-                      onChange={() => toggleOne(bill.id)}
+                      onClick={(e) => { e.stopPropagation(); toggleOne(bill.id, e.shiftKey); }}
+                      onChange={() => undefined}
                       aria-label={`Select bill ${bill.invoiceNumber}`}
                     />
                   ) : null}
