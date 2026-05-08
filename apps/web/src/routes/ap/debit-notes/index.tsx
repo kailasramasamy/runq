@@ -20,7 +20,7 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-const LIMIT = 20;
+const LIMIT = 25;
 
 export function DebitNoteListPage() {
   const navigate = useNavigate();

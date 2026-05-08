@@ -21,7 +21,7 @@ const METHOD_OPTIONS = [
   { value: 'cash', label: 'Cash' },
 ];
 
-const LIMIT = 20;
+const LIMIT = 25;
 
 type ReceiptWithCustomer = PaymentReceipt & { customerName?: string };
 

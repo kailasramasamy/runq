@@ -15,7 +15,7 @@ import {
 import { NewInvoiceMenu } from '@/components/ar/new-invoice-menu';
 import { Combobox, useToast } from '@/components/ui';
 
-const LIMIT = 10;
+const LIMIT = 25;
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },

@@ -34,7 +34,7 @@ const GATEWAY_OPTIONS = [
   { value: 'paytm', label: 'Paytm' },
 ];
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 25;
 
 export function PGReconciliationPage() {
   const navigate = useNavigate();

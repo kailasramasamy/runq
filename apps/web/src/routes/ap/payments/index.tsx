@@ -12,7 +12,7 @@ import {
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
 
-const LIMIT = 20;
+const LIMIT = 25;
 
 export function PaymentListPage() {
   const navigate = useNavigate();

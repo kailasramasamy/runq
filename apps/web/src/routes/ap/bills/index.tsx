@@ -14,7 +14,7 @@ import {
 } from '@/components/ar/primitives';
 import { Combobox, ConfirmationDialog, useToast } from '@/components/ui';
 
-const LIMIT = 10;
+const LIMIT = 25;
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },

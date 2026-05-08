@@ -25,7 +25,7 @@ const STATUS_OPTIONS = [
   { value: 'disposed', label: 'Disposed' },
 ];
 
-const LIMIT = 20;
+const LIMIT = 25;
 
 export function AssetListPage() {
   const navigate = useNavigate();

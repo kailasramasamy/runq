@@ -19,7 +19,7 @@ import {
   useItems, useToggleItem, useDeleteItem, useItemAttributeSchema,
 } from '@/hooks/queries/use-items';
 
-const LIMIT = 20;
+const LIMIT = 25;
 
 async function fetchAllItems(): Promise<Item[]> {
   const all: Item[] = [];
