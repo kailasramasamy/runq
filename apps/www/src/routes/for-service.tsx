@@ -1,4 +1,4 @@
-import { Clock, Coins, FileText, Globe, RefreshCcw, Users } from 'lucide-react';
+import { Calendar, Coins, FileText, Globe, RefreshCcw, Users } from 'lucide-react';
 import { AudiencePage, type AudienceData } from '@/components/marketing/audience-page';
 
 const data: AudienceData = {
@@ -19,8 +19,8 @@ const data: AudienceData = {
     { Icon: Coins,      title: 'Multi-currency',        body: 'Bill in USD, EUR, GBP. Forex gain/loss booked at receipt. Bank-rate or RBI reference rate.' },
     { Icon: FileText,   title: 'TDS on receipts',       body: 'Customer deducts TDS? runQ matches Form 26AS, books the deduction, claims the credit.' },
     { Icon: Globe,      title: 'Export of services',    body: 'LUT-based zero-rated invoices, or with-payment refund flow. FIRC tracking included.' },
-    { Icon: Clock,      title: 'Time & milestone billing', body: 'Convert tracked hours or signed-off milestones into invoices in one click.' },
-    { Icon: Users,      title: 'Client portal',         body: 'Read-only client portal: invoices, statements, payment history. White-labelled with your brand.' },
+    { Icon: Calendar,   title: 'AR aging & dunning',    body: 'See which retainer client is two months behind. Automated reminders before it gets awkward.' },
+    { Icon: Users,      title: 'Client portal',         body: 'Read-only client portal: invoices, statements, payment history. One link, one login.' },
   ],
   darkPanel: {
     eyebrow: 'GST FOR SERVICES',
