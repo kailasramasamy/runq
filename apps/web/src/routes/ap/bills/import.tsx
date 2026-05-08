@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Upload, Check, X, Download, AlertTriangle, UserPlus, Search } from 'lucide-react';
+import { Upload, Check, X, Download, AlertTriangle, UserPlus } from 'lucide-react';
 import { useImportBillsCSV, usePreviewBillsCSV, type PreviewRow as ApiPreviewRow } from '@/hooks/queries/use-bill-import';
 import { useVendors, useCreateVendor } from '@/hooks/queries/use-vendors';
 import type { BillCategory } from '@runq/validators';
+import { Combobox } from '@/components/ui';
 import {
   PageHeader,
   Button,
@@ -512,13 +513,14 @@ function PreviewRowItem({ row, override, onSetOverride, onClearOverride }: Previ
   const [expanded, setExpanded] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState(row.vendorName);
-  const [search, setSearch] = useState('');
   // Remember the resolved name for any override we set ourselves so the
-  // badge shows the actual vendor name even when the picker dropdown's
-  // search list has scrolled past it (or it's a just-created vendor that
-  // isn't in any prior list).
+  // badge shows the actual vendor name even when the picker's option list
+  // doesn't contain it (e.g. a just-created vendor).
   const [overrideNameCache, setOverrideNameCache] = useState<Record<string, string>>({});
-  const { data: vendorsData } = useVendors({ search: search || undefined, limit: 10 });
+  // Pull a generous slice of vendors once and let the Combobox filter
+  // client-side. Fine for SMB scale; if a tenant has thousands of vendors
+  // we'd switch to server-side filtering with onQueryChange.
+  const { data: vendorsData } = useVendors({ limit: 500 });
   const createVendor = useCreateVendor();
 
   const effectiveStatus: ApiPreviewRow['matchStatus'] = row.matchStatus === 'parse_error'
@@ -605,27 +607,17 @@ function PreviewRowItem({ row, override, onSetOverride, onClearOverride }: Previ
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative min-w-[200px] flex-1">
-                    <Search size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                    <input
-                      type="text"
-                      placeholder="Search vendors…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="block w-full rounded-md border border-zinc-300 bg-white pl-7 pr-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                  <div className="min-w-[260px] flex-1">
+                    <Combobox
+                      placeholder="Search runQ vendors…"
+                      value={override ?? ''}
+                      onChange={(id) => {
+                        const picked = (vendorsData?.data ?? []).find((v) => v.id === id);
+                        if (picked) selectVendor(picked.id, picked.name);
+                      }}
+                      options={(vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name }))}
                     />
                   </div>
-                  <Select
-                    value={override ?? ''}
-                    onChange={(e) => {
-                      const picked = (vendorsData?.data ?? []).find((v) => v.id === e.target.value);
-                      if (picked) selectVendor(picked.id, picked.name);
-                    }}
-                    options={[
-                      { value: '', label: '— pick vendor —' },
-                      ...(vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name })),
-                    ]}
-                  />
                   <span className="text-xs text-zinc-400">or</span>
                   <Button size="sm" variant="ghost" onClick={() => setCreating(true)}>
                     <UserPlus size={12} /> Create new vendor
