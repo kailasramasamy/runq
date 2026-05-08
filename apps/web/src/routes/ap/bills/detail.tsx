@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import {
   usePurchaseInvoice, useApproveInvoice, useDeletePurchaseInvoice,
-  useVendorAdvanceBalance, useApplyAdvanceToBill,
+  useVendorAdvanceBalance, useApplyAdvanceToBill, useRecordOwnerPayment,
 } from '../../../hooks/queries/use-purchase-invoices';
+import { useCreatePayment } from '../../../hooks/queries/use-payments';
+import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import { useBillSyncSources } from '../../../hooks/queries/use-bill-sync';
 import { useDocumentTrail } from '@/hooks/queries/use-trail';
 import { useAuth } from '@/providers/auth-provider';
@@ -72,6 +74,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
   const approveMutation = useApproveInvoice();
   const deleteMutation = useDeletePurchaseInvoice();
   const advanceQ = useVendorAdvanceBalance(invoice.vendorId);
@@ -79,10 +82,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
   const applyAdvanceMutation = useApplyAdvanceToBill();
 
   const onApprove = useCallback(() => setShowApproveDialog(true), []);
-  const onRecordPayment = useCallback(() => {
-    // Navigation to payment recording — stub: scroll to attachments / or future modal.
-    navigate({ to: '/ap/payments' });
-  }, [navigate]);
+  const onRecordPayment = useCallback(() => setShowRecordPayment(true), []);
   const onApplyAdvance = useCallback(() => {
     applyAdvanceMutation.mutate(invoice.id);
   }, [applyAdvanceMutation, invoice.id]);
@@ -163,6 +163,12 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
         variant="warning"
         loading={approveMutation.isPending}
       />
+      {showRecordPayment && (
+        <RecordPaymentDialog
+          invoice={invoice}
+          onClose={() => setShowRecordPayment(false)}
+        />
+      )}
       <ConfirmationDialog
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
@@ -447,6 +453,194 @@ function DocumentTrailCard({ invoice }: { invoice: PurchaseInvoiceWithDetails })
         <DocumentTrail entityType="purchase_invoice" entityId={invoice.id} />
       </div>
     </section>
+  );
+}
+
+// ─── Record Payment dialog ────────────────────────────────────────────────────
+
+const OWNER_SOURCE = '__owner__';
+
+function RecordPaymentDialog({
+  invoice,
+  onClose,
+}: {
+  invoice: PurchaseInvoiceWithDetails;
+  onClose: () => void;
+}) {
+  const [amount, setAmount] = useState(String(invoice.balanceDue));
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [source, setSource] = useState<string>('');
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: bankData } = useBankAccounts();
+  const createPayment = useCreatePayment();
+  const recordOwner = useRecordOwnerPayment();
+  const submitting = createPayment.isPending || recordOwner.isPending;
+
+  const banks = bankData?.data ?? [];
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const numAmount = Number(amount);
+    if (!numAmount || numAmount <= 0) {
+      setError('Enter an amount greater than zero.');
+      return;
+    }
+    if (numAmount > invoice.balanceDue + 0.01) {
+      setError(`Amount cannot exceed balance due ₹${invoice.balanceDue.toLocaleString('en-IN')}.`);
+      return;
+    }
+    if (!source) {
+      setError('Pick a payment source.');
+      return;
+    }
+
+    if (source === OWNER_SOURCE) {
+      recordOwner.mutate(
+        { billId: invoice.id, amount: numAmount, paymentDate, notes: notes || undefined },
+        {
+          onSuccess: onClose,
+          onError: (err) => setError((err as Error).message || 'Failed to record owner payment.'),
+        },
+      );
+    } else {
+      createPayment.mutate(
+        {
+          vendorId: invoice.vendorId,
+          bankAccountId: source,
+          paymentMethod: 'bank_transfer',
+          referenceNumber: reference || null,
+          paymentDate,
+          totalAmount: numAmount,
+          allocations: [{ invoiceId: invoice.id, amount: numAmount }],
+          notes: notes || null,
+        },
+        {
+          onSuccess: onClose,
+          onError: (err) => setError((err as Error).message || 'Failed to record payment.'),
+        },
+      );
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.45)' }}
+      onClick={onClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-xl border bg-[color:var(--surface)] shadow-2xl"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div className="border-b px-5 py-3.5" style={{ borderColor: 'var(--border)' }}>
+          <h2 className="text-[15px] font-semibold" style={{ color: 'var(--text-1)' }}>
+            Record payment — {invoice.invoiceNumber}
+          </h2>
+          <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-3)' }}>
+            Balance due: ₹{invoice.balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        <div className="space-y-3.5 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Amount">
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={invoice.balanceDue}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="bd-form-input"
+                autoFocus
+              />
+            </Field>
+            <Field label="Payment date">
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="bd-form-input"
+              />
+            </Field>
+          </div>
+
+          <Field label="Source">
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="bd-form-input"
+            >
+              <option value="">Select source…</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} {b.accountNumber ? `(****${b.accountNumber.slice(-4)})` : ''}
+                </option>
+              ))}
+              <option value={OWNER_SOURCE}>Owner / Personal (Petty Cash + owner injection)</option>
+            </select>
+            {source === OWNER_SOURCE && (
+              <p className="mt-1.5 text-[11.5px]" style={{ color: 'var(--text-3)' }}>
+                Books two journal entries: <strong>Dr Petty Cash / Cr Owner&apos;s Capital</strong>, then <strong>Dr AP / Cr Petty Cash</strong>. Net effect: owner&apos;s personal funds settle this bill.
+              </p>
+            )}
+          </Field>
+
+          {source !== OWNER_SOURCE && (
+            <Field label="UTR / Reference (optional)">
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                className="bd-form-input"
+                placeholder="UTR123…"
+              />
+            </Field>
+          )}
+
+          <Field label="Notes (optional)">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="bd-form-input"
+              rows={2}
+            />
+          </Field>
+
+          {error && (
+            <div className="rounded-md border px-3 py-2 text-[12px]" style={{ borderColor: 'var(--neg)', color: 'var(--neg)', background: 'var(--neg-soft, rgba(239,68,68,0.08))' }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t px-5 py-3" style={{ borderColor: 'var(--border)' }}>
+          <button type="button" className="bd-btn bd-btn-ghost" onClick={onClose} disabled={submitting}>
+            Cancel
+          </button>
+          <button type="submit" className="bd-btn bd-btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Record payment'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11.5px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
 

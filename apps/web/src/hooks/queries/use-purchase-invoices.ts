@@ -75,6 +75,22 @@ export function useVendorAdvanceBalance(vendorId: string | null | undefined) {
   });
 }
 
+export function useRecordOwnerPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ billId, ...data }: { billId: string; amount: number; paymentDate: string; notes?: string | null }) =>
+      api.post<ApiSuccess<{ paymentId: string }>>(
+        `/ap/purchase-invoices/${billId}/record-owner-payment`,
+        data,
+      ),
+    onSuccess: (_res, { billId }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(billId) });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['document-trail', 'purchase_invoice', billId] });
+    },
+  });
+}
+
 export function useApplyAdvanceToBill() {
   const qc = useQueryClient();
   return useMutation({

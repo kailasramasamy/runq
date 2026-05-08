@@ -1,5 +1,5 @@
-import { eq, and, sql, gte, lte, desc, isNull } from 'drizzle-orm';
-import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments, paymentAllocations } from '@runq/db';
+import { eq, and, sql, gte, lte, desc, isNull, ilike } from 'drizzle-orm';
+import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments, paymentAllocations, bankAccounts, accounts } from '@runq/db';
 import { GLService } from '../gl/gl.service';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -310,6 +310,111 @@ export class PurchaseInvoiceService {
 
     void isNull;
     return totalApplied;
+  }
+
+  /**
+   * Record an owner-paid payment against a bill — money the owner spent
+   * personally (e.g. via personal GPay) on behalf of the company. Books it
+   * as a Petty Cash payment with a paired owner-injection JE so the cash
+   * trail stays balanced:
+   *   1. Owner injection JE: Dr 1102 Petty Cash / Cr 3005 Owner's Capital
+   *   2. Payment + allocation against the bill (status=completed, source=Petty Cash)
+   *   3. Payment JE: Dr 2101 AP / Cr 1102 Petty Cash
+   * Net effect: Dr 2101 / Cr 3005 — the owner's personal funds settle the AP.
+   * Auto-creates the Petty Cash bank_account row if missing.
+   */
+  async recordOwnerPayment(
+    billId: string,
+    input: { amount: number; paymentDate: string; notes?: string | null },
+  ): Promise<{ paymentId: string }> {
+    const [bill] = await this.db.select().from(purchaseInvoices)
+      .where(and(eq(purchaseInvoices.id, billId), eq(purchaseInvoices.tenantId, this.tenantId))).limit(1);
+    if (!bill) throw new NotFoundError('PurchaseInvoice');
+
+    const balanceDue = parseFloat(bill.balanceDue);
+    if (input.amount <= 0) throw new ConflictError('Amount must be positive');
+    if (input.amount > balanceDue + 0.01) {
+      throw new ConflictError(`Amount ${input.amount} exceeds balance due ${balanceDue}`);
+    }
+
+    const [vendor] = await this.db.select({ name: vendors.name }).from(vendors)
+      .where(eq(vendors.id, bill.vendorId)).limit(1);
+    if (!vendor) throw new NotFoundError('Vendor');
+
+    const [pettyCashGl] = await this.db.select({ id: accounts.id }).from(accounts)
+      .where(and(eq(accounts.tenantId, this.tenantId), eq(accounts.code, '1102'))).limit(1);
+    if (!pettyCashGl) throw new ConflictError('Petty Cash GL account (1102) not found');
+
+    let [pettyCashBank] = await this.db.select({ id: bankAccounts.id }).from(bankAccounts)
+      .where(and(eq(bankAccounts.tenantId, this.tenantId), eq(bankAccounts.glAccountId, pettyCashGl.id))).limit(1);
+    if (!pettyCashBank) {
+      [pettyCashBank] = await this.db.select({ id: bankAccounts.id }).from(bankAccounts)
+        .where(and(eq(bankAccounts.tenantId, this.tenantId), ilike(bankAccounts.name, 'Petty Cash%'))).limit(1);
+    }
+    if (!pettyCashBank) {
+      const [created] = await this.db.insert(bankAccounts).values({
+        tenantId: this.tenantId,
+        name: 'Petty Cash',
+        bankName: 'Cash',
+        accountNumber: 'CASH',
+        ifscCode: 'CASH0000000',
+        accountType: 'current',
+        glAccountId: pettyCashGl.id,
+      }).returning({ id: bankAccounts.id });
+      pettyCashBank = created!;
+    }
+
+    const paymentId = await this.db.transaction(async (tx) => {
+      const [payment] = await tx.insert(payments).values({
+        tenantId: this.tenantId,
+        vendorId: bill.vendorId,
+        bankAccountId: pettyCashBank!.id,
+        paymentDate: input.paymentDate,
+        amount: String(input.amount),
+        paymentMethod: 'bank_transfer',
+        status: 'completed',
+        notes: input.notes ?? 'Owner-paid (personal funds via Petty Cash)',
+      }).returning();
+
+      await tx.insert(paymentAllocations).values({
+        tenantId: this.tenantId,
+        paymentId: payment!.id,
+        invoiceId: billId,
+        amount: String(input.amount),
+      });
+
+      const newPaid = parseFloat(bill.amountPaid) + input.amount;
+      const newBal = parseFloat(bill.totalAmount) - newPaid;
+      await tx.update(purchaseInvoices).set({
+        amountPaid: String(Math.round(newPaid * 100) / 100),
+        balanceDue: String(Math.max(0, Math.round(newBal * 100) / 100)),
+        status: newBal <= 0.01 ? 'paid' : 'partially_paid',
+        updatedAt: new Date(),
+      }).where(eq(purchaseInvoices.id, billId));
+
+      return payment!.id;
+    });
+
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.createJournalEntry({
+      date: input.paymentDate,
+      description: `Owner contribution — personal funds for ${vendor.name}`,
+      sourceType: 'owner_injection',
+      sourceId: paymentId,
+      lines: [
+        { accountCode: '1102', debit: input.amount },
+        { accountCode: '3005', credit: input.amount },
+      ],
+    });
+    await gl.postPayment({
+      amount: input.amount,
+      date: input.paymentDate,
+      id: paymentId,
+      vendorName: vendor.name,
+      bankAccountCode: '1102',
+    });
+
+    return { paymentId };
   }
 
   private async computeGstForBill(

@@ -1,5 +1,6 @@
 
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createPurchaseInvoiceSchema,
   updatePurchaseInvoiceSchema,
@@ -88,6 +89,22 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
       const invoice = await service.getById(id);
       return { data: invoice };
+    },
+  );
+
+  app.post(
+    '/:id/record-owner-payment',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const body = z.object({
+        amount: z.number().positive(),
+        paymentDate: z.string().date(),
+        notes: z.string().max(500).nullish(),
+      }).parse(request.body);
+      const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
+      const result = await service.recordOwnerPayment(id, body);
+      return reply.status(201).send({ data: result });
     },
   );
 

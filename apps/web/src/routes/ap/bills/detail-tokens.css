@@ -120,6 +120,22 @@
 }
 .bill-detail-page .bd-icon-btn:hover { background: var(--bd-surface-3); color: var(--bd-ink); }
 
+.bill-detail-page .bd-form-input {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--bd-ink);
+  background: var(--bd-surface);
+  border: 1px solid var(--bd-hairline-strong);
+  border-radius: 6px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.bill-detail-page .bd-form-input:focus {
+  outline: none;
+  border-color: oklch(0.51 0.22 264);
+  box-shadow: 0 0 0 3px oklch(0.51 0.22 264 / 0.15);
+}
+
 /* Page header */
 .bill-detail-page .bd-page-header { margin-bottom: 24px; }
 .bill-detail-page .bd-ph-top {
