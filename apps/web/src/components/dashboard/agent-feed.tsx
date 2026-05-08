@@ -45,7 +45,9 @@ const SEV_COLOR: Record<AgentEvent['severity'], string> = {
 export function AgentFeed() {
   const navigate = useNavigate();
   const { data, isLoading } = useAgentFeed(10);
-  const events = data?.data ?? [];
+  // Show only the most recent 4 in the dashboard tile — the full feed
+  // lives at /agent/activity, reachable via the "See all" link below.
+  const events = (data?.data ?? []).slice(0, 4);
 
   return (
     <Card2 className="scroll-mt-4" id="agent-feed">
