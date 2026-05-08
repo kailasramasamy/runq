@@ -200,7 +200,7 @@ export class PurchaseInvoiceService {
     const [row] = await this.db
       .select({
         amount: sql<string>`COALESCE(SUM(${payments.amount}::numeric - COALESCE((
-          SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id=${payments.id}
+          SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id = payments.id
         ), 0)), 0)::text`,
       })
       .from(payments)
@@ -236,7 +236,7 @@ export class PurchaseInvoiceService {
         id: payments.id,
         amount: payments.amount,
         date: payments.paymentDate,
-        allocated: sql<string>`COALESCE((SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id=${payments.id}), 0)::text`,
+        allocated: sql<string>`COALESCE((SELECT SUM(pa.amount::numeric) FROM payment_allocations pa WHERE pa.payment_id = payments.id), 0)::text`,
       })
       .from(payments)
       .where(and(
