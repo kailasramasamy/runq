@@ -78,6 +78,27 @@ export class PurchaseInvoiceService {
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 
+  async getForPrint(id: string) {
+    const [row] = await this.db
+      .select({ invoice: purchaseInvoices, vendor: vendors, tenant: tenants })
+      .from(purchaseInvoices)
+      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+      .innerJoin(tenants, eq(purchaseInvoices.tenantId, tenants.id))
+      .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('PurchaseInvoice');
+    const itemRows = await this.db
+      .select()
+      .from(purchaseInvoiceItems)
+      .where(and(eq(purchaseInvoiceItems.invoiceId, id), eq(purchaseInvoiceItems.tenantId, this.tenantId)));
+    return {
+      bill: this.toInvoice(row.invoice),
+      items: itemRows.map(this.toInvoiceItem),
+      vendor: row.vendor,
+      tenant: row.tenant,
+    };
+  }
+
   async getById(id: string): Promise<PurchaseInvoiceWithDetails> {
     const [row] = await this.db
       .select({ invoice: purchaseInvoices, vendorName: vendors.name })

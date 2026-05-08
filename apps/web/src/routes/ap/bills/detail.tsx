@@ -1,15 +1,17 @@
 import './detail-tokens.css';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import {
   Download, MoreHorizontal, ArrowLeft, CircleCheck, AlertTriangle,
-  Pencil, Trash2,
+  Pencil, Trash2, Printer, Link2, Check,
 } from 'lucide-react';
 import {
   usePurchaseInvoice, useApproveInvoice, useDeletePurchaseInvoice,
   useVendorAdvanceBalance, useApplyAdvanceToBill,
 } from '../../../hooks/queries/use-purchase-invoices';
 import { useBillSyncSources } from '../../../hooks/queries/use-bill-sync';
+import { useDocumentTrail } from '@/hooks/queries/use-trail';
+import { useAuth } from '@/providers/auth-provider';
 import type { PurchaseInvoiceWithDetails } from '@runq/types';
 import { ConfirmationDialog } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
@@ -90,6 +92,8 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
 
   const gaps = useDerivedGaps(invoice, advanceBalance, { onApprove, onRecordPayment, onApplyAdvance, onLinkPo });
   const activity = useDerivedActivity(invoice);
+  const trailQ = useDocumentTrail('purchase_invoice', invoice.id);
+  const trailGapCount = trailQ.data?.data?.gaps?.length ?? 0;
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
@@ -102,6 +106,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
   const overdueDays = Math.max(0, Math.floor((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000));
   const isOverdue = balance > 0 && overdueDays > 0 && invoice.status !== 'paid' && invoice.status !== 'cancelled';
   const visibleGapCount = gaps.filter((g) => !dismissed.has(g.id)).length;
+  const totalGapCount = visibleGapCount + trailGapCount;
 
   function fixAll() {
     gaps.forEach((g, i) => {
@@ -118,7 +123,9 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
           balance={balance} total={total} paid={paid}
           overdueDays={overdueDays}
           isOverdue={isOverdue}
-          gapCount={visibleGapCount}
+          gapCount={totalGapCount}
+          autoFixGapCount={visibleGapCount}
+          trailGapCount={trailGapCount}
           onBack={goBack}
           onApprove={onApprove}
           onDelete={() => setShowDeleteDialog(true)}
@@ -181,14 +188,23 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
 interface HeaderProps {
   invoice: PurchaseInvoiceWithDetails;
   balance: number; total: number; paid: number;
-  overdueDays: number; isOverdue: boolean; gapCount: number;
+  overdueDays: number; isOverdue: boolean;
+  gapCount: number;
+  autoFixGapCount: number;
+  trailGapCount: number;
   onBack: () => void;
   onApprove: () => void;
   onDelete: () => void;
   onRecordPayment: () => void;
 }
 
-function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gapCount, onBack, onApprove, onDelete, onRecordPayment }: HeaderProps) {
+function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gapCount, autoFixGapCount, trailGapCount, onBack, onApprove, onDelete, onRecordPayment }: HeaderProps) {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId ?? '';
+  const printUrl = (format?: 'pdf') => {
+    const fmt = format ? `&format=${format}` : '';
+    return `/api/v1/ap/purchase-invoices/${invoice.id}/print?tenantId=${tenantId}${fmt}`;
+  };
   const { data: sourcesData } = useBillSyncSources();
   const source = invoice.sourceId ? sourcesData?.data.find((s) => s.id === invoice.sourceId) : null;
   const isPaid = invoice.status === 'paid';
@@ -224,13 +240,18 @@ function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gap
           </div>
         </div>
         <div className="bd-ph-actions">
-          <button className="bd-btn bd-btn-ghost" disabled><Download size={15} />PDF</button>
+          <button
+            className="bd-btn bd-btn-ghost"
+            onClick={() => window.open(printUrl('pdf'), '_blank')}
+          >
+            <Download size={15} />PDF
+          </button>
           {isDraft && (
             <Link to="/ap/bills/$billId/edit" params={{ billId: invoice.id }}>
               <button className="bd-btn bd-btn-ghost"><Pencil size={15} />Edit</button>
             </Link>
           )}
-          <button className="bd-btn bd-btn-ghost" aria-label="More"><MoreHorizontal size={15} /></button>
+          <BillActionsMenu printUrl={printUrl()} />
           {!isPaid && invoice.status !== 'cancelled' && (
             <button className="bd-btn bd-btn-danger" onClick={onDelete}>
               <Trash2 size={15} />{isDraft ? 'Delete' : 'Cancel'}
@@ -251,7 +272,20 @@ function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gap
         <AmountTile label="Amount due" value={balance} accent="warn" big sub={isOverdue ? `${overdueDays} days late` : balance === 0 ? 'Settled' : 'Outstanding'} />
         <AmountTile label="Bill total" value={total} sub={taxAmount > 0 ? 'Incl. tax' : 'No tax'} />
         <AmountTile label="Paid so far" value={paid} sub={paid === 0 ? 'No payments' : 'Cumulative'} />
-        <AmountTile label="Audit gaps" count={gapCount} accent="info" sub={gapCount === 0 ? 'All clear' : 'Auto-Fix available'} />
+        <AmountTile
+          label="Audit gaps"
+          count={gapCount}
+          accent="info"
+          sub={
+            gapCount === 0
+              ? 'All clear'
+              : trailGapCount > 0 && autoFixGapCount > 0
+                ? `${autoFixGapCount} auto-fix · ${trailGapCount} trail`
+                : trailGapCount > 0
+                  ? `${trailGapCount} document trail`
+                  : 'Auto-Fix available'
+          }
+        />
       </div>
     </div>
   );
@@ -416,3 +450,86 @@ function DocumentTrailCard({ invoice }: { invoice: PurchaseInvoiceWithDetails })
   );
 }
 
+// ─── Actions menu (three-dots) ────────────────────────────────────────────────
+
+function BillActionsMenu({ printUrl }: { printUrl: string }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  function handlePrint() {
+    setOpen(false);
+    window.open(printUrl, '_blank');
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setOpen(false);
+      }, 900);
+    } catch {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="relative inline-block">
+      <button
+        className="bd-btn bd-btn-ghost"
+        aria-label="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreHorizontal size={15} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-30 mt-1.5 w-[200px] overflow-hidden rounded-lg border"
+          style={{
+            background: 'var(--surface)',
+            borderColor: 'var(--border)',
+            boxShadow: '0 10px 40px -10px rgba(0,0,0,0.25)',
+          }}
+        >
+          <button
+            role="menuitem"
+            onClick={handlePrint}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors hover:bg-[color:var(--surface-2)]"
+            style={{ color: 'var(--text-1)' }}
+          >
+            <Printer size={14} />
+            Print / preview
+          </button>
+          <button
+            role="menuitem"
+            onClick={handleCopyLink}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors hover:bg-[color:var(--surface-2)]"
+            style={{ color: 'var(--text-1)', borderTop: '1px solid var(--border-soft)' }}
+          >
+            {copied ? <Check size={14} /> : <Link2 size={14} />}
+            {copied ? 'Link copied' : 'Copy link'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
