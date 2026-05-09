@@ -5,6 +5,7 @@ import type { QuickInvoiceTemplate, QuickTemplateItem } from '@runq/types';
 import type { CreateQuickTemplateInput, UpdateQuickTemplateInput, GenerateFromTemplateInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import { InvoiceService } from './invoice.service';
+import { PriceResolverService } from '../masters/price-resolver.service';
 
 export class QuickTemplateService {
   constructor(
@@ -79,17 +80,41 @@ export class QuickTemplateService {
     const template = await this.getById(templateId);
     const templateItems = template.items as QuickTemplateItem[];
 
-    const activeItems = templateItems
-      .map((item) => {
+    // Resolve each line through the customer's price list at the actual
+    // quantity. If the resolver returns a customer/group/all-level price list
+    // match, that rate wins over the template snapshot — the price list is
+    // authoritative. If no rule matches (source: 'item_default'), the snapshot
+    // unitPrice is preserved.
+    const priceResolver = new PriceResolverService(this.db, this.tenantId);
+    const resolved = await Promise.all(
+      templateItems.map(async (item) => {
         const quantity = input.quantities[item.itemId] ?? 0;
+        if (quantity === 0) return { item, quantity, unitPrice: item.unitPrice };
+        try {
+          const r = await priceResolver.resolve({
+            customerId: template.customerId,
+            itemId: item.itemId,
+            quantity,
+          });
+          const unitPrice = r.source === 'item_default' ? item.unitPrice : r.effectiveRate;
+          return { item, quantity, unitPrice };
+        } catch {
+          // Item or customer missing in masters — fall back to snapshot.
+          return { item, quantity, unitPrice: item.unitPrice };
+        }
+      }),
+    );
+
+    const activeItems = resolved
+      .map(({ item, quantity, unitPrice }) => {
         if (quantity === 0) return null;
-        const amount = quantity * item.unitPrice;
+        const amount = quantity * unitPrice;
         const cat = item.taxCategory;
         const taxAmount =
           cat === 'exempt' || cat === 'nil_rated' || cat === 'zero_rated'
             ? 0
             : amount * (item.taxRate ?? 0) / 100;
-        return { item, quantity, amount, taxAmount };
+        return { item, quantity, unitPrice, amount, taxAmount };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -114,10 +139,10 @@ export class QuickTemplateService {
         totalAmount,
         notes: input.notes ?? template.notes ?? null,
         reverseCharge: false,
-        items: activeItems.map(({ item, quantity, amount }) => ({
+        items: activeItems.map(({ item, quantity, unitPrice, amount }) => ({
           description: item.description,
           quantity,
-          unitPrice: item.unitPrice,
+          unitPrice,
           amount: Math.round(amount * 100) / 100,
           hsnSacCode: item.hsnSacCode ?? null,
           taxRate: item.taxRate ?? null,

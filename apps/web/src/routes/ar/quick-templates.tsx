@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2, Pencil, Zap } from 'lucide-react';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, Combobox,
@@ -8,6 +8,7 @@ import {
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useItems } from '@/hooks/queries/use-items';
 import type { Item } from '@/hooks/queries/use-items';
+import { resolvePrice } from '@/hooks/queries/use-price-lists';
 import {
   useQuickTemplates, useCreateQuickTemplate, useUpdateQuickTemplate,
   useDeleteQuickTemplate,
@@ -24,6 +25,9 @@ interface TemplateLineRow {
   unitPrice: string;
   taxRate: string;
   defaultQuantity: string;
+  /** Source of the unitPrice that was last auto-populated. UI hint only. */
+  priceSource?: 'priceList' | 'itemDefault' | null;
+  priceListName?: string | null;
 }
 
 const EMPTY_ROW: TemplateLineRow = {
@@ -61,13 +65,48 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
       : [{ ...EMPTY_ROW }],
   );
 
+  // When the customer changes, re-resolve every populated row so the unit
+  // price reflects the new customer's price list. Each row's manual override
+  // is replaced — switching customer is a strong signal that prices should
+  // come from that customer's list.
+  useEffect(() => {
+    if (!customerId) return;
+    const itemIds = rows.map((r) => r.itemId).filter(Boolean);
+    if (itemIds.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        itemIds.map((itemId) => resolvePrice({ customerId, itemId }).catch(() => null)),
+      );
+      if (cancelled) return;
+      setRows((prev) => prev.map((r) => {
+        if (!r.itemId) return r;
+        const idx = itemIds.indexOf(r.itemId);
+        const resolved = results[idx];
+        if (!resolved) return r;
+        const fromPriceList = resolved.source !== 'item_default';
+        return {
+          ...r,
+          unitPrice: String(resolved.effectiveRate),
+          priceSource: fromPriceList ? 'priceList' : 'itemDefault',
+          priceListName: fromPriceList ? resolved.priceListName : null,
+        };
+      }));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
+
   function addRow() { setRows((p) => [...p, { ...EMPTY_ROW }]); }
   function removeRow(i: number) { setRows((p) => p.filter((_, idx) => idx !== i)); }
   function updateRow(i: number, field: keyof TemplateLineRow, value: string) {
     setRows((p) => p.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
   }
-  function selectItem(idx: number, itemId: string) {
+  async function selectItem(idx: number, itemId: string) {
     const item = allItems.find((i) => i.id === itemId);
+    // Optimistic update with item-master defaults so the UI is immediately
+    // populated; the price-list lookup runs async and overwrites unitPrice if
+    // the customer has a matching price list.
     setRows((p) => p.map((r, i) => i === idx ? {
       ...r,
       itemId,
@@ -75,7 +114,27 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
       hsnSacCode: item?.hsnSacCode ?? r.hsnSacCode,
       unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : r.unitPrice,
       taxRate: item?.gstRate != null ? String(item.gstRate) : r.taxRate,
+      priceSource: 'itemDefault',
+      priceListName: null,
     } : r));
+
+    if (!customerId || !itemId) return;
+    try {
+      const resolved = await resolvePrice({ customerId, itemId });
+      if (!resolved) return;
+      const fromPriceList = resolved.source !== 'item_default';
+      setRows((p) => p.map((r, i) => {
+        if (i !== idx || r.itemId !== itemId) return r;
+        return {
+          ...r,
+          unitPrice: String(resolved.effectiveRate),
+          priceSource: fromPriceList ? 'priceList' : 'itemDefault',
+          priceListName: fromPriceList ? resolved.priceListName : null,
+        };
+      }));
+    } catch {
+      // Resolver failed (network, unknown item) — keep the item-master default.
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -181,13 +240,20 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
                   placeholder="1"
                   min={0}
                 />
-                <Input
-                  label="Unit Price"
-                  type="number"
-                  value={row.unitPrice}
-                  onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
-                  placeholder="0.00"
-                />
+                <div>
+                  <Input
+                    label="Unit Price"
+                    type="number"
+                    value={row.unitPrice}
+                    onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
+                    placeholder="0.00"
+                  />
+                  {row.priceSource === 'priceList' && row.priceListName && (
+                    <div className="mt-1 truncate text-[10px] text-emerald-600 dark:text-emerald-400">
+                      from {row.priceListName}
+                    </div>
+                  )}
+                </div>
                 <Input
                   label="GST %"
                   type="number"
