@@ -8,6 +8,7 @@ import { ThemeProvider } from './providers/theme-provider';
 import { AuthProvider } from './providers/auth-provider';
 import { ToastProvider } from './components/ui/toast';
 import { LoginPage } from './routes/login';
+import { AcceptInvitePage } from './routes/accept-invite';
 import { initInstallPromptCapture } from './lib/pwa-install';
 import './app.css';
 
@@ -77,21 +78,31 @@ class ErrorBoundary extends Component<
 
 // Standalone login page — served at /login (outside the /finance basepath)
 const isLoginPath = window.location.pathname === '/login' || window.location.pathname === '/login/';
+// Public accept-invite page. Served under the app basepath so Vite's dev
+// server (and the production fallback) resolve it correctly. Match both
+// forms so links generated before the basepath fix still work.
+const isAcceptInvitePath =
+  window.location.pathname.startsWith('/signup/invite/') ||
+  window.location.pathname.startsWith('/finance/signup/invite/');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
         <ToastProvider>
-          <AuthProvider>
-            {isLoginPath ? (
-              <LoginPage />
-            ) : (
-              <QueryClientProvider client={queryClient}>
-                <RouterProvider router={router} />
-              </QueryClientProvider>
-            )}
-          </AuthProvider>
+          {isAcceptInvitePath ? (
+            <AcceptInvitePage />
+          ) : (
+            <AuthProvider>
+              {isLoginPath ? (
+                <LoginPage />
+              ) : (
+                <QueryClientProvider client={queryClient}>
+                  <RouterProvider router={router} />
+                </QueryClientProvider>
+              )}
+            </AuthProvider>
+          )}
         </ToastProvider>
       </ThemeProvider>
     </ErrorBoundary>

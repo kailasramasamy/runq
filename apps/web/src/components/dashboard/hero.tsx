@@ -12,6 +12,23 @@ interface InsightItem {
   severity: 'ok' | 'warning' | 'critical';
 }
 
+/**
+ * Returns a user-friendly first name to greet with. Falls back gracefully
+ * when the stored name is empty or contains an email (e.g. when a user was
+ * provisioned by an admin without filling in their display name).
+ */
+function displayFirstName(name?: string | null): string {
+  const raw = (name ?? '').trim();
+  if (!raw) return 'there';
+  if (!raw.includes('@')) return raw.split(/\s+/)[0];
+  // Looks like an email — take the local part, strip dots/numbers,
+  // and title-case the leading word.
+  const local = raw.split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, '').trim();
+  if (!local) return 'there';
+  const [first] = local.split(/\s+/);
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
 /** AI summary returns a JSON array of insight items embedded in markdown
  * (often inside ```json fences with extra prose). Pull out the array. */
 function parseInsights(raw: string | undefined): InsightItem[] {
@@ -64,7 +81,7 @@ export function DashboardHero({ onAskAgent }: { onAskAgent?: () => void } = {}) 
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
-  const firstName = (user?.name ?? 'there').split(' ')[0];
+  const firstName = displayFirstName(user?.name);
 
   const accounts = banks.data?.accounts ?? [];
   const total = banks.data?.total ?? 0;

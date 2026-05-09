@@ -11,6 +11,7 @@ import {
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   Pagination, EmptyState, formatDate,
 } from '@/components/ar/primitives';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const METHOD_OPTIONS = [
   { value: '', label: 'All payment methods' },
@@ -27,6 +28,7 @@ type ReceiptWithCustomer = PaymentReceipt & { customerName?: string };
 
 export function ReceiptListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [method, setMethod] = useState('');
@@ -87,9 +89,11 @@ export function ReceiptListPage() {
             >
               Export
             </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
-              Record receipt
-            </Button>
+            {!readOnly && (
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
+                Record receipt
+              </Button>
+            )}
           </>
         }
       />

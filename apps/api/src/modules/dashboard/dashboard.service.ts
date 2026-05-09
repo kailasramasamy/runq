@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, gte, inArray, lt, lte, notInArray, sql, sum } from 'drizzle-orm';
-import { auditLog, bankAccounts, bankTransactions, customers, fiscalPeriods, gstReturns, purchaseInvoices, salesInvoices, users, vendors } from '@runq/db';
+import { auditLog, bankAccounts, bankTransactions, customers, fiscalPeriods, gstReturns, paymentReceipts, payments, purchaseInvoices, salesInvoices, users, vendors } from '@runq/db';
 import type { Db } from '@runq/db';
 
 export interface AgingBucket {
@@ -32,10 +32,41 @@ export class DashboardService {
   ) {}
 
   async getSummary() {
-    const today = new Date().toISOString().split('T')[0]!;
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]!;
     const plus7 = new Date(Date.now() + 7 * 86400_000).toISOString().split('T')[0]!;
 
-    const [payables, receivables, cash, overduePI, overdueSI, upcoming, unreconciled] = await Promise.all([
+    // Date helpers for burn / revenue windows.
+    const day30Ago = new Date(now.getTime() - 30 * 86400_000);
+    const day60Ago = new Date(now.getTime() - 60 * 86400_000);
+    const day12Ago = new Date(now.getTime() - 11 * 86400_000); // inclusive 12-day window
+    const day30AgoIso = this.toDateOnly(day30Ago);
+    const day60AgoIso = this.toDateOnly(day60Ago);
+    const day12AgoIso = this.toDateOnly(day12Ago);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfPriorMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const dayOfMonth = now.getDate();
+    // Same-period last month: first day to N-th day of prior month (where N = today's day-of-month).
+    // If prior month was shorter, clamp to its last day.
+    const priorMonthLast = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    const priorMonthSamePeriodEnd = new Date(
+      startOfPriorMonth.getFullYear(),
+      startOfPriorMonth.getMonth(),
+      Math.min(dayOfMonth, priorMonthLast),
+    );
+    const priorMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prior month
+    const startOfMonthIso = this.toDateOnly(startOfMonth);
+    const startOfPriorMonthIso = this.toDateOnly(startOfPriorMonth);
+    const priorMonthSamePeriodEndIso = this.toDateOnly(priorMonthSamePeriodEnd);
+    const priorMonthEndIso = this.toDateOnly(priorMonthEnd);
+
+    const [
+      payables, receivables, cash, overduePI, overdueSI, upcoming, unreconciled,
+      burn30d, burnPrior30d, burnDaily,
+      revMtd, revPriorSamePeriod, revPriorTotal, revDaily,
+      arSnapshot30dAgo, apSnapshot30dAgo,
+    ] = await Promise.all([
       this.db
         .select({ total: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text` })
         .from(purchaseInvoices)
@@ -70,7 +101,134 @@ export class DashboardService {
         .select({ count: sql<number>`COUNT(*)::int` })
         .from(bankTransactions)
         .where(and(eq(bankTransactions.tenantId, this.tenantId), eq(bankTransactions.reconStatus, 'unreconciled'))),
+
+      // Net burn current 30 days = debits - credits. Positive number means burn.
+      this.db
+        .select({
+          credits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+          debits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'debit'  THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+        })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          gte(bankTransactions.transactionDate, day30AgoIso),
+        )),
+      // Net burn prior 30 days (60-30 days ago) — for MoM delta on burn card.
+      this.db
+        .select({
+          credits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+          debits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'debit'  THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+        })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          gte(bankTransactions.transactionDate, day60AgoIso),
+          lt(bankTransactions.transactionDate, day30AgoIso),
+        )),
+      // Daily net flow for last 12 days — sparkline series.
+      this.db
+        .select({
+          day: sql<string>`${bankTransactions.transactionDate}::text`,
+          credits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+          debits: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'debit'  THEN ${bankTransactions.amount} ELSE 0 END), 0)::text`,
+        })
+        .from(bankTransactions)
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          gte(bankTransactions.transactionDate, day12AgoIso),
+        ))
+        .groupBy(bankTransactions.transactionDate),
+
+      // Revenue MTD: invoiced amount this month (excluding draft / cancelled).
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          notInArray(salesInvoices.status, ['draft', 'cancelled']),
+          gte(salesInvoices.invoiceDate, startOfMonthIso),
+          lte(salesInvoices.invoiceDate, today),
+        )),
+      // Revenue: same period last month (for MoM delta — apples to apples).
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          notInArray(salesInvoices.status, ['draft', 'cancelled']),
+          gte(salesInvoices.invoiceDate, startOfPriorMonthIso),
+          lte(salesInvoices.invoiceDate, priorMonthSamePeriodEndIso),
+        )),
+      // Revenue: full prior month total (for "vs ₹X.X L last month" subtitle).
+      this.db
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text` })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          notInArray(salesInvoices.status, ['draft', 'cancelled']),
+          gte(salesInvoices.invoiceDate, startOfPriorMonthIso),
+          lte(salesInvoices.invoiceDate, priorMonthEndIso),
+        )),
+      // Revenue daily for last 12 days — sparkline series.
+      this.db
+        .select({
+          day: sql<string>`${salesInvoices.invoiceDate}::text`,
+          total: sql<string>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)::text`,
+        })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          notInArray(salesInvoices.status, ['draft', 'cancelled']),
+          gte(salesInvoices.invoiceDate, day12AgoIso),
+        ))
+        .groupBy(salesInvoices.invoiceDate),
+
+      // AR balance as of 30 days ago = invoices issued ≤ today-30 (excluding
+      // draft/cancelled) MINUS receipts received ≤ today-30. Approximation:
+      // ignores credit notes and post-dated cancellations, but accurate enough
+      // for a delta KPI.
+      this.db
+        .select({
+          invoiced: sql<string>`COALESCE((SELECT SUM(${salesInvoices.totalAmount}) FROM ${salesInvoices} WHERE ${salesInvoices.tenantId} = ${this.tenantId} AND ${salesInvoices.status} NOT IN ('draft','cancelled') AND ${salesInvoices.invoiceDate} <= ${day30AgoIso}), 0)::text`,
+          received: sql<string>`COALESCE((SELECT SUM(${paymentReceipts.amount}) FROM ${paymentReceipts} WHERE ${paymentReceipts.tenantId} = ${this.tenantId} AND ${paymentReceipts.receiptDate} <= ${day30AgoIso}), 0)::text`,
+        })
+        .from(sql`(SELECT 1) AS dummy`),
+
+      // AP balance as of 30 days ago = bills entered ≤ today-30 MINUS payments made ≤ today-30.
+      this.db
+        .select({
+          billed: sql<string>`COALESCE((SELECT SUM(${purchaseInvoices.totalAmount}) FROM ${purchaseInvoices} WHERE ${purchaseInvoices.tenantId} = ${this.tenantId} AND ${purchaseInvoices.status} NOT IN ('draft','cancelled') AND ${purchaseInvoices.invoiceDate} <= ${day30AgoIso}), 0)::text`,
+          paid: sql<string>`COALESCE((SELECT SUM(${payments.amount}) FROM ${payments} WHERE ${payments.tenantId} = ${this.tenantId} AND ${payments.paymentDate} <= ${day30AgoIso}), 0)::text`,
+        })
+        .from(sql`(SELECT 1) AS dummy`),
     ]);
+
+    // Compute net burn (positive = burning, negative = generating cash).
+    const burnNow = (parseFloat(burn30d[0]?.debits ?? '0') || 0) - (parseFloat(burn30d[0]?.credits ?? '0') || 0);
+    const burnPrior = (parseFloat(burnPrior30d[0]?.debits ?? '0') || 0) - (parseFloat(burnPrior30d[0]?.credits ?? '0') || 0);
+    const burnDeltaPct = burnPrior > 0 ? ((burnNow - burnPrior) / burnPrior) * 100 : null;
+    const cashNow = parseFloat(cash[0]?.total ?? '0') || 0;
+    const runwayMonths = burnNow > 0 ? cashNow / burnNow : null;
+
+    // Revenue MTD vs same-period last month.
+    const revenueMtd = parseFloat(revMtd[0]?.total ?? '0') || 0;
+    const revenuePriorSame = parseFloat(revPriorSamePeriod[0]?.total ?? '0') || 0;
+    const revenueDeltaPct = revenuePriorSame > 0 ? ((revenueMtd - revenuePriorSame) / revenuePriorSame) * 100 : null;
+    const revenuePriorMonthTotal = parseFloat(revPriorTotal[0]?.total ?? '0') || 0;
+
+    // Sparklines: 12 daily buckets ending today, oldest first.
+    const burnSpark = this.buildDailySpark(now, 12, burnDaily, (r) =>
+      (parseFloat(r.debits) || 0) - (parseFloat(r.credits) || 0),
+    );
+    const revenueSpark = this.buildDailySpark(now, 12, revDaily, (r) => parseFloat(r.total) || 0);
+
+    // AR / AP deltas vs 30 days ago.
+    const arNow = parseFloat(receivables[0]?.total ?? '0') || 0;
+    const apNow = parseFloat(payables[0]?.total ?? '0') || 0;
+    const ar30 = (parseFloat(arSnapshot30dAgo[0]?.invoiced ?? '0') || 0) - (parseFloat(arSnapshot30dAgo[0]?.received ?? '0') || 0);
+    const ap30 = (parseFloat(apSnapshot30dAgo[0]?.billed ?? '0') || 0) - (parseFloat(apSnapshot30dAgo[0]?.paid ?? '0') || 0);
+    const arDeltaPct = ar30 > 0 ? ((arNow - ar30) / ar30) * 100 : null;
+    const apDeltaPct = ap30 > 0 ? ((apNow - ap30) / ap30) * 100 : null;
 
     return {
       totalOutstandingPayables: payables[0]?.total ?? '0',
@@ -82,7 +240,42 @@ export class DashboardService {
       },
       upcomingPayments7Days: { count: upcoming[0]?.count ?? 0, amount: upcoming[0]?.amount ?? '0' },
       unreconciledTxnCount: unreconciled[0]?.count ?? 0,
+
+      // New: real burn + revenue numbers (Phase 1 dashboard).
+      netBurn30d: burnNow.toFixed(2),
+      netBurnDeltaPct: burnDeltaPct === null ? null : Number(burnDeltaPct.toFixed(1)),
+      runwayMonths: runwayMonths === null ? null : Number(runwayMonths.toFixed(1)),
+      burnSpark,
+      revenueMtd: revenueMtd.toFixed(2),
+      revenueDeltaPct: revenueDeltaPct === null ? null : Number(revenueDeltaPct.toFixed(1)),
+      revenuePriorMonthTotal: revenuePriorMonthTotal.toFixed(2),
+      revenueSpark,
+
+      receivablesDeltaPct: arDeltaPct === null ? null : Number(arDeltaPct.toFixed(1)),
+      payablesDeltaPct: apDeltaPct === null ? null : Number(apDeltaPct.toFixed(1)),
     };
+  }
+
+  /**
+   * Build a fixed-length daily sparkline ending today. Missing days are 0.
+   * `valueOf` extracts the numeric value from each row.
+   */
+  private buildDailySpark<T extends { day: string }>(
+    today: Date,
+    length: number,
+    rows: T[],
+    valueOf: (r: T) => number,
+  ): number[] {
+    const map = new Map<string, number>();
+    for (const r of rows) map.set(r.day, valueOf(r));
+    const out: number[] = new Array(length).fill(0);
+    for (let i = 0; i < length; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (length - 1 - i));
+      const key = d.toISOString().split('T')[0]!;
+      out[i] = Number((map.get(key) ?? 0).toFixed(2));
+    }
+    return out;
   }
 
   async getBankBalances() {

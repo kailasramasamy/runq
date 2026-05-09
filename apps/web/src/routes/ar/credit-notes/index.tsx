@@ -11,6 +11,7 @@ import {
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   Pagination, EmptyState, formatDate,
 } from '@/components/ar/primitives';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -26,6 +27,7 @@ type CreditNoteWithCustomerName = CreditNote & { customerName?: string };
 
 export function CreditNoteListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const [customerId, setCustomerId] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -86,9 +88,11 @@ export function CreditNoteListPage() {
             >
               Export
             </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/credit-notes/new' })}>
-              New credit note
-            </Button>
+            {!readOnly && (
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/credit-notes/new' })}>
+                New credit note
+              </Button>
+            )}
           </>
         }
       />

@@ -3,10 +3,12 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   Search, Sparkles, FileText, CreditCard, Landmark, Receipt, BarChart3,
   ArrowRight, LayoutDashboard, Users, ShieldCheck, Building2, FileInput,
+  Briefcase, Check,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCustomers } from '../../hooks/queries/use-customers';
 import { useInvoices } from '../../hooks/queries/use-invoices';
+import { useAuth } from '@/providers/auth-provider';
 
 type CmdItem = {
   id: string;
@@ -15,7 +17,9 @@ type CmdItem = {
   icon: LucideIcon;
   to?: string;
   prompt?: string;
-  section: 'actions' | 'navigate' | 'ask' | 'records';
+  tenantId?: string;
+  isActiveTenant?: boolean;
+  section: 'actions' | 'navigate' | 'ask' | 'records' | 'tenants';
 };
 
 const ITEMS: CmdItem[] = [
@@ -42,12 +46,13 @@ const ITEMS: CmdItem[] = [
 
 const SECTION_LABELS: Record<CmdItem['section'], string> = {
   records: 'Results',
+  tenants: 'Switch client',
   actions: 'Quick actions',
   navigate: 'Navigate',
   ask: 'Ask runQ',
 };
 
-const SECTION_ORDER: CmdItem['section'][] = ['records', 'actions', 'navigate', 'ask'];
+const SECTION_ORDER: CmdItem['section'][] = ['records', 'tenants', 'actions', 'navigate', 'ask'];
 
 function useDebounced<T>(value: T, delay = 200): T {
   const [v, setV] = useState(value);
@@ -60,6 +65,7 @@ function useDebounced<T>(value: T, delay = 200): T {
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
+  const { tenants, activeTenantId, switchTenant, refreshTenants } = useAuth();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,8 +75,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       setQuery('');
       setSelected(0);
       setTimeout(() => inputRef.current?.focus(), 0);
+      // Refresh memberships when the palette opens — clients may have accepted
+      // invites since this tab loaded, and we don't auto-poll /auth/me.
+      void refreshTenants();
     }
-  }, [open]);
+  }, [open, refreshTenants]);
 
   // Debounced live search across customers + invoices
   const q = query.trim();
@@ -105,21 +114,48 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return out;
   }, [enabledSearch, customers.data, invoices.data]);
 
+  // Tenant items: only show when user belongs to >1 tenant.
+  const tenantItems = useMemo<CmdItem[]>(() => {
+    if (tenants.length < 2) return [];
+    const ql = q.toLowerCase();
+    return tenants
+      .filter((t) => !ql || t.tenantName.toLowerCase().includes(ql) || t.tenantSlug.toLowerCase().includes(ql))
+      .map((t) => ({
+        id: `t-${t.tenantId}`,
+        label: t.tenantName,
+        sublabel: t.tenantId === activeTenantId ? 'Current' : `${t.tenantSlug} · ${t.role}`,
+        icon: t.tenantId === activeTenantId ? Check : Briefcase,
+        tenantId: t.tenantId,
+        isActiveTenant: t.tenantId === activeTenantId,
+        section: 'tenants',
+      }));
+  }, [tenants, activeTenantId, q]);
+
   const filtered = useMemo(() => {
     const ql = q.toLowerCase();
     const staticFiltered = !ql
       ? ITEMS
       : ITEMS.filter((i) => i.label.toLowerCase().includes(ql) || i.section.includes(ql));
-    return [...recordItems, ...staticFiltered];
-  }, [q, recordItems]);
+    return [...recordItems, ...tenantItems, ...staticFiltered];
+  }, [q, recordItems, tenantItems]);
 
   const grouped = useMemo(() => {
-    const g: Record<CmdItem['section'], CmdItem[]> = { records: [], actions: [], navigate: [], ask: [] };
+    const g: Record<CmdItem['section'], CmdItem[]> = { records: [], tenants: [], actions: [], navigate: [], ask: [] };
     filtered.forEach((i) => g[i.section].push(i));
     return g;
   }, [filtered]);
 
   function activate(item: CmdItem) {
+    if (item.tenantId) {
+      // Selecting the current tenant is a no-op; close.
+      if (item.isActiveTenant) {
+        onClose();
+        return;
+      }
+      onClose();
+      switchTenant(item.tenantId);
+      return;
+    }
     onClose();
     if (item.to) navigate({ to: item.to as '/' });
     else if (item.prompt) {

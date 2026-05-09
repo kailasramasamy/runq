@@ -11,6 +11,7 @@ import {
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   Pagination, EmptyState, formatDate,
 } from '@/components/ar/primitives';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -24,6 +25,7 @@ const LIMIT = 25;
 
 export function DebitNoteListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const [vendorId, setVendorId] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -79,9 +81,11 @@ export function DebitNoteListPage() {
             >
               Export
             </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/debit-notes/new' })}>
-              New debit note
-            </Button>
+            {!readOnly && (
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/debit-notes/new' })}>
+                New debit note
+              </Button>
+            )}
           </>
         }
       />

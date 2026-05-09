@@ -9,6 +9,7 @@ import {
   Pagination, EmptyState, Avatar,
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
 
@@ -28,6 +29,7 @@ function formatCategory(cat: string | null): string {
 }
 
 export function VendorListPage() {
+  const readOnly = useIsReadOnly();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -85,12 +87,16 @@ export function VendorListPage() {
             >
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/vendors/import' })}>
-              Import vendors
-            </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
-              New vendor
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/vendors/import' })}>
+                  Import vendors
+                </Button>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
+                  New vendor
+                </Button>
+              </>
+            )}
           </>
         }
       />

@@ -1,0 +1,10 @@
+import pg from 'pg';
+const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await c.connect();
+const r1 = await c.query(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('users','sales_invoices','purchase_invoices','user_tenants','tenant_invites','journal_entries') AND relkind='r' ORDER BY relname`);
+console.log('RLS status on key tables:'); console.table(r1.rows);
+const r2 = await c.query(`SELECT COUNT(*) AS policy_count FROM pg_policies`);
+console.log('Total RLS policies:', r2.rows[0].policy_count);
+const r3 = await c.query(`SELECT current_user`);
+console.log('Connection role:', r3.rows[0].current_user);
+await c.end();

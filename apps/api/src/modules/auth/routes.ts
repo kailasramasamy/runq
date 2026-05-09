@@ -1,10 +1,12 @@
 import { FastifyPluginAsync } from 'fastify';
 import { and, eq } from 'drizzle-orm';
-import { users, tenants, platformUsers, seedCoaForTenant } from '@runq/db';
-import { loginSchema, registerSchema } from '@runq/validators';
+import { randomBytes } from 'node:crypto';
+import { users, tenants, platformUsers, userTenants, tenantInvites, seedCoaForTenant, auditLog } from '@runq/db';
+import { loginSchema, registerSchema, createInviteSchema, acceptInviteSchema, acceptJoinInviteSchema } from '@runq/validators';
 import argon2 from 'argon2';
-import { UnauthorizedError, ConflictError } from '../../utils/errors';
+import { UnauthorizedError, ConflictError, NotFoundError } from '../../utils/errors';
 import { sendEmail } from '../../utils/email';
+import { tenantInviteEmail } from '../../utils/email-templates';
 import { loadEnv } from '../../config/env';
 
 const env = loadEnv();
@@ -280,6 +282,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       passwordHash,
     }).returning();
 
+    // Create user_tenants membership row (Phase 1 multi-tenant)
+    await app.db.insert(userTenants).values({
+      userId: user!.id,
+      tenantId: tenant!.id,
+      role: 'owner',
+    });
+
     // Seed standard chart of accounts
     await seedCoaForTenant(app.db, tenant!.id);
 
@@ -306,7 +315,492 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post('/logout', { preHandler: [app.authenticate] }, async (request, reply) => {
+  // --- CA invite flow (Phase 1 multi-tenant) ---
+
+  // Create an invite. Two flows:
+  //   inviteType=new_tenant  — caller (CA) invites a prospect; on accept,
+  //     a new tenant is created and the CA is attached as accountant.
+  //   inviteType=join_tenant — caller (tenant owner) invites someone (typically
+  //     their CA) to join the caller's existing tenant. On accept, the invitee's
+  //     user is attached as the role on the invite (accountant or viewer); no
+  //     new tenant is created. Restricted to caller having an owner-equivalent
+  //     role in the inviting tenant.
+  app.post(
+    '/invites',
+    { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } },
+    async (request, reply) => {
+      if (!request.user.userId || !request.tenantId) {
+        throw new UnauthorizedError('Authentication required');
+      }
+      const input = createInviteSchema.parse(request.body);
+      const inviteType = input.inviteType;
+
+      // join_tenant: only owners of the inviting tenant can attach others to it.
+      if (inviteType === 'join_tenant') {
+        if (request.activeRole !== 'owner' && request.activeRole !== 'client_owner') {
+          throw new UnauthorizedError('Only the tenant owner can invite users to join');
+        }
+      }
+
+      // Default invitee role:
+      //   new_tenant  → accountant (the CA's role in the new client tenant)
+      //   join_tenant → caller picks accountant (default) or viewer
+      const role = input.role ?? (inviteType === 'new_tenant' ? 'accountant' : 'accountant');
+
+      const days = input.expiresInDays ?? 7;
+      const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      const token = randomBytes(24).toString('base64url');
+
+      const [invite] = await app.db.insert(tenantInvites).values({
+        token,
+        invitingUserId: request.user.userId,
+        invitingTenantId: request.tenantId,
+        inviteType,
+        role,
+        email: input.email ?? null,
+        // companyName only meaningful for new_tenant; clear for join_tenant.
+        companyName: inviteType === 'new_tenant' ? (input.companyName ?? null) : null,
+        note: input.note ?? null,
+        expiresAt,
+      }).returning();
+
+      // Optionally send the invite link by email. Caller must supply both an
+      // email AND `sendEmail: true` to opt in. Best-effort — if SMTP fails,
+      // we still return the invite (caller can copy the link manually).
+      let emailDelivery: 'sent' | 'failed' | 'skipped' = 'skipped';
+      if (input.sendEmail && input.email) {
+        try {
+          const [tenantRow] = await app.db
+            .select({ name: tenants.name })
+            .from(tenants)
+            .where(eq(tenants.id, request.tenantId))
+            .limit(1);
+          const [inviterRow] = await app.db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, request.user.userId))
+            .limit(1);
+
+          const origin = (process.env.CORS_ORIGIN || 'http://localhost:4003').replace(/\/$/, '');
+          const inviteUrl = `${origin}/finance/signup/invite/${invite!.token}`;
+
+          const tpl = tenantInviteEmail({
+            inviteType: invite!.inviteType,
+            inviterName: inviterRow?.name ?? 'A runQ user',
+            inviterTenantName: tenantRow?.name ?? 'runQ',
+            role: invite!.role,
+            inviteUrl,
+            expiresAtIso: invite!.expiresAt.toISOString(),
+            note: invite!.note,
+            prospectCompanyName: invite!.companyName,
+          });
+
+          await sendEmail({
+            to: input.email,
+            subject: tpl.subject,
+            html: tpl.html,
+            text: tpl.text,
+            fromName: tenantRow?.name ?? 'runQ',
+          });
+          emailDelivery = 'sent';
+        } catch (err) {
+          app.log.warn({ err, email: input.email }, 'Failed to send invite email');
+          emailDelivery = 'failed';
+        }
+      }
+
+      return reply.status(201).send({
+        data: {
+          token: invite!.token,
+          inviteType: invite!.inviteType,
+          role: invite!.role,
+          expiresAt: invite!.expiresAt.toISOString(),
+          email: invite!.email,
+          companyName: invite!.companyName,
+          note: invite!.note,
+          emailDelivery,
+        },
+      });
+    },
+  );
+
+  // List invitations the caller has SENT from the active tenant. Mental model:
+  // "my outgoing invites." Owners want the broader view (everything sent from
+  // the tenant), so we widen the scope when the caller is owner-equivalent.
+  app.get(
+    '/invites',
+    { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } },
+    async (request) => {
+      if (!request.tenantId || !request.user.userId) throw new UnauthorizedError('Authentication required');
+
+      const isOwner = request.activeRole === 'owner' || request.activeRole === 'client_owner';
+      const where = isOwner
+        ? eq(tenantInvites.invitingTenantId, request.tenantId)
+        : and(
+            eq(tenantInvites.invitingTenantId, request.tenantId),
+            eq(tenantInvites.invitingUserId, request.user.userId),
+          );
+
+      const rows = await app.db
+        .select({
+          id: tenantInvites.id,
+          token: tenantInvites.token,
+          inviteType: tenantInvites.inviteType,
+          role: tenantInvites.role,
+          email: tenantInvites.email,
+          companyName: tenantInvites.companyName,
+          note: tenantInvites.note,
+          expiresAt: tenantInvites.expiresAt,
+          acceptedAt: tenantInvites.acceptedAt,
+          acceptedTenantId: tenantInvites.acceptedTenantId,
+          createdAt: tenantInvites.createdAt,
+          invitingUserName: users.name,
+        })
+        .from(tenantInvites)
+        .innerJoin(users, eq(users.id, tenantInvites.invitingUserId))
+        .where(where)
+        .orderBy(tenantInvites.createdAt);
+
+      const now = Date.now();
+      const data = rows
+        .map((r) => ({
+          id: r.id,
+          token: r.token,
+          inviteType: r.inviteType,
+          role: r.role,
+          email: r.email,
+          companyName: r.companyName,
+          note: r.note,
+          expiresAt: r.expiresAt.toISOString(),
+          acceptedAt: r.acceptedAt?.toISOString() ?? null,
+          createdAt: r.createdAt.toISOString(),
+          invitingUserName: r.invitingUserName,
+          status: r.acceptedAt
+            ? 'accepted'
+            : r.expiresAt.getTime() < now
+              ? 'expired'
+              : 'pending',
+        }))
+        .reverse();
+      return { data };
+    },
+  );
+
+  // Revoke an invite. Hard-deletes; if it had been accepted, the membership
+  // it created remains (revocation only kills the link).
+  // Permission model:
+  //   - owner / client_owner can revoke any invite from the tenant
+  //   - accountant can revoke only invites they themselves created
+  //   - viewer cannot revoke
+  app.delete(
+    '/invites/:id',
+    { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } },
+    async (request, reply) => {
+      if (!request.tenantId || !request.user.userId) throw new UnauthorizedError('Authentication required');
+      const role = request.activeRole;
+      if (role !== 'owner' && role !== 'client_owner' && role !== 'accountant') {
+        throw new UnauthorizedError('Insufficient permissions to revoke invites');
+      }
+      const { id } = request.params as { id: string };
+
+      const isOwner = role === 'owner' || role === 'client_owner';
+      const where = isOwner
+        ? and(eq(tenantInvites.id, id), eq(tenantInvites.invitingTenantId, request.tenantId))
+        : and(
+            eq(tenantInvites.id, id),
+            eq(tenantInvites.invitingTenantId, request.tenantId),
+            eq(tenantInvites.invitingUserId, request.user.userId),
+          );
+
+      const result = await app.db.delete(tenantInvites).where(where).returning({ id: tenantInvites.id });
+      if (result.length === 0) throw new NotFoundError('Invite');
+      return reply.status(204).send();
+    },
+  );
+
+  // Public: lookup an invite by token. Used by the signup-via-invite page to
+  // verify the token before showing the form, and to display "X invited you".
+  app.get('/invites/:token', async (request) => {
+    const params = request.params as { token: string };
+    const [row] = await app.db
+      .select({
+        id: tenantInvites.id,
+        token: tenantInvites.token,
+        inviteType: tenantInvites.inviteType,
+        role: tenantInvites.role,
+        email: tenantInvites.email,
+        companyName: tenantInvites.companyName,
+        note: tenantInvites.note,
+        expiresAt: tenantInvites.expiresAt,
+        acceptedAt: tenantInvites.acceptedAt,
+        invitingUserName: users.name,
+        invitingUserEmail: users.email,
+        invitingTenantName: tenants.name,
+      })
+      .from(tenantInvites)
+      .innerJoin(users, eq(users.id, tenantInvites.invitingUserId))
+      .innerJoin(tenants, eq(tenants.id, tenantInvites.invitingTenantId))
+      .where(eq(tenantInvites.token, params.token))
+      .limit(1);
+
+    if (!row) throw new NotFoundError('Invite');
+    const expired = row.expiresAt.getTime() < Date.now();
+    const used = !!row.acceptedAt;
+    return {
+      data: {
+        token: row.token,
+        inviteType: row.inviteType,
+        role: row.role,
+        email: row.email,
+        companyName: row.companyName,
+        note: row.note,
+        expiresAt: row.expiresAt.toISOString(),
+        valid: !expired && !used,
+        expired,
+        used,
+        invitingUser: { name: row.invitingUserName, email: row.invitingUserEmail },
+        invitingTenantName: row.invitingTenantName,
+      },
+    };
+  });
+
+  // Public: accept an invite. Creates new tenant + new owner user, attaches
+  // the inviting CA to the new tenant as `accountant`. Skips OTP — the invite
+  // token IS the verification (sent out-of-band by the CA).
+  app.post('/invites/accept', async (request, reply) => {
+    const input = acceptInviteSchema.parse(request.body);
+
+    const [invite] = await app.db
+      .select()
+      .from(tenantInvites)
+      .where(eq(tenantInvites.token, input.token))
+      .limit(1);
+
+    if (!invite) throw new NotFoundError('Invite');
+    if (invite.acceptedAt) throw new ConflictError('Invite already used');
+    if (invite.expiresAt.getTime() < Date.now()) throw new ConflictError('Invite expired');
+
+    // Slug must be unique
+    const [slugTaken] = await app.db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.slug, input.slug))
+      .limit(1);
+    if (slugTaken) throw new ConflictError('Company slug already taken');
+
+    const onboardingSteps: Record<string, boolean> = {};
+    if (input.gstin && input.stateCode) onboardingSteps.company = true;
+
+    const [tenant] = await app.db.insert(tenants).values({
+      name: input.companyName,
+      slug: input.slug,
+      settings: {
+        invoicePrefix: 'INV',
+        invoiceFormat: '{prefix}-{fy}-{seq}',
+        financialYearStartMonth: 4,
+        defaultPaymentTermsDays: 30,
+        currency: 'INR',
+        legalName: input.companyName,
+        gstin: input.gstin || null,
+        state: input.state || null,
+        stateCode: input.stateCode || null,
+        industry: input.industry || null,
+        onboardingSteps,
+      },
+    }).returning();
+
+    const passwordHash = await argon2.hash(input.password);
+    const [user] = await app.db.insert(users).values({
+      tenantId: tenant!.id,
+      email: input.email,
+      name: input.name,
+      role: 'client_owner',
+      passwordHash,
+    }).returning();
+
+    // New client owner — membership of their own tenant.
+    await app.db.insert(userTenants).values({
+      userId: user!.id,
+      tenantId: tenant!.id,
+      role: 'client_owner',
+    });
+
+    // Inviting CA — auto-attached to new tenant with the invite's role.
+    await app.db.insert(userTenants).values({
+      userId: invite.invitingUserId,
+      tenantId: tenant!.id,
+      role: invite.role,
+    }).onConflictDoNothing();
+
+    await seedCoaForTenant(app.db, tenant!.id);
+
+    await app.db
+      .update(tenantInvites)
+      .set({ acceptedAt: new Date(), acceptedTenantId: tenant!.id })
+      .where(eq(tenantInvites.id, invite.id));
+
+    sendEmail({
+      to: input.email,
+      subject: `Welcome to runQ, ${input.name.split(' ')[0]}! 🎉`,
+      html: welcomeEmailHtml(input.name, input.companyName),
+      text: welcomeEmailText(input.name, input.companyName),
+      fromName: 'runQ',
+    }).catch((err) => app.log.warn({ err, email: input.email }, 'Failed to send welcome email'));
+
+    const token = app.jwt.sign(
+      { userId: user!.id, tenantId: tenant!.id, role: 'client_owner' },
+      { expiresIn: env.JWT_EXPIRES_IN },
+    );
+
+    return reply.status(201).send({
+      data: {
+        token,
+        user: { id: user!.id, tenantId: tenant!.id, email: user!.email, name: user!.name, role: user!.role, isActive: true },
+        tenant: { id: tenant!.id, name: tenant!.name, slug: tenant!.slug },
+      },
+    });
+  });
+
+  // Public: accept a join_tenant invite. Three sub-flows the caller can take:
+  //   (a) Already logged in (Authorization header present) → just attach
+  //       request.user.userId to the inviting tenant. No password required.
+  //   (b) Not logged in, email already exists in users → require password,
+  //       verify, then attach.
+  //   (c) Not logged in, email is new → require name+email+password, register
+  //       a new user record (with the inviting tenant as their home tenant),
+  //       then attach.
+  // Idempotent: re-accepting after attachment returns success without error.
+  app.post('/invites/accept-join', async (request, reply) => {
+    const input = acceptJoinInviteSchema.parse(request.body);
+
+    const [invite] = await app.db.select().from(tenantInvites).where(eq(tenantInvites.token, input.token)).limit(1);
+    if (!invite) throw new NotFoundError('Invite');
+    if (invite.inviteType !== 'join_tenant') throw new ConflictError('Wrong invite type for this endpoint');
+    if (invite.expiresAt.getTime() < Date.now()) throw new ConflictError('Invite expired');
+
+    // Optional auth: parse JWT if present, but don't require it.
+    let authUserId: string | undefined;
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const decoded = await app.jwt.verify<{ userId: string }>(authHeader.slice(7));
+        authUserId = decoded.userId;
+      } catch {
+        // Ignore — caller will go through the email/password sub-flow.
+      }
+    }
+
+    let userId: string;
+    let userEmail: string;
+    let userName: string;
+
+    if (authUserId) {
+      // Sub-flow (a): logged-in user accepts with one click.
+      const [u] = await app.db.select().from(users).where(eq(users.id, authUserId)).limit(1);
+      if (!u || !u.isActive) throw new UnauthorizedError('User not found or inactive');
+      userId = u.id;
+      userEmail = u.email;
+      userName = u.name;
+    } else {
+      // Unauthenticated sub-flows (b) or (c) — must supply email+password.
+      if (!input.email || !input.password) {
+        throw new UnauthorizedError('Login required to accept this invite');
+      }
+      const [existing] = await app.db.select().from(users).where(eq(users.email, input.email)).limit(1);
+      if (existing) {
+        // Sub-flow (b): existing user logs in and accepts.
+        if (!existing.isActive) throw new UnauthorizedError('User inactive');
+        const valid = await argon2.verify(existing.passwordHash, input.password);
+        if (!valid) throw new UnauthorizedError('Invalid credentials');
+        userId = existing.id;
+        userEmail = existing.email;
+        userName = existing.name;
+      } else {
+        // Sub-flow (c): brand-new user registers via the invite.
+        if (!input.name) throw new UnauthorizedError('Name required to register');
+        const passwordHash = await argon2.hash(input.password);
+        const [created] = await app.db.insert(users).values({
+          // The new user's "home" tenant is the inviting tenant. They have no
+          // other tenant of their own yet (that's fine for a CA who is invited
+          // to manage a client's books).
+          tenantId: invite.invitingTenantId,
+          email: input.email,
+          name: input.name,
+          role: invite.role,
+          passwordHash,
+        }).returning();
+        userId = created!.id;
+        userEmail = created!.email;
+        userName = created!.name;
+      }
+    }
+
+    // Attach (idempotent — onConflictDoNothing).
+    await app.db.insert(userTenants).values({
+      userId,
+      tenantId: invite.invitingTenantId,
+      role: invite.role,
+    }).onConflictDoNothing();
+
+    // Mark accepted (only the first acceptance; subsequent attempts are no-ops
+    // since the unique constraint above prevents duplicates).
+    if (!invite.acceptedAt) {
+      await app.db
+        .update(tenantInvites)
+        .set({ acceptedAt: new Date(), acceptedTenantId: invite.invitingTenantId })
+        .where(eq(tenantInvites.id, invite.id));
+    }
+
+    const [tenantRow] = await app.db
+      .select({ id: tenants.id, name: tenants.name, slug: tenants.slug })
+      .from(tenants)
+      .where(eq(tenants.id, invite.invitingTenantId))
+      .limit(1);
+
+    // Issue a JWT scoped to the joined tenant so the client can use the
+    // tenant immediately (Cmd-K will already show it).
+    const token = app.jwt.sign(
+      { userId, tenantId: invite.invitingTenantId, role: invite.role },
+      { expiresIn: env.JWT_EXPIRES_IN },
+    );
+
+    return reply.status(201).send({
+      data: {
+        token,
+        user: { id: userId, email: userEmail, name: userName, role: invite.role, tenantId: invite.invitingTenantId },
+        tenant: tenantRow ?? null,
+      },
+    });
+  });
+
+  // Record a tenant-switch event on the active tenant's audit log.
+  // Called by the frontend after the active tenant changes; not safety-critical
+  // (the membership check already happens on every request) but useful for
+  // compliance ("who saw client X's books and when?").
+  app.post(
+    '/log-switch',
+    { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } },
+    async (request, reply) => {
+      if (!request.user.userId || !request.tenantId) {
+        throw new UnauthorizedError('Authentication required');
+      }
+      await app.db.insert(auditLog).values({
+        tenantId: request.tenantId,
+        userId: request.user.userId,
+        action: 'tenant.switch_in',
+        entityType: 'tenant',
+        entityId: request.tenantId,
+        ipAddress: request.ip,
+        metadata: {
+          activeRole: request.activeRole,
+          ua: request.headers['user-agent'] ?? null,
+        },
+      });
+      return reply.status(204).send();
+    },
+  );
+
+  app.post('/logout', { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } }, async (request, reply) => {
     const authHeader = request.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
@@ -315,7 +809,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { success: true } });
   });
 
-  app.get('/me', { preHandler: [app.authenticate] }, async (request) => {
+  app.get('/me', { preHandler: [app.authenticate, app.resolveTenantContext], config: { rateLimit: false } }, async (request) => {
     // Platform user (no tenant context)
     if (request.user.platformUserId && !request.user.impersonatedBy) {
       const [pUser] = await app.db
@@ -332,22 +826,66 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       };
     }
 
+    const userId = request.user.userId;
+    const activeTenantId = request.tenantId || request.user.tenantId;
+
     const [user] = await app.db
       .select({ id: users.id, tenantId: users.tenantId, email: users.email, name: users.name, role: users.role, isActive: users.isActive, createdAt: users.createdAt, updatedAt: users.updatedAt })
       .from(users)
-      .where(and(eq(users.id, request.user.userId), eq(users.tenantId, request.user.tenantId)))
+      .where(eq(users.id, userId))
       .limit(1);
 
-    const [tenant] = await app.db
-      .select({ id: tenants.id, name: tenants.name, slug: tenants.slug, settings: tenants.settings })
-      .from(tenants)
-      .where(eq(tenants.id, request.user.tenantId))
-      .limit(1);
+    // All tenants this user is a member of (Phase 1 multi-tenant).
+    const memberships = await app.db
+      .select({
+        tenantId: userTenants.tenantId,
+        role: userTenants.role,
+        tenantName: tenants.name,
+        tenantSlug: tenants.slug,
+      })
+      .from(userTenants)
+      .innerJoin(tenants, eq(tenants.id, userTenants.tenantId))
+      .where(eq(userTenants.userId, userId));
+
+    // Shape matches @runq/types TenantMembership.
+    const accessibleTenants = memberships.map((m) => ({
+      tenantId: m.tenantId,
+      tenantName: m.tenantName,
+      tenantSlug: m.tenantSlug,
+      role: m.role,
+    }));
+
+    // Active tenant: the one resolved by tenant-context (header or JWT fallback).
+    // If user has memberships but none matched, fall back to first.
+    const resolvedActiveId = activeTenantId && accessibleTenants.some((t) => t.tenantId === activeTenantId)
+      ? activeTenantId
+      : accessibleTenants[0]?.tenantId ?? null;
+
+    const [tenant] = resolvedActiveId
+      ? await app.db
+          .select({ id: tenants.id, name: tenants.name, slug: tenants.slug, settings: tenants.settings })
+          .from(tenants)
+          .where(eq(tenants.id, resolvedActiveId))
+          .limit(1)
+      : [];
+
+    // Override the user's role to reflect the active tenant's role.
+    const activeMembership = accessibleTenants.find((t) => t.tenantId === resolvedActiveId);
+    const userPayload = user
+      ? {
+          ...user,
+          tenantId: resolvedActiveId,
+          role: activeMembership?.role ?? user.role,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt.toISOString(),
+        }
+      : null;
 
     return {
       data: {
-        user: user ? { ...user, createdAt: user.createdAt.toISOString(), updatedAt: user.updatedAt.toISOString() } : null,
+        user: userPayload,
         tenant: tenant ?? null,
+        tenants: accessibleTenants,
         impersonatedBy: request.user.impersonatedBy ?? null,
       },
     };

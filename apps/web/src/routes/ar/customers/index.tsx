@@ -10,6 +10,7 @@ import {
   Pagination, EmptyState, Avatar,
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
 
@@ -22,6 +23,7 @@ const TYPE_FILTER_OPTIONS = [
 
 export function CustomerListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -76,12 +78,16 @@ export function CustomerListPage() {
             >
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/customers/import' })}>
-              Import customers
-            </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
-              New customer
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/customers/import' })}>
+                  Import customers
+                </Button>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
+                  New customer
+                </Button>
+              </>
+            )}
           </>
         }
       />

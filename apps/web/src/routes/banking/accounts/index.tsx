@@ -6,6 +6,7 @@ import { formatINR, formatINRShort } from '@/lib/utils';
 import {
   PageHeader, Button, Badge, StatTile, EmptyState,
 } from '@/components/ar/primitives';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   current: 'Current',
@@ -81,6 +82,7 @@ function AccountCard({ account, onClick }: { account: BankAccount; onClick: (id:
 
 export function BankAccountListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const { data, isLoading } = useBankAccounts();
   const accounts = data?.data ?? [];
 
@@ -99,9 +101,11 @@ export function BankAccountListPage() {
         title="Bank accounts"
         description="Linked bank and credit accounts — balances refresh on each statement import."
         actions={
-          <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
-            New account
-          </Button>
+          !readOnly ? (
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
+              New account
+            </Button>
+          ) : null
         }
       />
 

@@ -13,6 +13,7 @@ import {
   Pagination, EmptyState, formatDate, daysBetween,
 } from '@/components/ar/primitives';
 import { Combobox, ConfirmationDialog, useToast } from '@/components/ui';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
 
@@ -52,6 +53,7 @@ function isSelectable(bill: PurchaseInvoice): boolean {
 export function BillListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const readOnly = useIsReadOnly();
   const params = useSearch({ strict: false }) as {
     vendor?: string;
     status?: PurchaseInvoiceStatus;
@@ -234,15 +236,19 @@ export function BillListPage() {
             >
               Export
             </Button>
-            <Button variant="outline" size="sm" icon={<ScanLine size={13} />} onClick={() => navigate({ to: '/ap/bills/scan' })}>
-              Scan
-            </Button>
-            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/bills/import' })}>
-              Import
-            </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
-              New bill
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" icon={<ScanLine size={13} />} onClick={() => navigate({ to: '/ap/bills/scan' })}>
+                  Scan
+                </Button>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/bills/import' })}>
+                  Import
+                </Button>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
+                  New bill
+                </Button>
+              </>
+            )}
           </>
         }
       />

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { User } from '@runq/types';
+import type { User, UserRole } from '@runq/types';
 import type { CompanySettingsInput, InvoiceNumberingInput } from '@runq/validators';
 
 // ─── Keys ────────────────────────────────────────────────────────────────────
@@ -98,11 +98,11 @@ export interface CreateUserInput {
   name: string;
   email: string;
   password: string;
-  role: 'owner' | 'accountant' | 'viewer';
+  role: UserRole;
 }
 
 export interface UpdateUserInput {
-  role?: 'owner' | 'accountant' | 'viewer';
+  role?: UserRole;
   isActive?: boolean;
 }
 

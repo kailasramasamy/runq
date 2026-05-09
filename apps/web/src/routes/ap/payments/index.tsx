@@ -11,11 +11,13 @@ import {
   Pagination, EmptyState, formatDate,
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
 
 export function PaymentListPage() {
   const navigate = useNavigate();
+  const readOnly = useIsReadOnly();
   const [vendorId, setVendorId] = useState('');
   const [page, setPage] = useState(1);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -65,15 +67,19 @@ export function PaymentListPage() {
             <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/advance' })}>
               Advance
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/direct' })}>
-              Direct
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/bulk' })}>
-              Bulk
-            </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
-              New payment
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/direct' })}>
+                  Direct
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/bulk' })}>
+                  Bulk
+                </Button>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+                  New payment
+                </Button>
+              </>
+            )}
           </>
         }
       />

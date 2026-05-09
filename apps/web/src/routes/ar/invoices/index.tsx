@@ -14,6 +14,7 @@ import {
 } from '@/components/ar/primitives';
 import { NewInvoiceMenu } from '@/components/ar/new-invoice-menu';
 import { Combobox, useToast } from '@/components/ui';
+import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
 
@@ -31,6 +32,7 @@ const STATUS_OPTIONS = [
 export function InvoiceListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const readOnly = useIsReadOnly();
   const params = useSearch({ strict: false }) as {
     customer?: string;
     status?: SalesInvoiceStatus;
@@ -178,16 +180,20 @@ export function InvoiceListPage() {
             <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={handleExportCSV}>
               Export
             </Button>
-            <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/invoices/import' })}>
-              Import
-            </Button>
-            <NewInvoiceMenu>
-              {(open) => (
-                <Button size="sm" icon={<Plus size={13} />} onClick={open}>
-                  New invoice
+            {!readOnly && (
+              <>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/invoices/import' })}>
+                  Import
                 </Button>
-              )}
-            </NewInvoiceMenu>
+                <NewInvoiceMenu>
+                  {(open) => (
+                    <Button size="sm" icon={<Plus size={13} />} onClick={open}>
+                      New invoice
+                    </Button>
+                  )}
+                </NewInvoiceMenu>
+              </>
+            )}
           </>
         }
       />

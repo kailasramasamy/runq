@@ -8,7 +8,7 @@ import {
   Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target,
   ShieldCheck, FileCheck2, ScrollText, History,
   GitBranch, Layers, UserCog, Plug, Settings,
-  Zap, LifeBuoy, Command, Bell,
+  Zap, LifeBuoy, Command, Bell, Mail,
   PanelLeftClose, PanelLeftOpen, Menu, X,
   ArrowDownToLine, ArrowUpFromLine,
 } from 'lucide-react';
@@ -90,6 +90,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'wf-tasks', label: 'Tasks', icon: ScrollText, path: '/workflows/tasks' },
       { key: 'workflows', label: 'Workflows', icon: GitBranch, path: '/workflows' },
       { key: 'users', label: 'Users & roles', icon: UserCog, path: '/settings/users' },
+      { key: 'client-invites', label: 'Invitations', icon: Mail, path: '/settings/client-invites' },
       { key: 'settings', label: 'Settings', icon: Settings, path: '/settings/setup' },
     ],
   },

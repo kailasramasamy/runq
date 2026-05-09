@@ -281,6 +281,52 @@ export function userInvite(p: UserInviteParams): EmailTemplate {
   return { subject, html: layout(p.companyName, 'Team Invitation', bodyHtml), text };
 }
 
+export interface TenantInviteParams {
+  inviteType: 'new_tenant' | 'join_tenant';
+  inviterName: string;
+  inviterTenantName: string;
+  role: string;
+  inviteUrl: string;
+  expiresAtIso: string;
+  note?: string | null;
+  // For new_tenant invites — the prospective company's name (CA-prefilled).
+  prospectCompanyName?: string | null;
+}
+
+export function tenantInviteEmail(p: TenantInviteParams): EmailTemplate {
+  const expires = new Date(p.expiresAtIso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const isNewTenant = p.inviteType === 'new_tenant';
+
+  const subject = isNewTenant
+    ? `${p.inviterName} invited you to runQ`
+    : `${p.inviterName} invited you to ${p.inviterTenantName}'s books on runQ`;
+
+  const heading = isNewTenant ? 'Get started on runQ' : `Join ${p.inviterTenantName}'s books`;
+  const intro = isNewTenant
+    ? `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterName}</strong> from <strong>${p.inviterTenantName}</strong> has invited you to runQ. Sign up to start your books — they'll be added as your <strong>${p.role}</strong> automatically.</p>`
+    : `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterName}</strong> has invited you to join <strong>${p.inviterTenantName}</strong> on runQ as <strong>${p.role}</strong>.</p>`;
+
+  const detailsTable = `
+    <table cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e4e4e7;border-radius:6px;width:100%">
+      <tr style="background:#f4f4f5"><td style="padding:10px 16px;color:#71717a;font-size:13px;width:40%">Role</td><td style="padding:10px 16px;color:#18181b;font-size:13px;font-weight:600">${p.role}</td></tr>
+      ${p.prospectCompanyName ? `<tr><td style="padding:10px 16px;color:#71717a;font-size:13px">Company</td><td style="padding:10px 16px;color:#18181b;font-size:13px">${p.prospectCompanyName}</td></tr>` : ''}
+      ${p.note ? `<tr style="background:#f4f4f5"><td style="padding:10px 16px;color:#71717a;font-size:13px">Note</td><td style="padding:10px 16px;color:#18181b;font-size:13px">${p.note}</td></tr>` : ''}
+      <tr><td style="padding:10px 16px;color:#71717a;font-size:13px">Expires</td><td style="padding:10px 16px;color:#18181b;font-size:13px">${expires}</td></tr>
+    </table>`;
+
+  const bodyHtml = `
+    <p style="color:#18181b;font-size:15px">${heading}</p>
+    ${intro}
+    ${detailsTable}
+    <p style="margin:24px 0;text-align:center">
+      <a href="${p.inviteUrl}" style="display:inline-block;padding:12px 32px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">${isNewTenant ? 'Start your books' : 'Accept invite'}</a>
+    </p>
+    <p style="color:#71717a;font-size:12px">Or copy this link into your browser:<br/><span style="word-break:break-all">${p.inviteUrl}</span></p>`;
+
+  const text = `${p.inviterName} invited you to ${isNewTenant ? 'runQ' : p.inviterTenantName + ' on runQ'}. Open this link to ${isNewTenant ? 'sign up' : 'accept'}: ${p.inviteUrl} — expires ${expires}.`;
+  return { subject, html: layout(p.inviterTenantName, heading, bodyHtml), text };
+}
+
 export interface BatchPaymentSummaryParams {
   count: number;
   totalAmount: number;

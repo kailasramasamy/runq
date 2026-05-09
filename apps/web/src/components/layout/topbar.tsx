@@ -302,6 +302,12 @@ function ProfileMenu() {
             <div className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>
               {user?.email ?? ''}
             </div>
+            {user?.role && (
+              <div className="mt-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}>
+                {user.role.replace('_', ' ')}
+              </div>
+            )}
           </div>
           <Link
             to="/settings"
@@ -312,12 +318,12 @@ function ProfileMenu() {
             <Settings size={14} /> Org settings
           </Link>
           <Link
-            to="/settings/users"
+            to="/settings/client-invites"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-[color:var(--surface-2)]"
             style={{ color: 'var(--text-1)' }}
           >
-            <Building2 size={14} /> Switch organization
+            <Building2 size={14} /> Invite a client / CA
           </Link>
           <button
             onClick={() => { setOpen(false); logout(); }}
@@ -406,6 +412,92 @@ function AskRunqMenu() {
   );
 }
 
+function TenantSwitcher() {
+  const { tenants, activeTenantId, switchTenant, refreshTenants } = useAuth();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useClickOutside(ref, () => setOpen(false), open);
+
+  // Hide entirely if the user has zero or one tenant — nothing to switch to.
+  if (tenants.length < 2) return null;
+
+  const active = tenants.find((t) => t.tenantId === activeTenantId) ?? tenants[0];
+
+  function handleOpen() {
+    setOpen((v) => {
+      const next = !v;
+      // Refresh memberships when opening so freshly accepted invites appear.
+      if (next) void refreshTenants();
+      return next;
+    });
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={handleOpen}
+        className="flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium hover:bg-[color:var(--surface-2)]"
+        style={{ borderColor: 'var(--border)', color: 'var(--text-1)', maxWidth: 220 }}
+        title="Switch client"
+      >
+        <Building2 size={13} style={{ color: 'var(--text-3)' }} />
+        <span className="truncate">{active?.tenantName ?? 'Select tenant'}</span>
+        <ChevronDown size={13} style={{ color: 'var(--text-3)' }} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full z-30 mt-1.5 w-72 animate-scale-in overflow-hidden rounded-lg border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.25)' }}
+        >
+          <div
+            className="flex items-center justify-between border-b px-3 py-2"
+            style={{ borderColor: 'var(--border-soft)' }}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
+              Switch client
+            </span>
+            <kbd
+              className="rounded border px-1.5 py-0.5 text-[10px]"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}
+              title="Open command palette"
+            >
+              ⌘K
+            </kbd>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto py-1">
+            {tenants.map((t) => {
+              const isActive = t.tenantId === activeTenantId;
+              return (
+                <button
+                  key={t.tenantId}
+                  onClick={() => {
+                    setOpen(false);
+                    if (!isActive) switchTenant(t.tenantId);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--surface-2)]"
+                  style={{ color: 'var(--text-1)' }}
+                >
+                  <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                    {isActive
+                      ? <Check size={13} style={{ color: 'var(--accent)' }} />
+                      : <Building2 size={12} style={{ color: 'var(--text-3)' }} />}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{t.tenantName}</span>
+                    <span className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>
+                      {t.tenantSlug} · {t.role}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Topbar() {
   const { theme, toggleTheme } = useTheme();
   const [cmdkOpen, setCmdkOpen] = useCommandPalette();
@@ -419,6 +511,8 @@ export function Topbar() {
         <Breadcrumb />
 
         <div className="flex flex-1 items-center justify-end gap-2">
+          <TenantSwitcher />
+
           {/* Search trigger */}
           <button
             onClick={() => setCmdkOpen(true)}

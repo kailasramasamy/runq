@@ -9,6 +9,17 @@ export interface DashboardSummary {
   overdueAmount: number;
   upcomingCount: number;
   upcomingAmount: number;
+  // Phase 1: real burn / revenue numbers from books.
+  netBurn30d: number;
+  netBurnDeltaPct: number | null;
+  runwayMonths: number | null;
+  burnSpark: number[];
+  revenueMtd: number;
+  revenueDeltaPct: number | null;
+  revenuePriorMonthTotal: number;
+  revenueSpark: number[];
+  receivablesDeltaPct: number | null;
+  payablesDeltaPct: number | null;
 }
 
 export interface AgingBucket {
@@ -30,6 +41,16 @@ interface RawSummary {
     receivables: { count: number; amount: string };
   };
   upcomingPayments7Days: { count: number; amount: string };
+  netBurn30d?: string;
+  netBurnDeltaPct?: number | null;
+  runwayMonths?: number | null;
+  burnSpark?: number[];
+  revenueMtd?: string;
+  revenueDeltaPct?: number | null;
+  revenuePriorMonthTotal?: string;
+  revenueSpark?: number[];
+  receivablesDeltaPct?: number | null;
+  payablesDeltaPct?: number | null;
 }
 
 interface RawAging {
@@ -49,6 +70,16 @@ function parseSummary(raw: RawSummary): DashboardSummary {
     overdueAmount: (parseFloat(raw.overdue?.payables?.amount) || 0) + (parseFloat(raw.overdue?.receivables?.amount) || 0),
     upcomingCount: raw.upcomingPayments7Days?.count ?? 0,
     upcomingAmount: parseFloat(raw.upcomingPayments7Days?.amount) || 0,
+    netBurn30d: parseFloat(raw.netBurn30d ?? '0') || 0,
+    netBurnDeltaPct: raw.netBurnDeltaPct ?? null,
+    runwayMonths: raw.runwayMonths ?? null,
+    burnSpark: raw.burnSpark ?? [],
+    revenueMtd: parseFloat(raw.revenueMtd ?? '0') || 0,
+    revenueDeltaPct: raw.revenueDeltaPct ?? null,
+    revenuePriorMonthTotal: parseFloat(raw.revenuePriorMonthTotal ?? '0') || 0,
+    revenueSpark: raw.revenueSpark ?? [],
+    receivablesDeltaPct: raw.receivablesDeltaPct ?? null,
+    payablesDeltaPct: raw.payablesDeltaPct ?? null,
   };
 }
 

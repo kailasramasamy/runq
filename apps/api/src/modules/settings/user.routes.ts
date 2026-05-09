@@ -4,7 +4,7 @@ import { uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { UserService } from './user.service';
 
-const OWNER_ROLES = ['owner'] as const;
+const OWNER_ROLES = ['owner', 'client_owner'] as const;
 
 const createUserBodySchema = z.object({
   email: z.string().email(),
