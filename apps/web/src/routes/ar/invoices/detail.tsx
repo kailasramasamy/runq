@@ -57,7 +57,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
 
   const { data: upiData } = useQuery({
     queryKey: ['invoices', 'upi-link', invoiceId],
-    queryFn: () => api.get<{ data: UPILinkData }>(`/ar/invoices/${invoiceId}/upi-link`),
+    queryFn: () => api.get<{ data: UPILinkData | null }>(`/ar/invoices/${invoiceId}/upi-link`),
     enabled: !!invoice && invoice.balanceDue > 0,
     retry: false,
   });
@@ -166,7 +166,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                 size="sm"
                 icon={<CreditCard size={13} />}
                 onClick={() => {
-                  navigator.clipboard.writeText(upiData.data.deepLink);
+                  navigator.clipboard.writeText(upiData.data!.deepLink);
                   setUpiCopied(true);
                   setTimeout(() => setUpiCopied(false), 2000);
                 }}

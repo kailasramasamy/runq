@@ -175,7 +175,14 @@ export function useDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/invoices/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
+    onSuccess: (_data, id) => {
+      // Drop the deleted invoice's cached queries so an in-flight detail page
+      // doesn't refetch a 404. Then invalidate list/summary for refresh.
+      qc.removeQueries({ queryKey: ['invoices', 'detail', id] });
+      qc.removeQueries({ queryKey: ['invoices', 'upi-link', id] });
+      qc.removeQueries({ queryKey: ['invoices', 'interest', id] });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+    },
   });
 }
 
@@ -189,7 +196,12 @@ export function useHardDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/invoices/${id}/hard`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEYS.all }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: ['invoices', 'detail', id] });
+      qc.removeQueries({ queryKey: ['invoices', 'upi-link', id] });
+      qc.removeQueries({ queryKey: ['invoices', 'interest', id] });
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+    },
   });
 }
 

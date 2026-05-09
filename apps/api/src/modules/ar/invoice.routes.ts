@@ -270,7 +270,7 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
 
       const settings = (tenantRow?.settings ?? {}) as Record<string, unknown>;
       const upiId = settings.upiId as string | undefined;
-      if (!upiId) throw new NotFoundError('UPI ID not configured in tenant settings');
+      if (!upiId) return { data: null };
 
       const link = generateUPILink({
         upiId,
