@@ -42,6 +42,7 @@ import { appConfigRoutes } from './modules/public/app-config.routes';
 import { otpRoutes } from './modules/public/otp.routes';
 import { agentRoutes } from './modules/agent/routes';
 import { supportRoutes } from './modules/support/routes';
+import { helpRoutes } from './modules/help/routes';
 import { supportWsRoutes } from './modules/support/ws';
 import { adminRoutes } from './modules/admin/routes';
 
@@ -95,6 +96,7 @@ export async function buildApp() {
   // Protected routes
   await app.register(async (scope) => {
     scope.addHook('onRequest', scope.authenticate);
+    scope.addHook('preHandler', scope.resolveTenantContext);
 
     await scope.register(apRoutes, { prefix: '/api/v1/ap' });
     await scope.register(arRoutes, { prefix: '/api/v1/ar' });
@@ -118,6 +120,7 @@ export async function buildApp() {
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
     await scope.register(agentRoutes, { prefix: '/api/v1/agent' });
     await scope.register(supportRoutes, { prefix: '/api/v1/support' });
+    await scope.register(helpRoutes, { prefix: '/api/v1/help' });
   });
 
   // Support WebSocket — auth handled via query param token, must NOT be

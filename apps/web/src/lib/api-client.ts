@@ -2,12 +2,35 @@ import type { ApiError } from '@runq/types';
 
 const BASE_URL = '/api/v1';
 
+/**
+ * Error thrown for any non-OK API response. Carries the server's structured
+ * payload (statusCode, error, message, details) and is a real Error subclass
+ * so `instanceof Error` checks work across the app.
+ */
+export class ApiClientError extends Error {
+  statusCode: number;
+  error: string;
+  details?: { field: string; message: string }[];
+  constructor(payload: ApiError) {
+    super(payload.message || payload.error || `Request failed: ${payload.statusCode}`);
+    this.name = 'ApiClientError';
+    this.statusCode = payload.statusCode;
+    this.error = payload.error;
+    this.details = payload.details;
+  }
+}
+
 class ApiClient {
   private token: string | null = null;
+  private tenantId: string | null = null;
   private onUnauthorized: (() => void) | null = null;
 
   setToken(token: string | null) {
     this.token = token;
+  }
+
+  setTenantId(tenantId: string | null) {
+    this.tenantId = tenantId;
   }
 
   setOnUnauthorized(cb: (() => void) | null) {
@@ -26,6 +49,10 @@ class ApiClient {
     const sentToken = this.token;
     if (sentToken) {
       headers['Authorization'] = `Bearer ${sentToken}`;
+    }
+
+    if (this.tenantId) {
+      headers['X-Tenant-Id'] = this.tenantId;
     }
 
     const response = await fetch(`${BASE_URL}${path}`, {
@@ -47,8 +74,17 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      const error: ApiError = await response.json();
-      throw error;
+      let payload: ApiError;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {
+          statusCode: response.status,
+          error: response.statusText || 'Error',
+          message: response.statusText || `Request failed: ${response.status}`,
+        };
+      }
+      throw new ApiClientError(payload);
     }
 
     // 204 No Content has no body — calling .json() on it throws

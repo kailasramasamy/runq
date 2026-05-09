@@ -12,6 +12,7 @@ import { InvoiceNumberingPage } from './settings/invoice-numbering';
 import { OpeningBalancesPage } from './settings/opening-balances';
 import { ItemAttributesPage } from './settings/item-attributes';
 import { UsersPage } from './settings/users';
+import { ClientInvitesPage } from './settings/client-invites';
 import { TallyExportPage } from './settings/tally-export';
 import { NotificationsPage } from './settings/notifications';
 import { VendorListPage } from './ap/vendors/index';
@@ -129,7 +130,8 @@ import { QuickTemplatesPage } from './ar/quick-templates';
 import { SetupPage } from './settings/setup';
 import { HelpIndexPage } from './help/index';
 import { GapScanPage } from './audit/gap-scan';
-import { HelpTopicPage } from './help/topic';
+import { HelpRecipePage } from './help/recipe';
+import { HelpDrawer } from '@/components/help/help-drawer';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { AdminOverviewPage } from './admin/overview';
 import { AdminAuditLogPage } from './admin/audit-log';
@@ -200,6 +202,7 @@ const dashboardLayoutRoute = createRoute({
         <MobileBottomNav />
         <FinanceAgent />
         <SupportWidget />
+        <HelpDrawer />
       </div>
     </div>
   ),
@@ -963,6 +966,12 @@ const settingsUsersRoute = createRoute({
   component: UsersPage,
 });
 
+const settingsClientInvitesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/client-invites',
+  component: ClientInvitesPage,
+});
+
 const settingsTallyExportRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/tally-export',
@@ -1404,12 +1413,12 @@ const helpIndexRoute = createRoute({
   component: HelpIndexPage,
 });
 
-const helpTopicRoute = createRoute({
+const helpRecipeRoute = createRoute({
   getParentRoute: () => helpRoute,
-  path: '$',
+  path: '$recipeId',
   component: () => {
-    const params = helpTopicRoute.useParams() as { _splat?: string };
-    return <HelpTopicPage slug={params._splat ?? ''} />;
+    const { recipeId } = helpRecipeRoute.useParams();
+    return <HelpRecipePage recipeId={recipeId} />;
   },
 });
 
@@ -1698,6 +1707,7 @@ export const routeTree = rootRoute.addChildren([
       settingsInvoiceNumberingRoute,
       settingsItemAttributesRoute,
       settingsUsersRoute,
+      settingsClientInvitesRoute,
       settingsTallyExportRoute,
       settingsNotificationsRoute,
       settingsIntegrationsRoute,
@@ -1729,7 +1739,7 @@ export const routeTree = rootRoute.addChildren([
     ]),
     helpRoute.addChildren([
       helpIndexRoute,
-      helpTopicRoute,
+      helpRecipeRoute,
     ]),
     auditRoute.addChildren([
       gapScanRoute,

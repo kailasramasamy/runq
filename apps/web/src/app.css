@@ -20,6 +20,27 @@
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Instrument Serif", Georgia, serif;
+}
+
+/* Tailwind v4 preflight removes the default `cursor: pointer` on buttons.
+ * Restore it for enabled buttons + interactive ARIA roles so the whole app
+ * keeps the expected hover affordance. Disabled buttons keep the default. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.font-display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 /* ─── runQ design tokens (from handoff) ─────────────────────────────────────── */

@@ -61,6 +61,7 @@ export function SupportWidget() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>('list');
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [prefill, setPrefill] = useState<string | null>(null);
 
   // ESC closes the drawer
   useEffect(() => {
@@ -72,9 +73,18 @@ export function SupportWidget() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open]);
 
-  // External event hook (e.g. "Open support" from another part of the app)
+  // External event hook (e.g. "Open support" from another part of the app).
+  // Optional `detail.message` prefills the composer in a fresh new conversation.
   useEffect(() => {
-    function onOpen() { setOpen(true); }
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ message?: string }>).detail;
+      setOpen(true);
+      if (detail?.message) {
+        setActiveId(null);
+        setView('chat');
+        setPrefill(detail.message);
+      }
+    }
     window.addEventListener('runq:open-support', onOpen);
     return () => window.removeEventListener('runq:open-support', onOpen);
   }, []);
@@ -119,6 +129,8 @@ export function SupportWidget() {
             onSetConversationId={setActiveId}
             onClose={() => setOpen(false)}
             onBack={backToList}
+            prefill={prefill}
+            onPrefillConsumed={() => setPrefill(null)}
           />
         )}
       </div>
@@ -295,11 +307,15 @@ function ChatView({
   onSetConversationId,
   onClose,
   onBack,
+  prefill,
+  onPrefillConsumed,
 }: {
   conversationId: string | null;
   onSetConversationId: (id: string) => void;
   onClose: () => void;
   onBack: () => void;
+  prefill?: string | null;
+  onPrefillConsumed?: () => void;
 }) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -328,8 +344,8 @@ function ChatView({
   const messages: SupportMessage[] = detail.data?.data?.messages ?? [];
   const conversation = detail.data?.data?.conversation;
 
-  async function handleSend() {
-    const trimmed = draft.trim();
+  async function sendMessage(text: string) {
+    const trimmed = text.trim();
     if (!trimmed || streaming) return;
     setDraft('');
     setStreaming(true);
@@ -370,12 +386,23 @@ function ChatView({
     }
   }
 
+  function handleSend() { void sendMessage(draft); }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   }
+
+  // Auto-send when the parent drawer prefilled a message (e.g. from Ask runQ AI).
+  // Runs once per prefill — only on a fresh new-conversation view.
+  useEffect(() => {
+    if (!prefill || conversationId || streaming) return;
+    onPrefillConsumed?.();
+    void sendMessage(prefill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill, conversationId]);
 
   return (
     <>

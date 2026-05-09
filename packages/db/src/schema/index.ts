@@ -64,3 +64,4 @@ export * from './ar/customer-buyer-aliases';
 export * from './fa/fixed-assets';
 export * from './gst/gst-returns';
 export * from './support/conversations';
+export * from './help';
