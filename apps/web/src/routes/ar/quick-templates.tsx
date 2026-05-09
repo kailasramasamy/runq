@@ -19,6 +19,9 @@ import { GenerateInvoiceModal } from '@/components/ar/generate-invoice-modal';
 // ─── Template Form ────────────────────────────────────────────────────────────
 
 interface TemplateLineRow {
+  /** Stable client-side row id. Used as React key so deleting a middle row
+   *  doesn't cause the row below to inherit its DOM position. */
+  rowId: string;
   itemId: string;
   description: string;
   hsnSacCode: string;
@@ -30,9 +33,14 @@ interface TemplateLineRow {
   priceListName?: string | null;
 }
 
-const EMPTY_ROW: TemplateLineRow = {
-  itemId: '', description: '', hsnSacCode: '', unitPrice: '', taxRate: '0', defaultQuantity: '',
-};
+let rowIdCounter = 0;
+function newRowId() { return `r${Date.now().toString(36)}_${rowIdCounter++}`; }
+function emptyRow(): TemplateLineRow {
+  return {
+    rowId: newRowId(),
+    itemId: '', description: '', hsnSacCode: '', unitPrice: '', taxRate: '0', defaultQuantity: '',
+  };
+}
 
 function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; onClose: () => void }) {
   const create = useCreateQuickTemplate();
@@ -55,6 +63,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
   const [rows, setRows] = useState<TemplateLineRow[]>(
     template?.items.length
       ? template.items.map((it) => ({
+          rowId: newRowId(),
           itemId: it.itemId,
           description: it.description,
           hsnSacCode: it.hsnSacCode ?? '',
@@ -62,7 +71,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
           taxRate: String(it.taxRate ?? 0),
           defaultQuantity: it.defaultQuantity ? String(it.defaultQuantity) : '',
         }))
-      : [{ ...EMPTY_ROW }],
+      : [emptyRow()],
   );
 
   // When the customer changes, re-resolve every populated row so the unit
@@ -97,7 +106,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
-  function addRow() { setRows((p) => [...p, { ...EMPTY_ROW }]); }
+  function addRow() { setRows((p) => [...p, emptyRow()]); }
   function removeRow(i: number) { setRows((p) => p.filter((_, idx) => idx !== i)); }
   function updateRow(i: number, field: keyof TemplateLineRow, value: string) {
     setRows((p) => p.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -223,8 +232,8 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
         </legend>
         <div className="space-y-2">
           {rows.map((row, idx) => (
-            <div key={idx} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_5rem_7rem_5rem]">
+            <div key={row.rowId} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[20rem_5rem_7rem_5rem_2rem]">
                 <Combobox
                   label="Item"
                   options={itemOptions}
@@ -261,16 +270,18 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
                   onChange={(e) => updateRow(idx, 'taxRate', e.target.value)}
                   placeholder="18"
                 />
-              </div>
-              <div className="mt-1 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => removeRow(idx)}
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800"
-                  disabled={rows.length === 1}
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-end justify-center pb-[3px] sm:pb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(idx)}
+                    aria-label="Remove item"
+                    title="Remove item"
+                    className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 disabled:opacity-40 dark:hover:bg-zinc-800"
+                    disabled={rows.length === 1}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -364,7 +375,7 @@ export function QuickTemplatesPage() {
       />
 
       {/* Create modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Quick Invoice Template" wide>
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Quick Invoice Template" size="lg">
         <TemplateForm onClose={() => setShowCreate(false)} />
       </Modal>
 
@@ -373,7 +384,7 @@ export function QuickTemplatesPage() {
         open={!!editingTemplate}
         onClose={() => setEditingTemplate(null)}
         title={editingTemplate ? `Edit — ${editingTemplate.name}` : ''}
-        wide
+        size="lg"
       >
         {editingTemplate && (
           <TemplateForm
