@@ -16,7 +16,7 @@ interface Props {
 type FormState = Partial<CreateCustomerInput> & { name: string };
 
 function buildInitial(c?: Customer): FormState {
-  if (!c) return { name: '', type: 'b2b', paymentTermsDays: 30 };
+  if (!c) return { name: '', type: 'b2b', paymentTermsDays: 30, isActive: true };
   return {
     name: c.name,
     nickname: c.nickname ?? undefined,
@@ -37,6 +37,7 @@ function buildInitial(c?: Customer): FormState {
     customerGroup: c.customerGroup ?? undefined,
     overdueInterestRate: c.overdueInterestRate ?? undefined,
     defaultBankAccountId: c.defaultBankAccountId ?? undefined,
+    isActive: c.isActive,
   };
 }
 
@@ -215,6 +216,28 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
               error={errors.defaultBankAccountId}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader title="Status" />
+        <CardContent>
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={form.isActive ?? true}
+              onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div className="text-[13px]">
+              <div className="font-medium text-zinc-900 dark:text-zinc-100">Active</div>
+              <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                Inactive customers are hidden from invoice / receipt / template
+                pickers across the app, but their existing invoices and outstanding
+                balances stay intact. Untick to deactivate.
+              </div>
+            </div>
+          </label>
         </CardContent>
       </Card>
 

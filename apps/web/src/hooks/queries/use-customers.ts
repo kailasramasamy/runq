@@ -14,6 +14,12 @@ interface CustomerFilters {
   type?: 'b2b' | 'b2c' | 'payment_gateway';
   page?: number;
   limit?: number;
+  /** Include inactive customers in the result. Default behaviour is to
+   *  hide them so dropdowns / pickers across the app silently skip them. */
+  includeInactive?: boolean;
+  /** Narrow further to just one status. Used by the customers list page's
+   *  All / Active / Inactive filter. */
+  active?: 'true' | 'false';
   [key: string]: unknown;
 }
 
@@ -23,6 +29,8 @@ export function useCustomers(filters?: CustomerFilters) {
   if (filters?.type) params.set('type', filters.type);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
+  if (filters?.includeInactive) params.set('includeInactive', 'true');
+  if (filters?.active) params.set('active', filters.active);
   const qs = params.toString();
 
   return useQuery({

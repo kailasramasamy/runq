@@ -30,6 +30,11 @@ export interface CustomerListParams {
   search?: string;
   type?: CustomerFilter['type'];
   hasOutstanding?: boolean;
+  /** When true, include inactive customers in the result. Defaults to
+   *  false so dropdowns / pickers silently skip inactive customers. */
+  includeInactive?: boolean;
+  /** Narrow to just active or just inactive when explicitly set. */
+  active?: 'true' | 'false';
 }
 
 export interface CustomerListResult {
@@ -44,12 +49,27 @@ export class CustomerService {
   ) {}
 
   async list(params: CustomerListParams): Promise<CustomerListResult> {
-    const { page, limit, search, type, hasOutstanding } = params;
+    const { page, limit, search, type, hasOutstanding, includeInactive, active } = params;
     const { offset } = applyPagination(page, limit);
+
+    // Active filter:
+    //   - explicit `active='false'` → only inactive
+    //   - explicit `active='true'`  → only active
+    //   - else `includeInactive=true` → no filter (admin list view)
+    //   - default                    → only active (every dropdown / picker)
+    const activeFilter =
+      active === 'false'
+        ? eq(customers.isActive, false)
+        : active === 'true'
+          ? eq(customers.isActive, true)
+          : includeInactive
+            ? undefined
+            : eq(customers.isActive, true);
 
     const baseWhere = and(
       eq(customers.tenantId, this.tenantId),
       isNull(customers.deletedAt),
+      activeFilter,
       // Search matches against either the legal name or the nickname so the
       // accountant can find a customer by their mental shorthand.
       search

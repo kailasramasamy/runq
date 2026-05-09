@@ -21,11 +21,18 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'payment_gateway', label: 'Payment gateway' },
 ];
 
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active only' },
+  { value: 'inactive', label: 'Inactive only' },
+];
+
 export function CustomerListPage() {
   const navigate = useNavigate();
   const readOnly = useIsReadOnly();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -34,6 +41,11 @@ export function CustomerListPage() {
     type: (typeFilter || undefined) as 'b2b' | 'b2c' | 'payment_gateway' | undefined,
     page,
     limit: LIMIT,
+    // The customers list is the one place inactive accounts must be visible.
+    // Other dropdowns / pickers don't pass these flags so they default to
+    // active-only — inactive customers are effectively hidden across the app.
+    includeInactive: true,
+    active: statusFilter === 'active' ? 'true' : statusFilter === 'inactive' ? 'false' : undefined,
   });
   const deleteMutation = useDeleteCustomer();
 
@@ -131,6 +143,11 @@ export function CustomerListPage() {
           options={TYPE_FILTER_OPTIONS}
           value={typeFilter}
           onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+        />
+        <Select
+          options={STATUS_FILTER_OPTIONS}
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}
         />
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>

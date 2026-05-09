@@ -29,6 +29,7 @@ export const createCustomerSchema = z.object({
   customerGroup: z.string().max(50).nullish(),
   overdueInterestRate: z.number().min(0).max(100).nullish(),
   defaultBankAccountId: z.string().uuid().nullish(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();
@@ -37,6 +38,13 @@ export const customerFilterSchema = z.object({
   search: z.string().optional(),
   type: z.enum(['b2b', 'b2c', 'payment_gateway']).optional(),
   hasOutstanding: z.coerce.boolean().optional(),
+  /** When true, returns inactive customers too. Default behaviour hides
+   *  inactive customers so dropdowns + pickers across the app silently
+   *  skip them. The customers list page passes this explicitly. */
+  includeInactive: z.coerce.boolean().optional(),
+  /** Narrow further to just one status. Active list page uses this for
+   *  the All / Active / Inactive filter buttons. */
+  active: z.enum(['true', 'false']).optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

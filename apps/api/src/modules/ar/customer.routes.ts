@@ -38,6 +38,8 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
         search: filters.search,
         type: filters.type,
         hasOutstanding: filters.hasOutstanding,
+        includeInactive: filters.includeInactive,
+        active: filters.active,
       });
     },
   );
