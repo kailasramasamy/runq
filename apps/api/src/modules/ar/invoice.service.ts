@@ -251,7 +251,10 @@ export class InvoiceService {
         and(
           eq(salesInvoices.tenantId, this.tenantId),
           eq(salesInvoices.customerId, customerId),
-          notInArray(salesInvoices.status, ['paid', 'cancelled']),
+          // Exclude draft + paid + cancelled. Drafts haven't been sent to the
+          // customer, so they don't represent committed credit; this matches
+          // what the customer detail page shows as "Outstanding".
+          notInArray(salesInvoices.status, ['draft', 'paid', 'cancelled']),
           sql`${salesInvoices.balanceDue} > 0`,
         ),
       );

@@ -30,4 +30,7 @@ export interface Customer {
 export interface CustomerWithOutstanding extends Customer {
   outstandingAmount: number;
   overdueAmount: number;
+  /** Total balance across draft (un-sent) invoices. Informational only —
+   *  excluded from outstanding and credit-limit calculations. */
+  draftAmount: number;
 }

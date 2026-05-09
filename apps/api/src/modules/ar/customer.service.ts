@@ -82,7 +82,13 @@ export class CustomerService {
     if (!row) throw new NotFoundError('Customer');
 
     const [outstanding] = await this.queryOutstanding([id]);
-    return { ...this.toCustomer(row), outstandingAmount: outstanding?.amount ?? 0, overdueAmount: 0 };
+    const [draftTotal] = await this.queryDraftTotals([id]);
+    return {
+      ...this.toCustomer(row),
+      outstandingAmount: outstanding?.amount ?? 0,
+      overdueAmount: 0,
+      draftAmount: draftTotal?.amount ?? 0,
+    };
   }
 
   async create(input: CreateCustomerInput): Promise<Customer> {
@@ -296,22 +302,48 @@ export class CustomerService {
       .groupBy(salesInvoices.customerId);
   }
 
+  /** Sum of draft-invoice balances per customer — informational only. */
+  private async queryDraftTotals(ids: string[]): Promise<{ customerId: string; amount: number }[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select({
+        customerId: salesInvoices.customerId,
+        amount: sql<number>`coalesce(sum(${salesInvoices.balanceDue}), 0)::float`,
+      })
+      .from(salesInvoices)
+      .where(
+        and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          sql`${salesInvoices.customerId} = ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)}])`,
+          eq(salesInvoices.status, 'draft'),
+          sql`${salesInvoices.balanceDue} > 0`,
+        ),
+      )
+      .groupBy(salesInvoices.customerId);
+  }
+
   private async attachOutstanding(
     rows: (typeof customers.$inferSelect)[],
     hasOutstanding?: boolean,
   ): Promise<CustomerWithOutstanding[]> {
     const ids = rows.map((r) => r.id);
     const outstandingMap = new Map<string, number>();
+    const draftMap = new Map<string, number>();
 
     if (ids.length > 0) {
-      const results = await this.queryOutstanding(ids);
-      for (const r of results) outstandingMap.set(r.customerId, r.amount);
+      const [outstandingResults, draftResults] = await Promise.all([
+        this.queryOutstanding(ids),
+        this.queryDraftTotals(ids),
+      ]);
+      for (const r of outstandingResults) outstandingMap.set(r.customerId, r.amount);
+      for (const r of draftResults) draftMap.set(r.customerId, r.amount);
     }
 
     const result: CustomerWithOutstanding[] = rows.map((r) => ({
       ...this.toCustomer(r),
       outstandingAmount: outstandingMap.get(r.id) ?? 0,
       overdueAmount: 0,
+      draftAmount: draftMap.get(r.id) ?? 0,
     }));
 
     if (hasOutstanding === true) return result.filter((r) => r.outstandingAmount > 0);

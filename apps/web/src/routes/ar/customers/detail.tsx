@@ -73,6 +73,8 @@ export function CustomerDetailPage({ customerId }: Props) {
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
   const openCount = invoices.filter((i) => ['sent', 'partially_paid'].includes(i.status)).length;
   const outstanding = customer.outstandingAmount ?? 0;
+  const draftBalance = customer.draftAmount ?? 0;
+  const draftCount = invoices.filter((i) => i.status === 'draft').length;
 
   return (
     <div>
@@ -126,6 +128,19 @@ export function CustomerDetailPage({ customerId }: Props) {
               <span>·</span>
               <span>Net <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{customer.paymentTermsDays}d</span> terms</span>
             </div>
+            {draftBalance > 0 && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-[11.5px]"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-3)' }}
+              >
+                <span>Drafts (not yet sent):</span>
+                <span className="num font-semibold tabular-nums" style={{ color: 'var(--text-1)' }}>
+                  {formatINR(draftBalance)}
+                </span>
+                {draftCount > 0 && (
+                  <span>· <span className="num font-medium" style={{ color: 'var(--text-2)' }}>{draftCount}</span> invoice{draftCount === 1 ? '' : 's'}</span>
+                )}
+              </div>
+            )}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/invoices/new' })}>
                 New invoice
