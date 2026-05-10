@@ -72,6 +72,11 @@ function buildItemRowsGst(items: SalesInvoiceItem[]): string {
       ? `<td class="cell">${item.hsnSacCode ?? ''}</td>`
       : '';
     const taxRate = item.taxRate != null ? `${item.taxRate}%` : '';
+    // Amount column shows the GST-INCLUSIVE line total (qty × rate + line
+    // tax) so what the customer reads per row matches what they pay. The
+    // pre-tax subtotal + per-component tax breakdown still appears in the
+    // totals block below for accounting traceability.
+    const lineTotal = item.amount + lineTaxAmount(item);
     return `
     <tr>
       <td class="cell center">${i + 1}</td>
@@ -80,9 +85,8 @@ function buildItemRowsGst(items: SalesInvoiceItem[]): string {
       ${hsnCell}
       <td class="cell right">${fmtINR(item.quantity)}</td>
       <td class="cell right">${fmtINR(item.unitPrice)}</td>
-      <td class="cell right">${fmtINR(item.amount)}</td>
       <td class="cell center">${taxRate}</td>
-      <td class="cell right">${fmtINR(lineTaxAmount(item))}</td>
+      <td class="cell right">${fmtINR(lineTotal)}</td>
     </tr>`;
   }).join('');
 }
@@ -208,9 +212,8 @@ function buildGstItemTableHeader(items: SalesInvoiceItem[]): string {
         ${hsnTh}
         <th style="text-align:right;width:60px">Qty</th>
         <th style="text-align:right;width:80px">Rate (\u20B9)</th>
-        <th style="text-align:right;width:80px">Amount (\u20B9)</th>
         <th style="text-align:center;width:60px">Tax %</th>
-        <th style="text-align:right;width:80px">Tax (\u20B9)</th>
+        <th style="text-align:right;width:90px">Amount (\u20B9)</th>
       </tr>`;
 }
 
@@ -252,9 +255,9 @@ export function renderInvoiceHTML(
 
   const itemRows = gst ? buildItemRowsGst(items) : buildItemRowsSimple(items);
   const showHsn = gst && hasHsnCodes(items);
-  // GST table: # | Desc | UOM | (HSN) | Qty | Rate | Amount | Tax% | Tax = 9 (or 8 without HSN)
+  // GST table: # | Desc | UOM | (HSN) | Qty | Rate | Tax% | Amount = 8 (or 7 without HSN)
   // Simple table: # | Desc | UOM | Qty | Rate | Amount = 6
-  const totalCols = gst ? (showHsn ? 9 : 8) : 6;
+  const totalCols = gst ? (showHsn ? 8 : 7) : 6;
   const totalsRows = gst
     ? buildGstTotals(invoice, totalCols)
     : buildSimpleTotals(invoice);

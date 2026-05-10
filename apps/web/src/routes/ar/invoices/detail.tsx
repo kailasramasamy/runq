@@ -361,7 +361,9 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                         <td className="num px-4 py-2.5 text-right" style={{ color: 'var(--text-2)' }}>
                           {item.taxRate != null ? `${item.taxRate}%` : '—'}
                         </td>
-                        <td className="num px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(item.amount)}</td>
+                        <td className="num px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text-1)' }}>
+                          {formatINR(item.amount + item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
