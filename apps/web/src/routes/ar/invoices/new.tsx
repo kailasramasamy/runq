@@ -33,7 +33,11 @@ export function NewInvoicePage() {
         title="New Invoice"
         description="Create a sales invoice for a customer."
       />
-      <InvoiceForm onSubmit={handleSubmit} isLoading={mutation.isPending} />
+      <InvoiceForm
+        onSubmit={handleSubmit}
+        onCancel={() => navigate({ to: '/ar/invoices' })}
+        isLoading={mutation.isPending}
+      />
     </div>
   );
 }

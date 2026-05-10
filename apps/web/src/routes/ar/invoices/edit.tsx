@@ -80,6 +80,7 @@ export function EditInvoicePage({ invoiceId }: Props) {
       <InvoiceForm
         initialData={invoice}
         onSubmit={handleSubmit}
+        onCancel={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } })}
         isLoading={mutation.isPending}
         submitLabel="Save Changes"
       />

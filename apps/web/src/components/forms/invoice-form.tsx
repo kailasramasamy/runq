@@ -29,6 +29,7 @@ import {
 
 interface Props {
   onSubmit: (data: CreateSalesInvoiceInput) => void;
+  onCancel?: () => void;
   isLoading: boolean;
   initialData?: SalesInvoiceWithDetails;
   submitLabel?: string;
@@ -87,7 +88,7 @@ function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
 }
 
-export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'Save Invoice' }: Props) {
+export function InvoiceForm({ onSubmit, onCancel, isLoading, initialData, submitLabel = 'Save Invoice' }: Props) {
   const { data: customersData } = useCustomers({ limit: 100 });
   const customers = customersData?.data?.filter((c) => c.isActive) ?? [];
   const { data: itemsData } = useItems({ limit: 100 });
@@ -133,17 +134,19 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
         byName.set(it.name.trim().toLowerCase(), it);
       }
 
+      const byId = new Map<string, (typeof allItems)[number]>();
+      for (const it of allItems) byId.set(it.id, it);
+
       setLines(initialData.items.map((item) => {
         let itemId = item.itemId ?? '';
-        let uom = item.uom ?? '';
-        if (!itemId && item.description) {
-          const matched = byName.get(item.description.trim().toLowerCase());
-          if (matched) {
-            itemId = matched.id;
-            // Also borrow UOM from the master if the line didn't carry one
-            if (!uom) uom = formatItemUom(matched);
-          }
+        let matched = itemId ? byId.get(itemId) : undefined;
+        if (!matched && item.description) {
+          matched = byName.get(item.description.trim().toLowerCase());
+          if (matched) itemId = matched.id;
         }
+        // Always re-derive UOM from the master so legacy lines that stored
+        // just the bare unit ("ML") get the pack-size variant ("500ML").
+        const uom = matched ? formatItemUom(matched) : (item.uom ?? '');
         return {
           itemId,
           description: item.description,
@@ -440,7 +443,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
             <Table noOverflow>
               <TableHeader>
                 <tr>
-                  <Th className="min-w-[260px]">Item</Th>
+                  <Th className="w-[480px] min-w-[480px]">Item</Th>
                   <Th className="min-w-[70px]">UOM</Th>
                   <Th className="min-w-[90px]">HSN/SAC</Th>
                   <Th className="min-w-[55px]">Qty</Th>
@@ -611,7 +614,12 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" variant="primary" loading={isLoading}>
           {submitLabel}
         </Button>
