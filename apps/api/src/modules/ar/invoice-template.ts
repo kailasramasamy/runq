@@ -1,9 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { SalesInvoice, SalesInvoiceItem } from '@runq/types';
 import {
   fmtINR, fmtDate, numToWords, hasGstData, hasHsnCodes,
   lineTaxAmount, formatTaxBreakdownRows, renderHsnSummaryTable,
   renderIrnSection, supplyTypeLabel, placeOfSupplyDisplay,
 } from './invoice-template-helpers';
+
+// One-time read of the brand mark used in the PDF footer's "Powered by"
+// stamp. Inlined as a data URI so the rendered HTML is self-contained
+// and Puppeteer doesn't need to fetch a separate asset.
+const RUNQ_LOGO_DATA_URI: string = (() => {
+  try {
+    const buf = readFileSync(join(__dirname, 'assets', 'runq-logo.png'));
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch {
+    return '';
+  }
+})();
 
 interface CustomerInfo {
   name: string;
@@ -318,6 +332,12 @@ ${buildStyleBlock()}
   <div class="footer-note">
     Terms: Payment due within ${p.paymentTerms} days of invoice date. Thank you for your business.
   </div>
+  <div class="powered-by">
+    <span class="powered-by-text">Invoiced with</span>
+    ${RUNQ_LOGO_DATA_URI
+      ? `<img class="powered-by-logo" src="${RUNQ_LOGO_DATA_URI}" alt="runQ" />`
+      : '<span class="powered-by-name">runQ</span>'}
+  </div>
 </div>
 </body>
 </html>`;
@@ -429,6 +449,24 @@ function buildStyleBlock(): string {
                background: #fafafa; font-style: italic; }
   .bank-box { margin-top: 12px; }
   .footer-note { color: #888; font-size: 10px; margin-top: 8px; }
+  .powered-by {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 18px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    color: #888;
+    font-size: 9.5px;
+  }
+  .powered-by-logo {
+    height: 16px;
+    width: auto;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .powered-by-name { color: #4F46E5; font-weight: 700; letter-spacing: 0.2px; }
   .print-btn { margin-bottom: 16px; }
   @media print {
     .print-btn { display: none; }
