@@ -138,6 +138,54 @@ class InvoicesRepo {
     final res = await apiClient.get('/ar/invoices/$id/upi-link');
     return UpiLinkData.fromJson(_data(res));
   }
+
+  /// POST /ar/invoices — body matches createSalesInvoiceSchema. Returns the
+  /// created invoice's id so the caller can route to the detail screen.
+  Future<String> create(Map<String, dynamic> body) async {
+    final res = await apiClient.post('/ar/invoices', body);
+    final data = _data(res);
+    final id = data['id'];
+    return id == null ? '' : id.toString();
+  }
+}
+
+class QuickTemplatesRepo {
+  Future<List<QuickInvoiceTemplate>> list() async {
+    final res = await apiClient.get('/ar/quick-templates');
+    return _dataList(res).map(QuickInvoiceTemplate.fromJson).toList();
+  }
+
+  Future<QuickInvoiceTemplate> get(String id) async {
+    final res = await apiClient.get('/ar/quick-templates/$id');
+    return QuickInvoiceTemplate.fromJson(_data(res));
+  }
+
+  /// Generates an invoice from the template using the supplied per-item
+  /// quantity overrides. Server returns the new invoice's id, number, and
+  /// (optionally) a public share URL.
+  Future<QuickInvoiceResult> generate(
+    String id, {
+    required DateTime invoiceDate,
+    required Map<String, double> quantities,
+  }) async {
+    final body = <String, dynamic>{
+      'invoiceDate': _isoDate(invoiceDate),
+      'quantities': quantities,
+    };
+    final res = await apiClient.post('/ar/quick-templates/$id/generate', body);
+    return QuickInvoiceResult.fromJson(_data(res));
+  }
+}
+
+class CustomersRepo {
+  /// First page (up to 100) of active customers, optionally filtered by
+  /// search. Used to populate the customer picker in the new-invoice form.
+  Future<List<CustomerSummary>> list({String? search, int limit = 100}) async {
+    final qp = <String, String>{'limit': '$limit', 'active': 'true'};
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    final res = await apiClient.get('/ar/customers?${Uri(queryParameters: qp).query}');
+    return _dataList(res).map(CustomerSummary.fromJson).toList();
+  }
 }
 
 class BillsRepo {
@@ -555,6 +603,8 @@ class GstRepo {
 
 final dashboardRepo = DashboardRepo();
 final invoicesRepo = InvoicesRepo();
+final customersRepo = CustomersRepo();
+final quickTemplatesRepo = QuickTemplatesRepo();
 final billsRepo = BillsRepo();
 final bankingRepo = BankingRepo();
 final approvalsRepo = ApprovalsRepo();

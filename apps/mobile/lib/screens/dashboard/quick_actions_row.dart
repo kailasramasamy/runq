@@ -5,6 +5,7 @@ import '../../providers/data_providers.dart';
 import '../../theme/runq_tokens.dart';
 import '../../theme/runq_theme.dart';
 import '../../services/bill_intake.dart';
+import '../../widgets/invoice_quick_sheet.dart';
 
 class _QA {
   final IconData icon;
@@ -27,7 +28,7 @@ class QuickActionsRow extends ConsumerWidget {
 
     final items = <_QA>[
       _QA(Icons.receipt_long_outlined, 'Bill', RunqColors.indigo, (ctx) => startBillIntake(ctx)),
-      _QA(Icons.send_outlined, 'Invoice', const Color(0xFF06B6D4), (ctx) => ctx.push('/invoices')),
+      _QA(Icons.send_outlined, 'Invoice', const Color(0xFF06B6D4), (ctx) => showInvoiceQuickSheet(ctx)),
       _QA(Icons.account_balance_outlined, 'Reconcile', RunqColors.greenInk, (ctx) => ctx.push('/banking')),
       _QA(Icons.check_circle_outline_rounded, 'Approve', RunqColors.amberInk, (ctx) => ctx.push('/approvals')),
     ];

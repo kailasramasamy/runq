@@ -1,0 +1,978 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
+import '../api/models.dart';
+import '../api/repos.dart';
+import '../providers/data_providers.dart';
+import '../theme/runq_theme.dart';
+import '../theme/runq_tokens.dart';
+import '../utils/format_inr.dart';
+import '../widgets/runq_snack.dart';
+
+/// Mobile equivalent of the web `InvoiceForm` (apps/web/src/components/forms/
+/// invoice-form.tsx). Same payload shape (createSalesInvoiceSchema): customer,
+/// dates, line items, totals, notes. No HSN/SAC editing, no per-customer
+/// price resolver — those stay on the web for now.
+class NewInvoiceScreen extends ConsumerStatefulWidget {
+  const NewInvoiceScreen({super.key});
+
+  @override
+  ConsumerState<NewInvoiceScreen> createState() => _NewInvoiceScreenState();
+}
+
+class _LineItem {
+  String? itemId;
+  String description = '';
+  String uom = '';
+  String quantity = '';
+  String unitPrice = '';
+  double taxRate = 0;
+  _LineItem();
+
+  double get amount =>
+      (double.tryParse(quantity) ?? 0) * (double.tryParse(unitPrice) ?? 0);
+
+  double get taxAmount {
+    if (taxRate <= 0) return 0;
+    return amount * taxRate / 100;
+  }
+}
+
+class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
+  CustomerSummary? _customer;
+  DateTime _invoiceDate = DateTime.now();
+  DateTime _dueDate = DateTime.now().add(const Duration(days: 30));
+  bool _dueDirty = false;
+  final _poCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  final List<_LineItem> _lines = [_LineItem()];
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _poCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onCustomerChanged(CustomerSummary c) {
+    setState(() {
+      _customer = c;
+      if (!_dueDirty) {
+        _dueDate = _invoiceDate.add(Duration(days: c.paymentTermsDays));
+      }
+    });
+  }
+
+  void _onInvoiceDateChanged(DateTime d) {
+    setState(() {
+      _invoiceDate = d;
+      if (!_dueDirty) {
+        final days = _customer?.paymentTermsDays ?? 30;
+        _dueDate = d.add(Duration(days: days));
+      }
+    });
+  }
+
+  double get _subtotal => _lines.fold(0.0, (s, l) => s + l.amount);
+  double get _tax => _lines.fold(0.0, (s, l) => s + l.taxAmount);
+  double get _total => _subtotal + _tax;
+
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _save() async {
+    if (_customer == null) {
+      showRunqSnack(context, 'Pick a customer first.', kind: SnackKind.error);
+      return;
+    }
+    final validLines = _lines.where((l) => l.amount > 0 && l.description.trim().isNotEmpty).toList();
+    if (validLines.isEmpty) {
+      showRunqSnack(context, 'Add at least one line item with qty and price.',
+          kind: SnackKind.error);
+      return;
+    }
+
+    final body = <String, dynamic>{
+      'customerId': _customer!.id,
+      'invoiceDate': _isoDate(_invoiceDate),
+      'dueDate': _isoDate(_dueDate),
+      'subtotal': _subtotal,
+      'taxAmount': _tax,
+      'totalAmount': _total,
+      'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      'poNumber': _poCtrl.text.trim().isEmpty ? null : _poCtrl.text.trim(),
+      'reverseCharge': false,
+      'items': validLines.map((l) => <String, dynamic>{
+            'itemId': l.itemId,
+            'description': l.description.trim(),
+            'uom': l.uom.trim().isEmpty ? null : l.uom.trim(),
+            'quantity': double.tryParse(l.quantity) ?? 0,
+            'unitPrice': double.tryParse(l.unitPrice) ?? 0,
+            'amount': l.amount,
+            'taxCategory': l.taxRate > 0 ? 'taxable' : 'exempt',
+            'taxRate': l.taxRate,
+          }).toList(),
+    };
+
+    setState(() => _saving = true);
+    try {
+      final id = await invoicesRepo.create(body);
+      if (!mounted) return;
+      ref.invalidate(invoiceSummaryProvider);
+      ref.invalidate(invoicesProvider(const InvoiceFilter()));
+      showRunqSnack(context, 'Invoice created.');
+      if (id.isNotEmpty) {
+        context.pushReplacement('/invoices/$id');
+      } else {
+        context.pop();
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (!mounted) return;
+      showRunqSnack(context, 'Could not create invoice.', kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Scaffold(
+      backgroundColor: t.bgWarmer,
+      appBar: AppBar(
+        title: const Text('New invoice'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+          children: [
+            _SectionCard(
+              title: 'Customer & dates',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CustomerPickerRow(
+                    customer: _customer,
+                    onPick: () async {
+                      final picked = await Navigator.of(context).push<CustomerSummary>(
+                        MaterialPageRoute(builder: (_) => const _CustomerPickerScreen()),
+                      );
+                      if (picked != null) _onCustomerChanged(picked);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DateField(
+                          label: 'Invoice date',
+                          value: _invoiceDate,
+                          onChanged: _onInvoiceDateChanged,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DateField(
+                          label: 'Due date',
+                          value: _dueDate,
+                          onChanged: (d) => setState(() {
+                            _dueDate = d;
+                            _dueDirty = true;
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _TextField(
+                    controller: _poCtrl,
+                    label: 'PO number (optional)',
+                    hint: "Buyer's PO/order reference",
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Line items',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < _lines.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    _LineCard(
+                      line: _lines[i],
+                      canRemove: _lines.length > 1,
+                      onRemove: () => setState(() => _lines.removeAt(i)),
+                      onChanged: () => setState(() {}),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _lines.add(_LineItem())),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Add row'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Summary',
+              child: Column(
+                children: [
+                  _SummaryRow(label: 'Subtotal', value: formatINR(_subtotal)),
+                  const SizedBox(height: 6),
+                  _SummaryRow(label: 'GST (auto)', value: formatINR(_tax)),
+                  const Divider(height: 18),
+                  _SummaryRow(label: 'Total', value: formatINR(_total), bold: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Notes',
+              child: TextField(
+                controller: _notesCtrl,
+                minLines: 2,
+                maxLines: 4,
+                decoration: _inputDecoration(t, hint: 'Optional notes for this invoice'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: RunqColors.indigo,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: _saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save invoice'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+InputDecoration _inputDecoration(RunqTokens t, {String? hint, String? prefix, String? suffix}) {
+  return InputDecoration(
+    isDense: true,
+    filled: true,
+    fillColor: t.inputFill,
+    hintText: hint,
+    prefixText: prefix,
+    suffixText: suffix,
+    hintStyle: RunqText.body.copyWith(color: t.muted),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: t.hairline, width: 0.5),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: t.hairline, width: 0.5),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: RunqColors.indigo, width: 1),
+    ),
+  );
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _SectionCard({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerPickerRow extends StatelessWidget {
+  final CustomerSummary? customer;
+  final VoidCallback onPick;
+  const _CustomerPickerRow({required this.customer, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final has = customer != null;
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: t.inputFill,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: has ? RunqColors.indigo : t.hairline, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(has ? Icons.business_rounded : Icons.search_rounded,
+                size: 18, color: has ? RunqColors.indigo : t.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    has ? customer!.name : 'Pick customer',
+                    style: RunqText.body.copyWith(
+                      color: has ? t.ink : t.muted,
+                      fontWeight: has ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  if (has && customer!.gstin != null && customer!.gstin!.isNotEmpty)
+                    Text(customer!.gstin!,
+                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  final String label;
+  final DateTime value;
+  final ValueChanged<DateTime> onChanged;
+  const _DateField({required this.label, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final text = '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: value,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) onChanged(picked);
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: t.inputFill,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: t.hairline, width: 0.5),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_today_rounded, size: 14, color: t.muted),
+                const SizedBox(width: 8),
+                Text(text, style: RunqText.body.copyWith(color: t.ink)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String? hint;
+  const _TextField({required this.controller, required this.label, this.hint});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          decoration: _inputDecoration(t, hint: hint),
+        ),
+      ],
+    );
+  }
+}
+
+class _NumField extends StatelessWidget {
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String? hint;
+  const _NumField({required this.label, required this.value, required this.onChanged, this.hint});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        TextFormField(
+          initialValue: value,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+          onChanged: onChanged,
+          decoration: _inputDecoration(t, hint: hint),
+        ),
+      ],
+    );
+  }
+}
+
+class _LineCard extends StatelessWidget {
+  final _LineItem line;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final VoidCallback onChanged;
+  const _LineCard({
+    required this.line,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ItemPickerRow(
+            label: line.description.isEmpty ? null : line.description,
+            sku: line.itemId == null ? null : line.uom,
+            onPick: () async {
+              final picked = await Navigator.of(context).push<ItemSummary>(
+                MaterialPageRoute(
+                  builder: (_) => const _ItemPickerScreen(),
+                ),
+              );
+              if (picked != null) {
+                line.itemId = picked.id;
+                line.description = picked.name;
+                line.uom = picked.unit ?? line.uom;
+                if (picked.defaultSellingPrice != null) {
+                  line.unitPrice = picked.defaultSellingPrice!.toString();
+                }
+                if (picked.gstRate != null) line.taxRate = picked.gstRate!;
+                onChanged();
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _NumField(
+                  label: 'Qty',
+                  value: line.quantity,
+                  hint: '0',
+                  onChanged: (v) {
+                    line.quantity = v;
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _NumField(
+                  label: 'Unit price',
+                  value: line.unitPrice,
+                  hint: '0.00',
+                  onChanged: (v) {
+                    line.unitPrice = v;
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 72,
+                child: _UomDisplay(uom: line.uom),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _GstSelector(
+                  rate: line.taxRate,
+                  onChanged: (r) {
+                    line.taxRate = r;
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Amount', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Text(formatINR(line.amount + line.taxAmount),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (canRemove) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                label: const Text('Remove'),
+                style: TextButton.styleFrom(foregroundColor: RunqColors.redInk),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UomDisplay extends StatelessWidget {
+  final String uom;
+  const _UomDisplay({required this.uom});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('UOM', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        Container(
+          height: 44,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: t.inputFill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: t.hairline, width: 0.5),
+          ),
+          child: Text(uom.isEmpty ? '—' : uom,
+              style: RunqText.body.copyWith(color: uom.isEmpty ? t.muted : t.ink)),
+        ),
+      ],
+    );
+  }
+}
+
+class _GstSelector extends StatelessWidget {
+  final double rate;
+  final ValueChanged<double> onChanged;
+  const _GstSelector({required this.rate, required this.onChanged});
+
+  static const _options = [0.0, 5.0, 12.0, 18.0, 28.0];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('GST', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: t.inputFill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: t.hairline, width: 0.5),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<double>(
+              value: _options.contains(rate) ? rate : 0,
+              isExpanded: true,
+              icon: Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
+              style: RunqText.body.copyWith(color: t.ink),
+              items: _options
+                  .map((r) => DropdownMenuItem<double>(
+                        value: r,
+                        child: Text('${r.toStringAsFixed(0)}%'),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ItemPickerRow extends StatelessWidget {
+  final String? label;
+  final String? sku;
+  final VoidCallback onPick;
+  const _ItemPickerRow({required this.label, required this.sku, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final has = label != null;
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: has ? RunqColors.indigo : t.hairline, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(has ? Icons.inventory_2_rounded : Icons.search_rounded,
+                size: 18, color: has ? RunqColors.indigo : t.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label ?? 'Pick item',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: RunqText.body.copyWith(
+                  color: has ? t.ink : t.muted,
+                  fontWeight: has ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomerPickerScreen extends StatefulWidget {
+  const _CustomerPickerScreen();
+
+  @override
+  State<_CustomerPickerScreen> createState() => _CustomerPickerScreenState();
+}
+
+class _CustomerPickerScreenState extends State<_CustomerPickerScreen> {
+  final _ctrl = TextEditingController();
+  Timer? _debounce;
+  List<CustomerSummary> _results = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _runQuery('');
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () => _runQuery(q));
+  }
+
+  Future<void> _runQuery(String q) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await customersRepo.list(search: q);
+      if (!mounted) return;
+      setState(() {
+        _results = res;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load customers';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Scaffold(
+      backgroundColor: t.bgWarmer,
+      appBar: AppBar(
+        title: const Text('Pick customer'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _ctrl,
+                autofocus: true,
+                onChanged: _onChanged,
+                decoration: _inputDecoration(t, hint: 'Search by name'),
+              ),
+              const SizedBox(height: 12),
+              Expanded(child: _buildList(t)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(RunqTokens t) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Text(_error!, style: RunqText.body.copyWith(color: RunqColors.redInk)),
+      );
+    }
+    if (_results.isEmpty) {
+      return Center(
+        child: Text('No customers found',
+            style: RunqText.body.copyWith(color: t.muted)),
+      );
+    }
+    return ListView.separated(
+      itemCount: _results.length,
+      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairlineSoft),
+      itemBuilder: (_, i) {
+        final c = _results[i];
+        return ListTile(
+          title: Text(c.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          subtitle: c.gstin != null && c.gstin!.isNotEmpty
+              ? Text(c.gstin!, style: RunqText.caption.copyWith(color: t.muted))
+              : null,
+          trailing: Icon(Icons.chevron_right_rounded, color: t.muted2),
+          onTap: () => Navigator.of(context).pop(c),
+        );
+      },
+    );
+  }
+}
+
+class _ItemPickerScreen extends StatefulWidget {
+  const _ItemPickerScreen();
+
+  @override
+  State<_ItemPickerScreen> createState() => _ItemPickerScreenState();
+}
+
+class _ItemPickerScreenState extends State<_ItemPickerScreen> {
+  final _ctrl = TextEditingController();
+  Timer? _debounce;
+  List<ItemSummary> _results = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _runQuery('');
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () => _runQuery(q));
+  }
+
+  Future<void> _runQuery(String q) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await poRepo.searchItems(q);
+      if (!mounted) return;
+      setState(() {
+        _results = res;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load items';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Scaffold(
+      backgroundColor: t.bgWarmer,
+      appBar: AppBar(
+        title: const Text('Pick item'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _ctrl,
+                autofocus: true,
+                onChanged: _onChanged,
+                decoration: _inputDecoration(t, hint: 'Search by name or SKU'),
+              ),
+              const SizedBox(height: 12),
+              Expanded(child: _buildList(t)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(RunqTokens t) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(child: Text(_error!, style: RunqText.body.copyWith(color: RunqColors.redInk)));
+    }
+    if (_results.isEmpty) {
+      return Center(child: Text('No items found', style: RunqText.body.copyWith(color: t.muted)));
+    }
+    return ListView.separated(
+      itemCount: _results.length,
+      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairlineSoft),
+      itemBuilder: (_, i) {
+        final item = _results[i];
+        return ListTile(
+          title: Text(item.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          subtitle: Text(
+            [
+              if (item.sku.isNotEmpty) 'SKU ${item.sku}',
+              if (item.unit != null && item.unit!.isNotEmpty) item.unit!,
+              if (item.defaultSellingPrice != null) formatINR(item.defaultSellingPrice!),
+            ].join(' · '),
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, color: t.muted2),
+          onTap: () => Navigator.of(context).pop(item),
+        );
+      },
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label, value;
+  final bool bold;
+  const _SummaryRow({required this.label, required this.value, this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final style = bold
+        ? RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)
+        : RunqText.body.copyWith(color: t.muted);
+    final valStyle = bold
+        ? RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)
+        : RunqText.tabular(size: 14, w: FontWeight.w500, color: t.ink);
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: style)),
+        Text(value, style: valStyle),
+      ],
+    );
+  }
+}

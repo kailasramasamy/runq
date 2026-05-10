@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/bill_intake.dart';
-import '../services/po_intake.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
+import '../widgets/invoice_create_sheet.dart';
 
 class _Action {
   final IconData icon;
@@ -35,9 +35,9 @@ class FabSheet extends StatelessWidget {
       _Action(
         Icons.send_outlined,
         'Create invoice',
-        'From a customer PO',
+        'From a PO, blank, or upload',
         const Color(0xFF06B6D4),
-        (ctx) => startPoIntake(ctx),
+        (ctx) => showInvoiceCreateSheet(ctx),
       ),
       _Action(
         Icons.payments_outlined,

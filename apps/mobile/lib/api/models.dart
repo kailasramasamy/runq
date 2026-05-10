@@ -1143,6 +1143,112 @@ class PoDraftLine {
       );
 }
 
+class QuickTemplateItem {
+  final String itemId;
+  final String description;
+  final String? hsnSacCode;
+  final double unitPrice;
+  final double? taxRate;
+  final String? taxCategory;
+  final double defaultQuantity;
+  QuickTemplateItem({
+    required this.itemId,
+    required this.description,
+    required this.unitPrice,
+    required this.defaultQuantity,
+    this.hsnSacCode,
+    this.taxRate,
+    this.taxCategory,
+  });
+
+  factory QuickTemplateItem.fromJson(Map<String, dynamic> j) => QuickTemplateItem(
+        itemId: _strOr(j['itemId'], ''),
+        description: _strOr(j['description'], ''),
+        hsnSacCode: _str(j['hsnSacCode']),
+        unitPrice: _num(j['unitPrice']),
+        taxRate: _numOrNull(j['taxRate']),
+        taxCategory: _str(j['taxCategory']),
+        defaultQuantity: _num(j['defaultQuantity']),
+      );
+}
+
+class QuickInvoiceTemplate {
+  final String id;
+  final String customerId;
+  final String? customerName;
+  final String name;
+  final int paymentTermsDays;
+  final String? notes;
+  final List<QuickTemplateItem> items;
+  final bool isActive;
+  QuickInvoiceTemplate({
+    required this.id,
+    required this.customerId,
+    required this.name,
+    required this.paymentTermsDays,
+    required this.items,
+    this.customerName,
+    this.notes,
+    this.isActive = true,
+  });
+
+  factory QuickInvoiceTemplate.fromJson(Map<String, dynamic> j) => QuickInvoiceTemplate(
+        id: _strOr(j['id'], ''),
+        customerId: _strOr(j['customerId'], ''),
+        customerName: _str(j['customerName']),
+        name: _strOr(j['name'], ''),
+        paymentTermsDays: (j['paymentTermsDays'] is num)
+            ? (j['paymentTermsDays'] as num).toInt()
+            : 30,
+        notes: _str(j['notes']),
+        isActive: j['isActive'] is bool ? j['isActive'] as bool : true,
+        items: (j['items'] is List)
+            ? (j['items'] as List)
+                .whereType<Map>()
+                .map((m) => QuickTemplateItem.fromJson(m.cast<String, dynamic>()))
+                .toList()
+            : const [],
+      );
+}
+
+class QuickInvoiceResult {
+  final String invoiceId;
+  final String invoiceNumber;
+  final String? shareUrl;
+  QuickInvoiceResult({required this.invoiceId, required this.invoiceNumber, this.shareUrl});
+
+  factory QuickInvoiceResult.fromJson(Map<String, dynamic> j) => QuickInvoiceResult(
+        invoiceId: _strOr(j['invoiceId'], ''),
+        invoiceNumber: _strOr(j['invoiceNumber'], ''),
+        shareUrl: _str(j['shareUrl']),
+      );
+}
+
+class CustomerSummary {
+  final String id;
+  final String name;
+  final String? gstin;
+  final int paymentTermsDays;
+  final bool isActive;
+  CustomerSummary({
+    required this.id,
+    required this.name,
+    this.gstin,
+    this.paymentTermsDays = 30,
+    this.isActive = true,
+  });
+
+  factory CustomerSummary.fromJson(Map<String, dynamic> j) => CustomerSummary(
+        id: _strOr(j['id'], ''),
+        name: _strOr(j['name'], ''),
+        gstin: _str(j['gstin']),
+        paymentTermsDays: (j['paymentTermsDays'] is num)
+            ? (j['paymentTermsDays'] as num).toInt()
+            : 30,
+        isActive: j['isActive'] is bool ? j['isActive'] as bool : true,
+      );
+}
+
 class ItemSummary {
   final String id;
   final String name;

@@ -6,6 +6,9 @@ import 'shell/root_shell.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/invoices_screen.dart';
 import 'screens/invoice_detail_screen.dart';
+import 'screens/new_invoice_screen.dart';
+import 'screens/quick_invoice_generate_screen.dart';
+import 'screens/quick_invoice_templates_screen.dart';
 import 'dart:io';
 import 'screens/bills_screen.dart';
 import 'screens/bill_extract_screen.dart';
@@ -160,6 +163,25 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/money/reports',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const ReportsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/invoices/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const NewInvoiceScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/quick-invoice/templates',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const QuickInvoiceTemplatesScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/quick-invoice/templates/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            QuickInvoiceGenerateScreen(templateId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/invoices/:id',
