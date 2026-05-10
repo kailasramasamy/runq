@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { ArrowLeft, Calculator, Copy } from 'lucide-react';
 import {
   PageHeader,
@@ -20,6 +20,7 @@ export function ItemEditPage({
   duplicateOf?: string;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const { toast } = useToast();
   const remove = useDeleteItem();
   const { data, isLoading } = useItem(itemId);
@@ -32,7 +33,13 @@ export function ItemEditPage({
 
   const isCreate = !itemId;
   const isDuplicate = isCreate && !!duplicateOf;
-  const goBack = () => navigate({ to: '/masters/items' });
+  // Prefer browser-history back so the list's URL-backed search/page filter
+  // is preserved when returning from edit. Fall back to the bare list when
+  // edit was opened directly (e.g. from a deep link).
+  const goBack = () => {
+    if (router.history.canGoBack()) router.history.back();
+    else navigate({ to: '/masters/items' });
+  };
 
   async function handleDelete() {
     if (!item) return;

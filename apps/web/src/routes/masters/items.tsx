@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import XLSX from 'xlsx-js-style';
 import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp, ChevronDown, FileSpreadsheet, FileText, Package } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
@@ -57,8 +57,30 @@ function statusVariant(active: boolean) {
 
 export function ItemsPage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Search + page are URL-backed so navigating to edit and back preserves
+  // the filtered list. The previous local-state implementation reset on
+  // every route change.
+  const params = useSearch({ strict: false }) as { q?: string; page?: number };
+  const search = params.q ?? '';
+  const page = params.page ?? 1;
+
+  function updateSearch(patch: { q?: string; page?: number }, resetPage = true) {
+    navigate({
+      to: '/masters/items',
+      search: (prev) => {
+        const next = { ...(prev as typeof params), ...patch };
+        if (resetPage) next.page = undefined;
+        for (const k of Object.keys(next) as (keyof typeof next)[]) {
+          if (next[k] === '' || next[k] === undefined) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+  const setSearch = (v: string) => updateSearch({ q: v || undefined });
+  const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
+
   const { data, isLoading } = useItems({
     page,
     limit: LIMIT,
@@ -225,6 +247,7 @@ export function ItemsPage() {
         <TableHeader>
           <tr>
             <Th>Name</Th>
+            <Th>UOM</Th>
             <Th>EAN</Th>
             <Th>HSN / SAC</Th>
             <Th align="right">Selling price</Th>
@@ -259,7 +282,6 @@ export function ItemsPage() {
               <TableCell>
                 <div className="flex items-center gap-2">
                   <span className="font-medium" style={{ color: 'var(--text-1)' }}>{item.name}</span>
-                  {item.unit && <Badge variant="outline">{item.unit}</Badge>}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10.5px]" style={{ color: 'var(--text-3)' }}>
                   {item.sku && <span className="num">{item.sku}</span>}
@@ -270,6 +292,7 @@ export function ItemsPage() {
                   })}
                 </div>
               </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>{item.unit ?? '—'}</TableCell>
               <TableCell numeric style={{ color: 'var(--text-2)' }}>{item.ean ?? '—'}</TableCell>
               <TableCell numeric style={{ color: 'var(--text-2)' }}>{item.hsnSacCode ?? '—'}</TableCell>
               <TableCell align="right" numeric>

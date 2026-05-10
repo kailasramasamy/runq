@@ -1,15 +1,23 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { Pencil, Power, ArrowLeft, Download } from 'lucide-react';
+import { Pencil, Power, ArrowLeft, Download, Check, X, Trash2, Calculator, Plus } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
-import { usePriceList, useTogglePriceList, type PriceListItemRow } from '@/hooks/queries/use-price-lists';
+import {
+  usePriceList,
+  useTogglePriceList,
+  useUpdatePriceList,
+  type PriceListItemRow,
+  type PriceListItemInput,
+} from '@/hooks/queries/use-price-lists';
+import { useItems, type Item } from '@/hooks/queries/use-items';
 import { formatINR } from '@/lib/utils';
 import { calculatePricing } from '@/lib/item-pricing';
 import {
   PageHeader, Badge, Button, Card, CardHeader, CardContent,
-  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
-  CardSkeleton, useToast,
+  Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th, Input,
+  CardSkeleton, useToast, Modal, Combobox,
 } from '@/components/ui';
+import { PriceCalculatorDialog } from '../price-lists';
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -95,6 +103,46 @@ const profitColor = (profit: number) =>
     ? 'text-zinc-500'
     : 'text-emerald-600 dark:text-emerald-400';
 
+/** Convert a stored item row back into the shape the update endpoint
+ *  expects, so we can rebuild the full items array on a per-row save. */
+function toInputShape(item: PriceListItemRow): PriceListItemInput {
+  return {
+    itemId: item.itemId,
+    rate: item.rate ?? null,
+    marginPercent: item.marginPercent ?? null,
+    mrp: item.mrp ?? null,
+    discountPercent: item.discountPercent ?? null,
+    minQuantity: item.minQuantity ?? 0,
+  };
+}
+
+/** Editable draft state for a single row. All numbers held as strings so
+ *  blanks (= "fall back to item-master") are distinguishable from zero. */
+interface RowDraft {
+  rate: string;
+  mrp: string;
+  marginPercent: string;
+  discountPercent: string;
+  minQuantity: string;
+}
+
+function draftFromRow(item: PriceListItemRow): RowDraft {
+  return {
+    rate: item.rate != null ? String(item.rate) : '',
+    mrp: item.mrp != null ? String(item.mrp) : '',
+    marginPercent: item.marginPercent != null ? String(item.marginPercent) : '',
+    discountPercent: item.discountPercent != null ? String(item.discountPercent) : '',
+    minQuantity: item.minQuantity != null ? String(item.minQuantity) : '',
+  };
+}
+
+function num(v: string): number | null {
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   const navigate = useNavigate();
   const router = useRouter();
@@ -104,10 +152,128 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   }
   const { data, isLoading, isError } = usePriceList(priceListId);
   const toggle = useTogglePriceList();
+  const update = useUpdatePriceList();
   const { toast } = useToast();
   const [toggling, setToggling] = useState(false);
+  /** Map of item-row id → draft. Multiple rows can be edited in parallel;
+   *  each one saves independently. */
+  const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
+  /** Row id whose calculator dialog is open. */
+  const [calcRowId, setCalcRowId] = useState<string | null>(null);
+  /** Add-item modal state. */
+  const [addOpen, setAddOpen] = useState(false);
+  const [addItemId, setAddItemId] = useState<string>('');
+  const { data: itemsData } = useItems({ limit: 500 });
+
+  /** Build the minimal Item shape the calculator needs from the price-list
+   *  row (which already carries every master field via the join). Avoids a
+   *  second fetch and stays correct even for >500-item tenants. */
+  function rowToItemMaster(row: PriceListItemRow): Item {
+    return {
+      id: row.itemId,
+      name: row.itemName ?? '—',
+      sku: row.itemSku ?? null,
+      type: 'product',
+      hsnSacCode: row.itemHsnSacCode ?? null,
+      unit: row.itemUnit ?? null,
+      defaultSellingPrice: null,
+      defaultPurchasePrice: null,
+      gstRate: row.itemGstRate ?? null,
+      mrp: row.itemMrp ?? null,
+      costPrice: row.itemCostPrice ?? null,
+      category: row.itemCategory ?? null,
+      subcategory: row.itemSubcategory ?? null,
+      description: null,
+      ean: null,
+      margin: row.itemMargin ?? null,
+      basicPrice: row.itemBasicPrice ?? null,
+      gstValue: null,
+      attributes: null,
+      cogmBreakdown: null,
+      isActive: true,
+      createdAt: '',
+      updatedAt: '',
+    };
+  }
 
   const pl = data?.data ?? null;
+  const items = pl?.items ?? [];
+
+  function startEdit(row: PriceListItemRow) {
+    setDrafts((d) => ({ ...d, [row.id]: draftFromRow(row) }));
+  }
+  function cancelEdit(rowId: string) {
+    setDrafts((d) => {
+      const next = { ...d };
+      delete next[rowId];
+      return next;
+    });
+  }
+  function setDraftField(rowId: string, field: keyof RowDraft, value: string) {
+    setDrafts((d) => ({ ...d, [rowId]: { ...d[rowId]!, [field]: value } }));
+  }
+
+  /** Save a single row. The update endpoint replaces the full items array,
+   *  so we send every row with this one's draft applied. */
+  async function saveRow(row: PriceListItemRow) {
+    const draft = drafts[row.id];
+    if (!draft) return;
+    const nextItems: PriceListItemInput[] = items.map((it) => {
+      if (it.id !== row.id) return toInputShape(it);
+      return {
+        ...toInputShape(it),
+        rate: num(draft.rate),
+        mrp: num(draft.mrp),
+        marginPercent: num(draft.marginPercent),
+        discountPercent: num(draft.discountPercent),
+        minQuantity: num(draft.minQuantity) ?? 0,
+      };
+    });
+    try {
+      await update.mutateAsync({ id: priceListId, data: { items: nextItems } });
+      toast('Price updated', 'success');
+      cancelEdit(row.id);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Update failed', 'error');
+    }
+  }
+
+  /** Append a new item to the price list with no overrides — the resolver
+   *  will fall back to items-master values until the user edits the row. */
+  async function addItem() {
+    if (!addItemId) return;
+    if (items.some((it) => it.itemId === addItemId)) {
+      toast('Item is already in this price list', 'error');
+      return;
+    }
+    const nextItems: PriceListItemInput[] = [
+      ...items.map(toInputShape),
+      { itemId: addItemId, rate: null, marginPercent: null, mrp: null, discountPercent: null, minQuantity: 0 },
+    ];
+    try {
+      await update.mutateAsync({ id: priceListId, data: { items: nextItems } });
+      toast('Item added', 'success');
+      setAddOpen(false);
+      setAddItemId('');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Add failed', 'error');
+    }
+  }
+
+  /** Remove a single row from the price list. */
+  async function deleteRow(row: PriceListItemRow) {
+    if (!confirm(`Remove ${row.itemName ?? 'this item'} from this price list?`)) return;
+    const nextItems: PriceListItemInput[] = items
+      .filter((it) => it.id !== row.id)
+      .map(toInputShape);
+    try {
+      await update.mutateAsync({ id: priceListId, data: { items: nextItems } });
+      toast('Item removed', 'success');
+      cancelEdit(row.id);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Remove failed', 'error');
+    }
+  }
 
   async function handleToggle() {
     if (!pl) return;
@@ -157,8 +323,6 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       </div>
     );
   }
-
-  const items = pl.items ?? [];
 
   function exportXlsx() {
     if (!pl) return;
@@ -247,13 +411,6 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
             <Button variant="outline" size="sm" onClick={exportXlsx}>
               <Download size={14} /> Export XLSX
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: '/masters/price-lists/$priceListId/edit', params: { priceListId } })}
-            >
-              <Pencil size={14} /> Edit
-            </Button>
             <Button variant="outline" size="sm" onClick={handleToggle} disabled={toggling}>
               <Power size={14} /> {pl.isActive ? 'Deactivate' : 'Activate'}
             </Button>
@@ -284,7 +441,14 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
 
         {/* Line items with full pricing breakup */}
         <Card>
-          <CardHeader title={`Pricing Breakup (${items.length} items)`} />
+          <CardHeader
+            title={`Pricing Breakup (${items.length} items)`}
+            action={
+              <Button size="sm" onClick={() => setAddOpen(true)} disabled={update.isPending}>
+                <Plus size={13} /> Add item
+              </Button>
+            }
+          />
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
@@ -294,6 +458,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                     <Th>SKU</Th>
                     <Th>Unit</Th>
                     <Th align="right">COGM</Th>
+                    <Th align="right">Rate</Th>
                     <Th align="right">MRP</Th>
                     <Th align="right">Margin %</Th>
                     <Th align="right">Basic Price</Th>
@@ -302,16 +467,34 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                     <Th align="right">Disc %</Th>
                     <Th align="right">Profit</Th>
                     <Th align="right">Min Qty</Th>
+                    <Th align="right" className="w-36" />
                   </tr>
                 </TableHeader>
                 <TableBody>
                   {items.length === 0 ? (
-                    <TableEmpty colSpan={12} message="No items in this price list." />
+                    <TableEmpty colSpan={14} message="No items in this price list." />
                   ) : (
                     items.map((item) => {
-                      const breakup = computeBreakup(item);
+                      const editing = drafts[item.id];
+                      // While editing, compute breakup from a draft-merged view
+                      // so Basic Price / GST / Landing / Profit update live as
+                      // the user changes Rate / MRP / Margin / Discount —
+                      // including via the Price Calculator. Once saved, the
+                      // server snapshot drives display again.
+                      const itemForBreakup = editing
+                        ? {
+                            ...item,
+                            rate: num(editing.rate),
+                            mrp: num(editing.mrp),
+                            marginPercent: num(editing.marginPercent),
+                            discountPercent: num(editing.discountPercent),
+                            minQuantity: num(editing.minQuantity) ?? 0,
+                          }
+                        : item;
+                      const breakup = computeBreakup(itemForBreakup);
                       const isOverride = (field: 'mrp' | 'marginPercent') =>
                         item[field] != null;
+                      const saving = update.isPending;
 
                       return (
                         <TableRow key={item.id}>
@@ -328,7 +511,29 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                             {breakup?.costPrice != null ? formatINR(breakup.costPrice) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric>
-                            {breakup?.effectiveMrp != null ? (
+                            {editing ? (
+                              <Input
+                                type="number"
+                                value={editing.rate}
+                                onChange={(e) => setDraftField(item.id, 'rate', e.target.value)}
+                                placeholder={item.itemBasicPrice != null ? String(item.itemBasicPrice) : '0.00'}
+                                title="Basic price per unit (excludes GST). Leave blank to derive from MRP × (1 - margin) / (1 + gst)."
+                                className="w-24 text-right"
+                              />
+                            ) : item.rate != null ? (
+                              formatINR(item.rate)
+                            ) : '—'}
+                          </TableCell>
+                          <TableCell align="right" numeric>
+                            {editing ? (
+                              <Input
+                                type="number"
+                                value={editing.mrp}
+                                onChange={(e) => setDraftField(item.id, 'mrp', e.target.value)}
+                                placeholder={item.itemMrp != null ? String(item.itemMrp) : '—'}
+                                className="w-24 text-right"
+                              />
+                            ) : breakup?.effectiveMrp != null ? (
                               <span title={isOverride('mrp') ? 'Overridden by price list' : 'From item master'}>
                                 {formatINR(breakup.effectiveMrp)}
                                 {isOverride('mrp') && (
@@ -338,7 +543,37 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                             ) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric>
-                            {breakup?.effectiveMargin != null ? (
+                            {editing ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  value={editing.marginPercent}
+                                  onChange={(e) => setDraftField(item.id, 'marginPercent', e.target.value)}
+                                  placeholder={item.itemMargin != null ? String(item.itemMargin) : '—'}
+                                  className="w-20 text-right"
+                                />
+                                {(() => {
+                                  // Live preview: when rate is blank but we have MRP + margin,
+                                  // show the basic price the resolver will compute at invoice
+                                  // time. Mirrors the bulk-edit form's "→ rate ≈" hint.
+                                  if (num(editing.rate) != null) return null;
+                                  const effMrp = num(editing.mrp) ?? item.itemMrp ?? null;
+                                  const effMargin = num(editing.marginPercent) ?? item.itemMargin ?? null;
+                                  if (effMrp == null || effMargin == null) return null;
+                                  const gst = item.itemGstRate ?? 0;
+                                  const landing = effMrp * (1 - effMargin / 100);
+                                  const basic = landing / (1 + gst / 100);
+                                  return (
+                                    <p
+                                      className="mt-1 text-right text-[10px] text-emerald-600 dark:text-emerald-400"
+                                      title="Basic price the resolver will compute from this margin and MRP at invoice time"
+                                    >
+                                      → rate ≈ {formatINR(Math.round(basic * 100) / 100)}
+                                    </p>
+                                  );
+                                })()}
+                              </>
+                            ) : breakup?.effectiveMargin != null ? (
                               <span title={isOverride('marginPercent') ? 'Overridden by price list' : 'From item master'}>
                                 {breakup.effectiveMargin}%
                                 {isOverride('marginPercent') && (
@@ -363,7 +598,15 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                             {breakup ? formatINR(breakup.landingPrice) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric className="text-zinc-500">
-                            {item.discountPercent != null ? `${item.discountPercent}%` : '—'}
+                            {editing ? (
+                              <Input
+                                type="number"
+                                value={editing.discountPercent}
+                                onChange={(e) => setDraftField(item.id, 'discountPercent', e.target.value)}
+                                placeholder="0"
+                                className="w-20 text-right"
+                              />
+                            ) : item.discountPercent != null ? `${item.discountPercent}%` : '—'}
                           </TableCell>
                           <TableCell align="right" numeric>
                             {breakup ? (
@@ -373,7 +616,69 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                             ) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric className="text-zinc-500">
-                            {item.minQuantity ?? 0}
+                            {editing ? (
+                              <Input
+                                type="number"
+                                value={editing.minQuantity}
+                                onChange={(e) => setDraftField(item.id, 'minQuantity', e.target.value)}
+                                placeholder="0"
+                                className="w-20 text-right"
+                              />
+                            ) : item.minQuantity ?? 0}
+                          </TableCell>
+                          <TableCell align="right">
+                            <div className="flex items-center justify-end gap-1">
+                              {editing ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => saveRow(item)}
+                                    loading={saving}
+                                    title="Save"
+                                  >
+                                    <Check size={13} /> Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setCalcRowId(item.id)}
+                                    disabled={saving}
+                                    title="Open price calculator"
+                                    className="text-indigo-500 hover:text-indigo-700"
+                                  >
+                                    <Calculator size={13} />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => cancelEdit(item.id)}
+                                    disabled={saving}
+                                    title="Cancel"
+                                  >
+                                    <X size={13} />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => deleteRow(item)}
+                                    disabled={saving}
+                                    title="Remove from list"
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 size={13} />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => startEdit(item)}
+                                  title="Edit"
+                                >
+                                  <Pencil size={13} />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -390,6 +695,65 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add item modal — picks an item not already in this price list and
+          appends a row with all overrides blank (resolver falls back to the
+          item master). The user can immediately Edit the new row to override. */}
+      <Modal
+        open={addOpen}
+        onClose={() => { setAddOpen(false); setAddItemId(''); }}
+        title="Add item to price list"
+      >
+        <div className="space-y-4">
+          <Combobox
+            label="Item"
+            placeholder="Search items…"
+            value={addItemId}
+            onChange={setAddItemId}
+            options={(itemsData?.data ?? [])
+              .filter((i) => i.isActive)
+              .filter((i) => !items.some((row) => row.itemId === i.id))
+              .map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` · ${i.sku}` : ''}` }))}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setAddOpen(false); setAddItemId(''); }}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={addItem} disabled={!addItemId} loading={update.isPending}>
+              <Plus size={13} /> Add
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Per-row price calculator. Pre-fills from the active draft so changes
+          flow into the same edit session. */}
+      {calcRowId && (() => {
+        const row = items.find((i) => i.id === calcRowId);
+        if (!row) return null;
+        const draft = drafts[calcRowId];
+        return (
+          <PriceCalculatorDialog
+            open
+            onClose={() => setCalcRowId(null)}
+            item={rowToItemMaster(row)}
+            currentMargin={draft ? num(draft.marginPercent) : null}
+            currentMrp={draft ? num(draft.mrp) : null}
+            onApply={(margin, mrp) => {
+              setDrafts((d) => ({
+                ...d,
+                [calcRowId]: {
+                  ...(d[calcRowId] ?? {
+                    rate: '', mrp: '', marginPercent: '', discountPercent: '', minQuantity: '',
+                  }),
+                  marginPercent: margin != null ? String(margin) : '',
+                  mrp: mrp != null ? String(mrp) : '',
+                },
+              }));
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

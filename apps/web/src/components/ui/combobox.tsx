@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +64,25 @@ export function Combobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  // Dropdown is rendered through a portal so it escapes any ancestor with
+  // overflow:hidden / overflow:auto (e.g. modals). We anchor it to the input
+  // by tracking the input's bounding rect, and cap its height to the
+  // remaining viewport so it doesn't run off-screen.
+  const [dropdownPos, setDropdownPos] = useState<
+    { top: number; left: number; width: number; maxHeight: number } | null
+  >(null);
+
+  const updateDropdownPos = useCallback(() => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    const margin = 12;
+    // Cap at ~10 rows worth of height (≈ 36px each + padding) so a long
+    // catalogue scrolls within the dropdown instead of stretching down the
+    // viewport. Then clamp to whatever space is actually available.
+    const TEN_ROWS = 360;
+    const maxHeight = Math.max(120, Math.min(TEN_ROWS, window.innerHeight - r.bottom - margin));
+    setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width, maxHeight });
+  }, []);
 
   const filtered = options.filter(
     (o) => o.value !== '' && o.label.toLowerCase().includes(query.toLowerCase()),
@@ -76,13 +96,31 @@ export function Combobox({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      const insideTrigger = containerRef.current?.contains(t) ?? false;
+      // Listbox lives in a portal — must check it separately.
+      const insideList = listRef.current?.contains(t) ?? false;
+      if (!insideTrigger && !insideList) {
         closeDropdown();
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [closeDropdown]);
+
+  // Keep the portalled dropdown anchored to the input on open + when the
+  // page scrolls or the window resizes.
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateDropdownPos();
+    const onMove = () => updateDropdownPos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, updateDropdownPos]);
 
   useEffect(() => {
     if (open && activeIndex >= 0 && listRef.current) {
@@ -183,11 +221,22 @@ export function Combobox({
             <X size={14} />
           </button>
         )}
-        {open && (
+        {open && dropdownPos && createPortal(
           <ul
             ref={listRef}
             role="listbox"
-            className="absolute z-50 mt-1 max-h-60 min-w-[280px] w-full overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            // Portalled into <body> so the listbox escapes any ancestor's
+            // overflow clipping (modals, scrollable cards). Anchored to the
+            // input's bounding rect via fixed positioning.
+            style={{
+              position: 'fixed',
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              maxHeight: dropdownPos.maxHeight,
+              zIndex: 200,
+            }}
+            className="min-w-[240px] overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
           >
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500">
@@ -201,19 +250,23 @@ export function Combobox({
                   aria-selected={opt.value === value}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => selectOption(opt)}
+                  // Portalled into <body> — must set explicit text color
+                  // because the dropdown no longer inherits from a styled
+                  // ancestor.
                   className={cn(
-                    'cursor-pointer px-3 py-2 text-sm',
+                    'cursor-pointer px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100',
                     idx === activeIndex
-                      ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                      : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/20',
-                    opt.value === value && 'bg-indigo-50 font-medium dark:bg-indigo-900/20',
+                      ? 'bg-indigo-50 dark:bg-indigo-900/40'
+                      : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/40',
+                    opt.value === value && 'bg-indigo-50 font-medium dark:bg-indigo-900/40',
                   )}
                 >
                   {opt.label}
                 </li>
               ))
             )}
-          </ul>
+          </ul>,
+          document.body,
         )}
       </div>
     </FieldWrapper>

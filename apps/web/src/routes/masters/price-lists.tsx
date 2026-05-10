@@ -51,7 +51,7 @@ function CalcStat({ label, value, className }: { label: string; value: string; c
  * Only meaningful for products. For services, the resolver path doesn't run
  * the MRP chain, so the calculator is hidden in the row.
  */
-function PriceCalculatorDialog({
+export function PriceCalculatorDialog({
   open,
   onClose,
   item,
