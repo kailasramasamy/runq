@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Zap, Copy, Check } from 'lucide-react';
 import { Button, Input, DateInput, useToast } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { useItems } from '@/hooks/queries/use-items';
 import {
   useGenerateFromTemplate,
   type QuickInvoiceTemplate,
@@ -19,6 +20,9 @@ export function GenerateInvoiceModal({ template, onClose }: {
 }) {
   const generate = useGenerateFromTemplate();
   const { toast } = useToast();
+  // Unit (UOM) isn't stored on the template — look it up from the item master.
+  const { data: itemsData } = useItems({ limit: 500 });
+  const unitByItemId = new Map((itemsData?.data ?? []).map((i) => [i.id, i.unit ?? null]));
 
   const today = new Date().toISOString().slice(0, 10);
   const [invoiceDate, setInvoiceDate] = useState(today);
@@ -114,9 +118,9 @@ export function GenerateInvoiceModal({ template, onClose }: {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs text-zinc-400 dark:border-zinc-800">
-              <th className="pb-2 font-medium">Product</th>
-              <th className="pb-2 text-right font-medium">Unit Price</th>
-              <th className="pb-2 text-center font-medium w-24">Quantity</th>
+              <th className="pb-2 pr-4 font-medium">Product</th>
+              <th className="pb-2 pr-4 text-right font-medium">Unit Price</th>
+              <th className="pb-2 pr-4 text-center font-medium w-24">Quantity</th>
               <th className="pb-2 text-right font-medium">Line Total</th>
             </tr>
           </thead>
@@ -128,11 +132,11 @@ export function GenerateInvoiceModal({ template, onClose }: {
                 <tr key={it.itemId} className="border-b border-zinc-100 dark:border-zinc-800/50">
                   <td className="py-2 pr-4 font-medium text-zinc-800 dark:text-zinc-200">
                     {it.description}
-                    {it.hsnSacCode && (
-                      <span className="ml-1 text-xs text-zinc-400">({it.hsnSacCode})</span>
+                    {unitByItemId.get(it.itemId) && (
+                      <span className="ml-1 text-xs text-zinc-400">({unitByItemId.get(it.itemId)})</span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-right text-zinc-500">{formatINR(it.unitPrice)}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-zinc-500">{formatINR(it.unitPrice)}</td>
                   <td className="py-2 pr-4 w-24">
                     <Input
                       type="number"
@@ -141,7 +145,7 @@ export function GenerateInvoiceModal({ template, onClose }: {
                       min={0}
                     />
                   </td>
-                  <td className="py-2 text-right font-medium">{formatINR(lineTotal)}</td>
+                  <td className="py-2 text-right font-mono font-medium">{formatINR(lineTotal)}</td>
                 </tr>
               );
             })}
@@ -152,15 +156,15 @@ export function GenerateInvoiceModal({ template, onClose }: {
       <div className="ml-auto w-56 space-y-1 text-sm">
         <div className="flex justify-between text-zinc-500">
           <span>Subtotal</span>
-          <span>{formatINR(subtotal)}</span>
+          <span className="font-mono">{formatINR(subtotal)}</span>
         </div>
         <div className="flex justify-between text-zinc-500">
           <span>GST</span>
-          <span>{formatINR(totalTax)}</span>
+          <span className="font-mono">{formatINR(totalTax)}</span>
         </div>
         <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700">
           <span>Total</span>
-          <span>{formatINR(total)}</span>
+          <span className="font-mono">{formatINR(total)}</span>
         </div>
       </div>
 

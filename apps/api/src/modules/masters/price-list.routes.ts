@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { createPriceListSchema, updatePriceListSchema, priceListFilterSchema, paginationSchema, uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { NotFoundError } from '../../utils/errors';
 import { PriceListService } from './price-list.service';
 import { PriceResolverService } from './price-resolver.service';
 
@@ -24,8 +25,15 @@ export const priceListRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const params = resolveQuerySchema.parse(request.query);
       const service = new PriceResolverService(request.server.db, request.tenantId);
-      const result = await service.resolve(params);
-      return { data: result };
+      // Lookup endpoint: a missing customer/item is "no resolution available",
+      // not an error. Return null so callers don't have to special-case 404s.
+      try {
+        const result = await service.resolve(params);
+        return { data: result };
+      } catch (err) {
+        if (err instanceof NotFoundError) return { data: null };
+        throw err;
+      }
     },
   );
 

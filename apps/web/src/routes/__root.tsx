@@ -126,7 +126,12 @@ import { QuotesAndOrdersPage } from './ar/quotes-orders/index';
 import { ExpenseClaimsPage } from './hr/expense-claims';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
-import { QuickTemplatesPage } from './ar/quick-templates';
+import {
+  QuickTemplatesPage,
+  QuickTemplateNewPage,
+  QuickTemplateEditPage,
+  QuickTemplateGeneratePage,
+} from './ar/quick-templates';
 import { SetupPage } from './settings/setup';
 import { HelpIndexPage } from './help/index';
 import { GapScanPage } from './audit/gap-scan';
@@ -590,6 +595,30 @@ const quickTemplatesRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/quick-templates',
   component: QuickTemplatesPage,
+});
+
+const quickTemplateNewRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quick-templates/new',
+  component: QuickTemplateNewPage,
+});
+
+const quickTemplateEditRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quick-templates/$templateId/edit',
+  component: () => {
+    const { templateId } = quickTemplateEditRoute.useParams();
+    return <QuickTemplateEditPage templateId={templateId} />;
+  },
+});
+
+const quickTemplateGenerateRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quick-templates/$templateId/generate',
+  component: () => {
+    const { templateId } = quickTemplateGenerateRoute.useParams();
+    return <QuickTemplateGeneratePage templateId={templateId} />;
+  },
 });
 
 // ─── Banking Routes ───────────────────────────────────────────────────────────
@@ -1636,6 +1665,9 @@ export const routeTree = rootRoute.addChildren([
       salesOrdersRoute,
       collectionsRoute,
       quickTemplatesRoute,
+      quickTemplateNewRoute,
+      quickTemplateEditRoute,
+      quickTemplateGenerateRoute,
     ]),
     bankingRoute.addChildren([
       bankingIndexRoute,

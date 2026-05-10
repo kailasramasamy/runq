@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, Trash2, Pencil, Zap } from 'lucide-react';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
-  TableSkeleton, useToast, Modal,
+  TableSkeleton, useToast,
 } from '@/components/ui';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useItems } from '@/hooks/queries/use-items';
 import type { Item } from '@/hooks/queries/use-items';
 import { resolvePrice } from '@/hooks/queries/use-price-lists';
 import {
-  useQuickTemplates, useCreateQuickTemplate, useUpdateQuickTemplate,
+  useQuickTemplates, useQuickTemplate, useCreateQuickTemplate, useUpdateQuickTemplate,
   useDeleteQuickTemplate,
   type QuickInvoiceTemplate, type CreateQuickTemplateInput,
 } from '@/hooks/queries/use-quick-templates';
@@ -158,14 +159,20 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
       name: name.trim(),
       paymentTermsDays: Number(paymentTermsDays) || 30,
       ...(notes.trim() ? { notes: notes.trim() } : {}),
-      items: validRows.map((r) => ({
-        itemId: r.itemId,
-        description: r.description,
-        ...(r.hsnSacCode ? { hsnSacCode: r.hsnSacCode } : {}),
-        unitPrice: Number(r.unitPrice),
-        ...(r.taxRate ? { taxRate: Number(r.taxRate) } : {}),
-        defaultQuantity: r.defaultQuantity !== '' ? Number(r.defaultQuantity) : 0,
-      })),
+      items: validRows.map((r) => {
+        // GSTN accepts only 2/4/6/8-digit HSN. Drop any legacy value that
+        // doesn't match (e.g. saved freeform text from older templates) so the
+        // server schema doesn't reject the whole save.
+        const validHsn = /^(\d{2}|\d{4}|\d{6}|\d{8})$/.test(r.hsnSacCode);
+        return {
+          itemId: r.itemId,
+          description: r.description,
+          ...(validHsn ? { hsnSacCode: r.hsnSacCode } : {}),
+          unitPrice: Number(r.unitPrice),
+          ...(r.taxRate ? { taxRate: Number(r.taxRate) } : {}),
+          defaultQuantity: r.defaultQuantity !== '' ? Number(r.defaultQuantity) : 0,
+        };
+      }),
     };
 
     try {
@@ -233,7 +240,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
         <div className="space-y-2">
           {rows.map((row, idx) => (
             <div key={row.rowId} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[20rem_5rem_7rem_5rem_2rem]">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_5rem_2rem]">
                 <Combobox
                   label="Item"
                   options={itemOptions}
@@ -338,16 +345,13 @@ function TemplateCard({
   );
 }
 
-// ─── Quick Templates Page ─────────────────────────────────────────────────────
+// ─── Quick Templates List Page ────────────────────────────────────────────────
 
 export function QuickTemplatesPage() {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuickTemplates();
   const deleteTemplate = useDeleteQuickTemplate();
   const { toast } = useToast();
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<QuickInvoiceTemplate | null>(null);
-  const [generatingTemplate, setGeneratingTemplate] = useState<QuickInvoiceTemplate | null>(null);
 
   const templates = data?.data ?? [];
 
@@ -368,47 +372,11 @@ export function QuickTemplatesPage() {
         breadcrumbs={[{ label: 'AR' }, { label: 'Quick Templates' }]}
         description="Save recurring invoice structures. Generate invoices by entering quantities."
         actions={
-          <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Button size="sm" onClick={() => navigate({ to: '/ar/quick-templates/new' })}>
             <Plus size={14} /> New Template
           </Button>
         }
       />
-
-      {/* Create modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Quick Invoice Template" size="lg">
-        <TemplateForm onClose={() => setShowCreate(false)} />
-      </Modal>
-
-      {/* Edit modal */}
-      <Modal
-        open={!!editingTemplate}
-        onClose={() => setEditingTemplate(null)}
-        title={editingTemplate ? `Edit — ${editingTemplate.name}` : ''}
-        size="lg"
-      >
-        {editingTemplate && (
-          <TemplateForm
-            key={editingTemplate.id}
-            template={editingTemplate}
-            onClose={() => setEditingTemplate(null)}
-          />
-        )}
-      </Modal>
-
-      {/* Generate modal */}
-      <Modal
-        open={!!generatingTemplate}
-        onClose={() => setGeneratingTemplate(null)}
-        title={generatingTemplate?.name ?? ''}
-      >
-        {generatingTemplate && (
-          <GenerateInvoiceModal
-            key={generatingTemplate.id}
-            template={generatingTemplate}
-            onClose={() => setGeneratingTemplate(null)}
-          />
-        )}
-      </Modal>
 
       {/* Mobile */}
       <div className="flex flex-col gap-2 md:hidden">
@@ -422,8 +390,8 @@ export function QuickTemplatesPage() {
                 <TemplateCard
                   key={tpl.id}
                   tpl={tpl}
-                  onGenerate={() => setGeneratingTemplate(tpl)}
-                  onEdit={() => setEditingTemplate(tpl)}
+                  onGenerate={() => navigate({ to: '/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
+                  onEdit={() => navigate({ to: '/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
                   onDelete={() => handleDelete(tpl.id, tpl.name)}
                   deleteDisabled={deleteTemplate.isPending}
                 />
@@ -470,14 +438,14 @@ export function QuickTemplatesPage() {
                         <div className="flex gap-1 justify-end">
                           <Button
                             size="sm"
-                            onClick={() => setGeneratingTemplate(tpl)}
+                            onClick={() => navigate({ to: '/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
                           >
                             <Zap size={14} /> Generate
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setEditingTemplate(tpl)}
+                            onClick={() => navigate({ to: '/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
                           >
                             <Pencil size={14} /> Edit
                           </Button>
@@ -499,6 +467,92 @@ export function QuickTemplatesPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ─── New Template Page ────────────────────────────────────────────────────────
+
+export function QuickTemplateNewPage() {
+  const navigate = useNavigate();
+  const back = () => navigate({ to: '/ar/quick-templates' });
+
+  return (
+    <div className="max-w-5xl">
+      <PageHeader
+        title="New Quick Invoice Template"
+        breadcrumbs={[
+          { label: 'AR' },
+          { label: 'Quick Templates', href: '/ar/quick-templates' },
+          { label: 'New' },
+        ]}
+      />
+      <TemplateForm onClose={back} />
+    </div>
+  );
+}
+
+// ─── Edit Template Page ───────────────────────────────────────────────────────
+
+export function QuickTemplateEditPage({ templateId }: { templateId: string }) {
+  const navigate = useNavigate();
+  const back = () => navigate({ to: '/ar/quick-templates' });
+  const { data, isLoading } = useQuickTemplate(templateId);
+  const template = data?.data;
+
+  return (
+    <div className="max-w-5xl">
+      <PageHeader
+        title={template ? `Edit — ${template.name}` : 'Edit Template'}
+        breadcrumbs={[
+          { label: 'AR' },
+          { label: 'Quick Templates', href: '/ar/quick-templates' },
+          { label: template?.name ?? 'Edit' },
+        ]}
+      />
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      ) : template ? (
+        <TemplateForm template={template} onClose={back} />
+      ) : (
+        <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Generate Invoice Page ────────────────────────────────────────────────────
+
+export function QuickTemplateGeneratePage({ templateId }: { templateId: string }) {
+  const navigate = useNavigate();
+  const back = () => navigate({ to: '/ar/quick-templates' });
+  const { data, isLoading } = useQuickTemplate(templateId);
+  const template = data?.data;
+
+  return (
+    <div className="max-w-3xl">
+      <PageHeader
+        title={template ? `Generate — ${template.name}` : 'Generate Invoice'}
+        breadcrumbs={[
+          { label: 'AR' },
+          { label: 'Quick Templates', href: '/ar/quick-templates' },
+          { label: template?.name ?? 'Generate' },
+        ]}
+      />
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      ) : template ? (
+        <GenerateInvoiceModal template={template} onClose={back} />
+      ) : (
+        <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
+      )}
     </div>
   );
 }
