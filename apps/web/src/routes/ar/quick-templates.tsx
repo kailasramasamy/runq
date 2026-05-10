@@ -541,7 +541,11 @@ export function QuickTemplateNewPage() {
           { label: 'New' },
         ]}
       />
-      <TemplateForm onClose={back} />
+      <Card>
+        <CardContent>
+          <TemplateForm onClose={back} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -564,17 +568,21 @@ export function QuickTemplateEditPage({ templateId }: { templateId: string }) {
           { label: template?.name ?? 'Edit' },
         ]}
       />
-      {isLoading ? (
-        <div className="space-y-3">
-          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-          <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-      ) : template ? (
-        <TemplateForm template={template} onClose={back} />
-      ) : (
-        <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
-      )}
+      <Card>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+              <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+              <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+            </div>
+          ) : template ? (
+            <TemplateForm template={template} onClose={back} />
+          ) : (
+            <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -597,16 +605,20 @@ export function QuickTemplateGeneratePage({ templateId }: { templateId: string }
           { label: template?.name ?? 'Generate' },
         ]}
       />
-      {isLoading ? (
-        <div className="space-y-3">
-          <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-          <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-      ) : template ? (
-        <GenerateInvoiceModal template={template} onClose={back} />
-      ) : (
-        <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
-      )}
+      <Card>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="h-10 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+              <div className="h-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+            </div>
+          ) : template ? (
+            <GenerateInvoiceModal template={template} onClose={back} />
+          ) : (
+            <p className="py-8 text-center text-sm text-zinc-500">Template not found.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
