@@ -30,14 +30,18 @@ interface UPILinkData { deepLink: string; qrData: string }
 interface InterestData { principal: number; rate: number; daysOverdue: number; interestAmount: number }
 
 /**
- * Display UOM for an invoice line. Prefers the items-master pack size
- * (e.g. "500ML") since that's the actual sellable size; falls back to the
- * line's saved uom for ad-hoc lines that don't link to an item.
+ * Display UOM for an invoice line. Tenants keep the human-friendly pack
+ * size in the items-master `unit` field directly ("500ml", "1L"), so
+ * prefer that. Falls back to the line's saved uom for ad-hoc lines, then
+ * to the GSTN UQC code as a last resort.
  */
 function formatLineUom(line: { uom: string | null; itemUnit: string | null; itemPackSizeValue: number | null; itemPackSizeUqc: string | null }): string {
-  const unit = line.itemUnit ?? line.itemPackSizeUqc ?? line.uom ?? '';
-  if (line.itemPackSizeValue && line.itemPackSizeValue !== 1) return `${line.itemPackSizeValue}${unit}`;
-  return unit || '—';
+  if (line.itemUnit && line.itemUnit.trim() !== '') return line.itemUnit;
+  if (line.uom && line.uom.trim() !== '') return line.uom;
+  if (line.itemPackSizeValue && line.itemPackSizeUqc) {
+    return line.itemPackSizeValue !== 1 ? `${line.itemPackSizeValue}${line.itemPackSizeUqc}` : line.itemPackSizeUqc;
+  }
+  return line.itemPackSizeUqc ?? '—';
 }
 
 export function InvoiceDetailPage({ invoiceId }: Props) {

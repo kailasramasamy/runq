@@ -73,15 +73,17 @@ const TAX_CATEGORY_OPTIONS = [
 ];
 
 /**
- * Display-friendly UOM that includes pack size when available — e.g.
- * `500ML`, `200GMS` — so users see the actual sellable size instead of
- * just the bare unit code.
+ * Display UOM. Tenants now keep the human-friendly pack size in the
+ * unit field directly ("500ml", "1L", "200g"), so prefer that. Only
+ * fall back to packSizeValue × UQC when unit is missing.
  */
 function formatItemUom(item: Item | undefined | null): string {
   if (!item) return '';
-  const unit = item.unit ?? item.packSizeUqc ?? '';
-  if (item.packSizeValue && item.packSizeValue !== 1) return `${item.packSizeValue}${unit}`;
-  return unit;
+  if (item.unit && item.unit.trim() !== '') return item.unit;
+  if (item.packSizeValue && item.packSizeUqc) {
+    return item.packSizeValue !== 1 ? `${item.packSizeValue}${item.packSizeUqc}` : item.packSizeUqc;
+  }
+  return item.packSizeUqc ?? '';
 }
 
 function lineAmount(line: LineItem): number {
