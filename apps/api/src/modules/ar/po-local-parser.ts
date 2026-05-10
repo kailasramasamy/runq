@@ -266,7 +266,32 @@ function numberValues(line: string): number[] {
 // Standalone UOM token between qty and rate. Word-boundary on both sides so
 // it doesn't fire on "500ml" inside "A2 Cow Milk 500ml" (no space → no match).
 const UOM_RE =
-  /\b(PCS|pcs|Pcs|nos|NOS|Nos|kg|KG|Kg|gms?|GMS?|grams?|L|l|ltr|LTR|Ltr|ml|ML|Ml|packets?|PACKETS?|Packets?|boxes?|BOXES?|Boxes?|dozen|DOZEN|Dozen|units?|UNITS?|Units?|cases?|CASES?|Cases?)\b/;
+  /\b(PCS|pcs|Pcs|nos|NOS|Nos|kg|KG|Kg|gms?|GMS?|grams?|L|l|ltr|LTR|Ltr|ml|ML|Ml|packets?|PACKETS?|Packets?|boxes?|BOXES?|Boxes?|dozen|DOZEN|Dozen|units?|UNITS?|Units?|cases?|CASES?|Cases?)\b/g;
+
+/**
+ * Pick the UOM token that represents the line's UNIT COLUMN (e.g. "PCS"
+ * between qty and rate), not a pack-size suffix in the description (e.g.
+ * "ml" in "Cold Pressed Mustard Oil 500 ml"). Pack-size matches are
+ * preceded by a number + optional whitespace; the unit column is preceded
+ * by something else (typically a SKU or a space-padded gap).
+ */
+function findColumnUom(line: string): { index: number; length: number; token: string } | null {
+  const matches = Array.from(line.matchAll(UOM_RE));
+  if (matches.length === 0) return null;
+  // Prefer the first match NOT preceded by a number — that's the unit column.
+  for (const m of matches) {
+    const idx = m.index ?? 0;
+    const head = line.slice(0, idx).trimEnd();
+    const lastChar = head.slice(-1);
+    if (!/\d/.test(lastChar)) {
+      return { index: idx, length: m[0].length, token: m[1] ?? m[0] };
+    }
+  }
+  // Every UOM match was a pack-size suffix — fall back to the LAST one
+  // (the column UOM, if any, would be closer to the end of the line).
+  const last = matches[matches.length - 1]!;
+  return { index: last.index ?? 0, length: last[0].length, token: last[1] ?? last[0] };
+}
 
 // SKU-like token: an uppercase code with at least one separator (e.g.
 // "D-C-01", "FCM-1L", "ITEM-3142", "SKU/123"). Tight enough to skip plain
@@ -295,10 +320,10 @@ function detectTextLineItem(line: string): ExtractedItem | null {
   // qty × rate ≈ total math. This avoids the embedded-number trap entirely:
   // "100% Cow Milk Curd 400g D-C-01 2 PCS ₹36.66 ₹73.32" → qty is the
   // number IMMEDIATELY BEFORE "PCS", rate is the first number after.
-  const uomMatch = UOM_RE.exec(trimmed);
+  const uomMatch = findColumnUom(trimmed);
   if (uomMatch) {
     const uomStart = uomMatch.index;
-    const uomEnd = uomStart + uomMatch[0].length;
+    const uomEnd = uomStart + uomMatch.length;
     const before = numbers.filter((n) => n.index < uomStart);
     const after = numbers.filter((n) => n.index >= uomEnd);
     const qty = before.length > 0 ? before[before.length - 1]! : null;
@@ -312,7 +337,7 @@ function detectTextLineItem(line: string): ExtractedItem | null {
           description: cleaned.description,
           customerSku: cleaned.customerSku,
           quantity: qty.value,
-          uom: uomMatch[1] ?? uomMatch[0],
+          uom: uomMatch.token,
           rate: rate && rate.value > 0 && rate !== amount ? rate.value : null,
           amount: amount && amount.value > 0 ? amount.value : (rate ? rate.value : null),
         };

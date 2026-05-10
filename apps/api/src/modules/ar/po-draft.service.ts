@@ -837,40 +837,26 @@ export class PoDraftService {
       };
     });
 
-    const lineAmountSum = Number(invoiceItems.reduce((s, it) => s + it.amount, 0).toFixed(2));
-
-    // The PO's printed grand total is the source of truth for what the
-    // customer pays — never recompute it. The line items' rates are
-    // GST-inclusive (they already match the printed line totals), so derive
-    // a sensible subtotal / tax split from each line's GST rate so GSTR-1 /
-    // ITC reports have the right structure. The total still equals the
-    // printed PO total down to the paisa.
-    let subtotalImplied = 0;
-    let taxImplied = 0;
+    // Each line's `amount` is GST-EXCLUSIVE (qty × price-list rate, where the
+    // price list stores landing-price-ex-GST). InvoiceService.create then
+    // computes tax ON TOP of each line. So the real invoice totals are:
+    //   subtotal = sum(line.amount)
+    //   tax      = sum(line.amount × line.taxRate / 100)
+    //   total    = subtotal + tax
+    // We MUST recompute these here even when the draft has a printed
+    // grand_total, because the parser stores draft.grandTotal as
+    // sum(amount) (pre-tax) — using it as the invoice total would skip
+    // the tax and leave the line-sum higher than the invoice header.
+    let subtotalSum = 0;
+    let taxSum = 0;
     for (const it of invoiceItems) {
+      subtotalSum += it.amount;
       const rate = it.taxRate ?? 0;
-      if (rate > 0) {
-        const sub = it.amount / (1 + rate / 100);
-        subtotalImplied += sub;
-        taxImplied += it.amount - sub;
-      } else {
-        subtotalImplied += it.amount;
-      }
+      if (rate > 0) taxSum += it.amount * rate / 100;
     }
-    subtotalImplied = Number(subtotalImplied.toFixed(2));
-    taxImplied = Number(taxImplied.toFixed(2));
-
-    const printedTotal = draft.grandTotal != null ? Number(draft.grandTotal) : null;
-    const printedTax = draft.taxTotal != null ? Number(draft.taxTotal) : null;
-    const printedSubtotal = draft.subtotal != null ? Number(draft.subtotal) : null;
-
-    const finalTotal = printedTotal ?? lineAmountSum;
-    // Prefer the explicit printed split when the PO actually printed one
-    // (rare for retail / B2B POs from marketplaces); otherwise use the
-    // line-rate-derived split.
-    const hasPrintedSplit = printedTax != null && printedTax > 0;
-    const finalTax = hasPrintedSplit ? printedTax : taxImplied;
-    const finalSubtotal = hasPrintedSplit ? (printedSubtotal ?? lineAmountSum) : subtotalImplied;
+    const finalSubtotal = Number(subtotalSum.toFixed(2));
+    const finalTax = Number(taxSum.toFixed(2));
+    const finalTotal = Number((finalSubtotal + finalTax).toFixed(2));
 
     // Pull the customer's payment terms to compute due date
     const [customer] = await this.db
