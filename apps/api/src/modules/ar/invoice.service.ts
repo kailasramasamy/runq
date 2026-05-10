@@ -141,7 +141,14 @@ export class InvoiceService {
    */
   private async queryInvoiceItemsWithMaster(invoiceId: string): Promise<SalesInvoiceItem[]> {
     const rows = await this.db
-      .select({ line: salesInvoiceItems, itemName: items.name, itemSku: items.sku })
+      .select({
+        line: salesInvoiceItems,
+        itemName: items.name,
+        itemSku: items.sku,
+        itemUnit: items.unit,
+        itemPackSizeValue: items.packSizeValue,
+        itemPackSizeUqc: items.packSizeUqc,
+      })
       .from(salesInvoiceItems)
       .leftJoin(items, eq(items.id, salesInvoiceItems.itemId))
       .where(
@@ -154,6 +161,9 @@ export class InvoiceService {
       ...this.toInvoiceItem(r.line),
       itemName: r.itemName ?? null,
       itemSku: r.itemSku ?? null,
+      itemUnit: r.itemUnit ?? null,
+      itemPackSizeValue: r.itemPackSizeValue != null ? Number(r.itemPackSizeValue) : null,
+      itemPackSizeUqc: r.itemPackSizeUqc ?? null,
     }));
   }
 
@@ -1389,6 +1399,9 @@ export class InvoiceService {
       // should use queryInvoiceItemsWithMaster() instead.
       itemName: null,
       itemSku: null,
+      itemUnit: null,
+      itemPackSizeValue: null,
+      itemPackSizeUqc: null,
       description: row.description,
       uom: row.uom ?? null,
       quantity: Number(row.quantity),

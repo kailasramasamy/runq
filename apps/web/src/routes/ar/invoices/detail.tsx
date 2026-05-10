@@ -29,6 +29,17 @@ interface Props { invoiceId: string }
 interface UPILinkData { deepLink: string; qrData: string }
 interface InterestData { principal: number; rate: number; daysOverdue: number; interestAmount: number }
 
+/**
+ * Display UOM for an invoice line. Prefers the items-master pack size
+ * (e.g. "500ML") since that's the actual sellable size; falls back to the
+ * line's saved uom for ad-hoc lines that don't link to an item.
+ */
+function formatLineUom(line: { uom: string | null; itemUnit: string | null; itemPackSizeValue: number | null; itemPackSizeUqc: string | null }): string {
+  const unit = line.itemUnit ?? line.itemPackSizeUqc ?? line.uom ?? '';
+  if (line.itemPackSizeValue && line.itemPackSizeValue !== 1) return `${line.itemPackSizeValue}${unit}`;
+  return unit || '—';
+}
+
 export function InvoiceDetailPage({ invoiceId }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
@@ -337,7 +348,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                             <div className="num text-[10.5px]" style={{ color: 'var(--text-3)' }}>{item.itemSku}</div>
                           )}
                         </td>
-                        <td className="num px-4 py-2.5" style={{ color: 'var(--text-2)' }}>{item.uom ?? '—'}</td>
+                        <td className="num px-4 py-2.5" style={{ color: 'var(--text-2)' }}>{formatLineUom(item)}</td>
                         <td className="num px-4 py-2.5" style={{ color: 'var(--text-2)' }}>{item.hsnSacCode ?? '—'}</td>
                         <td className="num px-4 py-2.5 text-right" style={{ color: 'var(--text-2)' }}>
                           {item.quantity}

@@ -46,6 +46,12 @@ export interface SalesInvoiceItem {
   itemName: string | null;
   /** Pulled from items master via JOIN when itemId is set; null otherwise. */
   itemSku: string | null;
+  /** Items-master unit (e.g. "ML"). Used to compute display UOM with pack size. */
+  itemUnit: string | null;
+  /** Items-master pack size value (e.g. 500). */
+  itemPackSizeValue: number | null;
+  /** Items-master pack size GSTN UQC code (e.g. "MLT"). */
+  itemPackSizeUqc: string | null;
   description: string;
   uom: string | null;
   quantity: number;
