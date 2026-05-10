@@ -536,7 +536,10 @@ class BillRow extends ConsumerWidget {
   /// Optional refresh callback wired from the host screen so swipe actions
   /// share the same fetch path as pull-to-refresh.
   final Future<void> Function()? onAfterAction;
-  const BillRow({super.key, required this.bill, this.onAfterAction});
+  /// Compact = no card chrome — used by the dashboard's Recent bills section
+  /// where many rows live inside a shared RunqCard with dividers.
+  final bool compact;
+  const BillRow({super.key, required this.bill, this.onAfterAction, this.compact = false});
 
   String _date(DateTime d) {
     const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -546,43 +549,56 @@ class BillRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actions = _buildActions(context, ref);
-    final card = RunqCard(
-      onTap: () => context.push('/bills/${bill.id}'),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          RqAvatar(name: bill.vendorName, size: 44, square: true),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(bill.vendorName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text('${bill.invoiceNumber} · ${_date(bill.invoiceDate)}', style: RunqText.caption),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    StatusPill(bill.status),
-                    if (bill.matchStatus == 'matched') ...[
-                      const SizedBox(width: 6),
-                      _MatchChip(matched: true),
-                    ] else if (bill.status == 'pending_match' || bill.matchStatus == 'mismatch') ...[
-                      const SizedBox(width: 6),
-                      _MatchChip(matched: false),
-                    ],
+    final body = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RqAvatar(name: bill.vendorName, size: compact ? 36 : 44, square: true),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(bill.vendorName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text('${bill.invoiceNumber} · ${_date(bill.invoiceDate)}', style: RunqText.caption),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  StatusPill(bill.status),
+                  if (bill.matchStatus == 'matched') ...[
+                    const SizedBox(width: 6),
+                    _MatchChip(matched: true),
+                  ] else if (bill.status == 'pending_match' || bill.matchStatus == 'mismatch') ...[
+                    const SizedBox(width: 6),
+                    _MatchChip(matched: false),
                   ],
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(formatINR(bill.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Text(formatINR(bill.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
+      ],
     );
-    if (actions.isEmpty) return card;
+    final tap = () => context.push('/bills/${bill.id}');
+    final tile = compact
+        ? Material(
+            color: RT(context).surface,
+            child: InkWell(
+              onTap: tap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: body,
+              ),
+            ),
+          )
+        : RunqCard(
+            onTap: tap,
+            padding: const EdgeInsets.all(14),
+            child: body,
+          );
+    if (actions.isEmpty) return tile;
     return Slidable(
       groupTag: 'bills',
       key: ValueKey('bill-${bill.id}'),
@@ -591,7 +607,7 @@ class BillRow extends ConsumerWidget {
         extentRatio: actions.length == 1 ? 0.28 : 0.52,
         children: actions,
       ),
-      child: card,
+      child: tile,
     );
   }
 

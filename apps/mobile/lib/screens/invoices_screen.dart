@@ -567,7 +567,11 @@ class InvoiceRow extends ConsumerWidget {
   /// Pure family invalidation has shown to occasionally not propagate to
   /// currently-mounted watchers, so we let the screen drive the refetch.
   final Future<void> Function()? onAfterAction;
-  const InvoiceRow({super.key, required this.invoice, this.onAfterAction});
+  /// Compact = no card chrome (no border, no shadow, transparent bg) so the
+  /// dashboard's Recent invoices section can stack many rows inside one
+  /// shared RunqCard with dividers, matching the Activity layout.
+  final bool compact;
+  const InvoiceRow({super.key, required this.invoice, this.onAfterAction, this.compact = false});
 
   String _date(DateTime d) {
     const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -578,44 +582,59 @@ class InvoiceRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isPartial = invoice.status == 'partially_paid';
     final actions = _buildActions(context, ref);
-    final card = RunqCard(
-      onTap: () {
-        if (invoice.id.isEmpty) return;
-        context.push('/invoices/${invoice.id}');
-      },
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RqAvatar(name: invoice.customerName, size: 44, square: true),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(invoice.customerName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Text('${invoice.invoiceNumber} · ${_date(invoice.invoiceDate)}', style: RunqText.caption),
+    final body = Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RqAvatar(
+              name: invoice.customerName,
+              size: compact ? 36 : 44,
+              square: true,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(invoice.customerName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text('${invoice.invoiceNumber} · ${_date(invoice.invoiceDate)}', style: RunqText.caption),
+                  if (!isPartial) ...[
                     const SizedBox(height: 6),
-                    if (!isPartial)
-                      StatusPill(invoice.status, warning: invoice.status == 'overdue'),
+                    StatusPill(invoice.status, warning: invoice.status == 'overdue'),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(formatINR(invoice.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
-            ],
-          ),
-          if (isPartial) ...[
-            const SizedBox(height: 10),
-            _PartialPayBar(paid: invoice.amountReceived, total: invoice.totalAmount),
+            ),
+            const SizedBox(width: 8),
+            Text(formatINR(invoice.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
           ],
+        ),
+        if (isPartial) ...[
+          const SizedBox(height: 10),
+          _PartialPayBar(paid: invoice.amountReceived, total: invoice.totalAmount),
         ],
-      ),
+      ],
     );
-    if (actions.isEmpty) return card;
+    final tap = invoice.id.isEmpty ? null : () => context.push('/invoices/${invoice.id}');
+    final tile = compact
+        ? Material(
+            color: RT(context).surface,
+            child: InkWell(
+              onTap: tap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: body,
+              ),
+            ),
+          )
+        : RunqCard(
+            onTap: tap,
+            padding: const EdgeInsets.all(14),
+            child: body,
+          );
+    if (actions.isEmpty) return tile;
     return Slidable(
       groupTag: 'invoices',
       key: ValueKey('invoice-${invoice.id}'),
@@ -624,7 +643,7 @@ class InvoiceRow extends ConsumerWidget {
         extentRatio: actions.length == 1 ? 0.28 : 0.52,
         children: actions,
       ),
-      child: card,
+      child: tile,
     );
   }
 

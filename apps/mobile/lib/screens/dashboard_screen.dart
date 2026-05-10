@@ -12,6 +12,7 @@ import 'dashboard/quick_actions_row.dart';
 import 'dashboard/spotlight_cards.dart';
 import 'dashboard/gst_section.dart';
 import 'dashboard/activity_list.dart';
+import 'dashboard/recent_lists.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -60,6 +61,8 @@ class DashboardScreen extends ConsumerWidget {
               padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
               sliver: SliverToBoxAdapter(child: GstSection()),
             ),
+            const SliverToBoxAdapter(child: RecentInvoicesSection()),
+            const SliverToBoxAdapter(child: RecentBillsSection()),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
@@ -72,7 +75,7 @@ class DashboardScreen extends ConsumerWidget {
             ),
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
-              sliver: SliverToBoxAdapter(child: ActivityList()),
+              sliver: SliverToBoxAdapter(child: ActivityList(maxItems: 5)),
             ),
           ],
         ),

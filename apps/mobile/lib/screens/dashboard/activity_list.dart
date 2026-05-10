@@ -11,7 +11,11 @@ import '../../widgets/runq_card.dart';
 import 'activity_spec.dart';
 
 class ActivityList extends ConsumerWidget {
-  const ActivityList({super.key});
+  /// Cap on the number of activity rows rendered. The dashboard caps at 5
+  /// so the section stays scannable; the standalone /activity screen can
+  /// pass a larger value (or omit) for the full feed.
+  final int maxItems;
+  const ActivityList({super.key, this.maxItems = 8});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +40,7 @@ class ActivityList extends ConsumerWidget {
             ),
           );
         }
-        final shown = items.take(8).toList();
+        final shown = items.take(maxItems).toList();
         return RunqCard(
           padding: EdgeInsets.zero,
           child: Column(
