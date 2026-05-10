@@ -9,6 +9,7 @@ import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
+import '../widgets/invoice_success_sheet.dart';
 import '../widgets/runq_snack.dart';
 
 /// Loads a quick-invoice template, lets the user adjust per-item quantities,
@@ -75,10 +76,17 @@ class _QuickInvoiceGenerateScreenState extends ConsumerState<QuickInvoiceGenerat
       if (!mounted) return;
       ref.invalidate(invoiceSummaryProvider);
       ref.invalidate(invoicesProvider(const InvoiceFilter()));
-      showRunqSnack(context, 'Invoice ${res.invoiceNumber} created.');
       if (res.invoiceId.isNotEmpty) {
-        context.pushReplacement('/invoices/${res.invoiceId}');
+        await showInvoiceSuccessSheet(
+          context,
+          invoiceId: res.invoiceId,
+          invoiceNumber: res.invoiceNumber,
+        );
+        // Sheet was dismissed without picking Open / View all — fall back to
+        // popping the generate screen so the user lands on the templates list.
+        if (mounted && context.mounted) context.pop();
       } else {
+        showRunqSnack(context, 'Invoice ${res.invoiceNumber} created.');
         context.pop();
       }
     } on ApiException catch (e) {
