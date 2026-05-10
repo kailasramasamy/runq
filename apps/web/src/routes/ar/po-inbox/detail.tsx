@@ -551,8 +551,8 @@ function LineItemsCard({
                 <Th>Match to SKU</Th>
                 <Th align="right">Qty</Th>
                 <Th>UOM</Th>
-                <Th align="right">Rate</Th>
-                <Th align="right">Amount</Th>
+                <Th align="right">Rate <span className="font-normal text-zinc-400">(incl GST)</span></Th>
+                <Th align="right">Amount <span className="font-normal text-zinc-400">(incl GST)</span></Th>
               </tr>
             </TableHeader>
             <TableBody>
@@ -587,14 +587,37 @@ interface LineItemRowProps {
  * mobile stacked card. Holds local qty/rate drafts so typing doesn't fire a
  * mutation per keystroke; commits on blur.
  */
+/**
+ * The PO inbox displays rates inclusive of GST so they match the PDF the
+ * customer sent. Internally `resolvedRate` is the base rate (excl. GST)
+ * because that's what the invoice math expects on conversion. This
+ * helper round-trips between the two views: gross = base × (1 + gst/100).
+ */
+function gstFactor(line: PoInboxLineRaw): number {
+  const gst = line.matchedItemGstRate != null ? Number(line.matchedItemGstRate) : 0;
+  return 1 + (Number.isFinite(gst) ? gst : 0) / 100;
+}
+function toGrossRate(line: PoInboxLineRaw): string {
+  if (!line.resolvedRate) return '';
+  const gross = Number(line.resolvedRate) * gstFactor(line);
+  return (Math.round(gross * 100) / 100).toString();
+}
+
+/** "8.000" → "8", "1.5000" → "1.5", null → "". Trims trailing decimal zeros. */
+function formatQty(raw: string | null): string {
+  if (!raw) return '';
+  const n = Number(raw);
+  return Number.isFinite(n) ? n.toString() : raw;
+}
+
 function useLineItemEdit(line: PoInboxLineRaw, draftId: string) {
   const update = useUpdatePoDraftLine(draftId);
   const { toast } = useToast();
-  const [qtyDraft, setQtyDraft] = useState(line.rawQty ?? '');
-  const [rateDraft, setRateDraft] = useState(line.resolvedRate ?? '');
+  const [qtyDraft, setQtyDraft] = useState(formatQty(line.rawQty));
+  const [rateDraft, setRateDraft] = useState(toGrossRate(line));
 
-  useEffect(() => setQtyDraft(line.rawQty ?? ''), [line.rawQty]);
-  useEffect(() => setRateDraft(line.resolvedRate ?? ''), [line.resolvedRate]);
+  useEffect(() => setQtyDraft(formatQty(line.rawQty)), [line.rawQty]);
+  useEffect(() => setRateDraft(toGrossRate(line)), [line.resolvedRate, line.matchedItemGstRate]);
 
   const persist = async (data: Parameters<typeof update.mutateAsync>[0]['data']) => {
     try {
@@ -611,9 +634,12 @@ function useLineItemEdit(line: PoInboxLineRaw, draftId: string) {
     }
   };
   const commitRate = () => {
-    const v = rateDraft === '' ? null : Number(rateDraft);
-    if (v !== (line.resolvedRate != null ? Number(line.resolvedRate) : null)) {
-      void persist({ rate: v });
+    // User typed a gross rate — back-out the base rate before persisting.
+    const grossInput = rateDraft === '' ? null : Number(rateDraft);
+    const baseRate = grossInput == null ? null : Math.round((grossInput / gstFactor(line)) * 100) / 100;
+    const currentBase = line.resolvedRate != null ? Number(line.resolvedRate) : null;
+    if (baseRate !== currentBase) {
+      void persist({ rate: baseRate });
     }
   };
 
@@ -678,7 +704,7 @@ function LineItemRow({
         />
       </TableCell>
       <TableCell align="right" numeric>
-        {line.amount ? formatINR(Number(line.amount)) : '—'}
+        {line.amount ? formatINR(Number(line.amount) * gstFactor(line)) : '—'}
       </TableCell>
     </TableRow>
   );
@@ -729,7 +755,7 @@ function LineItemCard({
           disabled={disabled}
         />
         <Input
-          label={`Rate (${line.resolvedUom ?? line.rawUom ?? ''})`}
+          label="Rate (incl GST)"
           type="number"
           value={rateDraft}
           onChange={(e) => setRateDraft(e.target.value)}
@@ -738,7 +764,7 @@ function LineItemCard({
         />
       </div>
       <div className="mt-2 text-right text-sm font-mono text-zinc-700 dark:text-zinc-200">
-        {line.amount ? formatINR(Number(line.amount)) : '—'}
+        {line.amount ? formatINR(Number(line.amount) * gstFactor(line)) : '—'}
       </div>
     </div>
   );
@@ -747,21 +773,26 @@ function LineItemCard({
 // ─── Totals card ─────────────────────────────────────────────────────────
 
 function TotalsCard({ draft }: { draft: PoInboxDetail }) {
-  const subtotal = draft.subtotal ? Number(draft.subtotal) : 0;
+  // Sum gross (incl GST) per line so the total matches the PO PDF the
+  // customer sent — that's the figure the user is reconciling against.
+  const grossTotal = draft.lines.reduce((sum, l) => {
+    if (!l.amount) return sum;
+    return sum + Number(l.amount) * gstFactor(l);
+  }, 0);
   const isApprovable = !blockingFlags(draft);
 
   return (
     <Card className="mb-4">
       <CardContent className="flex items-end justify-between text-sm">
         <div className="text-zinc-500 dark:text-zinc-400">
-          <p className="text-xs uppercase tracking-wide">Pre-tax subtotal</p>
+          <p className="text-xs uppercase tracking-wide">Total (incl GST)</p>
           <p className="text-xs">
-            GST will be computed at invoice creation based on customer place of supply.
+            Matches the PO total. The invoice will split base + GST on creation.
           </p>
         </div>
         <div className="text-right">
           <p className="font-mono text-lg text-zinc-900 dark:text-zinc-100">
-            {formatINR(subtotal)}
+            {formatINR(grossTotal)}
           </p>
           {!isApprovable && (
             <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">

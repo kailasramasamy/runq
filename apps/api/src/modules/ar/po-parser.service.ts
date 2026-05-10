@@ -744,11 +744,16 @@ function clampConfidence(v: unknown): number {
 // of null. Strip noise so the UI shows nothing rather than a misleading "PO".
 function cleanPoNumber(v: string | null): string | null {
   if (v == null) return null;
-  const trimmed = v.replace(/^(po|p\.o|po\s*#|po\s*no\.?)\s*[:\-]?\s*/i, '').trim();
+  let trimmed = v.trim();
+  // Strip a trailing label fragment (e.g. "PO Number") only when it is
+  // separated from the actual value by whitespace — so "PO Number 12345"
+  // becomes "12345" but "PO-20260509-014" (the actual number) is kept
+  // intact.
+  trimmed = trimmed.replace(/^(po|p\.o|po\s*#|po\s*no\.?|purchase\s*order(?:\s*(?:no\.?|number))?)[ \t]+(?=\S)/i, '').trim();
   if (!trimmed) return null;
   // Reject when the entire value was a heading or just punctuation/letters
-  // with no digits (e.g. "PO", "Order", "—"). A real PO number has at least
-  // one digit somewhere.
+  // with no digits (e.g. "PO", "Order", "—"). A real PO number has at
+  // least one digit somewhere.
   if (!/\d/.test(trimmed)) return null;
   return trimmed;
 }

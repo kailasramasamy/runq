@@ -25,8 +25,12 @@ import { extractPdfText } from './invoice-import/extractors/pdf-text';
 const GSTIN_RE = /\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g;
 const PHONE_RE = /(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}\b/;
 
+// Same-line whitespace only ([ \t]) so a stray "PURCHASE … ORDER" spread
+// across the masthead doesn't gobble up the document and capture
+// whatever word lands further down. Requires at least 3 chars after the
+// label so we don't latch onto noise like "ID".
 const PO_NO_RE =
-  /(?:po|p\.?\s*o\.?|purchase\s*order|order)\s*(?:no|number|#|id)?\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_]{0,49})/i;
+  /\b(?:po\.?|p\.[ \t]*o\.?|purchase[ \t]+order|order)[ \t]*(?:no\.?|number|#|id)?\.?[ \t]*[:\-]?[ \t]*([A-Z0-9][A-Z0-9\-\/_]{2,49})/i;
 
 const PO_DATE_RE =
   /(?:po\s*date|order\s*date|date)\s*[:\-]?\s*([\d]{1,2}[\-\/\s.][\w]+[\-\/\s.][\d]{2,4}|[\d]{4}[\-\/][\d]{1,2}[\-\/][\d]{1,2})/i;

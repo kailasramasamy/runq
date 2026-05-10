@@ -107,6 +107,9 @@ export interface PoInboxLineRaw {
   taxCategory: string | null;
   amount: string | null;
   reviewFlag: string | null;
+  matchedItemName: string | null;
+  matchedItemUnit: string | null;
+  matchedItemGstRate: string | null;
 }
 
 export interface PoInboxDetail extends PoInboxRow {
