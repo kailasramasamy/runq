@@ -53,7 +53,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
   const customerOptions = (customersData?.data ?? []).map((c) => ({ value: c.id, label: c.name }));
   const { data: itemsData } = useItems({ limit: 100 });
   const allItems: Item[] = itemsData?.data?.filter((i) => i.isActive) ?? [];
-  const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
+  const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.unit ? ` (${i.unit})` : ''}` }));
 
   const [customerId, setCustomerId] = useState(template?.customerId ?? '');
   const [name, setName] = useState(template?.name ?? '');
@@ -256,7 +256,7 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
                   placeholder="1"
                   min={0}
                 />
-                <div>
+                <div className="relative">
                   <Input
                     label="Unit Price"
                     type="number"
@@ -265,7 +265,9 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
                     placeholder="0.00"
                   />
                   {row.priceSource === 'priceList' && row.priceListName && (
-                    <div className="mt-1 truncate text-[10px] text-emerald-600 dark:text-emerald-400">
+                    // Absolute so the helper text doesn't grow the row and
+                    // throw the trash button out of the input baseline.
+                    <div className="absolute left-0 right-0 top-full mt-1 truncate text-[10px] text-emerald-600 dark:text-emerald-400">
                       from {row.priceListName}
                     </div>
                   )}
