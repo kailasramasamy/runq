@@ -8,6 +8,8 @@ import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
+import '../widgets/customer_picker_screen.dart';
+import '../widgets/invoice_success_sheet.dart';
 import '../widgets/po_line_edit_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
@@ -48,6 +50,7 @@ class _BodyState extends ConsumerState<_Body> {
   late PoDraftDetail _detail;
   bool _approving = false;
   bool _cancelling = false;
+  bool _reassigning = false;
 
   @override
   void initState() {
@@ -63,6 +66,29 @@ class _BodyState extends ConsumerState<_Body> {
     );
     if (updated != null && mounted) {
       setState(() => _detail = updated);
+    }
+  }
+
+  Future<void> _reassignCustomer() async {
+    if (_reassigning) return;
+    final picked = await showCustomerPicker(
+      context,
+      currentCustomerId: _detail.customerId,
+    );
+    if (picked == null || !mounted) return;
+    if (picked.id == _detail.customerId) return;
+    setState(() => _reassigning = true);
+    try {
+      final updated = await poRepo.updateDraft(_detail.id, customerId: picked.id);
+      if (!mounted) return;
+      setState(() => _detail = updated);
+      showRunqSnack(context, 'Customer updated to ${picked.name}');
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (mounted) showRunqSnack(context, 'Could not update customer.', kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _reassigning = false);
     }
   }
 
@@ -94,7 +120,7 @@ class _BodyState extends ConsumerState<_Body> {
     try {
       await poRepo.discard(_detail.id);
       if (!mounted) return;
-      showRunqSnack(context, 'PO cancelled', kind: SnackKind.success);
+      showRunqSnack(context, 'PO cancelled');
       if (context.mounted) context.pop();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
@@ -111,11 +137,14 @@ class _BodyState extends ConsumerState<_Body> {
     try {
       final result = await poRepo.approve(_detail.id);
       if (!mounted) return;
-      if (context.mounted) {
-        showRunqSnack(context, 'Invoice ${result.invoiceNumber} created', kind: SnackKind.success);
-      }
-      // Replace this screen with the new invoice detail so back goes to inbox/dashboard.
-      context.pushReplacement('/invoices/${result.invoiceId}');
+      await showInvoiceSuccessSheet(
+        context,
+        invoiceId: result.invoiceId,
+        invoiceNumber: result.invoiceNumber,
+      );
+      // If the user dismisses the sheet without picking an action, return to
+      // the PO inbox so the screen they came from is the next thing they see.
+      if (mounted && context.mounted) context.pop();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
@@ -129,6 +158,7 @@ class _BodyState extends ConsumerState<_Body> {
   Widget build(BuildContext context) {
     final d = _detail;
     final unresolved = d.lines.where((l) => !l.isInvoiceable).length;
+    final t = RT(context);
     return Column(
       children: [
         _Header(
@@ -138,16 +168,33 @@ class _BodyState extends ConsumerState<_Body> {
         ),
         Expanded(
           child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              _CustomerCard(detail: d),
+              _StatusStrip(unresolved: unresolved, totalLines: d.lines.length, hasCustomer: d.customerId != null),
+              const SizedBox(height: 12),
+              _CustomerCard(
+                detail: d,
+                onTap: _approving ? null : _reassignCustomer,
+                reassigning: _reassigning,
+              ),
               const SizedBox(height: 14),
               if (d.lines.isNotEmpty) ...[
                 _LinesCard(lines: d.lines, onEdit: _editLine),
                 const SizedBox(height: 14),
               ],
               _TotalsCard(detail: d),
+              const SizedBox(height: 8),
+              if (unresolved > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Tip: tap any "Tap to map" line to pick the matching item from your masters. '
+                    'We\'ll remember it for the next PO from this customer.',
+                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5, height: 1.4),
+                  ),
+                ),
             ],
           ),
         ),
@@ -156,6 +203,8 @@ class _BodyState extends ConsumerState<_Body> {
           onApprove: _approve,
           total: d.grandTotal,
           unresolved: unresolved,
+          approvedInvoiceId: d.approvedInvoiceId,
+          approvedInvoiceNumber: d.approvedInvoiceNumber,
         ),
       ],
     );
@@ -178,9 +227,18 @@ class _Header extends StatelessWidget {
           _CircleIconButton(icon: Icons.arrow_back_ios_new_rounded, onTap: () => context.pop()),
           Expanded(
             child: Center(
-              child: Text(poNumber,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('REVIEW PO',
+                      style: RunqText.caption.copyWith(
+                        fontSize: 10, color: t.muted, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(poNumber,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                ],
+              ),
             ),
           ),
           if (onCancel != null)
@@ -221,9 +279,70 @@ class _CircleIconButton extends StatelessWidget {
   }
 }
 
+/// Top-of-page traffic light: green when everything is ready, amber when
+/// some lines need attention. Gives the user an at-a-glance answer to
+/// "what do I need to fix?" without scrolling to the footer.
+class _StatusStrip extends StatelessWidget {
+  final int unresolved;
+  final int totalLines;
+  final bool hasCustomer;
+  const _StatusStrip({
+    required this.unresolved,
+    required this.totalLines,
+    required this.hasCustomer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final ready = unresolved == 0 && hasCustomer && totalLines > 0;
+    final color = ready ? RunqColors.greenInk : const Color(0xFFB45309);
+    final bg = ready ? RunqColors.greenBg : const Color(0x33F59E0B);
+    final icon = ready ? Icons.check_circle_rounded : Icons.error_outline_rounded;
+
+    final problems = <String>[];
+    if (totalLines == 0) problems.add('no line items parsed');
+    if (unresolved > 0) {
+      problems.add('$unresolved product${unresolved == 1 ? '' : 's'} need to be mapped');
+    }
+    final message = ready
+        ? 'Ready to generate · ${totalLines} line${totalLines == 1 ? '' : 's'}'
+        : problems.join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message,
+                style: RunqText.caption.copyWith(
+                  fontSize: 12,
+                  color: ready ? color : t.ink,
+                  fontWeight: FontWeight.w600,
+                )),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CustomerCard extends StatelessWidget {
   final PoDraftDetail detail;
-  const _CustomerCard({required this.detail});
+  final VoidCallback? onTap;
+  final bool reassigning;
+  const _CustomerCard({
+    required this.detail,
+    required this.onTap,
+    required this.reassigning,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -231,36 +350,97 @@ class _CustomerCard extends StatelessWidget {
     final hasMatch = detail.customerId != null;
     final displayName = detail.customerName ?? detail.buyerNameRaw ?? 'Unknown buyer';
 
-    return RunqCard(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('CUSTOMER', style: RunqText.label),
-          const SizedBox(height: 8),
-          Text(displayName, style: RunqText.h3.copyWith(fontSize: 16)),
-          if (detail.buyerGstinRaw != null) ...[
-            const SizedBox(height: 4),
-            Text('GSTIN ${detail.buyerGstinRaw}', style: RunqText.caption.copyWith(color: t.muted)),
-          ],
-          if (!hasMatch) ...[
-            const SizedBox(height: 10),
-            _Warning(
-              icon: Icons.info_outline_rounded,
-              text: 'No matching customer in your books — a new one will be created on approve.',
-            ),
-          ],
-          if (detail.poNumberExtracted != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('PO #', style: RunqText.caption.copyWith(color: t.muted)),
-                const SizedBox(width: 6),
-                Text(detail.poNumberExtracted!, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        child: RunqCard(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('CUSTOMER', style: RunqText.label),
+                  const Spacer(),
+                  if (reassigning)
+                    const SizedBox(
+                      width: 12, height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Icon(hasMatch ? Icons.swap_horiz_rounded : Icons.add_rounded,
+                            size: 14, color: RunqColors.indigo),
+                        const SizedBox(width: 4),
+                        Text(hasMatch ? 'Reassign' : 'Pick customer',
+                            style: RunqText.caption.copyWith(
+                              fontSize: 11,
+                              color: RunqColors.indigo,
+                              fontWeight: FontWeight.w600,
+                            )),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(displayName,
+                  style: RunqText.h3.copyWith(
+                    fontSize: 16,
+                    color: hasMatch ? t.ink : t.muted,
+                    fontStyle: hasMatch ? FontStyle.normal : FontStyle.italic,
+                  )),
+              if (detail.buyerGstinRaw != null) ...[
+                const SizedBox(height: 4),
+                Text('GSTIN ${detail.buyerGstinRaw}',
+                    style: RunqText.caption.copyWith(color: t.muted)),
               ],
-            ),
-          ],
-        ],
+              if (hasMatch && detail.buyerNameRaw != null && detail.buyerNameRaw != detail.customerName) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: t.bgWarmer,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: t.hairline, width: 0.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.text_snippet_outlined, size: 12, color: t.muted),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'On PO: ${detail.buyerNameRaw}',
+                          style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (!hasMatch) ...[
+                const SizedBox(height: 10),
+                _Warning(
+                  icon: Icons.touch_app_outlined,
+                  text: 'No matching customer in your books — tap "Pick customer" to assign one.',
+                ),
+              ],
+              if (detail.poNumberExtracted != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text('PO #', style: RunqText.caption.copyWith(color: t.muted)),
+                    const SizedBox(width: 6),
+                    Text(detail.poNumberExtracted!, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -301,8 +481,6 @@ class _GstChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    // Skip the chip when there's no rate set on the master — we don't want to
-    // pretend "no GST" for items the user just hasn't configured yet.
     if (rate == null) return const SizedBox.shrink();
     final isExempt = rate == 0;
     final label = isExempt ? 'GST 0%' : 'GST ${_fmtRate(rate!)}%';
@@ -333,7 +511,7 @@ class _LinesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = RT(context);
+    final unresolved = lines.where((l) => !l.isInvoiceable).length;
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -342,16 +520,27 @@ class _LinesCard extends StatelessWidget {
           Row(
             children: [
               Text('LINE ITEMS', style: RunqText.label),
-              const Spacer(),
-              Text('Tap to edit',
-                  style: RunqText.caption.copyWith(fontSize: 10, color: t.muted2)),
+              const SizedBox(width: 6),
+              if (unresolved > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0x33F59E0B),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('$unresolved to fix',
+                      style: RunqText.caption.copyWith(
+                        fontSize: 10,
+                        color: const Color(0xFFB45309),
+                        fontWeight: FontWeight.w700,
+                      )),
+                ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           for (var i = 0; i < lines.length; i++) ...[
             _LineRow(line: lines[i], onTap: () => onEdit(lines[i])),
-            if (i < lines.length - 1)
-              Divider(height: 20, thickness: 1, color: t.hairline),
+            if (i < lines.length - 1) const SizedBox(height: 6),
           ],
         ],
       ),
@@ -372,77 +561,100 @@ class _LineRow extends StatelessWidget {
         : line.rawQty.toStringAsFixed(2);
     final rate = line.effectiveRate;
     final unmatched = line.matchedItemId == null;
-    final amountText =
-        line.amount > 0 ? formatINR(line.amount) : (rate > 0 ? formatINR(qty == '' ? 0 : line.rawQty * rate) : '—');
+    final amountText = line.amount > 0
+        ? formatINR(line.amount)
+        : (rate > 0 ? formatINR(line.rawQty * rate) : '—');
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 5,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: Text(line.displayName, style: RunqText.body)),
-                      if (unmatched)
-                        Container(
-                          margin: const EdgeInsets.only(left: 6, top: 2),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0x33F59E0B),
-                            borderRadius: BorderRadius.circular(4),
+    final borderColor = unmatched
+        ? const Color(0xFFF59E0B).withValues(alpha: 0.45)
+        : t.hairline;
+    final bgColor = unmatched
+        ? const Color(0x14F59E0B)
+        : t.bgWarmer;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: 0.8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(line.displayName,
+                        style: RunqText.body.copyWith(color: t.ink),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '$qty${line.displayUom != null ? ' ${line.displayUom}' : ''} × ${rate > 0 ? formatINR(rate) : 'no rate'}',
+                          style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+                        ),
+                        if (line.customerSku != null && line.customerSku!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: t.hairlineSoft,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(line.customerSku!,
+                                style: RunqText.caption.copyWith(
+                                  fontSize: 10,
+                                  color: t.muted,
+                                  fontWeight: FontWeight.w600,
+                                )),
                           ),
-                          child: Text('NEW',
+                        if (line.matchedItemId != null) _GstChip(rate: line.matchedItemGstRate),
+                      ],
+                    ),
+                    if (unmatched) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFFB45309)),
+                          const SizedBox(width: 4),
+                          Text('Tap to map to a product',
                               style: RunqText.caption.copyWith(
-                                fontSize: 10,
+                                fontSize: 11,
                                 color: const Color(0xFFB45309),
                                 fontWeight: FontWeight.w700,
                               )),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        '$qty${line.displayUom != null ? ' ${line.displayUom}' : ''} × ${rate > 0 ? formatINR(rate) : 'no rate'}',
-                        style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+                        ],
                       ),
-                      if (line.customerSku != null && line.customerSku!.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: t.hairlineSoft,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            line.customerSku!,
-                            style: RunqText.caption.copyWith(
-                              fontSize: 10,
-                              color: t.muted,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      if (line.matchedItemId != null) _GstChip(rate: line.matchedItemGstRate),
                     ],
-                  ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(amountText,
+                      style: RunqText.tabular(
+                        size: 14,
+                        w: FontWeight.w700,
+                        color: unmatched ? t.muted : t.ink,
+                      )),
+                  const SizedBox(height: 4),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: t.muted2),
                 ],
               ),
-            ),
-            Text(amountText, style: RunqText.tabular(size: 14, w: FontWeight.w600)),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -456,6 +668,24 @@ class _TotalsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // Compute live from the lines so unmatched lines (which have amount=0
+    // server-side) still contribute to the visible total. The server's
+    // stored grandTotal only reflects matched lines; this view shows what
+    // the PO would total if every line were approved at its current rate.
+    double subtotal = 0;
+    double tax = 0;
+    bool anyMissingTax = false;
+    for (final l in detail.lines) {
+      final lineNet = l.amount > 0 ? l.amount : (l.rawQty * l.effectiveRate);
+      subtotal += lineNet;
+      final rate = l.matchedItemGstRate;
+      if (rate != null && rate > 0) {
+        tax += lineNet * rate / 100;
+      } else if (rate == null && l.matchedItemId == null) {
+        anyMissingTax = true;
+      }
+    }
+    final total = subtotal + tax;
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -463,10 +693,14 @@ class _TotalsCard extends StatelessWidget {
         children: [
           Text('TOTALS', style: RunqText.label),
           const SizedBox(height: 8),
-          _LinePair(label: 'Subtotal', value: formatINR(detail.subtotal, paise: true)),
-          _LinePair(label: 'Tax', value: formatINR(detail.taxTotal, paise: true)),
+          _LinePair(label: 'Subtotal', value: formatINR(subtotal)),
+          _LinePair(
+            label: 'Tax',
+            value: formatINR(tax),
+            hint: anyMissingTax ? 'GST on unmapped lines unknown' : null,
+          ),
           Divider(height: 14, thickness: 0.5, color: t.hairlineSoft),
-          _LinePair(label: 'Grand total', value: formatINR(detail.grandTotal, paise: true), strong: true),
+          _LinePair(label: 'Grand total', value: formatINR(total), strong: true),
         ],
       ),
     );
@@ -475,8 +709,9 @@ class _TotalsCard extends StatelessWidget {
 
 class _LinePair extends StatelessWidget {
   final String label, value;
+  final String? hint;
   final bool strong;
-  const _LinePair({required this.label, required this.value, this.strong = false});
+  const _LinePair({required this.label, required this.value, this.hint, this.strong = false});
 
   @override
   Widget build(BuildContext context) {
@@ -487,8 +722,22 @@ class _LinePair extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: style)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: style),
+                if (hint != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Text(hint!,
+                        style: RunqText.caption.copyWith(fontSize: 10, color: t.muted2)),
+                  ),
+              ],
+            ),
+          ),
           Text(value, style: strong
               ? RunqText.tabular(size: 15, w: FontWeight.w700)
               : RunqText.tabular(size: 13, w: FontWeight.w500)),
@@ -503,16 +752,21 @@ class _Footer extends StatelessWidget {
   final double total;
   final int unresolved;
   final VoidCallback onApprove;
+  final String? approvedInvoiceId;
+  final String? approvedInvoiceNumber;
   const _Footer({
     required this.approving,
     required this.total,
     required this.unresolved,
     required this.onApprove,
+    this.approvedInvoiceId,
+    this.approvedInvoiceNumber,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final approved = approvedInvoiceId != null;
     final blocked = unresolved > 0;
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
@@ -523,45 +777,78 @@ class _Footer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (blocked) ...[
+          if (approved) ...[
             Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFB45309)),
+                const Icon(Icons.check_circle_rounded, size: 14, color: RunqColors.greenInk),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '$unresolved line${unresolved == 1 ? '' : 's'} need an item or rate. Tap each to fix.',
+                    approvedInvoiceNumber != null
+                        ? 'Invoice $approvedInvoiceNumber created from this PO.'
+                        : 'Invoice already created from this PO.',
                     style: RunqText.caption.copyWith(fontSize: 11, color: t.ink),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: blocked ? t.muted2 : RunqColors.indigo,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: approving || blocked ? null : onApprove,
-              icon: approving
-                  ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
-              label: Text(
-                approving ? 'Generating...' : 'Generate invoice · ${formatINR(total)}',
-                style: RunqText.bodyStrong.copyWith(color: Colors.white),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: RunqColors.indigo,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () => context.push('/invoices/$approvedInvoiceId'),
+                icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Colors.white),
+                label: Text(
+                  'View invoice${approvedInvoiceNumber != null ? ' · $approvedInvoiceNumber' : ''}',
+                  style: RunqText.bodyStrong.copyWith(color: Colors.white),
+                ),
               ),
             ),
-          ),
+          ] else ...[
+            if (blocked) ...[
+              Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFB45309)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$unresolved product${unresolved == 1 ? '' : 's'} need to be mapped. Tap each line to fix.',
+                      style: RunqText.caption.copyWith(fontSize: 11, color: t.ink),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: blocked ? t.muted2 : RunqColors.indigo,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: approving || blocked ? null : onApprove,
+                icon: approving
+                    ? const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                label: Text(
+                  approving ? 'Generating...' : 'Generate invoice · ${formatINR(total)}',
+                  style: RunqText.bodyStrong.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
-

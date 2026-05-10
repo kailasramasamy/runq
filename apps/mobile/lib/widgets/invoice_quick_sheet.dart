@@ -60,6 +60,18 @@ class _InvoiceQuickSheet extends StatelessWidget {
                 });
               },
             ),
+            _Tile(
+              icon: Icons.inbox_outlined,
+              tint: RunqColors.amberInk,
+              title: 'PO Inbox',
+              subtitle: 'See uploaded POs and their invoice status',
+              onTap: () {
+                Navigator.pop(context);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) context.push('/po-inbox');
+                });
+              },
+            ),
             const SizedBox(height: 4),
           ],
         ),

@@ -147,6 +147,20 @@ class InvoicesRepo {
     final id = data['id'];
     return id == null ? '' : id.toString();
   }
+
+  /// Fetch the rendered invoice PDF bytes. Hits the same /print?format=pdf
+  /// endpoint the web admin uses, so the mobile share looks identical to
+  /// what gets emailed to a customer from the desktop app.
+  Future<List<int>> pdfBytes(String id) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/ar/invoices/$id/print?format=pdf');
+    final headers = <String, String>{};
+    if (apiClient.token != null) headers['Authorization'] = 'Bearer ${apiClient.token}';
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(statusCode: res.statusCode, message: 'Could not generate invoice PDF');
+    }
+    return res.bodyBytes;
+  }
 }
 
 class QuickTemplatesRepo {
@@ -469,6 +483,26 @@ class PoRepo {
     if (quantity != null) body['quantity'] = quantity;
     if (rate != null) body['rate'] = rate;
     final res = await apiClient.patch('/ar/po-drafts/$uploadId/lines/$lineId', body);
+    return PoDraftDetail.fromJson(_data(res));
+  }
+
+  /// PATCH /ar/po-drafts/:uploadId — update header fields (typically the
+  /// matched customer when AI picked the wrong DC for a multi-DC buyer).
+  /// Paginated PO inbox list. Returns the rows directly (the meta block is
+  /// dropped — the mobile screen scrolls a single page for now).
+  Future<List<PoInboxRow>> listInbox({int page = 1, int limit = 50}) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    final res = await apiClient.get('/ar/po-drafts?${Uri(queryParameters: qp).query}');
+    return _dataList(res).map(PoInboxRow.fromJson).toList();
+  }
+
+  Future<PoDraftDetail> updateDraft(
+    String uploadId, {
+    Object? customerId = _unset,
+  }) async {
+    final body = <String, dynamic>{};
+    if (customerId != _unset) body['customerId'] = customerId;
+    final res = await apiClient.patch('/ar/po-drafts/$uploadId', body);
     return PoDraftDetail.fromJson(_data(res));
   }
 

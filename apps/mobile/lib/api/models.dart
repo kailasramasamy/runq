@@ -1116,9 +1116,20 @@ class PoDraftLine {
   /// the resolved unit persisted on the line, then whatever the parser saw.
   String? get displayUom => matchedItemUnit ?? resolvedUom ?? rawUom;
 
-  /// Effective unit price — manual rate override or master rate, falls back
-  /// to whatever was extracted from the PO so the UI shows a number.
-  double get effectiveRate => resolvedRate > 0 ? resolvedRate : rawRate;
+  /// Effective unit price. Picked in this order:
+  ///   1. resolvedRate — price-list / master rate, the canonical source.
+  ///   2. amount / rawQty — the PO's printed line total divided by the
+  ///      quantity. This is the customer's expected landing cost. Beats
+  ///      rawRate because PO templates often put MRP in the "rate" column
+  ///      while the real net unit price has to be derived from the line
+  ///      total (e.g. BB Daily: rate=48 MRP, amount=268.80, qty=7 ⇒ 38.40).
+  ///   3. rawRate — the literal value from the PO's rate/MRP column. Last
+  ///      resort because it's frequently MRP not landing.
+  double get effectiveRate {
+    if (resolvedRate > 0) return resolvedRate;
+    if (amount > 0 && rawQty > 0) return amount / rawQty;
+    return rawRate;
+  }
 
   /// True when the line has enough info to be invoiced: an item match (or
   /// manual rate) and a positive rate × quantity.
@@ -1279,6 +1290,85 @@ class ItemSummary {
       );
 }
 
+/// One row in the PO Inbox list. Mirrors the API's `InboxRow` shape so the
+/// mobile screen can render upload state, parsed header, and the linked
+/// invoice (when approved) without an extra fetch per row.
+class PoInboxRow {
+  final String id;
+  final String? draftId;
+  final String source;
+  final String uploadStatus;
+  final String? reviewStatus;
+  final String? fileName;
+  final String? errorMessage;
+  final String? customerId;
+  final String? customerName;
+  final String? buyerNameRaw;
+  final String? poNumberExtracted;
+  final DateTime? poDate;
+  final double? grandTotal;
+  final String? approvedInvoiceId;
+  final String? approvedInvoiceNumber;
+  final DateTime uploadedAt;
+  final DateTime updatedAt;
+
+  PoInboxRow({
+    required this.id,
+    required this.source,
+    required this.uploadStatus,
+    required this.uploadedAt,
+    required this.updatedAt,
+    this.draftId,
+    this.reviewStatus,
+    this.fileName,
+    this.errorMessage,
+    this.customerId,
+    this.customerName,
+    this.buyerNameRaw,
+    this.poNumberExtracted,
+    this.poDate,
+    this.grandTotal,
+    this.approvedInvoiceId,
+    this.approvedInvoiceNumber,
+  });
+
+  /// Display title — prefer the matched customer name, fall back to the raw
+  /// buyer name from the PO, then the file name, then a generic placeholder.
+  String get displayTitle =>
+      customerName ?? buyerNameRaw ?? fileName ?? 'PO upload';
+
+  /// Coarse status used to drive the pill color + label.
+  String get displayStatus {
+    if (reviewStatus == 'approved') return 'invoiced';
+    if (reviewStatus == 'rejected') return 'rejected';
+    if (uploadStatus == 'parse_error' || reviewStatus == 'error') return 'error';
+    if (uploadStatus == 'pending' || uploadStatus == 'parsing') return 'parsing';
+    if (reviewStatus == 'ready') return 'ready';
+    if (reviewStatus == 'needs_review') return 'needs review';
+    return reviewStatus ?? uploadStatus;
+  }
+
+  factory PoInboxRow.fromJson(Map<String, dynamic> j) => PoInboxRow(
+        id: _strOr(j['id'], ''),
+        draftId: _str(j['draftId']),
+        source: _strOr(j['source'], ''),
+        uploadStatus: _strOr(j['uploadStatus'], 'pending'),
+        reviewStatus: _str(j['reviewStatus']),
+        fileName: _str(j['fileName']),
+        errorMessage: _str(j['errorMessage']),
+        customerId: _str(j['customerId']),
+        customerName: _str(j['customerName']),
+        buyerNameRaw: _str(j['buyerNameRaw']),
+        poNumberExtracted: _str(j['poNumberExtracted']),
+        poDate: _dt(j['poDate']),
+        grandTotal: _numOrNull(j['grandTotal']),
+        approvedInvoiceId: _str(j['approvedInvoiceId']),
+        approvedInvoiceNumber: _str(j['approvedInvoiceNumber']),
+        uploadedAt: _dt(j['uploadedAt']) ?? DateTime.now(),
+        updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),
+      );
+}
+
 class PoDraftDetail {
   final String id;
   final String? draftId;
@@ -1298,6 +1388,9 @@ class PoDraftDetail {
   final double grandTotal;
   final List<PoDraftLine> lines;
   final List<String> reviewFlags;
+  final String? approvedInvoiceId;
+  final String? approvedInvoiceNumber;
+  final DateTime? approvedAt;
 
   PoDraftDetail({
     required this.id,
@@ -1318,7 +1411,12 @@ class PoDraftDetail {
     required this.grandTotal,
     required this.lines,
     required this.reviewFlags,
+    this.approvedInvoiceId,
+    this.approvedInvoiceNumber,
+    this.approvedAt,
   });
+
+  bool get isApproved => reviewStatus == 'approved';
 
   bool get isParsing => uploadStatus == 'pending' || uploadStatus == 'parsing';
   bool get hasError => uploadStatus == 'parse_error' || reviewStatus == 'error';
@@ -1355,6 +1453,9 @@ class PoDraftDetail {
           .map(PoDraftLine.fromJson)
           .toList(),
       reviewFlags: flags,
+      approvedInvoiceId: _str(j['approvedInvoiceId']),
+      approvedInvoiceNumber: _str(j['approvedInvoiceNumber']),
+      approvedAt: _dt(j['approvedAt']),
     );
   }
 }

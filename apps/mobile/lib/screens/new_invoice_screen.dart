@@ -10,6 +10,7 @@ import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
+import '../widgets/customer_picker_screen.dart';
 import '../widgets/runq_snack.dart';
 
 /// Mobile equivalent of the web `InvoiceForm` (apps/web/src/components/forms/
@@ -165,8 +166,9 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
                   _CustomerPickerRow(
                     customer: _customer,
                     onPick: () async {
-                      final picked = await Navigator.of(context).push<CustomerSummary>(
-                        MaterialPageRoute(builder: (_) => const _CustomerPickerScreen()),
+                      final picked = await showCustomerPicker(
+                        context,
+                        currentCustomerId: _customer?.id,
                       );
                       if (picked != null) _onCustomerChanged(picked);
                     },
@@ -706,128 +708,6 @@ class _ItemPickerRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CustomerPickerScreen extends StatefulWidget {
-  const _CustomerPickerScreen();
-
-  @override
-  State<_CustomerPickerScreen> createState() => _CustomerPickerScreenState();
-}
-
-class _CustomerPickerScreenState extends State<_CustomerPickerScreen> {
-  final _ctrl = TextEditingController();
-  Timer? _debounce;
-  List<CustomerSummary> _results = const [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _runQuery('');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    _debounce?.cancel();
-    super.dispose();
-  }
-
-  void _onChanged(String q) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () => _runQuery(q));
-  }
-
-  Future<void> _runQuery(String q) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final res = await customersRepo.list(search: q);
-      if (!mounted) return;
-      setState(() {
-        _results = res;
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Could not load customers';
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Scaffold(
-      backgroundColor: t.bgWarmer,
-      appBar: AppBar(
-        title: const Text('Pick customer'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
-            children: [
-              TextField(
-                controller: _ctrl,
-                autofocus: true,
-                onChanged: _onChanged,
-                decoration: _inputDecoration(t, hint: 'Search by name'),
-              ),
-              const SizedBox(height: 12),
-              Expanded(child: _buildList(t)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildList(RunqTokens t) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(
-        child: Text(_error!, style: RunqText.body.copyWith(color: RunqColors.redInk)),
-      );
-    }
-    if (_results.isEmpty) {
-      return Center(
-        child: Text('No customers found',
-            style: RunqText.body.copyWith(color: t.muted)),
-      );
-    }
-    return ListView.separated(
-      itemCount: _results.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairlineSoft),
-      itemBuilder: (_, i) {
-        final c = _results[i];
-        return ListTile(
-          title: Text(c.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-          subtitle: c.gstin != null && c.gstin!.isNotEmpty
-              ? Text(c.gstin!, style: RunqText.caption.copyWith(color: t.muted))
-              : null,
-          trailing: Icon(Icons.chevron_right_rounded, color: t.muted2),
-          onTap: () => Navigator.of(context).pop(c),
-        );
-      },
     );
   }
 }

@@ -49,18 +49,6 @@ class _InvoiceCreateSheet extends StatelessWidget {
               },
             ),
             _Tile(
-              icon: Icons.note_add_outlined,
-              tint: const Color(0xFF06B6D4),
-              title: 'Create blank invoice',
-              subtitle: 'Pick a customer, add items, and save',
-              onTap: () {
-                Navigator.pop(context);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (context.mounted) context.push('/invoices/new');
-                });
-              },
-            ),
-            _Tile(
               icon: Icons.bolt_outlined,
               tint: RunqColors.amberInk,
               title: 'Quick invoice',
@@ -69,6 +57,18 @@ class _InvoiceCreateSheet extends StatelessWidget {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) context.push('/quick-invoice/templates');
+                });
+              },
+            ),
+            _Tile(
+              icon: Icons.note_add_outlined,
+              tint: const Color(0xFF06B6D4),
+              title: 'Create blank invoice',
+              subtitle: 'Pick a customer, add items, and save',
+              onTap: () {
+                Navigator.pop(context);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) context.push('/invoices/new');
                 });
               },
             ),

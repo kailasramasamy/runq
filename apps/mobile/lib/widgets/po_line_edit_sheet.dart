@@ -71,7 +71,7 @@ class _LineEditSheetState extends State<_LineEditSheet> {
   Future<void> _pickItem() async {
     final picked = await Navigator.of(context).push<ItemSummary>(
       MaterialPageRoute(
-        builder: (_) => _ItemPickerScreen(initialQuery: widget.line.rawDescription),
+        builder: (_) => const _ItemPickerScreen(),
         fullscreenDialog: true,
       ),
     );
@@ -149,16 +149,17 @@ class _LineEditSheetState extends State<_LineEditSheet> {
     final inset = MediaQuery.of(context).viewInsets.bottom;
     final amount = (double.tryParse(_qty.text) ?? 0) * (double.tryParse(_rate.text) ?? 0);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: inset),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.bgWarmer,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+      ),
+      // Padding for the keyboard goes INSIDE the colored container so the
+      // sheet's background extends all the way to the keyboard top with no
+      // visible seam against the dimmed scrim.
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + inset),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -236,7 +237,6 @@ class _LineEditSheetState extends State<_LineEditSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 }
@@ -365,8 +365,7 @@ class _Field extends StatelessWidget {
 // ─── Item picker screen ──────────────────────────────────────────────────
 
 class _ItemPickerScreen extends StatefulWidget {
-  final String initialQuery;
-  const _ItemPickerScreen({required this.initialQuery});
+  const _ItemPickerScreen();
 
   @override
   State<_ItemPickerScreen> createState() => _ItemPickerScreenState();
@@ -382,8 +381,7 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
   @override
   void initState() {
     super.initState();
-    _ctrl.text = widget.initialQuery;
-    _runQuery(widget.initialQuery);
+    _runQuery('');
   }
 
   @override

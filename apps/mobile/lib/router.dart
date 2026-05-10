@@ -7,6 +7,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/invoices_screen.dart';
 import 'screens/invoice_detail_screen.dart';
 import 'screens/new_invoice_screen.dart';
+import 'screens/po_inbox_screen.dart';
 import 'screens/quick_invoice_generate_screen.dart';
 import 'screens/quick_invoice_templates_screen.dart';
 import 'dart:io';
@@ -168,6 +169,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/invoices/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const NewInvoiceScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/po-inbox',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const PoInboxScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/quick-invoice/templates',
