@@ -4,7 +4,7 @@ import { createSalesInvoiceSchema } from '@runq/validators';
 import type { CreateSalesInvoiceInput } from '@runq/validators';
 import type { SalesInvoiceWithDetails } from '@runq/types';
 import { useCustomers } from '../../hooks/queries/use-customers';
-import { useItems } from '../../hooks/queries/use-items';
+import { useItems, type Item } from '../../hooks/queries/use-items';
 import { resolvePrice, type PriceSource } from '../../hooks/queries/use-price-lists';
 import { formatINR } from '../../lib/utils';
 import {
@@ -71,6 +71,18 @@ const TAX_CATEGORY_OPTIONS = [
   { value: 'zero_rated', label: 'Zero Rated' },
 ];
 
+/**
+ * Display-friendly UOM that includes pack size when available — e.g.
+ * `500ML`, `200GMS` — so users see the actual sellable size instead of
+ * just the bare unit code.
+ */
+function formatItemUom(item: Item | undefined | null): string {
+  if (!item) return '';
+  const unit = item.unit ?? item.packSizeUqc ?? '';
+  if (item.packSizeValue && item.packSizeValue !== 1) return `${item.packSizeValue}${unit}`;
+  return unit;
+}
+
 function lineAmount(line: LineItem): number {
   return (parseFloat(line.quantity) || 0) * (parseFloat(line.unitPrice) || 0);
 }
@@ -129,7 +141,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
           if (matched) {
             itemId = matched.id;
             // Also borrow UOM from the master if the line didn't carry one
-            if (!uom && matched.unit) uom = matched.unit;
+            if (!uom) uom = formatItemUom(matched);
           }
         }
         return {
@@ -332,7 +344,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                         ...l,
                         itemId,
                         description: item?.name ?? l.description,
-                        uom: item?.unit ?? l.uom,
+                        uom: formatItemUom(item) || l.uom,
                         hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
                         unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
                         taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
@@ -363,12 +375,6 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                     </p>
                   )}
                 </div>
-                <Input
-                  label="Description"
-                  value={line.description}
-                  onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                  placeholder="Description"
-                />
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   <Input
                     label="Qty"
@@ -434,8 +440,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
             <Table noOverflow>
               <TableHeader>
                 <tr>
-                  <Th className="min-w-[140px]">Item</Th>
-                  <Th className="min-w-[120px]">Description</Th>
+                  <Th className="min-w-[260px]">Item</Th>
                   <Th className="min-w-[70px]">UOM</Th>
                   <Th className="min-w-[90px]">HSN/SAC</Th>
                   <Th className="min-w-[55px]">Qty</Th>
@@ -459,7 +464,7 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                             ...l,
                             itemId,
                             description: item?.name ?? l.description,
-                            uom: item?.unit ?? l.uom,
+                            uom: formatItemUom(item) || l.uom,
                             hsnSacCode: item?.hsnSacCode ?? l.hsnSacCode,
                             unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : l.unitPrice,
                             taxRate: item?.gstRate != null ? String(item.gstRate) : l.taxRate,
@@ -489,13 +494,6 @@ export function InvoiceForm({ onSubmit, isLoading, initialData, submitLabel = 'S
                           {line.priceListName ? ` · ${line.priceListName}` : ''}
                         </p>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={line.description}
-                        onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                        placeholder="Description"
-                      />
                     </TableCell>
                     <TableCell>
                       <Input

@@ -176,6 +176,8 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       type: 'product',
       hsnSacCode: row.itemHsnSacCode ?? null,
       unit: row.itemUnit ?? null,
+      packSizeValue: null,
+      packSizeUqc: null,
       defaultSellingPrice: null,
       defaultPurchasePrice: null,
       gstRate: row.itemGstRate ?? null,

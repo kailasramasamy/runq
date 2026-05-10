@@ -373,6 +373,8 @@ export class ItemService {
       type: row.type,
       hsnSacCode: row.hsnSacCode,
       unit: row.unit,
+      packSizeValue: row.packSizeValue ? toNumber(row.packSizeValue) : null,
+      packSizeUqc: row.packSizeUqc,
       defaultSellingPrice: row.defaultSellingPrice ? toNumber(row.defaultSellingPrice) : null,
       defaultPurchasePrice: row.defaultPurchasePrice ? toNumber(row.defaultPurchasePrice) : null,
       gstRate: row.gstRate ? toNumber(row.gstRate) : null,

@@ -31,6 +31,8 @@ export interface Item {
   type: 'product' | 'service';
   hsnSacCode: string | null;
   unit: string | null;
+  packSizeValue: number | null;
+  packSizeUqc: string | null;
   defaultSellingPrice: number | null;
   defaultPurchasePrice: number | null;
   gstRate: number | null;

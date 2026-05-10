@@ -315,6 +315,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                     <tr>
                       <Th>#</Th>
                       <Th>Description</Th>
+                      <Th>UOM</Th>
                       <Th>HSN</Th>
                       <Th align="right">Qty</Th>
                       <Th align="right">Rate</Th>
@@ -336,10 +337,10 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
                             <div className="num text-[10.5px]" style={{ color: 'var(--text-3)' }}>{item.itemSku}</div>
                           )}
                         </td>
+                        <td className="num px-4 py-2.5" style={{ color: 'var(--text-2)' }}>{item.uom ?? '—'}</td>
                         <td className="num px-4 py-2.5" style={{ color: 'var(--text-2)' }}>{item.hsnSacCode ?? '—'}</td>
                         <td className="num px-4 py-2.5 text-right" style={{ color: 'var(--text-2)' }}>
                           {item.quantity}
-                          {item.uom && <span className="ml-0.5 text-[10.5px]" style={{ color: 'var(--text-3)' }}>{item.uom}</span>}
                         </td>
                         <td className="num px-4 py-2.5 text-right" style={{ color: 'var(--text-2)' }}>{formatINR(item.unitPrice)}</td>
                         <td className="num px-4 py-2.5 text-right" style={{ color: 'var(--text-2)' }}>
