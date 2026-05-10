@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Trash2, Pencil, Zap } from 'lucide-react';
+import { Plus, Trash2, Pencil, Zap, RefreshCw } from 'lucide-react';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
@@ -112,6 +112,36 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
   function updateRow(i: number, field: keyof TemplateLineRow, value: string) {
     setRows((p) => p.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
   }
+  async function refreshRowPrice(idx: number) {
+    const row = rows[idx];
+    if (!row?.itemId) return;
+    // Always re-pull from item master first so GST and HSN reflect any
+    // master-side edits, then layer the price-list rate on top.
+    const item = allItems.find((i) => i.id === row.itemId);
+    setRows((p) => p.map((r, i) => i === idx ? {
+      ...r,
+      hsnSacCode: item?.hsnSacCode ?? r.hsnSacCode,
+      taxRate: item?.gstRate != null ? String(item.gstRate) : r.taxRate,
+      unitPrice: item?.defaultSellingPrice != null ? String(item.defaultSellingPrice) : r.unitPrice,
+      priceSource: 'itemDefault',
+      priceListName: null,
+    } : r));
+    if (!customerId) return;
+    try {
+      const resolved = await resolvePrice({ customerId, itemId: row.itemId });
+      if (!resolved) return;
+      const fromPriceList = resolved.source !== 'item_default';
+      setRows((p) => p.map((r, i) => i === idx ? {
+        ...r,
+        unitPrice: String(resolved.effectiveRate),
+        priceSource: fromPriceList ? 'priceList' : 'itemDefault',
+        priceListName: fromPriceList ? resolved.priceListName : null,
+      } : r));
+    } catch {
+      // Keep the item-master value already applied.
+    }
+  }
+
   async function selectItem(idx: number, itemId: string) {
     const item = allItems.find((i) => i.id === itemId);
     // Optimistic update with item-master defaults so the UI is immediately
@@ -237,49 +267,71 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
         <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
           Items
         </legend>
-        <div className="space-y-2">
-          {rows.map((row, idx) => (
-            <div key={row.rowId} className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_5rem_2rem]">
+        <div className="overflow-hidden rounded border border-zinc-200 dark:border-zinc-700">
+          {/* Desktop: single column header */}
+          <div className="hidden border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400 sm:grid sm:grid-cols-[minmax(0,1fr)_5rem_7rem_5rem_2rem] sm:gap-2">
+            <span>Item</span>
+            <span>Qty</span>
+            <span>Unit Price</span>
+            <span>GST %</span>
+            <span aria-hidden />
+          </div>
+
+          <div className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
+            {rows.map((row, idx) => (
+              <div
+                key={row.rowId}
+                className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_5rem_2rem] sm:items-start sm:gap-2 sm:p-2"
+              >
                 <Combobox
-                  label="Item"
                   options={itemOptions}
                   value={row.itemId}
                   onChange={(v) => selectItem(idx, v)}
                   placeholder="Search items…"
                 />
                 <Input
-                  label="Qty"
                   type="number"
                   value={row.defaultQuantity}
                   onChange={(e) => updateRow(idx, 'defaultQuantity', e.target.value)}
-                  placeholder="1"
+                  placeholder="Qty"
                   min={0}
                 />
-                <div className="relative">
-                  <Input
-                    label="Unit Price"
-                    type="number"
-                    value={row.unitPrice}
-                    onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
-                    placeholder="0.00"
-                  />
+                <div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={row.unitPrice}
+                      onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
+                      placeholder="Unit Price"
+                      className="pr-8"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => refreshRowPrice(idx)}
+                      disabled={!row.itemId}
+                      aria-label="Refresh from price list / item master"
+                      title="Refresh from price list / item master"
+                      className="absolute inset-y-0 right-0 flex items-center px-2 text-zinc-400 hover:text-indigo-600 disabled:opacity-30 dark:hover:text-indigo-400"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  </div>
                   {row.priceSource === 'priceList' && row.priceListName && (
-                    // Absolute so the helper text doesn't grow the row and
-                    // throw the trash button out of the input baseline.
-                    <div className="absolute left-0 right-0 top-full mt-1 truncate text-[10px] text-emerald-600 dark:text-emerald-400">
-                      from {row.priceListName}
+                    <div className="mt-1 truncate text-[10px] text-emerald-600 dark:text-emerald-400">
+                      from {row.priceListName} price list
                     </div>
                   )}
                 </div>
                 <Input
-                  label="GST %"
                   type="number"
                   value={row.taxRate}
-                  onChange={(e) => updateRow(idx, 'taxRate', e.target.value)}
-                  placeholder="18"
+                  readOnly
+                  tabIndex={-1}
+                  placeholder="GST %"
+                  className="cursor-default bg-zinc-50 text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400"
+                  title="GST rate is set on the item master"
                 />
-                <div className="flex items-end justify-center pb-[3px] sm:pb-1.5">
+                <div className="flex h-9 items-center justify-center">
                   <button
                     type="button"
                     onClick={() => removeRow(idx)}
@@ -292,8 +344,8 @@ function TemplateForm({ template, onClose }: { template?: QuickInvoiceTemplate; 
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addRow}>
           <Plus size={14} /> Add Item

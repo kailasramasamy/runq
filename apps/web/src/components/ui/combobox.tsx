@@ -12,7 +12,7 @@ interface ComboboxOption {
 }
 
 interface ComboboxProps {
-  label?: string;
+  label?: React.ReactNode;
   options: ComboboxOption[];
   value: string;
   onChange: (value: string) => void;
@@ -28,7 +28,7 @@ function FieldWrapper({
   required,
   children,
 }: {
-  label?: string;
+  label?: React.ReactNode;
   error?: string;
   required?: boolean;
   children: React.ReactNode;
