@@ -70,6 +70,11 @@ export interface InboxRow {
   poNumberExtracted: string | null;
   poDate: string | null;
   grandTotal: string | null;
+  // Linked invoice — set once the draft is approved into an invoice. The
+  // inbox UI uses these to render a "→ INV-XXX" chip and skip the parse
+  // detail screen on tap (jump straight to the invoice).
+  approvedInvoiceId: string | null;
+  approvedInvoiceNumber: string | null;
   // Bookkeeping
   uploadedAt: string;
   updatedAt: string;
@@ -141,11 +146,14 @@ export class PoDraftService {
           poNumberExtracted: poDrafts.poNumberExtracted,
           poDate: poDrafts.poDate,
           grandTotal: poDrafts.grandTotal,
+          approvedInvoiceId: poDrafts.approvedInvoiceId,
+          approvedInvoiceNumber: salesInvoices.invoiceNumber,
           draftUpdatedAt: poDrafts.updatedAt,
         })
         .from(poUploads)
         .leftJoin(poDrafts, eq(poDrafts.poUploadId, poUploads.id))
         .leftJoin(customers, eq(customers.id, poDrafts.customerId))
+        .leftJoin(salesInvoices, eq(salesInvoices.id, poDrafts.approvedInvoiceId))
         .where(where)
         .orderBy(desc(poUploads.createdAt))
         .limit(limit)
@@ -176,6 +184,8 @@ export class PoDraftService {
       poNumberExtracted: r.poNumberExtracted,
       poDate: r.poDate,
       grandTotal: r.grandTotal,
+      approvedInvoiceId: r.approvedInvoiceId,
+      approvedInvoiceNumber: r.approvedInvoiceNumber,
       uploadedAt: r.uploadedAt.toISOString(),
       updatedAt: (r.draftUpdatedAt ?? r.uploadUpdatedAt).toISOString(),
     }));
@@ -386,6 +396,12 @@ export class PoDraftService {
     // After a customer change, refresh review flags so 'no_customer' clears
     // (or returns) without forcing a full re-parse.
     if (input.customerId !== undefined) {
+      // Re-resolve every matched line's rate against the new customer's
+      // price list. Without this, switching customer (e.g. BB Daily DC swap)
+      // leaves stale rates that no longer reflect the right price tier.
+      if (input.customerId) {
+        await this.reresolveRatesForCustomer(draft.id, input.customerId);
+      }
       await this.refreshReviewFlags(draft.id);
       // Manual customer pick: remember the buyer-name / buyer-GSTIN so the
       // next PO from the same buyer auto-resolves without AI/fuzzy matching.
@@ -398,6 +414,54 @@ export class PoDraftService {
     }
 
     return updated!;
+  }
+
+  /**
+   * Recompute resolved_rate + amount on every matched line after a customer
+   * change. Lines without a matched item are left alone — they have no item
+   * to look a price up for. Failures are swallowed per-line so one bad item
+   * doesn't block the whole reassign.
+   */
+  private async reresolveRatesForCustomer(draftId: string, customerId: string): Promise<void> {
+    const matched = await this.db
+      .select({
+        id: poDraftLines.id,
+        matchedItemId: poDraftLines.matchedItemId,
+        rawQty: poDraftLines.rawQty,
+      })
+      .from(poDraftLines)
+      .where(
+        and(
+          eq(poDraftLines.poDraftId, draftId),
+          eq(poDraftLines.tenantId, this.tenantId),
+          sql`${poDraftLines.matchedItemId} is not null`,
+        ),
+      );
+    if (matched.length === 0) return;
+    const priceResolver = new PriceResolverService(this.db, this.tenantId);
+    for (const line of matched) {
+      try {
+        const qty = line.rawQty != null ? Number(line.rawQty) : 1;
+        const price = await priceResolver.resolve({
+          customerId,
+          itemId: line.matchedItemId!,
+          quantity: qty || 1,
+        });
+        const amount = Number((qty * price.effectiveRate).toFixed(2));
+        await this.db
+          .update(poDraftLines)
+          .set({
+            resolvedRate: String(price.effectiveRate),
+            amount: String(amount),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(poDraftLines.id, line.id), eq(poDraftLines.tenantId, this.tenantId)));
+      } catch {
+        // Non-fatal: leave the line's existing rate. The user can fix it
+        // manually from the review screen.
+      }
+    }
+    await this.recomputeDraftTotals(draftId);
   }
 
   private async recordBuyerAliases(

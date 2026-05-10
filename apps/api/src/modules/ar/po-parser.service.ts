@@ -527,8 +527,36 @@ export class PoParserService {
       if (skuRow) return { itemId: skuRow.id, source: 'name_fuzzy', confidence: 0.85 };
     }
 
-    // 3. Fuzzy match on items.name
+    // 3. Fuzzy match on items.name. Two passes:
+    //    a) PO description CONTAINS the item name — handles the very common
+    //       case where the PO line has extra qualifiers (brand, pack size,
+    //       grade) around the canonical item name. e.g. PO line "Vrindavan
+    //       A2 Desi Cow Milk 500 ml" matches item "A2 Desi Cow Milk".
+    //       Item name must be at least 5 chars to avoid junk hits like the
+    //       master containing a word like "Milk" matching every milk line.
+    //    b) Item name CONTAINS the PO description — the original direction,
+    //       as a fallback when the master happens to be more verbose.
+    //    When (a) finds multiple candidates we pick the longest match (most
+    //    specific item name), so "A2 Desi Cow Milk" wins over a hypothetical
+    //    shorter "Cow Milk".
     if (description) {
+      const candidates = await this.db
+        .select({ id: items.id, name: items.name })
+        .from(items)
+        .where(
+          and(
+            eq(items.tenantId, this.tenantId),
+            eq(items.isActive, true),
+            sql`length(${items.name}) >= 5`,
+            sql`lower(${description}) like '%' || lower(${items.name}) || '%'`,
+          ),
+        )
+        .limit(20);
+      if (candidates.length > 0) {
+        const best = candidates.reduce((a, b) => (b.name.length > a.name.length ? b : a));
+        return { itemId: best.id, source: 'name_fuzzy', confidence: 0.75 };
+      }
+
       const [nameRow] = await this.db
         .select({ id: items.id })
         .from(items)
