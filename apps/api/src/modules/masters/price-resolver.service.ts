@@ -114,10 +114,15 @@ export class PriceResolverService {
     });
     if (allLevel) return { ...allLevel, source: 'all' };
 
-    // Tier 4: fall back to the item master's default selling price + mrp
+    // Tier 4: fall back to the item master's default selling price + mrp.
+    // `default_selling_price` is stored as the landing (incl-GST) price the
+    // customer pays — back out the base rate so the resolver is consistent
+    // with Tiers 1-3, where invoice math expects rate to be excl-GST.
     const [item] = await this.db
       .select({
         defaultSellingPrice: items.defaultSellingPrice,
+        basicPrice: items.basicPrice,
+        gstRate: items.gstRate,
         mrp: items.mrp,
       })
       .from(items)
@@ -126,7 +131,14 @@ export class PriceResolverService {
 
     if (!item) throw new NotFoundError('Item');
 
-    const fallbackRate = item.defaultSellingPrice != null ? Number(item.defaultSellingPrice) : 0;
+    let fallbackRate = 0;
+    if (item.basicPrice != null) {
+      fallbackRate = Number(item.basicPrice);
+    } else if (item.defaultSellingPrice != null) {
+      const gst = item.gstRate != null ? Number(item.gstRate) : 0;
+      fallbackRate = Number(item.defaultSellingPrice) / (1 + gst / 100);
+    }
+    fallbackRate = Math.round(fallbackRate * 100) / 100;
     return {
       rate: fallbackRate,
       effectiveRate: fallbackRate,
