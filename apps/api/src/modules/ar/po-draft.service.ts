@@ -90,6 +90,7 @@ export interface PoDraftDetail extends InboxRow {
   taxTotal: string | null;
   reviewFlags: unknown;
   approvedInvoiceId: string | null;
+  approvedInvoiceNumber: string | null;
   approvedAt: string | null;
   rejectedReason: string | null;
   rejectedAt: string | null;
@@ -225,6 +226,19 @@ export class PoDraftService {
     const u = row.upload;
     const d = row.draft;
 
+    // If the draft was approved, fetch the linked invoice's number for the
+    // "Invoice created" banner. Single-row lookup, only runs when the FK is
+    // set, so it's effectively free.
+    let approvedInvoiceNumber: string | null = null;
+    if (d?.approvedInvoiceId) {
+      const [inv] = await this.db
+        .select({ invoiceNumber: salesInvoices.invoiceNumber })
+        .from(salesInvoices)
+        .where(eq(salesInvoices.id, d.approvedInvoiceId))
+        .limit(1);
+      approvedInvoiceNumber = inv?.invoiceNumber ?? null;
+    }
+
     return {
       id: u.id,
       draftId: d?.id ?? null,
@@ -253,6 +267,7 @@ export class PoDraftService {
       taxTotal: d?.taxTotal ?? null,
       reviewFlags: d?.reviewFlags,
       approvedInvoiceId: d?.approvedInvoiceId ?? null,
+      approvedInvoiceNumber,
       approvedAt: d?.approvedAt?.toISOString() ?? null,
       rejectedReason: d?.rejectedReason ?? null,
       rejectedAt: d?.rejectedAt?.toISOString() ?? null,

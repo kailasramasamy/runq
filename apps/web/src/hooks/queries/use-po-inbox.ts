@@ -122,6 +122,7 @@ export interface PoInboxDetail extends PoInboxRow {
   taxTotal: string | null;
   reviewFlags: unknown;
   approvedInvoiceId: string | null;
+  approvedInvoiceNumber: string | null;
   approvedAt: string | null;
   rejectedReason: string | null;
   rejectedAt: string | null;
@@ -149,6 +150,35 @@ interface UploadResultRow {
   status: PoUploadStatus;
 }
 
+/**
+ * Typed error thrown by the PO upload mutation. Preserves the API's
+ * structured `details` payload — notably the existing upload id when the
+ * server rejects a duplicate (409) — so the caller can render an actionable
+ * dialog instead of a bare toast.
+ */
+export class PoUploadError extends Error {
+  status: number;
+  errorCode?: string;
+  details?: Record<string, unknown>;
+  constructor(message: string, status: number, errorCode?: string, details?: Record<string, unknown>) {
+    super(message);
+    this.name = 'PoUploadError';
+    this.status = status;
+    this.errorCode = errorCode;
+    this.details = details;
+  }
+}
+
+export function isPoDuplicateError(err: unknown): err is PoUploadError & {
+  details: { duplicateOfUploadId: string; status: PoUploadStatus };
+} {
+  return (
+    err instanceof PoUploadError &&
+    err.status === 409 &&
+    typeof err.details?.duplicateOfUploadId === 'string'
+  );
+}
+
 export function useUploadPoFile() {
   const qc = useQueryClient();
   return useMutation({
@@ -166,8 +196,13 @@ export function useUploadPoFile() {
         body: fd,
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-        throw new Error(err.error || `Upload failed (${res.status})`);
+        const body = await res.json().catch(() => ({}));
+        throw new PoUploadError(
+          body.message || `Upload failed (${res.status})`,
+          res.status,
+          body.error,
+          body.details,
+        );
       }
       return (await res.json()) as ApiSuccess<UploadResultRow>;
     },

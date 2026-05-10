@@ -7,6 +7,7 @@ import {
   XCircle,
   RefreshCw,
   AlertCircle,
+  ArrowRight,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -119,10 +120,75 @@ function ReviewView({ draft, queue }: { draft: PoInboxDetail; queue: ReviewQueue
 
       {queue && <QueueProgress queue={queue} />}
 
+      {draft.reviewStatus === 'approved' && draft.approvedInvoiceId && (
+        <ApprovedBanner draft={draft} />
+      )}
+      {draft.reviewStatus === 'rejected' && (
+        <RejectedBanner draft={draft} />
+      )}
+
       <DraftHeaderCard draft={draft} disabled={isLocked} />
       <SourcePreviewCard draft={draft} />
       <LineItemsCard draft={draft} disabled={isLocked} />
       <TotalsCard draft={draft} />
+    </div>
+  );
+}
+
+function ApprovedBanner({ draft }: { draft: PoInboxDetail }) {
+  const navigate = useNavigate();
+  const approvedAt = draft.approvedAt
+    ? new Date(draft.approvedAt).toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+  return (
+    <div className="mb-3 flex flex-col gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-emerald-900/10">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="text-[13px] text-emerald-900 dark:text-emerald-100">
+          <p className="font-semibold">
+            Invoice {draft.approvedInvoiceNumber ?? 'created'} from this PO
+          </p>
+          <p className="mt-0.5 text-emerald-800/90 dark:text-emerald-100/80">
+            This PO has been converted to an invoice
+            {approvedAt ? ` on ${approvedAt}` : ''}. The PO is kept here for audit and to
+            block accidental re-uploads of the same file.
+          </p>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        onClick={() =>
+          navigate({
+            to: '/ar/invoices/$invoiceId' as never,
+            params: { invoiceId: draft.approvedInvoiceId } as never,
+          })
+        }
+      >
+        View invoice <ArrowRight size={14} />
+      </Button>
+    </div>
+  );
+}
+
+function RejectedBanner({ draft }: { draft: PoInboxDetail }) {
+  const rejectedAt = draft.rejectedAt
+    ? new Date(draft.rejectedAt).toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+  return (
+    <div className="mb-3 flex items-start gap-3 rounded-md border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
+      <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-zinc-500 dark:text-zinc-400" />
+      <div className="text-[13px] text-zinc-700 dark:text-zinc-200">
+        <p className="font-semibold">PO rejected{rejectedAt ? ` on ${rejectedAt}` : ''}</p>
+        {draft.rejectedReason && (
+          <p className="mt-0.5 text-zinc-600 dark:text-zinc-300">{draft.rejectedReason}</p>
+        )}
+      </div>
     </div>
   );
 }

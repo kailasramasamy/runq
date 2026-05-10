@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Upload, Loader2, FileText, ClipboardPaste, Image as ImageIcon } from 'lucide-react';
+import { Upload, Loader2, FileText, ClipboardPaste, Image as ImageIcon, AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/components/ui';
-import { useUploadPoFile, useUploadPoText, type PoSourceChannel } from '@/hooks/queries/use-po-inbox';
+import { Button, Modal, useToast } from '@/components/ui';
+import {
+  useUploadPoFile,
+  useUploadPoText,
+  useDiscardPoUpload,
+  isPoDuplicateError,
+  type PoSourceChannel,
+  type PoUploadStatus,
+} from '@/hooks/queries/use-po-inbox';
 import { isIos } from '@/lib/pwa-install';
+
+interface DuplicateState {
+  fileName: string;
+  duplicateOfUploadId: string;
+  status: PoUploadStatus;
+  retry: () => Promise<void>;
+}
 
 const ALLOWED_MIMES: ReadonlySet<string> = new Set([
   'application/pdf',
@@ -47,6 +62,8 @@ export function PoUploadZone({ capturePaste = true }: Props) {
   const { toast } = useToast();
   const uploadFile = useUploadPoFile();
   const uploadText = useUploadPoText();
+  const discardUpload = useDiscardPoUpload();
+  const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);
 
   const isUploading = uploadFile.isPending || uploadText.isPending;
 
@@ -61,6 +78,18 @@ export function PoUploadZone({ capturePaste = true }: Props) {
         await uploadFile.mutateAsync({ file, source });
         toast(`Uploaded ${file.name}`, 'success');
       } catch (err) {
+        // Duplicate hash → open the resolver dialog with the existing upload's
+        // id and a retry closure. Keeps the user out of toast-and-guess loops
+        // and gives them the two viable next steps in one place.
+        if (isPoDuplicateError(err)) {
+          setDuplicate({
+            fileName: file.name,
+            duplicateOfUploadId: err.details.duplicateOfUploadId,
+            status: err.details.status,
+            retry: () => sendFile(file, source),
+          });
+          return;
+        }
         toast(err instanceof Error ? err.message : 'Upload failed', 'error');
       }
     },
@@ -166,7 +195,29 @@ export function PoUploadZone({ capturePaste = true }: Props) {
     return () => document.removeEventListener('paste', onPaste);
   }, [capturePaste, sendFile, sendText]);
 
+  const navigate = useNavigate();
+
+  const handleOpenExisting = useCallback(() => {
+    if (!duplicate) return;
+    const id = duplicate.duplicateOfUploadId;
+    setDuplicate(null);
+    navigate({ to: '/ar/po-inbox/$uploadId' as never, params: { uploadId: id } as never });
+  }, [duplicate, navigate]);
+
+  const handleDiscardAndRetry = useCallback(async () => {
+    if (!duplicate) return;
+    try {
+      await discardUpload.mutateAsync(duplicate.duplicateOfUploadId);
+      const retry = duplicate.retry;
+      setDuplicate(null);
+      await retry();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not discard the existing PO', 'error');
+    }
+  }, [duplicate, discardUpload, toast]);
+
   return (
+    <>
     <div
       onDragOver={(e) => {
         e.preventDefault();
@@ -222,6 +273,67 @@ export function PoUploadZone({ capturePaste = true }: Props) {
         onClick={(e) => e.stopPropagation()}
       />
     </div>
+
+    <Modal
+      open={duplicate !== null}
+      onClose={() => setDuplicate(null)}
+      title="This PO is already in your inbox"
+      size="sm"
+    >
+      {duplicate && (
+        <div className="flex flex-col gap-4 text-sm text-zinc-700 dark:text-zinc-200">
+          <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/10">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="text-[13px] text-amber-900 dark:text-amber-100">
+              <p className="font-medium">{duplicate.fileName}</p>
+              <p className="mt-1 text-amber-800/90 dark:text-amber-100/80">
+                The exact same file (byte-for-byte) is already in your PO inbox with status{' '}
+                <span className="font-mono text-[12px]">{duplicate.status}</span>.
+                We block duplicates so you don't accidentally create two invoices for one PO.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="font-medium text-zinc-800 dark:text-zinc-100">What would you like to do?</p>
+            <ul className="mt-2 space-y-2 text-[13px] text-zinc-600 dark:text-zinc-300">
+              <li className="flex gap-2">
+                <span className="text-zinc-400">1.</span>
+                <span>
+                  <strong>Open the existing PO</strong> — review the draft that was already created.
+                  This is the right choice if your customer simply re-sent the same file.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-zinc-400">2.</span>
+                <span>
+                  <strong>Discard old & re-upload</strong> — only do this if the previous parse failed
+                  and you want to try again. The old upload will be removed.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 pt-3 sm:flex-row sm:justify-end dark:border-zinc-800">
+            <Button variant="outline" size="sm" onClick={() => setDuplicate(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDiscardAndRetry}
+              loading={discardUpload.isPending || uploadFile.isPending}
+            >
+              <Trash2 size={14} /> Discard old &amp; re-upload
+            </Button>
+            <Button size="sm" onClick={handleOpenExisting}>
+              <ExternalLink size={14} /> Open existing PO
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }
 
