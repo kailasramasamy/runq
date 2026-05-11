@@ -9,9 +9,16 @@ export class HsnSacService {
   constructor(private readonly db: Db) {}
 
   async search(q: string, type?: 'hsn' | 'sac', limit = 20): Promise<HsnSacCode[]> {
+    // Three match strategies (OR'd together):
+    //   1. master code starts with q  — typing "04" finds "0401"
+    //   2. q starts with master code   — item has 8-digit "04059020", but
+    //      the master only carries the 4-digit chapter "0405". This lets
+    //      the longer item code resolve back to its chapter rate.
+    //   3. description contains q     — free-text search
     const conditions = [
       or(
         ilike(hsnSacCodes.code, `${q}%`),
+        sql`${q} ILIKE ${hsnSacCodes.code} || '%'`,
         ilike(hsnSacCodes.description, `%${q}%`),
       ),
     ];
