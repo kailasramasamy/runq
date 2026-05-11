@@ -77,8 +77,8 @@ export function EditInvoicePage({ invoiceId }: Props) {
   const isAmendingSent = invoice.status !== 'draft';
 
   return (
-    <div className="max-w-7xl">
-      <PageHeader
+    <div>
+      <PageHeader fullWidth
         title={isAmendingSent ? `Amend ${invoice.invoiceNumber}` : `Edit ${invoice.invoiceNumber}`}
         description={
           isAmendingSent

@@ -154,7 +154,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
           { label: 'Invoices', href: '/ar/invoices' },
