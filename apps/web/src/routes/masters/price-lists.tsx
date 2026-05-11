@@ -16,6 +16,7 @@ import {
 import { useItems, type Item } from '@/hooks/queries/use-items';
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useVendors } from '@/hooks/queries/use-vendors';
+import { ApiClientError } from '@/lib/api-client';
 
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
@@ -486,11 +487,14 @@ export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; o
       toast('Add at least one item', 'error');
       return;
     }
-    const incompleteLine = validLines.find(
-      (l) => l.rate == null && l.marginPercent == null && l.mrp == null,
+    // Use the row's position in the user-visible list (1-indexed) so the error
+    // toast points to the actual row that needs fixing, not the index in the
+    // post-filter array.
+    const incompleteIdx = lines.findIndex(
+      (l) => l.itemId && l.rate == null && l.marginPercent == null && l.mrp == null,
     );
-    if (incompleteLine) {
-      toast('Each line needs at least one of rate, margin %, or MRP', 'error');
+    if (incompleteIdx !== -1) {
+      toast(`Row ${incompleteIdx + 1}: set at least one of rate, margin %, or MRP`, 'error');
       return;
     }
 
@@ -516,8 +520,18 @@ export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; o
         toast('Price list created', 'success');
       }
       onClose();
-    } catch {
-      toast(`Failed to ${isEdit ? 'update' : 'create'} price list`, 'error');
+    } catch (err) {
+      // Translate server-side validation errors into a row-specific message
+      // (e.g. items.5.rate → Row 6) so users can fix the bad row without
+      // having to open DevTools.
+      if (err instanceof ApiClientError && err.details && err.details.length > 0) {
+        const first = err.details[0];
+        const m = /^items\.(\d+)\./.exec(first.field);
+        const rowLabel = m ? `Row ${Number(m[1]) + 1}: ` : '';
+        toast(`${rowLabel}${first.message}`, 'error');
+      } else {
+        toast(`Failed to ${isEdit ? 'update' : 'create'} price list`, 'error');
+      }
     }
   }
 

@@ -240,17 +240,32 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
     }
   }
 
-  /** Append a new item to the price list with no overrides — the resolver
-   *  will fall back to items-master values until the user edits the row. */
+  /** Append a new item to the price list. Seed the row with the item
+   *  master's MRP / margin so the API contract (at least one of
+   *  rate / margin / MRP) is satisfied — the user can override afterwards. */
   async function addItem() {
     if (!addItemId) return;
     if (items.some((it) => it.itemId === addItemId)) {
       toast('Item is already in this price list', 'error');
       return;
     }
+    const master = (itemsData?.data ?? []).find((i) => i.id === addItemId);
+    const seedMrp = master?.mrp ?? null;
+    const seedMargin = master?.margin ?? null;
+    if (seedMrp == null && seedMargin == null) {
+      toast('This item has no MRP or margin set — open it in Items first.', 'error');
+      return;
+    }
     const nextItems: PriceListItemInput[] = [
       ...items.map(toInputShape),
-      { itemId: addItemId, rate: null, marginPercent: null, mrp: null, discountPercent: null, minQuantity: 0 },
+      {
+        itemId: addItemId,
+        rate: null,
+        marginPercent: seedMargin,
+        mrp: seedMrp,
+        discountPercent: null,
+        minQuantity: 0,
+      },
     ];
     try {
       await update.mutateAsync({ id: priceListId, data: { items: nextItems } });
