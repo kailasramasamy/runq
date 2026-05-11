@@ -61,20 +61,35 @@ export function EditInvoicePage({ invoiceId }: Props) {
     );
   }
 
-  if (invoice.status !== 'draft') {
+  // Sent / overdue invoices with no payment received can still be edited
+  // fully (qty, items, customer, dates). The backend reposts the JE in-tx
+  // so the books stay consistent. Once any rupee lands, fall back to
+  // HSN-only editing — financial fields then require a credit note.
+  const canFullEdit =
+    invoice.status === 'draft' ||
+    ((invoice.status === 'sent' || invoice.status === 'overdue') &&
+      Number(invoice.amountReceived) === 0);
+
+  if (!canFullEdit) {
     return <HsnOnlyEditor invoiceId={invoiceId} invoice={invoice} />;
   }
+
+  const isAmendingSent = invoice.status !== 'draft';
 
   return (
     <div className="max-w-7xl">
       <PageHeader
-        title={`Edit ${invoice.invoiceNumber}`}
-        description="Editing a draft invoice. Once sent, only HSN/SAC can be updated — financial fields require a credit note."
+        title={isAmendingSent ? `Amend ${invoice.invoiceNumber}` : `Edit ${invoice.invoiceNumber}`}
+        description={
+          isAmendingSent
+            ? 'Amending an already-sent invoice. The GL posting will be re-issued with the new totals. Once any payment is received, financial edits require a credit note instead.'
+            : 'Editing a draft invoice. Once sent, edits are allowed until the first payment lands.'
+        }
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
           { label: 'Invoices', href: '/ar/invoices' },
           { label: invoice.invoiceNumber, href: `/ar/invoices/${invoiceId}` },
-          { label: 'Edit' },
+          { label: isAmendingSent ? 'Amend' : 'Edit' },
         ]}
       />
       <InvoiceForm
@@ -82,7 +97,7 @@ export function EditInvoicePage({ invoiceId }: Props) {
         onSubmit={handleSubmit}
         onCancel={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } })}
         isLoading={mutation.isPending}
-        submitLabel="Save Changes"
+        submitLabel={isAmendingSent ? 'Save & repost' : 'Save Changes'}
       />
     </div>
   );
