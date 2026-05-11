@@ -530,9 +530,29 @@ export class InvoiceService {
 
   async update(id: string, input: UpdateSalesInvoiceInput): Promise<SalesInvoiceWithDetails> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft') {
-      throw new ConflictError('Invoice can only be updated in draft status');
+    // Allow amendments on already-sent invoices when nothing has been
+    // collected against them yet — covers the common "customer revised
+    // the PO" workflow. Once a payment lands, edits would break the
+    // matched receipt allocation, so block them at that point. Cancelled
+    // invoices are immutable.
+    const isAmendable =
+      existing.status === 'draft' ||
+      ((existing.status === 'sent' || existing.status === 'overdue') &&
+        existing.amountReceived === 0);
+    if (!isAmendable) {
+      if (existing.status === 'cancelled') {
+        throw new ConflictError('Cancelled invoices cannot be edited');
+      }
+      if (existing.amountReceived > 0) {
+        throw new ConflictError(
+          'Cannot edit an invoice that has received payment. Issue a credit note instead.',
+        );
+      }
+      throw new ConflictError(`Invoice in status '${existing.status}' cannot be edited`);
     }
+    // Sent / overdue edits will rewrite the JE inside the same tx. Track
+    // here so we know whether to do the GL dance after the row update.
+    const needsJeRebuild = existing.status !== 'draft';
 
     return this.db.transaction(async (tx) => {
       // If line items were sent, recompute GST server-side from authoritative
@@ -586,6 +606,22 @@ export class InvoiceService {
 
       if (input.items && input.items.length > 0 && gst) {
         await this.replaceLineItemsWithGst(tx, id, input.items, gst.itemTaxes);
+      }
+
+      // Amending a sent invoice: tear down the old GL posting and post a
+      // fresh one against the new totals. Same tx so a partial failure
+      // leaves no half-rebuilt JE behind. Skipped for draft edits since
+      // drafts haven't posted yet.
+      if (needsJeRebuild) {
+        const gl = new GLService(tx as unknown as Db, this.tenantId);
+        await gl.deletePostingsFor('sales_invoice', id);
+        const refreshed = await this.getById(id);
+        await gl.postSalesInvoice({
+          id,
+          date: refreshed.invoiceDate,
+          totalAmount: Number(refreshed.totalAmount),
+          customerName: refreshed.customerName ?? 'Customer',
+        });
       }
 
       return this.getById(id);
@@ -692,9 +728,24 @@ export class InvoiceService {
    */
   async hardDelete(id: string): Promise<void> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft' && existing.status !== 'cancelled') {
+    // Same amendment policy as update(): drafts and cancelled go through
+    // unconditionally; sent/overdue invoices can be deleted only when no
+    // payment has been received. Once any rupee is collected, the JE
+    // reversal cascades into receipt allocations and that's not safe to
+    // do silently — block and ask the user to issue a credit note.
+    const canDelete =
+      existing.status === 'draft' ||
+      existing.status === 'cancelled' ||
+      ((existing.status === 'sent' || existing.status === 'overdue') &&
+        existing.amountReceived === 0);
+    if (!canDelete) {
+      if (existing.amountReceived > 0) {
+        throw new ConflictError(
+          'Cannot delete an invoice that has received payment. Issue a credit note instead.',
+        );
+      }
       throw new ConflictError(
-        `Only draft or cancelled invoices can be deleted (current status: ${existing.status})`,
+        `Cannot delete invoice in status '${existing.status}'`,
       );
     }
 
@@ -741,17 +792,14 @@ export class InvoiceService {
         .where(and(eq(dunningLog.invoiceId, id), eq(dunningLog.tenantId, this.tenantId)));
       if ((dunCount?.n ?? 0) > 0) blockers.push('dunning log entries');
 
-      const [glCount] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(journalEntries)
-        .where(
-          and(
-            eq(journalEntries.tenantId, this.tenantId),
-            eq(journalEntries.sourceType, 'sales_invoice'),
-            eq(journalEntries.sourceId, id),
-          ),
-        );
-      if ((glCount?.n ?? 0) > 0) blockers.push('GL journal entries posted against this invoice');
+      // GL journal entries: instead of blocking, unwind them inside the
+      // tx when the invoice qualifies for sent/overdue deletion. The
+      // amend/delete-after-send flow explicitly intends to remove the
+      // posting (no payment was received, so nothing downstream depends
+      // on it). For draft/cancelled, there should be no JE anyway — but
+      // if one exists from a legacy run, clean it up the same way.
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      await gl.deletePostingsFor('sales_invoice', id);
 
       if (blockers.length > 0) {
         throw new ConflictError(

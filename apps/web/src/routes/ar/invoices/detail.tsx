@@ -715,7 +715,7 @@ function TotalRow({ label, value }: { label: string; value: number }) {
 function InvoiceActionButtons({
   invoice, sending, walletPending, onSend, onMarkPaid, onPaidFromWallet, onEdit, onDiscard, onDelete,
 }: {
-  invoice: { status: string; invoiceNumber: string };
+  invoice: { status: string; invoiceNumber: string; amountReceived: number };
   sending: boolean;
   walletPending: boolean;
   onSend: () => void;
@@ -725,6 +725,14 @@ function InvoiceActionButtons({
   onDiscard: () => void;
   onDelete: () => void;
 }) {
+  // Sent / overdue invoices that haven't collected a payment can still be
+  // amended or deleted — this is the "customer revised the PO" workflow.
+  // Once any rupee lands, those edits would break receipt allocations, so
+  // hide them and steer the user to a credit note instead.
+  const canAmendAfterSend =
+    (invoice.status === 'sent' || invoice.status === 'overdue') &&
+    invoice.amountReceived === 0;
+
   if (invoice.status === 'draft') {
     return (
       <>
@@ -745,6 +753,12 @@ function InvoiceActionButtons({
         <Button variant="outline" size="sm" icon={<CheckCircle2 size={13} />} onClick={onPaidFromWallet} loading={walletPending}>
           From wallet
         </Button>
+        {canAmendAfterSend && (
+          <>
+            <Button variant="outline" size="sm" onClick={onEdit}>Edit</Button>
+            <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={onDelete} />
+          </>
+        )}
         <Button variant="outline" size="sm" icon={<FileMinus size={13} />}>Credit note</Button>
       </>
     );
@@ -753,6 +767,12 @@ function InvoiceActionButtons({
     return (
       <>
         <Button size="sm" icon={<CheckCircle2 size={13} />} onClick={onMarkPaid}>Mark paid</Button>
+        {canAmendAfterSend && (
+          <>
+            <Button variant="outline" size="sm" onClick={onEdit}>Edit</Button>
+            <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={onDelete} />
+          </>
+        )}
         <Button variant="outline" size="sm" icon={<FileMinus size={13} />}>Credit note</Button>
       </>
     );

@@ -310,6 +310,38 @@ export class GLService {
     });
   }
 
+  /**
+   * Reverses a previously-posted source's journal entry by physically
+   * deleting it. Used by amend-after-send / delete-after-send flows where
+   * the right outcome is "as if it never happened" (no payment was ever
+   * received, so there are no downstream postings to preserve). Returns
+   * the number of entries removed — caller can decide whether to no-op
+   * when nothing was posted.
+   */
+  async deletePostingsFor(sourceType: string, sourceId: string): Promise<number> {
+    // Delete the journal_lines first to be explicit even though the FK
+    // cascade would catch them. Two queries is cheap and the intent is
+    // obvious to anyone tracing this later.
+    const lineIds = await this.db
+      .select({ id: journalEntries.id })
+      .from(journalEntries)
+      .where(and(
+        eq(journalEntries.tenantId, this.tenantId),
+        eq(journalEntries.sourceType, sourceType),
+        eq(journalEntries.sourceId, sourceId),
+      ));
+    if (lineIds.length === 0) return 0;
+    const ids = lineIds.map((r) => r.id);
+    await this.db
+      .delete(journalLines)
+      .where(and(eq(journalLines.tenantId, this.tenantId), inArray(journalLines.journalEntryId, ids)));
+    const result = await this.db
+      .delete(journalEntries)
+      .where(and(eq(journalEntries.tenantId, this.tenantId), inArray(journalEntries.id, ids)))
+      .returning({ id: journalEntries.id });
+    return result.length;
+  }
+
   async postSalesInvoice(invoice: { totalAmount: number; date: string; id: string; customerName: string }): Promise<void> {
     if (await this.isAlreadyPosted('sales_invoice', invoice.id)) return;
     await this.createJournalEntry({
