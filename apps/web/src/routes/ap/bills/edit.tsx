@@ -103,8 +103,8 @@ export function EditBillPage({ billId }: Props) {
   const isAmending = bill.status !== 'draft';
 
   return (
-    <div className="max-w-6xl">
-      <PageHeader
+    <div>
+      <PageHeader fullWidth
         title={isAmending ? `Amend ${bill.invoiceNumber}` : `Edit ${bill.invoiceNumber}`}
         description={
           isAmending

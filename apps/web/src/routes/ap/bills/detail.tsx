@@ -14,6 +14,7 @@ import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import { useBillSyncSources } from '../../../hooks/queries/use-bill-sync';
 import { useDocumentTrail } from '@/hooks/queries/use-trail';
 import { useAuth } from '@/providers/auth-provider';
+import { useDeclarePageWidth } from '@/lib/page-width';
 import type { PurchaseInvoiceWithDetails } from '@runq/types';
 import { ConfirmationDialog } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
@@ -41,6 +42,7 @@ function getInitials(name: string) {
 export function BillDetailPage({ billId }: { billId: string }) {
   const navigate = useNavigate();
   const router = useRouter();
+  useDeclarePageWidth('full');
   const { data, isLoading, isError } = usePurchaseInvoice(billId);
   const invoice = data?.data;
 
@@ -117,7 +119,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
 
   return (
     <div className="bill-detail-page">
-      <div className="mx-auto max-w-[1480px] px-6 py-7 pb-16">
+      <div className="px-6 py-7 pb-16">
         <BillHeader
           invoice={invoice}
           balance={balance} total={total} paid={paid}
