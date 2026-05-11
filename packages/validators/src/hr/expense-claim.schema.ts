@@ -18,6 +18,11 @@ export const submitClaimSchema = z.object({
   id: z.string().uuid(),
 });
 
+/** Same shape as create — full replace of the claim header + items. The
+ *  service refuses once status is 'reimbursed' or 'rejected'. */
+export const updateExpenseClaimSchema = createExpenseClaimSchema;
+export type UpdateExpenseClaimInput = z.infer<typeof updateExpenseClaimSchema>;
+
 export const approveClaimSchema = z.object({
   approved: z.boolean(),
   rejectionReason: z.string().max(500).nullish(),

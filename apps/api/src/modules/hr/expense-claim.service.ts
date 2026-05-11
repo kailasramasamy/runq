@@ -128,6 +128,80 @@ export class ExpenseClaimService {
     return this.getById(id);
   }
 
+  /**
+   * Edit a claim's header + items. Mirrors the invoice / bill amend
+   * policy: allowed until the money has actually moved (status ===
+   * 'reimbursed') or the claim was rejected (terminal). Both prior
+   * cases want a fresh claim, not a silent rewrite.
+   */
+  async update(id: string, input: CreateExpenseClaimInput) {
+    const claim = await this.requireClaim(id);
+    if (claim.status === 'reimbursed') {
+      throw new ConflictError(
+        'Cannot edit a claim that has been reimbursed. Create a fresh claim instead.',
+      );
+    }
+    if (claim.status === 'rejected') {
+      throw new ConflictError('Rejected claims cannot be edited');
+    }
+
+    const totalAmount = input.items
+      .reduce((sum, item) => sum + item.amount, 0)
+      .toFixed(2);
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(expenseClaims)
+        .set({
+          claimDate: input.claimDate,
+          description: input.description ?? null,
+          totalAmount,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(expenseClaims.id, id), eq(expenseClaims.tenantId, this.tenantId)));
+
+      await tx
+        .delete(expenseClaimItems)
+        .where(and(eq(expenseClaimItems.claimId, id), eq(expenseClaimItems.tenantId, this.tenantId)));
+
+      await tx.insert(expenseClaimItems).values(
+        input.items.map((item) => ({
+          tenantId: this.tenantId,
+          claimId: id,
+          expenseDate: item.expenseDate,
+          category: item.category,
+          description: item.description,
+          amount: item.amount.toFixed(2),
+          accountCode: item.accountCode ?? null,
+        })),
+      );
+    });
+
+    return this.getById(id);
+  }
+
+  /**
+   * Hard-delete a claim. Same gate as update(): refuses when the money
+   * has already moved so we never silently rewind a real bank transfer.
+   * Rejected claims can be deleted — they're terminal and harmless.
+   */
+  async hardDelete(id: string): Promise<void> {
+    const claim = await this.requireClaim(id);
+    if (claim.status === 'reimbursed') {
+      throw new ConflictError(
+        'Cannot delete a reimbursed claim. The payment has already moved.',
+      );
+    }
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(expenseClaimItems)
+        .where(and(eq(expenseClaimItems.claimId, id), eq(expenseClaimItems.tenantId, this.tenantId)));
+      await tx
+        .delete(expenseClaims)
+        .where(and(eq(expenseClaims.id, id), eq(expenseClaims.tenantId, this.tenantId)));
+    });
+  }
+
   private async requireClaim(id: string): Promise<ClaimRow> {
     const [row] = await this.db
       .select()

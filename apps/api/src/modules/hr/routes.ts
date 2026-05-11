@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createExpenseClaimSchema,
+  updateExpenseClaimSchema,
   approveClaimSchema,
   expenseClaimFilterSchema,
   uuidParamSchema,
@@ -95,6 +96,33 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
       const service = new ExpenseClaimService(request.server.db, request.tenantId);
       const data = await service.markReimbursed(id);
       return { data };
+    },
+  );
+
+  // PUT /expense-claims/:id  — full replace (header + items). Refuses
+  // when the claim is already reimbursed or rejected.
+  app.put(
+    '/expense-claims/:id',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = updateExpenseClaimSchema.parse(request.body);
+      const service = new ExpenseClaimService(request.server.db, request.tenantId);
+      const data = await service.update(id, input);
+      return { data };
+    },
+  );
+
+  // DELETE /expense-claims/:id  — hard delete (items cascade). Refuses
+  // when the claim has been reimbursed (money already moved).
+  app.delete(
+    '/expense-claims/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new ExpenseClaimService(request.server.db, request.tenantId);
+      await service.hardDelete(id);
+      return reply.status(204).send();
     },
   );
 };

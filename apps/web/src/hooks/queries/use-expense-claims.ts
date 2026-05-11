@@ -102,3 +102,21 @@ export function useReimburseClaim() {
     onSuccess: () => qc.invalidateQueries({ queryKey: EC_KEYS.all }),
   });
 }
+
+export function useUpdateExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CreateClaimInput }) =>
+      api.put<ApiSuccess<ExpenseClaim>>(`/hr/expense-claims/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EC_KEYS.all }),
+  });
+}
+
+export function useDeleteExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<ApiSuccess<null>>(`/hr/expense-claims/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EC_KEYS.all }),
+  });
+}

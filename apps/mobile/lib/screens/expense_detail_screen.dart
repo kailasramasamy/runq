@@ -34,6 +34,12 @@ class ExpenseDetailScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          value.maybeWhen(
+            data: (claim) => _DetailMenu(claim: claim, ref: ref),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: value.when(
@@ -392,4 +398,85 @@ class _ActionConfig {
   final Color color;
   final VoidCallback onTap;
   _ActionConfig({required this.label, required this.icon, required this.color, required this.onTap});
+}
+
+/// Overflow menu — surfaces Amend + Delete. Same gate as web/API:
+/// amend allowed unless reimbursed or rejected (terminal states); delete
+/// allowed unless reimbursed (money already moved).
+class _DetailMenu extends StatelessWidget {
+  final ExpenseClaim claim;
+  final WidgetRef ref;
+  const _DetailMenu({required this.claim, required this.ref});
+
+  bool get _canAmend => claim.status != 'reimbursed' && claim.status != 'rejected';
+  bool get _canDelete => claim.status != 'reimbursed';
+
+  Future<void> _delete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete claim?'),
+        content: Text('${claim.claimNumber} will be permanently removed.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: RunqColors.redInk),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await expensesRepo.hardDelete(claim.id);
+      ref.invalidate(expensesProvider);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Expense ${claim.claimNumber} deleted.');
+      context.pop();
+    } on ApiException catch (e) {
+      if (context.mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (context.mounted) showRunqSnack(context, 'Could not delete expense.', kind: SnackKind.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_canAmend && !_canDelete) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded),
+      onSelected: (v) {
+        if (v == 'amend') {
+          context.push('/expenses/${claim.id}/edit');
+        } else if (v == 'delete') {
+          _delete(context);
+        }
+      },
+      itemBuilder: (_) => [
+        if (_canAmend)
+          const PopupMenuItem(
+            value: 'amend',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 18),
+                SizedBox(width: 10),
+                Text('Amend'),
+              ],
+            ),
+          ),
+        if (_canDelete)
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 18, color: RunqColors.redInk),
+                const SizedBox(width: 10),
+                Text('Delete', style: TextStyle(color: RunqColors.redInk)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }

@@ -193,6 +193,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           ),
         ),
         GoRoute(
+          path: '/expenses/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            NewExpenseScreen(editClaimId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
           path: '/inbox',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InboxScreen(), key: state.pageKey),

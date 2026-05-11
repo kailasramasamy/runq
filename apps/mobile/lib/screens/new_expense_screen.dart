@@ -39,7 +39,8 @@ class _Item {
 /// draft, auto-submits, auto-approves so the entry lands in "Awaiting
 /// reimbursement" without further taps.
 class NewExpenseScreen extends ConsumerStatefulWidget {
-  const NewExpenseScreen({super.key});
+  final String? editClaimId;
+  const NewExpenseScreen({super.key, this.editClaimId});
 
   @override
   ConsumerState<NewExpenseScreen> createState() => _NewExpenseScreenState();
@@ -50,6 +51,48 @@ class _NewExpenseScreenState extends ConsumerState<NewExpenseScreen> {
   DateTime _claimDate = DateTime.now();
   final List<_Item> _items = [];
   bool _saving = false;
+  bool _hydrating = false;
+  String? _claimNumber;
+
+  bool get _isEdit => widget.editClaimId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      _hydrating = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
+    }
+  }
+
+  Future<void> _hydrate() async {
+    try {
+      final claim = await expensesRepo.get(widget.editClaimId!);
+      if (!mounted) return;
+      setState(() {
+        _claimDate = claim.claimDate;
+        _descCtrl.text = claim.description ?? '';
+        _items
+          ..clear()
+          ..addAll(claim.items.map((it) => _Item(
+                date: it.expenseDate,
+                category: it.category,
+                description: it.description,
+                amount: it.amount,
+              )));
+        _claimNumber = claim.claimNumber;
+        _hydrating = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+      setState(() => _hydrating = false);
+    } catch (_) {
+      if (!mounted) return;
+      showRunqSnack(context, 'Could not load expense.', kind: SnackKind.error);
+      setState(() => _hydrating = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -81,17 +124,34 @@ class _NewExpenseScreenState extends ConsumerState<NewExpenseScreen> {
     }
     setState(() => _saving = true);
     try {
+      final itemsBody = _items
+          .map((it) => <String, dynamic>{
+                'expenseDate': _isoDate(it.date),
+                'category': it.category,
+                'description': it.description.trim(),
+                'amount': it.amount,
+              })
+          .toList();
+      final desc = _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim();
+
+      if (_isEdit) {
+        final updated = await expensesRepo.update(
+          widget.editClaimId!,
+          claimDate: _claimDate,
+          description: desc,
+          items: itemsBody,
+        );
+        if (!mounted) return;
+        ref.invalidate(expensesProvider);
+        showRunqSnack(context, 'Expense ${updated.claimNumber} updated.');
+        context.pop();
+        return;
+      }
+
       final created = await expensesRepo.create(
         claimDate: _claimDate,
-        description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        items: _items
-            .map((it) => <String, dynamic>{
-                  'expenseDate': _isoDate(it.date),
-                  'category': it.category,
-                  'description': it.description.trim(),
-                  'amount': it.amount,
-                })
-            .toList(),
+        description: desc,
+        items: itemsBody,
       );
       if (autoApprove) {
         try {
@@ -119,13 +179,17 @@ class _NewExpenseScreenState extends ConsumerState<NewExpenseScreen> {
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
-        title: const Text('New expense'),
+        title: Text(_isEdit
+            ? (_claimNumber != null ? 'Amend $_claimNumber' : 'Amend expense')
+            : 'New expense'),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => context.pop(),
         ),
       ),
-      body: SafeArea(
+      body: _hydrating
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
         child: Column(
           children: [
             Expanded(
@@ -197,6 +261,7 @@ class _NewExpenseScreenState extends ConsumerState<NewExpenseScreen> {
               total: _total,
               saving: _saving,
               hasItems: _items.isNotEmpty,
+              isEdit: _isEdit,
               onRecord: () => _save(autoApprove: true),
               onDraft: () => _save(autoApprove: false),
             ),
@@ -512,6 +577,7 @@ class _Footer extends StatelessWidget {
   final double total;
   final bool saving;
   final bool hasItems;
+  final bool isEdit;
   final VoidCallback onRecord;
   final VoidCallback onDraft;
   const _Footer({
@@ -520,6 +586,7 @@ class _Footer extends StatelessWidget {
     required this.hasItems,
     required this.onRecord,
     required this.onDraft,
+    this.isEdit = false,
   });
 
   @override
@@ -534,20 +601,22 @@ class _Footer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
-            flex: 1,
-            child: OutlinedButton(
-              onPressed: saving || blocked ? null : onDraft,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: BorderSide(color: t.hairline),
-                foregroundColor: t.ink,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (!isEdit) ...[
+            Expanded(
+              flex: 1,
+              child: OutlinedButton(
+                onPressed: saving || blocked ? null : onDraft,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: t.hairline),
+                  foregroundColor: t.ink,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Save draft'),
               ),
-              child: const Text('Save draft'),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             flex: 2,
             child: FilledButton.icon(
@@ -562,7 +631,11 @@ class _Footer extends StatelessWidget {
                       width: 16, height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.check_rounded, size: 18),
-              label: Text(saving ? 'Saving…' : 'Record · ${formatINR(total)}'),
+              label: Text(saving
+                  ? 'Saving…'
+                  : isEdit
+                      ? 'Save changes · ${formatINR(total)}'
+                      : 'Record · ${formatINR(total)}'),
             ),
           ),
         ],

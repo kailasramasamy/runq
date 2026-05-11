@@ -246,6 +246,25 @@ class ExpensesRepo {
     final res = await apiClient.put('/hr/expense-claims/$id/reimburse', const {});
     return ExpenseClaim.fromJson(_data(res));
   }
+
+  Future<ExpenseClaim> update(
+    String id, {
+    required DateTime claimDate,
+    String? description,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final body = <String, dynamic>{
+      'claimDate': _isoDate(claimDate),
+      'description': description,
+      'items': items,
+    };
+    final res = await apiClient.put('/hr/expense-claims/$id', body);
+    return ExpenseClaim.fromJson(_data(res));
+  }
+
+  Future<void> hardDelete(String id) async {
+    await apiClient.delete('/hr/expense-claims/$id');
+  }
 }
 
 class CustomersRepo {

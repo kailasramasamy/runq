@@ -8,7 +8,7 @@ import {
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import {
-  useExpenseClaims, useExpenseClaim, useCreateExpenseClaim, useSubmitClaim, useApproveClaim, useReimburseClaim,
+  useExpenseClaims, useExpenseClaim, useCreateExpenseClaim, useSubmitClaim, useApproveClaim, useReimburseClaim, useDeleteExpenseClaim,
   type ExpenseClaim, type ClaimStatus, type ExpenseCategory,
 } from '@/hooks/queries/use-expense-claims';
 
@@ -200,6 +200,7 @@ export function ExpenseClaimsPage() {
   const submitClaim = useSubmitClaim();
   const approveClaim = useApproveClaim();
   const reimburseClaim = useReimburseClaim();
+  const deleteClaim = useDeleteExpenseClaim();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -210,6 +211,17 @@ export function ExpenseClaimsPage() {
     const fn = action === 'submit' ? submitClaim : action === 'approve' ? approveClaim : reimburseClaim;
     try { await fn.mutateAsync(id); toast(`Claim ${action}ed`, 'success'); }
     catch { toast(`Failed to ${action}`, 'error'); }
+  }
+
+  async function handleDelete(id: string, claimNumber: string) {
+    // Money-moved gate lives on the server (refuses 'reimbursed'); confirm
+    // here so the user can't blow a claim away by mis-clicking the trash.
+    if (!window.confirm(`Delete claim ${claimNumber}? This removes the claim and its line items permanently.`)) return;
+    try { await deleteClaim.mutateAsync(id); toast('Claim deleted', 'success'); }
+    catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete';
+      toast(msg, 'error');
+    }
   }
 
   return (
@@ -259,8 +271,8 @@ export function ExpenseClaimsPage() {
                     <span className="text-zinc-500">{c.claimDate}</span>
                     <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{formatINR(c.totalAmount)}</span>
                   </div>
-                  {(c.status === 'draft' || c.status === 'submitted' || c.status === 'approved') && (
-                    <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                  {c.status !== 'reimbursed' && (
+                    <div className="mt-2 flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                       {c.status === 'draft' && (
                         <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'submit')}><Send size={14} /> Submit</Button>
                       )}
@@ -270,6 +282,15 @@ export function ExpenseClaimsPage() {
                       {c.status === 'approved' && (
                         <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                        onClick={() => handleDelete(c.id, c.claimNumber)}
+                        loading={deleteClaim.isPending}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -315,6 +336,17 @@ export function ExpenseClaimsPage() {
                               )}
                               {c.status === 'approved' && (
                                 <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
+                              )}
+                              {c.status !== 'reimbursed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                  onClick={() => handleDelete(c.id, c.claimNumber)}
+                                  loading={deleteClaim.isPending}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
                               )}
                             </div>
                           </TableCell>
