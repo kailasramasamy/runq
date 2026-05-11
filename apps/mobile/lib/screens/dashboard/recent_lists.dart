@@ -9,7 +9,7 @@ import '../../widgets/section_head.dart';
 import '../bills_screen.dart' show BillRow;
 import '../invoices_screen.dart' show InvoiceRow;
 
-/// Top-5 recent invoices + bills for the dashboard, each with a "See all"
+/// Top-3 recent invoices + bills for the dashboard, each with a "See all"
 /// link to the full list. Kept compact so the dashboard stays scannable —
 /// power users can drill in via the section header.
 class RecentInvoicesSection extends ConsumerWidget {
@@ -25,7 +25,7 @@ class RecentInvoicesSection extends ConsumerWidget {
         loading: () => const _Skeleton(),
         error: (_, __) => const _ErrorRow(message: 'Could not load invoices'),
         data: (page) {
-          final items = page.data.take(5).toList();
+          final items = page.data.take(3).toList();
           if (items.isEmpty) {
             return const _Empty(label: 'No invoices yet');
           }
@@ -71,7 +71,7 @@ class RecentBillsSection extends ConsumerWidget {
         loading: () => const _Skeleton(),
         error: (_, __) => const _ErrorRow(message: 'Could not load bills'),
         data: (page) {
-          final items = page.data.take(5).toList();
+          final items = page.data.take(3).toList();
           if (items.isEmpty) {
             return const _Empty(label: 'No bills yet');
           }

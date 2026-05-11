@@ -252,6 +252,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
                 controller: _notesCtrl,
                 minLines: 2,
                 maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: _inputDecoration(t, hint: 'Optional notes for this invoice'),
               ),
             ),
@@ -437,6 +438,7 @@ class _TextField extends StatelessWidget {
         const SizedBox(height: 4),
         TextField(
           controller: controller,
+          textCapitalization: TextCapitalization.sentences,
           decoration: _inputDecoration(t, hint: hint),
         ),
       ],

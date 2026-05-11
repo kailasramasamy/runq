@@ -53,6 +53,16 @@ class FabSheet extends StatelessWidget {
         RunqColors.amberInk,
         (ctx) => ctx.push('/bills'),
       ),
+      _Action(
+        Icons.savings_outlined,
+        'Expenses',
+        'Record + view out-of-pocket spends',
+        const Color(0xFF7C3AED),
+        // Land on the list (which has its own Record-expense FAB) so this
+        // single FAB entry covers both browsing past claims and adding a
+        // new one — no duplicate "view all" / "add" pair to maintain.
+        (ctx) => ctx.push('/expenses'),
+      ),
     ];
 
     return Positioned(

@@ -22,6 +22,7 @@ class DashboardScreen extends ConsumerWidget {
     ref.invalidate(cashTrendProvider);
     ref.invalidate(bankAccountsProvider);
     ref.invalidate(pendingApprovalsProvider);
+    ref.invalidate(inboxCountProvider);
     ref.invalidate(activityProvider);
     ref.invalidate(invoicesProvider(const InvoiceFilter()));
     await ref.read(dashboardSummaryProvider.future).catchError((_) => throw 0);

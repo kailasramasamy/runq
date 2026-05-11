@@ -142,6 +142,24 @@ final bankTxnsProvider = FutureProvider.family<PaginatedResponse<BankTxn>, Strin
   return _watchAuth(ref, () => bankingRepo.transactions(accountId));
 });
 
+/// Date of the most recent imported transaction on the account — backs the
+/// 'Synced till …' chip in the banking screen.
+final bankLastSyncDateProvider = FutureProvider.family<DateTime?, String>((ref, accountId) async {
+  return _watchAuth(ref, () => bankingRepo.lastSyncDate(accountId));
+});
+
+/// Cheap inbox count for the dashboard quick-action badge. Polls keep it
+/// reasonably fresh; mutations elsewhere should also `ref.invalidate` this
+/// provider for instant updates.
+final inboxCountProvider = FutureProvider<int>((ref) async {
+  return _watchAuth(ref, () => inboxRepo.count());
+});
+
+/// Full grouped payload for the inbox screen.
+final inboxProvider = FutureProvider<InboxPayload>((ref) async {
+  return _watchAuth(ref, () => inboxRepo.list());
+});
+
 final pendingApprovalsProvider = FutureProvider<List<ApprovalInstance>>((ref) async {
   return _watchAuth(ref, () => approvalsRepo.pending());
 });

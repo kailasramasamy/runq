@@ -95,6 +95,7 @@ class _Body extends ConsumerWidget {
             onRefresh: () {
               ref.invalidate(bankAccountsProvider);
               ref.invalidate(bankTxnsProvider(selected.id));
+              ref.invalidate(bankLastSyncDateProvider(selected.id));
             },
           ),
         ),
@@ -105,6 +106,10 @@ class _Body extends ConsumerWidget {
             selectedMatchCount: selectedMatchCount,
             onSelect: (id) => ref.read(_selectedAccountProvider.notifier).state = id,
           ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverToBoxAdapter(child: _SyncedTillChip(accountId: selected.id)),
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -406,6 +411,37 @@ class _AccountCard extends StatelessWidget {
         'cash_credit' => 'Cash credit',
         _ => t,
       };
+}
+
+/// "Synced till <date>" stamp under the account strip. Mirrors the web
+/// banking transactions page's chip — pulls the most recent imported
+/// transaction date from /banking/accounts/:id/balance.
+class _SyncedTillChip extends ConsumerWidget {
+  final String accountId;
+  const _SyncedTillChip({required this.accountId});
+
+  String _fmt(DateTime d) {
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${m[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final last = ref.watch(bankLastSyncDateProvider(accountId));
+    final label = last.maybeWhen(
+      data: (d) => d == null ? 'No transactions yet' : 'Synced till ${_fmt(d)}',
+      orElse: () => null,
+    );
+    if (label == null) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Icon(Icons.cloud_done_outlined, size: 14, color: t.muted),
+        const SizedBox(width: 6),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+      ],
+    );
+  }
 }
 
 class _AiReconcileBanner extends ConsumerStatefulWidget {

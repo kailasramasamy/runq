@@ -162,7 +162,7 @@ class _Header extends StatelessWidget {
             onPressed: () => context.pop(),
             color: t.ink,
           ),
-          Expanded(child: Center(child: Text('Help & support', style: RunqText.bodyStrong.copyWith(color: t.ink)))),
+          Expanded(child: Center(child: Text('Help & support', style: RunqText.h2.copyWith(color: t.ink)))),
           const SizedBox(width: 40),
         ],
       ),

@@ -963,6 +963,11 @@ class _Input extends StatelessWidget {
           TextField(
             controller: controller,
             keyboardType: keyboard,
+            // Sentences caps for free-text fields; numeric fields ignore it
+            // anyway since their keyboard doesn't expose a Shift key.
+            textCapitalization: keyboard?.toString().contains('numberWithOptions') == true
+                ? TextCapitalization.none
+                : TextCapitalization.sentences,
             inputFormatters: keyboard?.toString().contains('numberWithOptions') == true
                 ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))]
                 : null,

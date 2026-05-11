@@ -28,7 +28,12 @@ class SupportChatScreen extends ConsumerStatefulWidget {
   /// of its status. Used by the support inbox to deep-link into any
   /// conversation including resolved or closed ones.
   final String? initialConversationId;
-  const SupportChatScreen({super.key, this.initialConversationId});
+  /// When true, skip the "resume the user's last open conversation" lookup
+  /// and open a blank chat. Set by the inbox's "New conversation" button so
+  /// the user actually gets a new chat instead of being silently resumed
+  /// into an existing one.
+  final bool forceNew;
+  const SupportChatScreen({super.key, this.initialConversationId, this.forceNew = false});
 
   @override
   ConsumerState<SupportChatScreen> createState() => _SupportChatScreenState();
@@ -54,6 +59,10 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
     final id = widget.initialConversationId;
     if (id != null && id.isNotEmpty) {
       _loadConversation(id);
+    } else if (widget.forceNew) {
+      // Caller explicitly wants a fresh chat — skip the resume lookup so
+      // the empty-state composer is shown right away.
+      setState(() => _loadingHistory = false);
     } else {
       _loadResumable();
     }
@@ -430,7 +439,7 @@ class _Header extends StatelessWidget {
             onPressed: () => context.pop(),
             color: t.ink,
           ),
-          Expanded(child: Center(child: Text('Support', style: RunqText.bodyStrong.copyWith(color: t.ink)))),
+          Expanded(child: Center(child: Text('Support', style: RunqText.h2.copyWith(color: t.ink)))),
           if (hasConversation)
             IconButton(
               icon: const Icon(Icons.add_comment_outlined, size: 20),
@@ -565,6 +574,7 @@ class _Composer extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              textCapitalization: TextCapitalization.sentences,
               maxLines: 4,
               minLines: 1,
               textInputAction: TextInputAction.send,

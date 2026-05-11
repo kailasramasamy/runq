@@ -552,6 +552,9 @@ class _Input extends StatelessWidget {
           TextField(
             controller: controller,
             keyboardType: keyboard,
+            textCapitalization: keyboard?.toString().contains('numberWithOptions') == true
+                ? TextCapitalization.none
+                : TextCapitalization.sentences,
             inputFormatters: keyboard?.toString().contains('numberWithOptions') == true
                 ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))]
                 : null,

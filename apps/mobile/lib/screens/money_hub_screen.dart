@@ -280,6 +280,15 @@ class _MoneyGrid extends ConsumerWidget {
           caption: gstCaption,
           onTap: () => context.push('/gst'),
         ),
+        HubSectionTile(
+          icon: Icons.savings_outlined,
+          iconBg: isDark ? const Color(0xFF581C87) : const Color(0xFFF3E8FF),
+          iconFg: isDark ? const Color(0xFFD8B4FE) : const Color(0xFF7C3AED),
+          title: 'EXPENSES',
+          metric: 'Reimbursements',
+          caption: 'out-of-pocket spends',
+          onTap: () => context.push('/expenses'),
+        ),
       ],
     );
   }

@@ -442,16 +442,19 @@ class _ActionSheet extends ConsumerWidget {
     final hasPhone = phone != null && phone.isNotEmpty;
     final hasEmail = (group.customerEmail ?? '').isNotEmpty;
 
-    return SafeArea(
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          border: Border.all(color: t.hairline, width: 0.5),
-          boxShadow: RunqShadows.sheet,
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
-        child: Column(
+    // Don't wrap in SafeArea — that would leave the home-indicator gap as
+    // the dim scrim showing through. Extend the Container all the way to
+    // the screen bottom and pad the content above the bottom inset.
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        border: Border.all(color: t.hairline, width: 0.5),
+        boxShadow: RunqShadows.sheet,
+      ),
+      padding: EdgeInsets.fromLTRB(20, 14, 20, 18 + bottomInset),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -517,7 +520,6 @@ class _ActionSheet extends ConsumerWidget {
             ),
           ],
         ),
-      ),
     );
   }
 

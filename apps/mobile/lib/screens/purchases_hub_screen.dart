@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/data_providers.dart';
+import '../services/bill_intake.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
@@ -44,7 +45,10 @@ class PurchasesHubScreen extends ConsumerWidget {
                   HubQuickChip(
                     icon: Icons.add_rounded,
                     label: 'New bill',
-                    onTap: () => context.push('/purchases/bills'),
+                    // Same Scan / Photos / Files chooser as the FAB's
+                    // Add a bill action so the two entry points behave
+                    // identically.
+                    onTap: () => startBillIntake(context),
                   ),
                   HubQuickChip(
                     icon: Icons.payments_outlined,

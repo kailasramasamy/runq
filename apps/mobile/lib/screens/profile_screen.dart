@@ -229,7 +229,7 @@ class _Header extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Profile',
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15),
+                  style: RunqText.h2.copyWith(color: t.ink),
                 ),
               ),
             ),

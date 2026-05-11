@@ -6,7 +6,18 @@ class RqAvatar extends StatelessWidget {
   final String? short;
   final double size;
   final bool square;
-  const RqAvatar({super.key, required this.name, this.short, this.size = 36, this.square = false});
+  /// When true, renders as a saturated coloured tile with white initials —
+  /// for hero cards / detail headers where the avatar should anchor the
+  /// composition rather than fade into the card background.
+  final bool filled;
+  const RqAvatar({
+    super.key,
+    required this.name,
+    this.short,
+    this.size = 36,
+    this.square = false,
+    this.filled = false,
+  });
 
   Color _hueColor(double l, double c) {
     final s = short ?? name;
@@ -33,8 +44,13 @@ class RqAvatar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Light: pale tinted bg + dark tinted text.
     // Dark:  deep tinted bg + light tinted text.
-    final bg = isDark ? _hueColor(0.22, 0.06) : _hueColor(0.94, 0.04);
-    final fg = isDark ? _hueColor(0.82, 0.10) : _hueColor(0.40, 0.13);
+    // filled: saturated bg + white text (for hero cards).
+    final bg = filled
+        ? _hueColor(0.62, 0.13)
+        : (isDark ? _hueColor(0.22, 0.06) : _hueColor(0.94, 0.04));
+    final fg = filled
+        ? Colors.white
+        : (isDark ? _hueColor(0.82, 0.10) : _hueColor(0.40, 0.13));
     return Container(
       width: size,
       height: size,

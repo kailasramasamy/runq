@@ -191,6 +191,56 @@ class QuickTemplatesRepo {
   }
 }
 
+class ExpensesRepo {
+  /// All expense claims, newest first.
+  Future<List<ExpenseClaim>> list({String? status}) async {
+    final qp = <String, String>{};
+    if (status != null) qp['status'] = status;
+    final q = qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get('/hr/expense-claims$q');
+    return _dataList(res).map(ExpenseClaim.fromJson).toList();
+  }
+
+  Future<ExpenseClaim> get(String id) async {
+    final res = await apiClient.get('/hr/expense-claims/$id');
+    return ExpenseClaim.fromJson(_data(res));
+  }
+
+  /// Create a draft claim with line items.
+  Future<ExpenseClaim> create({
+    required DateTime claimDate,
+    String? description,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final body = <String, dynamic>{
+      'claimDate': _isoDate(claimDate),
+      'description': description,
+      'items': items,
+    };
+    final res = await apiClient.post('/hr/expense-claims', body);
+    return ExpenseClaim.fromJson(_data(res));
+  }
+
+  Future<ExpenseClaim> submit(String id) async {
+    final res = await apiClient.put('/hr/expense-claims/$id/submit', const {});
+    return ExpenseClaim.fromJson(_data(res));
+  }
+
+  Future<ExpenseClaim> approve(String id, {bool approved = true, String? rejectionReason}) async {
+    final body = <String, dynamic>{
+      'approved': approved,
+      if (rejectionReason != null) 'rejectionReason': rejectionReason,
+    };
+    final res = await apiClient.put('/hr/expense-claims/$id/approve', body);
+    return ExpenseClaim.fromJson(_data(res));
+  }
+
+  Future<ExpenseClaim> reimburse(String id) async {
+    final res = await apiClient.put('/hr/expense-claims/$id/reimburse', const {});
+    return ExpenseClaim.fromJson(_data(res));
+  }
+}
+
 class CustomersRepo {
   /// First page (up to 100) of active customers, optionally filtered by
   /// search. Used to populate the customer picker in the new-invoice form.
@@ -363,6 +413,16 @@ class BankingRepo {
     final res = await apiClient.post('/banking/accounts/$accountId/categorize');
     final data = _data(res);
     return ((data['rulesMatched'] as num?)?.toInt() ?? 0) + ((data['aiMatched'] as num?)?.toInt() ?? 0);
+  }
+
+  /// Returns the date of the most recent imported transaction for the
+  /// account ('synced till X'). Same endpoint the web admin uses.
+  Future<DateTime?> lastSyncDate(String accountId) async {
+    final res = await apiClient.get('/banking/accounts/$accountId/balance');
+    final data = _data(res);
+    final raw = data['lastTransactionDate'];
+    if (raw == null) return null;
+    return DateTime.tryParse(raw.toString());
   }
 }
 
@@ -638,6 +698,23 @@ class GstRepo {
 final dashboardRepo = DashboardRepo();
 final invoicesRepo = InvoicesRepo();
 final customersRepo = CustomersRepo();
+final expensesRepo = ExpensesRepo();
+final inboxRepo = InboxRepo();
+
+class InboxRepo {
+  /// Cheap badge endpoint — used by the dashboard quick-action tile.
+  Future<int> count() async {
+    final res = await apiClient.get('/inbox/count');
+    final data = _data(res);
+    return (data['count'] is num) ? (data['count'] as num).toInt() : 0;
+  }
+
+  /// Full grouped payload for the inbox screen.
+  Future<InboxPayload> list() async {
+    final res = await apiClient.get('/inbox');
+    return InboxPayload.fromJson(_data(res));
+  }
+}
 final quickTemplatesRepo = QuickTemplatesRepo();
 final billsRepo = BillsRepo();
 final bankingRepo = BankingRepo();

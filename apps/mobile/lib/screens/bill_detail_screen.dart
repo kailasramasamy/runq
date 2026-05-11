@@ -269,8 +269,14 @@ class _HeroCard extends StatelessWidget {
     return '${d.day} ${m[d.month - 1]} ${d.year}';
   }
 
+  String _shortDate(DateTime d) {
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${m[d.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final t = RT(context);
     return RunqCard(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -279,42 +285,53 @@ class _HeroCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RqAvatar(name: bill.vendorName, size: 48),
+              RqAvatar(name: bill.vendorName, size: 44, filled: true),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(bill.vendorName, style: RunqText.h3.copyWith(fontSize: 16)),
+                    Text(bill.vendorName,
+                        style: RunqText.h3.copyWith(fontSize: 16),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text('Due ${_date(bill.dueDate)}',
-                        style: RunqText.caption.copyWith(fontSize: 12)),
+                    Text(
+                      'Issued ${_shortDate(bill.invoiceDate)}  ·  Due ${_date(bill.dueDate)}',
+                      style: RunqText.caption.copyWith(fontSize: 12, color: t.muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
+              ),
+              // Status + match-state chips live next to the vendor so the
+              // bill's posture is answered at the same glance as "from whom?"
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  StatusPill(bill.status),
+                  if (bill.matchStatus == 'matched') ...[
+                    const SizedBox(height: 4),
+                    _MatchChip(matched: true),
+                  ] else if (bill.status == 'pending_match' || bill.matchStatus == 'mismatch') ...[
+                    const SizedBox(height: 4),
+                    _MatchChip(matched: false),
+                  ],
+                ],
               ),
             ],
           ),
           const SizedBox(height: 18),
-          Text('TOTAL', style: RunqText.label),
-          const SizedBox(height: 6),
-          Text(formatINR(bill.totalAmount, paise: true), style: RunqText.h1),
+          // Drop the redundant 'TOTAL' eyebrow — the giant rupee number
+          // is self-evidently the bill total, especially with the SUMMARY
+          // card right below.
+          Text(formatINR(bill.totalAmount, paise: true),
+              style: RunqText.display.copyWith(fontSize: 30, color: t.ink, height: 1.0)),
           if (bill.balanceDue > 0 && bill.balanceDue != bill.totalAmount) ...[
-            const SizedBox(height: 4),
-            Text('Balance ${formatINR(bill.balanceDue, paise: true)}', style: RunqText.caption),
+            const SizedBox(height: 6),
+            Text('${formatINR(bill.balanceDue, paise: true)} balance due',
+                style: RunqText.caption.copyWith(color: RunqColors.redInk, fontWeight: FontWeight.w600)),
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              StatusPill(bill.status),
-              if (bill.matchStatus == 'matched') ...[
-                const SizedBox(width: 6),
-                _MatchChip(matched: true),
-              ] else if (bill.status == 'pending_match' || bill.matchStatus == 'mismatch') ...[
-                const SizedBox(width: 6),
-                _MatchChip(matched: false),
-              ],
-            ],
-          ),
         ],
       ),
     );
@@ -346,17 +363,39 @@ class _LineItemsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RT(context);
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('LINE ITEMS', style: RunqText.label),
-          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('LINE ITEMS', style: RunqText.label),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: RunqColors.indigo.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('${items.length}',
+                    style: RunqText.caption.copyWith(
+                      fontSize: 10.5,
+                      color: RunqColors.indigo,
+                      fontWeight: FontWeight.w800,
+                    )),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           for (var i = 0; i < items.length; i++) ...[
             _ItemRow(item: items[i]),
             if (i < items.length - 1)
-              Divider(height: 20, thickness: 1, color: RT(context).hairline),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Container(height: 1, color: t.muted2.withValues(alpha: 0.30)),
+              ),
           ],
         ],
       ),
@@ -370,24 +409,29 @@ class _ItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RT(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          flex: 5,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(item.itemName.isEmpty ? item.description : item.itemName, style: RunqText.body),
-              const SizedBox(height: 2),
+              Text(
+                item.itemName.isEmpty ? item.description : item.itemName,
+                style: RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink, height: 1.3),
+              ),
+              const SizedBox(height: 4),
               Text(
                 '${item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2)} × ${formatINR(item.unitPrice, paise: true)}',
-                style: RunqText.caption.copyWith(fontSize: 11),
+                style: RunqText.caption.copyWith(fontSize: 11.5, color: t.muted),
               ),
             ],
           ),
         ),
-        Text(formatINR(item.amount, paise: true), style: RunqText.tabular(size: 14, w: FontWeight.w600)),
+        const SizedBox(width: 12),
+        Text(formatINR(item.amount, paise: true),
+            style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
       ],
     );
   }
@@ -429,15 +473,13 @@ class _GstBreakdownCard extends StatelessWidget {
     final t = RT(context);
     final s = _split();
     final hasGst = s.cgst > 0 || s.sgst > 0 || s.igst > 0 || s.cess > 0;
-    final title = hasGst ? 'GST BREAKDOWN' : 'TOTALS';
-
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: RunqText.label),
-          const SizedBox(height: 8),
+          Text('SUMMARY', style: RunqText.label),
+          const SizedBox(height: 10),
           _LineRow(label: 'Subtotal', value: formatINR(s.subtotal, paise: true)),
           if (hasGst) ...[
             if (s.igst > 0) _LineRow(label: 'IGST', value: formatINR(s.igst, paise: true)),
@@ -446,7 +488,10 @@ class _GstBreakdownCard extends StatelessWidget {
             if (s.cess > 0) _LineRow(label: 'Cess', value: formatINR(s.cess, paise: true)),
           ] else
             _LineRow(label: 'GST', value: '₹0.00'),
-          Divider(height: 14, thickness: 0.5, color: RT(context).hairlineSoft),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Container(height: 1, color: t.muted2.withValues(alpha: 0.30)),
+          ),
           _LineRow(label: 'Total', value: formatINR(bill.totalAmount, paise: true), strong: true),
           if (!hasGst) ...[
             const SizedBox(height: 8),
@@ -484,15 +529,18 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final style = strong
-        ? RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink)
-        : RunqText.caption.copyWith(fontSize: 12, color: t.muted);
+    final labelStyle = strong
+        ? RunqText.bodyStrong.copyWith(fontSize: 15, color: t.ink)
+        : RunqText.body.copyWith(fontSize: 13, color: t.ink2);
+    final valueStyle = strong
+        ? RunqText.tabular(size: 16, w: FontWeight.w800, color: t.ink)
+        : RunqText.tabular(size: 13, w: FontWeight.w600, color: t.ink);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: style)),
-          Text(value, style: RunqText.tabular(size: strong ? 14 : 12, w: strong ? FontWeight.w700 : FontWeight.w500)),
+          Expanded(child: Text(label, style: labelStyle)),
+          Text(value, style: valueStyle),
         ],
       ),
     );

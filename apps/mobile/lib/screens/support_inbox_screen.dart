@@ -69,7 +69,7 @@ class _SupportInboxScreenState extends ConsumerState<SupportInboxScreen> {
                 child: _loading && _conversations.isEmpty
                     ? const Center(child: CircularProgressIndicator())
                     : _conversations.isEmpty
-                        ? _EmptyState(onStart: () => context.push('/profile/help'))
+                        ? _EmptyState(onStart: () => context.push('/profile/help?new=1'))
                         : ListView(
                             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                             children: [
@@ -103,7 +103,7 @@ class _SupportInboxScreenState extends ConsumerState<SupportInboxScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: RunqColors.indigo,
         foregroundColor: Colors.white,
-        onPressed: () => context.push('/profile/help'),
+        onPressed: () => context.push('/profile/help?new=1'),
         icon: const Icon(Icons.add_comment_outlined, size: 18),
         label: const Text('New conversation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ),
@@ -124,7 +124,7 @@ class _Header extends StatelessWidget {
             onPressed: () => context.pop(),
             color: t.ink,
           ),
-          Expanded(child: Center(child: Text('My support', style: RunqText.bodyStrong.copyWith(color: t.ink)))),
+          Expanded(child: Center(child: Text('My support', style: RunqText.h2.copyWith(color: t.ink)))),
           const SizedBox(width: 40),
         ],
       ),

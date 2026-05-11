@@ -21,22 +21,22 @@ class QuickActionsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(dashboardSummaryProvider);
-    final approvals = ref.watch(pendingApprovalsProvider);
+    final inboxCount = ref.watch(inboxCountProvider);
 
     final reconCount = summary.maybeWhen(data: (s) => s.unreconciledTxnCount, orElse: () => 0);
-    final approveCount = approvals.maybeWhen(data: (l) => l.length, orElse: () => 0);
+    final inboxBadge = inboxCount.maybeWhen(data: (n) => n, orElse: () => 0);
 
     final items = <_QA>[
       _QA(Icons.receipt_long_outlined, 'Bill', RunqColors.indigo, (ctx) => startBillIntake(ctx)),
       _QA(Icons.send_outlined, 'Invoice', const Color(0xFF06B6D4), (ctx) => showInvoiceQuickSheet(ctx)),
       _QA(Icons.account_balance_outlined, 'Reconcile', RunqColors.greenInk, (ctx) => ctx.push('/banking')),
-      _QA(Icons.check_circle_outline_rounded, 'Approve', RunqColors.amberInk, (ctx) => ctx.push('/approvals')),
+      _QA(Icons.inbox_outlined, 'Inbox', RunqColors.amberInk, (ctx) => ctx.push('/inbox')),
     ];
-    final badges = <int>[0, 0, reconCount, approveCount];
+    final badges = <int>[0, 0, reconCount, inboxBadge];
     final badgeTints = <Color>[
       Colors.transparent, Colors.transparent,
-      const Color(0xFFF97316), // orange for "13"
-      RunqColors.redInk,        // red for "4"
+      const Color(0xFFF97316), // orange for recon
+      RunqColors.redInk,        // red for inbox
     ];
 
     return Row(

@@ -375,6 +375,7 @@ class _Composer extends StatelessWidget {
               ),
               child: TextField(
                 controller: controller,
+                textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 minLines: 1,

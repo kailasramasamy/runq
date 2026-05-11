@@ -1235,6 +1235,81 @@ class QuickInvoiceResult {
       );
 }
 
+/// Single line item on an expense claim.
+class ExpenseItem {
+  final String id;
+  final DateTime expenseDate;
+  final String category;
+  final String description;
+  final double amount;
+
+  ExpenseItem({
+    required this.id,
+    required this.expenseDate,
+    required this.category,
+    required this.description,
+    required this.amount,
+  });
+
+  factory ExpenseItem.fromJson(Map<String, dynamic> j) => ExpenseItem(
+        id: _strOr(j['id'], ''),
+        expenseDate: _dt(j['expenseDate']) ?? DateTime.now(),
+        category: _strOr(j['category'], 'Other'),
+        description: _strOr(j['description'], ''),
+        amount: _num(j['amount']),
+      );
+}
+
+/// One expense claim (a batch of out-of-pocket business expenses the user
+/// will reimburse from the company account).
+class ExpenseClaim {
+  final String id;
+  final String claimNumber;
+  final String? claimantName;
+  final DateTime claimDate;
+  final String? description;
+  final double totalAmount;
+  /// Lifecycle: draft → submitted → approved | rejected → reimbursed.
+  final String status;
+  final DateTime? approvedAt;
+  final DateTime? reimbursedAt;
+  final String? rejectionReason;
+  final List<ExpenseItem> items;
+
+  ExpenseClaim({
+    required this.id,
+    required this.claimNumber,
+    required this.claimDate,
+    required this.totalAmount,
+    required this.status,
+    required this.items,
+    this.claimantName,
+    this.description,
+    this.approvedAt,
+    this.reimbursedAt,
+    this.rejectionReason,
+  });
+
+  factory ExpenseClaim.fromJson(Map<String, dynamic> j) => ExpenseClaim(
+        id: _strOr(j['id'], ''),
+        claimNumber: _strOr(j['claimNumber'], ''),
+        claimantName: _str(j['claimantName']),
+        claimDate: _dt(j['claimDate']) ?? DateTime.now(),
+        description: _str(j['description']),
+        totalAmount: _num(j['totalAmount']),
+        status: _strOr(j['status'], 'draft'),
+        approvedAt: _dt(j['approvedAt']),
+        reimbursedAt: _dt(j['reimbursedAt']),
+        rejectionReason: _str(j['rejectionReason']),
+        items: (j['items'] is List)
+            ? (j['items'] as List)
+                .whereType<Map>()
+                .map((m) => ExpenseItem.fromJson(m.cast<String, dynamic>()))
+                .toList()
+            : const [],
+      );
+}
+
 class CustomerSummary {
   final String id;
   final String name;
@@ -1468,5 +1543,85 @@ class PoApproveResult {
   factory PoApproveResult.fromJson(Map<String, dynamic> j) => PoApproveResult(
         invoiceId: _strOr(j['invoiceId'], ''),
         invoiceNumber: _strOr(j['invoiceNumber'], ''),
+      );
+}
+
+/// One row inside an inbox group. Mirrors the web `InboxItem` shape so the
+/// mobile screen can render exactly what the admin's `/inbox` shows.
+class InboxItem {
+  final String id;
+  /// Server-supplied path (e.g. `/ar/invoices/<id>`). Mapped onto the
+  /// mobile router via [mobileRoute].
+  final String href;
+  final String title;
+  final String subtitle;
+  final double? amount;
+  final DateTime date;
+  /// One of: draft | ready | needs_review | approved.
+  final String status;
+
+  InboxItem({
+    required this.id,
+    required this.href,
+    required this.title,
+    required this.subtitle,
+    required this.date,
+    required this.status,
+    this.amount,
+  });
+
+  factory InboxItem.fromJson(Map<String, dynamic> j) => InboxItem(
+        id: _strOr(j['id'], ''),
+        href: _strOr(j['href'], ''),
+        title: _strOr(j['title'], ''),
+        subtitle: _strOr(j['subtitle'], ''),
+        amount: _numOrNull(j['amount']),
+        date: _dt(j['date']) ?? DateTime.now(),
+        status: _strOr(j['status'], 'draft'),
+      );
+}
+
+class InboxGroup {
+  final String key;
+  final String title;
+  final String caption;
+  final int count;
+  final List<InboxItem> items;
+
+  InboxGroup({
+    required this.key,
+    required this.title,
+    required this.caption,
+    required this.count,
+    required this.items,
+  });
+
+  factory InboxGroup.fromJson(Map<String, dynamic> j) => InboxGroup(
+        key: _strOr(j['key'], ''),
+        title: _strOr(j['title'], ''),
+        caption: _strOr(j['caption'], ''),
+        count: (j['count'] is num) ? (j['count'] as num).toInt() : 0,
+        items: (j['items'] is List)
+            ? (j['items'] as List)
+                .whereType<Map>()
+                .map((m) => InboxItem.fromJson(m.cast<String, dynamic>()))
+                .toList()
+            : const [],
+      );
+}
+
+class InboxPayload {
+  final int totalCount;
+  final List<InboxGroup> groups;
+  InboxPayload({required this.totalCount, required this.groups});
+
+  factory InboxPayload.fromJson(Map<String, dynamic> j) => InboxPayload(
+        totalCount: (j['totalCount'] is num) ? (j['totalCount'] as num).toInt() : 0,
+        groups: (j['groups'] is List)
+            ? (j['groups'] as List)
+                .whereType<Map>()
+                .map((m) => InboxGroup.fromJson(m.cast<String, dynamic>()))
+                .toList()
+            : const [],
       );
 }

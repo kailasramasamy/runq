@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/data_providers.dart';
-import '../services/po_intake.dart';
+import '../widgets/invoice_create_sheet.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
@@ -47,10 +47,10 @@ class SalesHubScreen extends ConsumerWidget {
                   HubQuickChip(
                     icon: Icons.add_rounded,
                     label: 'New invoice',
-                    // Opens the camera/picker → server extracts → review draft
-                    // flow. Matches the FAB's "Create invoice from a PO" action
-                    // so the two entry points behave identically.
-                    onTap: () => startPoIntake(context),
+                    // Opens the same 4-option chooser as the FAB's Create
+                    // Invoice — From PO / Quick / Blank / Upload — so the
+                    // hub entry point doesn't shortcut into a single flow.
+                    onTap: () => showInvoiceCreateSheet(context),
                   ),
                   HubQuickChip(
                     icon: Icons.notifications_active_outlined,
