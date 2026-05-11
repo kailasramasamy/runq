@@ -148,6 +148,13 @@ class InvoicesRepo {
     return id == null ? '' : id.toString();
   }
 
+  /// PUT /ar/invoices/:id — full replace (customer, dates, items, totals).
+  /// Backend permits sent/overdue when amountReceived === 0 and rebuilds
+  /// the GL posting in the same transaction.
+  Future<void> update(String id, Map<String, dynamic> body) async {
+    await apiClient.put('/ar/invoices/$id', body);
+  }
+
   /// Fetch the rendered invoice PDF bytes. Hits the same /print?format=pdf
   /// endpoint the web admin uses, so the mobile share looks identical to
   /// what gets emailed to a customer from the desktop app.

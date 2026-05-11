@@ -222,6 +222,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(InvoiceDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
         ),
         GoRoute(
+          path: '/invoices/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(NewInvoiceScreen(editInvoiceId: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        GoRoute(
           path: '/bills/extract',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) {

@@ -18,7 +18,10 @@ import '../widgets/runq_snack.dart';
 /// dates, line items, totals, notes. No HSN/SAC editing, no per-customer
 /// price resolver — those stay on the web for now.
 class NewInvoiceScreen extends ConsumerStatefulWidget {
-  const NewInvoiceScreen({super.key});
+  /// When set, the form hydrates from this invoice and PUTs to update on
+  /// save. Used by the Amend flow from invoice detail.
+  final String? editInvoiceId;
+  const NewInvoiceScreen({super.key, this.editInvoiceId});
 
   @override
   ConsumerState<NewInvoiceScreen> createState() => _NewInvoiceScreenState();
@@ -51,6 +54,66 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
   final _notesCtrl = TextEditingController();
   final List<_LineItem> _lines = [_LineItem()];
   bool _saving = false;
+  bool _hydrating = false;
+
+  bool get _isEdit => widget.editInvoiceId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      _hydrate();
+    }
+  }
+
+  Future<void> _hydrate() async {
+    setState(() => _hydrating = true);
+    try {
+      final inv = await invoicesRepo.detail(widget.editInvoiceId!);
+      if (!mounted) return;
+      // The detail payload carries customerId + name but the picker
+      // expects a CustomerSummary. Build a minimal one — payment-terms
+      // isn't needed (the due date is already set on the invoice).
+      final customer = CustomerSummary(
+        id: inv.customerId,
+        name: inv.customerName,
+        gstin: null,
+        paymentTermsDays: 30,
+      );
+      setState(() {
+        _customer = customer;
+        _invoiceDate = inv.invoiceDate;
+        _dueDate = inv.dueDate;
+        _dueDirty = true; // suppress auto-recompute when editing
+        _poCtrl.text = ''; // poNumber not exposed on the mobile model — leave blank
+        _notesCtrl.text = '';
+        _lines
+          ..clear()
+          ..addAll(inv.items.map((it) {
+            final l = _LineItem();
+            l.itemId = null; // mobile InvoiceItem doesn't surface itemId
+            l.description = it.description;
+            l.uom = ''; // not surfaced on mobile InvoiceItem
+            l.quantity = _trim(it.quantity);
+            l.unitPrice = _trim(it.unitPrice);
+            l.taxRate = it.taxRate ?? 0;
+            return l;
+          }));
+        if (_lines.isEmpty) _lines.add(_LineItem());
+      });
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (mounted) showRunqSnack(context, 'Could not load invoice for editing.', kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _hydrating = false);
+    }
+  }
+
+  String _trim(double v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v.toString();
+  }
 
   @override
   void dispose() {
@@ -121,13 +184,20 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
 
     setState(() => _saving = true);
     try {
-      final id = await invoicesRepo.create(body);
+      String invoiceId;
+      if (_isEdit) {
+        await invoicesRepo.update(widget.editInvoiceId!, body);
+        invoiceId = widget.editInvoiceId!;
+      } else {
+        invoiceId = await invoicesRepo.create(body);
+      }
       if (!mounted) return;
       ref.invalidate(invoiceSummaryProvider);
       ref.invalidate(invoicesProvider(const InvoiceFilter()));
-      showRunqSnack(context, 'Invoice created.');
-      if (id.isNotEmpty) {
-        context.pushReplacement('/invoices/$id');
+      if (_isEdit) ref.invalidate(invoiceDetailProvider(invoiceId));
+      showRunqSnack(context, _isEdit ? 'Invoice updated.' : 'Invoice created.');
+      if (invoiceId.isNotEmpty) {
+        context.pushReplacement('/invoices/$invoiceId');
       } else {
         context.pop();
       }
@@ -136,7 +206,9 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
       showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
       if (!mounted) return;
-      showRunqSnack(context, 'Could not create invoice.', kind: SnackKind.error);
+      showRunqSnack(context,
+          _isEdit ? 'Could not update invoice.' : 'Could not create invoice.',
+          kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -148,14 +220,16 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
-        title: const Text('New invoice'),
+        title: Text(_isEdit ? 'Amend invoice' : 'New invoice'),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => context.pop(),
         ),
       ),
       body: SafeArea(
-        child: ListView(
+        child: _hydrating
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
           children: [
             _SectionCard(
@@ -265,7 +339,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
               ),
               child: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save invoice'),
+                  : Text(_isEdit ? 'Save & repost' : 'Save invoice'),
             ),
           ],
         ),

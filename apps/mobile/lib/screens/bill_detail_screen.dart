@@ -14,6 +14,19 @@ import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
 
+/// Bills are amendable while the user can still walk it back: drafts edit
+/// freely, and matched/approved bills can be edited or deleted until a
+/// payment goes out. After that, adjustments need a debit note — direct
+/// edits would break the matched payment allocation.
+bool _canAmendBill(BillWithDetails bill) {
+  final paid = bill.amountPaid;
+  if (bill.status == 'draft') return true;
+  if ((bill.status == 'matched' || bill.status == 'approved') && paid == 0) return true;
+  return false;
+}
+
+bool _canShowActions(BillWithDetails bill) => _canAmendBill(bill);
+
 class BillDetailScreen extends ConsumerWidget {
   final String id;
   const BillDetailScreen({super.key, required this.id});
@@ -46,7 +59,7 @@ class BillDetailScreen extends ConsumerWidget {
                     _GstBreakdownCard(bill: bill),
                     const SizedBox(height: 14),
                     _AttachmentsCard(billId: id),
-                    if (bill.status == 'draft') ...[
+                    if (_canShowActions(bill)) ...[
                       const SizedBox(height: 14),
                       _ActionsCard(
                         bill: bill,
@@ -86,7 +99,7 @@ class _HeaderState extends State<_Header> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final canEdit = widget.bill.status == 'draft';
+    final canEdit = _canAmendBill(widget.bill);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       child: Row(
@@ -748,6 +761,11 @@ class _ActionsCardState extends State<_ActionsCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDraft = widget.bill.status == 'draft';
+    final blurb = isDraft
+        ? 'Approve to post the bill to your books, or delete to remove it (and the scanned original).'
+        : 'Amend if the vendor revised the bill (line items, qty, amounts) — '
+            'the GL posting is re-issued in place. Delete to remove the bill entirely.';
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -756,7 +774,7 @@ class _ActionsCardState extends State<_ActionsCard> {
           Text('ACTIONS', style: RunqText.label),
           const SizedBox(height: 4),
           Text(
-            'Approve to post the bill to your books, or delete to remove it (and the scanned original).',
+            blurb,
             style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
           ),
           const SizedBox(height: 12),
@@ -765,16 +783,28 @@ class _ActionsCardState extends State<_ActionsCard> {
               Expanded(
                 child: SizedBox(
                   height: 44,
-                  child: FilledButton.icon(
-                    onPressed: _busy ? null : _approve,
-                    icon: _busy
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Approve', style: TextStyle(height: 1.0)),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                  ),
+                  child: isDraft
+                      ? FilledButton.icon(
+                          onPressed: _busy ? null : _approve,
+                          icon: _busy
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.check_rounded, size: 18),
+                          label: const Text('Approve', style: TextStyle(height: 1.0)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        )
+                      : OutlinedButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () => context.push('/bills/${widget.bill.id}/edit'),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Amend', style: TextStyle(height: 1.0)),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 10),
