@@ -75,7 +75,7 @@ class _QuickInvoiceGenerateScreenState extends ConsumerState<QuickInvoiceGenerat
       );
       if (!mounted) return;
       ref.invalidate(invoiceSummaryProvider);
-      ref.invalidate(invoicesProvider(const InvoiceFilter()));
+      ref.invalidate(invoicesProvider);
       if (res.invoiceId.isNotEmpty) {
         await showInvoiceSuccessSheet(
           context,

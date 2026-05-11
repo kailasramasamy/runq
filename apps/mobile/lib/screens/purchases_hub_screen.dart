@@ -18,7 +18,7 @@ class PurchasesHubScreen extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(billsSummaryProvider);
-    ref.invalidate(billsProvider(const BillFilter()));
+    ref.invalidate(billsProvider);
     await ref.read(billsSummaryProvider.future).catchError((_) => throw 0);
   }
 
@@ -268,7 +268,7 @@ class _RecentBills extends ConsumerWidget {
     final bills = ref.watch(billsProvider(const BillFilter()));
     return AsyncSlot(
       value: bills,
-      onRetry: () => ref.invalidate(billsProvider(const BillFilter())),
+      onRetry: () => ref.invalidate(billsProvider),
       data: (page) {
         final items = page.data.take(5).toList();
         if (items.isEmpty) {
@@ -287,7 +287,7 @@ class _RecentBills extends ConsumerWidget {
                   bill: b,
                   onAfterAction: () async {
                     ref.invalidate(billsSummaryProvider);
-                    ref.invalidate(billsProvider(const BillFilter()));
+                    ref.invalidate(billsProvider);
                   },
                 ),
               ),

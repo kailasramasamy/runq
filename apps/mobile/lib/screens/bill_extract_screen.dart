@@ -185,7 +185,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
         extractionId: ai.extractionId,
       );
       if (!mounted) return;
-      ref.invalidate(billsProvider(const BillFilter()));
+      ref.invalidate(billsProvider);
       ref.invalidate(billsSummaryProvider);
       ref.invalidate(dashboardSummaryProvider);
       ref.invalidate(activityProvider);

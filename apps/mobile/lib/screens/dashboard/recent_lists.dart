@@ -40,7 +40,7 @@ class RecentInvoicesSection extends ConsumerWidget {
                     compact: true,
                     onAfterAction: () async {
                       ref.invalidate(invoiceSummaryProvider);
-                      ref.invalidate(invoicesProvider(const InvoiceFilter()));
+                      ref.invalidate(invoicesProvider);
                     },
                   ),
                   if (i < items.length - 1)
@@ -86,7 +86,7 @@ class RecentBillsSection extends ConsumerWidget {
                     compact: true,
                     onAfterAction: () async {
                       ref.invalidate(billsSummaryProvider);
-                      ref.invalidate(billsProvider(const BillFilter()));
+                      ref.invalidate(billsProvider);
                     },
                   ),
                   if (i < items.length - 1)

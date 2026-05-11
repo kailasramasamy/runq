@@ -204,7 +204,10 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
       }
       if (!mounted) return;
       ref.invalidate(invoiceSummaryProvider);
-      ref.invalidate(invoicesProvider(const InvoiceFilter()));
+      // Invalidate every filter variant so the sales hub, status tabs, and
+      // dashboard refresh — not just the empty-filter list the create flow
+      // started from.
+      ref.invalidate(invoicesProvider);
       if (_isEdit) ref.invalidate(invoiceDetailProvider(invoiceId));
       showRunqSnack(context, _isEdit ? 'Invoice updated.' : 'Invoice created.');
       if (invoiceId.isNotEmpty) {

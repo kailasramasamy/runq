@@ -18,7 +18,7 @@ class SalesHubScreen extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(invoiceSummaryProvider);
-    ref.invalidate(invoicesProvider(const InvoiceFilter()));
+    ref.invalidate(invoicesProvider);
     await ref
         .read(invoiceSummaryProvider.future)
         .catchError((_) => throw 0);
@@ -292,7 +292,7 @@ class _RecentInvoices extends ConsumerWidget {
                   invoice: inv,
                   onAfterAction: () async {
                     ref.invalidate(invoiceSummaryProvider);
-                    ref.invalidate(invoicesProvider(const InvoiceFilter()));
+                    ref.invalidate(invoicesProvider);
                   },
                 ),
               ),

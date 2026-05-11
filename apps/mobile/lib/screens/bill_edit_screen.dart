@@ -124,7 +124,7 @@ class _BillEditScreenState extends ConsumerState<BillEditScreen> {
       );
       if (!mounted) return;
       ref.invalidate(billDetailProvider(widget.billId));
-      ref.invalidate(billsProvider(const BillFilter()));
+      ref.invalidate(billsProvider);
       ref.invalidate(billsSummaryProvider);
       ref.invalidate(activityProvider);
       showRunqSnack(context, 'Bill updated', kind: SnackKind.success);
