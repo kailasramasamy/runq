@@ -413,7 +413,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title={pl.name}
         breadcrumbs={[
           { label: 'Masters' },
