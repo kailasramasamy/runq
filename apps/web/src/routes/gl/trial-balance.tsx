@@ -40,7 +40,7 @@ export function TrialBalancePage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'General Ledger', href: '/gl' }, { label: 'Trial Balance' }]}
         title="Trial Balance"
         description="All account balances as of today."

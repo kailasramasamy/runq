@@ -1,6 +1,7 @@
 import type { ReactNode, InputHTMLAttributes, SelectHTMLAttributes, HTMLAttributes, ButtonHTMLAttributes } from 'react';
 import { ChevronRight, ChevronLeft, Search, ShieldCheck, ShieldAlert, ShieldX, Building2, Zap, ScrollText, Smartphone, Wallet, Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useDeclarePageWidth } from '../../lib/page-width';
 
 // ─── Tokens / helpers ───────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export function addDays(iso: string, n: number): string {
 interface Crumb { label: string; href?: string }
 
 export function PageHeader({
-  title, titleBadge, description, breadcrumbs, actions, className,
+  title, titleBadge, description, breadcrumbs, actions, className, fullWidth,
 }: {
   title: string;
   titleBadge?: ReactNode;
@@ -54,11 +55,14 @@ export function PageHeader({
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
   className?: string;
+  /** Drop the dashboard shell's max-width cap. See ui/PageHeader for details. */
+  fullWidth?: boolean;
 }) {
   // breadcrumbs prop kept for back-compat but no longer rendered — the
   // topbar surfaces the active route via the global breadcrumb. Suppress
   // unused-arg lint without removing the prop signature (callers still pass it).
   void breadcrumbs;
+  useDeclarePageWidth(fullWidth ? 'full' : 'capped');
 
   return (
     <div className={cn('mb-6', className)}>

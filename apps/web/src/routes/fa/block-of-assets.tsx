@@ -32,7 +32,7 @@ export function BlockOfAssetsPage() {
 
   return (
     <div className="max-w-6xl">
-      <PageHeader
+      <PageHeader fullWidth
         title="Block of Assets"
         description="IT Act depreciation by asset block for the selected financial year."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Block of Assets' }]}

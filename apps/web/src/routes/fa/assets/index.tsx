@@ -57,7 +57,7 @@ export function AssetListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Asset Register"
         description="All fixed assets tracked by the company."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Asset Register' }]}

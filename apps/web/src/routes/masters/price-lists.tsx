@@ -678,7 +678,7 @@ export function PriceListsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Price Lists"
         breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists' }]}
         description="Manage selling and buying price lists for different customer/vendor groups."

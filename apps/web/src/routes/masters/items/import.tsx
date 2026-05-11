@@ -140,7 +140,7 @@ export function ImportItemsPage() {
 
   return (
     <div className="max-w-6xl space-y-4">
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'Masters' },
           { label: 'Items', href: '/masters/items' },

@@ -209,7 +209,7 @@ export function ChequesPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'Cheques' }]}
         title="Cheques & PDCs"
         description="Track received and issued cheques, manage post-dated cheques."

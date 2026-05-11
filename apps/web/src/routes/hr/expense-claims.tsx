@@ -77,7 +77,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+    <div className="mb-4 max-w-3xl rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">New Expense Claim</h4>
         <button type="button" onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -214,7 +214,7 @@ export function ExpenseClaimsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Expense Claims"
         breadcrumbs={[{ label: 'Expenses' }, { label: 'Claims' }]}
         description="Submit, approve, and reimburse employee expense claims."

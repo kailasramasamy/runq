@@ -65,7 +65,7 @@ export function CreditNoteListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Credit notes' }]}
         title="Credit notes"
         description="Refunds, adjustments, and discounts issued against sales invoices."

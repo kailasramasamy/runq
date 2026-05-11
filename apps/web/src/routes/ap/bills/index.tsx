@@ -212,7 +212,7 @@ export function BillListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Bills' }]}
         title="Bills"
         description="Vendor bills, GRN match status, and payment scheduling."

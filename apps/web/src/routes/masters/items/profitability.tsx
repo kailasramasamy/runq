@@ -192,7 +192,7 @@ export function ItemProfitabilityPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <PageHeader fullWidth
         title="Profitability"
         breadcrumbs={[
           { label: 'Masters' },

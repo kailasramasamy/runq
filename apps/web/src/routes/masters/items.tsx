@@ -163,7 +163,7 @@ export function ItemsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Inventory', href: '/masters/items' }, { label: 'Items' }]}
         title="Items"
         description="Products and services used across invoices and bills."

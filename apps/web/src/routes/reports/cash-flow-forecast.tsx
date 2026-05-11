@@ -38,7 +38,7 @@ export function CashFlowForecastPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Cash Flow Forecast' }]}
         title="Cash Flow Forecast"
         description="Projected cash balances based on historical cash flow patterns."

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, Download, ClipboardList, Truck } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
@@ -11,16 +12,15 @@ import { SalesOrdersSection, useOrdersKpis } from '../sales-orders/index';
 type Tab = 'quotes' | 'orders';
 
 export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Tab } = {}) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [showCreateQuote, setShowCreateQuote] = useState(false);
-  const [showCreateOrder, setShowCreateOrder] = useState(false);
 
   const q = useQuotesKpis();
   const o = useOrdersKpis();
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Quotes & sales orders"
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
@@ -47,7 +47,7 @@ export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Ta
               >
                 Export
               </Button>
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => setShowCreateQuote((v) => !v)}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>
                 New quote
               </Button>
             </>
@@ -70,7 +70,7 @@ export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Ta
               >
                 Export
               </Button>
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => setShowCreateOrder((v) => !v)}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>
                 New order
               </Button>
             </>
@@ -104,11 +104,7 @@ export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Ta
         />
       </div>
 
-      {tab === 'quotes' ? (
-        <QuotesSection showCreate={showCreateQuote} setShowCreate={setShowCreateQuote} />
-      ) : (
-        <SalesOrdersSection showCreate={showCreateOrder} setShowCreate={setShowCreateOrder} />
-      )}
+      {tab === 'quotes' ? <QuotesSection /> : <SalesOrdersSection />}
     </div>
   );
 }

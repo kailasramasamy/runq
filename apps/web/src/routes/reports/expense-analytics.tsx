@@ -90,7 +90,7 @@ export function ExpenseAnalyticsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Expense Analytics' }]}
         title="Expense Analytics"
         description="Expense breakdown by category, vendor, and month."

@@ -364,7 +364,7 @@ export function JournalEntriesPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'General Ledger', href: '/gl' }, { label: 'Journal Entries' }]}
         title="Journal Entries"
         description="Double-entry bookkeeping records."

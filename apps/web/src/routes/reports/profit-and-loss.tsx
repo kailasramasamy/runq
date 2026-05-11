@@ -69,7 +69,7 @@ export function ProfitAndLossPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Profit & Loss' }]}
         title="Profit & Loss"
         description="Income and expense summary for the selected period."

@@ -212,7 +212,7 @@ export function ChartOfAccountsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'General Ledger', href: '/gl' }, { label: 'Chart of Accounts' }]}
         title="Chart of Accounts"
         description="Indian COA based on Schedule III of Companies Act."

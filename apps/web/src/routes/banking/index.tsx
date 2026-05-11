@@ -138,7 +138,7 @@ export function BankingHubPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Banking"
         description="Linked bank accounts, transactions, reconciliation, cheques, and petty cash — all in one place."
         actions={

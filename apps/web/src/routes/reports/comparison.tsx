@@ -33,7 +33,7 @@ export function ComparisonPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Comparison' }]}
         title="Comparison Report"
         description="Compare financial metrics across periods."

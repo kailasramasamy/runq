@@ -256,7 +256,7 @@ export function TransactionsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking' }, { label: 'Transactions' }]}
         title="Transactions"
         description="Bank statement entries and reconciliation status."

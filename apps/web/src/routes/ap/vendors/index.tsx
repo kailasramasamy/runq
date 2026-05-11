@@ -63,7 +63,7 @@ export function VendorListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Vendors' }]}
         title="Vendors"
         description="Manage your supplier and vendor relationships."

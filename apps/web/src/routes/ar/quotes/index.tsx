@@ -45,7 +45,7 @@ const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
 
 // ─── Create Form ─────────────────────────────────────────────────────────────
 
-function CreateForm({ onClose }: { onClose: () => void }) {
+export function CreateForm({ onClose }: { onClose: () => void }) {
   const create = useCreateQuote();
   const { toast } = useToast();
   const { data: customersData } = useCustomers({ limit: 100 });
@@ -385,12 +385,8 @@ export function useQuotesKpis() {
   return { quotes, openCount, openTotal, acceptedCount, convertedCount, winRate };
 }
 
-export function QuotesSection({
-  showCreate, setShowCreate,
-}: {
-  showCreate: boolean;
-  setShowCreate: (v: boolean) => void;
-}) {
+export function QuotesSection() {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const quotes = data?.data ?? [];
@@ -399,8 +395,6 @@ export function QuotesSection({
 
   return (
     <>
-      {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
-
       <Modal
         open={!!selected}
         onClose={() => setSelectedId(null)}
@@ -431,7 +425,7 @@ export function QuotesSection({
                   icon={<FileText size={18} />}
                   title="No quotes yet"
                   description="Create your first sales quote to track customer enquiries."
-                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>New quote</ArButton>}
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>New quote</ArButton>}
                 />
               </td>
             </tr>
@@ -468,12 +462,12 @@ export function QuotesSection({
 
 // Stand-alone Quotes page (when accessed via /ar/quotes directly)
 export function QuotesPage() {
+  const navigate = useNavigate();
   const { quotes, openCount, openTotal, acceptedCount, convertedCount, winRate } = useQuotesKpis();
-  const [showCreate, setShowCreate] = useState(false);
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Sales quotes"
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Quotes' }]}
         description="Pre-invoice documents — track what's quoted, accepted, and converted."
@@ -482,7 +476,7 @@ export function QuotesPage() {
             <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('quotes.csv', ['Quote#', 'Date', 'Customer', 'Amount', 'Status', 'Expiry'], quotes.map(q => [q.quoteNumber, q.quoteDate, q.customerName, String(q.totalAmount), q.status, q.expiryDate ?? '']))}>
               Export
             </ArButton>
-            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate((v) => !v)}>New quote</ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>New quote</ArButton>
           </>
         }
       />
@@ -494,7 +488,7 @@ export function QuotesPage() {
         <StatTile label="Win rate" value={`${winRate}%`} sub="Of quotes accepted" tone={winRate >= 50 ? 'pos' : 'neutral'} />
       </div>
 
-      <QuotesSection showCreate={showCreate} setShowCreate={setShowCreate} />
+      <QuotesSection />
     </div>
   );
 }

@@ -72,7 +72,7 @@ export function RevenueAnalyticsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Revenue Analytics' }]}
         title="Revenue Analytics"
         description="Revenue breakdown by customer and month."

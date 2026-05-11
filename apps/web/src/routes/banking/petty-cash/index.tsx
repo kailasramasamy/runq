@@ -391,7 +391,7 @@ export function PettyCashPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'Petty cash' }]}
         title="Petty cash"
         description="Manage petty cash funds across locations — replenishments, expense approvals, balances."

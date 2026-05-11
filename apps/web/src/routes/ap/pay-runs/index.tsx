@@ -45,7 +45,7 @@ const RUN_STATUS_LABEL: Record<PaymentRunStatus, string> = {
 export function PayRunsListPage() {
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Pay runs' }]}
         title="Payment queue"
         description="Approve overdue and upcoming bills as a batch — single click to schedule a pay run."

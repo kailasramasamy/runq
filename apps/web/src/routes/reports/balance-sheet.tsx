@@ -88,7 +88,7 @@ export function BalanceSheetPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Balance Sheet' }]}
         title="Balance Sheet"
         description="Financial position as of the selected date."

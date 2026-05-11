@@ -176,7 +176,7 @@ export function ImportTransactionsPage() {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'Banking', href: '/banking' },
           { label: 'Transactions', href: '/banking/transactions' },

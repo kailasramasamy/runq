@@ -86,7 +86,7 @@ export function CollectionsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Collections' }]}
         title="Collections"
         description="Track follow-ups on overdue invoices, assign to teammates, and log outcomes."
@@ -293,7 +293,7 @@ function AssignForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <Card className="mb-5">
+    <Card className="mb-5 max-w-3xl">
       <CardHeader title="Assign invoice for collection" />
       <form onSubmit={handleSubmit}>
         <CardContent>

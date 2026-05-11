@@ -55,7 +55,7 @@ export function DepreciationRunPage() {
 
   return (
     <div className="max-w-5xl">
-      <PageHeader
+      <PageHeader fullWidth
         title="Depreciation Run"
         description="Preview and post periodic depreciation for all active assets."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Depreciation Run' }]}

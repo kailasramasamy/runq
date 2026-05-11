@@ -421,7 +421,7 @@ export function QuickTemplatesPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Quick Invoice Templates"
         breadcrumbs={[{ label: 'AR' }, { label: 'Quick Templates' }]}
         description="Save recurring invoice structures. Generate invoices by entering quantities."

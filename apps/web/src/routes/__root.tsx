@@ -5,8 +5,10 @@ import { FinanceAgent } from '../components/agent/finance-agent';
 import { AgentActivityPage } from './agent/activity';
 import { SupportWidget } from '../components/support/support-widget';
 import { ImpersonationBanner } from '../components/admin/impersonation-banner';
+import { PageWidthProvider, usePageWidth } from '../lib/page-width';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
+import { InboxPage } from './inbox';
 import { CompanySettingsPage } from './settings/company';
 import { InvoiceNumberingPage } from './settings/invoice-numbering';
 import { OpeningBalancesPage } from './settings/opening-balances';
@@ -42,6 +44,8 @@ import { CustomerDetailPage } from './ar/customers/detail';
 import { ImportCustomersPage } from './ar/customers/import';
 import { InvoiceListPage } from './ar/invoices/index';
 import { NewInvoicePage } from './ar/invoices/new';
+import { NewQuotePage } from './ar/quotes/new';
+import { NewSalesOrderPage } from './ar/sales-orders/new';
 import { InvoiceDetailPage } from './ar/invoices/detail';
 import { EditInvoicePage } from './ar/invoices/edit';
 import { InvoiceImportPage } from './ar/invoices/import';
@@ -186,31 +190,55 @@ const portalSlugRoute = createRoute({
 
 // ─── Dashboard Layout ────────────────────────────────────────────────────────
 
-const dashboardLayoutRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: 'dashboard-layout',
-  component: () => (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <ImpersonationBanner />
-      <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
-        <MobileHeader />
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar />
-          <main
-            className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6"
-            style={{ background: 'var(--bg)', color: 'var(--text-1)' }}
-          >
-            <Outlet />
-          </main>
-        </div>
+function DashboardMain() {
+  // Pages declare their own width via `<PageHeader fullWidth />`. The
+  // shell just reads the active value and swaps the max-width class.
+  // Default is 'capped' (1280px) for forms / dashboards; table-heavy
+  // pages opt into 'full' next to their title.
+  const width = usePageWidth();
+  return (
+    <main
+      className="flex-1 overflow-auto"
+      style={{ background: 'var(--bg)', color: 'var(--text-1)' }}
+    >
+      <div
+        className={
+          'p-4 pb-20 md:p-6 md:pb-6 ' +
+          (width === 'full' ? '' : 'mx-auto max-w-7xl')
+        }
+      >
+        <Outlet />
+      </div>
+    </main>
+  );
+}
+
+function DashboardLayout() {
+  return (
+    <PageWidthProvider>
+      <div className="flex h-screen flex-col overflow-hidden">
+        <ImpersonationBanner />
+        <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+          <MobileHeader />
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar />
+            <DashboardMain />
+          </div>
         <MobileBottomNav />
         <FinanceAgent />
         <SupportWidget />
         <HelpDrawer />
       </div>
     </div>
-  ),
+    </PageWidthProvider>
+  );
+}
+
+const dashboardLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'dashboard-layout',
+  component: DashboardLayout,
 });
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
@@ -219,6 +247,12 @@ const dashboardRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/',
   component: DashboardPage,
+});
+
+const inboxRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/inbox',
+  component: InboxPage,
 });
 
 // ─── AP Routes ───────────────────────────────────────────────────────────────
@@ -589,6 +623,18 @@ const salesOrdersRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/sales-orders',
   component: () => <QuotesAndOrdersPage initialTab="orders" />,
+});
+
+const quoteNewRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/quotes/new',
+  component: NewQuotePage,
+});
+
+const salesOrderNewRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/sales-orders/new',
+  component: NewSalesOrderPage,
 });
 
 const quickTemplatesRoute = createRoute({
@@ -1614,6 +1660,7 @@ export const routeTree = rootRoute.addChildren([
   ]),
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
+    inboxRoute,
     agentActivityRoute,
     apRoute.addChildren([
       apIndexRoute,
@@ -1662,7 +1709,9 @@ export const routeTree = rootRoute.addChildren([
       poInboxDetailRoute,
       dunningRoute,
       quotesRoute,
+      quoteNewRoute,
       salesOrdersRoute,
+      salesOrderNewRoute,
       collectionsRoute,
       quickTemplatesRoute,
       quickTemplateNewRoute,

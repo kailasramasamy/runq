@@ -92,7 +92,7 @@ export function FiscalPeriodsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Fiscal Periods"
         breadcrumbs={[{ label: 'Reports' }, { label: 'Fiscal Periods' }]}
         description="Manage accounting periods. Close or lock periods to prevent changes."

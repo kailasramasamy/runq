@@ -389,7 +389,7 @@ export function ReconciliationPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking' }, { label: 'Reconciliation' }]}
         title="Reconciliation"
         description="Match bank transactions to payments and receipts."

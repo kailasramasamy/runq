@@ -96,7 +96,7 @@ export function BankAccountListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'Accounts' }]}
         title="Bank accounts"
         description="Linked bank and credit accounts — balances refresh on each statement import."

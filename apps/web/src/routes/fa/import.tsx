@@ -35,7 +35,7 @@ export function AssetImportPage() {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader
+      <PageHeader fullWidth
         title="Import Assets"
         description="Bulk-import fixed assets from a CSV or Excel file."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Import Assets' }]}

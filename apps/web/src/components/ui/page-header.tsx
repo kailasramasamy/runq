@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { useDeclarePageWidth } from '@/lib/page-width';
 
 interface Crumb {
   label: string;
@@ -48,12 +49,21 @@ interface PageHeaderProps {
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
   className?: string;
+  /**
+   * When true, the page renders edge-to-edge (no centered max-width cap).
+   * Use on table-heavy pages where a 1280px cap would force premature
+   * horizontal scroll. The shell reads this via the PageWidth context so
+   * the decision lives next to the page's title — no central registry.
+   */
+  fullWidth?: boolean;
 }
 
-export function PageHeader({ title, titleBadge, description, breadcrumbs, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, titleBadge, description, breadcrumbs, actions, className, fullWidth }: PageHeaderProps) {
   // breadcrumbs prop accepted for back-compat but no longer rendered;
   // the topbar surfaces the active route globally.
   void breadcrumbs;
+  // Tell the shell whether to drop the max-width cap. Resets on unmount.
+  useDeclarePageWidth(fullWidth ? 'full' : 'capped');
   return (
     <div className={cn('mb-6', className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

@@ -284,7 +284,7 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
 
   return (
     <div className="max-w-5xl">
-      <PageHeader
+      <PageHeader fullWidth
         title={asset.name}
         breadcrumbs={[
           { label: 'Fixed Assets', href: '/fa' },

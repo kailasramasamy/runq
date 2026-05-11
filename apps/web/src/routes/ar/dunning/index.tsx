@@ -61,7 +61,7 @@ export function DunningPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Dunning' }]}
         title="Dunning"
         description="Automated reminders, escalation rules, and a log of every nudge sent."

@@ -33,6 +33,7 @@ import { workflowRoutes } from './modules/workflows/routes';
 import { vendorManagementRoutes } from './modules/vendor-management/routes';
 import { caPortalRoutes } from './modules/ca-portal/routes';
 import { hrRoutes } from './modules/hr/routes';
+import { inboxRoutes } from './modules/inbox/routes';
 import { webhookEndpointRoutes } from './modules/webhooks/webhook-endpoint.routes';
 import { trailRoutes } from './modules/audit/trail.routes';
 import { faRoutes } from './modules/fa/routes';
@@ -114,6 +115,7 @@ export async function buildApp() {
     await scope.register(workflowRoutes, { prefix: '/api/v1/workflows' });
     await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
     await scope.register(hrRoutes, { prefix: '/api/v1/hr' });
+    await scope.register(inboxRoutes, { prefix: '/api/v1/inbox' });
     await scope.register(faRoutes, { prefix: '/api/v1/fa' });
     await scope.register(gstRoutes, { prefix: '/api/v1/gst' });
     await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });

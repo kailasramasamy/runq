@@ -168,7 +168,7 @@ export function PGSettlementDetailPage({ settlementId }: Props) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'Banking', href: '/banking' },
           { label: 'PG Reconciliation', href: '/banking/pg-recon' },

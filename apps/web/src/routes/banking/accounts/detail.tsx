@@ -77,7 +77,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'Banking', href: '/banking/accounts' },
           { label: 'Accounts', href: '/banking/accounts' },

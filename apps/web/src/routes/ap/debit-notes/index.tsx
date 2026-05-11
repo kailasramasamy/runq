@@ -58,7 +58,7 @@ export function DebitNoteListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Debit notes' }]}
         title="Debit notes"
         description="Vendor deductions and adjustments — record returns, short-supplies, and discounts."

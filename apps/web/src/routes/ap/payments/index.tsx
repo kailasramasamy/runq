@@ -50,7 +50,7 @@ export function PaymentListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AP', href: '/ap' }, { label: 'Payments' }]}
         title="Payments"
         description="Vendor payments — RTGS / NEFT / cheque / UPI, advances and bulk runs."

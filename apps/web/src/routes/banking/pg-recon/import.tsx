@@ -91,7 +91,7 @@ export function ImportPGSettlementPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[
           { label: 'Banking', href: '/banking' },
           { label: 'PG Reconciliation', href: '/banking/pg-recon' },

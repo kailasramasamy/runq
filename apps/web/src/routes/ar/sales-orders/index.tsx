@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, Trash2, X, Download, FileText } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
@@ -41,7 +42,7 @@ const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
 
 // ─── Create Form ─────────────────────────────────────────────────────────────
 
-function CreateForm({ onClose }: { onClose: () => void }) {
+export function CreateForm({ onClose }: { onClose: () => void }) {
   const create = useCreateSalesOrder();
   const { toast } = useToast();
   const { data: customersData } = useCustomers({ limit: 100 });
@@ -254,12 +255,8 @@ export function useOrdersKpis() {
   return { orders, openCount, openTotal, fulfilledCount, draftCount };
 }
 
-export function SalesOrdersSection({
-  showCreate, setShowCreate,
-}: {
-  showCreate: boolean;
-  setShowCreate: (v: boolean) => void;
-}) {
+export function SalesOrdersSection() {
+  const navigate = useNavigate();
   const { data, isLoading } = useSalesOrders();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -268,7 +265,6 @@ export function SalesOrdersSection({
 
   return (
     <>
-      {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
       {selected && <DetailView order={selected} onClose={() => setSelectedId(null)} />}
 
       <Table>
@@ -292,7 +288,7 @@ export function SalesOrdersSection({
                   icon={<FileText size={18} />}
                   title="No sales orders yet"
                   description="Create a sales order to lock in a confirmed customer commitment."
-                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>New order</ArButton>}
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>New order</ArButton>}
                 />
               </td>
             </tr>
@@ -326,12 +322,12 @@ export function SalesOrdersSection({
 
 // Stand-alone Sales Orders page
 export function SalesOrdersPage() {
+  const navigate = useNavigate();
   const { orders, openCount, openTotal, fulfilledCount, draftCount } = useOrdersKpis();
-  const [showCreate, setShowCreate] = useState(false);
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Sales orders"
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Sales orders' }]}
         description="Manage confirmed sales orders and convert them to invoices."
@@ -340,7 +336,7 @@ export function SalesOrdersPage() {
             <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('sales-orders.csv', ['Order#', 'Date', 'Customer', 'Amount', 'Status'], orders.map(o => [o.orderNumber, o.orderDate, o.customerName, String(o.totalAmount), o.status]))}>
               Export
             </ArButton>
-            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => setShowCreate((v) => !v)}>New order</ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>New order</ArButton>
           </>
         }
       />
@@ -352,7 +348,7 @@ export function SalesOrdersPage() {
         <StatTile label="Total orders" value={orders.length} sub="In view" />
       </div>
 
-      <SalesOrdersSection showCreate={showCreate} setShowCreate={setShowCreate} />
+      <SalesOrdersSection />
     </div>
   );
 }

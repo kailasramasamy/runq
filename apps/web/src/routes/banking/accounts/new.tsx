@@ -24,7 +24,7 @@ export function NewBankAccountPage() {
 
   return (
     <div className="max-w-3xl">
-      <PageHeader
+      <PageHeader fullWidth
         title="New Bank Account"
         description="Link a bank account to start tracking transactions."
         breadcrumbs={[

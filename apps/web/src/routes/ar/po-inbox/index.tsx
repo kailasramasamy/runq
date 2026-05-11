@@ -77,7 +77,7 @@ export function PoInboxPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="PO Inbox"
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'PO Inbox' }]}
         actions={

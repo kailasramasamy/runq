@@ -15,7 +15,7 @@ export function PriceListEditPage({ priceListId }: { priceListId: string }) {
   if (isLoading) {
     return (
       <div>
-        <PageHeader
+        <PageHeader fullWidth
           title="Edit Price List"
           breadcrumbs={[
             { label: 'Masters' },

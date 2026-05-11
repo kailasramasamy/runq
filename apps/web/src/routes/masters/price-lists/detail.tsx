@@ -293,7 +293,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   if (isLoading) {
     return (
       <div>
-        <PageHeader
+        <PageHeader fullWidth
           title="Price List"
           breadcrumbs={[{ label: 'Masters' }, { label: 'Price Lists', href: '/masters/price-lists' }, { label: '…' }]}
         />

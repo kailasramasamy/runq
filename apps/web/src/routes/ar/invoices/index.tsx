@@ -171,7 +171,7 @@ export function InvoiceListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Invoices' }]}
         title="Invoices"
         description="Sales invoices and e-Invoice status across all customers."

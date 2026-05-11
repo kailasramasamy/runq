@@ -1,5 +1,6 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { useInboxCount } from '@/hooks/queries/use-inbox';
 import {
   LayoutDashboard, Sparkles, Inbox, Folder,
   FileText, ClipboardList, Truck, FileMinus, Receipt, Users, AlarmClock,
@@ -31,6 +32,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: null,
     items: [
       { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+      { key: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
     ],
   },
   {
@@ -162,6 +164,8 @@ function SidebarContent({
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme } = useTheme();
+  const inboxQuery = useInboxCount();
+  const inboxCount = inboxQuery.data?.data?.count ?? 0;
 
   const allPaths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.path));
   const bestMatch = allPaths
@@ -258,7 +262,10 @@ function SidebarContent({
               {group.items.map((it) => (
                 <NavItemRow
                   key={it.key}
-                  item={it}
+                  // Inject the live inbox count from the badge query so the
+                  // sidebar shows what's pending without each page having
+                  // to wire it up. Other counts could pipe in here too.
+                  item={it.key === 'inbox' && inboxCount > 0 ? { ...it, count: inboxCount } : it}
                   active={isActivePath(it.path)}
                   collapsed={collapsed}
                   onClick={onNavigate}

@@ -104,7 +104,7 @@ export function AssetCategoriesPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         title="Asset Categories"
         description="Define depreciation rules for each asset type."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Categories' }]}

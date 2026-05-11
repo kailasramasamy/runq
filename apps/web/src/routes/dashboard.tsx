@@ -11,8 +11,13 @@ import { GstAndPeriodClose } from '@/components/dashboard/gst-period-close';
 import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { WelcomeScreen, useWelcomeTrigger } from '@/components/welcome-screen';
 import { useAuth } from '@/providers/auth-provider';
+import { useDeclarePageWidth } from '@/lib/page-width';
 
 export function DashboardPage() {
+  // Dashboard leads with the hero (no PageHeader), so declare width
+  // directly. The side-by-side cards benefit from full width on big
+  // monitors instead of being capped at 1280px.
+  useDeclarePageWidth('full');
   const { data: onboarding } = useOnboarding();
   const [wizardOpen, setWizardOpen] = useState(false);
   const { user, activeTenantId } = useAuth();

@@ -61,7 +61,7 @@ export function NewAssetPage() {
 
   return (
     <div className="max-w-3xl">
-      <PageHeader
+      <PageHeader fullWidth
         title="New Asset"
         description="Add a fixed asset to the register."
         breadcrumbs={[

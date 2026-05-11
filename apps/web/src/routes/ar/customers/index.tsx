@@ -68,7 +68,7 @@ export function CustomerListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Customers' }]}
         title="Customers"
         description="Manage your customer relationships and outstanding balances."

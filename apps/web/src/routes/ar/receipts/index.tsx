@@ -65,7 +65,7 @@ export function ReceiptListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Receipts' }]}
         title="Receipts"
         description="Customer payments — bank transfers, UPI, cheques, and gateway settlements."

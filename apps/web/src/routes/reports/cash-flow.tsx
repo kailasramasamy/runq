@@ -67,7 +67,7 @@ export function CashFlowPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Reports', href: '/reports' }, { label: 'Cash Flow' }]}
         title="Cash Flow Statement"
         description="Cash inflows and outflows for the selected period."

@@ -57,7 +57,7 @@ export function PGReconciliationPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader fullWidth
         breadcrumbs={[{ label: 'Banking', href: '/banking/accounts' }, { label: 'PG reconciliation' }]}
         title="PG reconciliation"
         description="Reconcile payment gateway settlements (Razorpay, PhonePe, Paytm) against your books."
