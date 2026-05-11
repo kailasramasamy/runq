@@ -52,12 +52,17 @@ const PRESETS: Preset[] = [
     key: 'this_week',
     label: 'This week',
     range: () => {
+      // Full calendar week, Mon → Sun. Week-to-date (Mon → today)
+      // collapses to "today only" on a Monday, which makes the chip
+      // indistinguishable from the Today preset and looks broken.
       const t = new Date();
       const dow = t.getDay(); // 0 Sun..6 Sat
       const monOffset = (dow + 6) % 7; // 0 Mon..6 Sun
       const start = new Date(t);
       start.setDate(t.getDate() - monOffset);
-      return { from: iso(start), to: iso(t) };
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { from: iso(start), to: iso(end) };
     },
   },
   {
