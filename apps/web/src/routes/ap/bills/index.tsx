@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, FileText, Download, Upload, Send, Search, ScanLine, X as XIcon, SlidersHorizontal, Check } from 'lucide-react';
+import { Plus, FileText, Download, Upload, Send, Search, ScanLine, X as XIcon, Check } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice, useBulkApproveInvoices } from '@/hooks/queries/use-purchase-invoices';
 import { useVendors } from '@/hooks/queries/use-vendors';
@@ -12,7 +12,7 @@ import {
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
   Pagination, EmptyState, formatDate, daysBetween,
 } from '@/components/ar/primitives';
-import { Combobox, ConfirmationDialog, useToast } from '@/components/ui';
+import { Combobox, ConfirmationDialog, DateRangeFilter, useToast } from '@/components/ui';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
@@ -89,6 +89,8 @@ export function BillListPage() {
   const setStatus = (v: string) => updateSearch({ status: (v || undefined) as PurchaseInvoiceStatus | undefined });
   const setCategory = (v: string) => updateSearch({ category: v || undefined });
   const setSearch = (v: string) => updateSearch({ q: v || undefined });
+  const setDateRange = (r: { from: string; to: string }) =>
+    updateSearch({ from: r.from || undefined, to: r.to || undefined });
   const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -293,7 +295,7 @@ export function BillListPage() {
           options={STATUS_OPTIONS}
           onChange={(e) => { setStatus(e.target.value); setPage(1); }}
         />
-        <div className="w-56">
+        <div className="w-80">
           <Combobox
             options={vendorOptions}
             value={vendorId}
@@ -306,7 +308,10 @@ export function BillListPage() {
           options={CATEGORY_OPTIONS}
           onChange={(e) => { setCategory(e.target.value); setPage(1); }}
         />
-        <Button variant="outline" size="sm" icon={<SlidersHorizontal size={13} />}>More filters</Button>
+        <DateRangeFilter
+          value={{ from: dateFrom, to: dateTo }}
+          onChange={(r) => { setDateRange(r); setPage(1); }}
+        />
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} bills</span>
       </div>

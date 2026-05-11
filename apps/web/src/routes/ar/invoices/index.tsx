@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, CheckCircle2, SlidersHorizontal } from 'lucide-react';
+import { Plus, FileText, Search, Download, Upload, Send, X as XIcon, CheckCircle2 } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { api } from '@/lib/api-client';
 import { useInvoices, useInvoiceSummary, useBatchUpdateStatus } from '@/hooks/queries/use-invoices';
@@ -13,7 +13,7 @@ import {
   Pagination, EmptyState, formatDate, daysBetween,
 } from '@/components/ar/primitives';
 import { NewInvoiceMenu } from '@/components/ar/new-invoice-menu';
-import { Combobox, useToast } from '@/components/ui';
+import { Combobox, DateRangeFilter, useToast } from '@/components/ui';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
 const LIMIT = 25;
@@ -65,6 +65,8 @@ export function InvoiceListPage() {
   const setSearch = (v: string) => updateSearch({ q: v || undefined });
   const setCustomerFilter = (v: string) => updateSearch({ customer: v || undefined });
   const setStatusFilter = (v: string) => updateSearch({ status: (v || undefined) as SalesInvoiceStatus | undefined });
+  const setDateRange = (r: { from: string; to: string }) =>
+    updateSearch({ from: r.from || undefined, to: r.to || undefined });
   const setPage = (p: number) => updateSearch({ page: p > 1 ? p : undefined }, false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -240,7 +242,7 @@ export function InvoiceListPage() {
           options={STATUS_OPTIONS}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
         />
-        <div className="w-56">
+        <div className="w-80">
           <Combobox
             options={customerOptions}
             value={customerFilter}
@@ -248,7 +250,10 @@ export function InvoiceListPage() {
             placeholder="All customers"
           />
         </div>
-        <Button variant="outline" size="sm" icon={<SlidersHorizontal size={13} />}>More filters</Button>
+        <DateRangeFilter
+          value={{ from: dateFrom, to: dateTo }}
+          onChange={(r) => { setDateRange(r); setPage(1); }}
+        />
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} invoices</span>
       </div>

@@ -252,9 +252,11 @@ export function Combobox({
                   onClick={() => selectOption(opt)}
                   // Portalled into <body> — must set explicit text color
                   // because the dropdown no longer inherits from a styled
-                  // ancestor.
+                  // ancestor. Hairline divider between items keeps long
+                  // option lists scannable.
                   className={cn(
                     'cursor-pointer px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100',
+                    idx < filtered.length - 1 && 'border-b border-zinc-100 dark:border-zinc-800/60',
                     idx === activeIndex
                       ? 'bg-indigo-50 dark:bg-indigo-900/40'
                       : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/40',

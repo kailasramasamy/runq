@@ -4,6 +4,8 @@ export { Card, CardHeader, CardContent, CardFooter } from './card';
 export { Input, Select, Textarea, DateInput } from './input';
 export { Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th } from './table';
 export { PageHeader, Breadcrumbs } from './page-header';
+export { DateRangeFilter } from './date-range-filter';
+export type { DateRange } from './date-range-filter';
 export { EmptyState } from './empty-state';
 export { Skeleton, TableSkeleton, CardSkeleton } from './skeleton';
 export { Pagination } from './pagination';

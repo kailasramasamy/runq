@@ -195,6 +195,7 @@ export function HsnSacCombobox({
                 onClick={() => handleSelect(item.code, item.gstRate)}
                 className={cn(
                   'cursor-pointer px-3 py-2 text-sm whitespace-nowrap',
+                  idx < items.length - 1 && 'border-b border-zinc-100 dark:border-zinc-800/60',
                   idx === activeIndex
                     ? 'bg-indigo-50 dark:bg-indigo-900/20'
                     : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/20',
