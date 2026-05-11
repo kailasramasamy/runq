@@ -458,8 +458,28 @@ class Invoice {
       );
 }
 
+/// Match web's `formatLineUom`: prefer the master `itemUnit` (human pack
+/// size like "500ml"), then the line's saved `uom`, then a synthesized
+/// pack-size from `itemPackSizeValue` + `itemPackSizeUqc`.
+String? _pickUom(Map<String, dynamic> j) {
+  final unit = j['itemUnit'];
+  if (unit is String && unit.trim().isNotEmpty) return unit.trim();
+  final lineUom = j['uom'];
+  if (lineUom is String && lineUom.trim().isNotEmpty) return lineUom.trim();
+  final pv = j['itemPackSizeValue'];
+  final pq = j['itemPackSizeUqc'];
+  final pqStr = pq is String && pq.trim().isNotEmpty ? pq.trim() : null;
+  if (pqStr != null) {
+    final num? pvn = pv is num ? pv : (pv is String ? num.tryParse(pv) : null);
+    if (pvn != null && pvn != 1) return '$pvn$pqStr';
+    return pqStr;
+  }
+  return null;
+}
+
 class InvoiceItem {
   final String description, itemName;
+  final String? uom;
   final double quantity, unitPrice, amount;
   /// GST rate applied to this line (percent, e.g. 5.0). Null when this line
   /// is GST-exempt or the master had no rate set when invoiced.
@@ -469,6 +489,7 @@ class InvoiceItem {
   InvoiceItem({
     required this.description,
     required this.itemName,
+    required this.uom,
     required this.quantity,
     required this.unitPrice,
     required this.amount,
@@ -479,6 +500,7 @@ class InvoiceItem {
   factory InvoiceItem.fromJson(Map<String, dynamic> j) => InvoiceItem(
         description: _strOr(j['description'], ''),
         itemName: _strOr(j['itemName'] ?? j['description'], ''),
+        uom: _pickUom(j),
         quantity: _num(j['quantity']),
         unitPrice: _num(j['unitPrice']),
         amount: _num(j['amount']),

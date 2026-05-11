@@ -174,16 +174,20 @@ class _PoRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _StatusPill(status: row.displayStatus),
-                    const Spacer(),
-                    if (row.approvedInvoiceId != null)
-                      _InvoiceChip(
-                        number: row.approvedInvoiceNumber ?? 'invoice',
-                        onTap: () => context.push('/invoices/${row.approvedInvoiceId}'),
-                      ),
-                  ],
+                Padding(
+                  // Indent to align with the title (avatar 36 + gap 12).
+                  padding: const EdgeInsets.only(left: 48),
+                  child: Row(
+                    children: [
+                      _StatusPill(status: row.displayStatus),
+                      const Spacer(),
+                      if (row.approvedInvoiceId != null)
+                        _InvoiceChip(
+                          number: row.approvedInvoiceNumber ?? 'invoice',
+                          onTap: () => context.push('/invoices/${row.approvedInvoiceId}'),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -228,8 +232,8 @@ class _StatusPill extends StatelessWidget {
       fg = RunqColors.greenInk;
       bg = RunqColors.greenBg;
     } else if (s == 'ready') {
-      fg = RunqColors.greenInk;
-      bg = RunqColors.greenBg;
+      fg = RunqColors.indigo;
+      bg = const Color(0x1F4F46E5);
     } else if (s == 'needs review' || s == 'parsing') {
       fg = const Color(0xFFB45309);
       bg = const Color(0x33F59E0B);

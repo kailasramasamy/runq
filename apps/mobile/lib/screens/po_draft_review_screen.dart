@@ -172,7 +172,12 @@ class _BodyState extends ConsumerState<_Body> {
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              _StatusStrip(unresolved: unresolved, totalLines: d.lines.length, hasCustomer: d.customerId != null),
+              _StatusStrip(
+                unresolved: unresolved,
+                totalLines: d.lines.length,
+                hasCustomer: d.customerId != null,
+                approvedInvoiceNumber: d.approvedInvoiceNumber,
+              ),
               const SizedBox(height: 12),
               _CustomerCard(
                 detail: d,
@@ -181,7 +186,7 @@ class _BodyState extends ConsumerState<_Body> {
               ),
               const SizedBox(height: 14),
               if (d.lines.isNotEmpty) ...[
-                _LinesCard(lines: d.lines, onEdit: _editLine),
+                _LinesCard(lines: d.lines, onEdit: _editLine, locked: d.approvedInvoiceId != null),
                 const SizedBox(height: 14),
               ],
               _TotalsCard(detail: d),
@@ -286,28 +291,33 @@ class _StatusStrip extends StatelessWidget {
   final int unresolved;
   final int totalLines;
   final bool hasCustomer;
+  final String? approvedInvoiceNumber;
   const _StatusStrip({
     required this.unresolved,
     required this.totalLines,
     required this.hasCustomer,
+    this.approvedInvoiceNumber,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final invoiced = approvedInvoiceNumber != null;
     final ready = unresolved == 0 && hasCustomer && totalLines > 0;
-    final color = ready ? RunqColors.greenInk : const Color(0xFFB45309);
-    final bg = ready ? RunqColors.greenBg : const Color(0x33F59E0B);
-    final icon = ready ? Icons.check_circle_rounded : Icons.error_outline_rounded;
+    final color = (invoiced || ready) ? RunqColors.greenInk : const Color(0xFFB45309);
+    final bg = (invoiced || ready) ? RunqColors.greenBg : const Color(0x33F59E0B);
+    final icon = (invoiced || ready) ? Icons.check_circle_rounded : Icons.error_outline_rounded;
 
     final problems = <String>[];
     if (totalLines == 0) problems.add('no line items parsed');
     if (unresolved > 0) {
       problems.add('$unresolved product${unresolved == 1 ? '' : 's'} need to be mapped');
     }
-    final message = ready
-        ? 'Ready to generate · ${totalLines} line${totalLines == 1 ? '' : 's'}'
-        : problems.join(' · ');
+    final message = invoiced
+        ? 'Invoice $approvedInvoiceNumber generated · ${totalLines} line${totalLines == 1 ? '' : 's'}'
+        : ready
+            ? 'Ready to generate · ${totalLines} line${totalLines == 1 ? '' : 's'}'
+            : problems.join(' · ');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -507,7 +517,8 @@ class _GstChip extends StatelessWidget {
 class _LinesCard extends StatelessWidget {
   final List<PoDraftLine> lines;
   final ValueChanged<PoDraftLine> onEdit;
-  const _LinesCard({required this.lines, required this.onEdit});
+  final bool locked;
+  const _LinesCard({required this.lines, required this.onEdit, this.locked = false});
 
   @override
   Widget build(BuildContext context) {
@@ -539,7 +550,7 @@ class _LinesCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           for (var i = 0; i < lines.length; i++) ...[
-            _LineRow(line: lines[i], onTap: () => onEdit(lines[i])),
+            _LineRow(line: lines[i], onTap: () => onEdit(lines[i]), locked: locked),
             if (i < lines.length - 1) const SizedBox(height: 6),
           ],
         ],
@@ -551,7 +562,8 @@ class _LinesCard extends StatelessWidget {
 class _LineRow extends StatelessWidget {
   final PoDraftLine line;
   final VoidCallback onTap;
-  const _LineRow({required this.line, required this.onTap});
+  final bool locked;
+  const _LineRow({required this.line, required this.onTap, this.locked = false});
 
   @override
   Widget build(BuildContext context) {
@@ -570,12 +582,12 @@ class _LineRow extends StatelessWidget {
         : t.hairline;
     final bgColor = unmatched
         ? const Color(0x14F59E0B)
-        : t.bgWarmer;
+        : t.surface;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: locked ? null : onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -649,8 +661,10 @@ class _LineRow extends StatelessWidget {
                         w: FontWeight.w700,
                         color: unmatched ? t.muted : t.ink,
                       )),
-                  const SizedBox(height: 4),
-                  Icon(Icons.chevron_right_rounded, size: 16, color: t.muted2),
+                  if (!locked) ...[
+                    const SizedBox(height: 4),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: t.muted2),
+                  ],
                 ],
               ),
             ],

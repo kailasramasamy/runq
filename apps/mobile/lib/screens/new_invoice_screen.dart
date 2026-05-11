@@ -93,7 +93,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
             final l = _LineItem();
             l.itemId = null; // mobile InvoiceItem doesn't surface itemId
             l.description = it.description;
-            l.uom = ''; // not surfaced on mobile InvoiceItem
+            l.uom = it.uom ?? '';
             l.quantity = _trim(it.quantity);
             l.unitPrice = _trim(it.unitPrice);
             l.taxRate = it.taxRate ?? 0;
@@ -147,6 +147,17 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
 
   String _isoDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _openEditLineSheet(int index) async {
+    if (index < 0 || index >= _lines.length) return;
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditLineSheet(line: _lines[index]),
+    );
+    if (changed == true && mounted) setState(() {});
+  }
 
   Future<void> _save() async {
     if (_customer == null) {
@@ -286,19 +297,31 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (int i = 0; i < _lines.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 12),
-                    _LineCard(
-                      line: _lines[i],
-                      canRemove: _lines.length > 1,
-                      onRemove: () => setState(() => _lines.removeAt(i)),
-                      onChanged: () => setState(() {}),
-                    ),
+                    if (i > 0) const SizedBox(height: 8),
+                    if (_isEdit)
+                      _LineSummaryRow(
+                        line: _lines[i],
+                        canRemove: _lines.length > 1,
+                        onEdit: () => _openEditLineSheet(i),
+                        onRemove: () => setState(() => _lines.removeAt(i)),
+                      )
+                    else
+                      _LineCard(
+                        line: _lines[i],
+                        canRemove: _lines.length > 1,
+                        onRemove: () => setState(() => _lines.removeAt(i)),
+                        onChanged: () => setState(() {}),
+                      ),
                   ],
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: () => setState(() => _lines.add(_LineItem())),
+                      onPressed: () {
+                        final newLine = _LineItem();
+                        setState(() => _lines.add(newLine));
+                        if (_isEdit) _openEditLineSheet(_lines.length - 1);
+                      },
                       icon: const Icon(Icons.add_rounded, size: 18),
                       label: const Text('Add row'),
                     ),
@@ -574,7 +597,7 @@ class _LineCard extends StatelessWidget {
         children: [
           _ItemPickerRow(
             label: line.description.isEmpty ? null : line.description,
-            sku: line.itemId == null ? null : line.uom,
+            uom: line.uom.isEmpty ? null : line.uom,
             onPick: () async {
               final picked = await Navigator.of(context).push<ItemSummary>(
                 MaterialPageRoute(
@@ -746,14 +769,15 @@ class _GstSelector extends StatelessWidget {
 
 class _ItemPickerRow extends StatelessWidget {
   final String? label;
-  final String? sku;
+  final String? uom;
   final VoidCallback onPick;
-  const _ItemPickerRow({required this.label, required this.sku, required this.onPick});
+  const _ItemPickerRow({required this.label, required this.uom, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final has = label != null;
+    final display = has && uom != null && uom!.isNotEmpty ? '$label · $uom' : (label ?? 'Pick item');
     return InkWell(
       onTap: onPick,
       borderRadius: BorderRadius.circular(10),
@@ -771,7 +795,7 @@ class _ItemPickerRow extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                label ?? 'Pick item',
+                display,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: RunqText.body.copyWith(
@@ -906,6 +930,249 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
           onTap: () => Navigator.of(context).pop(item),
         );
       },
+    );
+  }
+}
+
+class _LineSummaryRow extends StatelessWidget {
+  final _LineItem line;
+  final bool canRemove;
+  final VoidCallback onEdit;
+  final VoidCallback onRemove;
+  const _LineSummaryRow({
+    required this.line,
+    required this.canRemove,
+    required this.onEdit,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final desc = line.description.isEmpty ? 'Untitled item' : line.description;
+    final qty = line.quantity.isEmpty ? '0' : line.quantity;
+    final price = line.unitPrice.isEmpty ? '0' : line.unitPrice;
+    final metaParts = <String>[
+      if (line.uom.isNotEmpty) line.uom,
+      '$qty × ₹$price',
+      if (line.taxRate > 0) 'GST ${line.taxRate.toStringAsFixed(0)}%',
+    ];
+    return InkWell(
+      onTap: onEdit,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: t.hairline, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    desc,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: RunqText.bodyStrong.copyWith(color: t.ink),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    metaParts.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              formatINR(line.amount + line.taxAmount),
+              style: RunqText.tabular(size: 14, w: FontWeight.w600, color: t.ink),
+            ),
+            IconButton(
+              icon: Icon(Icons.edit_outlined, size: 18, color: t.muted),
+              onPressed: onEdit,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Edit',
+            ),
+            if (canRemove)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: RunqColors.redInk),
+                onPressed: onRemove,
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Remove',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditLineSheet extends StatefulWidget {
+  final _LineItem line;
+  const _EditLineSheet({required this.line});
+
+  @override
+  State<_EditLineSheet> createState() => _EditLineSheetState();
+}
+
+class _EditLineSheetState extends State<_EditLineSheet> {
+  late _LineItem _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = _LineItem()
+      ..itemId = widget.line.itemId
+      ..description = widget.line.description
+      ..uom = widget.line.uom
+      ..quantity = widget.line.quantity
+      ..unitPrice = widget.line.unitPrice
+      ..taxRate = widget.line.taxRate;
+  }
+
+  void _save() {
+    widget.line
+      ..itemId = _draft.itemId
+      ..description = _draft.description
+      ..uom = _draft.uom
+      ..quantity = _draft.quantity
+      ..unitPrice = _draft.unitPrice
+      ..taxRate = _draft.taxRate;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: inset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: t.hairline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Edit line item', style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+              const SizedBox(height: 12),
+              _ItemPickerRow(
+                label: _draft.description.isEmpty ? null : _draft.description,
+                uom: _draft.uom.isEmpty ? null : _draft.uom,
+                onPick: () async {
+                  final picked = await Navigator.of(context).push<ItemSummary>(
+                    MaterialPageRoute(builder: (_) => const _ItemPickerScreen()),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _draft.itemId = picked.id;
+                      _draft.description = picked.name;
+                      _draft.uom = picked.unit ?? _draft.uom;
+                      if (picked.defaultSellingPrice != null) {
+                        _draft.unitPrice = picked.defaultSellingPrice!.toString();
+                      }
+                      if (picked.gstRate != null) _draft.taxRate = picked.gstRate!;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _NumField(
+                      label: 'Qty',
+                      value: _draft.quantity,
+                      hint: '0',
+                      onChanged: (v) => setState(() => _draft.quantity = v),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumField(
+                      label: 'Unit price',
+                      value: _draft.unitPrice,
+                      hint: '0.00',
+                      onChanged: (v) => setState(() => _draft.unitPrice = v),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _GstSelector(
+                      rate: _draft.taxRate,
+                      onChanged: (r) => setState(() => _draft.taxRate = r),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Amount', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                        const SizedBox(height: 4),
+                        Text(formatINR(_draft.amount + _draft.taxAmount),
+                            style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: RunqColors.indigo,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

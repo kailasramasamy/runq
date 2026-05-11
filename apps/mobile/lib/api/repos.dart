@@ -157,8 +157,11 @@ class InvoicesRepo {
 
   /// Fetch the rendered invoice PDF bytes. Hits the same /print?format=pdf
   /// endpoint the web admin uses, so the mobile share looks identical to
-  /// what gets emailed to a customer from the desktop app.
-  Future<List<int>> pdfBytes(String id) async {
+  /// what gets emailed to a customer from the desktop app. Returns the
+  /// server-suggested filename (parsed from Content-Disposition) so the
+  /// shared file uses the same `<invoice#>-<customer>.pdf` convention as
+  /// the admin export.
+  Future<({List<int> bytes, String? fileName})> pdfBytes(String id) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/ar/invoices/$id/print?format=pdf');
     final headers = <String, String>{};
     if (apiClient.token != null) headers['Authorization'] = 'Bearer ${apiClient.token}';
@@ -166,7 +169,19 @@ class InvoicesRepo {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw ApiException(statusCode: res.statusCode, message: 'Could not generate invoice PDF');
     }
-    return res.bodyBytes;
+    return (bytes: res.bodyBytes, fileName: _filenameFromDisposition(res.headers['content-disposition']));
+  }
+}
+
+String? _filenameFromDisposition(String? header) {
+  if (header == null || header.isEmpty) return null;
+  final m = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(header);
+  final raw = m?.group(1)?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  try {
+    return Uri.decodeComponent(raw);
+  } catch (_) {
+    return raw;
   }
 }
 

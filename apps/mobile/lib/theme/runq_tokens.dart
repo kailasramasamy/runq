@@ -101,9 +101,9 @@ class RunqTokens extends ThemeExtension<RunqTokens> {
     ink2: Color(0xFF3F3A33),
     muted: Color(0xFF7B7468),
     muted2: Color(0xFF9C9489),
-    hairline: Color(0x14141210),
-    hairlineSoft: Color(0x0F141210),
-    inputFill: Color(0xFFF6F4F0),
+    hairline: Color(0x33141210),
+    hairlineSoft: Color(0x1F141210),
+    inputFill: Color(0xFFFFFFFF),
     brand: Color(0xFF4F46E5),
     brandSubtle: Color(0x1F4F46E5),
   );

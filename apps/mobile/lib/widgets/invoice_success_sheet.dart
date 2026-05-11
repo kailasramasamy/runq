@@ -48,18 +48,22 @@ class _InvoiceSuccessSheetState extends State<_InvoiceSuccessSheet> {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final bytes = await invoicesRepo.pdfBytes(widget.invoiceId);
+      final result = await invoicesRepo.pdfBytes(widget.invoiceId);
       if (!mounted) return;
+      // Use the server-supplied filename (<invoice#>-<customer>.pdf) so the
+      // shared file matches the admin export naming. Falls back to just the
+      // invoice number if the header is missing.
+      final fileName = result.fileName ?? '${widget.invoiceNumber}.pdf';
       // Write to a temp file so the system share sheet can pass it on as
       // a real attachment (WhatsApp / Mail / Drive all expect a file URI,
       // not raw bytes).
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${widget.invoiceNumber}.pdf');
-      await file.writeAsBytes(bytes, flush: true);
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsBytes(result.bytes, flush: true);
       if (!mounted) return;
       final box = context.findRenderObject() as RenderBox?;
       await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/pdf', name: '${widget.invoiceNumber}.pdf')],
+        [XFile(file.path, mimeType: 'application/pdf', name: fileName)],
         subject: 'Invoice ${widget.invoiceNumber}',
         text: 'Invoice ${widget.invoiceNumber}',
         sharePositionOrigin:
