@@ -13,6 +13,8 @@ import '../widgets/invoice_success_sheet.dart';
 import '../widgets/po_line_edit_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
+import '../providers/data_providers.dart';
+import 'po_inbox_screen.dart' show poInboxProvider;
 
 final poDraftDetailProvider =
     FutureProvider.autoDispose.family<PoDraftDetail, String>((ref, uploadId) async {
@@ -137,6 +139,14 @@ class _BodyState extends ConsumerState<_Body> {
     try {
       final result = await poRepo.approve(_detail.id);
       if (!mounted) return;
+      // The PO is now linked to an invoice — refresh the inbox row's
+      // status pill, the unified inbox counter, and any open invoice list
+      // so coming back from this screen reflects the new state without a
+      // manual pull-to-refresh.
+      ref.invalidate(poInboxProvider);
+      ref.invalidate(inboxCountProvider);
+      ref.invalidate(invoiceSummaryProvider);
+      ref.invalidate(invoicesProvider);
       await showInvoiceSuccessSheet(
         context,
         invoiceId: result.invoiceId,
