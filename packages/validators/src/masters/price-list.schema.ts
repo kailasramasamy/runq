@@ -6,7 +6,9 @@ const priceListItemSchema = z
     // All three pricing fields are nullable. The .superRefine below requires
     // at least one of them to be set so empty lines can't be persisted.
     rate: z.number().min(0).nullish(),
-    marginPercent: z.number().min(0).max(100).nullish(),
+    // Margins are markup-on-cost in this app — wholesale lines can sit well
+    // above 100%. DB column is decimal(5,2) so the upper bound is 999.99.
+    marginPercent: z.number().min(0).max(999.99).nullish(),
     mrp: z.number().min(0).nullish(),
     discountPercent: z.number().min(0).max(100).nullish(),
     minQuantity: z.number().min(0).nullish(),
