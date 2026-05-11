@@ -70,7 +70,17 @@ export function EditBillPage({ billId }: Props) {
     return <p className="text-sm text-red-500">Bill not found.</p>;
   }
 
-  if (bill.status !== 'draft') {
+  // Vendor revises the bill after we've already matched / approved it
+  // is a daily reality — same workflow as the AR amend-after-send path.
+  // Allow full edits until the first rupee is paid; once a payment lands,
+  // direct edits would break the matched allocation, so steer to a debit
+  // note instead.
+  const amountPaid = Number(bill.amountPaid);
+  const canFullEdit =
+    bill.status === 'draft' ||
+    ((bill.status === 'matched' || bill.status === 'approved') && amountPaid === 0);
+
+  if (!canFullEdit) {
     return (
       <div className="max-w-2xl">
         <PageHeader
@@ -82,22 +92,30 @@ export function EditBillPage({ billId }: Props) {
           ]}
         />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400">
-          This bill is in <strong>{bill.status}</strong> status and cannot be edited. Issue a debit note to make adjustments.
+          {amountPaid > 0
+            ? <>This bill has been paid (₹{amountPaid.toLocaleString('en-IN')}). Issue a debit note to make adjustments.</>
+            : <>This bill is in <strong>{bill.status}</strong> status and cannot be edited.</>}
         </div>
       </div>
     );
   }
 
+  const isAmending = bill.status !== 'draft';
+
   return (
     <div className="max-w-6xl">
       <PageHeader
-        title={`Edit ${bill.invoiceNumber}`}
-        description="Editing a draft bill. Once approved, it cannot be edited — only adjusted via debit notes."
+        title={isAmending ? `Amend ${bill.invoiceNumber}` : `Edit ${bill.invoiceNumber}`}
+        description={
+          isAmending
+            ? 'Amending an already-recorded bill. The GL posting will be re-issued with the new totals. Once any payment is made, financial edits require a debit note instead.'
+            : 'Editing a draft bill. Edits stay open until the first payment is made.'
+        }
         breadcrumbs={[
           { label: 'AP', href: '/ap' },
           { label: 'Bills', href: '/ap/bills' },
           { label: bill.invoiceNumber, href: `/ap/bills/${billId}` },
-          { label: 'Edit' },
+          { label: isAmending ? 'Amend' : 'Edit' },
         ]}
       />
       <BillForm

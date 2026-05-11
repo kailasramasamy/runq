@@ -217,6 +217,12 @@ function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gap
   const isDraft = invoice.status === 'draft';
   const initials = getInitials(invoice.vendorName);
   const taxAmount = invoice.cgstAmount + invoice.sgstAmount + invoice.igstAmount + invoice.cessAmount;
+  // Vendor revised the bill before we paid: allow full edit + delete on
+  // matched/approved bills while amountPaid is 0. After the first rupee,
+  // those actions disappear and the user is steered to a debit note.
+  const amountPaidNum = Number(invoice.amountPaid);
+  const canAmend =
+    (invoice.status === 'matched' || invoice.status === 'approved') && amountPaidNum === 0;
 
   return (
     <div className="bd-page-header">
@@ -252,15 +258,15 @@ function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gap
           >
             <Download size={15} />PDF
           </button>
-          {isDraft && (
+          {(isDraft || canAmend) && (
             <Link to="/ap/bills/$billId/edit" params={{ billId: invoice.id }}>
-              <button className="bd-btn bd-btn-ghost"><Pencil size={15} />Edit</button>
+              <button className="bd-btn bd-btn-ghost"><Pencil size={15} />{isDraft ? 'Edit' : 'Amend'}</button>
             </Link>
           )}
           <BillActionsMenu printUrl={printUrl()} />
           {!isPaid && invoice.status !== 'cancelled' && (
             <button className="bd-btn bd-btn-danger" onClick={onDelete}>
-              <Trash2 size={15} />{isDraft ? 'Delete' : 'Cancel'}
+              <Trash2 size={15} />{isDraft || canAmend ? 'Delete' : 'Cancel'}
             </button>
           )}
           {isDraft && (

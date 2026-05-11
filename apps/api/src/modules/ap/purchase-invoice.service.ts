@@ -466,31 +466,66 @@ export class PurchaseInvoiceService {
 
   async update(id: string, input: UpdatePurchaseInvoiceInput): Promise<PurchaseInvoiceWithDetails> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft') {
-      throw new ConflictError('Invoice can only be updated in draft status');
+    // Mirrors the sales-invoice amend policy: drafts edit freely; matched
+    // / approved bills can still be amended when no payment has been
+    // made yet (the "vendor revised the bill" workflow). Once any rupee
+    // is paid, direct edits would break the matched allocation — fall
+    // back to a debit-note adjustment instead.
+    const amountPaid = Number(existing.amountPaid ?? 0);
+    const isAmendable =
+      existing.status === 'draft' ||
+      ((existing.status === 'matched' || existing.status === 'approved') && amountPaid === 0);
+    if (!isAmendable) {
+      if (existing.status === 'cancelled') {
+        throw new ConflictError('Cancelled bills cannot be edited');
+      }
+      if (amountPaid > 0) {
+        throw new ConflictError(
+          'Cannot edit a bill that has been paid. Issue a debit note instead.',
+        );
+      }
+      throw new ConflictError(`Bill in status '${existing.status}' cannot be edited`);
     }
+    const needsJeRebuild = existing.status !== 'draft';
 
-    await this.db
-      .update(purchaseInvoices)
-      .set({
-        ...(input.vendorId !== undefined && { vendorId: input.vendorId }),
-        ...(input.invoiceNumber !== undefined && { invoiceNumber: input.invoiceNumber }),
-        ...(input.invoiceDate !== undefined && { invoiceDate: input.invoiceDate }),
-        ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
-        ...(input.poId !== undefined && { poId: input.poId ?? null }),
-        ...(input.subtotal !== undefined && { subtotal: String(input.subtotal) }),
-        ...(input.taxAmount !== undefined && { taxAmount: String(input.taxAmount) }),
-        ...(input.totalAmount !== undefined && {
-          totalAmount: String(input.totalAmount),
-          balanceDue: String(input.totalAmount),
-        }),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)));
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(purchaseInvoices)
+        .set({
+          ...(input.vendorId !== undefined && { vendorId: input.vendorId }),
+          ...(input.invoiceNumber !== undefined && { invoiceNumber: input.invoiceNumber }),
+          ...(input.invoiceDate !== undefined && { invoiceDate: input.invoiceDate }),
+          ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
+          ...(input.poId !== undefined && { poId: input.poId ?? null }),
+          ...(input.subtotal !== undefined && { subtotal: String(input.subtotal) }),
+          ...(input.taxAmount !== undefined && { taxAmount: String(input.taxAmount) }),
+          ...(input.totalAmount !== undefined && {
+            totalAmount: String(input.totalAmount),
+            balanceDue: String(input.totalAmount),
+          }),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)));
 
-    if (input.items && input.items.length > 0) {
-      await this.replaceLineItems(id, input.items);
-    }
+      if (input.items && input.items.length > 0) {
+        await this.replaceLineItems(id, input.items);
+      }
+
+      // Amending an already-posted bill: unwind the existing JE and
+      // re-post against the new totals inside the same tx so a partial
+      // failure leaves no half-rebuilt entry.
+      if (needsJeRebuild) {
+        const gl = new GLService(tx as unknown as Db, this.tenantId);
+        await gl.deletePostingsFor('purchase_invoice', id);
+        const refreshed = await this.getById(id);
+        await gl.postPurchaseInvoice({
+          id,
+          date: refreshed.invoiceDate,
+          totalAmount: Number(refreshed.totalAmount),
+          vendorName: refreshed.vendorName ?? 'Vendor',
+        });
+      }
+    });
 
     return this.getById(id);
   }
@@ -523,8 +558,22 @@ export class PurchaseInvoiceService {
    */
   async hardDelete(id: string, storage: StorageProvider, userId?: string): Promise<void> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft') {
-      throw new ConflictError('Only draft bills can be deleted permanently');
+    // Same amend policy as update(): drafts go through unconditionally;
+    // matched/approved bills can be deleted only when no payment has
+    // been made. The posted JE is unwound in-line so the books stay
+    // balanced (no rupee was paid against it, so nothing downstream
+    // depends on it).
+    const amountPaid = Number(existing.amountPaid ?? 0);
+    const canDelete =
+      existing.status === 'draft' ||
+      ((existing.status === 'matched' || existing.status === 'approved') && amountPaid === 0);
+    if (!canDelete) {
+      if (amountPaid > 0) {
+        throw new ConflictError(
+          'Cannot delete a bill that has been paid. Issue a debit note instead.',
+        );
+      }
+      throw new ConflictError(`Cannot delete a bill in status '${existing.status}'`);
     }
 
     // Wipe attachments first — best-effort on S3, hard on DB. If a single
@@ -539,6 +588,12 @@ export class PurchaseInvoiceService {
         // Continue — best-effort cleanup.
       }
     }
+
+    // Unwind any GL posting for this bill before we drop the row — the
+    // JE references the bill via source_id and would dangle otherwise.
+    // Idempotent: no-op if nothing was posted (draft path).
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.deletePostingsFor('purchase_invoice', id);
 
     await this.db
       .delete(purchaseInvoiceItems)
