@@ -18,12 +18,20 @@ export interface BankBalanceTrend90dPayload {
 
 const WINDOW_DAYS = 90;
 
+/**
+ * Per-account daily closing balance for the last 90 days, forward-filled.
+ *
+ * Two batched queries (was 1 + 2N before):
+ *  1. All accounts + their last transactions within window (DISTINCT ON
+ *     per (account, date) returns the close-of-day balance).
+ *  2. Seed balance per account (latest txn strictly before window start).
+ *
+ * Forward-fill happens in JS — cheap, indexed in account map.
+ */
 export const bankBalanceTrend90dRefresher: MetricRefresher = {
   metricKey: 'bank_balance_trend_90d',
   cadence: 'nightly',
   async refresh(ctx) {
-    // For each active account, get the last running_balance per day in the
-    // window; forward-fill days with no transaction.
     const istToday = new Date(ctx.now.getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
     const accountsRes = await ctx.db.execute(sql`
@@ -33,44 +41,58 @@ export const bankBalanceTrend90dRefresher: MetricRefresher = {
       ORDER BY name
     `);
     const accounts = ((accountsRes as unknown as { rows: Array<{ id: string; name: string; current_balance: unknown }> }).rows) ?? [];
+    if (accounts.length === 0) {
+      const payload: BankBalanceTrend90dPayload = { accounts: [], totalSeries: [] };
+      await upsertSnapshot(ctx.db, ctx.tenantId, 'bank_balance_trend_90d', istToday, payload);
+      return;
+    }
 
-    const out: BankBalanceAccount[] = [];
-    for (const acc of accounts) {
-      const txnRes = await ctx.db.execute(sql`
-        SELECT DISTINCT ON (transaction_date) transaction_date, running_balance
-        FROM bank_transactions
-        WHERE tenant_id = ${ctx.tenantId}
-          AND bank_account_id = ${acc.id}
-          AND transaction_date >= CURRENT_DATE - INTERVAL '${sql.raw(String(WINDOW_DAYS))} days'
-        ORDER BY transaction_date ASC, created_at DESC
-      `);
-      const txns = ((txnRes as unknown as { rows: Array<{ transaction_date: string; running_balance: unknown }> }).rows) ?? [];
-      const byDay = new Map<string, number>();
-      for (const t of txns) byDay.set(t.transaction_date, Number(t.running_balance) || 0);
+    // All in-window txns, one close-of-day per (account, date)
+    const txnRes = await ctx.db.execute(sql`
+      SELECT DISTINCT ON (bank_account_id, transaction_date)
+        bank_account_id, transaction_date, running_balance
+      FROM bank_transactions
+      WHERE tenant_id = ${ctx.tenantId}
+        AND transaction_date >= CURRENT_DATE - INTERVAL '${sql.raw(String(WINDOW_DAYS))} days'
+      ORDER BY bank_account_id, transaction_date ASC, created_at DESC
+    `);
+    const txns = ((txnRes as unknown as { rows: Array<{ bank_account_id: string; transaction_date: string; running_balance: unknown }> }).rows) ?? [];
 
-      // Find earliest known balance ≤ window start to seed forward-fill
-      const seedRes = await ctx.db.execute(sql`
-        SELECT running_balance
-        FROM bank_transactions
-        WHERE tenant_id = ${ctx.tenantId}
-          AND bank_account_id = ${acc.id}
-          AND transaction_date < CURRENT_DATE - INTERVAL '${sql.raw(String(WINDOW_DAYS))} days'
-        ORDER BY transaction_date DESC, created_at DESC
-        LIMIT 1
-      `);
-      const seedRow = ((seedRes as unknown as { rows: Array<{ running_balance: unknown }> }).rows)?.[0];
-      let last = seedRow ? Number(seedRow.running_balance) || 0 : Number(acc.current_balance) || 0;
+    // Latest pre-window balance per account — DISTINCT ON
+    const seedRes = await ctx.db.execute(sql`
+      SELECT DISTINCT ON (bank_account_id) bank_account_id, running_balance
+      FROM bank_transactions
+      WHERE tenant_id = ${ctx.tenantId}
+        AND transaction_date < CURRENT_DATE - INTERVAL '${sql.raw(String(WINDOW_DAYS))} days'
+      ORDER BY bank_account_id, transaction_date DESC, created_at DESC
+    `);
+    const seedByAccount = new Map<string, number>();
+    for (const r of ((seedRes as unknown as { rows: Array<{ bank_account_id: string; running_balance: unknown }> }).rows ?? [])) {
+      seedByAccount.set(r.bank_account_id, Number(r.running_balance) || 0);
+    }
 
+    // Group txns by account
+    const txnsByAccount = new Map<string, Map<string, number>>();
+    for (const t of txns) {
+      let m = txnsByAccount.get(t.bank_account_id);
+      if (!m) { m = new Map(); txnsByAccount.set(t.bank_account_id, m); }
+      m.set(t.transaction_date, Number(t.running_balance) || 0);
+    }
+
+    // Build series per account with forward-fill
+    const end = new Date(`${istToday}T00:00:00Z`);
+    const out: BankBalanceAccount[] = accounts.map((acc) => {
+      const byDay = txnsByAccount.get(acc.id) ?? new Map<string, number>();
+      let last = seedByAccount.has(acc.id) ? seedByAccount.get(acc.id)! : Number(acc.current_balance) || 0;
       const points: BankBalancePoint[] = [];
-      const end = new Date(`${istToday}T00:00:00Z`);
       for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
         const d = new Date(end.getTime() - i * 86400_000);
         const key = d.toISOString().slice(0, 10);
         if (byDay.has(key)) last = byDay.get(key) as number;
         points.push({ date: key, balance: last });
       }
-      out.push({ accountId: acc.id, accountName: acc.name, points });
-    }
+      return { accountId: acc.id, accountName: acc.name, points };
+    });
 
     const totalSeries: BankBalancePoint[] = [];
     if (out.length > 0) {

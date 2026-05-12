@@ -17,52 +17,65 @@ export interface DsoTrend6moPayload {
 
 /**
  * DSO = (AR balance at month-end / sales that month) × days_in_month.
- * Null when there were no sales that month (formula undefined).
+ *
+ * Single-query implementation: generate the 6 month-ends, then for each
+ * compute cumulative billings ≤ month-end MINUS cumulative receipts ≤
+ * month-end (= AR balance at that point), plus sales within the month.
+ *
+ * Prior implementation did 12 sequential queries (2 per month × 6 months).
  */
 export const dsoTrend6moRefresher: MetricRefresher = {
   metricKey: 'dso_trend_6mo',
   cadence: 'nightly',
   async refresh(ctx) {
     const istNow = new Date(ctx.now.getTime() + 5.5 * 3_600_000);
-    const months: DsoPoint[] = [];
+    // First day of the month, 5 months back
+    const startY = istNow.getUTCFullYear();
+    const startM = istNow.getUTCMonth() - 5;
+    const startIso = new Date(Date.UTC(startY, startM, 1)).toISOString().slice(0, 10);
 
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth() - i, 1));
-      const monthStart = monthDate.toISOString().slice(0, 10);
-      const nextMonth = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 1));
-      const monthEnd = new Date(nextMonth.getTime() - 86400_000).toISOString().slice(0, 10);
-      const daysInMonth = Math.round((nextMonth.getTime() - monthDate.getTime()) / 86400_000);
-      const monthTag = monthStart.slice(0, 7);
-
-      // AR balance at month-end = posted sales - receipts as of monthEnd
-      const balRes = await ctx.db.execute(sql`
+    const res = await ctx.db.execute(sql`
+      WITH months AS (
         SELECT
-          COALESCE(SUM(total_amount), 0) AS billed,
-          COALESCE((
-            SELECT SUM(amount) FROM payment_receipts pr
-            WHERE pr.tenant_id = ${ctx.tenantId}
-              AND pr.receipt_date <= ${monthEnd}
-          ), 0) AS received
-        FROM sales_invoices
-        WHERE tenant_id = ${ctx.tenantId}
-          AND invoice_date <= ${monthEnd}
-          AND status NOT IN ('draft', 'cancelled')
-      `);
-      const balRow = ((balRes as unknown as { rows: Array<{ billed: unknown; received: unknown }> }).rows)?.[0];
-      const arBalance = Math.max(0, (Number(balRow?.billed) || 0) - (Number(balRow?.received) || 0));
+          (date_trunc('month', d)::date)                AS month_start,
+          ((date_trunc('month', d) + INTERVAL '1 month' - INTERVAL '1 day')::date) AS month_end
+        FROM generate_series(${startIso}::date, ${startIso}::date + INTERVAL '5 months', INTERVAL '1 month') d
+      )
+      SELECT
+        to_char(m.month_start, 'YYYY-MM') AS month,
+        (m.month_end - m.month_start + 1) AS days_in_month,
+        COALESCE((
+          SELECT SUM(si.total_amount)
+          FROM sales_invoices si
+          WHERE si.tenant_id = ${ctx.tenantId}
+            AND si.invoice_date <= m.month_end
+            AND si.status NOT IN ('draft', 'cancelled')
+        ), 0)
+        - COALESCE((
+          SELECT SUM(pr.amount)
+          FROM payment_receipts pr
+          WHERE pr.tenant_id = ${ctx.tenantId}
+            AND pr.receipt_date <= m.month_end
+        ), 0) AS ar_balance,
+        COALESCE((
+          SELECT SUM(si.total_amount)
+          FROM sales_invoices si
+          WHERE si.tenant_id = ${ctx.tenantId}
+            AND si.invoice_date BETWEEN m.month_start AND m.month_end
+            AND si.status NOT IN ('draft', 'cancelled')
+        ), 0) AS sales
+      FROM months m
+      ORDER BY m.month_start
+    `);
 
-      const salesRes = await ctx.db.execute(sql`
-        SELECT COALESCE(SUM(total_amount), 0) AS sales
-        FROM sales_invoices
-        WHERE tenant_id = ${ctx.tenantId}
-          AND invoice_date BETWEEN ${monthStart} AND ${monthEnd}
-          AND status NOT IN ('draft', 'cancelled')
-      `);
-      const sales = Number(((salesRes as unknown as { rows: Array<{ sales: unknown }> }).rows)?.[0]?.sales) || 0;
-
+    const rows = ((res as unknown as { rows: Array<{ month: string; days_in_month: number; ar_balance: unknown; sales: unknown }> }).rows) ?? [];
+    const months: DsoPoint[] = rows.map((r) => {
+      const arBalance = Math.max(0, Number(r.ar_balance) || 0);
+      const sales = Number(r.sales) || 0;
+      const daysInMonth = Number(r.days_in_month);
       const dso = sales > 0 ? Math.round((arBalance / sales) * daysInMonth) : null;
-      months.push({ month: monthTag, dso, arBalance, sales, daysInMonth });
-    }
+      return { month: r.month, dso, arBalance, sales, daysInMonth };
+    });
 
     const dsoVals = months.map((m) => m.dso).filter((v): v is number => v != null);
     const payload: DsoTrend6moPayload = {
