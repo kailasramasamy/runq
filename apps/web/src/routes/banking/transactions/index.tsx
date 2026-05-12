@@ -98,7 +98,7 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
   const isCredit = txn.type === 'credit';
   return (
     <TableRow className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50" onClick={() => onSelect(txn.id)}>
-      <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
+      <TableCell className="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">
         {txn.transactionDate}
       </TableCell>
       <TableCell className="max-w-xs">

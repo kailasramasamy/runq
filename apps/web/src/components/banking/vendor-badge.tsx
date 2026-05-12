@@ -41,7 +41,7 @@ export function VendorBadge({ transactionId, type, assignedName }: PartyBadgePro
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="cursor-pointer"
+        className="cursor-pointer text-left"
         title={isAssigned ? 'Click to change' : (isDebit ? 'Click to assign a vendor (optional)' : 'Click to assign a customer (optional)')}
       >
         {isAssigned ? (
