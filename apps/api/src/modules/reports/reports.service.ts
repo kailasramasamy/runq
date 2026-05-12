@@ -85,6 +85,24 @@ export class ReportsService {
     const liabilities = this.toLineItems(rows, 'liability');
     const equity = this.toLineItems(rows, 'equity');
 
+    // The current-period P&L hasn't been closed to retained earnings yet — so
+    // revenue and expense account balances aren't in any of the three buckets
+    // above. Without rolling them in, Assets ≠ Liabilities + Equity by exactly
+    // the net profit. Synthesize a "Retained Earnings (Current Period)" line
+    // under equity so the BS balances out of the box.
+    const pnlRows = await this.getAccountBalances(['revenue', 'expense'], date);
+    let currentPeriodEarnings = 0;
+    for (const r of pnlRows) {
+      currentPeriodEarnings += r.type === 'revenue' ? r.balance : -r.balance;
+    }
+    if (Math.abs(currentPeriodEarnings) > 0.01) {
+      equity.push({
+        accountCode: 'RE-CY',
+        accountName: 'Retained Earnings (Current Period)',
+        amount: Math.round(currentPeriodEarnings * 100) / 100,
+      });
+    }
+
     return {
       asOfDate: date,
       assets, totalAssets: assets.reduce((s, r) => s + r.amount, 0),
