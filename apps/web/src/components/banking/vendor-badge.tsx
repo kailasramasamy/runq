@@ -5,6 +5,7 @@ import { useCustomers } from '@/hooks/queries/use-customers';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
 import { api } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/components/ui';
 import type { Vendor } from '@runq/types';
 
 interface PartyBadgeProps {
@@ -166,6 +167,7 @@ function VendorDropdown({ transactionId, hasAssigned, onDone }: { transactionId:
 function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionId: string; hasAssigned: boolean; onDone: () => void }) {
   const { data } = useCustomers({ limit: 200 });
   const qc = useQueryClient();
+  const { toast } = useToast();
   const customerList = data?.data ?? [];
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -185,8 +187,26 @@ function CustomerDropdown({ transactionId, hasAssigned, onDone }: { transactionI
     setLoading(true);
     setError(null);
     try {
-      await api.put(`/banking/accounts/transactions/${transactionId}/customer`, { customerId });
+      const res = await api.put<{
+        data: {
+          success: boolean;
+          pendingAllocation?: boolean;
+          openInvoiceCount?: number;
+          draftInvoiceCount?: number;
+        };
+      }>(`/banking/accounts/transactions/${transactionId}/customer`, { customerId });
       qc.invalidateQueries({ queryKey: ['bank-transactions'] });
+
+      // Warn when the payment was tagged but couldn't be allocated to an
+      // invoice — common cause is an unissued draft. Surfaces the silent
+      // "matched-but-pending-allocation" state to the user.
+      const d = res.data;
+      if (d.pendingAllocation) {
+        const draftHint = (d.draftInvoiceCount ?? 0) > 0
+          ? ` ${d.draftInvoiceCount} draft${d.draftInvoiceCount === 1 ? '' : 's'} found — issue one to allocate.`
+          : ' Create or issue an invoice to allocate.';
+        toast(`Customer payment recorded but no open invoices found.${draftHint}`, 'info');
+      }
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to assign customer');

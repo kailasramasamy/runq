@@ -315,7 +315,38 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      return reply.status(200).send({ data: { success: true, applied, ambiguous, ...(result ?? {}) } });
+      // Detect the "tagged but not allocated" state so the UI can warn the
+      // user that the payment is stuck waiting on an invoice. Re-read the
+      // txn's recon_status after the auto-receipt waterfall — if it's still
+      // unreconciled, no allocation happened (either no open invoices, or
+      // existing receipt linking already covered it but didn't change
+      // status). Include a draft count so the UI can prompt the user to
+      // issue a draft if one matches.
+      let pendingAllocation = false;
+      let openInvoiceCount = 0;
+      let draftInvoiceCount = 0;
+      if (txn.type === 'credit') {
+        const { sql } = await import('drizzle-orm');
+        const [latest] = await db.select({ reconStatus: bankTransactions.reconStatus })
+          .from(bankTransactions)
+          .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)))
+          .limit(1);
+        pendingAllocation = latest?.reconStatus === 'unreconciled';
+        if (pendingAllocation) {
+          const { salesInvoices } = await import('@runq/db');
+          const [counts] = await db
+            .select({
+              open: sql<number>`COUNT(*) FILTER (WHERE ${salesInvoices.balanceDue}::numeric > 0 AND ${salesInvoices.status} IN ('sent','partially_paid','overdue'))::int`,
+              draft: sql<number>`COUNT(*) FILTER (WHERE ${salesInvoices.status} = 'draft')::int`,
+            })
+            .from(salesInvoices)
+            .where(and(eq(salesInvoices.tenantId, tenantId), eq(salesInvoices.customerId, customerId)));
+          openInvoiceCount = counts?.open ?? 0;
+          draftInvoiceCount = counts?.draft ?? 0;
+        }
+      }
+
+      return reply.status(200).send({ data: { success: true, applied, ambiguous, pendingAllocation, openInvoiceCount, draftInvoiceCount, ...(result ?? {}) } });
     },
   );
 

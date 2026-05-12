@@ -37,6 +37,23 @@ const RECON_LABELS: Record<ReconStatus, string> = {
   excluded: 'Excluded',
 };
 
+/**
+ * A credit txn with a customer assigned but still recon_status='unreconciled'
+ * is in the "tagged but not allocated" state — the auto-receipt service tagged
+ * the customer but couldn't allocate the payment to an invoice (usually because
+ * no open invoice exists for that customer). Distinct from plain unreconciled.
+ */
+function reconBadge(txn: BankTransaction): { label: string; variant: 'default' | 'warning' | 'success' | 'info'; title?: string } {
+  if (txn.reconStatus === 'unreconciled' && txn.type === 'credit' && txn.customerId) {
+    return {
+      label: 'Waiting on invoice',
+      variant: 'warning',
+      title: 'Customer payment recorded but no open invoice to allocate against — create or issue one.',
+    };
+  }
+  return { label: RECON_LABELS[txn.reconStatus], variant: RECON_VARIANT[txn.reconStatus] };
+}
+
 const CARD_BASE = 'cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800';
 
 function TxnCard({ txn }: { txn: BankTransaction }) {
@@ -64,9 +81,10 @@ function TxnCard({ txn }: { txn: BankTransaction }) {
         </div>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <Badge variant={RECON_VARIANT[txn.reconStatus]}>
-          {RECON_LABELS[txn.reconStatus]}
-        </Badge>
+        {(() => {
+          const b = reconBadge(txn);
+          return <Badge variant={b.variant} title={b.title}>{b.label}</Badge>;
+        })()}
         {txn.glAccountName && (
           <span className="truncate text-xs text-zinc-400 dark:text-zinc-500">{txn.glAccountName}</span>
         )}
@@ -129,9 +147,10 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
         />
       </TableCell>
       <TableCell>
-        <Badge variant={RECON_VARIANT[txn.reconStatus]}>
-          {RECON_LABELS[txn.reconStatus]}
-        </Badge>
+        {(() => {
+          const b = reconBadge(txn);
+          return <Badge variant={b.variant} title={b.title}>{b.label}</Badge>;
+        })()}
       </TableCell>
     </TableRow>
   );
