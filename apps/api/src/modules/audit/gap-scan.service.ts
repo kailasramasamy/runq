@@ -11,6 +11,7 @@ import {
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { toNumber } from '../../utils/decimal';
+import { OrphanCleanupService } from './orphan-cleanup.service';
 
 export interface GapItem {
   entityType: string;
@@ -42,6 +43,7 @@ export interface GapCategoryItems {
 }
 
 const GAP_DEFINITIONS: Array<{ key: string; title: string; description: string; severity: 'error' | 'warning' }> = [
+  { key: 'orphan_bank_artifacts', title: 'Orphaned Bank Artifacts', description: 'Receipts / payments / JEs auto-created from a bank txn that no longer exists. Reverse to rebalance the books.', severity: 'error' },
   { key: 'uncategorized_bank_txns', title: 'Uncategorized Bank Transactions', description: 'No GL category, vendor, or customer assigned', severity: 'error' },
   { key: 'customer_credit_no_invoice', title: 'Customer Payments Without Invoices', description: 'Bank credit matched to customer but no invoice exists — create invoice to complete reconciliation', severity: 'error' },
   { key: 'matched_without_je', title: 'Matched Without Journal Entries', description: 'Reconciled but no accounting entry — books incomplete', severity: 'error' },
@@ -64,6 +66,7 @@ export class GapScanService {
   async scanSummary(days = 90): Promise<GapScanSummary> {
     const since = this.dateSince(days);
     const counts = await Promise.all([
+      this.orphanBankArtifactsCount(),
       this.uncategorizedCount(since),
       this.customerCreditNoInvoiceCount(since),
       this.matchedWithoutJECount(since),
@@ -112,6 +115,11 @@ export class GapScanService {
   private async countFrom(query: any): Promise<number> {
     const [row] = await query;
     return row?.count ?? 0;
+  }
+
+  private async orphanBankArtifactsCount(): Promise<number> {
+    const orphans = await new OrphanCleanupService(this.db, this.tenantId).listOrphans();
+    return orphans.length;
   }
 
   private uncategorizedCount(since: string) {
@@ -211,6 +219,21 @@ export class GapScanService {
   // ── Item fetchers (lazy, on expand) ─────────────────────────────
 
   private itemFetchers: Record<string, (since: string) => Promise<GapItem[]>> = {
+    orphan_bank_artifacts: async () => {
+      const orphans = await new OrphanCleanupService(this.db, this.tenantId).listOrphans();
+      // Use the auditLogId as the gap item's entityId — the fix endpoint
+      // (entityType='orphan_artifact') consumes it directly so the same
+      // audit-driven row stays stable across refreshes even though the
+      // underlying receipt/payment/JE may shift between scans.
+      return orphans.map((o) => ({
+        entityType: 'orphan_artifact',
+        entityId: o.auditLogId,
+        label: o.label,
+        summary: `Source bank txn ${o.bankTransactionId.slice(0, 8)}… is gone · created ${o.createdAt.split('T')[0]}`,
+        date: o.createdAt.split('T')[0] ?? null,
+        url: '/audit/gap-scan',
+      }));
+    },
     uncategorized_bank_txns: (since) => this.fetchBankTxnItems(
       and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'unreconciled'), isNull(bankTransactions.glAccountId), isNull(bankTransactions.vendorId), isNull(bankTransactions.customerId)),
     ),

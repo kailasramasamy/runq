@@ -4,6 +4,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { TrailService } from './trail.service';
 import { GapScanService } from './gap-scan.service';
 import { FixService } from './fix.service';
+import { OrphanCleanupService } from './orphan-cleanup.service';
 
 const trailParamSchema = z.object({
   entityType: z.string(),
@@ -74,6 +75,12 @@ export const trailRoutes: FastifyPluginAsync = async (app) => {
       }
       if (entityType === 'receipt') {
         const result = await service.fixReceipt(entityId);
+        return { data: result };
+      }
+      if (entityType === 'orphan_artifact') {
+        // entityId is the audit_log row id — see GapScanService.itemFetchers
+        const cleanup = new OrphanCleanupService(request.server.db, request.tenantId);
+        const result = await cleanup.reverseByAuditLog(entityId);
         return { data: result };
       }
 
