@@ -181,6 +181,11 @@ export class GapScanService {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(purchaseInvoices).where(and(
       eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since),
       sql`${purchaseInvoices.balanceDue}::numeric > 0`, sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+      // Opening-balance bills (`OB-...`) represent legacy AP carried forward
+      // from before runq went live. They're outstanding by construction and
+      // get cleared via separate user action, not the bill/payment loop —
+      // surfacing them in gap-scan adds noise without an actionable fix.
+      sql`${purchaseInvoices.invoiceNumber} NOT LIKE 'OB-%'`,
     )));
   }
 
@@ -188,6 +193,7 @@ export class GapScanService {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(salesInvoices).where(and(
       eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since),
       sql`${salesInvoices.balanceDue}::numeric > 0`, sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+      sql`${salesInvoices.invoiceNumber} NOT LIKE 'OB-%'`,
     )));
   }
 
@@ -295,14 +301,14 @@ export class GapScanService {
     unpaid_bills: async (since) => {
       const rows = await this.db.select({ id: purchaseInvoices.id, num: purchaseInvoices.invoiceNumber, amt: purchaseInvoices.totalAmount, bal: purchaseInvoices.balanceDue, date: purchaseInvoices.invoiceDate, vname: vendors.name })
         .from(purchaseInvoices).innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
-        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.balanceDue}::numeric > 0`, sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`))
+        .where(and(eq(purchaseInvoices.tenantId, this.tenantId), gte(purchaseInvoices.invoiceDate, since), sql`${purchaseInvoices.balanceDue}::numeric > 0`, sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`, sql`${purchaseInvoices.invoiceNumber} NOT LIKE 'OB-%'`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'purchase_invoice', entityId: r.id, label: `${r.num} — ${r.vname}`, summary: `₹${toNumber(r.bal).toLocaleString('en-IN')} due of ₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ap/bills/${r.id}` }));
     },
     unpaid_invoices: async (since) => {
       const rows = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue, date: salesInvoices.invoiceDate, cname: customers.name })
         .from(salesInvoices).innerJoin(customers, eq(salesInvoices.customerId, customers.id))
-        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.balanceDue}::numeric > 0`, sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`))
+        .where(and(eq(salesInvoices.tenantId, this.tenantId), gte(salesInvoices.invoiceDate, since), sql`${salesInvoices.balanceDue}::numeric > 0`, sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`, sql`${salesInvoices.invoiceNumber} NOT LIKE 'OB-%'`))
         .limit(50);
       return rows.map((r) => ({ entityType: 'sales_invoice', entityId: r.id, label: `${r.num} — ${r.cname}`, summary: `₹${toNumber(r.bal).toLocaleString('en-IN')} due of ₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/invoices/${r.id}` }));
     },
