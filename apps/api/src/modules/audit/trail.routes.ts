@@ -72,6 +72,10 @@ export const trailRoutes: FastifyPluginAsync = async (app) => {
         const result = await service.fixSalesInvoice(entityId);
         return { data: result };
       }
+      if (entityType === 'receipt') {
+        const result = await service.fixReceipt(entityId);
+        return { data: result };
+      }
 
       return { data: { steps: [], allFixed: false, manualRequired: [`Fix not supported for ${entityType} yet`] } };
     },

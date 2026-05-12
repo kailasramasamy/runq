@@ -195,6 +195,16 @@ export class GapScanService {
     return this.countFrom(this.db.select({ count: sql<number>`count(*)::int` }).from(paymentReceipts).where(and(
       eq(paymentReceipts.tenantId, this.tenantId), gte(paymentReceipts.receiptDate, since),
       sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`,
+      // Wallet receipts settle the 2102 customer-advance liability against AR
+      // with no bank leg — they will never have a reconciliation_match by
+      // design, so they shouldn't show up as gaps.
+      sql`NOT EXISTS (
+        SELECT 1 FROM journal_entries je
+        JOIN journal_lines jl ON jl.journal_entry_id = je.id
+        JOIN accounts a ON a.id = jl.account_id
+        WHERE je.source_type = 'receipt' AND je.source_id = ${paymentReceipts.id}
+          AND a.code = '2102' AND jl.debit::numeric > 0
+      )`,
     )));
   }
 
@@ -278,7 +288,17 @@ export class GapScanService {
     unmatched_receipts: async (since) => {
       const rows = await this.db.select({ id: paymentReceipts.id, amt: paymentReceipts.amount, date: paymentReceipts.receiptDate, cname: customers.name })
         .from(paymentReceipts).innerJoin(customers, eq(paymentReceipts.customerId, customers.id))
-        .where(and(eq(paymentReceipts.tenantId, this.tenantId), gte(paymentReceipts.receiptDate, since), sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`))
+        .where(and(
+          eq(paymentReceipts.tenantId, this.tenantId), gte(paymentReceipts.receiptDate, since),
+          sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.receipt_id = ${paymentReceipts.id})`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM journal_entries je
+            JOIN journal_lines jl ON jl.journal_entry_id = je.id
+            JOIN accounts a ON a.id = jl.account_id
+            WHERE je.source_type = 'receipt' AND je.source_id = ${paymentReceipts.id}
+              AND a.code = '2102' AND jl.debit::numeric > 0
+          )`,
+        ))
         .limit(50);
       return rows.map((r) => ({ entityType: 'receipt', entityId: r.id, label: `Receipt from ${r.cname}`, summary: `₹${toNumber(r.amt).toLocaleString('en-IN')}`, date: r.date, url: `/ar/receipts/${r.id}` }));
     },

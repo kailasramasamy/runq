@@ -18,6 +18,7 @@ const AUTO_FIX: Record<string, { label: string; entityType: string; mode?: 'unma
   unposted_bills: { label: 'Re-post JE', entityType: 'purchase_invoice' },
   unposted_invoices: { label: 'Re-post JE', entityType: 'sales_invoice' },
   matched_without_je: { label: 'Reset & re-categorize', entityType: 'bank_transaction', mode: 'unmatch' },
+  unmatched_receipts: { label: 'Match to bank credit', entityType: 'receipt' },
 };
 
 const SEVERITY_CONFIG = {

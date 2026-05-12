@@ -168,12 +168,21 @@ export class FixService {
         });
         steps.push({ action: 'Post journal entry', result: 'JE posted: DR Bank, CR Accounts Receivable', success: true });
 
-        // Mark bank txn as matched
+        // Mark bank txn as matched + create the reconciliation_matches link
+        // row so the bank↔receipt pair is queryable both directions. Without
+        // this row the receipt shows up in gap-scan as `unmatched_receipts`
+        // even though the bank side is already 'matched'.
         await this.db.update(bankTransactions).set({
           reconStatus: 'matched',
           glAccountId: null,
           updatedAt: new Date(),
         }).where(eq(bankTransactions.id, id));
+        await this.db.insert(reconciliationMatches).values({
+          tenantId: this.tenantId,
+          bankTransactionId: id,
+          receiptId: receipt!.id,
+          matchType: 'manual',
+        });
         steps.push({ action: 'Reconcile', result: 'Transaction matched', success: true });
 
       } else {
@@ -296,6 +305,82 @@ export class FixService {
       customerName: row.customerName,
     });
     steps.push({ action: 'Re-post journal entry', result: `JE posted: DR AR, CR Revenue ₹${toNumber(row.inv.totalAmount).toLocaleString('en-IN')}`, success: true });
+    return { steps, allFixed: true, manualRequired: [] };
+  }
+
+  /**
+   * Link an unreconciled receipt to its matching bank credit. Used when a
+   * receipt was recorded in books (e.g. via auto-create from a customer
+   * bank credit) but the reconciliation_matches link row is missing —
+   * typically a legacy data bug from before the link was inserted on
+   * receipt creation. Matches on customer + amount + ±3 day window. Wallet
+   * receipts (2102 settlement) are excluded by gap-scan upstream so they
+   * never reach here.
+   */
+  async fixReceipt(id: string): Promise<FixResult> {
+    const [receipt] = await this.db.select().from(paymentReceipts)
+      .where(and(eq(paymentReceipts.id, id), eq(paymentReceipts.tenantId, this.tenantId))).limit(1);
+    if (!receipt) throw new NotFoundError('Receipt');
+
+    const steps: FixStep[] = [];
+
+    // Already linked? No-op.
+    const existingMatch = await this.db.select({ id: reconciliationMatches.id })
+      .from(reconciliationMatches)
+      .where(and(
+        eq(reconciliationMatches.tenantId, this.tenantId),
+        eq(reconciliationMatches.receiptId, id),
+      ))
+      .limit(1);
+    if (existingMatch.length > 0) {
+      return { steps, allFixed: true, manualRequired: [] };
+    }
+
+    const amount = toNumber(receipt.amount);
+    const candidates = await this.db.select({ id: bankTransactions.id, narration: bankTransactions.narration, date: bankTransactions.transactionDate })
+      .from(bankTransactions)
+      .where(and(
+        eq(bankTransactions.tenantId, this.tenantId),
+        eq(bankTransactions.type, 'credit'),
+        receipt.customerId ? eq(bankTransactions.customerId, receipt.customerId) : sql`TRUE`,
+        sql`ABS(${bankTransactions.amount}::numeric - ${amount}) < 0.01`,
+        sql`${bankTransactions.transactionDate} BETWEEN (${receipt.receiptDate}::date - INTERVAL '3 days') AND (${receipt.receiptDate}::date + INTERVAL '3 days')`,
+        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.bank_transaction_id = ${bankTransactions.id})`,
+      ))
+      .limit(2);
+
+    if (candidates.length === 0) {
+      return {
+        steps,
+        allFixed: false,
+        manualRequired: ['No matching unreconciled bank credit found (same customer + amount within ±3 days). Match this receipt manually from Banking → Reconciliation, or delete it if it was recorded by mistake.'],
+      };
+    }
+    if (candidates.length > 1) {
+      return {
+        steps,
+        allFixed: false,
+        manualRequired: [`Multiple bank credits match (${candidates.length}). Open Banking → Reconciliation and pick the right one to avoid linking the wrong txn.`],
+      };
+    }
+
+    const bankTxn = candidates[0]!;
+    await this.db.insert(reconciliationMatches).values({
+      tenantId: this.tenantId,
+      bankTransactionId: bankTxn.id,
+      receiptId: id,
+      matchType: 'manual',
+    });
+    await this.db.update(bankTransactions).set({
+      reconStatus: 'matched',
+      updatedAt: new Date(),
+    }).where(eq(bankTransactions.id, bankTxn.id));
+
+    steps.push({
+      action: 'Link to bank credit',
+      result: `Matched to ${bankTxn.date} · ${(bankTxn.narration ?? '').slice(0, 40)}`,
+      success: true,
+    });
     return { steps, allFixed: true, manualRequired: [] };
   }
 
