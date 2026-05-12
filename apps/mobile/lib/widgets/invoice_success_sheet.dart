@@ -54,6 +54,17 @@ class _InvoiceSuccessSheetState extends State<_InvoiceSuccessSheet> {
       // shared file matches the admin export naming. Falls back to just the
       // invoice number if the header is missing.
       final fileName = result.fileName ?? '${widget.invoiceNumber}.pdf';
+      // Pull the customer nickname out of the server-supplied filename
+      // (format: "<invoice#>-<customer>.pdf") so the share message reads
+      // "Invoice INV-001 - Acme Co" instead of the bare invoice number.
+      final stem = fileName.toLowerCase().endsWith('.pdf')
+          ? fileName.substring(0, fileName.length - 4)
+          : fileName;
+      final prefix = '${widget.invoiceNumber}-';
+      final customer = stem.startsWith(prefix) ? stem.substring(prefix.length) : '';
+      final shareText = customer.isEmpty
+          ? 'Invoice ${widget.invoiceNumber}'
+          : 'Invoice ${widget.invoiceNumber} - $customer';
       // Write to a temp file so the system share sheet can pass it on as
       // a real attachment (WhatsApp / Mail / Drive all expect a file URI,
       // not raw bytes).
@@ -64,8 +75,8 @@ class _InvoiceSuccessSheetState extends State<_InvoiceSuccessSheet> {
       final box = context.findRenderObject() as RenderBox?;
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf', name: fileName)],
-        subject: 'Invoice ${widget.invoiceNumber}',
-        text: 'Invoice ${widget.invoiceNumber}',
+        subject: shareText,
+        text: shareText,
         sharePositionOrigin:
             box != null ? box.localToGlobal(Offset.zero) & box.size : null,
       );

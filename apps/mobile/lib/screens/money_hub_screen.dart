@@ -47,8 +47,13 @@ class MoneyHubScreen extends ConsumerWidget {
                     onTap: () => context.push('/money/cash-flow'),
                   ),
                   HubQuickChip(
+                    icon: Icons.insights_rounded,
+                    label: 'Analytics',
+                    onTap: () => context.push('/money/analytics'),
+                  ),
+                  HubQuickChip(
                     icon: Icons.bar_chart_rounded,
-                    label: 'P&L & analytics',
+                    label: 'P&L reports',
                     onTap: () => context.push('/money/reports'),
                   ),
                   HubQuickChip(
@@ -253,10 +258,19 @@ class _MoneyGrid extends ConsumerWidget {
           onTap: () => context.push('/money/cash-flow'),
         ),
         HubSectionTile(
-          icon: Icons.bar_chart_rounded,
+          icon: Icons.insights_rounded,
           iconBg: isDark ? const Color(0xFF4C1D95) : const Color(0xFFEDE9FE),
           iconFg: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6D28D9),
-          title: 'P&L & ANALYTICS',
+          title: 'ANALYTICS',
+          metric: 'Live',
+          caption: 'cash · AR/AP · GST · books',
+          onTap: () => context.push('/money/analytics'),
+        ),
+        HubSectionTile(
+          icon: Icons.bar_chart_rounded,
+          iconBg: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE),
+          iconFg: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+          title: 'P&L REPORTS',
           metric: 'This month',
           caption: 'revenue · expenses',
           onTap: () => context.push('/money/reports'),

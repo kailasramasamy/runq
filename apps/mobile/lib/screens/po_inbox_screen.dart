@@ -16,6 +16,75 @@ final poInboxProvider = FutureProvider.autoDispose<List<PoInboxRow>>((ref) async
   return poRepo.listInbox(limit: 100);
 });
 
+enum PoFilter { all, toReview, parsing, invoiced, errors }
+
+extension on PoFilter {
+  String get label => switch (this) {
+        PoFilter.all => 'All',
+        PoFilter.toReview => 'To review',
+        PoFilter.parsing => 'Parsing',
+        PoFilter.invoiced => 'Invoiced',
+        PoFilter.errors => 'Errors',
+      };
+}
+
+final _poFilterProvider = StateProvider.autoDispose<PoFilter>((_) => PoFilter.all);
+
+bool _matchesFilter(PoInboxRow r, PoFilter f) {
+  final s = r.displayStatus;
+  switch (f) {
+    case PoFilter.all:
+      return true;
+    case PoFilter.toReview:
+      return s == 'ready' || s == 'needs review';
+    case PoFilter.parsing:
+      return s == 'parsing';
+    case PoFilter.invoiced:
+      return s == 'invoiced';
+    case PoFilter.errors:
+      return s == 'error' || s == 'rejected';
+  }
+}
+
+class _PoSummary {
+  final int toReview, parsing, invoiced, errors, total;
+  final double pendingValue;
+  const _PoSummary({
+    required this.toReview,
+    required this.parsing,
+    required this.invoiced,
+    required this.errors,
+    required this.total,
+    required this.pendingValue,
+  });
+
+  factory _PoSummary.from(List<PoInboxRow> rows) {
+    int toReview = 0, parsing = 0, invoiced = 0, errors = 0;
+    double pending = 0;
+    for (final r in rows) {
+      final s = r.displayStatus;
+      if (s == 'ready' || s == 'needs review') {
+        toReview++;
+        pending += r.grandTotal ?? 0;
+      } else if (s == 'parsing') {
+        parsing++;
+      } else if (s == 'invoiced') {
+        invoiced++;
+      } else if (s == 'error' || s == 'rejected') {
+        errors++;
+      }
+    }
+    return _PoSummary(
+      toReview: toReview,
+      parsing: parsing,
+      invoiced: invoiced,
+      errors: errors,
+      total: rows.length,
+      pendingValue: pending,
+    );
+  }
+}
+
 /// Mobile PO Inbox — paginated list of every PO upload (parsing, ready,
 /// invoiced, error). Tap a row to open the parse review screen, or tap the
 /// linked invoice chip on an invoiced row to jump straight to that invoice.
@@ -26,6 +95,7 @@ class PoInboxScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final inbox = ref.watch(poInboxProvider);
+    final filter = ref.watch(_poFilterProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
@@ -62,18 +132,238 @@ class PoInboxScreen extends ConsumerWidget {
                       'Share or upload a PO from a customer — it lands here, AI parses it, and you approve it into an invoice.',
                 );
               }
-              return ListView.separated(
+              final summary = _PoSummary.from(rows);
+              final visible = rows.where((r) => _matchesFilter(r, filter)).toList();
+              return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                itemCount: rows.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _PoRow(
-                  row: rows[i],
-                  onAfterDelete: () => ref.invalidate(poInboxProvider),
-                ),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _SummaryGrid(
+                        summary: summary,
+                        active: filter,
+                        onTap: (f) => ref.read(_poFilterProvider.notifier).state = f,
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
+                    sliver: SliverToBoxAdapter(
+                      child: _FilterChipRow(
+                        active: filter,
+                        onChanged: (f) => ref.read(_poFilterProvider.notifier).state = f,
+                      ),
+                    ),
+                  ),
+                  if (visible.isEmpty)
+                    SliverToBoxAdapter(
+                      child: _EmptyFilter(
+                        label: filter.label,
+                        onClear: () =>
+                            ref.read(_poFilterProvider.notifier).state = PoFilter.all,
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                      sliver: SliverList.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) => _PoRow(
+                          row: visible[i],
+                          onAfterDelete: () => ref.invalidate(poInboxProvider),
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryGrid extends StatelessWidget {
+  final _PoSummary summary;
+  final PoFilter active;
+  final ValueChanged<PoFilter> onTap;
+  const _SummaryGrid({required this.summary, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final tiles = <_SummaryStat>[
+      _SummaryStat(
+        label: 'To review',
+        value: '${summary.toReview}',
+        valueColor: summary.toReview > 0 ? RunqColors.indigo : t.muted,
+        filter: PoFilter.toReview,
+      ),
+      _SummaryStat(
+        label: 'Parsing',
+        value: '${summary.parsing}',
+        valueColor: summary.parsing > 0 ? const Color(0xFFB45309) : t.muted,
+        filter: PoFilter.parsing,
+      ),
+      _SummaryStat(
+        label: 'Invoiced',
+        value: '${summary.invoiced}',
+        valueColor: summary.invoiced > 0 ? RunqColors.greenInk : t.muted,
+        filter: PoFilter.invoiced,
+      ),
+      _SummaryStat(
+        label: 'Errors',
+        value: '${summary.errors}',
+        valueColor: summary.errors > 0 ? RunqColors.redInk : t.muted,
+        filter: PoFilter.errors,
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < tiles.length; i++) ...[
+              if (i > 0)
+                Container(
+                  width: 1,
+                  color: t.muted2.withValues(alpha: 0.25),
+                ),
+              Expanded(
+                child: _SummaryCell(
+                  stat: tiles[i],
+                  active: active == tiles[i].filter,
+                  onTap: () => onTap(active == tiles[i].filter
+                      ? PoFilter.all
+                      : tiles[i].filter),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryStat {
+  final String label, value;
+  final Color valueColor;
+  final PoFilter filter;
+  const _SummaryStat({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    required this.filter,
+  });
+}
+
+class _SummaryCell extends StatelessWidget {
+  final _SummaryStat stat;
+  final bool active;
+  final VoidCallback onTap;
+  const _SummaryCell({
+    required this.stat,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Material(
+      color: active ? stat.valueColor.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(stat.label.toUpperCase(),
+                  style: RunqText.caption.copyWith(
+                    fontSize: 10.5, color: t.muted, letterSpacing: 0.5,
+                    fontWeight: FontWeight.w700,
+                  )),
+              const SizedBox(height: 4),
+              Text(stat.value,
+                  style: RunqText.tabular(
+                      size: 18, w: FontWeight.w700, color: stat.valueColor)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChipRow extends StatelessWidget {
+  final PoFilter active;
+  final ValueChanged<PoFilter> onChanged;
+  const _FilterChipRow({required this.active, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: PoFilter.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final f = PoFilter.values[i];
+          return _FilterChip(
+            label: f.label,
+            active: f == active,
+            onTap: () => onChanged(f),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _FilterChip({required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? RunqColors.indigo : t.surface,
+            border: Border.all(
+              color: active ? RunqColors.indigo : t.hairline,
+              width: 0.5,
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(label,
+              style: RunqText.bodyStrong.copyWith(
+                color: active ? Colors.white : t.ink,
+                fontSize: 12.5,
+              )),
         ),
       ),
     );
@@ -289,6 +579,35 @@ class _InvoiceChip extends StatelessWidget {
             const Icon(Icons.chevron_right_rounded, size: 14, color: RunqColors.indigo),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EmptyFilter extends StatelessWidget {
+  final String label;
+  final VoidCallback onClear;
+  const _EmptyFilter({required this.label, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+      child: Column(
+        children: [
+          Icon(Icons.filter_alt_off_rounded, size: 32, color: t.muted),
+          const SizedBox(height: 10),
+          Text('Nothing matches “$label”',
+              textAlign: TextAlign.center,
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          const SizedBox(height: 6),
+          Text('Try a different filter or clear it to see everything.',
+              textAlign: TextAlign.center,
+              style: RunqText.caption.copyWith(color: t.muted)),
+          const SizedBox(height: 14),
+          OutlinedButton(onPressed: onClear, child: const Text('Show all')),
+        ],
       ),
     );
   }

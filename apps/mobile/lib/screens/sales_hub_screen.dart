@@ -53,6 +53,11 @@ class SalesHubScreen extends ConsumerWidget {
                     onTap: () => showInvoiceCreateSheet(context),
                   ),
                   HubQuickChip(
+                    icon: Icons.inbox_outlined,
+                    label: 'PO inbox',
+                    onTap: () => context.push('/po-inbox'),
+                  ),
+                  HubQuickChip(
                     icon: Icons.notifications_active_outlined,
                     label: 'Send reminders',
                     onTap: () => context.push('/sales/collections'),

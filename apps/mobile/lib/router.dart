@@ -21,6 +21,7 @@ import 'screens/banking_screen.dart';
 import 'screens/sales_hub_screen.dart';
 import 'screens/purchases_hub_screen.dart';
 import 'screens/money_hub_screen.dart';
+import 'screens/analytics_screen.dart';
 import 'screens/cash_flow_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/collections_screen.dart';
@@ -168,6 +169,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/money/reports',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const ReportsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/analytics',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const AnalyticsScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/invoices/new',
