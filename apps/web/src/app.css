@@ -211,3 +211,14 @@ input[type="number"] {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .animate-scale-in { animation: scale-in 0.18s ease-out; }
+
+/* Recharts axis/grid stroke — light defaults via inline props are too
+   soft for dark backgrounds, so we bump them up under .dark. */
+.dark .recharts-cartesian-axis-line,
+.dark .recharts-cartesian-axis-tick-line {
+  stroke: rgba(255, 255, 255, 0.35) !important;
+}
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.18) !important;
+}

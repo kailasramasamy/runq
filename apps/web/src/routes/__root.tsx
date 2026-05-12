@@ -9,6 +9,7 @@ import { PageWidthProvider, usePageWidth } from '../lib/page-width';
 import { LoginPage } from './login';
 import { DashboardPage } from './dashboard';
 import { InboxPage } from './inbox';
+import { AnalyticsPage } from './analytics';
 import { CompanySettingsPage } from './settings/company';
 import { InvoiceNumberingPage } from './settings/invoice-numbering';
 import { OpeningBalancesPage } from './settings/opening-balances';
@@ -92,6 +93,7 @@ import { PortalPage } from './portal/index';
 // Phase 4: Reports
 import { ProfitAndLossPage } from './reports/profit-and-loss';
 import { BalanceSheetPage } from './reports/balance-sheet';
+import { TrialBalancePage as ReportsTrialBalancePage } from './reports/trial-balance';
 import { CashFlowPage } from './reports/cash-flow';
 import { ExpenseAnalyticsPage } from './reports/expense-analytics';
 import { RevenueAnalyticsPage } from './reports/revenue-analytics';
@@ -253,6 +255,12 @@ const inboxRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/inbox',
   component: InboxPage,
+});
+
+const analyticsRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/analytics',
+  component: AnalyticsPage,
 });
 
 // ─── AP Routes ───────────────────────────────────────────────────────────────
@@ -1070,6 +1078,7 @@ const settingsOpeningBalancesRoute = createRoute({
 const REPORTS_TABS = [
   { label: 'P&L', path: '/reports/profit-and-loss' },
   { label: 'Balance Sheet', path: '/reports/balance-sheet' },
+  { label: 'Trial Balance', path: '/reports/trial-balance' },
   { label: 'Cash Flow', path: '/reports/cash-flow' },
   { label: 'Expenses', path: '/reports/expense-analytics' },
   { label: 'Revenue', path: '/reports/revenue-analytics' },
@@ -1139,6 +1148,12 @@ const reportsBsRoute = createRoute({
   getParentRoute: () => reportsRoute,
   path: '/balance-sheet',
   component: BalanceSheetPage,
+});
+
+const reportsTbRoute = createRoute({
+  getParentRoute: () => reportsRoute,
+  path: '/trial-balance',
+  component: ReportsTrialBalancePage,
 });
 
 const reportsCfRoute = createRoute({
@@ -1661,6 +1676,7 @@ export const routeTree = rootRoute.addChildren([
   dashboardLayoutRoute.addChildren([
     dashboardRoute,
     inboxRoute,
+    analyticsRoute,
     agentActivityRoute,
     apRoute.addChildren([
       apIndexRoute,
@@ -1762,6 +1778,7 @@ export const routeTree = rootRoute.addChildren([
       reportsIndexRoute,
       reportsPnlRoute,
       reportsBsRoute,
+      reportsTbRoute,
       reportsCfRoute,
       reportsExpenseRoute,
       reportsRevenueRoute,

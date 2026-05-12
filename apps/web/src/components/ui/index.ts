@@ -12,6 +12,7 @@ export { Pagination } from './pagination';
 export { ConfirmationDialog } from './confirmation-dialog';
 export { ToastProvider, useToast } from './toast';
 export { StatsCard } from './stats-card';
+export { AnalyticsCard } from './analytics-card';
 export { Combobox } from './combobox';
 export { HsnSacCombobox } from './hsn-sac-combobox';
 export { Modal } from './modal';

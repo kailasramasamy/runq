@@ -10,7 +10,30 @@ const REPORT_KEYS = {
   revenueAnalytics: (dateFrom?: string, dateTo?: string) => ['reports', 'revenue-analytics', dateFrom, dateTo] as const,
   comparison: (type?: string, dateFrom?: string, dateTo?: string) => ['reports', 'comparison', type, dateFrom, dateTo] as const,
   forecast: (days?: number) => ['reports', 'forecast', days] as const,
+  trialBalance: (asOfDate?: string) => ['reports', 'trial-balance', asOfDate] as const,
 };
+
+export interface TrialBalanceAccount {
+  code: string;
+  name: string;
+  type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+  debit: number;
+  credit: number;
+}
+export interface TrialBalance {
+  asOfDate: string;
+  accounts: TrialBalanceAccount[];
+  totalDebit: number;
+  totalCredit: number;
+}
+
+export function useTrialBalance(asOfDate?: string) {
+  const qs = asOfDate ? `?asOfDate=${asOfDate}` : '';
+  return useQuery({
+    queryKey: REPORT_KEYS.trialBalance(asOfDate),
+    queryFn: () => api.get<ApiSuccess<TrialBalance>>(`/reports/trial-balance${qs}`),
+  });
+}
 
 export function useProfitAndLoss(dateFrom: string, dateTo: string) {
   return useQuery({

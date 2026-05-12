@@ -17,6 +17,7 @@ import { billPrintRoutes } from './modules/ap/bill-print.routes';
 import { bankingRoutes } from './modules/banking/routes';
 import { pgReconRoutes } from './modules/pg-recon/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
+import { analyticsRoutes } from './modules/analytics/routes';
 import { settingsRoutes } from './modules/settings/routes';
 import { webhookRoutes } from './modules/webhook/routes';
 import { glRoutes } from './modules/gl/routes';
@@ -104,6 +105,7 @@ export async function buildApp() {
     await scope.register(bankingRoutes, { prefix: '/api/v1/banking' });
     await scope.register(pgReconRoutes, { prefix: '/api/v1/pg-recon' });
     await scope.register(dashboardRoutes, { prefix: '/api/v1/dashboard' });
+    await scope.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
     await scope.register(settingsRoutes, { prefix: '/api/v1/settings' });
     await scope.register(glRoutes, { prefix: '/api/v1/gl' });
     await scope.register(tallyRoutes, { prefix: '/api/v1/tally' });

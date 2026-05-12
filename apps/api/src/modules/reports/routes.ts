@@ -6,7 +6,9 @@ import {
   forecastQuerySchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { z } from 'zod';
 import { ReportsService } from './reports.service';
+import { CAPortalService } from '../ca-portal/ca-portal.service';
 import {
   profitAndLossToCSV,
   balanceSheetToCSV,
@@ -14,6 +16,8 @@ import {
   expenseAnalyticsToCSV,
   revenueAnalyticsToCSV,
 } from './csv-export';
+
+const trialBalanceQuerySchema = z.object({ asOfDate: z.string().date().optional() });
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 
@@ -28,6 +32,17 @@ export const reportsRoutes: FastifyPluginAsync = async (app) => {
     const { asOfDate } = balanceSheetQuerySchema.parse(request.query);
     const svc = new ReportsService(request.server.db, request.tenantId);
     return { data: await svc.getBalanceSheet(asOfDate) };
+  });
+
+  /**
+   * Trial Balance for the tenant's own app (CA portal already has its own
+   * slug-based version). Reuses the same compute on CAPortalService — no
+   * duplicate logic.
+   */
+  app.get('/trial-balance', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { asOfDate } = trialBalanceQuerySchema.parse(request.query);
+    const svc = new CAPortalService(request.server.db, request.tenantId);
+    return { data: await svc.getTrialBalance(asOfDate) };
   });
 
   app.get('/cash-flow', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
