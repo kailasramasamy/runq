@@ -3,7 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Plus, FileText, Download, Upload, Send, Search, ScanLine, X as XIcon, Check } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { usePurchaseInvoices, useDeletePurchaseInvoice, useBulkApproveInvoices } from '@/hooks/queries/use-purchase-invoices';
-import { useVendors } from '@/hooks/queries/use-vendors';
+import { useVendors, useVendorTags } from '@/hooks/queries/use-vendors';
 import { useCreateRunFromBills } from '@/hooks/queries/use-payment-runs';
 import type { PurchaseInvoice, PurchaseInvoiceStatus } from '@runq/types';
 import { formatINR, formatINRShort } from '@/lib/utils';
@@ -58,6 +58,7 @@ export function BillListPage() {
     vendor?: string;
     status?: PurchaseInvoiceStatus;
     category?: string;
+    tag?: string;
     q?: string;
     from?: string;
     to?: string;
@@ -66,6 +67,7 @@ export function BillListPage() {
   const vendorId = params.vendor ?? '';
   const status = params.status ?? '';
   const category = params.category ?? '';
+  const tag = params.tag ?? '';
   const search = params.q ?? '';
   const dateFrom = params.from ?? '';
   const dateTo = params.to ?? '';
@@ -88,6 +90,7 @@ export function BillListPage() {
   const setVendorId = (v: string) => updateSearch({ vendor: v || undefined });
   const setStatus = (v: string) => updateSearch({ status: (v || undefined) as PurchaseInvoiceStatus | undefined });
   const setCategory = (v: string) => updateSearch({ category: v || undefined });
+  const setTag = (v: string) => updateSearch({ tag: v || undefined });
   const setSearch = (v: string) => updateSearch({ q: v || undefined });
   const setDateRange = (r: { from: string; to: string }) =>
     updateSearch({ from: r.from || undefined, to: r.to || undefined });
@@ -102,6 +105,7 @@ export function BillListPage() {
     vendorId: vendorId || undefined,
     status: (status || undefined) as PurchaseInvoiceStatus | undefined,
     vendorCategory: category || undefined,
+    vendorTag: tag || undefined,
     search: search || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -109,6 +113,7 @@ export function BillListPage() {
 
   const { data, isLoading } = usePurchaseInvoices(filters, page, LIMIT);
   const { data: vendorsData } = useVendors({ limit: 100 });
+  const { data: tagsData } = useVendorTags();
   const deleteMutation = useDeletePurchaseInvoice();
   const createRunFromBills = useCreateRunFromBills();
 
@@ -116,7 +121,7 @@ export function BillListPage() {
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
   const vendors = vendorsData?.data ?? [];
-  const hasFilters = !!(vendorId || status || category || search || dateFrom || dateTo);
+  const hasFilters = !!(vendorId || status || category || tag || search || dateFrom || dateTo);
 
   const filteredSummary = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]!;
@@ -135,6 +140,10 @@ export function BillListPage() {
   const vendorOptions = [
     { value: '', label: 'All vendors' },
     ...vendors.map((v) => ({ value: v.id, label: v.name })),
+  ];
+  const tagOptions = [
+    { value: '', label: 'All tags' },
+    ...((tagsData?.data ?? []).map((t) => ({ value: t, label: t }))),
   ];
 
   const selectableBills = useMemo(() => bills.filter(isSelectable), [bills]);
@@ -301,6 +310,7 @@ export function BillListPage() {
             value={vendorId}
             onChange={(v) => { setVendorId(v); setPage(1); }}
             placeholder="All vendors"
+            inputClassName="h-8 py-0 text-[12.5px]"
           />
         </div>
         <Select
@@ -308,6 +318,15 @@ export function BillListPage() {
           options={CATEGORY_OPTIONS}
           onChange={(e) => { setCategory(e.target.value); setPage(1); }}
         />
+        <div className="w-56">
+          <Combobox
+            options={tagOptions}
+            value={tag}
+            onChange={(v) => { setTag(v); setPage(1); }}
+            placeholder="Filter by tag…"
+            inputClassName="h-8 py-0 text-[12.5px]"
+          />
+        </div>
         <DateRangeFilter
           value={{ from: dateFrom, to: dateTo }}
           onChange={(r) => { setDateRange(r); setPage(1); }}
@@ -360,6 +379,7 @@ export function BillListPage() {
             </Th>
             <Th>Bill #</Th>
             <Th>Vendor</Th>
+            <Th>Tags</Th>
             <Th>Issued</Th>
             <Th>Due</Th>
             <Th align="right">Total</Th>
@@ -371,7 +391,7 @@ export function BillListPage() {
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 8 }).map((__, j) => (
+                {Array.from({ length: 9 }).map((__, j) => (
                   <TableCell key={j}>
                     <div className="h-3 w-full max-w-[120px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
                   </TableCell>
@@ -380,7 +400,7 @@ export function BillListPage() {
             ))
           ) : bills.length === 0 ? (
             <tr>
-              <td colSpan={8}>
+              <td colSpan={9}>
                 <EmptyState
                   icon={<FileText size={18} />}
                   title={hasFilters ? 'No bills match your filters' : 'No bills yet'}
@@ -419,6 +439,27 @@ export function BillListPage() {
                   <span className="font-medium" style={{ color: 'var(--text-1)' }}>
                     {(bill as PurchaseInvoice & { vendorName?: string }).vendorName ?? '—'}
                   </span>
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const tags = (bill as PurchaseInvoice & { vendorTags?: string[] }).vendorTags ?? [];
+                    if (tags.length === 0) return <span style={{ color: 'var(--text-3)' }}>—</span>;
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {tags.map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setTag(t); setPage(1); }}
+                            className="rounded px-1.5 py-0.5 text-[10.5px] font-medium hover:underline"
+                            style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(bill.invoiceDate)}</TableCell>
                 <TableCell>

@@ -34,6 +34,7 @@ export function useVendors(filters?: VendorFilters) {
   const params = new URLSearchParams();
   if (filters?.search) params.set('search', filters.search);
   if (filters?.category) params.set('category', filters.category as string);
+  if (filters?.tag) params.set('tag', filters.tag as string);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();
@@ -41,6 +42,14 @@ export function useVendors(filters?: VendorFilters) {
   return useQuery({
     queryKey: VENDOR_KEYS.list(filters),
     queryFn: () => api.get<PaginatedResponse<Vendor>>(`/ap/vendors${qs ? `?${qs}` : ''}`),
+  });
+}
+
+export function useVendorTags() {
+  return useQuery({
+    queryKey: ['vendors', 'tags'] as const,
+    queryFn: () => api.get<ApiSuccess<string[]>>('/ap/vendors/tags'),
+    staleTime: 60_000,
   });
 }
 

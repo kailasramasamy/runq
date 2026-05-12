@@ -248,6 +248,7 @@ export function InvoiceListPage() {
             value={customerFilter}
             onChange={(v) => { setCustomerFilter(v); setPage(1); }}
             placeholder="All customers"
+            inputClassName="h-8 py-0 text-[12.5px]"
           />
         </div>
         <DateRangeFilter

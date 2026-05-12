@@ -145,6 +145,10 @@ export function VendorDetailPage({ vendorId }: Props) {
           />
           <DetailRow label="Expense account" value={vendor.expenseAccountCode ?? 'Default (5002)'} mono />
           <DetailRow
+            label="Tags"
+            value={vendor.tags && vendor.tags.length ? vendor.tags.join(', ') : null}
+          />
+          <DetailRow
             label="Address"
             value={
               [vendor.addressLine1, vendor.addressLine2, vendor.city, vendor.state, vendor.pincode]

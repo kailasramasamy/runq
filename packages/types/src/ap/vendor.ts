@@ -25,6 +25,7 @@ export interface Vendor {
   expenseAccountCode: string | null;
   treatNoBillAsAdvance: boolean;
   requiresInvoice: boolean;
+  tags: string[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

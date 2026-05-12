@@ -20,6 +20,7 @@ interface ComboboxProps {
   error?: string;
   required?: boolean;
   disabled?: boolean;
+  inputClassName?: string;
 }
 
 function FieldWrapper({
@@ -56,6 +57,7 @@ export function Combobox({
   error,
   required,
   disabled,
+  inputClassName,
 }: ComboboxProps) {
   const selectedOption = options.find((o) => o.value === value) ?? null;
   const [query, setQuery] = useState('');
@@ -209,6 +211,7 @@ export function Combobox({
             baseInputClasses,
             'pr-8',
             error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500',
+            inputClassName,
           )}
         />
         {value && !disabled && (

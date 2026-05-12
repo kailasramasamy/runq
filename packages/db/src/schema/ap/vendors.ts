@@ -28,10 +28,12 @@ export const vendors = pgTable('vendors', {
   requiresInvoice: boolean('requires_invoice').notNull().default(false),
   portalSlug: varchar('portal_slug', { length: 32 }).unique(),
   externalRefs: jsonb('external_refs').notNull().default({}),
+  tags: jsonb('tags').$type<string[]>().notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (t) => [
   index('idx_vendors_external_refs').using('gin', t.externalRefs),
+  index('idx_vendors_tags').using('gin', t.tags),
 ]);

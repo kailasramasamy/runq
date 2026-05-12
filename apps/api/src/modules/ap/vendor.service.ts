@@ -32,6 +32,7 @@ export interface VendorListParams {
   limit: number;
   search?: string;
   category?: string;
+  tag?: string;
 }
 
 export interface VendorListResult {
@@ -46,7 +47,7 @@ export class VendorService {
   ) {}
 
   async list(params: VendorListParams): Promise<VendorListResult> {
-    const { page, limit, search, category } = params;
+    const { page, limit, search, category, tag } = params;
     const { offset } = applyPagination(page, limit);
 
     const baseWhere = and(
@@ -54,6 +55,7 @@ export class VendorService {
       isNull(vendors.deletedAt),
       search ? ilike(vendors.name, `%${search}%`) : undefined,
       category ? eq(vendors.category, category) : undefined,
+      tag ? sql`${vendors.tags} @> ${JSON.stringify([tag])}::jsonb` : undefined,
     );
 
     const [rows, countResult] = await Promise.all([
@@ -77,6 +79,17 @@ export class VendorService {
     }));
 
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
+  }
+
+  async listDistinctTags(): Promise<string[]> {
+    const result = await this.db.execute<{ tag: string }>(sql`
+      SELECT DISTINCT jsonb_array_elements_text(tags) AS tag
+      FROM vendors
+      WHERE tenant_id = ${this.tenantId}
+        AND deleted_at IS NULL
+      ORDER BY tag ASC
+    `);
+    return result.rows.map((r) => r.tag).filter(Boolean);
   }
 
   async getById(id: string): Promise<VendorWithOutstanding> {
@@ -331,6 +344,7 @@ export class VendorService {
       expenseAccountCode: row.expenseAccountCode ?? null,
       treatNoBillAsAdvance: row.treatNoBillAsAdvance,
       requiresInvoice: row.requiresInvoice,
+      tags: Array.isArray(row.tags) ? row.tags : [],
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

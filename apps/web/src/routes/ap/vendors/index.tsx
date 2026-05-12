@@ -33,12 +33,14 @@ export function VendorListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [tag, setTag] = useState('');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, isLoading } = useVendors({
     search: search || undefined,
     category: category || undefined,
+    tag: tag || undefined,
     page,
     limit: LIMIT,
   });
@@ -122,6 +124,22 @@ export function VendorListPage() {
           value={category}
           onChange={(e) => { setCategory(e.target.value); setPage(1); }}
         />
+        <div className="w-48 max-w-full">
+          <Input
+            placeholder="Filter by tag…"
+            value={tag}
+            onChange={(e) => { setTag(e.target.value); setPage(1); }}
+          />
+        </div>
+        {tag && (
+          <button
+            onClick={() => { setTag(''); setPage(1); }}
+            className="text-[12px]"
+            style={{ color: 'var(--text-3)' }}
+          >
+            Clear tag
+          </button>
+        )}
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
           {total} vendor{total === 1 ? '' : 's'}
@@ -132,6 +150,7 @@ export function VendorListPage() {
         <TableHeader>
           <tr>
             <Th>Name</Th>
+            <Th>Tags</Th>
             <Th>Category</Th>
             <Th>Contact</Th>
             <Th>Location</Th>
@@ -145,7 +164,7 @@ export function VendorListPage() {
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 8 }).map((__, j) => (
+                {Array.from({ length: 9 }).map((__, j) => (
                   <TableCell key={j}>
                     <div className="h-3 w-full max-w-[140px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
                   </TableCell>
@@ -154,7 +173,7 @@ export function VendorListPage() {
             ))
           ) : vendors.length === 0 ? (
             <tr>
-              <td colSpan={8}>
+              <td colSpan={9}>
                 <EmptyState
                   icon={<Building2 size={18} />}
                   title={search ? 'No vendors match your search' : 'No vendors yet'}
@@ -179,6 +198,25 @@ export function VendorListPage() {
                     )}
                   </div>
                 </div>
+              </TableCell>
+              <TableCell>
+                {v.tags && v.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {v.tags.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setTag(t); setPage(1); }}
+                        className="rounded px-1.5 py-0.5 text-[10.5px] font-medium hover:underline"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--text-3)' }}>—</span>
+                )}
               </TableCell>
               <TableCell>
                 {v.category ? (

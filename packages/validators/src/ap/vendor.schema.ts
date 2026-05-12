@@ -27,6 +27,7 @@ export const createVendorSchema = z.object({
   expenseAccountCode: z.string().max(20).nullish(),
   treatNoBillAsAdvance: z.boolean().optional(),
   requiresInvoice: z.boolean().optional(),
+  tags: z.array(z.string().min(1).max(50)).max(20).optional(),
 });
 
 export const updateVendorSchema = createVendorSchema.partial();
@@ -34,6 +35,7 @@ export const updateVendorSchema = createVendorSchema.partial();
 export const vendorFilterSchema = z.object({
   search: z.string().optional(),
   category: z.string().optional(),
+  tag: z.string().optional(),
   hasOutstanding: z.coerce.boolean().optional(),
 });
 

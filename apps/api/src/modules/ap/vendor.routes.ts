@@ -32,7 +32,16 @@ export const vendorRoutes: FastifyPluginAsync = async (app) => {
       const pagination = paginationSchema.parse(request.query);
       const filters = vendorFilterSchema.parse(request.query);
       const service = new VendorService(request.server.db, request.tenantId);
-      return service.list({ page: pagination.page, limit: pagination.limit, search: filters.search, category: filters.category });
+      return service.list({ page: pagination.page, limit: pagination.limit, search: filters.search, category: filters.category, tag: filters.tag });
+    },
+  );
+
+  app.get(
+    '/tags',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new VendorService(request.server.db, request.tenantId);
+      return { data: await service.listDistinctTags() };
     },
   );
 

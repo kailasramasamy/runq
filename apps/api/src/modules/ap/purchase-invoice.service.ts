@@ -31,7 +31,7 @@ export interface InvoiceListParams {
 }
 
 export interface InvoiceListResult {
-  data: (PurchaseInvoice & { vendorName: string; vendorCategory: string | null })[];
+  data: (PurchaseInvoice & { vendorName: string; vendorCategory: string | null; vendorTags: string[] })[];
   meta: PaginationMeta;
 }
 
@@ -51,7 +51,10 @@ export class PurchaseInvoiceService {
 
     const baseWhere = this.buildWhereClause(filters);
     const categoryWhere = filters.vendorCategory ? eq(vendors.category, filters.vendorCategory) : undefined;
-    const fullWhere = categoryWhere ? and(baseWhere, categoryWhere) : baseWhere;
+    const tagWhere = filters.vendorTag
+      ? sql`${vendors.tags} @> ${JSON.stringify([filters.vendorTag])}::jsonb`
+      : undefined;
+    const fullWhere = and(baseWhere, categoryWhere, tagWhere);
 
     const [rows, countResult] = await Promise.all([
       this.db
@@ -59,6 +62,7 @@ export class PurchaseInvoiceService {
           invoice: purchaseInvoices,
           vendorName: vendors.name,
           vendorCategory: vendors.category,
+          vendorTags: vendors.tags,
         })
         .from(purchaseInvoices)
         .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
@@ -74,7 +78,12 @@ export class PurchaseInvoiceService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...this.toInvoice(r.invoice), vendorName: r.vendorName, vendorCategory: r.vendorCategory ?? null }));
+    const data = rows.map((r) => ({
+      ...this.toInvoice(r.invoice),
+      vendorName: r.vendorName,
+      vendorCategory: r.vendorCategory ?? null,
+      vendorTags: Array.isArray(r.vendorTags) ? (r.vendorTags as string[]) : [],
+    }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 

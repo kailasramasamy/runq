@@ -25,6 +25,7 @@ function buildFilterQs(filters?: PurchaseInvoiceFilter): string {
   if (filters.vendorId) params.set('vendorId', filters.vendorId);
   if (filters.status) params.set('status', filters.status);
   if (filters.vendorCategory) params.set('vendorCategory', filters.vendorCategory);
+  if (filters.vendorTag) params.set('vendorTag', filters.vendorTag);
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   const qs = params.toString();
@@ -47,6 +48,7 @@ export function usePurchaseInvoices(filters?: PurchaseInvoiceFilter, page = 1, l
       if (filters?.vendorId) params.set('vendorId', filters.vendorId);
       if (filters?.status) params.set('status', filters.status);
       if (filters?.vendorCategory) params.set('vendorCategory', filters.vendorCategory);
+      if (filters?.vendorTag) params.set('vendorTag', filters.vendorTag);
       if (filters?.search) params.set('search', filters.search);
       if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
       if (filters?.dateTo) params.set('dateTo', filters.dateTo);

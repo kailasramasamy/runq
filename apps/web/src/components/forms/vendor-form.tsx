@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { createVendorSchema } from '@runq/validators';
 import type { Vendor } from '@runq/types';
 import type { CreateVendorInput } from '@runq/validators';
@@ -72,6 +73,7 @@ function buildInitial(v?: Vendor): FormState {
     paymentTermsDays: v.paymentTermsDays,
     treatNoBillAsAdvance: v.treatNoBillAsAdvance ?? false,
     requiresInvoice: v.requiresInvoice ?? false,
+    tags: v.tags ?? [],
     earlyPaymentDiscountPercent: v.earlyPaymentDiscountPercent ?? undefined,
     earlyPaymentDiscountDays: v.earlyPaymentDiscountDays ?? undefined,
     category: v.category ?? undefined,
@@ -131,6 +133,19 @@ const PAYMENT_TERMS_OPTIONS = [
 export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props) {
   const [form, setForm] = useState<FormState>(buildInitial(initialData));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tagDraft, setTagDraft] = useState('');
+
+  function addTag(raw: string) {
+    const t = raw.trim().slice(0, 50);
+    if (!t) return;
+    const current = form.tags ?? [];
+    if (current.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    setForm((prev) => ({ ...prev, tags: [...(prev.tags ?? []), t] }));
+    setTagDraft('');
+  }
+  function removeTag(t: string) {
+    setForm((prev) => ({ ...prev, tags: (prev.tags ?? []).filter((x) => x !== t) }));
+  }
   const { data: accountsData } = useGLAccounts();
   const allAccounts = (accountsData?.data ?? []).filter((a) => a.isActive);
 
@@ -159,8 +174,13 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const pendingTag = tagDraft.trim();
+    const tags = pendingTag && !(form.tags ?? []).some((x) => x.toLowerCase() === pendingTag.toLowerCase())
+      ? [...(form.tags ?? []), pendingTag.slice(0, 50)]
+      : (form.tags ?? []);
     const parsed = createVendorSchema.safeParse({
       ...form,
+      tags,
       paymentTermsDays: Number(form.paymentTermsDays ?? 30),
       earlyPaymentDiscountPercent: form.earlyPaymentDiscountPercent ? Number(form.earlyPaymentDiscountPercent) : null,
       earlyPaymentDiscountDays: form.earlyPaymentDiscountDays ? Number(form.earlyPaymentDiscountDays) : null,
@@ -215,6 +235,46 @@ export function VendorForm({ initialData, onSubmit, onCancel, isLoading }: Props
             placeholder="Search expense accounts..."
             error={errors.expenseAccountCode}
           />
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Tags
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2 py-1.5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-600 dark:bg-zinc-800">
+              {(form.tags ?? []).map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                >
+                  {t}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(t)}
+                    className="rounded hover:bg-indigo-100 dark:hover:bg-indigo-800"
+                    aria-label={`Remove tag ${t}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={tagDraft}
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addTag(tagDraft);
+                  } else if (e.key === 'Backspace' && !tagDraft && (form.tags ?? []).length) {
+                    removeTag((form.tags ?? [])[(form.tags ?? []).length - 1]!);
+                  }
+                }}
+                onBlur={() => tagDraft && addTag(tagDraft)}
+                placeholder={(form.tags ?? []).length ? '' : 'e.g. A1 Milk, A2 Milk, Buffalo, Oil'}
+                className="flex-1 min-w-[120px] border-0 bg-transparent p-0 text-sm focus:outline-none focus:ring-0 dark:text-zinc-100"
+              />
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">Press Enter or comma to add a tag.</p>
+          </div>
         </CardContent>
       </Card>
 
