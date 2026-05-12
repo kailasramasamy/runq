@@ -6,7 +6,7 @@ import {
   FileText, ClipboardList, Truck, FileMinus, Receipt, Users, AlarmClock,
   FileInput, ClipboardCheck, PackageCheck, FileX, CreditCard, Building2, Wallet, Split,
   Package, Warehouse, MoveRight,
-  Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target,
+  Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target, PieChart,
   ShieldCheck, FileCheck2, ScrollText, History,
   GitBranch, Layers, UserCog, Plug, Settings,
   Zap, LifeBuoy, Command, Bell, Mail,
@@ -32,6 +32,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: null,
     items: [
       { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+      { key: 'analytics', label: 'Analytics', icon: PieChart, path: '/analytics' },
       { key: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
     ],
   },
