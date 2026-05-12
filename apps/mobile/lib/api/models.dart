@@ -1106,6 +1106,13 @@ class PoDraftLine {
   /// GST rate from the matched item master (percent, e.g. 5.0). Null when the
   /// line isn't matched, or when the master has no rate set. 0 = exempt.
   final double? matchedItemGstRate;
+  /// GST % captured by the parser for this line (PO column or back-computed
+  /// from taxable/tax pair). Used to render subtotal + GST = total even when
+  /// the line isn't matched to an item yet.
+  final double? taxRatePct;
+  /// Whether the PO's printed rate/amount on this line already includes GST.
+  /// `true` for Type A POs, `false` for Type B, null when undetermined.
+  final bool? priceIncludesTax;
   final String? reviewFlag;
 
   PoDraftLine({
@@ -1123,6 +1130,8 @@ class PoDraftLine {
     required this.matchedItemName,
     required this.matchedItemUnit,
     required this.matchedItemGstRate,
+    required this.taxRatePct,
+    required this.priceIncludesTax,
     required this.reviewFlag,
   });
 
@@ -1137,6 +1146,18 @@ class PoDraftLine {
   /// UoM to display: prefer master unit (set when an item is matched), then
   /// the resolved unit persisted on the line, then whatever the parser saw.
   String? get displayUom => matchedItemUnit ?? resolvedUom ?? rawUom;
+
+  /// Effective GST rate to use for this line: prefer the parser-captured
+  /// `taxRatePct` (the rate printed on the PO itself), fall back to the
+  /// matched item master's rate. Null when neither is known.
+  double? get effectiveGstRate => taxRatePct ?? matchedItemGstRate;
+
+  /// Per-unit landing price (inclusive of GST). Used for the line list so
+  /// the user sees what the PO says the customer will pay per unit.
+  double get landingRate {
+    final r = effectiveGstRate ?? 0;
+    return effectiveRate * (1 + r / 100);
+  }
 
   /// Effective unit price. Picked in this order:
   ///   1. resolvedRate — price-list / master rate, the canonical source.
@@ -1172,6 +1193,12 @@ class PoDraftLine {
         matchedItemName: _str(j['matchedItemName']),
         matchedItemUnit: _str(j['matchedItemUnit']),
         matchedItemGstRate: _numOrNull(j['matchedItemGstRate']),
+        taxRatePct: _numOrNull(j['taxRatePct']),
+        priceIncludesTax: j['priceIncludesTax'] == null
+            ? null
+            : (j['priceIncludesTax'] is bool
+                ? j['priceIncludesTax'] as bool
+                : _int(j['priceIncludesTax']) == 1),
         reviewFlag: _str(j['reviewFlag']),
       );
 }

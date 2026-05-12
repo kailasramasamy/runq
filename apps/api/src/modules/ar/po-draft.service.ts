@@ -677,25 +677,31 @@ export class PoDraftService {
   }
 
   /**
-   * Walk all lines, sum the resolved amounts, write back to po_drafts.
-   * Tax is intentionally NOT computed here — InvoiceService.create runs the
-   * full GST calculation at approve time using the buyer/seller place of
-   * supply, so anything we computed here would just be discarded.
+   * Walk all lines, sum the resolved amounts and the per-line GST (from the
+   * stored `taxRatePct`), write subtotal / tax_total / grand_total back to
+   * po_drafts. The invoice service still runs the canonical GST math at
+   * approve time using place-of-supply — what we store here is the draft
+   * preview so the inbox lists / review screen show consistent totals for
+   * both GST-inclusive and GST-exclusive POs.
    */
   private async recomputeDraftTotals(draftId: string): Promise<void> {
     const [agg] = await this.db
       .select({
         subtotal: sql<string>`coalesce(sum(${poDraftLines.amount}), 0)::text`,
+        taxTotal: sql<string>`coalesce(sum(${poDraftLines.amount} * coalesce(${poDraftLines.taxRatePct}, 0) / 100), 0)::text`,
       })
       .from(poDraftLines)
       .where(and(eq(poDraftLines.poDraftId, draftId), eq(poDraftLines.tenantId, this.tenantId)));
 
     const subtotal = Number(agg?.subtotal ?? 0);
+    const taxTotal = Number(agg?.taxTotal ?? 0);
+    const grandTotal = subtotal + taxTotal;
     await this.db
       .update(poDrafts)
       .set({
         subtotal: subtotal > 0 ? String(subtotal.toFixed(2)) : null,
-        grandTotal: subtotal > 0 ? String(subtotal.toFixed(2)) : null,
+        taxTotal: taxTotal > 0 ? String(taxTotal.toFixed(2)) : null,
+        grandTotal: grandTotal > 0 ? String(grandTotal.toFixed(2)) : null,
         updatedAt: new Date(),
       })
       .where(and(eq(poDrafts.id, draftId), eq(poDrafts.tenantId, this.tenantId)));

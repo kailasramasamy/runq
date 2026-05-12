@@ -73,6 +73,9 @@ interface ExtractedItem {
   uom: string | null;
   rate: number | null;
   amount: number | null;
+  taxRatePct: number | null;
+  taxableAmount: number | null;
+  taxAmount: number | null;
 }
 
 interface ExtractedPo {
@@ -82,8 +85,10 @@ interface ExtractedPo {
   poNumber: string | null;
   poDate: string | null;
   deliveryDate: string | null;
+  pricesIncludeTax: boolean | null;
   items: ExtractedItem[];
   subtotal: number | null;
+  taxTotal: number | null;
   totalAmount: number | null;
   confidence: number;
 }
@@ -227,6 +232,9 @@ function parseXlsx(buffer: Buffer): ExtractedPo | null {
         uom,
         rate,
         amount,
+        taxRatePct: null,
+        taxableAmount: null,
+        taxAmount: null,
       });
     }
 
@@ -236,8 +244,10 @@ function parseXlsx(buffer: Buffer): ExtractedPo | null {
 
     return {
       ...headerInfo,
+      pricesIncludeTax: null,
       items,
       subtotal: subtotal > 0 ? Math.round(subtotal * 100) / 100 : null,
+      taxTotal: null,
       totalAmount: subtotal > 0 ? Math.round(subtotal * 100) / 100 : null,
       confidence: 0.75,
     };
@@ -340,6 +350,9 @@ function detectTextLineItem(line: string): ExtractedItem | null {
           uom: uomMatch.token,
           rate: rate && rate.value > 0 && rate !== amount ? rate.value : null,
           amount: amount && amount.value > 0 ? amount.value : (rate ? rate.value : null),
+          taxRatePct: null,
+          taxableAmount: null,
+          taxAmount: null,
         };
       }
     }
@@ -370,6 +383,9 @@ function detectTextLineItem(line: string): ExtractedItem | null {
           uom: null,
           rate: rate.value,
           amount: total.value,
+          taxRatePct: null,
+          taxableAmount: null,
+          taxAmount: null,
         };
       }
     }
@@ -443,8 +459,10 @@ function parseText(text: string): ExtractedPo | null {
     poNumber: poNoMatch ? poNoMatch[1]!.trim() : null,
     poDate: poDateMatch ? coerceDate(poDateMatch[1]!) : null,
     deliveryDate: deliveryMatch ? coerceDate(deliveryMatch[1]!) : null,
+    pricesIncludeTax: null,
     items,
     subtotal: subtotal > 0 ? Math.round(subtotal * 100) / 100 : null,
+    taxTotal: null,
     totalAmount: subtotal > 0 ? Math.round(subtotal * 100) / 100 : null,
     confidence: 0.65,
   };

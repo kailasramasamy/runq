@@ -194,6 +194,19 @@ export const poDraftLines = pgTable(
     taxCategory: varchar('tax_category', { length: 50 }),
     amount: decimal('amount', { precision: 15, scale: 2 }),
 
+    // GST handling captured from the PO itself. Two PO styles in the wild:
+    //   - Type A (inclusive): line rate/amount already includes GST and the
+    //     PO grand total is the sum of line totals.
+    //   - Type B (exclusive): line rate/amount is pre-tax; PO shows a
+    //     separate GST summary and grand = subtotal + GST.
+    // Storing the rate % and the inclusive flag per line lets us:
+    //   (a) normalise both styles into the same pre-tax `amount`,
+    //   (b) compute the draft's tax_total / grand_total consistently,
+    //   (c) keep the line tax % even when no item is matched (so the UI
+    //       doesn't show "GST unknown" when the PO explicitly stated it).
+    taxRatePct: decimal('tax_rate_pct', { precision: 5, scale: 2 }),
+    priceIncludesTax: integer('price_includes_tax'), // 1 = inclusive, 0 = exclusive, null = unknown
+
     // 'unmatched' | 'rate_overridden' | 'qty_unusual' | null
     reviewFlag: varchar('review_flag', { length: 50 }),
 
@@ -203,6 +216,51 @@ export const poDraftLines = pgTable(
   (t) => [
     index('idx_po_draft_lines_draft').on(t.poDraftId),
     index('idx_po_draft_lines_tenant_item').on(t.tenantId, t.matchedItemId),
+  ],
+);
+
+// ─── po_template_patterns ──────────────────────────────────────────────────
+// A learned PO template, keyed by a structural fingerprint of the document
+// layout (column headers, summary anchors, format). When a future PO matches
+// a known fingerprint we skip the LLM and use the stored hints to enrich a
+// local-parse — chiefly to apply the right GST style (inclusive vs exclusive)
+// that the generic local parser can't infer on its own.
+//
+// Templates are per-tenant: customers don't share fingerprints with other
+// tenants even when sending identical POs. Use count + last_used_at let us
+// surface "popular templates" for ops review later.
+
+export const poTemplatePatterns = pgTable(
+  'po_template_patterns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+
+    // SHA-256 hex of normalized layout features (header tokens + summary
+    // anchors + format). 64 chars.
+    fingerprint: varchar('fingerprint', { length: 64 }).notNull(),
+
+    // 'xlsx' | 'pdf_text' — images don't fingerprint reliably.
+    format: varchar('format', { length: 20 }).notNull(),
+
+    // Hints applied to local-parser output. Shape:
+    //   {
+    //     pricesIncludeTax: boolean | null,
+    //     defaultTaxRatePct: number | null,   // when a single rate applies to all lines
+    //     expectedLineCount: number | null,   // mean from observed parses
+    //     summaryAnchors: string[],           // e.g. ["sub total","cgst","sgst"]
+    //     sourceHint: string | null,          // e.g. "BigBasket" — purely informational
+    //   }
+    hints: jsonb('hints').notNull(),
+
+    useCount: integer('use_count').notNull().default(1),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_po_template_patterns_fp').on(t.tenantId, t.fingerprint),
+    index('idx_po_template_patterns_tenant').on(t.tenantId),
   ],
 );
 

@@ -583,9 +583,13 @@ class _LineRow extends StatelessWidget {
         : line.rawQty.toStringAsFixed(2);
     final rate = line.effectiveRate;
     final unmatched = line.matchedItemId == null;
-    final amountText = line.amount > 0
-        ? formatINR(line.amount)
-        : (rate > 0 ? formatINR(line.rawQty * rate) : '—');
+    // Display LANDING total (inclusive of GST) per line so the sum across
+    // lines matches the PO's stated grand total — regardless of whether the
+    // PO printed inclusive (Type A) or pre-tax (Type B) prices.
+    final gst = line.effectiveGstRate ?? 0;
+    final preTax = line.amount > 0 ? line.amount : line.rawQty * rate;
+    final landing = preTax * (1 + gst / 100);
+    final amountText = landing > 0 ? formatINR(landing) : '—';
 
     final borderColor = unmatched
         ? const Color(0xFFF59E0B).withValues(alpha: 0.45)
@@ -640,7 +644,7 @@ class _LineRow extends StatelessWidget {
                                   fontWeight: FontWeight.w600,
                                 )),
                           ),
-                        if (line.matchedItemId != null) _GstChip(rate: line.matchedItemGstRate),
+                        if (line.effectiveGstRate != null) _GstChip(rate: line.effectiveGstRate),
                       ],
                     ),
                     if (unmatched) ...[
@@ -702,7 +706,10 @@ class _TotalsCard extends StatelessWidget {
     for (final l in detail.lines) {
       final lineNet = l.amount > 0 ? l.amount : (l.rawQty * l.effectiveRate);
       subtotal += lineNet;
-      final rate = l.matchedItemGstRate;
+      // Prefer the parser-captured per-line GST (works for unmatched lines on
+      // POs that printed the rate); fall back to the matched item master's
+      // rate.
+      final rate = l.effectiveGstRate;
       if (rate != null && rate > 0) {
         tax += lineNet * rate / 100;
       } else if (rate == null && l.matchedItemId == null) {

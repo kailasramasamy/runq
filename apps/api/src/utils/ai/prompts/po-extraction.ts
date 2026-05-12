@@ -24,6 +24,18 @@ Rules:
 - Quantity must be a number. UOM goes in the uom field separately (L, ml, kg, g, pcs, packets, boxes, dozen, etc.).
 - Rate and amount are often MISSING on customer POs — that is normal. Use null when not stated. Do not compute amount from rate × quantity yourself.
 
+GST handling (CRITICAL — two PO styles, must distinguish):
+- Style A (GST-inclusive): each line's rate/amount ALREADY INCLUDES GST. The PO usually has no separate GST/Tax summary at the bottom — the grand total is simply the sum of the line totals. Cues: line columns say "Rate (incl. GST)", "Landing price", "Final price", or a note like "All prices inclusive of taxes". Set pricesIncludeTax = true.
+- Style B (GST-exclusive): each line's rate/amount is the TAXABLE (pre-tax) value. The PO has a SEPARATE summary section showing subtotal, then GST/CGST/SGST/IGST as its own line(s), then the grand total = subtotal + tax. Cues: explicit "Taxable Value" / "Subtotal" / "Sub Total" row followed by "GST 18%" / "CGST" / "SGST" / "Tax" rows. Set pricesIncludeTax = false.
+- If the PO is informal / unclear (WhatsApp text, handwritten), leave pricesIncludeTax = null.
+- Per-line taxRatePct: when the PO has a GST% column on each line (e.g. "GST 18%"), capture it as a number (18). When only a single doc-level GST rate is shown in the summary, leave per-line taxRatePct null — the seller's system will fall back to the matched item's master rate.
+- taxableAmount: line total excluding GST (only meaningful for Style B; null for Style A or when not printed).
+- taxAmount: GST amount on the line (sum of CGST + SGST or IGST). Null when not printed per-line.
+- Doc-level subtotal/taxTotal/totalAmount:
+  - subtotal: sum of TAXABLE values across lines (pre-tax). For Style A POs where only inclusive totals are printed, set subtotal to null.
+  - taxTotal: GST amount stated in the summary (or sum of line tax). Null when not printed.
+  - totalAmount: the PO's stated grand total — what the buyer expects to pay. ALWAYS extract this when printed, regardless of style.
+
 CRITICAL — distinguishing numbers in tabular POs:
 - Tabular POs have columns: line# | description | sku | qty | uom | rate | line total. When the PDF text loses column alignment, identify each value by its NEIGHBOURING TOKEN, not its position:
   - Quantity is the integer (or decimal) IMMEDIATELY BEFORE the UOM token (PCS / pcs / nos / kg / g / L / ltr / ml / packets / boxes / dozen / units).
@@ -50,6 +62,7 @@ JSON schema:
   "poNumber": "string|null",
   "poDate": "YYYY-MM-DD|null",
   "deliveryDate": "YYYY-MM-DD|null",
+  "pricesIncludeTax": true|false|null,
   "items": [
     {
       "description": "string",
@@ -57,10 +70,14 @@ JSON schema:
       "quantity": number,
       "uom": "string|null",
       "rate": number|null,
-      "amount": number|null
+      "amount": number|null,
+      "taxRatePct": number|null,
+      "taxableAmount": number|null,
+      "taxAmount": number|null
     }
   ],
   "subtotal": number|null,
+  "taxTotal": number|null,
   "totalAmount": number|null,
   "confidence": number
 }`;

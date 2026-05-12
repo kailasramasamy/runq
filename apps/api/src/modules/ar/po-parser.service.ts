@@ -24,6 +24,12 @@ import {
 } from '../../utils/ai/prompts/po-extraction';
 import { PriceResolverService } from '../masters/price-resolver.service';
 import { tryLocalPoParse } from './po-local-parser';
+import {
+  PoTemplateService,
+  computePoFingerprint,
+  hintsFromExtraction,
+  type PoTemplateHints,
+} from './po-template.service';
 
 const LLM_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -49,6 +55,9 @@ interface ExtractedItem {
   uom: string | null;
   rate: number | null;
   amount: number | null;
+  taxRatePct: number | null;
+  taxableAmount: number | null;
+  taxAmount: number | null;
 }
 
 interface ExtractedPo {
@@ -58,8 +67,10 @@ interface ExtractedPo {
   poNumber: string | null;
   poDate: string | null;
   deliveryDate: string | null;
+  pricesIncludeTax: boolean | null;
   items: ExtractedItem[];
   subtotal: number | null;
+  taxTotal: number | null;
   totalAmount: number | null;
   confidence: number;
 }
@@ -76,6 +87,8 @@ interface LineMatch {
   confidence: number | null;
   resolvedRate: number | null;
   resolvedUom: string | null;
+  /** Master GST % from items.gstRate when matched, else null. */
+  itemGstRate: number | null;
 }
 
 interface ReviewFlag {
@@ -114,13 +127,36 @@ export class PoParserService {
     await this.markParsing(uploadId);
 
     try {
+      const templates = new PoTemplateService(this.db, this.tenantId);
+
       // ── Layer 1: try local parsing (zero AI tokens) ─────────────────
-      const localResult = await this.tryLocalExtraction(upload);
+      // Also fingerprint the buffer in the same pass so we can both
+      // (a) enrich a successful local-parse with template hints (skipping
+      //     LLM for repeat templates that locally extracted line items but
+      //     didn't know the GST style), and
+      // (b) save hints learned from the LLM-fallback path below.
+      const loaded = await this.loadBuffer(upload);
+      let fingerprintInfo: Awaited<ReturnType<typeof computePoFingerprint>> = null;
+      let hints: PoTemplateHints | null = null;
+      if (loaded) {
+        fingerprintInfo = await computePoFingerprint(loaded.buffer, loaded.mime);
+        if (fingerprintInfo) {
+          hints = await templates.lookup(fingerprintInfo.fingerprint);
+        }
+      }
+
+      const localResult = loaded ? await tryLocalPoParse(loaded.buffer, loaded.mime) : null;
       if (localResult) {
-        const customerMatch = await this.matchCustomer(localResult);
-        const lineMatches = await this.matchLines(localResult.items, customerMatch?.id ?? null);
-        const { reviewStatus, reviewFlags } = this.computeReview(localResult, customerMatch, lineMatches);
-        await this.persistDraft({ upload, extracted: localResult, customerMatch, lineMatches, reviewStatus, reviewFlags });
+        const enriched = hints ? applyTemplateHints(localResult, hints) : localResult;
+        if (hints && fingerprintInfo) {
+          // Record the cache hit so the per-template use_count reflects
+          // reality (handy for ops dashboards / quality reviews later).
+          await templates.recordUse(fingerprintInfo.fingerprint);
+        }
+        const customerMatch = await this.matchCustomer(enriched);
+        const lineMatches = await this.matchLines(enriched.items, customerMatch?.id ?? null);
+        const { reviewStatus, reviewFlags } = this.computeReview(enriched, customerMatch, lineMatches);
+        await this.persistDraft({ upload, extracted: enriched, customerMatch, lineMatches, reviewStatus, reviewFlags });
         return;
       }
 
@@ -139,6 +175,17 @@ export class PoParserService {
       const lineMatches = await this.matchLines(extracted.items, customerMatch?.id ?? null);
       const { reviewStatus, reviewFlags } = this.computeReview(extracted, customerMatch, lineMatches);
       await this.persistDraft({ upload, extracted, customerMatch, lineMatches, reviewStatus, reviewFlags });
+
+      // Learn the template so the next PO from this sender skips the LLM.
+      // Only save when extraction was decisive — low-confidence parses
+      // would teach us the wrong layout.
+      if (fingerprintInfo && extracted.confidence >= 0.7 && extracted.items.length > 0) {
+        await templates.upsert({
+          fingerprint: fingerprintInfo.fingerprint,
+          format: fingerprintInfo.format,
+          hints: hintsFromExtraction(extracted),
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Parsing failed';
       await this.markParseError(uploadId, message);
@@ -146,20 +193,17 @@ export class PoParserService {
   }
 
   /**
-   * Attempt local parsing of the uploaded file. Returns the extracted PO
-   * data if successful, null if the format isn't recognised locally
-   * (scanned PDFs, images, exotic layouts). Zero AI tokens consumed.
+   * Pull the upload's bytes (either rawText or storage object) into a
+   * single buffer so the parse + fingerprint passes don't each read from
+   * storage. Returns null when the upload has no file content the local
+   * parser knows how to handle (images, exotic mimes, missing data).
    */
-  private async tryLocalExtraction(upload: PoUploadRow): Promise<ExtractedPo | null> {
-    // Text uploads can be parsed directly without loading from storage
+  private async loadBuffer(upload: PoUploadRow): Promise<{ buffer: Buffer; mime: string } | null> {
     if (upload.rawText) {
-      return tryLocalPoParse(Buffer.from(upload.rawText, 'utf8'), 'text/plain');
+      return { buffer: Buffer.from(upload.rawText, 'utf8'), mime: 'text/plain' };
     }
-
     if (!upload.storageKey || !upload.fileMime) return null;
-
     const mime = upload.fileMime.toLowerCase();
-    // Only attempt local parsing for formats we handle (xlsx, PDF, text)
     const localMimes = new Set([
       ...XLSX_MIMES,
       'application/pdf',
@@ -167,13 +211,12 @@ export class PoParserService {
       'text/csv',
     ]);
     if (!localMimes.has(mime)) return null;
-
     try {
       const stream = await this.storage.getStream(upload.storageKey);
       const buffer = await streamToBuffer(stream);
-      return tryLocalPoParse(buffer, mime);
+      return { buffer, mime };
     } catch {
-      return null; // storage error — let AI path handle it
+      return null;
     }
   }
 
@@ -441,14 +484,16 @@ export class PoParserService {
 
       let resolvedRate: number | null = null;
       let resolvedUom: string | null = null;
+      let itemGstRate: number | null = null;
 
       if (matched.itemId) {
         const [it] = await this.db
-          .select({ unit: items.unit })
+          .select({ unit: items.unit, gstRate: items.gstRate })
           .from(items)
           .where(and(eq(items.id, matched.itemId), eq(items.tenantId, this.tenantId)))
           .limit(1);
         resolvedUom = it?.unit ?? null;
+        itemGstRate = it?.gstRate != null ? Number(it.gstRate) : null;
 
         if (customerId && priceResolver) {
           try {
@@ -471,6 +516,7 @@ export class PoParserService {
         confidence: matched.confidence,
         resolvedRate,
         resolvedUom: resolvedUom ?? line.uom ?? null,
+        itemGstRate,
       });
     }
 
@@ -615,15 +661,29 @@ export class PoParserService {
     // Compute totals from RESOLVED rates only — we don't trust LLM-extracted
     // amounts for invoicing, even when present. Lines without a resolved rate
     // contribute 0 to the subtotal (the user fills them in during review).
+    //
+    // GST: we capture per-line tax_rate_pct from the LLM (and a doc-level
+    // pricesIncludeTax flag) so the draft's tax_total / grand_total can be
+    // reconstructed consistently for both PO styles (inclusive vs exclusive).
+    // The line's `amount` stays pre-tax (qty × resolved rate) so the existing
+    // invoice-creation contract is unchanged.
     let subtotal = 0;
+    let taxTotal = 0;
+    const docInclusive = extracted.pricesIncludeTax;
     const linesToInsert = extracted.items.map((line, i) => {
       const match = lineMatches[i]!;
       const qty = line.quantity || 0;
       const rate = match.resolvedRate ?? 0;
       const amount = qty * rate;
-      if (match.resolvedRate != null) subtotal += amount;
-      return { line, match, qty, amount, lineIndex: i };
+      const taxPct = pickTaxRatePct(line, match.itemGstRate ?? null);
+      if (match.resolvedRate != null) {
+        subtotal += amount;
+        if (taxPct != null) taxTotal += amount * (taxPct / 100);
+      }
+      const inclusiveFlag = docInclusive == null ? null : docInclusive ? 1 : 0;
+      return { line, match, qty, amount, taxPct, inclusiveFlag, lineIndex: i };
     });
+    const grandTotal = subtotal + taxTotal;
 
     await this.db.transaction(async (tx) => {
       const [draft] = await tx
@@ -641,8 +701,8 @@ export class PoParserService {
           poDate: extracted.poDate,
           deliveryDate: extracted.deliveryDate,
           subtotal: subtotal > 0 ? String(subtotal.toFixed(2)) : null,
-          taxTotal: null,
-          grandTotal: subtotal > 0 ? String(subtotal.toFixed(2)) : null,
+          taxTotal: taxTotal > 0 ? String(taxTotal.toFixed(2)) : null,
+          grandTotal: grandTotal > 0 ? String(grandTotal.toFixed(2)) : null,
           rawExtraction: extracted as unknown as object,
           llmModel: LLM_MODEL,
           reviewStatus,
@@ -652,7 +712,7 @@ export class PoParserService {
 
       if (linesToInsert.length > 0) {
         await tx.insert(poDraftLines).values(
-          linesToInsert.map(({ line, match, amount, lineIndex }) => ({
+          linesToInsert.map(({ line, match, amount, taxPct, inclusiveFlag, lineIndex }) => ({
             tenantId: this.tenantId,
             poDraftId: draft!.id,
             lineIndex,
@@ -669,6 +729,8 @@ export class PoParserService {
             taxCategory: null,
             amount:
               match.itemId && match.resolvedRate != null ? String(amount.toFixed(2)) : null,
+            taxRatePct: taxPct != null ? String(taxPct) : null,
+            priceIncludesTax: inclusiveFlag,
             reviewFlag: match.itemId == null ? 'unmatched' : null,
           })),
         );
@@ -718,6 +780,7 @@ function parseLLMResponse(rawText: string): ExtractedPo {
     poNumber: stringOrNull(parsed.poNumber),
     poDate: dateOrNull(parsed.poDate),
     deliveryDate: dateOrNull(parsed.deliveryDate),
+    pricesIncludeTax: typeof parsed.pricesIncludeTax === 'boolean' ? parsed.pricesIncludeTax : null,
     items: Array.isArray(parsed.items)
       ? (parsed.items as unknown[]).map((it) => {
           const item = (it ?? {}) as Record<string, unknown>;
@@ -728,10 +791,14 @@ function parseLLMResponse(rawText: string): ExtractedPo {
             uom: stringOrNull(item.uom),
             rate: numberOrNull(item.rate),
             amount: numberOrNull(item.amount),
+            taxRatePct: numberOrNull(item.taxRatePct),
+            taxableAmount: numberOrNull(item.taxableAmount),
+            taxAmount: numberOrNull(item.taxAmount),
           };
         })
       : [],
     subtotal: numberOrNull(parsed.subtotal),
+    taxTotal: numberOrNull(parsed.taxTotal),
     totalAmount: numberOrNull(parsed.totalAmount),
     confidence: clampConfidence(parsed.confidence),
   };
@@ -765,6 +832,58 @@ function clampConfidence(v: unknown): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0.5;
   return Math.max(0, Math.min(1, n));
+}
+
+/**
+ * Apply learned template hints to a local-parser result so the downstream
+ * persistence step has the same shape it would have had from a fresh LLM
+ * extraction. Specifically:
+ *   - Fill in pricesIncludeTax (the local parser can't infer GST style).
+ *   - Fill missing per-line taxRatePct with the template's default rate
+ *     when one was learned. Per-line values already extracted by the local
+ *     parser take precedence.
+ */
+function applyTemplateHints(po: ExtractedPo, hints: PoTemplateHints): ExtractedPo {
+  const items = po.items.map((it) => ({
+    ...it,
+    taxRatePct: it.taxRatePct ?? hints.defaultTaxRatePct,
+  }));
+  return {
+    ...po,
+    pricesIncludeTax: po.pricesIncludeTax ?? hints.pricesIncludeTax,
+    items,
+  };
+}
+
+/**
+ * Pick the GST rate to attach to a draft line, in priority order:
+ *   1. Per-line taxRatePct from the PO (when the customer's PO has a GST%
+ *      column per line — most B2B SaaS POs).
+ *   2. Per-line taxAmount ÷ taxableAmount when both are printed and the rate
+ *      isn't.
+ *   3. items.gstRate from the master (when the line is matched). This is the
+ *      authoritative rate for invoicing; storing it on the draft line means
+ *      the UI can show a consistent "subtotal + GST = total" breakdown even
+ *      before the item is invoiced.
+ *   4. null — leave for the user to fill in during review.
+ */
+function pickTaxRatePct(line: ExtractedItem, itemGstRate: number | null): number | null {
+  if (line.taxRatePct != null && Number.isFinite(line.taxRatePct) && line.taxRatePct >= 0) {
+    return Number(line.taxRatePct.toFixed(2));
+  }
+  if (
+    line.taxableAmount != null && line.taxableAmount > 0 &&
+    line.taxAmount != null && line.taxAmount > 0
+  ) {
+    const pct = (line.taxAmount / line.taxableAmount) * 100;
+    if (Number.isFinite(pct) && pct >= 0 && pct < 100) {
+      return Number(pct.toFixed(2));
+    }
+  }
+  if (itemGstRate != null && Number.isFinite(itemGstRate) && itemGstRate >= 0) {
+    return Number(itemGstRate.toFixed(2));
+  }
+  return null;
 }
 
 // Some POs have the literal heading "PO" / "PO #" / "PO No." standing alone
