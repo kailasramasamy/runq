@@ -1,15 +1,24 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useGapScan, useGapItems } from '@/hooks/queries/use-trail';
-import type { GapCategorySummary, GapItem } from '@/hooks/queries/use-trail';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGapScan, useGapItems, fixEntity } from '@/hooks/queries/use-trail';
+import type { GapCategorySummary, GapItem, FixResult } from '@/hooks/queries/use-trail';
 import {
   PageHeader, Badge, Select, Button,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
 import {
   ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2,
-  ChevronDown, ChevronRight, Zap, ArrowRight,
+  ChevronDown, ChevronRight, Zap, ArrowRight, Loader2,
 } from 'lucide-react';
+
+// Gap categories with a backend auto-fix path. Anything not listed falls back
+// to the navigation "View" button so the user finishes the fix manually.
+const AUTO_FIX: Record<string, { label: string; entityType: string; mode?: 'unmatch' }> = {
+  unposted_bills: { label: 'Re-post JE', entityType: 'purchase_invoice' },
+  unposted_invoices: { label: 'Re-post JE', entityType: 'sales_invoice' },
+  matched_without_je: { label: 'Reset & re-categorize', entityType: 'bank_transaction', mode: 'unmatch' },
+};
 
 const SEVERITY_CONFIG = {
   error: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-800' },
@@ -231,8 +240,6 @@ function GapItemsTable({ categoryKey, days }: { categoryKey: string; days: numbe
     return <div className="px-4 py-3 text-xs text-zinc-400">No items found</div>;
   }
 
-  const isBankTxn = categoryKey.includes('bank_txn') || categoryKey.includes('matched_without');
-
   return (
     <Table>
       <TableHeader>
@@ -245,33 +252,108 @@ function GapItemsTable({ categoryKey, days }: { categoryKey: string; days: numbe
       </TableHeader>
       <TableBody>
         {items.map((item) => (
-          <GapItemRow key={item.entityId} item={item} />
+          <GapItemRow key={item.entityId} item={item} categoryKey={categoryKey} days={days} />
         ))}
       </TableBody>
     </Table>
   );
 }
 
-function GapItemRow({ item }: { item: GapItem }) {
+function GapItemRow({ item, categoryKey, days }: { item: GapItem; categoryKey: string; days: number }) {
+  const autoFix = AUTO_FIX[categoryKey];
+  const queryClient = useQueryClient();
+  const [fixing, setFixing] = useState(false);
+  const [result, setResult] = useState<FixResult | null>(null);
+
+  async function runFix() {
+    if (!autoFix || fixing) return;
+    setFixing(true);
+    setResult(null);
+    try {
+      const res = await fixEntity(autoFix.entityType, item.entityId, autoFix.mode);
+      setResult(res.data);
+      if (res.data.allFixed) {
+        // Refresh summary + this category's items so the row disappears
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['gap-scan', days] }),
+          queryClient.invalidateQueries({ queryKey: ['gap-scan', 'items', categoryKey, days] }),
+        ]);
+      }
+    } catch (err) {
+      setResult({
+        steps: [],
+        allFixed: false,
+        manualRequired: [err instanceof Error ? err.message : 'Fix failed — please try again or contact support.'],
+      });
+    } finally {
+      setFixing(false);
+    }
+  }
+
   return (
-    <TableRow>
-      <TableCell className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-        {item.date ?? '—'}
-      </TableCell>
-      <TableCell className="max-w-xs">
-        <p className="truncate text-sm text-zinc-900 dark:text-zinc-100">{item.label}</p>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.summary}</p>
-      </TableCell>
-      <TableCell className="text-sm tabular-nums text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-        {item.summary.match(/₹[\d,]+\.?\d*/)?.[0] ?? '—'}
-      </TableCell>
-      <TableCell>
-        <Link to={item.url as '/'}>
-          <Button size="sm" variant="outline">
-            View <ArrowRight size={12} />
-          </Button>
-        </Link>
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow>
+        <TableCell className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+          {item.date ?? '—'}
+        </TableCell>
+        <TableCell className="max-w-xs">
+          <p className="truncate text-sm text-zinc-900 dark:text-zinc-100">{item.label}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.summary}</p>
+        </TableCell>
+        <TableCell className="text-sm tabular-nums text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+          {item.summary.match(/₹[\d,]+\.?\d*/)?.[0] ?? '—'}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            {autoFix && (
+              <Button size="sm" variant="primary" onClick={runFix} disabled={fixing}>
+                {fixing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                {autoFix.label}
+              </Button>
+            )}
+            <Link to={item.url as '/'}>
+              <Button size="sm" variant="outline">
+                View <ArrowRight size={12} />
+              </Button>
+            </Link>
+          </div>
+        </TableCell>
+      </TableRow>
+      {result && (
+        <TableRow>
+          <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-800/40 px-4 py-3">
+            <FixResultDisplay result={result} />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
+function FixResultDisplay({ result }: { result: FixResult }) {
+  return (
+    <div className="space-y-2 text-xs">
+      {result.steps.map((step, i) => (
+        <div key={i} className="flex items-start gap-2">
+          {step.success
+            ? <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+            : <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />}
+          <span className="text-zinc-700 dark:text-zinc-300">
+            <span className="font-medium">{step.action}:</span> {step.result}
+          </span>
+        </div>
+      ))}
+      {result.manualRequired.length > 0 && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/20">
+          <p className="mb-1 font-semibold text-amber-700 dark:text-amber-400">Needs your attention:</p>
+          <ul className="list-disc pl-4 text-amber-700 dark:text-amber-400">
+            {result.manualRequired.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
+        </div>
+      )}
+      {result.allFixed && result.steps.length > 0 && (
+        <p className="text-emerald-600 dark:text-emerald-400 font-medium">All fixed — this row will disappear on the next refresh.</p>
+      )}
+    </div>
   );
 }

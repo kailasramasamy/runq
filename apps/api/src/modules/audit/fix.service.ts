@@ -1,5 +1,5 @@
-import { eq, and, sql } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, vendors, customers, salesInvoices, paymentReceipts, receiptAllocations } from '@runq/db';
+import { eq, and, sql, inArray } from 'drizzle-orm';
+import { bankTransactions, bankAccounts, accounts, vendors, customers, salesInvoices, paymentReceipts, receiptAllocations, purchaseInvoices, payments, reconciliationMatches } from '@runq/db';
 import type { Db } from '@runq/db';
 import { AutoBillPayService } from '../banking/auto-bill-pay.service';
 import { CategorizePostingService } from '../banking/categorize-posting.service';
@@ -239,5 +239,125 @@ export class FixService {
     }
 
     return { steps, allFixed: manualRequired.length === 0, manualRequired };
+  }
+
+  /**
+   * Re-post missing JE for a purchase invoice. Used by gap-scan to fix bills
+   * stuck without GL entries — common when posting failed mid-flight or the
+   * bill was created in a way that bypassed the post hook.
+   */
+  async fixPurchaseInvoice(id: string): Promise<FixResult> {
+    const [row] = await this.db
+      .select({ bill: purchaseInvoices, vendorName: vendors.name })
+      .from(purchaseInvoices)
+      .innerJoin(vendors, eq(purchaseInvoices.vendorId, vendors.id))
+      .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('Purchase invoice');
+
+    const steps: FixStep[] = [];
+    if (row.bill.status === 'draft' || row.bill.status === 'cancelled') {
+      return { steps, allFixed: false, manualRequired: [`Bill is in status '${row.bill.status}' — no JE expected. Approve or restore the bill first.`] };
+    }
+
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.postPurchaseInvoice({
+      id,
+      date: row.bill.invoiceDate,
+      totalAmount: toNumber(row.bill.totalAmount),
+      vendorName: row.vendorName,
+    });
+    steps.push({ action: 'Re-post journal entry', result: `JE posted: DR Expense, CR AP ₹${toNumber(row.bill.totalAmount).toLocaleString('en-IN')}`, success: true });
+    return { steps, allFixed: true, manualRequired: [] };
+  }
+
+  /**
+   * Re-post missing JE for a sales invoice — mirror of fixPurchaseInvoice.
+   */
+  async fixSalesInvoice(id: string): Promise<FixResult> {
+    const [row] = await this.db
+      .select({ inv: salesInvoices, customerName: customers.name })
+      .from(salesInvoices)
+      .innerJoin(customers, eq(salesInvoices.customerId, customers.id))
+      .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('Sales invoice');
+
+    const steps: FixStep[] = [];
+    if (row.inv.status === 'draft' || row.inv.status === 'cancelled') {
+      return { steps, allFixed: false, manualRequired: [`Invoice is in status '${row.inv.status}' — no JE expected. Send the invoice first.`] };
+    }
+
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.postSalesInvoice({
+      id,
+      date: row.inv.invoiceDate,
+      totalAmount: toNumber(row.inv.totalAmount),
+      customerName: row.customerName,
+    });
+    steps.push({ action: 'Re-post journal entry', result: `JE posted: DR AR, CR Revenue ₹${toNumber(row.inv.totalAmount).toLocaleString('en-IN')}`, success: true });
+    return { steps, allFixed: true, manualRequired: [] };
+  }
+
+  /**
+   * Clear orphan reconciliation matches for a bank txn whose linked
+   * payments/receipts have been reversed or deleted, and reset it back to
+   * unreconciled so the user can re-categorize. This is the only safe fix
+   * for the `matched_without_je` gap when the original match is stale.
+   */
+  async unmatchBankTransaction(id: string): Promise<FixResult> {
+    const [txn] = await this.db.select().from(bankTransactions)
+      .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, this.tenantId))).limit(1);
+    if (!txn) throw new NotFoundError('Bank transaction');
+
+    const steps: FixStep[] = [];
+    const matches = await this.db.select().from(reconciliationMatches)
+      .where(and(
+        eq(reconciliationMatches.tenantId, this.tenantId),
+        eq(reconciliationMatches.bankTransactionId, id),
+      ));
+
+    // Verify every match is genuinely orphaned (reversed/failed payment, or
+    // null IDs entirely). If any match still points at a live payment/receipt,
+    // refuse — surfacing it for manual review beats silently breaking valid
+    // links.
+    const livePaymentIds = matches.map((m) => m.paymentId).filter((x): x is string => !!x);
+    const liveReceiptIds = matches.map((m) => m.receiptId).filter((x): x is string => !!x);
+
+    const livePayments = livePaymentIds.length > 0
+      ? await this.db.select({ id: payments.id, status: payments.status }).from(payments)
+          .where(inArray(payments.id, livePaymentIds))
+      : [];
+    const liveReceipts = liveReceiptIds.length > 0
+      ? await this.db.select({ id: paymentReceipts.id }).from(paymentReceipts)
+          .where(inArray(paymentReceipts.id, liveReceiptIds))
+      : [];
+
+    const stillValid = livePayments.some((p) => p.status !== 'reversed' && p.status !== 'failed')
+      || liveReceipts.length > 0;
+    if (stillValid) {
+      return {
+        steps,
+        allFixed: false,
+        manualRequired: ['This transaction is matched to a live payment or receipt. Open Banking → Reconciliation and unmatch it manually so you can review what to do.'],
+      };
+    }
+
+    const deleted = await this.db.delete(reconciliationMatches)
+      .where(and(
+        eq(reconciliationMatches.tenantId, this.tenantId),
+        eq(reconciliationMatches.bankTransactionId, id),
+      ))
+      .returning({ id: reconciliationMatches.id });
+
+    await this.db.update(bankTransactions).set({
+      reconStatus: 'unreconciled',
+      journalEntryId: null,
+      updatedAt: new Date(),
+    }).where(eq(bankTransactions.id, id));
+
+    steps.push({ action: 'Clear orphan matches', result: `Removed ${deleted.length} stale match${deleted.length === 1 ? '' : 'es'} (all pointed at reversed payments)`, success: true });
+    steps.push({ action: 'Reset reconciliation', result: 'Transaction set back to unreconciled — re-categorize from Banking → Transactions', success: true });
+    return { steps, allFixed: true, manualRequired: [] };
   }
 }

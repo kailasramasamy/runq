@@ -56,8 +56,20 @@ export const trailRoutes: FastifyPluginAsync = async (app) => {
       const { entityType, entityId } = trailParamSchema.parse(request.params);
       const service = new FixService(request.server.db, request.tenantId);
 
+      const mode = (request.query as { mode?: string }).mode;
+
       if (entityType === 'bank_transaction') {
-        const result = await service.fixBankTransaction(entityId);
+        const result = mode === 'unmatch'
+          ? await service.unmatchBankTransaction(entityId)
+          : await service.fixBankTransaction(entityId);
+        return { data: result };
+      }
+      if (entityType === 'purchase_invoice') {
+        const result = await service.fixPurchaseInvoice(entityId);
+        return { data: result };
+      }
+      if (entityType === 'sales_invoice') {
+        const result = await service.fixSalesInvoice(entityId);
         return { data: result };
       }
 

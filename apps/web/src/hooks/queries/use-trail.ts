@@ -81,8 +81,9 @@ interface FixResult {
   manualRequired: string[];
 }
 
-export async function fixEntity(entityType: string, entityId: string): Promise<{ data: FixResult }> {
-  return api.post<{ data: FixResult }>(`/audit/fix/${entityType}/${entityId}`);
+export async function fixEntity(entityType: string, entityId: string, mode?: 'unmatch'): Promise<{ data: FixResult }> {
+  const qs = mode ? `?mode=${mode}` : '';
+  return api.post<{ data: FixResult }>(`/audit/fix/${entityType}/${entityId}${qs}`);
 }
 
 export type { TrailNode, DocumentTrail, GapItem, GapCategorySummary, GapScanSummary, GapCategoryItems, FixStep, FixResult };
