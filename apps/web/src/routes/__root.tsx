@@ -141,6 +141,7 @@ import {
 import { SetupPage } from './settings/setup';
 import { HelpIndexPage } from './help/index';
 import { GapScanPage } from './audit/gap-scan';
+import { CustomerSplitPage } from './audit/customer-split';
 import { HelpRecipePage } from './help/recipe';
 import { HelpDrawer } from '@/components/help/help-drawer';
 import { AdminShell } from '@/components/admin/admin-shell';
@@ -1540,6 +1541,12 @@ const gapScanRoute = createRoute({
   component: GapScanPage,
 });
 
+const customerSplitRoute = createRoute({
+  getParentRoute: () => auditRoute,
+  path: '/customer-split',
+  component: CustomerSplitPage,
+});
+
 // ─── Admin (super-admin) Layout & Routes ─────────────────────────────────────
 
 const adminLayoutRoute = createRoute({
@@ -1841,6 +1848,7 @@ export const routeTree = rootRoute.addChildren([
     ]),
     auditRoute.addChildren([
       gapScanRoute,
+      customerSplitRoute,
     ]),
   ]),
 ]);

@@ -5,6 +5,8 @@ import { TrailService } from './trail.service';
 import { GapScanService } from './gap-scan.service';
 import { FixService } from './fix.service';
 import { OrphanCleanupService } from './orphan-cleanup.service';
+import { CustomerSplitService } from './customer-split.service';
+import type { SplitRule } from './customer-split.service';
 
 const trailParamSchema = z.object({
   entityType: z.string(),
@@ -85,6 +87,36 @@ export const trailRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return { data: { steps: [], allFixed: false, manualRequired: [`Fix not supported for ${entityType} yet`] } };
+    },
+  );
+
+  const splitSchema = z.object({
+    sourceCustomerId: z.string().uuid(),
+    targetCustomerId: z.string().uuid(),
+    dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    rule: z.enum(['larger_per_day', 'smaller_per_day']),
+  });
+
+  app.post(
+    '/customer-split/preview',
+    { preHandler: [rbacHook(['owner', 'accountant'])] },
+    async (request) => {
+      const input = splitSchema.parse(request.body);
+      const service = new CustomerSplitService(request.server.db, request.tenantId);
+      const result = await service.preview({ ...input, rule: input.rule as SplitRule });
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/customer-split/apply',
+    { preHandler: [rbacHook(['owner', 'accountant'])] },
+    async (request) => {
+      const input = splitSchema.parse(request.body);
+      const service = new CustomerSplitService(request.server.db, request.tenantId);
+      const result = await service.apply({ ...input, rule: input.rule as SplitRule }, request.user?.userId);
+      return { data: result };
     },
   );
 };
