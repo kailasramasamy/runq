@@ -43,6 +43,10 @@ class _LineEditSheetState extends State<_LineEditSheet> {
   String? _itemId;
   String? _itemLabel;
   String? _itemUnit;
+  // Tracked so the Rate label can read "Rate (incl. GST X%)" — the rate the
+  // parser captures on a PO line is the landing price (inclusive of GST), so
+  // we surface that GST% to avoid the user double-adding tax on top.
+  double? _gstRate;
   bool _saving = false;
 
   @override
@@ -54,6 +58,7 @@ class _LineEditSheetState extends State<_LineEditSheet> {
     _itemId = l.matchedItemId;
     _itemLabel = l.matchedItemId != null ? l.displayName : null;
     _itemUnit = l.displayUom;
+    _gstRate = l.effectiveGstRate;
   }
 
   @override
@@ -83,6 +88,10 @@ class _LineEditSheetState extends State<_LineEditSheet> {
       // the invoice will actually use after approve. Fall back to the PO's
       // raw UoM only if the master doesn't define one.
       _itemUnit = picked.unit ?? widget.line.rawUom;
+      // Snap GST to the master's rate — the master is the source of truth
+      // once a user explicitly maps a line, so the sheet should reflect
+      // what the invoice will actually post under.
+      _gstRate = picked.gstRate ?? widget.line.effectiveGstRate;
       // Prefill from the master selling price ("landing price") so the user
       // sees the canonical rate immediately and can adjust if needed. If
       // the master has no price, leave blank — the server will still resolve
@@ -97,8 +106,14 @@ class _LineEditSheetState extends State<_LineEditSheet> {
       _itemId = null;
       _itemLabel = null;
       _itemUnit = widget.line.rawUom;
+      _gstRate = widget.line.effectiveGstRate;
     });
   }
+
+  /// Pretty-print a GST rate, dropping trailing `.0` so "5" reads as "5"
+  /// and "1.5" stays as "1.5". Mirrors the formatter on the review screen.
+  String _fmtGst(double v) =>
+      v == v.toInt() ? v.toInt().toString() : v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
 
   Future<void> _save() async {
     if (_saving) return;
@@ -185,6 +200,8 @@ class _LineEditSheetState extends State<_LineEditSheet> {
             const SizedBox(height: 18),
             _ItemPickerRow(
               label: _itemLabel,
+              gstRate: _gstRate,
+              gstFmt: _fmtGst,
               onPick: _pickItem,
               onClear: _itemId != null ? _clearItem : null,
             ),
@@ -203,7 +220,12 @@ class _LineEditSheetState extends State<_LineEditSheet> {
                 Expanded(
                   child: _Field(
                     controller: _rate,
-                    label: 'Rate',
+                    // PO line rate is the landing price (GST-inclusive). When
+                    // the line has a known GST rate, surface it in the label
+                    // so the user doesn't mistakenly add tax on top.
+                    label: (_gstRate != null && _gstRate! > 0)
+                        ? 'Rate (incl. GST ${_fmtGst(_gstRate!)}%)'
+                        : 'Rate',
                     prefix: '₹',
                     hintText: _itemId != null ? 'Master rate' : null,
                     onChanged: (_) => setState(() {}),
@@ -243,14 +265,23 @@ class _LineEditSheetState extends State<_LineEditSheet> {
 
 class _ItemPickerRow extends StatelessWidget {
   final String? label;
+  final double? gstRate;
+  final String Function(double) gstFmt;
   final VoidCallback onPick;
   final VoidCallback? onClear;
-  const _ItemPickerRow({required this.label, required this.onPick, required this.onClear});
+  const _ItemPickerRow({
+    required this.label,
+    required this.gstRate,
+    required this.gstFmt,
+    required this.onPick,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final hasMatch = label != null;
+    final showGst = gstRate != null && gstRate! > 0;
     return InkWell(
       onTap: onPick,
       borderRadius: BorderRadius.circular(12),
@@ -279,6 +310,24 @@ class _ItemPickerRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (showGst) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: t.hairlineSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'GST ${gstFmt(gstRate!)}%',
+                  style: RunqText.caption.copyWith(
+                    color: t.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             if (onClear != null)
               IconButton(
                 onPressed: onClear,
@@ -536,6 +585,10 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
       );
     }
     return ListView.separated(
+      // Drag-to-dismiss the search keyboard so the user can see more
+      // results without losing the typed query — matches the rest of the
+      // app's input ergonomics on long lists.
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: _results.length,
       separatorBuilder: (_, __) => Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
       itemBuilder: (_, i) {
