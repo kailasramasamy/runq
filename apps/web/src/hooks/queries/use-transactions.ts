@@ -154,3 +154,28 @@ export function useCommitStatement() {
     onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
   });
 }
+
+export interface AnalyzeImportResult {
+  accountId: string;
+  totalRows: number;
+  newRows: number;
+  duplicateRows: number;
+  duplicates: Array<{
+    rowIndex: number;
+    transactionDate: string;
+    type: 'credit' | 'debit';
+    amount: number;
+    narration: string | null;
+    reference: string | null;
+  }>;
+}
+
+export function useAnalyzeStatement() {
+  return useMutation({
+    mutationFn: (input: { accountId: string; transactions: ParsedStatementTransaction[] }) =>
+      api.post<ApiSuccess<AnalyzeImportResult>>(
+        '/banking/statement-import/analyze',
+        input,
+      ),
+  });
+}

@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Upload, Check, X, FileText, Trash2, AlertTriangle, Calendar } from 'lucide-react';
 import { cn, formatINR } from '@/lib/utils';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
-import { useParseStatement, useCommitStatement } from '@/hooks/queries/use-transactions';
+import { useParseStatement, useCommitStatement, useAnalyzeStatement, type AnalyzeImportResult } from '@/hooks/queries/use-transactions';
 import {
   PageHeader,
   Badge,
@@ -65,10 +65,16 @@ export function ImportTransactionsPage() {
   // Result phase
   const [commitResult, setCommitResult] = useState<BankStatementImportResult | null>(null);
 
+  // Duplicate-guard: analyses per account, plus a flag confirming the user
+  // has acknowledged any duplicates before we proceed to commit.
+  const [analyses, setAnalyses] = useState<AnalyzeImportResult[] | null>(null);
+  const [confirmedDupes, setConfirmedDupes] = useState(false);
+
   const { data: accountsData } = useBankAccounts();
   const accounts = accountsData?.data ?? [];
   const parseMutation = useParseStatement();
   const commitMutation = useCommitStatement();
+  const analyzeMutation = useAnalyzeStatement();
 
   const accountOptions = useMemo(
     () => [
@@ -127,11 +133,10 @@ export function ImportTransactionsPage() {
 
   // ── Commit ─────────────────────────────────────────────────────
 
-  async function handleCommit() {
-    if (!parseResult) return;
-
-    // Group transactions by selected account
+  /** Returns a map of accountId → transactions, grouped from all files. */
+  function groupByAccount(): Map<string, ParsedStatementTransaction[]> {
     const byAccount = new Map<string, ParsedStatementTransaction[]>();
+    if (!parseResult) return byAccount;
     parseResult.files.forEach((file, i) => {
       const accountId = selectedAccountIds[i];
       if (!accountId || file.transactions.length === 0) return;
@@ -139,12 +144,46 @@ export function ImportTransactionsPage() {
       existing.push(...file.transactions);
       byAccount.set(accountId, existing);
     });
+    return byAccount;
+  }
 
+  /**
+   * First click runs the duplicate analysis. If any duplicates are detected,
+   * we surface them and require the user to click again to confirm. Second
+   * click (or no-duplicate path) proceeds straight to commit.
+   */
+  async function handleCommit() {
+    const byAccount = groupByAccount();
     if (byAccount.size === 0) {
       toast('No transactions to import. Select a bank account for each file.', 'error');
       return;
     }
 
+    // Phase 1: run analysis if we haven't or if the user changed something.
+    if (!analyses) {
+      try {
+        const results: AnalyzeImportResult[] = [];
+        for (const [accountId, txns] of byAccount) {
+          const res = await analyzeMutation.mutateAsync({ accountId, transactions: txns });
+          results.push(res.data);
+        }
+        setAnalyses(results);
+        const dupeTotal = results.reduce((s, r) => s + r.duplicateRows, 0);
+        if (dupeTotal > 0) {
+          // Stop here — user must click again to confirm.
+          return;
+        }
+      } catch (err) {
+        toast((err as Error).message || 'Duplicate check failed', 'error');
+        return;
+      }
+    } else if (!confirmedDupes && analyses.some((a) => a.duplicateRows > 0)) {
+      // User clicked while duplicates were flagged — require an explicit ack.
+      setConfirmedDupes(true);
+      return;
+    }
+
+    // Phase 2: commit.
     let totalImported = 0;
     let totalDuplicates = 0;
     const allErrors: { row: number; message: string }[] = [];
@@ -166,6 +205,13 @@ export function ImportTransactionsPage() {
       errors: allErrors,
     });
     setPhase('result');
+  }
+
+  // Re-running analysis is needed whenever the user changes account
+  // selection — clear cached results so the next commit click re-checks.
+  function clearAnalysis() {
+    setAnalyses(null);
+    setConfirmedDupes(false);
   }
 
   // ── Count totals for review ────────────────────────────────────
@@ -290,19 +336,32 @@ export function ImportTransactionsPage() {
               lastSyncDate={getLastSyncDate(selectedAccountIds[fileIdx] ?? '')}
               onAccountChange={(accountId) => {
                 setSelectedAccountIds((prev) => ({ ...prev, [fileIdx]: accountId }));
+                clearAnalysis(); // re-check dupes after any account change
               }}
             />
           ))}
+
+          {/* Duplicate warning — only shown once analysis has run */}
+          {analyses && analyses.some((a) => a.duplicateRows > 0) && (
+            <DuplicateWarning analyses={analyses} accounts={accounts} confirmed={confirmedDupes} />
+          )}
 
           {/* Commit button */}
           <div className="flex justify-end">
             <Button
               onClick={handleCommit}
-              loading={commitMutation.isPending}
+              loading={commitMutation.isPending || analyzeMutation.isPending}
               disabled={totalTransactions === 0 || Object.values(selectedAccountIds).every((v) => !v)}
             >
               <Check size={16} />
-              Import {totalTransactions} Transactions
+              {(() => {
+                const dupeTotal = analyses?.reduce((s, a) => s + a.duplicateRows, 0) ?? 0;
+                const newTotal  = analyses?.reduce((s, a) => s + a.newRows, 0) ?? 0;
+                if (!analyses) return `Import ${totalTransactions} Transactions`;
+                if (dupeTotal === 0) return `Import ${newTotal} Transactions`;
+                if (!confirmedDupes) return `Review ${dupeTotal} Duplicate${dupeTotal === 1 ? '' : 's'}`;
+                return `Import ${newTotal} New, Skip ${dupeTotal} Duplicate${dupeTotal === 1 ? '' : 's'}`;
+              })()}
             </Button>
           </div>
         </>
@@ -505,6 +564,75 @@ function ResultCard({
       {icon}
       <p className={cn('text-2xl font-bold', textMap[color])}>{value}</p>
       <p className={cn('mt-0.5 text-xs', subtextMap[color])}>{label}</p>
+    </div>
+  );
+}
+
+function DuplicateWarning({
+  analyses,
+  accounts,
+  confirmed,
+}: {
+  analyses: AnalyzeImportResult[];
+  accounts: Array<{ id: string; name: string; bankName: string }>;
+  confirmed: boolean;
+}) {
+  const accountName = (id: string) => {
+    const a = accounts.find((x) => x.id === id);
+    return a ? `${a.name} — ${a.bankName}` : 'Unknown account';
+  };
+  const dupeTotal = analyses.reduce((s, a) => s + a.duplicateRows, 0);
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700/50 dark:bg-amber-900/20">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            {dupeTotal} duplicate{dupeTotal === 1 ? '' : 's'} detected
+          </p>
+          <p className="mt-0.5 text-[12.5px] text-amber-800 dark:text-amber-300">
+            These rows match transactions already in your books for the same date, amount,
+            and narration. Importing again will skip them — your books are safe.
+            {!confirmed && ' Click the button below once more to proceed.'}
+          </p>
+
+          {analyses.map((a) => {
+            if (a.duplicateRows === 0) return null;
+            return (
+              <div key={a.accountId} className="mt-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  {accountName(a.accountId)} · {a.duplicateRows} duplicate{a.duplicateRows === 1 ? '' : 's'} of {a.totalRows} rows
+                </p>
+                <ul className="mt-1 space-y-0.5 text-[12px] text-amber-900 dark:text-amber-200">
+                  {a.duplicates.slice(0, 5).map((d) => (
+                    <li key={d.rowIndex} className="flex items-center gap-2">
+                      <span className="font-mono">{formatDate(d.transactionDate)}</span>
+                      <span className={cn(
+                        'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                        d.type === 'credit'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+                      )}>
+                        {d.type}
+                      </span>
+                      <span className="font-mono tabular-nums">{formatINR(d.amount)}</span>
+                      <span className="min-w-0 flex-1 truncate text-amber-700 dark:text-amber-300">
+                        {d.narration ?? d.reference ?? '—'}
+                      </span>
+                    </li>
+                  ))}
+                  {a.duplicates.length > 5 && (
+                    <li className="text-[11px] text-amber-700 dark:text-amber-400">
+                      +{a.duplicates.length - 5} more
+                    </li>
+                  )}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

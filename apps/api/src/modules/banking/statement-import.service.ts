@@ -916,17 +916,89 @@ export class StatementImportService {
       .from(bankTransactions)
       .where(and(eq(bankTransactions.tenantId, this.tenantId), eq(bankTransactions.bankAccountId, bankAccountId)));
 
+    // Two indices because reference (when present) is a stronger key than the
+    // composite. We populate BOTH so the dedup check can fall back to the
+    // composite when references happen to be absent on one side (NEFT/IMPS
+    // dumps often have null reference). Amount is normalised to 2dp on both
+    // sides — drizzle returns numeric columns as strings ("50000.00") while
+    // the parser supplies plain numbers (50000), so a naive concat would
+    // miss whole-rupee dupes.
     const refs = new Set<string>();
     const composites = new Set<string>();
     for (const row of existing) {
       if (row.reference) refs.add(row.reference);
-      else composites.add(`${row.transactionDate}|${row.type}|${row.amount}|${row.narration ?? ''}`);
+      const amt = Number(row.amount).toFixed(2);
+      composites.add(`${row.transactionDate}|${row.type}|${amt}|${row.narration ?? ''}`);
     }
     return { refs, composites };
   }
 
   private isDuplicate(existingKeys: { refs: Set<string>; composites: Set<string> }, txn: ParsedStatementTransaction): boolean {
-    if (txn.reference) return existingKeys.refs.has(txn.reference);
-    return existingKeys.composites.has(`${txn.transactionDate}|${txn.type}|${txn.amount}|${txn.narration ?? ''}`);
+    if (txn.reference && existingKeys.refs.has(txn.reference)) return true;
+    const amt = Number(txn.amount).toFixed(2);
+    return existingKeys.composites.has(`${txn.transactionDate}|${txn.type}|${amt}|${txn.narration ?? ''}`);
+  }
+
+  // ── Preview / analyze (no DB writes) ────────────────────────────────
+
+  /**
+   * Run the same dedup analysis the commit phase would perform, but without
+   * inserting anything. Lets the UI show the user how many rows would be
+   * skipped and which ones, so they can cancel a mistaken re-import.
+   */
+  async analyzeImport(
+    accountId: string,
+    transactions: ParsedStatementTransaction[],
+  ): Promise<{
+    accountId: string;
+    totalRows: number;
+    newRows: number;
+    duplicateRows: number;
+    duplicates: Array<{
+      rowIndex: number;
+      transactionDate: string;
+      type: string;
+      amount: number;
+      narration: string | null;
+      reference: string | null;
+    }>;
+  }> {
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.id, accountId), eq(bankAccounts.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!account) {
+      return { accountId, totalRows: transactions.length, newRows: 0, duplicateRows: 0, duplicates: [] };
+    }
+
+    const existingKeys = await this.loadExistingKeys(accountId);
+    const duplicates: Array<{ rowIndex: number; transactionDate: string; type: string; amount: number; narration: string | null; reference: string | null }> = [];
+    let newCount = 0;
+
+    for (let i = 0; i < transactions.length; i++) {
+      const txn = transactions[i]!;
+      if (this.isDuplicate(existingKeys, txn)) {
+        duplicates.push({
+          rowIndex: i,
+          transactionDate: txn.transactionDate,
+          type: txn.type,
+          amount: txn.amount,
+          narration: txn.narration ?? null,
+          reference: txn.reference ?? null,
+        });
+      } else {
+        newCount++;
+      }
+    }
+
+    return {
+      accountId,
+      totalRows: transactions.length,
+      newRows: newCount,
+      duplicateRows: duplicates.length,
+      duplicates,
+    };
   }
 }

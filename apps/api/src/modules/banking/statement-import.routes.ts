@@ -74,6 +74,22 @@ export const statementImportRoutes: FastifyPluginAsync = async (app) => {
   );
 
   /**
+   * POST /analyze — dry-run dedup check. Returns which rows are duplicates of
+   * existing transactions without inserting anything. The UI calls this before
+   * commit so the user can see duplicate counts and confirm before proceeding.
+   */
+  app.post(
+    '/analyze',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { accountId, transactions } = commitBodySchema.parse(request.body);
+      const service = new StatementImportService(request.server.db, request.tenantId);
+      const result = await service.analyzeImport(accountId, transactions);
+      return reply.status(200).send({ data: result });
+    },
+  );
+
+  /**
    * POST /commit — import parsed transactions into a bank account.
    * Handles dedup: transactions that already exist are skipped.
    */
