@@ -256,9 +256,14 @@ export class GapScanService {
       }));
     },
     matched_without_je: (since) => this.fetchBankTxnItems(
+      // Must mirror the count query exactly — both branches need the
+      // receipt-side check AND the je.status='posted' filter, else the
+      // list inflates with txns that ARE properly accounted for via a
+      // matched receipt or payment with a posted JE.
       and(eq(bankTransactions.tenantId, this.tenantId), gte(bankTransactions.transactionDate, since), eq(bankTransactions.reconStatus, 'matched'), isNull(bankTransactions.journalEntryId),
-        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payments p ON rm.payment_id = p.id JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id WHERE rm.bank_transaction_id = ${bankTransactions.id})`,
-        sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_id = ${bankTransactions.id} AND je.source_type IN ('bank_debit', 'bank_credit'))`,
+        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payments p ON rm.payment_id = p.id JOIN journal_entries je ON je.source_type = 'payment' AND je.source_id = p.id WHERE rm.bank_transaction_id = ${bankTransactions.id} AND je.status = 'posted')`,
+        sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm JOIN payment_receipts pr ON rm.receipt_id = pr.id JOIN journal_entries je ON je.source_type = 'receipt' AND je.source_id = pr.id WHERE rm.bank_transaction_id = ${bankTransactions.id} AND je.status = 'posted')`,
+        sql`NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_id = ${bankTransactions.id} AND je.source_type IN ('bank_debit', 'bank_credit') AND je.status = 'posted')`,
       ),
     ),
     unposted_bills: async (since) => {
