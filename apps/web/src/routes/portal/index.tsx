@@ -1848,7 +1848,7 @@ function PaymentView({ ctx, paymentId }: { ctx: PortalCtx; paymentId: string }) 
     async function load() {
       try {
         const { base, qs } = buildApiBase(ctx);
-        const res = await fetch(`${base}/payments${qs}`);
+        const res = await portalFetch(ctx, `${base}/payments${qs}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (cancelled) return;
