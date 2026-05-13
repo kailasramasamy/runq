@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Check, AlertTriangle, ArrowUpRight, ShieldCheck, CircleDot, CalendarCheck } from 'lucide-react';
 import { Card2, CardTitle, Ring } from './primitives';
@@ -15,6 +16,13 @@ function daysUntil(dateStr: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+/** GSTR-2B is auto-generated on the 14th — three days after GSTR-1's 11th deadline. */
+function gstr2bDate(gstr1DueDate: string): string {
+  const d = new Date(gstr1DueDate);
+  d.setDate(d.getDate() + 3);
+  return d.toISOString().slice(0, 10);
 }
 
 function readinessSubtitle(score: number): string {
@@ -46,24 +54,47 @@ function returnStatusLabel(exists: boolean, status: string | null): string {
 }
 
 function ReturnCard({
-  label, dueDate, daysLeft, statusLabel,
+  label, dueDate, daysLeft, statusLabel, isFiled, infoOnly,
 }: {
   label: string;
   dueDate: string;
   daysLeft: number;
   statusLabel: string;
+  isFiled?: boolean;
+  infoOnly?: boolean;
 }) {
   // Tone the days-left pill: red if overdue, amber if ≤7 days, neutral otherwise.
-  const pillBg =
-    daysLeft < 0 ? 'var(--neg-soft)' :
-    daysLeft <= 7 ? 'var(--warn-soft)' : 'var(--surface-2)';
-  const pillFg =
-    daysLeft < 0 ? 'var(--neg)' :
-    daysLeft <= 7 ? 'var(--warn)' : 'var(--text-2)';
-  const pillLabel =
-    daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` :
-    daysLeft === 0 ? 'due today' :
-    `${daysLeft} d left`;
+  // Filed wins everything — show a green "Filed" pill regardless of date.
+  // Info-only (e.g. GSTR-2B sync) never goes red.
+  let pillBg: string;
+  let pillFg: string;
+  let pillLabel: string;
+  let pillIcon: ReactNode = null;
+
+  if (isFiled) {
+    pillBg = 'var(--pos-soft)';
+    pillFg = 'var(--pos)';
+    pillLabel = 'Filed';
+    pillIcon = <Check size={10} strokeWidth={3} />;
+  } else if (infoOnly) {
+    pillBg = 'var(--surface-2)';
+    pillFg = 'var(--text-2)';
+    pillLabel =
+      daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` :
+      daysLeft === 0 ? 'today' :
+      `in ${daysLeft}d`;
+  } else {
+    pillBg =
+      daysLeft < 0 ? 'var(--neg-soft)' :
+      daysLeft <= 7 ? 'var(--warn-soft)' : 'var(--surface-2)';
+    pillFg =
+      daysLeft < 0 ? 'var(--neg)' :
+      daysLeft <= 7 ? 'var(--warn)' : 'var(--text-2)';
+    pillLabel =
+      daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` :
+      daysLeft === 0 ? 'due today' :
+      `${daysLeft} d left`;
+  }
 
   const due = new Date(dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
@@ -77,14 +108,15 @@ function ReturnCard({
           {label}
         </span>
         <span
-          className="num shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold"
+          className="num inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold"
           style={{ background: pillBg, color: pillFg, borderColor: 'transparent' }}
         >
+          {pillIcon}
           {pillLabel}
         </span>
       </div>
       <div className="mt-1 text-[12px]" style={{ color: 'var(--text-2)' }}>
-        Due {due} · {statusLabel}
+        {infoOnly ? `Auto-sync ${due}` : `Due ${due}`} · {statusLabel}
       </div>
     </div>
   );
@@ -117,7 +149,15 @@ function GstReadinessCard() {
               GST readiness
             </div>
             <div className="text-[12px]" style={{ color: 'var(--text-3)' }}>
-              {r?.periodLabel ?? 'Current period'} · {readinessSubtitle(score)}
+              {r?.periodLabel ?? 'Current period'}
+              {r?.targetLabel && (
+                <>
+                  {' · '}
+                  <span style={{ color: 'var(--text-2)' }}>Readiness for {r.targetLabel}</span>
+                </>
+              )}
+              {' · '}
+              {readinessSubtitle(score)}
             </div>
           </div>
         </div>
@@ -148,12 +188,21 @@ function GstReadinessCard() {
                   dueDate={r.dueDates.gstr1}
                   daysLeft={daysUntil(r.dueDates.gstr1)}
                   statusLabel={returnStatusLabel(r.returns.gstr1.exists, r.returns.gstr1.status)}
+                  isFiled={r.returns.gstr1.status === 'filed'}
+                />
+                <ReturnCard
+                  label="GSTR-2B"
+                  dueDate={gstr2bDate(r.dueDates.gstr1)}
+                  daysLeft={daysUntil(gstr2bDate(r.dueDates.gstr1))}
+                  statusLabel="ITC sync — reconcile"
+                  infoOnly
                 />
                 <ReturnCard
                   label="GSTR-3B"
                   dueDate={r.dueDates.gstr3b}
                   daysLeft={daysUntil(r.dueDates.gstr3b)}
                   statusLabel={returnStatusLabel(r.returns.gstr3b.exists, r.returns.gstr3b.status)}
+                  isFiled={r.returns.gstr3b.status === 'filed'}
                 />
               </>
             )}

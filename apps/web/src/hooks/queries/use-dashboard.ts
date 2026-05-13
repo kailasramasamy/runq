@@ -154,9 +154,13 @@ export interface GstReadinessSignal {
   ok: boolean;
   detail?: string;
 }
+export type ReadinessTarget = 'gstr1' | 'gstr3b' | 'next_gstr1';
+
 export interface GstReadinessResult {
   period: string;
   periodLabel: string;
+  target: ReadinessTarget;
+  targetLabel: string;
   score: number;
   signals: GstReadinessSignal[];
   returns: {

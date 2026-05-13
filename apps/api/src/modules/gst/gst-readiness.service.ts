@@ -13,9 +13,14 @@ import {
 import type { Db } from '@runq/db';
 import type { TenantSettings } from '@runq/types';
 
+export type ReadinessTarget = 'gstr1' | 'gstr3b' | 'next_gstr1';
+
 export interface GstReadinessResult {
   period: string;         // MMYYYY (previous month — the one to be filed)
   periodLabel: string;    // "Mar 2026"
+  /** Which filing the score is rating right now — drives the subtitle + which signals count. */
+  target: ReadinessTarget;
+  targetLabel: string;    // human-readable: "GSTR-1", "GSTR-3B", "Next GSTR-1"
   score: number;          // 0-100
   signals: GstReadinessSignal[];
   returns: {
@@ -56,6 +61,41 @@ export interface SignalDetail {
   affectedItems: AffectedItem[];
 }
 
+const TARGET_LABELS: Record<ReadinessTarget, string> = {
+  gstr1: 'GSTR-1',
+  gstr3b: 'GSTR-3B',
+  next_gstr1: 'Next GSTR-1',
+};
+
+/**
+ * Which targets does each signal contribute to? When the score is being
+ * computed for one target, irrelevant signals are dropped so e.g. a pending
+ * bill approval doesn't pull down the score for an already-filed GSTR-1.
+ *
+ * - GSTR-1 (sales): hygiene of invoices going out + customer master.
+ * - GSTR-3B (summary + ITC): purchase bills + bank rec + the 3B draft.
+ * - Next GSTR-1 (current-month prep): only the always-applicable invoice
+ *   hygiene checks; draft signals don't apply until month-end.
+ *
+ * Universal signals (GSTIN configured, username) apply everywhere.
+ */
+const ALL: Set<ReadinessTarget> = new Set(['gstr1', 'gstr3b', 'next_gstr1']);
+const G1: Set<ReadinessTarget> = new Set(['gstr1']);
+const G3B: Set<ReadinessTarget> = new Set(['gstr3b']);
+const G1_AND_NEXT: Set<ReadinessTarget> = new Set(['gstr1', 'next_gstr1']);
+
+const SIGNAL_TARGETS: Record<string, Set<ReadinessTarget>> = {
+  gstin_configured: ALL,
+  gst_username: ALL,
+  invoices_with_hsn: G1_AND_NEXT,
+  invoices_with_pos: G1_AND_NEXT,
+  customers_with_gstin: G1_AND_NEXT,
+  bills_approved: G3B,
+  bank_recon: G3B,
+  gstr1_draft: G1,
+  gstr3b_draft: G3B,
+};
+
 export class GstReadinessService {
   constructor(
     private readonly db: Db,
@@ -77,6 +117,8 @@ export class GstReadinessService {
         return {
           period: prevPeriod,
           periodLabel: this.periodLabel(prevPeriod),
+          target: 'gstr1',
+          targetLabel: TARGET_LABELS.gstr1,
           score: 100,
           signals: [],
           returns: {
@@ -177,10 +219,22 @@ export class GstReadinessService {
       },
     ];
 
-    // Score = % of signals ok, weighted (blocking ones count double)
+    // Pick the next filing the user has to act on. Once GSTR-1 is filed,
+    // the score should reflect GSTR-3B readiness. Once both are filed,
+    // shift to next month's GSTR-1 prep (current-month invoice hygiene).
+    const gstr1Filed = returns.gstr1.status === 'filed';
+    const gstr3bFiled = returns.gstr3b.status === 'filed';
+    let target: ReadinessTarget;
+    if (!gstr1Filed) target = 'gstr1';
+    else if (!gstr3bFiled) target = 'gstr3b';
+    else target = 'next_gstr1';
+
+    const filteredSignals = signals.filter((s) => SIGNAL_TARGETS[s.key]?.has(target) ?? true);
+
+    // Score = % of signals ok, weighted (blocking ones count double).
     const blockingKeys = new Set(['gstin_configured', 'invoices_with_hsn', 'customers_with_gstin']);
     let weightedTotal = 0, weightedOk = 0;
-    for (const s of signals) {
+    for (const s of filteredSignals) {
       const w = blockingKeys.has(s.key) ? 2 : 1;
       weightedTotal += w;
       if (s.ok) weightedOk += w;
@@ -190,8 +244,10 @@ export class GstReadinessService {
     return {
       period,
       periodLabel,
+      target,
+      targetLabel: TARGET_LABELS[target],
       score,
-      signals,
+      signals: filteredSignals,
       returns,
       dueDates: {
         gstr1: this.dueDate(period, 11),
