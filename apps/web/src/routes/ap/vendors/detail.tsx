@@ -254,7 +254,7 @@ function VendorPortalCard({ vendorId }: { vendorId: string }) {
   const generateSlug = useMutation({
     mutationFn: () => api.post<{ data: { slug: string } }>(`/ap/vendors/${vendorId}/portal-slug`),
     onSuccess: (res) => {
-      setPortalUrl(`${window.location.origin}/vendor-portal/s/${res.data.slug}`);
+      setPortalUrl(`${window.location.origin}${import.meta.env.BASE_URL}vendor-portal/s/${res.data.slug}`);
     },
   });
 

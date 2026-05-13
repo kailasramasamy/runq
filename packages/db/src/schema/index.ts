@@ -17,6 +17,7 @@ export * from './ar/customers';
 export * from './ar/invoices';
 export * from './ar/receipts';
 export * from './ar/credit-notes';
+export * from './ar/payment-claims';
 export * from './ar/dunning';
 export * from './banking/bank-accounts';
 export * from './banking/bank-transactions';

@@ -1,6 +1,7 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useInboxCount } from '@/hooks/queries/use-inbox';
+import { usePendingPaymentClaimsCount } from '@/hooks/queries/use-payment-claims';
 import {
   LayoutDashboard, Sparkles, Inbox, Folder,
   FileText, ClipboardList, Truck, FileMinus, Receipt, Users, AlarmClock,
@@ -11,7 +12,7 @@ import {
   GitBranch, Layers, UserCog, Plug, Settings,
   Zap, LifeBuoy, Command, Bell, Mail,
   PanelLeftClose, PanelLeftOpen, Menu, X,
-  ArrowDownToLine, ArrowUpFromLine,
+  ArrowDownToLine, ArrowUpFromLine, HandCoins,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -44,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/ar/quotes' },
       { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/ar/credit-notes' },
       { key: 'receipts', label: 'Receipts', icon: Receipt, path: '/ar/receipts' },
+      { key: 'payment-claims', label: 'Payment reports', icon: HandCoins, path: '/ar/payment-claims' },
       { key: 'customers', label: 'Customers', icon: Users, path: '/ar/customers' },
       { key: 'collections', label: 'Collections', icon: AlarmClock, path: '/ar/collections' },
     ],
@@ -167,6 +169,8 @@ function SidebarContent({
   const { theme } = useTheme();
   const inboxQuery = useInboxCount();
   const inboxCount = inboxQuery.data?.data?.count ?? 0;
+  const pendingClaimsQuery = usePendingPaymentClaimsCount();
+  const pendingClaimsCount = pendingClaimsQuery.data ?? 0;
 
   const allPaths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.path));
   const bestMatch = allPaths
@@ -266,7 +270,13 @@ function SidebarContent({
                   // Inject the live inbox count from the badge query so the
                   // sidebar shows what's pending without each page having
                   // to wire it up. Other counts could pipe in here too.
-                  item={it.key === 'inbox' && inboxCount > 0 ? { ...it, count: inboxCount } : it}
+                  item={
+                    it.key === 'inbox' && inboxCount > 0
+                      ? { ...it, count: inboxCount }
+                      : it.key === 'payment-claims' && pendingClaimsCount > 0
+                        ? { ...it, count: pendingClaimsCount }
+                        : it
+                  }
                   active={isActivePath(it.path)}
                   collapsed={collapsed}
                   onClick={onNavigate}

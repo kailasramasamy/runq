@@ -83,6 +83,25 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     retry: false,
   });
 
+  interface PendingClaim {
+    id: string;
+    claimDate: string;
+    claimedAmount: number;
+    paymentMethod: string;
+    referenceNumber: string | null;
+    customerName: string;
+  }
+  const { data: pendingClaimsData } = useQuery({
+    queryKey: ['invoices', 'pending-claims', invoiceId],
+    queryFn: () =>
+      api.get<{ data: PendingClaim[] }>(
+        `/ar/payment-claims?status=pending&invoiceId=${invoiceId}`,
+      ),
+    enabled: !!invoice,
+    retry: false,
+  });
+  const pendingClaim = pendingClaimsData?.data?.[0] ?? null;
+
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
     else navigate({ to: '/ar/invoices' });
@@ -204,6 +223,36 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </>
         }
       />
+
+      {/* Pending payment-report banner */}
+      {pendingClaim && (
+        <div
+          className="mb-5 flex items-start gap-3 rounded-xl border px-4 py-3"
+          style={{
+            background: '#fffbeb',
+            borderColor: '#fde68a',
+          }}
+        >
+          <span className="mt-0.5 text-base" aria-hidden>📩</span>
+          <div className="flex-1">
+            <div className="text-[13px] font-medium" style={{ color: '#92400e' }}>
+              Customer reported payment on {formatDate(pendingClaim.claimDate)}
+            </div>
+            <div className="mt-0.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
+              {pendingClaim.customerName} marked this and other invoices as paid via{' '}
+              <span className="uppercase">{pendingClaim.paymentMethod.replace(/_/g, ' ')}</span>
+              {pendingClaim.referenceNumber ? ` (Ref: ${pendingClaim.referenceNumber})` : ''}. Verify against your bank statement.
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate({ to: '/ar/payment-claims' })}
+          >
+            Open report
+          </Button>
+        </div>
+      )}
 
       {/* Status banner */}
       {isOverdue && (

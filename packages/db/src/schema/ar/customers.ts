@@ -33,6 +33,9 @@ export const customers = pgTable('customers', {
   // if neither is set — never auto-exposes ALL bank accounts.
   defaultBankAccountId: uuid('default_bank_account_id'),
   portalSlug: varchar('portal_slug', { length: 32 }).unique(),
+  portalPinHash: varchar('portal_pin_hash', { length: 255 }),
+  portalPin: varchar('portal_pin', { length: 6 }),
+  portalPinSetAt: timestamp('portal_pin_set_at', { withTimezone: true }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

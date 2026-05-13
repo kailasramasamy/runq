@@ -8,6 +8,7 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { decimalAdd, decimalSubtract, decimalLte, decimalGt, toNumber } from '../../utils/decimal';
 import { GLService } from '../gl/gl.service';
+import { PaymentClaimService } from './payment-claim.service';
 import { sendEmail } from '../../utils/email';
 import { receiptConfirmation } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
@@ -174,6 +175,21 @@ export class ReceiptService {
       id: receiptWithAllocations.id,
       customerName: receiptWithAllocations.customerName,
     });
+
+    // Best-effort: auto-verify any pending customer-reported payment claim
+    // whose invoice set is fully covered by this receipt. Failure here must
+    // not roll back the receipt — log and move on.
+    try {
+      const claimService = new PaymentClaimService(this.db, this.tenantId);
+      await claimService.tryAutoResolveClaim(receiptWithAllocations.customerId, {
+        id: receiptWithAllocations.id,
+        totalAmount: receiptWithAllocations.amount,
+        allocations: receiptWithAllocations.allocations.map((a) => ({ invoiceId: a.invoiceId })),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[receipt.create] auto-resolve claim failed', err);
+    }
 
     void this.sendReceiptEmail(receiptWithAllocations);
     return receiptWithAllocations;

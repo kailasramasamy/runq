@@ -38,8 +38,8 @@ function formatINR(n: number): string {
 }
 
 function getSlug(): string | null {
-  const match = window.location.pathname.match(/^\/vendor-portal\/s\/([a-z0-9]+)/i);
-  return match ? match[1] : null;
+  const match = window.location.pathname.match(/\/vendor-portal\/s\/([a-z0-9-]+)/i);
+  return match ? match[1]! : null;
 }
 
 export function VendorPortalPage() {

@@ -1,11 +1,20 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import argon2 from 'argon2';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { salesInvoices, customers, receiptAllocations, paymentReceipts, tenants } from '@runq/db';
+import {
+  salesInvoices,
+  customers,
+  receiptAllocations,
+  paymentReceipts,
+  tenants,
+  creditNotes,
+} from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, UnauthorizedError } from '../../utils/errors';
 
 const PORTAL_SECRET = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET!;
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 interface PortalPayload {
   tenantId: string;
@@ -35,6 +44,15 @@ function generateSlug(): string {
   return randomBytes(4).toString('hex');
 }
 
+function slugifyName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 27);
+}
+
 export class PortalService {
   constructor(
     private readonly db: Db,
@@ -52,7 +70,11 @@ export class PortalService {
 
   async getOrCreateSlug(customerId: string): Promise<string> {
     const [customer] = await this.db
-      .select({ portalSlug: customers.portalSlug })
+      .select({
+        portalSlug: customers.portalSlug,
+        nickname: customers.nickname,
+        name: customers.name,
+      })
       .from(customers)
       .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
       .limit(1);
@@ -60,12 +82,45 @@ export class PortalService {
     if (!customer) throw new NotFoundError('Customer');
     if (customer.portalSlug) return customer.portalSlug;
 
-    const slug = generateSlug();
+    const slug = await this.allocateSlug(customer.nickname || customer.name);
     await this.db
       .update(customers)
       .set({ portalSlug: slug })
       .where(eq(customers.id, customerId));
     return slug;
+  }
+
+  async getExistingSlug(customerId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ portalSlug: customers.portalSlug })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('Customer');
+    return row.portalSlug ?? null;
+  }
+
+  private async allocateSlug(sourceName: string | null): Promise<string> {
+    const base = sourceName ? slugifyName(sourceName) : '';
+    if (!base) return generateSlug();
+
+    const [existing] = await this.db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.portalSlug, base))
+      .limit(1);
+    if (!existing) return base;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = `${base}-${randomBytes(2).toString('hex')}`;
+      const [taken] = await this.db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.portalSlug, candidate))
+        .limit(1);
+      if (!taken) return candidate;
+    }
+    return generateSlug();
   }
 
   async resolveSlug(slug: string): Promise<{ tenantId: string; customerId: string }> {
@@ -79,6 +134,62 @@ export class PortalService {
   }
 
   static verifyToken(token: string): PortalPayload {
+    return verifyPayload(token);
+  }
+
+  async setPin(customerId: string, pin: string): Promise<void> {
+    if (!/^\d{4,6}$/.test(pin)) {
+      throw new Error('PIN must be 4 to 6 digits');
+    }
+    const hash = await argon2.hash(pin);
+    await this.db
+      .update(customers)
+      .set({ portalPinHash: hash, portalPin: pin, portalPinSetAt: new Date() })
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)));
+  }
+
+  async clearPin(customerId: string): Promise<void> {
+    await this.db
+      .update(customers)
+      .set({ portalPinHash: null, portalPin: null, portalPinSetAt: null })
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)));
+  }
+
+  async hasPin(customerId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ hash: customers.portalPinHash })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+    return !!row?.hash;
+  }
+
+  async getPin(customerId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ pin: customers.portalPin })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+    return row?.pin ?? null;
+  }
+
+  async verifyPinAndIssueSession(customerId: string, pin: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ hash: customers.portalPinHash })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row?.hash) return null;
+    const ok = await argon2.verify(row.hash, pin);
+    if (!ok) return null;
+    return signPayload({
+      tenantId: this.tenantId,
+      customerId,
+      exp: Date.now() + SESSION_TTL_MS,
+    });
+  }
+
+  static verifySession(token: string): PortalPayload {
     return verifyPayload(token);
   }
 
@@ -164,4 +275,242 @@ export class PortalService {
     if (!row) throw new NotFoundError('Customer');
     return row.name;
   }
+
+  async getStatementOfAccount(
+    customerId: string,
+    fromDate: string,
+    toDate: string,
+  ): Promise<StatementOfAccount> {
+    const [invoiceRows, receiptRows, creditRows] = await Promise.all([
+      this.db
+        .select({
+          date: salesInvoices.invoiceDate,
+          ref: salesInvoices.invoiceNumber,
+          amount: salesInvoices.totalAmount,
+          id: salesInvoices.id,
+        })
+        .from(salesInvoices)
+        .where(
+          and(
+            eq(salesInvoices.tenantId, this.tenantId),
+            eq(salesInvoices.customerId, customerId),
+            inArray(salesInvoices.status, ['sent', 'partially_paid', 'paid']),
+          ),
+        ),
+      this.db
+        .select({
+          date: paymentReceipts.receiptDate,
+          amount: paymentReceipts.amount,
+          method: paymentReceipts.paymentMethod,
+          ref: paymentReceipts.referenceNumber,
+          id: paymentReceipts.id,
+        })
+        .from(paymentReceipts)
+        .where(
+          and(
+            eq(paymentReceipts.tenantId, this.tenantId),
+            eq(paymentReceipts.customerId, customerId),
+          ),
+        ),
+      this.db
+        .select({
+          date: creditNotes.issueDate,
+          amount: creditNotes.amount,
+          ref: creditNotes.id,
+        })
+        .from(creditNotes)
+        .where(
+          and(
+            eq(creditNotes.tenantId, this.tenantId),
+            eq(creditNotes.customerId, customerId),
+            inArray(creditNotes.status, ['issued', 'adjusted']),
+          ),
+        ),
+    ]);
+
+    let openingBalance = 0;
+    const allRows: StatementRow[] = [];
+
+    for (const inv of invoiceRows) {
+      const amt = Number(inv.amount);
+      if (inv.date < fromDate) {
+        openingBalance += amt;
+      } else if (inv.date <= toDate) {
+        allRows.push({
+          date: inv.date,
+          type: 'invoice',
+          ref: inv.ref,
+          entityId: inv.id,
+          description: `Invoice ${inv.ref}`,
+          debit: amt,
+          credit: 0,
+          runningBalance: 0,
+        });
+      }
+    }
+    for (const rcpt of receiptRows) {
+      const amt = Number(rcpt.amount);
+      if (rcpt.date < fromDate) {
+        openingBalance -= amt;
+      } else if (rcpt.date <= toDate) {
+        const utr = rcpt.ref ? ` (Ref: ${rcpt.ref})` : '';
+        allRows.push({
+          date: rcpt.date,
+          type: 'receipt',
+          ref: rcpt.ref ?? rcpt.id,
+          entityId: rcpt.id,
+          description: `Payment received via ${rcpt.method.replace(/_/g, ' ')}${utr}`,
+          debit: 0,
+          credit: amt,
+          runningBalance: 0,
+        });
+      }
+    }
+    for (const cn of creditRows) {
+      const amt = Number(cn.amount);
+      if (cn.date < fromDate) {
+        openingBalance -= amt;
+      } else if (cn.date <= toDate) {
+        allRows.push({
+          date: cn.date,
+          type: 'credit_note',
+          ref: cn.ref,
+          description: 'Credit note issued',
+          debit: 0,
+          credit: amt,
+          runningBalance: 0,
+        });
+      }
+    }
+
+    allRows.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      // Invoices first on same date, then credit notes, then receipts
+      const order = { invoice: 0, credit_note: 1, receipt: 2 };
+      return order[a.type] - order[b.type];
+    });
+
+    let running = openingBalance;
+    for (const row of allRows) {
+      running = running + row.debit - row.credit;
+      row.runningBalance = running;
+    }
+
+    return {
+      fromDate,
+      toDate,
+      openingBalance,
+      closingBalance: running,
+      rows: allRows,
+    };
+  }
+
+  async getReceiptsWithAllocations(customerId: string): Promise<ReceiptWithAllocations[]> {
+    const rows = await this.db
+      .select({
+        receiptId: paymentReceipts.id,
+        receiptDate: paymentReceipts.receiptDate,
+        receiptAmount: paymentReceipts.amount,
+        method: paymentReceipts.paymentMethod,
+        referenceNumber: paymentReceipts.referenceNumber,
+        notes: paymentReceipts.notes,
+        allocationAmount: receiptAllocations.amount,
+        invoiceNumber: salesInvoices.invoiceNumber,
+        invoiceId: salesInvoices.id,
+        invoiceDate: salesInvoices.invoiceDate,
+        invoiceDueDate: salesInvoices.dueDate,
+        invoiceTotalAmount: salesInvoices.totalAmount,
+        invoiceBalanceDue: salesInvoices.balanceDue,
+        invoiceStatus: salesInvoices.status,
+      })
+      .from(paymentReceipts)
+      .leftJoin(
+        receiptAllocations,
+        eq(receiptAllocations.receiptId, paymentReceipts.id),
+      )
+      .leftJoin(salesInvoices, eq(receiptAllocations.invoiceId, salesInvoices.id))
+      .where(
+        and(
+          eq(paymentReceipts.tenantId, this.tenantId),
+          eq(paymentReceipts.customerId, customerId),
+        ),
+      )
+      .orderBy(sql`${paymentReceipts.receiptDate} desc`);
+
+    const grouped = new Map<string, ReceiptWithAllocations>();
+    for (const r of rows) {
+      let entry = grouped.get(r.receiptId);
+      if (!entry) {
+        entry = {
+          receiptId: r.receiptId,
+          receiptDate: r.receiptDate,
+          totalAmount: Number(r.receiptAmount),
+          method: r.method,
+          referenceNumber: r.referenceNumber,
+          notes: r.notes,
+          allocations: [],
+          allocatedTotal: 0,
+        };
+        grouped.set(r.receiptId, entry);
+      }
+      if (r.invoiceId && r.allocationAmount) {
+        const amt = Number(r.allocationAmount);
+        entry.allocations.push({
+          invoiceId: r.invoiceId,
+          invoiceNumber: r.invoiceNumber!,
+          amount: amt,
+          invoiceDate: r.invoiceDate ?? '',
+          dueDate: r.invoiceDueDate ?? '',
+          totalAmount: Number(r.invoiceTotalAmount ?? 0),
+          balanceDue: Number(r.invoiceBalanceDue ?? 0),
+          status: r.invoiceStatus ?? '',
+        });
+        entry.allocatedTotal += amt;
+      }
+    }
+
+    return Array.from(grouped.values());
+  }
+}
+
+export interface StatementRow {
+  date: string;
+  type: 'invoice' | 'receipt' | 'credit_note';
+  ref: string;
+  /** UUID of the underlying invoice/receipt — used for client-side linking. Absent for credit notes. */
+  entityId?: string;
+  description: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface StatementOfAccount {
+  fromDate: string;
+  toDate: string;
+  openingBalance: number;
+  closingBalance: number;
+  rows: StatementRow[];
+}
+
+export interface ReceiptAllocation {
+  invoiceId: string;
+  invoiceNumber: string;
+  amount: number;
+  invoiceDate: string;
+  dueDate: string;
+  totalAmount: number;
+  balanceDue: number;
+  status: string;
+}
+
+export interface ReceiptWithAllocations {
+  receiptId: string;
+  receiptDate: string;
+  totalAmount: number;
+  method: string;
+  referenceNumber: string | null;
+  notes: string | null;
+  allocations: ReceiptAllocation[];
+  allocatedTotal: number;
 }

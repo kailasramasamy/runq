@@ -56,6 +56,7 @@ import { ReceiptDetailPage } from './ar/receipts/detail';
 import { CreditNoteListPage } from './ar/credit-notes/index';
 import { NewCreditNotePage } from './ar/credit-notes/new';
 import { CreditNoteDetailPage } from './ar/credit-notes/detail';
+import { PaymentClaimListPage } from './ar/payment-claims/index';
 import { PoInboxPage } from './ar/po-inbox/index';
 import { PoDraftReviewPage } from './ar/po-inbox/detail';
 import { DunningPage } from './ar/dunning/index';
@@ -557,6 +558,12 @@ const receiptsRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/receipts',
   component: ReceiptListPage,
+});
+
+const paymentClaimsRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/payment-claims',
+  component: PaymentClaimListPage,
 });
 
 const receiptNewRoute = createRoute({
@@ -1723,6 +1730,7 @@ export const routeTree = rootRoute.addChildren([
       invoiceDetailRoute,
       invoiceEditRoute,
       receiptsRoute,
+      paymentClaimsRoute,
       receiptNewRoute,
       receiptDetailRoute,
       creditNotesRoute,

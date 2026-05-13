@@ -154,4 +154,42 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       return { data: { slug } };
     },
   );
+
+  app.get('/:id/portal-slug', async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const service = new PortalService(request.server.db, request.tenantId);
+    const slug = await service.getExistingSlug(id);
+    return { data: { slug } };
+  });
+
+  app.get('/:id/portal-pin-status', async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const service = new PortalService(request.server.db, request.tenantId);
+    const pin = await service.getPin(id);
+    return { data: { isSet: !!pin, pin } };
+  });
+
+  app.post(
+    '/:id/portal-pin',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      // Generate a 4-digit PIN server-side so the AR person never has to invent one.
+      const pin = String(Math.floor(1000 + Math.random() * 9000));
+      const service = new PortalService(request.server.db, request.tenantId);
+      await service.setPin(id, pin);
+      return { data: { pin } };
+    },
+  );
+
+  app.delete(
+    '/:id/portal-pin',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new PortalService(request.server.db, request.tenantId);
+      await service.clearPin(id);
+      return { ok: true };
+    },
+  );
 };
