@@ -128,25 +128,53 @@ class GstSignal {
       );
 }
 
+/// Which filing the readiness score is rating right now.
+enum ReadinessTarget { gstr1, gstr3b, nextGstr1 }
+
+class GstReturnStatus {
+  final bool exists;
+  final String? status;
+  const GstReturnStatus({required this.exists, this.status});
+
+  bool get isFiled => status == 'filed';
+
+  factory GstReturnStatus.fromJson(Map<String, dynamic>? j) {
+    if (j == null) return const GstReturnStatus(exists: false, status: null);
+    return GstReturnStatus(
+      exists: _bool(j['exists']),
+      status: _str(j['status']),
+    );
+  }
+}
+
 class GstReadiness {
   final String period, periodLabel;
+  final ReadinessTarget target;
+  final String targetLabel;
   final int score;
   final List<GstSignal> signals;
   final DateTime? gstr1Due, gstr3bDue;
+  final GstReturnStatus gstr1Status;
+  final GstReturnStatus gstr3bStatus;
   final bool filedExternally, preparing;
   GstReadiness({
     required this.period,
     required this.periodLabel,
+    required this.target,
+    required this.targetLabel,
     required this.score,
     required this.signals,
     this.gstr1Due,
     this.gstr3bDue,
+    required this.gstr1Status,
+    required this.gstr3bStatus,
     required this.filedExternally,
     required this.preparing,
   });
 
   factory GstReadiness.fromJson(Map<String, dynamic> j) {
     final dueDates = (j['dueDates'] as Map?)?.cast<String, dynamic>() ?? {};
+    final returns = (j['returns'] as Map?)?.cast<String, dynamic>() ?? {};
     final signals = (j['signals'] as List? ?? const [])
         .cast<Map<String, dynamic>>()
         .map(GstSignal.fromJson)
@@ -154,10 +182,14 @@ class GstReadiness {
     return GstReadiness(
       period: _strOr(j['period'], ''),
       periodLabel: _strOr(j['periodLabel'], ''),
+      target: _readinessTarget(j['target']),
+      targetLabel: _strOr(j['targetLabel'], 'GSTR-1'),
       score: _int(j['score']),
       signals: signals,
       gstr1Due: _dt(dueDates['gstr1']),
       gstr3bDue: _dt(dueDates['gstr3b']),
+      gstr1Status: GstReturnStatus.fromJson(returns['gstr1'] as Map<String, dynamic>?),
+      gstr3bStatus: GstReturnStatus.fromJson(returns['gstr3b'] as Map<String, dynamic>?),
       filedExternally: _bool(j['filedExternally']),
       preparing: _bool(j['preparing']),
     );
@@ -165,12 +197,39 @@ class GstReadiness {
 
   GstSignal? get firstFailingSignal => signals.where((s) => !s.ok).firstOrNull;
 
-  int? get daysToGstr1 {
-    if (gstr1Due == null) return null;
+  int? get daysToGstr1 => _daysTo(gstr1Due);
+  int? get daysToGstr3b => _daysTo(gstr3bDue);
+
+  /// Days until the deadline relevant to the current target.
+  /// `nextGstr1` is the upcoming month's 11th — same data as `gstr1Due` since
+  /// the backend has already advanced `period` to the next cycle.
+  int? get daysToTarget {
+    switch (target) {
+      case ReadinessTarget.gstr1:
+      case ReadinessTarget.nextGstr1:
+        return daysToGstr1;
+      case ReadinessTarget.gstr3b:
+        return daysToGstr3b;
+    }
+  }
+
+  int? _daysTo(DateTime? d) {
+    if (d == null) return null;
     final now = DateTime.now();
-    return DateTime(gstr1Due!.year, gstr1Due!.month, gstr1Due!.day)
+    return DateTime(d.year, d.month, d.day)
         .difference(DateTime(now.year, now.month, now.day))
         .inDays;
+  }
+}
+
+ReadinessTarget _readinessTarget(dynamic v) {
+  switch (v) {
+    case 'gstr3b':
+      return ReadinessTarget.gstr3b;
+    case 'next_gstr1':
+      return ReadinessTarget.nextGstr1;
+    default:
+      return ReadinessTarget.gstr1;
   }
 }
 

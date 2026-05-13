@@ -118,12 +118,15 @@ class _ReadinessCard extends StatelessWidget {
     final t = RT(context);
     final score = readiness.score;
     final failing = readiness.firstFailingSignal;
-    final days = readiness.daysToGstr1;
+    final days = readiness.daysToTarget;
+    final targetIsNext = readiness.target == ReadinessTarget.nextGstr1;
     final dueText = days == null
         ? null
         : days < 0
             ? 'Overdue'
-            : 'Due in $days ${days == 1 ? 'day' : 'days'}';
+            : days == 0
+                ? 'Due today'
+                : 'Due in $days ${days == 1 ? 'day' : 'days'}';
     final passing = readiness.signals.where((s) => s.ok).length;
     final total = readiness.signals.length;
 
@@ -147,7 +150,7 @@ class _ReadinessCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'GSTR-1 · ${readiness.periodLabel.toUpperCase()}',
+                '${readiness.targetLabel.toUpperCase()} · ${readiness.periodLabel.toUpperCase()}',
                 style: RunqText.label.copyWith(
                   color: t.muted2, fontSize: 11, letterSpacing: 0.5,
                 ),
@@ -165,7 +168,7 @@ class _ReadinessCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '$score% ready to file',
+            targetIsNext ? '$score% ready for next cycle' : '$score% ready to file',
             style: RunqText.h2.copyWith(color: t.ink),
           ),
           const SizedBox(height: 4),

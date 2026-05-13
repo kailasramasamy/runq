@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../api/models.dart';
 import '../../providers/data_providers.dart';
 import '../../theme/runq_tokens.dart';
 import '../../theme/runq_theme.dart';
@@ -20,35 +21,47 @@ class GstSection extends ConsumerWidget {
     final score = gst.score;
     final failing = gst.firstFailingSignal;
     final isPreparing = gst.preparing;
+    final bothFiled = gst.gstr1Status.isFiled && gst.gstr3bStatus.isFiled;
+    final targetIsNext = gst.target == ReadinessTarget.nextGstr1;
 
-    final pillLabel = isPreparing
-        ? 'Preparing'
-        : score >= 80
-            ? 'Ready'
-            : 'Sent';
+    final pillLabel = bothFiled
+        ? 'Filed'
+        : isPreparing
+            ? 'Preparing'
+            : score >= 80
+                ? 'Ready'
+                : 'Sent';
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pillColors = score >= 80
+    final pillColors = bothFiled
         ? (
             bg: isDark ? const Color(0xFF0D2620) : RunqColors.greenBg,
             ink: isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
           )
-        : isPreparing
+        : score >= 80
             ? (
-                bg: isDark ? const Color(0xFF3A2410) : RunqColors.amberBg,
-                ink: isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
+                bg: isDark ? const Color(0xFF0D2620) : RunqColors.greenBg,
+                ink: isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
               )
-            : (
-                bg: RunqColors.indigo.withValues(alpha: isDark ? 0.22 : 0.10),
-                ink: RunqColors.indigo,
-              );
+            : isPreparing
+                ? (
+                    bg: isDark ? const Color(0xFF3A2410) : RunqColors.amberBg,
+                    ink: isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
+                  )
+                : (
+                    bg: RunqColors.indigo.withValues(alpha: isDark ? 0.22 : 0.10),
+                    ink: RunqColors.indigo,
+                  );
 
-    final headline = '$score% ready to file';
-    final days = gst.daysToGstr1;
+    final headline =
+        targetIsNext ? '$score% ready for next cycle' : '$score% ready to file';
+    final days = gst.daysToTarget;
     final dueText = days == null
         ? null
         : days < 0
             ? 'Overdue'
-            : 'Due in $days ${days == 1 ? 'day' : 'days'}';
+            : days == 0
+                ? 'Due today'
+                : 'Due in $days ${days == 1 ? 'day' : 'days'}';
     final subParts = <String>[
       if (dueText != null) dueText,
       if (failing != null) failing.detail ?? failing.label,
@@ -69,7 +82,7 @@ class GstSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                'GSTR-1 · ${gst.periodLabel.toUpperCase()}',
+                '${gst.targetLabel.toUpperCase()} · ${gst.periodLabel.toUpperCase()}',
                 style: RunqText.label.copyWith(
                   color: t.muted2,
                   fontSize: 11,
