@@ -11,6 +11,32 @@ import { BillSyncSourceService } from './source.service';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
 
+/**
+ * Derives the correct accrual-period bill date from CPP-style bi-monthly
+ * milk procurement invoice numbers. Format: `VRD-H[12]-YYYY-MM-DD-CPP*`,
+ * where H1 covers the first half of the month and H2 the second half.
+ *
+ * The bill is physically generated days *after* the period (when finance sits
+ * down to do the settlement), so the raw `invoiceDate` carried by the source
+ * system points at a date in the *next* month. Booking by that date drags
+ * the expense into the wrong period and skews P&L. Re-derive the date here
+ * so GL postings land in the month the milk was actually supplied.
+ *
+ * H1-YYYY-MM-01 → YYYY-MM-15 (period end Apr 15 for "first half of April")
+ * H2-YYYY-MM-16 → last day of YYYY-MM (Apr 30 / May 31 / etc.)
+ */
+function deriveCppBillDate(invoiceNumber: string, fallback: string): string {
+  const m = /^VRD-H([12])-(\d{4})-(\d{2})-\d{2}-CPP/.exec(invoiceNumber);
+  if (!m) return fallback;
+  const [, half, yyyy, mm] = m;
+  if (half === '1') return `${yyyy}-${mm}-15`;
+  // H2: last day of the month encoded in the invoice number
+  const year = parseInt(yyyy!, 10);
+  const month = parseInt(mm!, 10);
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${yyyy}-${mm}-${String(lastDay).padStart(2, '0')}`;
+}
+
 export interface IngestLine {
   description: string;
   quantity?: number;
@@ -112,13 +138,19 @@ export class BillSyncIngestService {
   }
 
   private async createNew(sourceId: string, vendorId: string, p: IngestPayload): Promise<IngestResult> {
+    const invoiceDate = deriveCppBillDate(p.invoiceNumber, p.invoiceDate);
+    const dueDate = invoiceDate !== p.invoiceDate
+      // Preserve the 15-day payment window from the derived bill date so
+      // AR aging stays internally consistent after we shift the period.
+      ? new Date(new Date(invoiceDate).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : p.dueDate;
     return this.db.transaction(async (tx) => {
       const [invoice] = await tx.insert(purchaseInvoices).values({
         tenantId: this.tenantId,
         vendorId,
         invoiceNumber: p.invoiceNumber,
-        invoiceDate: p.invoiceDate,
-        dueDate: p.dueDate,
+        invoiceDate,
+        dueDate,
         subtotal: String(p.subtotal),
         taxAmount: String(p.taxAmount),
         totalAmount: String(p.totalAmount),
@@ -145,12 +177,16 @@ export class BillSyncIngestService {
     const guard = await this.checkResyncGuard(existing);
     if (guard) return { status: 'rejected', billId: existing.id, reason: guard };
 
+    const invoiceDate = deriveCppBillDate(p.invoiceNumber, p.invoiceDate);
+    const dueDate = invoiceDate !== p.invoiceDate
+      ? new Date(new Date(invoiceDate).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : p.dueDate;
     return this.db.transaction(async (tx) => {
       await tx.update(purchaseInvoices).set({
         vendorId,
         invoiceNumber: p.invoiceNumber,
-        invoiceDate: p.invoiceDate,
-        dueDate: p.dueDate,
+        invoiceDate,
+        dueDate,
         subtotal: String(p.subtotal),
         taxAmount: String(p.taxAmount),
         totalAmount: String(p.totalAmount),
