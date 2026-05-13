@@ -10,13 +10,29 @@ class GstStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final (Color bg, Color ink, String label) = switch (status) {
-      'filed' => (RunqColors.greenBg, RunqColors.greenInk, 'Filed'),
-      'uploaded' => (RunqColors.amberBg, RunqColors.amberInk, 'Uploaded'),
-      'validated' => (RunqColors.amberBg, RunqColors.amberInk, 'Validated'),
-      'error' => (RunqColors.redBg, RunqColors.redInk, 'Error'),
+      'filed' => (
+          isDark ? const Color(0xFF0D2620) : RunqColors.greenBg,
+          isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
+          'Filed',
+        ),
+      'uploaded' => (
+          isDark ? const Color(0xFF3A2410) : RunqColors.amberBg,
+          isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
+          'Uploaded',
+        ),
+      'validated' => (
+          isDark ? const Color(0xFF3A2410) : RunqColors.amberBg,
+          isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
+          'Validated',
+        ),
+      'error' => (
+          isDark ? const Color(0xFF3B1018) : RunqColors.redBg,
+          isDark ? const Color(0xFFF87171) : RunqColors.redInk,
+          'Error',
+        ),
       _ => (
           RunqColors.indigo.withValues(alpha: isDark ? 0.22 : 0.10),
-          RunqColors.indigo,
+          isDark ? const Color(0xFFA5B4FC) : RunqColors.indigo,
           'Draft',
         ),
     };

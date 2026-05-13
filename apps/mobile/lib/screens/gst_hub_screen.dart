@@ -109,6 +109,10 @@ class _Header extends StatelessWidget {
   }
 }
 
+// Setup-style signals that are answered once at onboarding. We hide them from
+// the list when ok and surface a single "GST filing enabled" pill instead.
+const _hideWhenOkKeys = {'gstin_configured', 'gst_username'};
+
 class _ReadinessCard extends StatelessWidget {
   final GstReadiness readiness;
   const _ReadinessCard({required this.readiness});
@@ -116,8 +120,8 @@ class _ReadinessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final score = readiness.score;
-    final failing = readiness.firstFailingSignal;
     final days = readiness.daysToTarget;
     final targetIsNext = readiness.target == ReadinessTarget.nextGstr1;
     final dueText = days == null
@@ -127,8 +131,19 @@ class _ReadinessCard extends StatelessWidget {
             : days == 0
                 ? 'Due today'
                 : 'Due in $days ${days == 1 ? 'day' : 'days'}';
-    final passing = readiness.signals.where((s) => s.ok).length;
-    final total = readiness.signals.length;
+
+    // Setup signals: hide from list when ok; surface a single chip if both are ok.
+    final setupOk = readiness.signals
+        .where((s) => _hideWhenOkKeys.contains(s.key))
+        .every((s) => s.ok);
+    final visibleSignals = readiness.signals
+        .where((s) => !(s.ok && _hideWhenOkKeys.contains(s.key)))
+        .toList();
+    final failing = visibleSignals.where((s) => !s.ok).firstOrNull;
+    final passing = visibleSignals.where((s) => s.ok).length;
+    final total = visibleSignals.length;
+
+    final hint = _targetHint(readiness);
 
     return Material(
       color: t.surface,
@@ -149,19 +164,34 @@ class _ReadinessCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                '${readiness.targetLabel.toUpperCase()} · ${readiness.periodLabel.toUpperCase()}',
-                style: RunqText.label.copyWith(
-                  color: t.muted2, fontSize: 11, letterSpacing: 0.5,
+              Expanded(
+                child: Text(
+                  '${readiness.targetLabel.toUpperCase()} · ${readiness.periodLabel.toUpperCase()}',
+                  style: RunqText.label.copyWith(
+                    color: t.muted2, fontSize: 11, letterSpacing: 0.5,
+                  ),
                 ),
               ),
-              const Spacer(),
               if (dueText != null)
-                Text(
-                  dueText,
-                  style: RunqText.caption.copyWith(
-                    color: (days ?? 0) < 0 ? RunqColors.redInk : t.muted,
-                    fontSize: 12,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (days ?? 0) < 0
+                        ? (isDark ? const Color(0xFF3B1018) : RunqColors.redBg)
+                        : (days ?? 99) <= 7
+                            ? (isDark ? const Color(0xFF3A2410) : RunqColors.amberBg)
+                            : RunqColors.indigo.withValues(alpha: isDark ? 0.22 : 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    dueText,
+                    style: RunqText.micro.copyWith(
+                      color: (days ?? 0) < 0
+                          ? (isDark ? const Color(0xFFF87171) : RunqColors.redInk)
+                          : (days ?? 99) <= 7
+                              ? (isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk)
+                              : (isDark ? const Color(0xFFA5B4FC) : RunqColors.indigo),
+                    ),
                   ),
                 ),
             ],
@@ -178,6 +208,13 @@ class _ReadinessCard extends StatelessWidget {
                 : '$passing of $total checks passing',
             style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
           ),
+          if (hint != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              hint,
+              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+            ),
+          ],
           const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
@@ -188,11 +225,15 @@ class _ReadinessCard extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation(RunqColors.indigo),
             ),
           ),
-          if (readiness.signals.isNotEmpty) ...[
+          if (setupOk) ...[
+            const SizedBox(height: 12),
+            _FilingEnabledChip(),
+          ],
+          if (visibleSignals.isNotEmpty) ...[
             const SizedBox(height: 16),
             Divider(height: 1, color: t.hairline),
             const SizedBox(height: 12),
-            for (final s in readiness.signals.take(6)) _SignalRow(signal: s),
+            for (final s in visibleSignals.take(6)) _SignalRow(signal: s),
           ],
         ],
       ),
@@ -209,6 +250,7 @@ class _SignalRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final ok = signal.ok;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -218,7 +260,9 @@ class _SignalRow extends StatelessWidget {
           Icon(
             ok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
             size: 16,
-            color: ok ? const Color(0xFF059669) : RunqColors.amberInk,
+            color: ok
+                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                : (isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -405,6 +449,63 @@ class _ReturnRow extends StatelessWidget {
             Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Short hint below the score that names the time window/dependency for the
+/// current target. For GSTR-3B specifically we surface the 2B sync date
+/// because filing 3B without reconciling 2B leaves ITC on the table.
+String? _targetHint(GstReadiness r) {
+  String? fmt(DateTime? d) {
+    if (d == null) return null;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]}';
+  }
+
+  switch (r.target) {
+    case ReadinessTarget.gstr1:
+      final due = fmt(r.gstr1Due);
+      return due == null ? null : 'Sales for ${r.periodLabel} · file by $due';
+    case ReadinessTarget.gstr3b:
+      final due = fmt(r.gstr3bDue);
+      final twoB = r.gstr1Due == null ? null : fmt(r.gstr1Due!.add(const Duration(days: 3)));
+      if (twoB == null && due == null) return null;
+      if (twoB == null) return 'File by $due';
+      return 'GSTR-2B syncs $twoB · reconcile, then file by $due';
+    case ReadinessTarget.nextGstr1:
+      final due = fmt(r.gstr1Due);
+      return due == null ? null : 'Current-month invoicing · next filing $due';
+  }
+}
+
+class _FilingEnabledChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0D2620) : RunqColors.greenBg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.verified_rounded,
+            size: 12,
+            color: isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'GST filing enabled',
+            style: RunqText.micro.copyWith(
+              color: isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
+            ),
+          ),
+        ],
       ),
     );
   }
