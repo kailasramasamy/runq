@@ -441,6 +441,10 @@ class _PoRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  // Top-align so the amount sits on the title line, not
+                  // visually centred against title + subtitle — matches the
+                  // invoice list layout.
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     RqAvatar(name: row.displayTitle, size: 36),
                     const SizedBox(width: 12),
@@ -459,8 +463,14 @@ class _PoRow extends StatelessWidget {
                       ),
                     ),
                     if (row.grandTotal != null && row.grandTotal! > 0)
-                      Text(formatINR(row.grandTotal!),
-                          style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
+                      Padding(
+                        // Nudge the amount down to centre against the
+                        // title line specifically (top of Text has a small
+                        // ascender gap; this matches it visually).
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(formatINR(row.grandTotal!),
+                            style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -515,20 +525,25 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final s = status.toLowerCase();
     Color fg;
     Color bg;
+    // Use alpha-tinted backgrounds throughout so pills render correctly on
+    // both light and dark surfaces — solid pastel backgrounds (e.g. light
+    // mint green) blow out against a dark canvas. Text colours flip per
+    // mode so contrast on the tinted bg stays readable.
     if (s == 'invoiced') {
-      fg = RunqColors.greenInk;
-      bg = RunqColors.greenBg;
+      fg = isDark ? const Color(0xFF34D399) : RunqColors.greenInk;
+      bg = const Color(0x3310B981);  // emerald @20% alpha
     } else if (s == 'ready') {
-      fg = RunqColors.indigo;
+      fg = isDark ? const Color(0xFFA5B4FC) : RunqColors.indigo;
       bg = const Color(0x1F4F46E5);
     } else if (s == 'needs review' || s == 'parsing') {
-      fg = const Color(0xFFB45309);
+      fg = isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309);
       bg = const Color(0x33F59E0B);
     } else if (s == 'error' || s == 'rejected') {
-      fg = RunqColors.redInk;
+      fg = isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk;
       bg = const Color(0x22EF4444);
     } else {
       fg = t.muted;
