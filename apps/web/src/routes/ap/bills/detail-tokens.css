@@ -51,6 +51,48 @@
   --bd-ink-2: oklch(0.78 0.010 264);
   --bd-ink-3: oklch(0.62 0.011 264);
   --bd-ink-4: oklch(0.50 0.011 264);
+
+  /* Coloured tokens (pills, callouts, gradients). Light defaults are
+     pastel washes — too bright on a dark surface. Flip the lightness
+     ladder so the `*-soft` background is a low-lightness tint of the
+     accent hue and `*-ink` is a high-lightness foreground that reads
+     on it. */
+  --bd-accent: oklch(0.65 0.16 265);
+  --bd-accent-soft: oklch(0.28 0.05 265);
+  --bd-accent-ink: oklch(0.82 0.14 265);
+
+  --bd-warn: oklch(0.70 0.16 35);
+  --bd-warn-soft: oklch(0.28 0.05 35);
+  --bd-warn-ink: oklch(0.84 0.14 35);
+
+  --bd-success: oklch(0.70 0.13 155);
+  --bd-success-soft: oklch(0.26 0.05 155);
+  --bd-success-ink: oklch(0.84 0.14 155);
+
+  --bd-info: oklch(0.70 0.13 230);
+  --bd-info-soft: oklch(0.26 0.05 230);
+  --bd-info-ink: oklch(0.82 0.14 230);
+
+  --bd-neg: oklch(0.70 0.17 25);
+}
+
+/* Hardcoded oklch() values that don't go through the token system —
+   override per element in dark mode so warm-cream artefacts don't
+   leak onto the dark canvas. */
+.dark .bill-detail-page .bd-vendor-avatar { background: var(--bd-surface-3); }
+.dark .bill-detail-page .bd-btn-secondary { box-shadow: 0 1px 0 oklch(0.14 0.01 264); }
+.dark .bill-detail-page .bd-btn-danger { box-shadow: 0 1px 0 oklch(0.14 0.01 264); }
+.dark .bill-detail-page .bd-btn-danger:hover:not(:disabled) {
+  background: oklch(0.30 0.06 27);
+  border-color: oklch(0.55 0.18 27);
+}
+.dark .bill-detail-page .bd-pill-warn    { border-color: oklch(0.42 0.06 35); }
+.dark .bill-detail-page .bd-pill-success { border-color: oklch(0.40 0.06 155); }
+.dark .bill-detail-page .bd-pill-info    { border-color: oklch(0.40 0.06 230); }
+.dark .bill-detail-page .bd-amt-warn     { border-color: oklch(0.40 0.06 35); }
+.dark .bill-detail-page .bd-amt-info     { border-color: oklch(0.40 0.06 230); }
+.dark .bill-detail-page .bd-sidekick {
+  background: linear-gradient(180deg, oklch(0.235 0.018 270) 0%, var(--bd-surface) 80%);
 }
 
 .bill-detail-page .bd-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum', 'zero'; }
