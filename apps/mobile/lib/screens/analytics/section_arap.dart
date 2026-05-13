@@ -49,16 +49,16 @@ class _AgingCard extends StatelessWidget {
     required this.footerLabel,
   });
 
-  Color _bucketColor(String key) {
+  Color _bucketColor(BuildContext context, String key) {
     switch (key) {
       case '0-30':
-        return RunqColors.blueInk;
+        return statusInk(context, StatusTone.info);
       case '31-60':
         return RunqColors.indigo;
       case '61-90':
-        return RunqColors.amberInk;
+        return statusInk(context, StatusTone.warn);
       default:
-        return RunqColors.redInk;
+        return statusInk(context, StatusTone.neg);
     }
   }
 
@@ -90,7 +90,7 @@ class _AgingCard extends StatelessWidget {
                 amount: b.amount,
                 count: b.count,
                 max: max,
-                color: _bucketColor(b.key),
+                color: _bucketColor(context, b.key),
               ),
               const SizedBox(height: 8),
             ],
@@ -209,8 +209,8 @@ class _OverdueRow extends StatelessWidget {
       children: [
         Container(
           width: 8, height: 8,
-          decoration: const BoxDecoration(
-            color: RunqColors.redInk, shape: BoxShape.circle,
+          decoration: BoxDecoration(
+            color: statusInk(context, StatusTone.neg), shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 10),
@@ -229,7 +229,7 @@ class _OverdueRow extends StatelessWidget {
         ),
         Text(formatINR(item.balanceDue, compact: true),
             style: RunqText.tabular(
-                size: 13, w: FontWeight.w700, color: RunqColors.redInk)),
+                size: 13, w: FontWeight.w700, color: statusInk(context, StatusTone.neg))),
       ],
     );
   }

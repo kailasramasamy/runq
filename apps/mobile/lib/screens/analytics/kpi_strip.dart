@@ -5,6 +5,7 @@ import '../../providers/analytics_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../utils/format_inr.dart';
+import 'widgets.dart';
 
 class AnalyticsKpiStrip extends ConsumerWidget {
   const AnalyticsKpiStrip({super.key});
@@ -112,18 +113,17 @@ class _KpiTile extends StatelessWidget {
   });
 
   (Color, Color) _palette(BuildContext context) {
-    switch (tone) {
-      case _Tone.brand:
-        return (RunqColors.purpleBg, RunqColors.purpleInk);
-      case _Tone.info:
-        return (RunqColors.blueBg, RunqColors.blueInk);
-      case _Tone.amber:
-        return (RunqColors.amberBg, RunqColors.amberInk);
-      case _Tone.green:
-        return (RunqColors.greenBg, RunqColors.greenInk);
-      case _Tone.red:
-        return (RunqColors.redBg, RunqColors.redInk);
-    }
+    // Map our local KPI tone enum to the shared StatusTone so the same
+    // alpha-bg + brightness-aware ink scheme applies — keeps tiles
+    // readable in dark mode without rewriting per-callsite.
+    final tone2 = switch (tone) {
+      _Tone.brand => StatusTone.info,    // brand uses info (blue) family for the BG tint
+      _Tone.info  => StatusTone.info,
+      _Tone.amber => StatusTone.warn,
+      _Tone.green => StatusTone.ok,
+      _Tone.red   => StatusTone.neg,
+    };
+    return statusColors(context, tone2);
   }
 
   @override

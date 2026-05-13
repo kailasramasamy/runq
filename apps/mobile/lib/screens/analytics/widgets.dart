@@ -190,13 +190,7 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (bg, ink) = switch (tone) {
-      StatusTone.ok => (RunqColors.greenBg, RunqColors.greenInk),
-      StatusTone.warn => (RunqColors.amberBg, RunqColors.amberInk),
-      StatusTone.neg => (RunqColors.redBg, RunqColors.redInk),
-      StatusTone.info => (RunqColors.blueBg, RunqColors.blueInk),
-      StatusTone.neutral => (RunqColors.grayBg, RunqColors.grayInk),
-    };
+    final (bg, ink) = statusColors(context, tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
@@ -208,6 +202,26 @@ class StatusPill extends StatelessWidget {
 }
 
 enum StatusTone { ok, warn, neg, info, neutral }
+
+/// Returns a `(bg, ink)` pair for a status tone that works on both light and
+/// dark surfaces. Backgrounds are alpha-tinted (so they blend with whichever
+/// surface they sit on); text colour flips per theme so contrast against the
+/// tinted bg stays readable. Mirrors the PO-inbox pill pattern.
+(Color, Color) statusColors(BuildContext context, StatusTone tone) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return switch (tone) {
+    StatusTone.ok      => (const Color(0x3310B981), isDark ? const Color(0xFF34D399) : RunqColors.greenInk),
+    StatusTone.warn    => (const Color(0x33F59E0B), isDark ? const Color(0xFFFCD34D) : RunqColors.amberInk),
+    StatusTone.neg     => (const Color(0x22EF4444), isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk),
+    StatusTone.info    => (const Color(0x223B82F6), isDark ? const Color(0xFF93C5FD) : RunqColors.blueInk),
+    StatusTone.neutral => (const Color(0x226B7280), isDark ? const Color(0xFFD1D5DB) : RunqColors.grayInk),
+  };
+}
+
+/// Text-only variant — for places that show a coloured number or label
+/// without a tinted background. Same brightness-aware ink as
+/// [statusColors] but no bg.
+Color statusInk(BuildContext context, StatusTone tone) => statusColors(context, tone).$2;
 
 /// A labelled row used inside card bodies (label left, tabular value right).
 class StatRow extends StatelessWidget {

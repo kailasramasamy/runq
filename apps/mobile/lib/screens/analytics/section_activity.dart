@@ -71,22 +71,22 @@ class _DeltaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (bg, ink) = statusColors(context, down ? StatusTone.neg : StatusTone.ok);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: down ? RunqColors.redBg : RunqColors.greenBg,
+        color: bg,
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(down ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-              size: 11, color: down ? RunqColors.redInk : RunqColors.greenInk),
+              size: 11, color: ink),
           const SizedBox(width: 4),
           Text('${deltaPct >= 0 ? '+' : ''}${deltaPct.toStringAsFixed(1)}%',
               style: RunqText.caption.copyWith(
-                  color: down ? RunqColors.redInk : RunqColors.greenInk,
-                  fontWeight: FontWeight.w700, fontSize: 11.5)),
+                  color: ink, fontWeight: FontWeight.w700, fontSize: 11.5)),
         ],
       ),
     );

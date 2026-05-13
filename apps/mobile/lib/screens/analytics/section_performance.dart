@@ -49,9 +49,9 @@ class _RevExpCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _LegendDot(label: 'Revenue', color: RunqColors.greenInk),
+                _LegendDot(label: 'Revenue', color: statusInk(context, StatusTone.ok)),
                 const SizedBox(width: 14),
-                _LegendDot(label: 'Expense', color: RunqColors.amberInk),
+                _LegendDot(label: 'Expense', color: statusInk(context, StatusTone.warn)),
                 const Spacer(),
                 Text(
                   'Net ${formatINR(d.totalRevenue - d.totalExpense, compact: true)}',
@@ -90,13 +90,13 @@ class _RevExpBars extends StatelessWidget {
           BarChartGroupData(x: i, barsSpace: 3, barRods: [
             BarChartRodData(
               toY: months[i].revenue.clamp(0, double.infinity),
-              color: RunqColors.greenInk,
+              color: statusInk(context, StatusTone.ok),
               width: 6,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
             ),
             BarChartRodData(
               toY: months[i].expense.clamp(0, double.infinity),
-              color: RunqColors.amberInk,
+              color: statusInk(context, StatusTone.warn),
               width: 6,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
             ),
@@ -363,7 +363,7 @@ class _CategoryRow extends StatelessWidget {
               widthFactor: pct,
               child: Container(
                 decoration: BoxDecoration(
-                  color: RunqColors.amberInk.withValues(alpha: 0.7),
+                  color: statusInk(context, StatusTone.warn).withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),

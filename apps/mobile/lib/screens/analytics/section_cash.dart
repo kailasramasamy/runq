@@ -97,11 +97,11 @@ class _ForecastWindow extends StatelessWidget {
                 Row(children: [
                   Text('+${formatINR(win.inflow, compact: true)}',
                       style: RunqText.caption.copyWith(
-                          color: RunqColors.greenInk, fontSize: 11.5)),
+                          color: statusInk(context, StatusTone.ok), fontSize: 11.5)),
                   const SizedBox(width: 8),
                   Text('−${formatINR(win.outflow, compact: true)}',
                       style: RunqText.caption
-                          .copyWith(color: RunqColors.redInk, fontSize: 11.5)),
+                          .copyWith(color: statusInk(context, StatusTone.neg), fontSize: 11.5)),
                   const SizedBox(width: 8),
                   Text('${win.receivableCount} in · ${win.payableCount} out',
                       style: RunqText.caption
@@ -115,7 +115,7 @@ class _ForecastWindow extends StatelessWidget {
             style: RunqText.tabular(
                 size: 14,
                 w: FontWeight.w700,
-                color: negative ? RunqColors.redInk : t.ink),
+                color: negative ? statusInk(context, StatusTone.neg) : t.ink),
           ),
         ],
       ),
@@ -163,12 +163,12 @@ class _RunwayCard extends StatelessWidget {
                   StatRow(
                     label: 'Operating',
                     value: formatINR(c.operating, compact: true),
-                    valueColor: c.operating < 0 ? RunqColors.redInk : RunqColors.greenInk,
+                    valueColor: c.operating < 0 ? statusInk(context, StatusTone.neg) : statusInk(context, StatusTone.ok),
                   ),
                   StatRow(
                     label: 'Investing',
                     value: formatINR(c.investing, compact: true),
-                    valueColor: c.investing < 0 ? RunqColors.redInk : RunqColors.greenInk,
+                    valueColor: c.investing < 0 ? statusInk(context, StatusTone.neg) : statusInk(context, StatusTone.ok),
                   ),
                   StatRow(
                     label: 'Financing',
@@ -179,7 +179,7 @@ class _RunwayCard extends StatelessWidget {
                     label: 'Net cash flow',
                     value: '${c.netChange >= 0 ? '+' : ''}${formatINR(c.netChange, compact: true)}',
                     emphasize: true,
-                    valueColor: c.netChange >= 0 ? RunqColors.greenInk : RunqColors.redInk,
+                    valueColor: c.netChange >= 0 ? statusInk(context, StatusTone.ok) : statusInk(context, StatusTone.neg),
                   ),
                 ],
               ),
@@ -211,7 +211,7 @@ class _RunwayCard extends StatelessWidget {
               style: RunqText.tabular(
                   size: 16,
                   w: FontWeight.w700,
-                  color: ok ? RunqColors.greenInk : t.ink)),
+                  color: ok ? statusInk(context, StatusTone.ok) : t.ink)),
           const SizedBox(height: 2),
           Text(sub,
               maxLines: 1,

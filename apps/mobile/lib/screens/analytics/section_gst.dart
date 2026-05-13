@@ -104,11 +104,11 @@ class _ReconCard extends StatelessWidget {
               StatRow(
                   label: 'Matched',
                   value: '${d.matchedCount}',
-                  valueColor: RunqColors.greenInk),
+                  valueColor: statusInk(context, StatusTone.ok)),
               StatRow(
                   label: 'Mismatched',
                   value: '${d.mismatchedCount}',
-                  valueColor: RunqColors.amberInk),
+                  valueColor: statusInk(context, StatusTone.warn)),
               StatRow(label: 'Not in books', value: '${d.notInBooksCount}'),
             ],
           ],
@@ -158,7 +158,7 @@ class _Gstr1vs3bCard extends StatelessWidget {
                 value: '${d.totalTaxDelta >= 0 ? '+' : ''}'
                     '${formatINR(d.totalTaxDelta, compact: true)}',
                 valueColor: d.totalTaxDelta.abs() > 2
-                    ? RunqColors.amberInk : null,
+                    ? statusInk(context, StatusTone.warn) : null,
               ),
             ],
           ],
@@ -237,7 +237,7 @@ class _VendorBlockingRow extends StatelessWidget {
         ),
         Text(formatINR(v.itcAtRisk, compact: true),
             style: RunqText.tabular(
-                size: 12.5, w: FontWeight.w600, color: RunqColors.amberInk)),
+                size: 12.5, w: FontWeight.w600, color: statusInk(context, StatusTone.warn))),
       ],
     );
   }

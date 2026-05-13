@@ -83,7 +83,7 @@ class _PnlCard extends StatelessWidget {
             BigNumber(
               '${positive ? '' : '−'}${formatINR(d.netProfit.abs(), compact: true)}',
               size: 26,
-              color: positive ? RunqColors.greenInk : RunqColors.redInk,
+              color: positive ? statusInk(context, StatusTone.ok) : statusInk(context, StatusTone.neg),
             ),
             const SizedBox(height: 2),
             Text('${d.period.from} → ${d.period.to}',
@@ -97,7 +97,7 @@ class _PnlCard extends StatelessWidget {
                 'vs prev period: ${d.netProfitDeltaPct! >= 0 ? '+' : ''}'
                 '${d.netProfitDeltaPct!.toStringAsFixed(1)}%',
                 style: RunqText.caption.copyWith(
-                    color: d.netProfitDeltaPct! >= 0 ? RunqColors.greenInk : RunqColors.redInk,
+                    color: d.netProfitDeltaPct! >= 0 ? statusInk(context, StatusTone.ok) : statusInk(context, StatusTone.neg),
                     fontWeight: FontWeight.w600, fontSize: 11.5),
               ),
             ],
@@ -229,7 +229,7 @@ class _UnreconciledCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             BigNumber('${d.count}', size: 28,
-                color: clean ? RunqColors.greenInk : null),
+                color: clean ? statusInk(context, StatusTone.ok) : null),
             const SizedBox(height: 6),
             Text(
               clean ? 'All reconciled' : formatINR(d.total, compact: true),
@@ -257,7 +257,7 @@ class _ApprovalsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           BigNumber('${d.total}', size: 28,
-              color: d.total == 0 ? RunqColors.greenInk : null),
+              color: d.total == 0 ? statusInk(context, StatusTone.ok) : null),
           const SizedBox(height: 6),
           Text(
             d.total == 0
@@ -293,7 +293,7 @@ class _SuspenseCard extends StatelessWidget {
               children: [
                 BigNumber(
                   d.clean ? '₹0' : formatINR(d.totalAbsBalance, compact: true),
-                  color: d.clean ? RunqColors.greenInk : RunqColors.amberInk,
+                  color: d.clean ? statusInk(context, StatusTone.ok) : statusInk(context, StatusTone.warn),
                 ),
                 const SizedBox(height: 4),
                 Text(d.clean ? 'All clear' : '${d.totalStuck} accounts stuck',
