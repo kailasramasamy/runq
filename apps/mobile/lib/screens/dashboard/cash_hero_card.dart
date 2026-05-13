@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/models.dart';
 import '../../providers/data_providers.dart';
 import '../../theme/runq_tokens.dart';
@@ -23,42 +24,53 @@ class CashHeroCard extends ConsumerWidget {
       orElse: () => summary.maybeWhen(data: (s) => s.cashPosition, orElse: () => 0.0),
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: RunqColors.heroGradient,
+    // Tap-anywhere navigates to Analytics. Analytics is buried under Sales
+    // in the bottom-nav today and the hero card is the natural entry — cash,
+    // AR, AP, sparkline are all just the headlines of what Analytics shows
+    // in depth.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push('/money/analytics'),
         borderRadius: BorderRadius.circular(RunqRadii.hero),
-        boxShadow: const [
-          BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
-            child: _HeroBody(
-              cashPosition: cashPosition,
-              loaded: summary.hasValue || trend.hasValue,
-              accountCount: accountCount,
-              weeklyDelta: weeklyDelta,
-              hasTrend: trend.hasValue,
-            ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RunqColors.heroGradient,
+            borderRadius: BorderRadius.circular(RunqRadii.hero),
+            boxShadow: const [
+              BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
+            ],
           ),
-          if (_hasMovement(sparkData))
-            _SparkSection(data: sparkData)
-          else
-            const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            child: Row(
-              children: [
-                Expanded(child: _MiniStat(summary: summary, kind: _Kind.ar)),
-                const SizedBox(width: 10),
-                Expanded(child: _MiniStat(summary: summary, kind: _Kind.ap)),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
+                child: _HeroBody(
+                  cashPosition: cashPosition,
+                  loaded: summary.hasValue || trend.hasValue,
+                  accountCount: accountCount,
+                  weeklyDelta: weeklyDelta,
+                  hasTrend: trend.hasValue,
+                ),
+              ),
+              if (_hasMovement(sparkData))
+                _SparkSection(data: sparkData)
+              else
+                const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(child: _MiniStat(summary: summary, kind: _Kind.ar)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _MiniStat(summary: summary, kind: _Kind.ap)),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
