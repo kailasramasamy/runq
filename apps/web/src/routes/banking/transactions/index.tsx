@@ -80,7 +80,7 @@ function TxnCard({ txn }: { txn: BankTransaction }) {
           </p>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         {(() => {
           const b = reconBadge(txn);
           return <Badge variant={b.variant} title={b.title}>{b.label}</Badge>;
@@ -88,7 +88,15 @@ function TxnCard({ txn }: { txn: BankTransaction }) {
         {txn.glAccountName && (
           <span className="truncate text-xs text-zinc-400 dark:text-zinc-500">{txn.glAccountName}</span>
         )}
+        {(txn.vendorName || txn.customerName) && (
+          <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">· {txn.vendorName ?? txn.customerName}</span>
+        )}
       </div>
+      {txn.runningBalance !== null && (
+        <div className="mt-1 text-right text-[11px] text-zinc-400 dark:text-zinc-500">
+          Bal: <span className="tabular-nums">{formatINR(txn.runningBalance)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -355,25 +363,29 @@ export function TransactionsPage() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Narration or reference…"
-              className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className="h-8 w-full rounded-md border border-zinc-300 bg-white py-0 pl-8 pr-3 text-[12.5px] text-zinc-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
           </div>
         </div>
-        <Select
-          options={typeOptions}
-          value={type}
-          onChange={(e) => { setType(e.target.value); setPage(1); }}
-        />
-        <Select
-          options={reconOptions}
-          value={reconStatus}
-          onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
-        />
-        <div className="sm:self-end">
+        <div className="min-w-0">
+          <Select
+            options={typeOptions}
+            value={type}
+            onChange={(e) => { setType(e.target.value); setPage(1); }}
+          />
+        </div>
+        <div className="min-w-0">
+          <Select
+            options={reconOptions}
+            value={reconStatus}
+            onChange={(e) => { setReconStatus(e.target.value); setPage(1); }}
+          />
+        </div>
+        <div className="col-span-2 sm:col-span-1 sm:self-end">
           <button
             type="button"
             onClick={() => { setInSuspense((v) => !v); setPage(1); }}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+            className={`inline-flex h-8 w-full items-center justify-center rounded-full border px-3 text-[12.5px] font-medium transition sm:w-auto ${
               inSuspense
                 ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                 : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
@@ -387,6 +399,7 @@ export function TransactionsPage() {
             label="From"
             value={dateFrom}
             onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+            className="h-8 py-0 text-[12.5px]"
           />
         </div>
         <div className="sm:w-40">
@@ -394,6 +407,7 @@ export function TransactionsPage() {
             label="To"
             value={dateTo}
             onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+            className="h-8 py-0 text-[12.5px]"
           />
         </div>
       </div>
@@ -475,7 +489,7 @@ export function TransactionsPage() {
       </div>
 
       {totals && (total > 0) && (
-        <div className="mt-3 flex items-center justify-end gap-6 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm sm:justify-end sm:gap-6 dark:border-zinc-700 dark:bg-zinc-800/50">
           <span className="text-zinc-500 dark:text-zinc-400">{total} transactions</span>
           <div>
             <span className="text-zinc-500 dark:text-zinc-400">Total Debit: </span>
