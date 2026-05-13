@@ -27,13 +27,12 @@ class CashHeroCard extends ConsumerWidget {
     // Tap-anywhere navigates to Analytics. Analytics is buried under Sales
     // in the bottom-nav today and the hero card is the natural entry — cash,
     // AR, AP, sparkline are all just the headlines of what Analytics shows
-    // in depth.
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => context.push('/money/analytics'),
-        borderRadius: BorderRadius.circular(RunqRadii.hero),
-        child: Container(
+    // in depth. Using GestureDetector (not InkWell) — the gradient surface
+    // doesn't host ink properly and InkWell can drop the tap.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/money/analytics'),
+      child: Container(
           decoration: BoxDecoration(
             gradient: RunqColors.heroGradient,
             borderRadius: BorderRadius.circular(RunqRadii.hero),
@@ -71,8 +70,7 @@ class CashHeroCard extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
