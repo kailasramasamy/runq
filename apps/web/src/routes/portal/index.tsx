@@ -250,14 +250,16 @@ export function PortalPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <StickyHeader companyName={companyName} customerName={customerName} totalDue={totalDue} />
+      <div className="sticky top-0 z-20 bg-white shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+        <StickyHeader companyName={companyName} customerName={customerName} totalDue={totalDue} />
+        {!viewingInvoiceId && !viewingPaymentId && <TabBar active={tab} onChange={switchTab} />}
+      </div>
       {viewingInvoiceId ? (
         <InvoiceView ctx={ctx} invoiceId={viewingInvoiceId} invoices={invoices} />
       ) : viewingPaymentId ? (
         <PaymentView ctx={ctx} paymentId={viewingPaymentId} />
       ) : (
         <>
-          <TabBar active={tab} onChange={switchTab} />
           <div className="mx-auto max-w-5xl px-4 py-6">
             {tab === 'outstanding' && (
               <OutstandingTab invoices={invoices} ctx={ctx} onChange={() => ctx && loadInvoices(ctx)} />
@@ -514,7 +516,7 @@ function StickyHeader({
   totalDue: number;
 }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">
+    <div className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
         <div className="min-w-0">
           <h1 className="truncate text-base font-bold text-zinc-900 sm:text-lg">{companyName}</h1>
@@ -543,7 +545,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     { id: 'payments', label: 'Payments' },
   ];
   return (
-    <div className="sticky top-[57px] z-10 border-b border-zinc-200 bg-white sm:top-[65px]">
+    <div className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4">
         {tabs.map((t) => (
           <button
