@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { downloadCSV } from '@/lib/csv-export';
 
 interface PortalInvoice {
   id: string;
@@ -743,7 +744,7 @@ function OutstandingTab({
             className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <FilterChip active={statusFilter === 'all'} count={filterCounts.all} onClick={() => setFilter('all')}>
             All
           </FilterChip>
@@ -770,6 +771,7 @@ function OutstandingTab({
           >
             Current
           </FilterChip>
+          <ExportCsvButton onClick={() => exportOutstandingCsv(filtered)} disabled={filtered.length === 0} />
         </div>
       </div>
 
@@ -1166,13 +1168,19 @@ function StatementTab({ ctx }: { ctx: PortalCtx }) {
             <PresetChip onClick={() => setPreset('last_fy')}>Last FY</PresetChip>
             <PresetChip onClick={() => setPreset('last_90')}>Last 90 days</PresetChip>
           </div>
-          <button
-            onClick={downloadPdf}
-            disabled={downloading || !statement}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            ⬇ Download PDF
-          </button>
+          <div className="flex items-center gap-1.5">
+            <ExportCsvButton
+              onClick={() => statement && exportStatementCsv(statement)}
+              disabled={!statement || statement.rows.length === 0}
+            />
+            <button
+              onClick={downloadPdf}
+              disabled={downloading || !statement}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              ⬇ PDF
+            </button>
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <label className="flex items-center gap-1.5 text-zinc-500">
@@ -1357,6 +1365,115 @@ function SummaryCard({
       <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">{label}</p>
       <p className={`mt-0.5 text-sm font-semibold tabular-nums sm:text-base ${valueColor}`}>{formatINR(value)}</p>
     </div>
+  );
+}
+
+function ExportCsvButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      ⬇ CSV
+    </button>
+  );
+}
+
+function csvDate(iso?: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}-${m}-${y}`;
+}
+
+function todayStamp(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function exportOutstandingCsv(invoices: PortalInvoice[]): void {
+  const today = new Date();
+  const rows = invoices.map((inv) => {
+    const due = new Date(inv.dueDate);
+    const status = due < today ? 'Overdue' : inv.pendingClaim ? 'Payment reported' : 'Open';
+    return [
+      inv.invoiceNumber,
+      csvDate(inv.invoiceDate),
+      csvDate(inv.dueDate),
+      inv.totalAmount.toFixed(2),
+      inv.balanceDue.toFixed(2),
+      status,
+    ];
+  });
+  downloadCSV(
+    `outstanding-${todayStamp()}.csv`,
+    ['Invoice #', 'Issued', 'Due', 'Total', 'Balance Due', 'Status'],
+    rows,
+  );
+}
+
+function exportStatementCsv(statement: Statement): void {
+  const rows: (string | number)[][] = [];
+  rows.push([csvDate(statement.fromDate), 'Opening Balance', '', '', statement.openingBalance.toFixed(2)]);
+  for (const r of statement.rows) {
+    rows.push([
+      csvDate(r.date),
+      r.description,
+      r.debit > 0 ? r.debit.toFixed(2) : '',
+      r.credit > 0 ? r.credit.toFixed(2) : '',
+      r.runningBalance.toFixed(2),
+    ]);
+  }
+  rows.push([csvDate(statement.toDate), 'Closing Balance', '', '', statement.closingBalance.toFixed(2)]);
+  downloadCSV(
+    `statement-${statement.fromDate}-to-${statement.toDate}.csv`,
+    ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
+    rows,
+  );
+}
+
+function exportPaymentsCsv(payments: ReceiptPayment[]): void {
+  const rows: (string | number)[][] = [];
+  for (const p of payments) {
+    const unallocated = (p.totalAmount - p.allocatedTotal).toFixed(2);
+    const invoiceList = p.allocations.map((a) => `${a.invoiceNumber}: ${a.amount.toFixed(2)}`).join('; ');
+    rows.push([
+      csvDate(p.receiptDate),
+      p.method.replace(/_/g, ' '),
+      p.referenceNumber ?? '',
+      p.totalAmount.toFixed(2),
+      p.allocatedTotal.toFixed(2),
+      unallocated,
+      p.allocations.length,
+      invoiceList,
+      p.notes ?? '',
+    ]);
+  }
+  downloadCSV(
+    `payments-${todayStamp()}.csv`,
+    ['Date', 'Method', 'Reference', 'Amount', 'Applied', 'Unapplied', 'Invoice Count', 'Invoices', 'Notes'],
+    rows,
+  );
+}
+
+function exportClaimsCsv(claims: PaymentClaim[]): void {
+  const rows: (string | number)[][] = [];
+  for (const c of claims) {
+    const invoiceList = c.invoices.map((a) => `${a.invoiceNumber}: ${a.amount.toFixed(2)}`).join('; ');
+    rows.push([
+      csvDate(c.claimDate),
+      paymentMethodLabel(c.paymentMethod),
+      c.referenceNumber ?? '',
+      c.claimedAmount.toFixed(2),
+      c.status,
+      c.invoices.length,
+      invoiceList,
+      c.notes ?? '',
+    ]);
+  }
+  downloadCSV(
+    `payment-reports-${todayStamp()}.csv`,
+    ['Date', 'Method', 'Reference', 'Amount', 'Status', 'Invoice Count', 'Invoices', 'Notes'],
+    rows,
   );
 }
 
@@ -1591,6 +1708,9 @@ function ReportsTab({ ctx }: { ctx: PortalCtx }) {
   }
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <ExportCsvButton onClick={() => exportClaimsCsv(claims)} disabled={claims.length === 0} />
+      </div>
       {claims.map((c) => (
         <ClaimCard key={c.id} claim={c} onCancel={() => cancelClaim(c.id)} cancelling={cancelling === c.id} />
       ))}
@@ -1732,6 +1852,9 @@ function PaymentsTab({ ctx }: { ctx: PortalCtx }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportCsvButton onClick={() => exportPaymentsCsv(payments)} disabled={payments.length === 0} />
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryCard label="Total Received" value={totalReceived} tone="positive" />
         <SummaryCard label="Applied" value={totalApplied} tone="neutral" />
