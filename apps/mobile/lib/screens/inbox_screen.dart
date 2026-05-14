@@ -91,7 +91,7 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 16),
         for (var i = 0; i < groups.length; i++) ...[
           _GroupCard(group: groups[i]),
-          if (i < groups.length - 1) const SizedBox(height: 12),
+          if (i < groups.length - 1) const SizedBox(height: 22),
         ],
       ],
     );
@@ -193,94 +193,83 @@ class _GroupCard extends StatelessWidget {
     final t = RT(context);
     final groupTotal = group.items.fold<double>(0, (s, i) => s + (i.amount ?? 0));
     final colors = _groupColors(group.key);
-    return Container(
-      // Color-coded card: thin coloured top stripe + tinted header bg so each
-      // section feels distinct without overwhelming the row content. The body
-      // (item list) keeps the neutral surface so amounts and titles stay
-      // legible and the rows still read as standard list rows.
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // Header — soft tint of the group colour so the section reads as
-          // belonging to that category at a glance.
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            color: colors.bg,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    // White tile against the tinted header so the icon
-                    // doesn't dissolve into the same coloured background.
-                    color: t.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.fg.withValues(alpha: 0.15), width: 0.5),
-                  ),
-                  child: Icon(_groupIcon(group.key), size: 14, color: colors.fg),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(group.title,
-                                style: RunqText.bodyStrong.copyWith(color: t.ink),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: t.surface,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: colors.fg.withValues(alpha: 0.2), width: 0.5),
-                            ),
-                            child: Text('${group.count}',
-                                style: RunqText.caption.copyWith(
-                                  fontSize: 10.5,
-                                  color: colors.fg,
-                                  fontWeight: FontWeight.w800,
-                                )),
-                          ),
-                        ],
+    // Section header sits OUTSIDE the card on the page background, so it
+    // reads as a heading rather than another list row. Avatar-style icon
+    // tiles are reserved for rows; the header uses a flat coloured icon.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(_groupIcon(group.key), size: 16, color: colors.fg),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        group.title,
+                        style: RunqText.bodyStrong.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: t.ink,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(group.caption,
-                          style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('· ${group.count}',
+                        style: RunqText.caption.copyWith(
+                          fontSize: 11.5,
+                          color: t.muted,
+                          fontWeight: FontWeight.w700,
+                        )),
+                  ],
                 ),
-                if (groupTotal > 0) ...[
-                  const SizedBox(width: 8),
-                  Text(formatINR(groupTotal),
-                      style: RunqText.tabular(size: 13, w: FontWeight.w700, color: t.ink)),
-                ],
+              ),
+              if (groupTotal > 0) ...[
+                const SizedBox(width: 8),
+                Text(formatINR(groupTotal, compact: true),
+                    style: RunqText.tabular(size: 12, w: FontWeight.w700, color: t.muted)),
               ],
+            ],
+          ),
+        ),
+        if (group.caption.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Text(
+              group.caption,
+              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          // Item rows
-          Divider(height: 1, thickness: 0.5, color: t.hairline),
-          for (var i = 0; i < group.items.length; i++) ...[
-            _ItemRow(item: group.items[i]),
-            if (i < group.items.length - 1)
-              Padding(
-                padding: const EdgeInsets.only(left: 56),
-                child: Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
-              ),
-          ],
-        ],
-      ),
+        Container(
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+            border: Border.all(color: t.hairline, width: 0.5),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < group.items.length; i++) ...[
+                _ItemRow(item: group.items[i]),
+                if (i < group.items.length - 1)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 56),
+                    child: Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

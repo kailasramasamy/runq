@@ -229,7 +229,17 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
             duplicates: _duplicates,
             checkingDuplicates: _checkingDuplicates,
             onCommit: _commit,
-            onRetake: _restartIntake,
+            onRetake: () {
+              // Dispose the current editable state so controllers don't leak,
+              // then re-run extraction on the same source file. Works
+              // uniformly for camera, picker, and share-sheet entries.
+              _edited?.dispose();
+              _edited = null;
+              _aiOriginal = null;
+              _lastDupKey = null;
+              _duplicates = const [];
+              _extract(widget.file);
+            },
             onChange: () {
               setState(() {});
               // Re-evaluate duplicates whenever the user fixes the
@@ -324,19 +334,19 @@ class _EditableBill {
         // the model emits as line items with amount 0. They add noise and
         // make the user fix validation errors that aren't theirs.
         items = e.items.where((it) => it.amount != 0).map(_EditableItem.fromExtracted).toList(),
-        // Subtotal is always the sum of line items — every printed line on
-        // the bill (goods, charges, GST rows, round-off) is captured as
-        // its own item, so summing them is exactly the bill total minus
-        // any rounding the printer did. Tax stays 0 because the bill's
-        // own tax rows are line items now. Total comes from the printed
-        // figure — the mismatch banner below catches transcription errors.
+        // Prefer the extractor's own subtotal/taxAmount when present (GST
+        // column-style bills carry per-line tax that the parser sums up).
+        // Fall back to summing line items for tax-exclusive bills where
+        // each tax row is itself an item.
         subtotal = TextEditingController(
-          text: e.items
-              .where((it) => it.amount != 0)
-              .fold<double>(0, (s, it) => s + it.amount)
+          text: (e.subtotal > 0
+                  ? e.subtotal
+                  : e.items
+                      .where((it) => it.amount != 0)
+                      .fold<double>(0, (s, it) => s + it.amount))
               .toStringAsFixed(2),
         ),
-        taxAmount = TextEditingController(text: '0'),
+        taxAmount = TextEditingController(text: e.taxAmount.toStringAsFixed(2)),
         totalAmount = TextEditingController(text: e.totalAmount.toStringAsFixed(2)),
         tdsSection = TextEditingController(text: e.tdsSection ?? ''),
         confidence = e.confidence;
@@ -563,6 +573,7 @@ class _Review extends StatelessWidget {
             disabled: hasErrors,
             onSave: onCommit,
             onRetake: onRetake,
+            onCancel: () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -806,7 +817,7 @@ class _ItemsSection extends StatelessWidget {
           ),
           for (var i = 0; i < edited.items.length; i++) ...[
             const SizedBox(height: 4),
-            _ItemEditor(
+            _ItemRow(
               item: edited.items[i],
               index: i,
               onRemove: edited.items.length > 1
@@ -816,15 +827,15 @@ class _ItemsSection extends StatelessWidget {
                       onChange();
                     }
                   : null,
-              onAmountChange: () {
-                edited.recomputeSubtotal();
-                onChange();
-              },
-              onQtyOrPriceChange: () {
-                edited.recomputeAmount(i);
-                edited.recomputeSubtotal();
-                onChange();
-              },
+              onEdit: () => _openItemEditor(
+                context,
+                item: edited.items[i],
+                index: i,
+                onSaved: () {
+                  edited.recomputeSubtotal();
+                  onChange();
+                },
+              ),
             ),
           ],
         ],
@@ -833,65 +844,224 @@ class _ItemsSection extends StatelessWidget {
   }
 }
 
-class _ItemEditor extends StatelessWidget {
+Future<void> _openItemEditor(
+  BuildContext context, {
+  required _EditableItem item,
+  required int index,
+  required VoidCallback onSaved,
+}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: RT(context).surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => _ItemEditSheet(item: item, index: index),
+  );
+  // The sheet edits controllers in place; trigger parent recompute on close.
+  onSaved();
+}
+
+class _ItemRow extends StatelessWidget {
   final _EditableItem item;
   final int index;
   final VoidCallback? onRemove;
-  final VoidCallback onAmountChange, onQtyOrPriceChange;
+  final VoidCallback onEdit;
 
-  const _ItemEditor({
+  const _ItemRow({
     required this.item,
     required this.index,
     required this.onRemove,
-    required this.onAmountChange,
-    required this.onQtyOrPriceChange,
+    required this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: RT(context).bgWarm,
+    final t = RT(context);
+    final name = item.itemName.text.trim().isEmpty
+        ? 'Item ${index + 1}'
+        : item.itemName.text.trim();
+    final qty = double.tryParse(item.quantity.text) ?? 0;
+    final unit = double.tryParse(item.unitPrice.text) ?? 0;
+    final amount = double.tryParse(item.amount.text) ?? 0;
+    final taxRate = double.tryParse(item.taxRate.text);
+
+    final qtyStr = qty == qty.truncate() ? qty.toInt().toString() : qty.toString();
+    final summary = StringBuffer('$qtyStr × ${formatINR(unit)}');
+    if (taxRate != null && taxRate > 0) summary.write(' · ${taxRate.toStringAsFixed(taxRate == taxRate.truncate() ? 0 : 1)}% GST');
+
+    return Material(
+      color: t.bgWarm,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onEdit,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: RT(context).hairline, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: t.hairline, width: 0.5),
+          ),
+          child: Row(
             children: [
-              Text('Item ${index + 1}', style: RunqText.label.copyWith(fontSize: 10)),
-              const Spacer(),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: RunqText.bodyStrong.copyWith(fontSize: 13),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      summary.toString(),
+                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formatINR(amount),
+                    style: RunqText.bodyStrong.copyWith(fontSize: 13),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Edit',
+                    style: RunqText.caption.copyWith(color: RunqColors.indigo, fontSize: 11),
+                  ),
+                ],
+              ),
               if (onRemove != null)
                 IconButton(
                   onPressed: onRemove,
                   icon: const Icon(Icons.close, size: 16),
                   visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.only(left: 4),
                   constraints: const BoxConstraints(),
-                  color: RT(context).muted,
+                  color: t.muted,
                 ),
             ],
           ),
-          _Input(controller: item.itemName, label: 'Item name', required: true, onChange: onAmountChange),
-          _Input(controller: item.hsnSacCode, label: 'HSN / SAC', mono: true, onChange: onAmountChange),
-          Row(
-            children: [
-              Expanded(child: _Input(controller: item.quantity, label: 'Qty', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onQtyOrPriceChange)),
-              const SizedBox(width: 8),
-              Expanded(child: _Input(controller: item.unitPrice, label: 'Unit ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onQtyOrPriceChange)),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(child: _Input(controller: item.amount, label: 'Amount ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onAmountChange)),
-              const SizedBox(width: 8),
-              Expanded(child: _Input(controller: item.taxRate, label: 'Tax %', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onAmountChange)),
-            ],
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemEditSheet extends StatefulWidget {
+  final _EditableItem item;
+  final int index;
+  const _ItemEditSheet({required this.item, required this.index});
+
+  @override
+  State<_ItemEditSheet> createState() => _ItemEditSheetState();
+}
+
+class _ItemEditSheetState extends State<_ItemEditSheet> {
+  void _recomputeAmount() {
+    final qty = double.tryParse(widget.item.quantity.text) ?? 0;
+    final rate = double.tryParse(widget.item.unitPrice.text) ?? 0;
+    widget.item.amount.text = (qty * rate).toStringAsFixed(2);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final amount = double.tryParse(widget.item.amount.text) ?? 0;
+    final taxRate = double.tryParse(widget.item.taxRate.text) ?? 0;
+    final taxValue = amount * taxRate / 100;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        builder: (ctx, scrollCtrl) => Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Text('Item ${widget.index + 1}', style: RunqText.h3.copyWith(fontSize: 16)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 22),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                children: [
+                  _Input(controller: widget.item.itemName, label: 'Item name', required: true, onChange: () => setState(() {})),
+                  _Input(controller: widget.item.hsnSacCode, label: 'HSN / SAC', mono: true),
+                  Row(
+                    children: [
+                      Expanded(child: _Input(controller: widget.item.quantity, label: 'Qty', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: _recomputeAmount)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _Input(controller: widget.item.unitPrice, label: 'Unit ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: _recomputeAmount)),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(child: _Input(controller: widget.item.amount, label: 'Amount ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: () => setState(() {}))),
+                      const SizedBox(width: 8),
+                      Expanded(child: _Input(controller: widget.item.taxRate, label: 'Tax %', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: () => setState(() {}))),
+                    ],
+                  ),
+                  if (taxRate > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 4),
+                      child: Text(
+                        'Tax value: ${formatINR(taxValue)}',
+                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+              decoration: BoxDecoration(
+                color: t.surface,
+                border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+              ),
+              child: SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Done'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1003,12 +1173,13 @@ class _Input extends StatelessWidget {
 
 class _ReviewFooter extends StatelessWidget {
   final bool committing, disabled;
-  final VoidCallback onSave, onRetake;
+  final VoidCallback onSave, onRetake, onCancel;
   const _ReviewFooter({
     required this.committing,
     required this.disabled,
     required this.onSave,
     required this.onRetake,
+    required this.onCancel,
   });
 
   @override
@@ -1022,6 +1193,18 @@ class _ReviewFooter extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
       child: Row(
         children: [
+          SizedBox(
+            height: 48,
+            child: TextButton(
+              onPressed: committing ? null : onCancel,
+              style: TextButton.styleFrom(
+                foregroundColor: t.muted,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: const Text('Cancel', style: TextStyle(height: 1.0)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: SizedBox(
               height: 48,
@@ -1032,7 +1215,7 @@ class _ReviewFooter extends StatelessWidget {
                   foregroundColor: t.ink,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('Rescan', style: TextStyle(height: 1.0)),
               ),
             ),
