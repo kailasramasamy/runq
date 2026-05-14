@@ -211,22 +211,9 @@ export function useApprovePayrollRun() {
     },
   });
 }
-export interface Form24QRow {
-  employeeCode: string; employeeName: string; pan: string | null;
-  monthsPaid: number; totalGross: number; totalTds: number;
-}
-export function useForm24Q(year: number, quarter: number) {
-  return useQuery({
-    queryKey: ['hr', 'payroll', 'form24q', year, quarter],
-    queryFn: () => api.get<{ data: { rows: Form24QRow[]; runs: number; year: number; quarter: number } }>(
-      `/hr/payroll/form-24q?year=${year}&quarter=${quarter}`,
-    ),
-    enabled: !!year && !!quarter,
-  });
-}
-
 export interface PfChallan {
   run: { id: string; month: number; year: number; status: PayrollRunStatus };
+  pfEstablishmentCode: string | null;
   totalEmployees: number;
   totalPfWages: number;
   account1Epf: number;
@@ -243,6 +230,192 @@ export function usePfChallan(runId: string | null) {
     queryKey: ['hr', 'payroll', 'runs', runId, 'pf-challan'],
     queryFn: () => api.get<{ data: PfChallan }>(`/hr/payroll-runs/${runId}/pf-challan`),
     enabled: !!runId,
+  });
+}
+
+export interface EsiChallan {
+  run: { id: string; month: number; year: number; status: PayrollRunStatus };
+  esiRegistrationNumber: string | null;
+  totalIps: number;
+  totalEsiWages: number;
+  employeeShare: number;
+  employerShare: number;
+  grandTotal: number;
+}
+export function useEsiChallan(runId: string | null) {
+  return useQuery({
+    queryKey: ['hr', 'payroll', 'runs', runId, 'esi-challan'],
+    queryFn: () => api.get<{ data: EsiChallan }>(`/hr/payroll-runs/${runId}/esi-challan`),
+    enabled: !!runId,
+  });
+}
+
+export interface PtChallan {
+  run: { id: string; month: number; year: number; status: PayrollRunStatus };
+  ptRegistrationNumber: string | null;
+  challans: Array<{ stateCode: string; totalEmployees: number; totalPt: number }>;
+}
+export function usePtChallan(runId: string | null) {
+  return useQuery({
+    queryKey: ['hr', 'payroll', 'runs', runId, 'pt-challan'],
+    queryFn: () => api.get<{ data: PtChallan }>(`/hr/payroll-runs/${runId}/pt-challan`),
+    enabled: !!runId,
+  });
+}
+
+// ─── TDS filing ───────────────────────────────────────────────────────────
+
+export type TdsChallanStatus = 'pending' | 'deposited';
+
+export interface TdsChallan {
+  id: string;
+  payrollRunId: string | null;
+  periodMonth: number;
+  periodYear: number;
+  section: string;
+  tdsAmount: string;
+  interestAmount: string;
+  lateFeeAmount: string;
+  totalAmount: string;
+  status: TdsChallanStatus;
+  bsrCode: string | null;
+  challanSerialNo: string | null;
+  depositDate: string | null;
+  paymentMode: string | null;
+  bankRef: string | null;
+  notes: string | null;
+}
+
+export function useTdsChallans() {
+  return useQuery({
+    queryKey: ['hr', 'tds', 'challans'],
+    queryFn: () => api.get<ApiSuccess<TdsChallan[]>>(`/hr/tds-challans`),
+  });
+}
+
+export interface RecordTdsDepositInput {
+  bsrCode: string;
+  challanSerialNo: string;
+  depositDate: string;
+  paymentMode?: string | null;
+  bankRef?: string | null;
+  interestAmount?: number;
+  lateFeeAmount?: number;
+  notes?: string | null;
+}
+export function useRecordTdsDeposit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...d }: RecordTdsDepositInput & { id: string }) =>
+      api.post<ApiSuccess<TdsChallan>>(`/hr/tds-challans/${id}/deposit`, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'tds', 'challans'] }),
+  });
+}
+
+// ─── Form 24Q quarterly returns ───────────────────────────────────────────
+
+export type TdsReturnStatus = 'draft' | 'validated' | 'generated' | 'filed' | 'error';
+
+export interface Form24QAnnexureIRow {
+  employeeCode: string; employeeName: string; pan: string | null;
+  challanBsrCode: string | null; challanSerialNo: string | null; challanDepositDate: string | null;
+  paymentMonth: number; amountPaid: number; tdsDeducted: number;
+}
+export interface Form24QAnnexureIIRow {
+  employeeCode: string; employeeName: string; pan: string | null;
+  grossSalary: number; standardDeduction: number; taxableIncome: number;
+  taxOnIncome: number; tdsDeducted: number; monthsPaid: number;
+}
+export interface TdsReturn {
+  id: string; tan: string; returnType: string;
+  financialYear: string; quarter: number;
+  status: TdsReturnStatus;
+  data: { annexureI: Form24QAnnexureIRow[]; annexureII?: Form24QAnnexureIIRow[] } | null;
+  errorDetails: Array<{ code: string; message: string }> | null;
+  token: string | null; filedAt: string | null; notes: string | null;
+}
+
+const TDS_RETURNS_KEY = ['hr', 'tds', 'returns'] as const;
+
+export function useTdsReturns() {
+  return useQuery({
+    queryKey: TDS_RETURNS_KEY,
+    queryFn: () => api.get<ApiSuccess<TdsReturn[]>>(`/hr/tds-returns`),
+  });
+}
+export function useGenerateTdsReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: { financialYear: string; quarter: number }) =>
+      api.post<ApiSuccess<TdsReturn>>(`/hr/tds-returns/generate`, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TDS_RETURNS_KEY }),
+  });
+}
+export function useValidateTdsReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<TdsReturn>>(`/hr/tds-returns/${id}/validate`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TDS_RETURNS_KEY }),
+  });
+}
+export function useFileTdsReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...d }: { id: string; token: string; notes?: string | null }) =>
+      api.post<ApiSuccess<TdsReturn>>(`/hr/tds-returns/${id}/file`, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TDS_RETURNS_KEY }),
+  });
+}
+export function useDeleteTdsReturn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<ApiSuccess<{ ok: boolean }>>(`/hr/tds-returns/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TDS_RETURNS_KEY }),
+  });
+}
+
+// ─── Form 16 Part B ───────────────────────────────────────────────────────
+
+export interface Form16QuarterRow {
+  quarter: number; tds: number; receiptNumber: string | null;
+}
+export interface Form16PartB {
+  employeeId: string; employeeCode: string; employeeName: string;
+  employeePan: string | null; designation: string | null;
+  grossSalary: number; standardDeduction: number; incomeChargeableSalaries: number;
+  chapterVIADeductions: number; totalIncome: number;
+  taxBeforeRebate: number; rebate87A: number; taxAfterRebate: number;
+  cess: number; totalTaxLiability: number; tdsDeducted: number;
+  balancePayable: number; monthsPaid: number;
+  quarterly: Form16QuarterRow[];
+}
+export interface Form16Result {
+  financialYear: string; assessmentYear: string;
+  employer: { name: string; tan: string | null; pan: string | null };
+  employees: Form16PartB[];
+}
+export function useForm16(financialYear: string) {
+  return useQuery({
+    queryKey: ['hr', 'tds', 'form16', financialYear],
+    queryFn: () => api.get<ApiSuccess<Form16Result>>(`/hr/tds-form-16?financialYear=${financialYear}`),
+    enabled: !!financialYear,
+  });
+}
+
+// ─── Statutory calendar ───────────────────────────────────────────────────
+
+export interface StatutoryDeadline {
+  kind: 'tds_deposit' | 'tds_24q' | 'pt';
+  label: string;
+  sublabel: string;
+  dueDate: string;
+  status: 'pending' | 'done';
+  amount?: number;
+}
+export function useStatutoryCalendar() {
+  return useQuery({
+    queryKey: ['hr', 'statutory-calendar'],
+    queryFn: () => api.get<ApiSuccess<StatutoryDeadline[]>>(`/hr/statutory-calendar`),
   });
 }
 

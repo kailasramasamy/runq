@@ -68,7 +68,9 @@ export const HR_NAV_GROUPS: NavGroup[] = [
       { key: 'hr-payroll-runs', label: 'Payroll runs', icon: Calculator, path: '/hr/payroll-runs' },
       { key: 'hr-salary-structures', label: 'Salary structures', icon: Layers, path: '/hr/salary-structures' },
       { key: 'hr-salary-components', label: 'Salary components', icon: Coins, path: '/hr/salary-components' },
+      { key: 'hr-tds-challans', label: 'TDS challans', icon: Landmark, path: '/hr/tds-challans' },
       { key: 'hr-form-24q', label: 'Form 24Q (TDS)', icon: Receipt, path: '/hr/form-24q' },
+      { key: 'hr-form-16', label: 'Form 16', icon: FileText, path: '/hr/form-16' },
     ],
   },
   {

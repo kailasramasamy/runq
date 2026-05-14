@@ -66,6 +66,7 @@ export * from './hr/attendance';
 export * from './hr/holidays';
 export * from './hr/leave';
 export * from './hr/payroll';
+export * from './hr/tds';
 export * from './common/webhook-endpoints';
 export * from './ar/quick-templates';
 export * from './ar/po-inbox';

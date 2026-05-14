@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, ShieldCheck, QrCode } from 'lucide-react';
+import { Building2, ShieldCheck, QrCode, Landmark } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -68,6 +68,10 @@ export function CompanySettingsPage() {
   const [upiId, setUpiId] = useState('');
   const [defaultMargin, setDefaultMargin] = useState('');
   const [gstFilingStart, setGstFilingStart] = useState(''); // YYYY-MM for the input
+  const [esiRegistrationNumber, setEsiRegistrationNumber] = useState('');
+  const [pfEstablishmentCode, setPfEstablishmentCode] = useState('');
+  const [ptRegistrationNumber, setPtRegistrationNumber] = useState('');
+  const [tan, setTan] = useState('');
 
   useEffect(() => {
     if (data?.data) {
@@ -98,6 +102,10 @@ export function CompanySettingsPage() {
       } else {
         setGstFilingStart('');
       }
+      setEsiRegistrationNumber(data.data.esiRegistrationNumber ?? '');
+      setPfEstablishmentCode(data.data.pfEstablishmentCode ?? '');
+      setPtRegistrationNumber(data.data.ptRegistrationNumber ?? '');
+      setTan(data.data.tan ?? '');
     }
   }, [data]);
 
@@ -136,6 +144,10 @@ export function CompanySettingsPage() {
         gstFilingStartPeriod: gstFilingStart
           ? `${gstFilingStart.substring(5, 7)}${gstFilingStart.substring(0, 4)}`
           : null,
+        esiRegistrationNumber: esiRegistrationNumber || null,
+        pfEstablishmentCode: pfEstablishmentCode || null,
+        ptRegistrationNumber: ptRegistrationNumber || null,
+        tan: tan ? tan.toUpperCase() : null,
       });
       // If industry changed, the backend wiped itemAttributeSchema server-side.
       // Invalidate the frontend cache for both the schema query and any cached
@@ -328,6 +340,62 @@ export function CompanySettingsPage() {
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
               <Building2 size={14} />
               <span>Changes apply to all new documents.</span>
+            </div>
+            <Button type="submit" loading={update.isPending}>
+              Save Changes
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* Payroll Statutory Section */}
+        <Card className="mt-6 max-w-xl">
+          <CardContent className="space-y-5 pt-5">
+            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <Landmark size={16} />
+              <span>Payroll Statutory</span>
+            </div>
+
+            <Input
+              label="ESI Registration Number"
+              value={esiRegistrationNumber}
+              onChange={(e) => setEsiRegistrationNumber(e.target.value.replace(/\D/g, ''))}
+              placeholder="17-digit ESIC employer code"
+              maxLength={17}
+              helper="Printed on the monthly ESI challan and return."
+            />
+
+            <Input
+              label="PF Establishment Code"
+              value={pfEstablishmentCode}
+              onChange={(e) => setPfEstablishmentCode(e.target.value)}
+              placeholder="e.g. KNRGN0012345000"
+              maxLength={30}
+              helper="EPFO establishment code shown on the PF challan."
+            />
+
+            <Input
+              label="Professional Tax Registration Number"
+              value={ptRegistrationNumber}
+              onChange={(e) => setPtRegistrationNumber(e.target.value)}
+              placeholder="State PT enrolment number"
+              maxLength={30}
+              helper="State-issued Professional Tax enrolment / registration number."
+            />
+
+            <Input
+              label="TAN"
+              value={tan}
+              onChange={(e) => setTan(e.target.value.toUpperCase())}
+              placeholder="e.g. BLRC12345D"
+              maxLength={10}
+              helper="Tax Deduction Account Number — used on Form 24Q for payroll TDS."
+            />
+          </CardContent>
+
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Building2 size={14} />
+              <span>Appears on payroll challans and statutory returns.</span>
             </div>
             <Button type="submit" loading={update.isPending}>
               Save Changes

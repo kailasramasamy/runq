@@ -93,16 +93,36 @@ export function buildPfEcr(employees: ExportEmployee[], payslipsByEmp: Map<strin
 }
 
 /**
- * ESIC return — CSV, one row per IP (insured person).
- * Columns: IP Number | Name | No. of days | Gross | ESI contribution (employee)
+ * ESIC Monthly Contribution (MC) return — CSV mirroring the ESIC upload
+ * template's column order, one row per insured person (IP).
+ *
+ * The portal computes the contribution itself from wages, so there's no
+ * contribution column. Columns:
+ *   IP Number | IP Name | No. of Days | Total Monthly Wages | Reason Code |
+ *   Last Working Day
+ *
+ * Reason Code (ESIC): 0 = normal, 1 = on leave (zero paid days). Codes 2–9
+ * (Left Service, Retired, Death, …) need the employee's exit date — out of
+ * scope here, since payroll runs only process active employees. Last Working
+ * Day is left blank as it's only meaningful for those exit codes.
+ *
+ * Inclusion: an IP appears if they contributed this month, or if they're a
+ * covered IP (has an ESI number) with zero paid days. An employee with paid
+ * days but no ESI is above the ₹21,000 ceiling and not a covered IP — skipped.
  */
 export function buildEsiReturn(employees: ExportEmployee[], payslipsByEmp: Map<string, ExportPayslip>): string {
-  const rows: string[] = ['IP Number,Name,No. of days,Gross,ESI Contribution'];
+  const rows: string[] = [
+    'IP Number,IP Name,No. of Days,Total Monthly Wages,Reason Code,Last Working Day',
+  ];
   for (const e of employees) {
     if (!e.esiNumber) continue;
     const p = payslipsByEmp.get(e.employeeCode);
     if (!p) continue;
-    if (n(p.esiEmployee) === 0) continue;
+
+    const contributing = n(p.esiEmployee) > 0 || n(p.esiEmployer) > 0;
+    const zeroDays = n(p.paidDays) === 0;
+    // Paid days but no ESI → above the ceiling, not a covered IP this month.
+    if (!contributing && !zeroDays) continue;
 
     const name = `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`;
     rows.push([
@@ -110,8 +130,32 @@ export function buildEsiReturn(employees: ExportEmployee[], payslipsByEmp: Map<s
       csvEsc(name),
       n(p.paidDays),
       n(p.gross),
-      n(p.esiEmployee),
+      contributing ? 0 : 1,   // reason code: 0 = normal, 1 = on leave (zero days)
+      '',                     // last working day — only for exit reason codes
     ].join(','));
+  }
+  return rows.join('\n');
+}
+
+/**
+ * Professional Tax return — generic per-state CSV summary. Each state's PT
+ * portal has its own template, but all want the same core fields, so this
+ * emits a neutral summary the customer maps onto their state's form. One row
+ * per employee with a non-zero PT deduction.
+ * Columns: Employee Code | Name | Gross Wages | Professional Tax
+ */
+export function buildPtReturn(
+  employees: ExportEmployee[],
+  payslipsByEmp: Map<string, ExportPayslip>,
+): string {
+  const rows: string[] = ['Employee Code,Name,Gross Wages,Professional Tax'];
+  for (const e of employees) {
+    const p = payslipsByEmp.get(e.employeeCode);
+    if (!p) continue;
+    if (n(p.pt) === 0) continue;
+
+    const name = `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`;
+    rows.push([e.employeeCode, csvEsc(name), n(p.gross), n(p.pt)].join(','));
   }
   return rows.join('\n');
 }
@@ -144,31 +188,6 @@ export function buildNeftCsv(
     ].join(','));
   }
   return rows.join('\n');
-}
-
-/** Form 24Q rolling aggregation per employee for a quarter. */
-export interface Form24QRow {
-  employeeCode: string;
-  employeeName: string;
-  pan: string | null;
-  monthsPaid: number;
-  totalGross: number;
-  totalTds: number;
-}
-
-export function buildForm24QSummary(rows: Form24QRow[]): string {
-  const lines: string[] = ['Employee Code,Name,PAN,Months Paid,Total Gross,Total TDS'];
-  for (const r of rows) {
-    lines.push([
-      r.employeeCode,
-      csvEsc(r.employeeName),
-      r.pan ?? '',
-      r.monthsPaid,
-      r.totalGross,
-      r.totalTds,
-    ].join(','));
-  }
-  return lines.join('\n');
 }
 
 function csvEsc(v: string): string {

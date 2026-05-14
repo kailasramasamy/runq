@@ -148,6 +148,8 @@ import { SalaryStructuresPage } from './hr/salary-structures';
 import { PayrollRunsListPage } from './hr/payroll-runs/index';
 import { PayrollRunDetailPage } from './hr/payroll-runs/detail';
 import { Form24QPage } from './hr/form-24q';
+import { Form16Page } from './hr/form-16';
+import { TdsChallansPage } from './hr/tds-challans';
 import { ContractLabourPage } from './hr/contract-labour';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
@@ -1609,6 +1611,16 @@ const hrForm24QRoute = createRoute({
   path: '/form-24q',
   component: Form24QPage,
 });
+const hrTdsChallansRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/tds-challans',
+  component: TdsChallansPage,
+});
+const hrForm16Route = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/form-16',
+  component: Form16Page,
+});
 const hrContractLabourRoute = createRoute({
   getParentRoute: () => hrRoute,
   path: '/contract-labour',
@@ -1996,6 +2008,8 @@ export const routeTree = rootRoute.addChildren([
       hrPayrollRunsRoute,
       hrPayrollRunDetailRoute,
       hrForm24QRoute,
+      hrTdsChallansRoute,
+      hrForm16Route,
       hrContractLabourRoute,
     ]),
     helpRoute.addChildren([

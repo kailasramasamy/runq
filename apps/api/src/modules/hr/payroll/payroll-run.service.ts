@@ -1,13 +1,18 @@
-import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
+import { eq, and, or, gte, lte, desc, inArray, sql } from 'drizzle-orm';
 import {
-  payrollRuns, payslips, employees, attendance, holidays,
+  payrollRuns, payslips, employees, attendance, holidays, tenants,
 } from '@runq/db';
 import type { Db } from '@runq/db';
+import type { TenantSettings } from '@runq/types';
 import type {
   CreatePayrollRunInput, UpdatePayslipInput,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
-import { calcPf, calcEsi, calcPtKarnataka, calcMonthlyTdsNewRegime, calcPfChallan } from './statutory';
+import {
+  calcPf, calcEsi, calcPt, calcMonthlyTdsNewRegime,
+  calcPfChallan, calcEsiChallan, calcPtChallan,
+  esiPeriodMonthsBefore, fyMonthsBefore,
+} from './statutory';
 import { EmployeeSalaryService } from './employee-salary.service';
 import { GLService } from '../../gl/gl.service';
 
@@ -60,6 +65,16 @@ export class PayrollRunService {
     }));
   }
 
+  /** Tenant statutory profile (registration numbers) shown on challans. */
+  private async statutorySettings(): Promise<Partial<TenantSettings>> {
+    const [row] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+    return (row?.settings ?? {}) as Partial<TenantSettings>;
+  }
+
   /**
    * EPFO challan summary for a run — the account-head totals the customer
    * reconciles against the portal's TRRN before paying.
@@ -82,7 +97,61 @@ export class PayrollRunService {
       };
     });
 
-    return { run: { id: run.id, month: run.month, year: run.year, status: run.status }, ...calcPfChallan(rows) };
+    const settings = await this.statutorySettings();
+    return {
+      run: { id: run.id, month: run.month, year: run.year, status: run.status },
+      pfEstablishmentCode: settings.pfEstablishmentCode ?? null,
+      ...calcPfChallan(rows),
+    };
+  }
+
+  /**
+   * ESIC challan summary for a run — IP count and the employee/employer
+   * shares the customer pays against the portal's challan.
+   */
+  async esiChallan(runId: string) {
+    const run = await this.getById(runId);
+    const slips = await this.db
+      .select()
+      .from(payslips)
+      .where(eq(payslips.payrollRunId, runId));
+
+    const rows = slips.map((s) => ({
+      esiWages: Number(s.gross),
+      esiEmployee: Number(s.esiEmployee),
+      esiEmployer: Number(s.esiEmployer),
+    }));
+
+    const settings = await this.statutorySettings();
+    return {
+      run: { id: run.id, month: run.month, year: run.year, status: run.status },
+      esiRegistrationNumber: settings.esiRegistrationNumber ?? null,
+      ...calcEsiChallan(rows),
+    };
+  }
+
+  /**
+   * Professional Tax challan summary for a run — per-state PT totals the
+   * customer pays to each state's PT portal. PT is a state levy; the
+   * establishment's state comes from tenant settings, so a run currently
+   * yields a single state group.
+   */
+  async ptChallan(runId: string) {
+    const run = await this.getById(runId);
+    const slips = await this.db
+      .select({ pt: payslips.pt })
+      .from(payslips)
+      .where(eq(payslips.payrollRunId, runId));
+
+    const settings = await this.statutorySettings();
+    const stateCode = settings.stateCode ?? '';
+    const rows = slips.map((s) => ({ stateCode, pt: Number(s.pt) }));
+
+    return {
+      run: { id: run.id, month: run.month, year: run.year, status: run.status },
+      ptRegistrationNumber: settings.ptRegistrationNumber ?? null,
+      challans: calcPtChallan(rows),
+    };
   }
 
   async getPayslip(runId: string, payslipId: string) {
@@ -134,6 +203,80 @@ export class PayrollRunService {
     return row;
   }
 
+  /**
+   * Employees who were ESI-covered in an earlier month of the contribution
+   * period that (year, month) falls in. ESIC keeps such employees contributing
+   * until period-end even after wages cross ₹21,000 — see calcEsi().
+   */
+  private async esiContinuedCoverage(year: number, month: number): Promise<Set<string>> {
+    const months = esiPeriodMonthsBefore(year, month);
+    if (months.length === 0) return new Set();
+
+    const priorRuns = await this.db
+      .select({ id: payrollRuns.id })
+      .from(payrollRuns)
+      .where(and(
+        eq(payrollRuns.tenantId, this.tenantId),
+        or(...months.map((m) => and(eq(payrollRuns.year, m.year), eq(payrollRuns.month, m.month)))),
+      ));
+    if (priorRuns.length === 0) return new Set();
+
+    const slips = await this.db
+      .select({
+        employeeId: payslips.employeeId,
+        esiEmployee: payslips.esiEmployee,
+        esiEmployer: payslips.esiEmployer,
+      })
+      .from(payslips)
+      .where(inArray(payslips.payrollRunId, priorRuns.map((r) => r.id)));
+
+    const covered = new Set<string>();
+    for (const s of slips) {
+      if (Number(s.esiEmployee) > 0 || Number(s.esiEmployer) > 0) covered.add(s.employeeId);
+    }
+    return covered;
+  }
+
+  /**
+   * Per-employee taxable gross + TDS already booked earlier in the financial
+   * year that (year, month) falls in. Drives the TDS projection and true-up
+   * in process() — see calcMonthlyTdsNewRegime().
+   */
+  private async fyTdsHistory(
+    year: number,
+    month: number,
+  ): Promise<Map<string, { grossSoFar: number; tdsSoFar: number }>> {
+    const out = new Map<string, { grossSoFar: number; tdsSoFar: number }>();
+    const months = fyMonthsBefore(year, month);
+    if (months.length === 0) return out;
+
+    const priorRuns = await this.db
+      .select({ id: payrollRuns.id })
+      .from(payrollRuns)
+      .where(and(
+        eq(payrollRuns.tenantId, this.tenantId),
+        or(...months.map((m) => and(eq(payrollRuns.year, m.year), eq(payrollRuns.month, m.month)))),
+      ));
+    if (priorRuns.length === 0) return out;
+
+    const slips = await this.db
+      .select({
+        employeeId: payslips.employeeId,
+        gross: payslips.gross,
+        tds: payslips.tds,
+      })
+      .from(payslips)
+      .where(inArray(payslips.payrollRunId, priorRuns.map((r) => r.id)));
+
+    for (const s of slips) {
+      const entry = out.get(s.employeeId) ?? { grossSoFar: 0, tdsSoFar: 0 };
+      entry.grossSoFar += Number(s.gross);
+      entry.tdsSoFar += Number(s.tds);
+      out.set(s.employeeId, entry);
+    }
+    return out;
+  }
+
   /** Compute payslips for every active employee with a current salary assignment. */
   async process(id: string, userId: string) {
     const run = await this.getById(id);
@@ -152,6 +295,18 @@ export class PayrollRunService {
         eq(employees.tenantId, this.tenantId),
         eq(employees.status, 'active'),
       ));
+
+    // Employees still ESI-covered from earlier in this contribution period —
+    // they keep contributing even if wages have since crossed ₹21,000.
+    const esiCovered = await this.esiContinuedCoverage(run.year, run.month);
+
+    // Professional Tax is a state levy — the establishment's state drives the slab.
+    const { stateCode: ptStateCode } = await this.statutorySettings();
+
+    // TDS is an annual tax projected across the FY — gather what's been paid
+    // so far and how many months remain, so each run trues up the estimate.
+    const tdsHistory = await this.fyTdsHistory(run.year, run.month);
+    const remainingMonths = 12 - fyMonthsBefore(run.year, run.month).length;
 
     const salarySvc = new EmployeeSalaryService(this.db, this.tenantId);
     let totalGross = 0, totalDeductions = 0, totalNet = 0;
@@ -246,9 +401,16 @@ export class PayrollRunService {
 
         // Statutory
         const pf = calcPf(basicProrated);
-        const esi = calcEsi(gross);
-        const pt = calcPtKarnataka(gross);
-        const tds = calcMonthlyTdsNewRegime(gross);
+        const esi = calcEsi(gross, esiCovered.has(emp.id));
+        const pt = calcPt(ptStateCode, gross, emp.gender, run.month);
+        const tdsPrior = tdsHistory.get(emp.id) ?? { grossSoFar: 0, tdsSoFar: 0 };
+        const tds = calcMonthlyTdsNewRegime({
+          fyIncomeSoFar: tdsPrior.grossSoFar,
+          currentMonthGross: gross,
+          futureMonthGross: grossFull,
+          remainingMonths,
+          tdsPaidSoFar: tdsPrior.tdsSoFar,
+        });
 
         const lopAmt = r2((earnings.reduce((s, e) => s + e.amount, 0) / Math.max(proRateFactor, 0.0001)) - gross);
         if (lop > 0 && lopAmt > 0) deductions.push({ code: 'LOP', name: 'Loss of Pay', amount: lopAmt });

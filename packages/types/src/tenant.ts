@@ -43,6 +43,13 @@ export interface TenantSettings {
   // Default margin (%) applied to imported items when the source has no
   // margin column or the row's margin cell is blank.
   defaultMarginPercent?: number;
+  // Payroll statutory profile — registration identifiers printed on challans
+  // and statutory returns (ESIC employer code, EPFO establishment code,
+  // Professional Tax enrolment no., and TAN for Form 24Q).
+  esiRegistrationNumber?: string;
+  pfEstablishmentCode?: string;
+  ptRegistrationNumber?: string;
+  tan?: string;
   // Chosen at signup from a fixed list (Manufacturing, Trading / Distribution,
   // Retail, Services, Construction, Food & Beverage, Healthcare, Hospitality,
   // Education, IT / Software, Other). Drives catalogue attribute seeding.

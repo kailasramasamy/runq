@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer, Landmark } from 'lucide-react';
+import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer, Landmark, HeartPulse, Coins } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal,
@@ -10,7 +10,7 @@ import { formatINR } from '@/lib/utils';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   usePayrollRun, usePayslips, useProcessPayrollRun, useApprovePayrollRun, useClosePayrollRun,
-  usePfChallan,
+  usePfChallan, useEsiChallan, usePtChallan,
   type PayrollRunStatus, type Payslip,
 } from '@/hooks/queries/use-hr-payroll';
 import { useIsReadOnly } from '@/providers/auth-provider';
@@ -32,6 +32,8 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const close = useClosePayrollRun();
   const [viewPayslip, setViewPayslip] = useState<Payslip | null>(null);
   const [showPfChallan, setShowPfChallan] = useState(false);
+  const [showEsiChallan, setShowEsiChallan] = useState(false);
+  const [showPtChallan, setShowPtChallan] = useState(false);
 
   if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
   const run = runData?.data;
@@ -97,11 +99,17 @@ export function PayrollRunDetailPage({ runId }: Props) {
                 )}>
                   <FileText size={13} /> PF ECR
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowEsiChallan(true)}>
+                  <HeartPulse size={13} /> ESI Challan
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => api.download(
                   `/hr/payroll-runs/${runId}/exports/esi`,
-                  `esi-${run.year}-${String(run.month).padStart(2, '0')}.csv`,
+                  `esi-mc-${run.year}-${String(run.month).padStart(2, '0')}.csv`,
                 )}>
                   <Building size={13} /> ESI
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowPtChallan(true)}>
+                  <Coins size={13} /> PT Challan
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => api.download(
                   `/hr/payroll-runs/${runId}/exports/neft`,
@@ -190,7 +198,80 @@ export function PayrollRunDetailPage({ runId }: Props) {
 
       {viewPayslip && <PayslipModal payslip={viewPayslip} period={period} onClose={() => setViewPayslip(null)} />}
       {showPfChallan && <PfChallanModal runId={runId} period={period} onClose={() => setShowPfChallan(false)} />}
+      {showEsiChallan && <EsiChallanModal runId={runId} period={period} onClose={() => setShowEsiChallan(false)} />}
+      {showPtChallan && <PtChallanModal runId={runId} period={period} onClose={() => setShowPtChallan(false)} />}
     </div>
+  );
+}
+
+// GST state codes → names, limited to states with a Professional Tax levy.
+const PT_STATE_NAMES: Record<string, string> = {
+  '27': 'Maharashtra',
+  '29': 'Karnataka',
+};
+
+function PtChallanModal({ runId, period, onClose }: { runId: string; period: string; onClose: () => void }) {
+  const { data, isLoading } = usePtChallan(runId);
+  const d = data?.data;
+  const challans = d?.challans ?? [];
+  const grandTotal = challans.reduce((s, c) => s + c.totalPt, 0);
+
+  return (
+    <Modal open onClose={onClose} title={`PT Challan — ${period}`} size="lg">
+      {isLoading ? (
+        <p style={{ color: 'var(--text-3)' }}>Loading…</p>
+      ) : !d ? null : (
+        <div className="space-y-3">
+          <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+            Professional Tax is a state levy — pay each state's total on its PT portal by the
+            state due date.{' '}
+            {d.ptRegistrationNumber
+              ? `Enrolment ${d.ptRegistrationNumber}. `
+              : 'Set your PT registration number in Company Settings. '}
+          </p>
+          {challans.length === 0 ? (
+            <EmptyState
+              icon={<Coins size={18} />}
+              title="No Professional Tax this run"
+              description="No employee crossed the PT threshold, or the establishment's state doesn't levy PT. Set the company state in Company Settings."
+            />
+          ) : (
+            <>
+              <Card>
+                <CardContent>
+                  <table className="w-full text-[13px]">
+                    <tbody>
+                      {challans.map((c) => (
+                        <tr key={c.stateCode} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
+                          <td className="py-2">
+                            <div style={{ color: 'var(--text-1)' }}>{PT_STATE_NAMES[c.stateCode] ?? `State ${c.stateCode}`}</div>
+                            <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>{c.totalEmployees} employees</div>
+                          </td>
+                          <td className="num py-2 text-right" style={{ color: 'var(--text-1)' }}>{formatINR(c.totalPt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+              <div className="flex items-center justify-between rounded-md p-3" style={{ background: 'var(--accent-soft)' }}>
+                <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Total Professional Tax</span>
+                <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(grandTotal)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex items-center justify-between">
+            <Button variant="outline" size="sm" disabled={challans.length === 0} onClick={() => api.download(
+              `/hr/payroll-runs/${runId}/exports/pt`,
+              `pt-return-${d.run.year}-${String(d.run.month).padStart(2, '0')}.csv`,
+            )}>
+              <Download size={13} /> PT return CSV
+            </Button>
+            <Button variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -218,8 +299,11 @@ function PfChallanModal({ runId, period, onClose }: { runId: string; period: str
         <div className="space-y-3">
           <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
             Reconcile these account-head totals against the TRRN challan the EPFO portal
-            generates after you upload the ECR file. {c.totalEmployees} contributing employees ·
-            PF wages {formatINR(c.totalPfWages)}.
+            generates after you upload the ECR file.{' '}
+            {c.pfEstablishmentCode
+              ? `Establishment ${c.pfEstablishmentCode}. `
+              : 'Set your PF establishment code in Company Settings. '}
+            {c.totalEmployees} contributing employees · PF wages {formatINR(c.totalPfWages)}.
           </p>
           <Card>
             <CardContent>
@@ -249,6 +333,52 @@ function PfChallanModal({ runId, period, onClose }: { runId: string; period: str
             <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(c.grandTotal)}</span>
           </div>
           <div className="flex items-center justify-end">
+            <Button variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function EsiChallanModal({ runId, period, onClose }: { runId: string; period: string; onClose: () => void }) {
+  const { data, isLoading } = useEsiChallan(runId);
+  const c = data?.data;
+
+  return (
+    <Modal open onClose={onClose} title={`ESI Challan — ${period}`} size="lg">
+      {isLoading ? (
+        <p style={{ color: 'var(--text-3)' }}>Loading…</p>
+      ) : !c ? null : (
+        <div className="space-y-3">
+          <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+            Pay this against the monthly challan on the ESIC portal.{' '}
+            {c.esiRegistrationNumber
+              ? `Employer code ${c.esiRegistrationNumber}. `
+              : 'Set your ESI registration number in Company Settings. '}
+            {c.totalIps} insured persons · ESI wages {formatINR(c.totalEsiWages)}.
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-[12px]">
+            <div className="rounded-md p-2.5" style={{ background: 'var(--surface-2)' }}>
+              <div style={{ color: 'var(--text-3)' }}>Employee share 0.75% (recovered)</div>
+              <div className="num text-[14px] font-semibold" style={{ color: 'var(--text-1)' }}>{formatINR(c.employeeShare)}</div>
+            </div>
+            <div className="rounded-md p-2.5" style={{ background: 'var(--surface-2)' }}>
+              <div style={{ color: 'var(--text-3)' }}>Employer share 3.25% (cost)</div>
+              <div className="num text-[14px] font-semibold" style={{ color: 'var(--text-1)' }}>{formatINR(c.employerShare)}</div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between rounded-md p-3" style={{ background: 'var(--accent-soft)' }}>
+            <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Total payable to ESIC</span>
+            <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(c.grandTotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <Button variant="outline" size="sm" onClick={() => api.download(
+              `/hr/payroll-runs/${runId}/exports/esi`,
+              `esi-mc-${c.run.year}-${String(c.run.month).padStart(2, '0')}.csv`,
+            )}>
+              <Download size={13} /> ESI return CSV
+            </Button>
             <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
         </div>

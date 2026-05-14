@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildPfEcr, buildEsiReturn, buildNeftCsv, buildForm24QSummary,
+  buildPfEcr, buildEsiReturn, buildPtReturn, buildNeftCsv,
   type ExportEmployee, type ExportPayslip,
 } from './exporters';
 
@@ -51,20 +51,56 @@ describe('PF ECR exporter', () => {
   });
 });
 
-describe('ESI exporter', () => {
-  it('produces CSV with header + one row per IP', () => {
-    const map = new Map([['E001', slip()]]);
-    const out = buildEsiReturn([emp()], map);
+describe('ESI exporter — ESIC Monthly Contribution template', () => {
+  it('emits the 6-column MC header and a contributing IP row (reason code 0)', () => {
+    const out = buildEsiReturn([emp()], new Map([['E001', slip()]]));
     const lines = out.split('\n');
-    expect(lines[0]).toBe('IP Number,Name,No. of days,Gross,ESI Contribution');
-    expect(lines.length).toBe(2);
-    expect(lines[1]).toContain('1234567890');
+    expect(lines[0]).toBe(
+      'IP Number,IP Name,No. of Days,Total Monthly Wages,Reason Code,Last Working Day',
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toBe('1234567890,Test User,26,30000,0,');
   });
 
-  it('skips employees with no ESI contribution', () => {
-    const map = new Map([['E001', slip({ esiEmployee: 0 })]]);
-    const out = buildEsiReturn([emp()], map);
-    expect(out.split('\n').length).toBe(1); // only header
+  it('includes a covered IP with zero paid days as reason code 1', () => {
+    const map = new Map([['E001', slip({ gross: 0, esiEmployee: 0, esiEmployer: 0, paidDays: 0 })]]);
+    expect(buildEsiReturn([emp()], map).split('\n')[1]).toBe('1234567890,Test User,0,0,1,');
+  });
+
+  it('excludes an above-ceiling employee (paid days but no ESI)', () => {
+    const map = new Map([['E001', slip({ esiEmployee: 0, esiEmployer: 0 })]]);
+    expect(buildEsiReturn([emp()], map).split('\n')).toHaveLength(1); // header only
+  });
+
+  it('excludes an employee with no ESI number', () => {
+    const map = new Map([['E001', slip()]]);
+    expect(buildEsiReturn([emp({ esiNumber: null })], map).split('\n')).toHaveLength(1);
+  });
+
+  it('includes a continued-coverage IP earning above ₹21,000 on full wages', () => {
+    // calcEsi(23000, true) → EE 172.5, ER 747.5 — covered, full gross reported.
+    const map = new Map([['E001', slip({ gross: 23000, esiEmployee: 172.5, esiEmployer: 747.5 })]]);
+    expect(buildEsiReturn([emp()], map).split('\n')[1]).toBe('1234567890,Test User,26,23000,0,');
+  });
+});
+
+describe('PT return exporter', () => {
+  it('emits a header and one row per employee with PT', () => {
+    const out = buildPtReturn([emp()], new Map([['E001', slip()]]));
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('Employee Code,Name,Gross Wages,Professional Tax');
+    expect(lines[1]).toBe('E001,Test User,30000,200');
+  });
+
+  it('skips employees with zero PT', () => {
+    const map = new Map([['E001', slip({ pt: 0 })]]);
+    expect(buildPtReturn([emp()], map).split('\n')).toHaveLength(1); // header only
+  });
+
+  it('escapes commas in names', () => {
+    const map = new Map([['E001', slip()]]);
+    const out = buildPtReturn([emp({ firstName: 'Test', lastName: 'User, Jr.' })], map);
+    expect(out).toContain('"Test User, Jr."');
   });
 });
 
@@ -86,15 +122,5 @@ describe('NEFT exporter', () => {
     const map = new Map([['E001', slip()]]);
     const out = buildNeftCsv([emp({ firstName: 'Test', lastName: 'User, Jr.' })], map, 'X');
     expect(out).toContain('"Test User, Jr."');
-  });
-});
-
-describe('Form 24Q summary', () => {
-  it('produces CSV with aggregated rows', () => {
-    const out = buildForm24QSummary([
-      { employeeCode: 'E001', employeeName: 'Test User', pan: 'ABCDE1234F', monthsPaid: 3, totalGross: 90000, totalTds: 2500 },
-    ]);
-    expect(out).toContain('Employee Code,Name,PAN,Months Paid,Total Gross,Total TDS');
-    expect(out).toContain('E001,Test User,ABCDE1234F,3,90000,2500');
   });
 });

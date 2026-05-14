@@ -18,9 +18,11 @@ import { holidayRoutes } from './holiday.routes';
 import { leaveRoutes } from './leave.routes';
 import { payrollRoutes } from './payroll.routes';
 import { payrollStatutoryRoutes } from './payroll-statutory.routes';
+import { tdsRoutes } from './tds/tds.routes';
 import { wageRegisterRoutes } from './wage-register.routes';
 import { hrDashboardRoutes } from './dashboard.routes';
 import { ReimbursementToBillService } from './reimbursement-to-bill.service';
+import { StatutoryCalendarService } from './statutory-calendar.service';
 import { z } from 'zod';
 
 const postToApSchema = z.object({ employeeId: z.string().uuid() });
@@ -38,8 +40,19 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(leaveRoutes);
   await app.register(payrollRoutes);
   await app.register(payrollStatutoryRoutes);
+  await app.register(tdsRoutes);
   await app.register(wageRegisterRoutes);
   await app.register(hrDashboardRoutes);
+
+  // Upcoming statutory deadlines (TDS deposits, Form 24Q, PT) with filing status.
+  app.get(
+    '/statutory-calendar',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const svc = new StatutoryCalendarService(request.server.db, request.tenantId);
+      return { data: await svc.upcoming() };
+    },
+  );
 
   // Post an approved expense claim to AP as a draft bill.
   app.post(

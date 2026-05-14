@@ -31,6 +31,14 @@ export const companySettingsSchema = z.object({
   upiId: z.string().max(100).nullish(),
   // Default margin (%) used by smart-import when source rows lack margin
   defaultMarginPercent: z.number().min(0).max(100).nullish(),
+  // Payroll statutory profile — registration identifiers printed on challans
+  // and statutory returns. ESIC: 17-digit employer code. EPFO: establishment
+  // code (free-form, varies by region/office). PT: state-issued enrolment no.
+  // TAN: 10-char tax-deduction account number for Form 24Q.
+  esiRegistrationNumber: z.string().regex(/^\d{17}$/, 'ESI number must be 17 digits').nullish(),
+  pfEstablishmentCode: z.string().max(30).nullish(),
+  ptRegistrationNumber: z.string().max(30).nullish(),
+  tan: z.string().regex(/^[A-Z]{4}[0-9]{5}[A-Z]$/, 'Invalid TAN format').nullish(),
 });
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;

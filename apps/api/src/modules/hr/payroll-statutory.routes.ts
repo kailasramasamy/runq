@@ -1,22 +1,16 @@
 import { FastifyPluginAsync } from 'fastify';
 import { eq, and, inArray } from 'drizzle-orm';
-import { z } from 'zod';
 import { payslips, employees, payrollRuns } from '@runq/db';
 import { uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import {
-  buildPfEcr, buildEsiReturn, buildNeftCsv, buildForm24QSummary,
-  type ExportPayslip, type ExportEmployee, type Form24QRow,
+  buildPfEcr, buildEsiReturn, buildPtReturn, buildNeftCsv,
+  type ExportPayslip, type ExportEmployee,
 } from './payroll/exporters';
 import { NotFoundError } from '../../utils/errors';
 import { PayrollRunService } from './payroll/payroll-run.service';
 
 const ALL = ['owner', 'accountant', 'viewer'] as const;
-
-const quarterQuery = z.object({
-  year: z.coerce.number().int().min(2000).max(2100),
-  quarter: z.coerce.number().int().min(1).max(4),
-});
 
 async function loadRunExportData(db: any, tenantId: string, runId: string) {
   const [run] = await db
@@ -83,6 +77,28 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.pfChallan(id) };
   });
 
+  app.get('/payroll-runs/:id/esi-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new PayrollRunService(req.server.db, req.tenantId);
+    return { data: await svc.esiChallan(id) };
+  });
+
+  app.get('/payroll-runs/:id/pt-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new PayrollRunService(req.server.db, req.tenantId);
+    return { data: await svc.ptChallan(id) };
+  });
+
+  app.get('/payroll-runs/:id/exports/pt', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
+    const body = buildPtReturn(employees, payslipsByEmp);
+    return reply
+      .type('text/csv')
+      .header('content-disposition', `attachment; filename="pt-return-${run.year}-${String(run.month).padStart(2, '0')}.csv"`)
+      .send(body);
+  });
+
   app.get('/payroll-runs/:id/exports/pf-ecr', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
@@ -99,7 +115,7 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
     const body = buildEsiReturn(employees, payslipsByEmp);
     return reply
       .type('text/csv')
-      .header('content-disposition', `attachment; filename="esi-${run.year}-${String(run.month).padStart(2, '0')}.csv"`)
+      .header('content-disposition', `attachment; filename="esi-mc-${run.year}-${String(run.month).padStart(2, '0')}.csv"`)
       .send(body);
   });
 
@@ -114,102 +130,4 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
       .send(body);
   });
 
-  app.get('/payroll/form-24q', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
-    const { year, quarter } = quarterQuery.parse(req.query);
-    const startMonth = (quarter - 1) * 3 + 1; // 1, 4, 7, 10
-    const months = [startMonth, startMonth + 1, startMonth + 2];
-
-    const runs = await req.server.db
-      .select()
-      .from(payrollRuns)
-      .where(and(
-        eq(payrollRuns.tenantId, req.tenantId),
-        eq(payrollRuns.year, year),
-        inArray(payrollRuns.month, months),
-      ));
-
-    if (runs.length === 0) return { data: { rows: [] as Form24QRow[], runs: 0 } };
-
-    const runIds = runs.map((r: any) => r.id);
-    const slips = await req.server.db
-      .select()
-      .from(payslips)
-      .where(inArray(payslips.payrollRunId, runIds));
-
-    const empIds = [...new Set(slips.map((s: any) => s.employeeId))];
-    const emps = await req.server.db
-      .select()
-      .from(employees)
-      .where(and(eq(employees.tenantId, req.tenantId), inArray(employees.id, empIds)));
-    const empById = new Map<string, any>(emps.map((e: any) => [e.id, e]));
-
-    const agg = new Map<string, Form24QRow>();
-    for (const s of slips) {
-      const emp = empById.get(s.employeeId);
-      if (!emp) continue;
-      const existing = agg.get(emp.employeeCode) ?? {
-        employeeCode: emp.employeeCode,
-        employeeName: `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}`,
-        pan: emp.pan,
-        monthsPaid: 0,
-        totalGross: 0,
-        totalTds: 0,
-      };
-      existing.monthsPaid++;
-      existing.totalGross += Number(s.gross);
-      existing.totalTds += Number(s.tds);
-      agg.set(emp.employeeCode, existing);
-    }
-    const rows = [...agg.values()].sort((a, b) => a.employeeCode.localeCompare(b.employeeCode));
-    return { data: { rows, runs: runs.length, year, quarter } };
-  });
-
-  app.get('/payroll/form-24q/export', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
-    const { year, quarter } = quarterQuery.parse(req.query);
-    const startMonth = (quarter - 1) * 3 + 1;
-    const months = [startMonth, startMonth + 1, startMonth + 2];
-    const runs = await req.server.db
-      .select()
-      .from(payrollRuns)
-      .where(and(
-        eq(payrollRuns.tenantId, req.tenantId),
-        eq(payrollRuns.year, year),
-        inArray(payrollRuns.month, months),
-      ));
-    if (runs.length === 0) return reply.type('text/csv').send('No data');
-
-    const runIds = runs.map((r: any) => r.id);
-    const slips = await req.server.db
-      .select()
-      .from(payslips)
-      .where(inArray(payslips.payrollRunId, runIds));
-    const empIds = [...new Set(slips.map((s: any) => s.employeeId))];
-    const emps = await req.server.db
-      .select()
-      .from(employees)
-      .where(and(eq(employees.tenantId, req.tenantId), inArray(employees.id, empIds)));
-    const empById = new Map<string, any>(emps.map((e: any) => [e.id, e]));
-    const agg = new Map<string, Form24QRow>();
-    for (const s of slips) {
-      const emp = empById.get(s.employeeId);
-      if (!emp) continue;
-      const existing = agg.get(emp.employeeCode) ?? {
-        employeeCode: emp.employeeCode,
-        employeeName: `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}`,
-        pan: emp.pan,
-        monthsPaid: 0,
-        totalGross: 0,
-        totalTds: 0,
-      };
-      existing.monthsPaid++;
-      existing.totalGross += Number(s.gross);
-      existing.totalTds += Number(s.tds);
-      agg.set(emp.employeeCode, existing);
-    }
-    const body = buildForm24QSummary([...agg.values()]);
-    return reply
-      .type('text/csv')
-      .header('content-disposition', `attachment; filename="form-24q-${year}-Q${quarter}.csv"`)
-      .send(body);
-  });
 };
