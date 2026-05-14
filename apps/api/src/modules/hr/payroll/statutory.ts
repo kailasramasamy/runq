@@ -10,7 +10,12 @@
 
 const PF_CEILING_BASIC = 15000;        // PF wage ceiling
 const PF_EMPLOYEE_RATE = 0.12;
-const PF_EMPLOYER_RATE = 0.12;         // (admin/EDLI charges added at filing time)
+const PF_EMPLOYER_RATE = 0.12;
+const PF_EPS_RATE = 0.0833;            // employer 8.33% → pension (A/c 10)
+const PF_EPS_CAP = 1250;               // 8.33% of ₹15,000, hard cap per head
+const PF_EDLI_RATE = 0.005;            // employer 0.5% → EDLI insurance (A/c 21)
+const PF_ADMIN_RATE = 0.005;           // employer 0.5% → admin charges (A/c 2)
+const PF_ADMIN_MIN = 500;              // per-establishment monthly minimum on A/c 2
 
 const ESI_WAGE_CEILING = 21000;        // ESI applies if monthly wages ≤ this
 const ESI_EMPLOYEE_RATE = 0.0075;
@@ -41,6 +46,77 @@ export function calcPf(basic: number): { employee: number; employer: number } {
   return {
     employee: round(wages * PF_EMPLOYEE_RATE),
     employer: round(wages * PF_EMPLOYER_RATE),
+  };
+}
+
+export interface PfChallan {
+  totalEmployees: number;
+  totalPfWages: number;
+  /** A/c 1 — EPF: employee 12% + employer's EPF-EPS difference. */
+  account1Epf: number;
+  /** A/c 2 — Admin charges: 0.5% of PF wages, floored at ₹500/month. */
+  account2Admin: number;
+  /** A/c 10 — EPS: employer 8.33%, capped at 8.33% of ₹15,000 per head. */
+  account10Eps: number;
+  /** A/c 21 — EDLI: employer 0.5% of PF wages. */
+  account21Edli: number;
+  /** A/c 22 — EDLI admin: nil since 2015, kept for challan completeness. */
+  account22EdliAdmin: number;
+  employeeShare: number;
+  employerShare: number;
+  grandTotal: number;
+}
+
+/**
+ * Roll up per-employee PF figures into the EPFO challan account heads.
+ * `rows` are the already-computed per-payslip values; PF wages must already
+ * be capped at the ceiling by the caller.
+ */
+export function calcPfChallan(
+  rows: Array<{ pfWages: number; pfEmployee: number; pfEmployer: number }>,
+): PfChallan {
+  // EPFO challans are denominated in whole rupees — each per-head figure is
+  // rounded before it's summed, mirroring how the portal computes the TRRN.
+  let totalPfWages = 0;
+  let account1Epf = 0;
+  let account10Eps = 0;
+  let account21Edli = 0;
+  let employeeShare = 0;
+  let contributors = 0;
+
+  for (const r of rows) {
+    if (r.pfEmployee === 0 && r.pfEmployer === 0) continue;
+    contributors++;
+    const wages = Math.min(r.pfWages, PF_CEILING_BASIC);
+    totalPfWages += wages;
+
+    // EPS is 8.33%, but hard-capped at 8.33% of the ceiling (₹1,250/head).
+    const eps = Math.min(PF_EPS_CAP, Math.round(wages * PF_EPS_RATE));
+    const epfDiff = Math.max(0, Math.round(r.pfEmployer) - eps); // employer's 3.67% share
+    account10Eps += eps;
+    account1Epf += Math.round(r.pfEmployee) + epfDiff;
+    account21Edli += Math.round(wages * PF_EDLI_RATE);
+    employeeShare += Math.round(r.pfEmployee);
+  }
+
+  const account2Admin = Math.max(PF_ADMIN_MIN, Math.round(totalPfWages * PF_ADMIN_RATE));
+  const account22EdliAdmin = 0;
+  const employerShare =
+    account1Epf - employeeShare + account10Eps + account21Edli + account2Admin;
+  const grandTotal =
+    account1Epf + account2Admin + account10Eps + account21Edli + account22EdliAdmin;
+
+  return {
+    totalEmployees: contributors,
+    totalPfWages,
+    account1Epf,
+    account2Admin,
+    account10Eps,
+    account21Edli,
+    account22EdliAdmin,
+    employeeShare,
+    employerShare,
+    grandTotal,
   };
 }
 

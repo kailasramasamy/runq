@@ -1568,7 +1568,13 @@ const hrLeaveTypesRoute = createRoute({
 const hrLeaveRequestsRoute = createRoute({
   getParentRoute: () => hrRoute,
   path: '/leave-requests',
-  component: LeaveRequestsPage,
+  validateSearch: (s: Record<string, unknown>): { status?: string } => ({
+    status: typeof s.status === 'string' ? s.status : undefined,
+  }),
+  component: () => {
+    const { status } = hrLeaveRequestsRoute.useSearch();
+    return <LeaveRequestsPage initialStatus={status} />;
+  },
 });
 const hrLeaveBalancesRoute = createRoute({
   getParentRoute: () => hrRoute,

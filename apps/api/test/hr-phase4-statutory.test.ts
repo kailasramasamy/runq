@@ -71,6 +71,20 @@ describe('HR Phase 4: Statutory exports', () => {
     expect(proc.body.data.totalEmployees).toBeGreaterThan(0);
   });
 
+  it('returns a PF challan summary with account heads', async () => {
+    const { status, body } = await get(`/hr/payroll-runs/${runId}/pf-challan`);
+    expect(status).toBe(200);
+    const c = body.data;
+    expect(c).toHaveProperty('account1Epf');
+    expect(c).toHaveProperty('account10Eps');
+    expect(c).toHaveProperty('account21Edli');
+    expect(c).toHaveProperty('account2Admin');
+    expect(c.account2Admin).toBeGreaterThanOrEqual(500); // ₹500 floor
+    expect(c.grandTotal).toBe(
+      c.account1Epf + c.account2Admin + c.account10Eps + c.account21Edli + c.account22EdliAdmin,
+    );
+  });
+
   it('downloads PF ECR (text/plain with UAN)', async () => {
     const r = await rawGet(`/hr/payroll-runs/${runId}/exports/pf-ecr`);
     expect(r.status).toBe(200);

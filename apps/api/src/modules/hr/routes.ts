@@ -19,6 +19,7 @@ import { leaveRoutes } from './leave.routes';
 import { payrollRoutes } from './payroll.routes';
 import { payrollStatutoryRoutes } from './payroll-statutory.routes';
 import { wageRegisterRoutes } from './wage-register.routes';
+import { hrDashboardRoutes } from './dashboard.routes';
 import { ReimbursementToBillService } from './reimbursement-to-bill.service';
 import { z } from 'zod';
 
@@ -38,6 +39,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(payrollRoutes);
   await app.register(payrollStatutoryRoutes);
   await app.register(wageRegisterRoutes);
+  await app.register(hrDashboardRoutes);
 
   // Post an approved expense claim to AP as a draft bill.
   app.post(

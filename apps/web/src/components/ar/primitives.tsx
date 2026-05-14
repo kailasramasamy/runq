@@ -258,25 +258,121 @@ export function Select({
 // ─── StatTile ───────────────────────────────────────────────────────────────
 
 export function StatTile({
-  label, value, sub, tone = 'neutral',
-}: { label: string; value: ReactNode; sub?: ReactNode; tone?: Tone }) {
+  label, value, sub, tone = 'neutral', sparkData, accentColor,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  tone?: Tone;
+  /** Optional 2+ point series — renders a small sparkline on the right. */
+  sparkData?: number[];
+  /** Sparkline stroke colour; defaults to the accent token. */
+  accentColor?: string;
+}) {
   return (
     <div
       className="rounded-xl border px-4 py-3"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
-      <div className="text-[10.5px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
-        {label}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10.5px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+            {label}
+          </div>
+          <div
+            className="num mt-1 text-[22px] font-semibold leading-none tabular-nums"
+            style={{ color: tone === 'neutral' ? 'var(--text-1)' : TONE_FG[tone] }}
+          >
+            {value}
+          </div>
+          {sub && (
+            <div className="mt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>{sub}</div>
+          )}
+        </div>
+        {sparkData && sparkData.length >= 2 && (
+          <div className="mt-0.5 shrink-0">
+            <Sparkline values={sparkData} color={accentColor ?? 'var(--accent)'} />
+          </div>
+        )}
       </div>
-      <div
-        className="num mt-1 text-[22px] font-semibold leading-none tabular-nums"
-        style={{ color: tone === 'neutral' ? 'var(--text-1)' : TONE_FG[tone] }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div className="mt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>{sub}</div>
-      )}
+    </div>
+  );
+}
+
+// ─── Sparkline ──────────────────────────────────────────────────────────────
+
+export function Sparkline({
+  values, color = 'var(--accent)', width = 72, height = 36,
+}: { values: number[]; color?: string; width?: number; height?: number }) {
+  if (!values || values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = 2 + (i / (values.length - 1)) * (width - 4);
+    const y = (height - 6) - ((v - min) / range) * (height - 12) + 2;
+    return [Number(x.toFixed(1)), Number(y.toFixed(1))] as const;
+  });
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
+  const last = pts[pts.length - 1];
+  const fill = `${line} L${last[0]},${height} L${pts[0][0]},${height} Z`;
+  const gid = `spark-${Math.random().toString(36).slice(2, 8)}`;
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={fill} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last[0]} cy={last[1]} r={3} fill={color} />
+    </svg>
+  );
+}
+
+// ─── StatusPipeline ─────────────────────────────────────────────────────────
+
+/** Horizontal stepper for a fixed lifecycle. `steps` are {key,label} in order. */
+export function StatusPipeline({
+  steps, current,
+}: { steps: Array<{ key: string; label: string }>; current: string }) {
+  const idx = steps.findIndex((s) => s.key === current);
+  return (
+    <div className="flex items-start">
+      {steps.map((step, i) => {
+        const done = i < idx;
+        const cur = i === idx;
+        return (
+          <div key={step.key} className="flex flex-1 items-start last:flex-none">
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
+                style={{
+                  background: done ? 'var(--pos)' : cur ? 'var(--accent)' : 'var(--surface-2)',
+                  border: `2px solid ${done ? 'var(--pos)' : cur ? 'var(--accent)' : 'var(--border)'}`,
+                  color: done || cur ? '#fff' : 'var(--text-3)',
+                }}
+              >
+                {done ? '✓' : i + 1}
+              </div>
+              <span
+                className="whitespace-nowrap text-[10px] font-semibold"
+                style={{ color: done ? 'var(--pos)' : cur ? 'var(--accent-text)' : 'var(--text-3)' }}
+              >
+                {step.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div
+                className="mt-[13px] h-0.5 min-w-[32px] flex-1"
+                style={{ background: i < idx ? 'var(--pos)' : 'var(--border)' }}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

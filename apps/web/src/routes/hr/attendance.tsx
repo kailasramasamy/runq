@@ -1,15 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Upload, Save, CalendarClock, Download } from 'lucide-react';
+import { Upload, Save, CalendarClock, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   PageHeader, Button, Input, Select, Card, CardHeader, CardContent,
-  Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, Modal,
+  Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, Modal,
 } from '@/components/ui';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { EmptyState, Avatar } from '@/components/ar/primitives';
 import { downloadCSV } from '@/lib/csv-export';
 import {
   useEmployees, useAttendance, useUpsertAttendance,
   useBiometricImport, useDailyMuster, useAttendanceImports,
-  type AttendanceStatus, type AttendanceRow,
+  type AttendanceStatus,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -22,12 +22,39 @@ const STATUS_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'week_off', label: 'Week off' },
 ];
 
-const STATUS_VARIANT: Record<AttendanceStatus, any> = {
-  present: 'success', absent: 'danger', half_day: 'warning',
-  leave: 'info', holiday: 'primary', week_off: 'outline',
+// Semantic colours per status — kept as explicit hex (intentional design tokens,
+// the app's variable system has no per-status -bg/-fg trio).
+const STATUS_COLORS: Record<AttendanceStatus, { bg: string; fg: string; border: string }> = {
+  present: { bg: '#dcfce7', fg: '#14532d', border: '#86efac' },
+  absent: { bg: '#fee2e2', fg: '#7f1d1d', border: '#fca5a5' },
+  half_day: { bg: '#dbeafe', fg: '#1e3a8a', border: '#93c5fd' },
+  leave: { bg: '#fef3c7', fg: '#78350f', border: '#fcd34d' },
+  holiday: { bg: '#ede9fe', fg: '#4c1d95', border: '#c4b5fd' },
+  week_off: { bg: '#f1f5f9', fg: '#475569', border: '#e2e8f0' },
 };
 
+// Keyboard shortcut → status (fires when an attendance row is focused).
+const KEY_MAP: Record<string, AttendanceStatus> = {
+  p: 'present', a: 'absent', h: 'half_day', l: 'leave', w: 'week_off', o: 'holiday',
+};
+
+const NON_WORKING: AttendanceStatus[] = ['leave', 'holiday', 'week_off', 'absent'];
+
 type Draft = { status: AttendanceStatus; checkIn: string; checkOut: string };
+
+function calcHours(checkIn: string, checkOut: string): number | null {
+  if (!checkIn || !checkOut) return null;
+  const [ih, im] = checkIn.split(':').map(Number);
+  const [oh, om] = checkOut.split(':').map(Number);
+  const diff = (oh * 60 + om) - (ih * 60 + im);
+  return diff > 0 ? diff / 60 : null;
+}
+
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 export function AttendancePage() {
   const readOnly = useIsReadOnly();
@@ -43,6 +70,8 @@ export function AttendancePage() {
   const upsert = useUpsertAttendance();
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [focusRow, setFocusRow] = useState<string | null>(null);
 
   useEffect(() => {
     const map: Record<string, Draft> = {};
@@ -57,10 +86,21 @@ export function AttendancePage() {
       };
     }
     setDrafts(map);
+    setDirty(new Set());
   }, [employees, attData]);
 
   function setDraft(id: string, patch: Partial<Draft>) {
     setDrafts((p) => ({ ...p, [id]: { ...p[id], ...patch } }));
+    setDirty((p) => new Set([...p, id]));
+  }
+
+  function markAll(status: AttendanceStatus) {
+    setDrafts((p) => {
+      const next: Record<string, Draft> = {};
+      for (const e of employees) next[e.id] = { ...(p[e.id] ?? { checkIn: '', checkOut: '' }), status };
+      return next;
+    });
+    setDirty(new Set(employees.map((e) => e.id)));
   }
 
   async function saveRow(employeeId: string) {
@@ -77,14 +117,26 @@ export function AttendancePage() {
 
   async function saveAll() {
     try {
-      for (const e of employees) await saveRow(e.id);
+      for (const id of dirty) await saveRow(id);
+      setDirty(new Set());
       toast('Attendance saved', 'success');
     } catch (err: any) {
       toast(err?.message ?? 'Save failed', 'error');
     }
   }
 
+  function handleRowKey(e: React.KeyboardEvent, id: string, idx: number) {
+    const k = e.key.toLowerCase();
+    if (KEY_MAP[k]) { e.preventDefault(); setDraft(id, { status: KEY_MAP[k] }); return; }
+    if (e.key === 'ArrowDown' && idx < employees.length - 1) { e.preventDefault(); setFocusRow(employees[idx + 1].id); }
+    if (e.key === 'ArrowUp' && idx > 0) { e.preventDefault(); setFocusRow(employees[idx - 1].id); }
+    if (e.key === 'Escape') setFocusRow(null);
+  }
+
   const muster = musterData?.data ?? { present: 0, absent: 0, half_day: 0, leave: 0, holiday: 0, week_off: 0 };
+  const weekday = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
 
   return (
     <div>
@@ -92,7 +144,7 @@ export function AttendancePage() {
         fullWidth
         breadcrumbs={[{ label: 'HR', href: '/hr' }, { label: 'Attendance' }]}
         title="Attendance"
-        description="Daily muster, OT, and biometric CSV imports."
+        description="Daily muster, check-in/out, OT. Use keyboard shortcuts to mark status quickly."
         actions={
           <>
             <Button
@@ -115,8 +167,8 @@ export function AttendancePage() {
                 <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
                   <Upload size={13} /> Import biometric
                 </Button>
-                <Button size="sm" onClick={saveAll} disabled={upsert.isPending}>
-                  <Save size={13} /> Save all
+                <Button size="sm" onClick={saveAll} disabled={upsert.isPending || dirty.size === 0}>
+                  <Save size={13} /> Save{dirty.size > 0 ? ` (${dirty.size})` : ''}
                 </Button>
               </>
             )}
@@ -124,29 +176,89 @@ export function AttendancePage() {
         }
       />
 
-      <div className="mb-3 flex flex-wrap items-end gap-3">
-        <div className="w-44">
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
+      {/* Date navigation + quick actions */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setDate(shiftDate(date, -1))}
+          className="flex h-8 w-8 items-center justify-center rounded-md border hover:bg-[color:var(--surface-2)]"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          aria-label="Previous day"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-md border px-2.5 py-1.5 text-[13px] font-semibold"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
+        />
+        <button
+          type="button"
+          onClick={() => setDate(shiftDate(date, 1))}
+          className="flex h-8 w-8 items-center justify-center rounded-md border hover:bg-[color:var(--surface-2)]"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          aria-label="Next day"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <span className="ml-1 text-[13px]" style={{ color: 'var(--text-2)' }}>{weekday}</span>
+        <div className="flex-1" />
+        {!readOnly && (
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => markAll('present')}>All present</Button>
+            <Button variant="outline" size="sm" onClick={() => markAll('week_off')}>All week off</Button>
+            <Button variant="outline" size="sm" onClick={() => markAll('holiday')}>Mark holiday</Button>
+          </div>
+        )}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
-        <StatTile label="Present" value={muster.present} />
-        <StatTile label="Half day" value={muster.half_day} />
-        <StatTile label="Leave" value={muster.leave} />
-        <StatTile label="Absent" value={muster.absent} />
-        <StatTile label="Holiday" value={muster.holiday} />
-        <StatTile label="Week off" value={muster.week_off} />
+      {/* Muster tiles */}
+      <div className="mb-4 grid grid-cols-3 gap-2 md:grid-cols-6">
+        {(Object.keys(STATUS_COLORS) as AttendanceStatus[]).map((k) => {
+          const c = STATUS_COLORS[k];
+          return (
+            <div key={k} className="rounded-lg border px-2 py-2.5 text-center" style={{ background: c.bg, borderColor: c.border }}>
+              <div className="num text-[22px] font-bold leading-none tabular-nums" style={{ color: c.fg }}>
+                {muster[k]}
+              </div>
+              <div className="mt-1 text-[10px] font-semibold capitalize opacity-80" style={{ color: c.fg }}>
+                {k.replace('_', ' ')}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {/* Keyboard shortcut legend */}
+      {!readOnly && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <span className="text-[11px] font-medium" style={{ color: 'var(--text-3)' }}>
+            Shortcuts (focus a row first):
+          </span>
+          {Object.entries(KEY_MAP).map(([k, v]) => (
+            <span key={k} className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-2)' }}>
+              <kbd
+                className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+                style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+              >
+                {k.toUpperCase()}
+              </kbd>
+              <span style={{ color: STATUS_COLORS[v].fg }}>{v.replace('_', ' ')}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <Table>
         <TableHeader>
           <tr>
-            <Th>Code</Th>
-            <Th>Name</Th>
+            <Th>Employee</Th>
             <Th>Status</Th>
             <Th>Check in</Th>
             <Th>Check out</Th>
+            <Th align="right">Hours</Th>
             <Th align="right" />
           </tr>
         </TableHeader>
@@ -155,29 +267,57 @@ export function AttendancePage() {
             <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : employees.length === 0 ? (
             <tr><td colSpan={6}><EmptyState icon={<CalendarClock size={18} />} title="No active employees" description="Add employees to start tracking attendance." /></td></tr>
-          ) : employees.map((e) => {
+          ) : employees.map((e, idx) => {
             const d = drafts[e.id] ?? { status: 'present' as AttendanceStatus, checkIn: '', checkOut: '' };
+            const c = STATUS_COLORS[d.status];
+            const isDirty = dirty.has(e.id);
+            const isFocused = focusRow === e.id;
+            const disableTimes = readOnly || NON_WORKING.includes(d.status);
+            const hours = calcHours(d.checkIn, d.checkOut);
+            const name = `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`;
             return (
-              <TableRow key={e.id}>
-                <TableCell className="num" style={{ color: 'var(--text-3)' }}>{e.employeeCode}</TableCell>
-                <TableCell><span className="font-medium" style={{ color: 'var(--text-1)' }}>{e.firstName}{e.lastName ? ' ' + e.lastName : ''}</span></TableCell>
+              <tr
+                key={e.id}
+                tabIndex={readOnly ? -1 : 0}
+                onFocus={() => setFocusRow(e.id)}
+                onKeyDown={(ev) => !readOnly && handleRowKey(ev, e.id, idx)}
+                className="border-b outline-none"
+                style={{
+                  borderColor: 'var(--border-soft)',
+                  background: isFocused ? 'var(--accent-soft)' : isDirty ? '#fffbeb' : 'transparent',
+                }}
+              >
                 <TableCell>
-                  {readOnly ? (
-                    <Badge variant={STATUS_VARIANT[d.status]}>{d.status.replace('_', ' ')}</Badge>
-                  ) : (
-                    <Select
-                      options={STATUS_OPTIONS}
-                      value={d.status}
-                      onChange={(ev) => setDraft(e.id, { status: ev.target.value as AttendanceStatus })}
-                    />
-                  )}
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={name} size={28} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{name}</span>
+                        {isDirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: '#f59e0b' }} />}
+                      </div>
+                      <div className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{e.employeeCode}</div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <select
+                    value={d.status}
+                    onChange={(ev) => setDraft(e.id, { status: ev.target.value as AttendanceStatus })}
+                    disabled={readOnly}
+                    className="rounded-md border px-2 py-1 text-[12px] font-semibold outline-none"
+                    style={{ background: c.bg, borderColor: c.border, color: c.fg }}
+                  >
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </TableCell>
                 <TableCell>
                   <Input
                     type="time"
                     value={d.checkIn}
                     onChange={(ev) => setDraft(e.id, { checkIn: ev.target.value })}
-                    disabled={readOnly}
+                    disabled={disableTimes}
                   />
                 </TableCell>
                 <TableCell>
@@ -185,17 +325,30 @@ export function AttendancePage() {
                     type="time"
                     value={d.checkOut}
                     onChange={(ev) => setDraft(e.id, { checkOut: ev.target.value })}
-                    disabled={readOnly}
+                    disabled={disableTimes}
                   />
+                </TableCell>
+                <TableCell align="right">
+                  <span
+                    className="num text-[13px] font-semibold tabular-nums"
+                    style={{ color: hours != null ? '#16a34a' : 'var(--text-3)' }}
+                  >
+                    {hours != null ? `${hours.toFixed(1)}h` : '—'}
+                  </span>
                 </TableCell>
                 <TableCell align="right">
                   {!readOnly && (
                     <Button size="sm" variant="outline" onClick={() => {
-                      saveRow(e.id).then(() => toast(`Saved ${e.firstName}`, 'success')).catch((err: any) => toast(err?.message ?? 'Failed', 'error'));
+                      saveRow(e.id)
+                        .then(() => {
+                          setDirty((p) => { const n = new Set(p); n.delete(e.id); return n; });
+                          toast(`Saved ${e.firstName}`, 'success');
+                        })
+                        .catch((err: any) => toast(err?.message ?? 'Failed', 'error'));
                     }}>Save</Button>
                   )}
                 </TableCell>
-              </TableRow>
+              </tr>
             );
           })}
         </TableBody>

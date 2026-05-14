@@ -53,6 +53,9 @@ export interface Employee {
   bankIfsc: string | null;
   bankName: string | null;
   ctcAnnual: string | null;
+  agency: string | null;
+  dailyWageRate: string | null;
+  vendorId: string | null;
   departmentName?: string | null;
   designationName?: string | null;
 }
@@ -551,6 +554,35 @@ export function usePostClaimToAp() {
     mutationFn: ({ id, employeeId }: { id: string; employeeId: string }) =>
       api.post<ApiSuccess<{ billId: string; vendorId: string }>>(`/hr/expense-claims/${id}/post-to-ap`, { employeeId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['expense-claims'] }),
+  });
+}
+
+// ─── HR dashboard summary ────────────────────────────────────────────────
+
+export interface HrDashboardSummary {
+  payroll: {
+    runId: string | null;
+    month: number;
+    year: number;
+    status: 'draft' | 'processed' | 'approved' | 'closed' | null;
+    totalNet: string;
+  };
+  employeesWithoutSalary: number;
+  attendanceNotMarkedToday: number;
+  confirmationsDue: number;
+  attendanceTrend: Array<{
+    year: number;
+    month: number;
+    present: number;
+    totalMarked: number;
+    ratePct: number;
+  }>;
+}
+
+export function useHrDashboard() {
+  return useQuery({
+    queryKey: ['hr', 'dashboard'],
+    queryFn: () => api.get<ApiSuccess<HrDashboardSummary>>(`/hr/dashboard`),
   });
 }
 

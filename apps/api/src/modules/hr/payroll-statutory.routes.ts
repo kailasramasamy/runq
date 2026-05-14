@@ -9,6 +9,7 @@ import {
   type ExportPayslip, type ExportEmployee, type Form24QRow,
 } from './payroll/exporters';
 import { NotFoundError } from '../../utils/errors';
+import { PayrollRunService } from './payroll/payroll-run.service';
 
 const ALL = ['owner', 'accountant', 'viewer'] as const;
 
@@ -76,6 +77,12 @@ async function loadRunExportData(db: any, tenantId: string, runId: string) {
 }
 
 export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/payroll-runs/:id/pf-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new PayrollRunService(req.server.db, req.tenantId);
+    return { data: await svc.pfChallan(id) };
+  });
+
   app.get('/payroll-runs/:id/exports/pf-ecr', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);

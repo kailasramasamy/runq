@@ -225,6 +225,27 @@ export function useForm24Q(year: number, quarter: number) {
   });
 }
 
+export interface PfChallan {
+  run: { id: string; month: number; year: number; status: PayrollRunStatus };
+  totalEmployees: number;
+  totalPfWages: number;
+  account1Epf: number;
+  account2Admin: number;
+  account10Eps: number;
+  account21Edli: number;
+  account22EdliAdmin: number;
+  employeeShare: number;
+  employerShare: number;
+  grandTotal: number;
+}
+export function usePfChallan(runId: string | null) {
+  return useQuery({
+    queryKey: ['hr', 'payroll', 'runs', runId, 'pf-challan'],
+    queryFn: () => api.get<{ data: PfChallan }>(`/hr/payroll-runs/${runId}/pf-challan`),
+    enabled: !!runId,
+  });
+}
+
 export function useClosePayrollRun() {
   const qc = useQueryClient();
   return useMutation({

@@ -7,7 +7,7 @@ import type {
   CreatePayrollRunInput, UpdatePayslipInput,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
-import { calcPf, calcEsi, calcPtKarnataka, calcMonthlyTdsNewRegime } from './statutory';
+import { calcPf, calcEsi, calcPtKarnataka, calcMonthlyTdsNewRegime, calcPfChallan } from './statutory';
 import { EmployeeSalaryService } from './employee-salary.service';
 import { GLService } from '../../gl/gl.service';
 
@@ -58,6 +58,31 @@ export class PayrollRunService {
       employeeCode: r.employeeCode,
       employeeName: `${r.firstName}${r.lastName ? ' ' + r.lastName : ''}`,
     }));
+  }
+
+  /**
+   * EPFO challan summary for a run — the account-head totals the customer
+   * reconciles against the portal's TRRN before paying.
+   */
+  async pfChallan(runId: string) {
+    const run = await this.getById(runId);
+    const slips = await this.db
+      .select()
+      .from(payslips)
+      .where(eq(payslips.payrollRunId, runId));
+
+    const rows = slips.map((s) => {
+      const pfWages = (s.earnings ?? [])
+        .filter((c) => c.code === 'BASIC' || c.code === 'DA')
+        .reduce((sum, c) => sum + c.amount, 0);
+      return {
+        pfWages,
+        pfEmployee: Number(s.pfEmployee),
+        pfEmployer: Number(s.pfEmployer),
+      };
+    });
+
+    return { run: { id: run.id, month: run.month, year: run.year, status: run.status }, ...calcPfChallan(rows) };
   }
 
   async getPayslip(runId: string, payslipId: string) {

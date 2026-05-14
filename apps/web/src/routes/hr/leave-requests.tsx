@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Plus, CheckCircle, XCircle, Ban, Calendar } from 'lucide-react';
 import {
-  PageHeader, Button, Input, Select, Textarea, Combobox, Card, CardHeader, CardContent,
+  PageHeader, Button, Input, Textarea, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, Modal,
 } from '@/components/ui';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { StatTile, EmptyState, Avatar } from '@/components/ar/primitives';
 import {
   useLeaveRequests, useCreateLeaveRequest, useReviewLeaveRequest, useCancelLeaveRequest,
   useLeaveTypes, useEmployees,
@@ -12,8 +12,8 @@ import {
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
-const STATUS_OPTS: Array<{ value: '' | LeaveRequestStatus; label: string }> = [
-  { value: '', label: 'All statuses' },
+const STATUS_FILTERS: Array<{ value: '' | LeaveRequestStatus; label: string }> = [
+  { value: '', label: 'All' },
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
@@ -24,25 +24,33 @@ const STATUS_VARIANT: Record<LeaveRequestStatus, any> = {
   pending: 'warning', approved: 'success', rejected: 'danger', cancelled: 'outline',
 };
 
-export function LeaveRequestsPage() {
+const VALID_STATUSES: LeaveRequestStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
+
+export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } = {}) {
   const readOnly = useIsReadOnly();
   const { toast } = useToast();
-  const [status, setStatus] = useState<'' | LeaveRequestStatus>('');
+  const [status, setStatus] = useState<'' | LeaveRequestStatus>(
+    initialStatus && VALID_STATUSES.includes(initialStatus as LeaveRequestStatus)
+      ? (initialStatus as LeaveRequestStatus)
+      : '',
+  );
   const [showNew, setShowNew] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const { data, isLoading } = useLeaveRequests({ status: status || undefined });
+  const { data, isLoading } = useLeaveRequests({});
   const review = useReviewLeaveRequest();
   const cancel = useCancelLeaveRequest();
 
-  const requests = data?.data ?? [];
+  const allRequests = data?.data ?? [];
+  const requests = status ? allRequests.filter((r) => r.status === status) : allRequests;
   const counts = {
-    pending: requests.filter((r) => r.status === 'pending').length,
-    approved: requests.filter((r) => r.status === 'approved').length,
-    rejected: requests.filter((r) => r.status === 'rejected').length,
-    cancelled: requests.filter((r) => r.status === 'cancelled').length,
-  };
+    '': allRequests.length,
+    pending: allRequests.filter((r) => r.status === 'pending').length,
+    approved: allRequests.filter((r) => r.status === 'approved').length,
+    rejected: allRequests.filter((r) => r.status === 'rejected').length,
+    cancelled: allRequests.filter((r) => r.status === 'cancelled').length,
+  } as Record<'' | LeaveRequestStatus, number>;
 
   function handleApprove(id: string) {
     review.mutate({ id, approved: true }, {
@@ -79,7 +87,35 @@ export function LeaveRequestsPage() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Select value={status} onChange={(e) => setStatus(e.target.value as any)} options={STATUS_OPTS} />
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_FILTERS.map((f) => {
+            const active = status === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setStatus(f.value)}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium transition-colors"
+                style={{
+                  background: active ? 'var(--accent)' : 'var(--surface-2)',
+                  color: active ? '#fff' : 'var(--text-2)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                }}
+              >
+                {f.label}
+                <span
+                  className="num rounded-full px-1.5 text-[10px] font-semibold"
+                  style={{
+                    background: active ? 'rgba(255,255,255,0.22)' : 'var(--surface)',
+                    color: active ? '#fff' : 'var(--text-3)',
+                  }}
+                >
+                  {counts[f.value]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{requests.length} requests</span>
       </div>
@@ -104,40 +140,60 @@ export function LeaveRequestsPage() {
           ) : requests.map((r: LeaveRequest) => (
             <TableRow key={r.id}>
               <TableCell>
-                <div className="min-w-0">
-                  <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{r.employeeName}</div>
-                  <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{r.employeeCode}</div>
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={r.employeeName} size={28} />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{r.employeeName}</div>
+                    <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{r.employeeCode}</div>
+                  </div>
                 </div>
               </TableCell>
-              <TableCell><Badge variant="default">{r.typeCode}</Badge> <span className="ml-1 text-[11px]" style={{ color: 'var(--text-3)' }}>{r.typeName}</span></TableCell>
+              <TableCell>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="num rounded px-1.5 py-0.5 text-[11px] font-bold"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+                  >
+                    {r.typeCode}
+                  </span>
+                  <span className="text-[12px]" style={{ color: 'var(--text-2)' }}>{r.typeName}</span>
+                </span>
+              </TableCell>
               <TableCell className="num" style={{ color: 'var(--text-2)' }}>{r.fromDate} → {r.toDate}{r.halfDay && <span className="ml-1 text-[10px]">(½)</span>}</TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(r.days)}</TableCell>
+              <TableCell align="right" className="num font-medium" style={{ color: 'var(--text-1)' }}>{Number(r.days)}</TableCell>
               <TableCell style={{ color: 'var(--text-2)' }}>{r.reason ?? <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>
               <TableCell><Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge></TableCell>
               <TableCell align="right">
-                {!readOnly && r.status === 'pending' && (
-                  <div className="flex items-center justify-end gap-1">
-                    <Button size="sm" variant="outline" onClick={() => handleApprove(r.id)} disabled={review.isPending}>
-                      <CheckCircle size={12} /> Approve
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setRejectId(r.id)}>
-                      <XCircle size={12} /> Reject
-                    </Button>
-                  </div>
-                )}
-                {!readOnly && (r.status === 'pending' || r.status === 'approved') && (
-                  <button
-                    className="ml-1 rounded p-1 hover:bg-[var(--surface-2)]"
-                    style={{ color: 'var(--text-3)' }}
-                    onClick={() => cancel.mutate(r.id, {
-                      onSuccess: () => toast('Cancelled', 'success'),
-                      onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
-                    })}
-                    aria-label="Cancel"
-                  >
-                    <Ban size={13} />
-                  </button>
-                )}
+                <div className="flex items-center justify-end gap-1">
+                  {!readOnly && r.status === 'pending' && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleApprove(r.id)}
+                        disabled={review.isPending}
+                        style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                      >
+                        <CheckCircle size={12} /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setRejectId(r.id)}>
+                        <XCircle size={12} /> Reject
+                      </Button>
+                    </>
+                  )}
+                  {!readOnly && (r.status === 'pending' || r.status === 'approved') && (
+                    <button
+                      className="rounded p-1 hover:bg-[var(--surface-2)]"
+                      style={{ color: 'var(--text-3)' }}
+                      onClick={() => cancel.mutate(r.id, {
+                        onSuccess: () => toast('Cancelled', 'success'),
+                        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+                      })}
+                      aria-label="Cancel"
+                    >
+                      <Ban size={13} />
+                    </button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

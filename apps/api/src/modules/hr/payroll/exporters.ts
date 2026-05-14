@@ -40,8 +40,11 @@ const n = (v: string | number) => Math.round(Number(v));
 /**
  * EPFO ECR 2.0 — pipe-delimited, one line per UAN.
  * Columns: UAN | Name | Gross | EPF wages | EPS wages | EDLI wages |
- *          EPF contribution | EPS contribution | EDLI contribution | Refund | NCP days
+ *          EPF contribution (EE 12%) | EPS contribution (ER 8.33%) |
+ *          EPF-EPS diff (ER 3.67%) | Refund of advances | NCP days
  *
+ * Col 9 is the *employer's* share remitted into EPF (12% − 8.33%), NOT EDLI —
+ * EDLI/admin are charged separately on the challan, not in the ECR line.
  * NCP days = non-contributory paid days (LOP).
  */
 export function buildPfEcr(employees: ExportEmployee[], payslipsByEmp: Map<string, ExportPayslip>): string {
@@ -64,9 +67,9 @@ export function buildPfEcr(employees: ExportEmployee[], payslipsByEmp: Map<strin
     const epsWages = Math.min(15000, pfWages);
     const edliWages = pfWages;
 
-    const epfContrib = n(p.pfEmployee);
-    const epsContrib = n(epsWages * 0.0833);                  // 8.33% of EPS wages
-    const edliContrib = n(p.pfEmployer) - epsContrib;
+    const epfContrib = n(p.pfEmployee);                       // employee 12%
+    const epsContrib = n(epsWages * 0.0833);                  // employer 8.33% → pension
+    const epfEpsDiff = Math.max(0, n(p.pfEmployer) - epsContrib); // employer 3.67% → EPF
     const refund = 0;
     const ncpDays = n(p.lopDays);
 
@@ -80,7 +83,7 @@ export function buildPfEcr(employees: ExportEmployee[], payslipsByEmp: Map<strin
         n(edliWages),
         epfContrib,
         epsContrib,
-        edliContrib < 0 ? 0 : edliContrib,
+        epfEpsDiff,
         refund,
         ncpDays,
       ].join('#~#'),

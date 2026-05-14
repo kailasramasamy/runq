@@ -74,7 +74,7 @@ export function PayrollRunsListPage() {
               <TableCell><Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge></TableCell>
               <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{r.totalEmployees}</TableCell>
               <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{formatINR(Number(r.totalGross))}</TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{formatINR(Number(r.totalDeductions))}</TableCell>
+              <TableCell align="right" className="num text-[12px]" style={{ color: '#dc2626' }}>− {formatINR(Number(r.totalDeductions))}</TableCell>
               <TableCell align="right" className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(Number(r.totalNet))}</TableCell>
               <TableCell align="right"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></TableCell>
             </TableRow>

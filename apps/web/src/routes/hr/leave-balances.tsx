@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Scale, ArrowRight } from 'lucide-react';
 import {
   PageHeader, Button, Select, Combobox, useToast,
-  Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge,
+  Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, Avatar } from '@/components/ar/primitives';
 import {
   useLeaveBalances, useEmployees, useCarryForwardLeave,
 } from '@/hooks/queries/use-hr';
@@ -74,34 +74,62 @@ export function LeaveBalancesPage() {
             <Th align="right">Accrued</Th>
             <Th align="right">Used</Th>
             <Th align="right">Balance</Th>
+            <Th>Progress</Th>
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : balances.length === 0 ? (
-            <tr><td colSpan={6}>
+            <tr><td colSpan={7}>
               <EmptyState
                 icon={<Scale size={18} />}
                 title="No leave balances"
                 description="Balances initialize automatically when leave is requested or approved."
               />
             </td></tr>
-          ) : balances.map((b) => (
-            <TableRow key={b.id}>
-              <TableCell>
-                <div className="min-w-0">
-                  <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{b.employeeName}</div>
-                  <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{b.employeeCode}</div>
-                </div>
-              </TableCell>
-              <TableCell><Badge variant="default">{b.typeCode}</Badge> <span className="ml-1 text-[11px]" style={{ color: 'var(--text-3)' }}>{b.typeName}</span></TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.opening)}</TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.accrued)}</TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.used)}</TableCell>
-              <TableCell align="right" className="num font-medium" style={{ color: b.balance > 0 ? 'var(--text-1)' : 'var(--text-3)' }}>{b.balance}</TableCell>
-            </TableRow>
-          ))}
+          ) : balances.map((b) => {
+            const accrued = Number(b.accrued);
+            const used = Number(b.used);
+            const pct = accrued > 0 ? Math.round(Math.min(used / accrued, 1) * 100) : 0;
+            const barColor = pct > 80 ? '#dc2626' : pct > 50 ? '#d97706' : '#16a34a';
+            return (
+              <TableRow key={b.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={b.employeeName} size={28} />
+                    <div className="min-w-0">
+                      <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{b.employeeName}</div>
+                      <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{b.employeeCode}</div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="num rounded px-1.5 py-0.5 text-[11px] font-bold"
+                      style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+                    >
+                      {b.typeCode}
+                    </span>
+                    <span className="text-[12px]" style={{ color: 'var(--text-2)' }}>{b.typeName}</span>
+                  </span>
+                </TableCell>
+                <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.opening)}</TableCell>
+                <TableCell align="right" className="num font-medium" style={{ color: '#16a34a' }}>+{accrued}</TableCell>
+                <TableCell align="right" className="num font-medium" style={{ color: '#dc2626' }}>−{used}</TableCell>
+                <TableCell align="right" className="num text-[15px] font-semibold" style={{ color: b.balance > 0 ? 'var(--text-1)' : 'var(--text-3)' }}>{b.balance}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--surface-2)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
+                    </div>
+                    <span className="num w-7 text-right text-[10px]" style={{ color: 'var(--text-3)' }}>{pct}%</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
