@@ -13,9 +13,9 @@ export async function getAuthToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: 'admin@demo.com',
-      password: 'admin123',
-      tenant: 'demo-company',
+      email: process.env.TEST_EMAIL || 'appreview@runq.in',
+      password: process.env.TEST_PASSWORD || 'AppleReview2026!',
+      tenant: process.env.TEST_TENANT || 'runq-demo',
     }),
   });
 

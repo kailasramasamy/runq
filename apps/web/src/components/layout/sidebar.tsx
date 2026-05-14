@@ -13,6 +13,8 @@ import {
   Zap, LifeBuoy, Command, Bell, Mail,
   PanelLeftClose, PanelLeftOpen, Menu, X,
   ArrowDownToLine, ArrowUpFromLine, HandCoins,
+  ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
+  Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -27,6 +29,61 @@ export type NavItem = {
   badge?: string;
 };
 export type NavGroup = { label: string | null; items: NavItem[] };
+
+export const HR_NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'hr-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/hr' },
+    ],
+  },
+  {
+    label: 'Workforce',
+    items: [
+      { key: 'hr-employees', label: 'Employees', icon: Users, path: '/hr/employees' },
+      { key: 'hr-departments', label: 'Departments', icon: Briefcase, path: '/hr/departments' },
+      { key: 'hr-designations', label: 'Designations', icon: IdCard, path: '/hr/designations' },
+      { key: 'hr-contract-labour', label: 'Contract labour', icon: HardHat, path: '/hr/contract-labour' },
+    ],
+  },
+  {
+    label: 'Time & attendance',
+    items: [
+      { key: 'hr-attendance', label: 'Attendance', icon: CalendarClock, path: '/hr/attendance' },
+      { key: 'hr-shifts', label: 'Shifts', icon: Clock3, path: '/hr/shifts' },
+      { key: 'hr-holidays', label: 'Holidays', icon: CalendarDays, path: '/hr/holidays' },
+    ],
+  },
+  {
+    label: 'Leave',
+    items: [
+      { key: 'hr-leave-requests', label: 'Leave requests', icon: CalendarOff, path: '/hr/leave-requests' },
+      { key: 'hr-leave-balances', label: 'Leave balances', icon: Scale, path: '/hr/leave-balances' },
+      { key: 'hr-leave-types', label: 'Leave types', icon: Layers, path: '/hr/leave-types' },
+    ],
+  },
+  {
+    label: 'Payroll',
+    items: [
+      { key: 'hr-payroll-runs', label: 'Payroll runs', icon: Calculator, path: '/hr/payroll-runs' },
+      { key: 'hr-salary-structures', label: 'Salary structures', icon: Layers, path: '/hr/salary-structures' },
+      { key: 'hr-salary-components', label: 'Salary components', icon: Coins, path: '/hr/salary-components' },
+      { key: 'hr-form-24q', label: 'Form 24Q (TDS)', icon: Receipt, path: '/hr/form-24q' },
+    ],
+  },
+  {
+    label: 'Money',
+    items: [
+      { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/expenses/claims' },
+    ],
+  },
+  {
+    label: 'Setup',
+    items: [
+      { key: 'hr-settings', label: 'Settings', icon: Settings, path: '/settings/setup' },
+    ],
+  },
+];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -102,6 +159,99 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+type ModuleKey = 'finance' | 'hr';
+const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
+  { key: 'finance', label: 'Finance', path: '/', icon: Wallet2, description: 'AR, AP, banking, GST' },
+  { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
+];
+
+function ModuleSwitcher({
+  activeModule, onNavigate,
+}: {
+  activeModule: ModuleKey;
+  onNavigate?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = MODULES.find((m) => m.key === activeModule) ?? MODULES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-module-switcher]')) setOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false); }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" data-module-switcher>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-[3px] text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors"
+        style={{
+          background: open ? 'var(--accent)' : 'var(--accent-soft)',
+          color: open ? 'white' : 'var(--accent-text)',
+        }}
+      >
+        {active.label}
+        <ChevronDown size={11} className={cn('transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-30 mt-1.5 w-[220px] overflow-hidden rounded-lg border shadow-lg"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <div
+            className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+            style={{ color: 'var(--text-3)' }}
+          >
+            Switch module
+          </div>
+          {MODULES.map((m) => {
+            const isActive = m.key === activeModule;
+            const ModIcon = m.icon;
+            return (
+              <Link
+                key={m.key}
+                to={m.path}
+                role="menuitem"
+                onClick={() => { setOpen(false); onNavigate?.(); }}
+                className="flex items-center gap-2.5 px-3 py-2 text-[12.5px] hover:bg-[color:var(--surface-2)]"
+                style={{ color: 'var(--text-1)' }}
+              >
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                  style={{
+                    background: isActive ? 'var(--accent)' : 'var(--surface-2)',
+                    color: isActive ? 'white' : 'var(--text-2)',
+                  }}
+                >
+                  <ModIcon size={14} />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="truncate font-medium">{m.label}</span>
+                  <span className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{m.description}</span>
+                </span>
+                {isActive && <Check size={14} style={{ color: 'var(--accent-text)' }} />}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NavItemRow({
   item, active, collapsed, onClick,
 }: {
@@ -172,7 +322,11 @@ function SidebarContent({
   const pendingClaimsQuery = usePendingPaymentClaimsCount();
   const pendingClaimsCount = pendingClaimsQuery.data ?? 0;
 
-  const allPaths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.path));
+  const activeModule: 'hr' | 'finance' =
+    currentPath === '/hr' || currentPath.startsWith('/hr/') ? 'hr' : 'finance';
+  const groups = activeModule === 'hr' ? HR_NAV_GROUPS : NAV_GROUPS;
+
+  const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));
   const bestMatch = allPaths
     .filter((p) => (p === '/' ? currentPath === '/' : currentPath === p || currentPath.startsWith(p + '/')))
     .reduce((a, b) => (b.length > a.length ? b : a), '');
@@ -214,19 +368,16 @@ function SidebarContent({
           )
         ) : (
           <>
-            <Link to="/" className="flex min-w-0 items-center gap-2" onClick={onNavigate}>
-              <img
-                src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`}
-                alt="runQ"
-                className="h-[22px] shrink-0"
-              />
-              <span
-                className="whitespace-nowrap rounded px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.1em]"
-                style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
-              >
-                Finance
-              </span>
-            </Link>
+            <div className="flex min-w-0 items-center gap-2">
+              <Link to="/" className="flex min-w-0 items-center" onClick={onNavigate}>
+                <img
+                  src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`}
+                  alt="runQ"
+                  className="h-[22px] shrink-0"
+                />
+              </Link>
+              <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />
+            </div>
             {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
@@ -248,7 +399,7 @@ function SidebarContent({
           collapsed ? 'py-2' : 'px-3 py-3',
         )}
       >
-        {NAV_GROUPS.map((group, gi) => (
+        {groups.map((group, gi) => (
           <div key={gi} className="space-y-0.5">
             {!collapsed && group.label ? (
               <div

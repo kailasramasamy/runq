@@ -124,6 +124,23 @@ class ApiClient {
   delete<T>(path: string) {
     return this.request<T>(path, { method: 'DELETE' });
   }
+
+  async download(path: string, filename: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    if (this.tenantId) headers['X-Tenant-Id'] = this.tenantId;
+    const res = await fetch(`${BASE_URL}${path}`, { headers });
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 }
 
 export const api = new ApiClient();

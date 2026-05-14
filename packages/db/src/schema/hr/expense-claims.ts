@@ -19,6 +19,8 @@ export const expenseClaims = pgTable('expense_claims', {
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   rejectionReason: text('rejection_reason'),
   reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
+  employeeId: uuid('employee_id'),
+  billId: uuid('bill_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

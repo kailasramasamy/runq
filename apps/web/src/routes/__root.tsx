@@ -131,6 +131,24 @@ import { PriceListEditPage } from './masters/price-lists/edit';
 import { CategoriesPage } from './masters/categories';
 import { QuotesAndOrdersPage } from './ar/quotes-orders/index';
 import { ExpenseClaimsPage } from './hr/expense-claims';
+import { HRDashboardPage } from './hr/index';
+import { EmployeeListPage } from './hr/employees/index';
+import { NewEmployeePage } from './hr/employees/new';
+import { EmployeeDetailPage } from './hr/employees/detail';
+import { DepartmentsPage } from './hr/departments';
+import { DesignationsPage } from './hr/designations';
+import { ShiftsPage } from './hr/shifts';
+import { HolidaysPage } from './hr/holidays';
+import { AttendancePage } from './hr/attendance';
+import { LeaveTypesPage } from './hr/leave-types';
+import { LeaveRequestsPage } from './hr/leave-requests';
+import { LeaveBalancesPage } from './hr/leave-balances';
+import { SalaryComponentsPage } from './hr/salary-components';
+import { SalaryStructuresPage } from './hr/salary-structures';
+import { PayrollRunsListPage } from './hr/payroll-runs/index';
+import { PayrollRunDetailPage } from './hr/payroll-runs/detail';
+import { Form24QPage } from './hr/form-24q';
+import { ContractLabourPage } from './hr/contract-labour';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
 import {
@@ -1487,6 +1505,110 @@ const expenseClaimsRoute = createRoute({
   component: ExpenseClaimsPage,
 });
 
+// ─── HR Module Routes ────────────────────────────────────────────────────────
+
+const hrRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/hr',
+  component: () => <Outlet />,
+});
+const hrIndexRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/',
+  component: HRDashboardPage,
+});
+const hrEmployeesRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/employees',
+  component: EmployeeListPage,
+});
+const hrEmployeeNewRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/employees/new',
+  component: NewEmployeePage,
+});
+const hrEmployeeDetailRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/employees/$employeeId',
+  component: () => {
+    const { employeeId } = hrEmployeeDetailRoute.useParams();
+    return <EmployeeDetailPage employeeId={employeeId} />;
+  },
+});
+const hrDepartmentsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/departments',
+  component: DepartmentsPage,
+});
+const hrDesignationsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/designations',
+  component: DesignationsPage,
+});
+const hrShiftsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/shifts',
+  component: ShiftsPage,
+});
+const hrHolidaysRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/holidays',
+  component: HolidaysPage,
+});
+const hrAttendanceRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/attendance',
+  component: AttendancePage,
+});
+const hrLeaveTypesRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/leave-types',
+  component: LeaveTypesPage,
+});
+const hrLeaveRequestsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/leave-requests',
+  component: LeaveRequestsPage,
+});
+const hrLeaveBalancesRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/leave-balances',
+  component: LeaveBalancesPage,
+});
+const hrSalaryComponentsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/salary-components',
+  component: SalaryComponentsPage,
+});
+const hrSalaryStructuresRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/salary-structures',
+  component: SalaryStructuresPage,
+});
+const hrPayrollRunsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/payroll-runs',
+  component: PayrollRunsListPage,
+});
+const hrPayrollRunDetailRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/payroll-runs/$runId',
+  component: () => {
+    const { runId } = hrPayrollRunDetailRoute.useParams();
+    return <PayrollRunDetailPage runId={runId} />;
+  },
+});
+const hrForm24QRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/form-24q',
+  component: Form24QPage,
+});
+const hrContractLabourRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/contract-labour',
+  component: ContractLabourPage,
+});
+
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
 const agentActivityRoute = createRoute({
@@ -1849,6 +1971,26 @@ export const routeTree = rootRoute.addChildren([
     expensesRoute.addChildren([
       expensesIndexRoute,
       expenseClaimsRoute,
+    ]),
+    hrRoute.addChildren([
+      hrIndexRoute,
+      hrEmployeesRoute,
+      hrEmployeeNewRoute,
+      hrEmployeeDetailRoute,
+      hrDepartmentsRoute,
+      hrDesignationsRoute,
+      hrShiftsRoute,
+      hrHolidaysRoute,
+      hrAttendanceRoute,
+      hrLeaveTypesRoute,
+      hrLeaveRequestsRoute,
+      hrLeaveBalancesRoute,
+      hrSalaryComponentsRoute,
+      hrSalaryStructuresRoute,
+      hrPayrollRunsRoute,
+      hrPayrollRunDetailRoute,
+      hrForm24QRoute,
+      hrContractLabourRoute,
     ]),
     helpRoute.addChildren([
       helpIndexRoute,

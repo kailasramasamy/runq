@@ -1,0 +1,270 @@
+import { useState } from 'react';
+import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import {
+  PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal,
+  Table, TableHeader, TableBody, TableRow, TableCell, Th,
+} from '@/components/ui';
+import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { formatINR } from '@/lib/utils';
+import { downloadCSV } from '@/lib/csv-export';
+import {
+  usePayrollRun, usePayslips, useProcessPayrollRun, useApprovePayrollRun, useClosePayrollRun,
+  type PayrollRunStatus, type Payslip,
+} from '@/hooks/queries/use-hr-payroll';
+import { useIsReadOnly } from '@/providers/auth-provider';
+
+const STATUS_VARIANT: Record<PayrollRunStatus, any> = {
+  draft: 'default', processed: 'info', approved: 'success', closed: 'outline',
+};
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+interface Props { runId: string }
+
+export function PayrollRunDetailPage({ runId }: Props) {
+  const readOnly = useIsReadOnly();
+  const { toast } = useToast();
+  const { data: runData, isLoading } = usePayrollRun(runId);
+  const { data: psData } = usePayslips(runId);
+  const process = useProcessPayrollRun();
+  const approve = useApprovePayrollRun();
+  const close = useClosePayrollRun();
+  const [viewPayslip, setViewPayslip] = useState<Payslip | null>(null);
+
+  if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
+  const run = runData?.data;
+  if (!run) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Run not found.</div>;
+
+  const slips = psData?.data ?? [];
+  const period = `${MONTHS[run.month - 1]} ${run.year}`;
+  const locked = run.status === 'approved' || run.status === 'closed';
+
+  return (
+    <div>
+      <PageHeader
+        fullWidth
+        breadcrumbs={[
+          { label: 'HR', href: '/hr' },
+          { label: 'Payroll runs', href: '/hr/payroll-runs' },
+          { label: period },
+        ]}
+        title={`Payroll: ${period}`}
+        description={run.notes ?? 'Pay run details'}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant={STATUS_VARIANT[run.status]}>{run.status}</Badge>
+            {!readOnly && (run.status === 'draft' || run.status === 'processed') && (
+              <Button size="sm" onClick={() => process.mutate(runId, {
+                onSuccess: () => toast('Run processed', 'success'),
+                onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+              })} disabled={process.isPending}>
+                <Play size={13} /> {process.isPending ? 'Processing…' : run.status === 'processed' ? 'Re-process' : 'Process'}
+              </Button>
+            )}
+            {!readOnly && run.status === 'processed' && (
+              <Button size="sm" variant="outline" onClick={() => approve.mutate(runId, {
+                onSuccess: () => toast('Approved', 'success'),
+                onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+              })}>
+                <CheckCircle size={13} /> Approve
+              </Button>
+            )}
+            {!readOnly && run.status === 'approved' && (
+              <Button size="sm" variant="outline" onClick={() => close.mutate(runId, {
+                onSuccess: () => toast('Closed', 'success'),
+                onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+              })}>
+                <Lock size={13} /> Close
+              </Button>
+            )}
+            {slips.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => downloadCSV(
+                  `payslips_${run.year}_${run.month}.csv`,
+                  ['Code', 'Name', 'Working', 'Paid', 'LOP', 'Gross', 'Deductions', 'Net'],
+                  slips.map((s) => [s.employeeCode, s.employeeName, s.workingDays, s.paidDays, s.lopDays, s.gross, s.totalDeductions, s.netPay]),
+                )}>
+                  <Download size={13} /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => api.download(
+                  `/hr/payroll-runs/${runId}/exports/pf-ecr`,
+                  `pf-ecr-${run.year}-${String(run.month).padStart(2, '0')}.txt`,
+                )}>
+                  <FileText size={13} /> PF ECR
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => api.download(
+                  `/hr/payroll-runs/${runId}/exports/esi`,
+                  `esi-${run.year}-${String(run.month).padStart(2, '0')}.csv`,
+                )}>
+                  <Building size={13} /> ESI
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => api.download(
+                  `/hr/payroll-runs/${runId}/exports/neft`,
+                  `neft-${run.year}-${String(run.month).padStart(2, '0')}.csv`,
+                )}>
+                  <Banknote size={13} /> NEFT
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatTile label="Employees" value={run.totalEmployees} sub={locked ? 'Locked' : 'Live'} />
+        <StatTile label="Gross" value={formatINR(Number(run.totalGross))} />
+        <StatTile label="Deductions" value={formatINR(Number(run.totalDeductions))} />
+        <StatTile label="Net pay" value={formatINR(Number(run.totalNet))} />
+      </div>
+
+      <Table>
+        <TableHeader>
+          <tr>
+            <Th>Employee</Th>
+            <Th align="right">Working / Paid / LOP</Th>
+            <Th align="right">Gross</Th>
+            <Th align="right">PF / ESI</Th>
+            <Th align="right">PT / TDS</Th>
+            <Th align="right">Net pay</Th>
+            <Th align="right" />
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {slips.length === 0 ? (
+            <tr><td colSpan={7}>
+              <EmptyState
+                icon={<Play size={18} />}
+                title="No payslips yet"
+                description={run.status === 'draft' ? "Click Process to generate payslips for all active employees." : "No data."}
+              />
+            </td></tr>
+          ) : slips.map((s) => (
+            <TableRow key={s.id} onClick={() => setViewPayslip(s)}>
+              <TableCell>
+                <div className="min-w-0">
+                  <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{s.employeeName}</div>
+                  <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{s.employeeCode}</div>
+                </div>
+              </TableCell>
+              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>
+                {Number(s.workingDays)} / {Number(s.paidDays)} / {Number(s.lopDays)}
+              </TableCell>
+              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{formatINR(Number(s.gross))}</TableCell>
+              <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pfEmployee)} / {Number(s.esiEmployee)}</TableCell>
+              <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pt)} / {Number(s.tds)}</TableCell>
+              <TableCell align="right" className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(Number(s.netPay))}</TableCell>
+              <TableCell align="right">
+                <Eye size={14} style={{ color: 'var(--text-3)' }} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {viewPayslip && <PayslipModal payslip={viewPayslip} period={period} onClose={() => setViewPayslip(null)} />}
+    </div>
+  );
+}
+
+function PayslipModal({ payslip: s, period, onClose }: { payslip: Payslip; period: string; onClose: () => void }) {
+  function handlePrint() {
+    const w = window.open('', '_blank', 'width=700,height=900');
+    if (!w) return;
+    w.document.write(buildPayslipHtml(s, period));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 200);
+  }
+  return (
+    <Modal open onClose={onClose} title={`Payslip — ${s.employeeName} (${period})`} size="lg">
+      <div className="mb-2 flex items-center justify-end">
+        <Button size="sm" variant="outline" onClick={handlePrint}><Printer size={13} /> Print</Button>
+      </div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2 text-[12px]">
+          <div><div style={{ color: 'var(--text-3)' }}>Working days</div><div className="num">{Number(s.workingDays)}</div></div>
+          <div><div style={{ color: 'var(--text-3)' }}>Paid days</div><div className="num">{Number(s.paidDays)}</div></div>
+          <div><div style={{ color: 'var(--text-3)' }}>LOP days</div><div className="num">{Number(s.lopDays)}</div></div>
+        </div>
+
+        <Card>
+          <CardHeader>Earnings</CardHeader>
+          <CardContent>
+            <table className="w-full text-[13px]">
+              <tbody>
+                {s.earnings.map((e, i) => (
+                  <tr key={i} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
+                    <td className="py-1.5" style={{ color: 'var(--text-2)' }}>{e.name}</td>
+                    <td className="num py-1.5 text-right">{formatINR(e.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="font-medium">
+                  <td className="py-1.5">Gross</td>
+                  <td className="num py-1.5 text-right">{formatINR(Number(s.gross))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>Deductions</CardHeader>
+          <CardContent>
+            <table className="w-full text-[13px]">
+              <tbody>
+                {s.deductions.map((d, i) => (
+                  <tr key={i} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
+                    <td className="py-1.5" style={{ color: 'var(--text-2)' }}>{d.name}</td>
+                    <td className="num py-1.5 text-right">{formatINR(d.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="font-medium">
+                  <td className="py-1.5">Total deductions</td>
+                  <td className="num py-1.5 text-right">{formatINR(Number(s.totalDeductions))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-between rounded-md p-3" style={{ background: 'var(--accent-soft)' }}>
+          <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Net pay</span>
+          <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(Number(s.netPay))}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
+          <div>PF: employee {Number(s.pfEmployee)} · employer {Number(s.pfEmployer)}</div>
+          <div>ESI: employee {Number(s.esiEmployee)} · employer {Number(s.esiEmployer)}</div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function buildPayslipHtml(s: Payslip, period: string): string {
+  const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
+  const row = (label: string, amount: number) =>
+    `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e5e5">${label}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e5e5e5">${fmt(amount)}</td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Payslip ${s.employeeName} ${period}</title>
+  <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:24px;max-width:680px;margin:0 auto}
+  h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:18px 0 8px;letter-spacing:.05em;text-transform:uppercase;color:#666}
+  table{width:100%;border-collapse:collapse;font-size:13px}.muted{color:#666;font-size:12px}
+  .net{background:#eef2ff;padding:10px;margin-top:18px;display:flex;justify-content:space-between;border-radius:6px;font-weight:600}
+  </style></head><body>
+  <h1>Payslip — ${period}</h1>
+  <div class="muted">${s.employeeName} · ${s.employeeCode}</div>
+  <div class="muted" style="margin-top:6px">Working ${Number(s.workingDays)} · Paid ${Number(s.paidDays)} · LOP ${Number(s.lopDays)}</div>
+  <h2>Earnings</h2>
+  <table><tbody>
+  ${s.earnings.map((e) => row(e.name, e.amount)).join('')}
+  <tr style="font-weight:600"><td style="padding:6px 8px">Gross</td><td style="padding:6px 8px;text-align:right">${fmt(Number(s.gross))}</td></tr>
+  </tbody></table>
+  <h2>Deductions</h2>
+  <table><tbody>
+  ${s.deductions.map((d) => row(d.name, d.amount)).join('')}
+  <tr style="font-weight:600"><td style="padding:6px 8px">Total deductions</td><td style="padding:6px 8px;text-align:right">${fmt(Number(s.totalDeductions))}</td></tr>
+  </tbody></table>
+  <div class="net"><span>Net pay</span><span>${fmt(Number(s.netPay))}</span></div>
+  <div class="muted" style="margin-top:20px">Generated by runQ — keep for records</div>
+  </body></html>`;
+}
