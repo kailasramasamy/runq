@@ -100,7 +100,7 @@ export function ScanBillPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-4">
+    <div className="max-w-6xl space-y-4">
       <PageHeader
         breadcrumbs={[
           { label: 'AP', href: '/ap' },
@@ -397,8 +397,9 @@ function ExtractedPreview({
                   { label: 'HSN/SAC', align: 'text-left' },
                   { label: 'Qty', align: 'text-right' },
                   { label: 'Unit Price', align: 'text-right' },
-                  { label: 'Amount', align: 'text-right' },
+                  { label: 'Taxable', align: 'text-right' },
                   { label: 'Tax %', align: 'text-right' },
+                  { label: 'Tax ₹', align: 'text-right' },
                   { label: '', align: 'text-right' },
                 ].map((h, i) => (
                   <th key={i} className={`px-3 py-2.5 ${h.align} text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400`}>{h.label}</th>
@@ -425,6 +426,9 @@ function ExtractedPreview({
                   </td>
                   <td className="px-3 py-1.5">
                     <CellInput type="number" value={item.taxRate != null ? String(item.taxRate) : ''} onChange={(v) => updateItem(i, { taxRate: v ? Number(v) : null })} className="w-20 text-right font-mono" placeholder="—" />
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono text-zinc-600 dark:text-zinc-400">
+                    {item.taxRate != null ? formatINR(Math.round(item.amount * item.taxRate) / 100) : '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right">
                     <button type="button" onClick={() => removeItem(i)} className="text-zinc-400 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove row">

@@ -78,9 +78,22 @@ CRITICAL — handling tax (two distinct bill styles):
     → Do NOT create line items for the footer GST summary table.
     → Set header taxAmount to 0; goods items sum to totalAmount on their own.
 
-Test for which style applies: if the visible goods line items already sum to the printed Total (within ₹2 rounding), the bill is tax-inclusive — case (b). If the goods sum to less than Total and you can see explicit tax rows printed mid-bill, it's case (a).
+(c) TAX-COLUMN bills (Indian GST tax invoices with per-line tax columns):
+    The item table has columns like: Sl | Description | HSN | Qty | UOM | Rate | Taxable Value | CGST% | CGST Amt | SGST% | SGST Amt | IGST% | IGST Amt. Each row carries its own tax breakdown — there are NO embedded tax rows.
+    → For each item: amount = the "Taxable Value" column (NOT the CGST/SGST/IGST amount columns, which are tax components, and NOT the rate column).
+    → unitPrice = the "Rate" column. quantity = the "Qty" column.
+    → taxRate = sum of the % cells on that row (e.g. 9% CGST + 9% SGST = 18). Set taxCategory = "taxable".
+    → Do NOT create separate line items for CGST/SGST/IGST — those are columns, not rows.
+    → Header taxAmount = sum of all (CGST + SGST + IGST) amounts across all rows.
+    → Header subtotal = sum of all Taxable Value cells.
+    → totalAmount = the printed "Invoice Total" / "Grand Total" (which equals subtotal + taxAmount + round-off).
 
-For all line items, set taxRate to null. Tax is recorded only via dedicated tax line items in case (a). The taxCategory field can still be set when it's obvious from the bill ("taxable", "exempt", "nil_rated").
+Test for which style applies:
+  • If item rows have columns named "Taxable Value" plus CGST/SGST/IGST amount columns → case (c).
+  • Else if explicit tax rows (e.g. "Output CGST@9%") appear between goods and grand total → case (a).
+  • Else if goods amounts already include tax and any GST breakdown is footer-only → case (b).
+
+For line items, set taxRate only in case (c) (sum of the per-row tax %). In case (a) leave taxRate null on goods rows. The taxCategory field can be set when obvious from the bill ("taxable", "exempt", "nil_rated").
 
 subtotal = the bill's printed "Sub Total" / "Taxable Value" total when present; otherwise null.
 - A line is only zero-amount if the printed amount is literally zero. Skip those.

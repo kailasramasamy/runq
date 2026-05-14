@@ -28,6 +28,17 @@ const TDS_RE = /\b(194[A-Z]|194[A-Z]{2}|195|196[A-Z]?)\b/;
 const GRAND_TOTAL_LINE_RE =
   /^\s*(?:grand\s*total|invoice\s*total|net\s*(?:amount|payable)|amount\s*payable|total\s*amount|total)\b/i;
 
+// GST tax-invoice column layout: bills that print Taxable Value + CGST/SGST/IGST
+// as separate columns per item (not embedded tax rows).
+const GST_COLUMN_HEADER_RE = /taxable\s*value/i;
+const GST_COLUMN_TAX_RE = /\b(?:cgst|sgst|igst)\b/i;
+
+// Each item row in a GST column layout looks like:
+//   <sl> <desc...> <hsn 4-8> <qty> [<uom>] <rate> <taxable> (<pct>% <amount>){1,3}
+// Trailing % pairs cover CGST+SGST (intra-state) or IGST (inter-state).
+const GST_ROW_RE =
+  /^(\d+)\s+(.+?)\s+(\d{4,8})\s+([\d,]+(?:\.\d+)?)\s+(?:([A-Za-z][A-Za-z.]{0,15})\s+)?([\d,]+\.\d{1,2})\s+([\d,]+\.\d{1,2})((?:\s+\d+(?:\.\d+)?\s*%\s+[\d,]+\.\d{1,2}){1,3})\s*$/;
+
 const MONTHS: Record<string, number> = {
   jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
   apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
@@ -147,6 +158,45 @@ function extractVendorInfo(text: string): { name: string; gstin: string | null }
   return { name, gstin };
 }
 
+interface GstRowResult { item: ExtractedItem; taxAmount: number; }
+
+function detectGstLineItem(line: string): GstRowResult | null {
+  const trimmed = line.trim();
+  const m = trimmed.match(GST_ROW_RE);
+  if (!m) return null;
+
+  const [, , desc, hsn, qtyStr, , rateStr, taxableStr, taxBlock] = m;
+  const quantity = Number(qtyStr!.replace(/,/g, ''));
+  const unitPrice = Number(rateStr!.replace(/,/g, ''));
+  const amount = Number(taxableStr!.replace(/,/g, ''));
+  if (!Number.isFinite(quantity) || !Number.isFinite(amount) || amount <= 0) return null;
+
+  let taxRate = 0;
+  let taxAmount = 0;
+  const pairRe = /(\d+(?:\.\d+)?)\s*%\s+([\d,]+\.\d{1,2})/g;
+  let pm: RegExpExecArray | null;
+  while ((pm = pairRe.exec(taxBlock!)) !== null) {
+    taxRate += Number(pm[1]);
+    taxAmount += Number(pm[2]!.replace(/,/g, ''));
+  }
+
+  const itemName = desc!.trim().replace(/^\d+[.)\s]+/, '').trim();
+  if (itemName.length < 2 || !/[a-zA-Z]/.test(itemName)) return null;
+
+  return {
+    item: {
+      itemName,
+      hsnSacCode: hsn!,
+      quantity,
+      unitPrice,
+      amount: Math.round(amount * 100) / 100,
+      taxRate: taxRate > 0 ? Math.round(taxRate * 100) / 100 : null,
+      taxCategory: taxRate > 0 ? 'taxable' : null,
+    },
+    taxAmount: Math.round(taxAmount * 100) / 100,
+  };
+}
+
 function detectLineItem(line: string): ExtractedItem | null {
   const trimmed = line.trim();
   if (trimmed.length < 4) return null;
@@ -221,19 +271,38 @@ export function tryLocalExtraction(text: string): ExtractedInvoice | null {
   const tdsMatch = text.match(TDS_RE);
   const tdsSection = tdsMatch ? tdsMatch[1]! : null;
 
+  // Detect whether the bill prints GST as columns (Taxable Value + CGST/SGST/IGST).
+  // In that layout each item line carries its own tax amounts, so we sum from
+  // rows rather than backing tax out of the printed grand total.
+  const isGstColumnLayout =
+    GST_COLUMN_HEADER_RE.test(text) && GST_COLUMN_TAX_RE.test(text);
+
   // Line items
   const lines = text.split(/\r?\n/);
   const items: ExtractedItem[] = [];
+  let columnTaxAmount = 0;
   let inItemsSection = false;
   for (const ln of lines) {
     if (!inItemsSection) {
       const lower = ln.toLowerCase();
-      const hits = ['products', 'description', 'particulars', 'item', 'qty', 'quantity', 'rate', 'price', 'amount']
+      const hits = ['products', 'description', 'particulars', 'item', 'qty', 'quantity', 'rate', 'price', 'amount', 'taxable']
         .filter((kw) => lower.includes(kw)).length;
       if (hits >= 2 && numberValues(ln).length === 0) { inItemsSection = true; continue; }
     }
     if (!inItemsSection) continue;
     if (/^\s*(?:grand\s*total|sub\s*total|total\s+\u20B9|net\s*(?:amount|payable))/i.test(ln)) break;
+
+    if (isGstColumnLayout) {
+      // In GST-column bills the row pattern is strict, so only trust
+      // detectGstLineItem here. Falling back to the generic detector picks
+      // up footer noise (GSTIN strings, account numbers) as phantom items.
+      const gst = detectGstLineItem(ln);
+      if (gst) {
+        items.push(gst.item);
+        columnTaxAmount += gst.taxAmount;
+      }
+      continue;
+    }
     const item = detectLineItem(ln);
     if (item) items.push(item);
   }
@@ -242,15 +311,28 @@ export function tryLocalExtraction(text: string): ExtractedInvoice | null {
 
   const subtotal = Math.round(items.reduce((s, i) => s + i.amount, 0) * 100) / 100;
 
-  // Grand total
-  let totalAmount = subtotal;
-  for (const ln of lines) {
-    if (GRAND_TOTAL_LINE_RE.test(ln)) {
-      const nums = numberValues(ln);
-      if (nums.length > 0) { totalAmount = nums[nums.length - 1]!; break; }
+  // Grand total: handle both single-line ("Total: 18,958") and split-line
+  // ("Invoice Total\n18,957.88") variants seen on Indian tax invoices.
+  let totalAmount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (!GRAND_TOTAL_LINE_RE.test(lines[i]!)) continue;
+    const inline = numberValues(lines[i]!);
+    if (inline.length > 0) { totalAmount = inline[inline.length - 1]!; break; }
+    for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+      const next = numberValues(lines[j]!);
+      if (next.length > 0) { totalAmount = next[0]!; break; }
     }
+    if (totalAmount > 0) break;
   }
-  const taxAmount = Math.max(0, Math.round((totalAmount - subtotal) * 100) / 100);
+
+  let taxAmount: number;
+  if (isGstColumnLayout) {
+    taxAmount = Math.round(columnTaxAmount * 100) / 100;
+    if (totalAmount <= 0) totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+  } else {
+    if (totalAmount <= 0) totalAmount = subtotal;
+    taxAmount = Math.max(0, Math.round((totalAmount - subtotal) * 100) / 100);
+  }
 
   return {
     vendorName,
