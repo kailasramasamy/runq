@@ -55,6 +55,11 @@
 		<false/>
 		<key>FlutterDeepLinkingEnabled</key>
 		<false/>
+		<!-- Shared bills/POs are imported as a copy for AI extraction — the
+		     app never edits the user's original file in place. NO matches the
+		     runtime behaviour and clears App Store warning 90737. -->
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<false/>
 		<key>CFBundleDocumentTypes</key>
 		<array>
 			<dict>
