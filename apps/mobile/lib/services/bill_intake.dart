@@ -19,10 +19,17 @@ Future<void> startBillIntake(BuildContext context) async {
   final choice = await showBillEntrySheet(context);
   if (choice == null || !context.mounted) return;
 
+  // "Recent bills" is a navigation shortcut, not a capture flow.
+  if (choice == BillEntryChoice.recent) {
+    context.push('/purchases/bills');
+    return;
+  }
+
   final file = await switch (choice) {
     BillEntryChoice.scan => _runScanner(context),
     BillEntryChoice.photos => _pickFromPhotos(context),
     BillEntryChoice.files => _pickFromFiles(context),
+    BillEntryChoice.recent => null, // handled above
   };
   if (file == null || !context.mounted) return;
   context.push('/bills/extract', extra: file);

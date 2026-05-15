@@ -48,11 +48,14 @@ class _InvoiceQuickSheet extends StatelessWidget {
                 });
               },
             ),
+            // Tinted background sets the "view existing" tiles apart from the
+            // create action above.
             _Tile(
               icon: Icons.receipt_long_outlined,
               tint: RunqColors.indigo,
               title: 'View recent invoices',
               subtitle: 'Open the invoices list',
+              background: t.bgWarm,
               onTap: () {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -65,6 +68,7 @@ class _InvoiceQuickSheet extends StatelessWidget {
               tint: RunqColors.amberInk,
               title: 'PO Inbox',
               subtitle: 'See uploaded POs and their invoice status',
+              background: t.bgWarm,
               onTap: () {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -85,12 +89,15 @@ class _Tile extends StatelessWidget {
   final Color tint;
   final String title, subtitle;
   final VoidCallback onTap;
-  const _Tile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap});
+  /// When set, the tile gets a filled background — used to visually group
+  /// "view existing" entries apart from the create action.
+  final Color? background;
+  const _Tile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap, this.background});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return InkWell(
+    final tile = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
@@ -117,6 +124,15 @@ class _Tile extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (background == null) return tile;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: tile,
     );
   }
 }

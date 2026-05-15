@@ -68,12 +68,12 @@ export class DashboardService {
       arSnapshot30dAgo, apSnapshot30dAgo,
     ] = await Promise.all([
       this.db
-        .select({ total: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text` })
+        .select({ total: sql<string>`COALESCE(SUM(${purchaseInvoices.balanceDue}), 0)::text`, count: sql<number>`COUNT(*)::int` })
         .from(purchaseInvoices)
         .where(and(eq(purchaseInvoices.tenantId, this.tenantId), notInArray(purchaseInvoices.status, [...EXCLUDED_STATUSES_PI]))),
 
       this.db
-        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text` })
+        .select({ total: sql<string>`COALESCE(SUM(${salesInvoices.balanceDue}), 0)::text`, count: sql<number>`COUNT(*)::int` })
         .from(salesInvoices)
         .where(and(eq(salesInvoices.tenantId, this.tenantId), notInArray(salesInvoices.status, [...EXCLUDED_STATUSES_SI]))),
 
@@ -232,7 +232,9 @@ export class DashboardService {
 
     return {
       totalOutstandingPayables: payables[0]?.total ?? '0',
+      totalOutstandingPayablesCount: payables[0]?.count ?? 0,
       totalOutstandingReceivables: receivables[0]?.total ?? '0',
+      totalOutstandingReceivablesCount: receivables[0]?.count ?? 0,
       cashPosition: cash[0]?.total ?? '0',
       overdue: {
         payables: { count: overduePI[0]?.count ?? 0, amount: overduePI[0]?.amount ?? '0' },

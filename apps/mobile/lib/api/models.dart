@@ -54,6 +54,9 @@ class DashboardSummary {
   final double outstandingPayables, outstandingReceivables, cashPosition;
   final double overdueAmount, upcomingAmount;
   final int overdueCount, upcomingCount, unreconciledTxnCount;
+  // Total counts of all outstanding documents — let the hero card pair its
+  // book-total amount with a matching total ("X of Y overdue").
+  final int outstandingPayablesCount, outstandingReceivablesCount;
 
   DashboardSummary({
     required this.outstandingPayables,
@@ -64,22 +67,27 @@ class DashboardSummary {
     required this.overdueCount,
     required this.upcomingCount,
     required this.unreconciledTxnCount,
+    required this.outstandingPayablesCount,
+    required this.outstandingReceivablesCount,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> j) {
     final overdue = (j['overdue'] as Map?)?.cast<String, dynamic>() ?? {};
-    final payOver = (overdue['payables'] as Map?)?.cast<String, dynamic>() ?? {};
     final recOver = (overdue['receivables'] as Map?)?.cast<String, dynamic>() ?? {};
     final upcoming = (j['upcomingPayments7Days'] as Map?)?.cast<String, dynamic>() ?? {};
     return DashboardSummary(
       outstandingPayables: _num(j['totalOutstandingPayables']),
       outstandingReceivables: _num(j['totalOutstandingReceivables']),
       cashPosition: _num(j['cashPosition']),
-      overdueAmount: _num(payOver['amount']) + _num(recOver['amount']),
-      overdueCount: _int(payOver['count']) + _int(recOver['count']),
+      // Overdue here is receivables-only: the consumers (hero AR caption,
+      // OVERDUE spotlight card) are about invoices to collect on.
+      overdueAmount: _num(recOver['amount']),
+      overdueCount: _int(recOver['count']),
       upcomingAmount: _num(upcoming['amount']),
       upcomingCount: _int(upcoming['count']),
       unreconciledTxnCount: _int(j['unreconciledTxnCount']),
+      outstandingPayablesCount: _int(j['totalOutstandingPayablesCount']),
+      outstandingReceivablesCount: _int(j['totalOutstandingReceivablesCount']),
     );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 
-enum BillEntryChoice { scan, photos, files }
+enum BillEntryChoice { scan, photos, files, recent }
 
 /// Bottom-sheet chooser for adding a bill. Returns the user's pick (or null
 /// if dismissed). The caller dispatches to the right capture flow — this
@@ -57,6 +57,16 @@ class _BillEntrySheet extends StatelessWidget {
               subtitle: 'iCloud, Dropbox, Drive, on-device — PDFs and images',
               onTap: () => Navigator.pop(context, BillEntryChoice.files),
             ),
+            // Tinted background sets the "view existing" tile apart from the
+            // capture actions above.
+            _Tile(
+              icon: Icons.receipt_long_outlined,
+              tint: RunqColors.greenInk,
+              title: 'Recent bills',
+              subtitle: "View and manage bills you've already added",
+              background: t.bgWarm,
+              onTap: () => Navigator.pop(context, BillEntryChoice.recent),
+            ),
             const SizedBox(height: 4),
           ],
         ),
@@ -70,12 +80,15 @@ class _Tile extends StatelessWidget {
   final Color tint;
   final String title, subtitle;
   final VoidCallback onTap;
-  const _Tile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap});
+  /// When set, the tile gets a filled background — used to visually group
+  /// "view existing" entries apart from the create/capture actions.
+  final Color? background;
+  const _Tile({required this.icon, required this.tint, required this.title, required this.subtitle, required this.onTap, this.background});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return InkWell(
+    final tile = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
@@ -102,6 +115,15 @@ class _Tile extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (background == null) return tile;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: tile,
     );
   }
 }

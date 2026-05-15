@@ -235,10 +235,10 @@ class _MiniStat extends StatelessWidget {
       final amount = isAr ? s.outstandingReceivables : s.outstandingPayables;
       value = formatINR(amount, compact: true);
       if (isAr) {
-        caption = '${s.overdueCount} overdue';
+        caption = '${s.overdueCount} of ${s.outstandingReceivablesCount} overdue';
         captionColor = const Color(0xFFFCA5A5);
       } else {
-        caption = '${s.upcomingCount} due this week';
+        caption = '${s.upcomingCount} of ${s.outstandingPayablesCount} due this week';
         captionColor = const Color(0xFFFCD34D);
       }
     });

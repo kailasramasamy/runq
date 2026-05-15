@@ -13,8 +13,8 @@ class _Tab {
 
 const _tabs = <_Tab>[
   _Tab('/home', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/sales', 'Sales', Icons.trending_up_outlined, Icons.trending_up_rounded),
   _Tab('/purchases', 'Purchases', Icons.shopping_bag_outlined, Icons.shopping_bag_rounded),
+  _Tab('/sales', 'Sales', Icons.trending_up_outlined, Icons.trending_up_rounded),
   _Tab('/money', 'Money', Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded),
 ];
 
