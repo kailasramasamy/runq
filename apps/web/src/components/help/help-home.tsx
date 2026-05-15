@@ -3,13 +3,14 @@ import {
   Sparkles, Search, ArrowRight, ArrowUpRight, Play, Flame,
   TrendingUp, Send, CheckCircle2, Settings2, FileOutput,
   MessageCircle, Mail, FileMinus, AlertTriangle, Scissors, Repeat,
-  Upload, Landmark,
+  Upload, Landmark, Users, CalendarCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
-  JOBS, RECIPES, QUICK_LINKS, WHATS_NEW, TOTAL_RECIPES, TONE_CLASSES,
-  type Job,
+  RECIPES, TONE_CLASSES, helpBasePath,
+  jobsForModule, recipesForModule, quickLinksForModule, whatsNewForModule,
+  type Job, type QuickLink, type ChangelogItem, type ModuleKey,
 } from '@/lib/help-recipes';
 import { useHelpProgress } from '@/hooks/queries/use-help';
 import { useAuth } from '@/providers/auth-provider';
@@ -22,6 +23,9 @@ const JOB_ICONS: Record<Job['icon'], LucideIcon> = {
   'settings-2': Settings2,
   'file-output': FileOutput,
   sparkles: Sparkles,
+  users: Users,
+  'calendar-check': CalendarCheck,
+  landmark: Landmark,
 };
 
 const QUICK_ICONS: Record<string, LucideIcon> = {
@@ -31,32 +35,40 @@ const QUICK_ICONS: Record<string, LucideIcon> = {
   repeat: Repeat,
   upload: Upload,
   landmark: Landmark,
+  'calendar-check': CalendarCheck,
 };
 
 function askSupport(question: string) {
   window.dispatchEvent(new CustomEvent('runq:open-support', { detail: { message: question } }));
 }
 
-export function HelpHome() {
+export function HelpHome({ module }: { module: ModuleKey }) {
   const { user } = useAuth();
   const progress = useHelpProgress();
   const completedIds = new Set(
     progress.data?.data.progress.filter((p) => p.completedAt).map((p) => p.recipeId) ?? [],
   );
-  const completedCount = progress.data?.data.completedCount ?? 0;
   const streak = progress.data?.data.streak ?? 0;
   const inProg = progress.data?.data.inProgress;
   const inProgRecipe = inProg ? RECIPES.find((r) => r.id === inProg.recipeId) : undefined;
   const firstName = (user?.name ?? 'there').split(' ')[0];
+
+  // Help content is scoped to the current module — progress is global, so
+  // count only this module's recipes for the strip and the "continue" card.
+  const jobs = jobsForModule(module);
+  const moduleRecipes = recipesForModule(module);
+  const moduleCompleted = moduleRecipes.filter((r) => completedIds.has(r.id)).length;
+  const showContinue = inProgRecipe?.module === module;
 
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <AskHero firstName={firstName} />
         <div className="flex flex-col gap-3">
-          <ProgressStrip completed={completedCount} total={TOTAL_RECIPES} streak={streak} />
-          {inProgRecipe && inProg && (
+          <ProgressStrip completed={moduleCompleted} total={moduleRecipes.length} streak={streak} />
+          {showContinue && inProgRecipe && inProg && (
             <ContinueCard
+              module={module}
               title={inProgRecipe.title}
               stepIndex={inProg.stepIndex}
               stepTitle={inProgRecipe.steps[inProg.stepIndex]?.title ?? ''}
@@ -78,14 +90,14 @@ export function HelpHome() {
         </div>
       </div>
       <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {JOBS.map((job) => (
-          <JobCard key={job.id} job={job} completedIds={completedIds} />
+        {jobs.map((job) => (
+          <JobCard key={job.id} job={job} module={module} completedIds={completedIds} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        <QuickLinks />
-        <WhatsNew />
+        <QuickLinks items={quickLinksForModule(module)} />
+        <WhatsNew items={whatsNewForModule(module)} />
       </div>
 
       <SupportCard />
@@ -195,13 +207,16 @@ function ProgressStrip({
 }
 
 function ContinueCard({
-  title, stepIndex, stepTitle, total, recipeId,
-}: { title: string; stepIndex: number; stepTitle: string; total: number; recipeId: string }) {
+  module, title, stepIndex, stepTitle, total, recipeId,
+}: { module: ModuleKey; title: string; stepIndex: number; stepTitle: string; total: number; recipeId: string }) {
   const navigate = useNavigate();
   const pct = (stepIndex / total) * 100;
   return (
     <button
-      onClick={() => navigate({ to: '/help/$recipeId', params: { recipeId } })}
+      onClick={() => navigate({
+        to: `${helpBasePath(module)}/$recipeId` as '/finance/help/$recipeId',
+        params: { recipeId },
+      })}
       className="w-full rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.08] to-violet-500/[0.04] p-4 text-left transition-all hover:from-indigo-500/[0.12] hover:to-violet-500/[0.08]"
     >
       <div className="flex items-center gap-3">
@@ -230,8 +245,8 @@ function ContinueCard({
 }
 
 function JobCard({
-  job, completedIds,
-}: { job: Job; completedIds: Set<string> }) {
+  job, module, completedIds,
+}: { job: Job; module: ModuleKey; completedIds: Set<string> }) {
   const navigate = useNavigate();
   const tone = TONE_CLASSES[job.accent];
   const Icon = JOB_ICONS[job.icon];
@@ -241,7 +256,10 @@ function JobCard({
 
   return (
     <button
-      onClick={() => firstRecipe && navigate({ to: '/help/$recipeId', params: { recipeId: firstRecipe } })}
+      onClick={() => firstRecipe && navigate({
+        to: `${helpBasePath(module)}/$recipeId` as '/finance/help/$recipeId',
+        params: { recipeId: firstRecipe },
+      })}
       className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950"
     >
       <div className={`pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full ${tone.bgGlow} opacity-70 blur-xl`} />
@@ -269,14 +287,14 @@ function JobCard({
   );
 }
 
-function QuickLinks() {
+function QuickLinks({ items }: { items: QuickLink[] }) {
   return (
     <div>
       <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Popular questions
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-        {QUICK_LINKS.map((q) => {
+        {items.map((q) => {
           const Icon = QUICK_ICONS[q.icon] ?? Search;
           return (
             <button
@@ -295,7 +313,7 @@ function QuickLinks() {
   );
 }
 
-function WhatsNew() {
+function WhatsNew({ items }: { items: ChangelogItem[] }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -304,7 +322,7 @@ function WhatsNew() {
         </div>
       </div>
       <div className="space-y-2.5">
-        {WHATS_NEW.map((n) => (
+        {items.map((n) => (
           <div
             key={n.title}
             className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"

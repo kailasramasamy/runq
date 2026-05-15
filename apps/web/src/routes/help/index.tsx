@@ -1,5 +1,6 @@
 import { HelpHome } from '@/components/help/help-home';
+import type { ModuleKey } from '@/lib/help-recipes';
 
-export function HelpIndexPage() {
-  return <HelpHome />;
+export function HelpIndexPage({ module }: { module: ModuleKey }) {
+  return <HelpHome module={module} />;
 }

@@ -1652,26 +1652,44 @@ const agentActivityRoute = createRoute({
 
 // ─── Help / User Guide Routes ────────────────────────────────────────────────
 
-// Parent is a pure layout (Outlet) so the exact `/help` URL hits the index
-// child instead of being captured by the splat.
-const helpRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+// Help is namespaced per module: /finance/help and /hr/help. Each parent is a
+// pure layout (Outlet) so the exact `/{module}/help` URL hits its index child
+// instead of being captured by the $recipeId splat.
+const financeHelpRoute = createRoute({
+  getParentRoute: () => financeRoute,
   path: '/help',
   component: () => <Outlet />,
 });
-
-const helpIndexRoute = createRoute({
-  getParentRoute: () => helpRoute,
+const financeHelpIndexRoute = createRoute({
+  getParentRoute: () => financeHelpRoute,
   path: '/',
-  component: HelpIndexPage,
+  component: () => <HelpIndexPage module="finance" />,
 });
-
-const helpRecipeRoute = createRoute({
-  getParentRoute: () => helpRoute,
+const financeHelpRecipeRoute = createRoute({
+  getParentRoute: () => financeHelpRoute,
   path: '$recipeId',
   component: () => {
-    const { recipeId } = helpRecipeRoute.useParams();
-    return <HelpRecipePage recipeId={recipeId} />;
+    const { recipeId } = financeHelpRecipeRoute.useParams();
+    return <HelpRecipePage recipeId={recipeId} module="finance" />;
+  },
+});
+
+const hrHelpRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/help',
+  component: () => <Outlet />,
+});
+const hrHelpIndexRoute = createRoute({
+  getParentRoute: () => hrHelpRoute,
+  path: '/',
+  component: () => <HelpIndexPage module="hr" />,
+});
+const hrHelpRecipeRoute = createRoute({
+  getParentRoute: () => hrHelpRoute,
+  path: '$recipeId',
+  component: () => {
+    const { recipeId } = hrHelpRecipeRoute.useParams();
+    return <HelpRecipePage recipeId={recipeId} module="hr" />;
   },
 });
 
@@ -1991,6 +2009,10 @@ export const routeTree = rootRoute.addChildren([
         gapScanRoute,
         customerSplitRoute,
       ]),
+      financeHelpRoute.addChildren([
+        financeHelpIndexRoute,
+        financeHelpRecipeRoute,
+      ]),
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,
@@ -2033,10 +2055,10 @@ export const routeTree = rootRoute.addChildren([
       hrTdsChallansRoute,
       hrForm16Route,
       hrContractLabourRoute,
-    ]),
-    helpRoute.addChildren([
-      helpIndexRoute,
-      helpRecipeRoute,
+      hrHelpRoute.addChildren([
+        hrHelpIndexRoute,
+        hrHelpRecipeRoute,
+      ]),
     ]),
   ]),
 ]);

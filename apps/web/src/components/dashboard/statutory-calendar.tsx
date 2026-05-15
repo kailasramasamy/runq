@@ -1,10 +1,9 @@
-import { useNavigate } from '@tanstack/react-router';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, BookOpen } from 'lucide-react';
 import { Card2, CardTitle } from './primitives';
 import { useStatutoryCalendar, type StatutoryDeadline } from '@/hooks/queries/use-hr-payroll';
 import { formatINR } from '@/lib/utils';
 
-type CalendarKind = StatutoryDeadline['kind'] | 'pf_esi' | 'gstr1' | 'gstr3b';
+type CalendarKind = StatutoryDeadline['kind'] | 'pf_esi';
 
 interface CalendarItem {
   kind: CalendarKind;
@@ -34,8 +33,9 @@ function nextMonthlyDate(day: number, today: Date): Date {
   return d;
 }
 
-/** PF/ESI (15th) and GST (GSTR-1 11th, GSTR-3B 20th) are pure date arithmetic —
- *  computed here rather than round-tripping to the server. */
+/** PF/ESI (15th of the next month) is pure date arithmetic — computed here
+ *  rather than round-tripping to the server. This calendar is HR/payroll-only;
+ *  GST deadlines belong on the finance dashboard, not here. */
 function computedDeadlines(today: Date): CalendarItem[] {
   return [
     {
@@ -44,29 +44,23 @@ function computedDeadlines(today: Date): CalendarItem[] {
       sublabel: 'Employer contributions — challan',
       date: nextMonthlyDate(15, today),
     },
-    {
-      kind: 'gstr1',
-      label: 'GSTR-1',
-      sublabel: 'Outward supplies (sales)',
-      date: nextMonthlyDate(11, today),
-    },
-    {
-      kind: 'gstr3b',
-      label: 'GSTR-3B',
-      sublabel: 'Summary return + tax payment',
-      date: nextMonthlyDate(20, today),
-    },
   ];
 }
 
-const ROUTE_BY_KIND: Record<CalendarKind, string> = {
-  tds_deposit: '/hr/tds-challans',
-  tds_24q: '/hr/form-24q',
-  pt: '/hr/payroll-runs',
-  pf_esi: '/hr/payroll-runs',
-  gstr1: '/finance/gst',
-  gstr3b: '/finance/gst',
+// Each deadline opens the matching step-by-step help recipe in the slide-in
+// drawer — exact instructions to actually complete the task, without leaving
+// the dashboard. (A bare route link like /hr/payroll-runs doesn't tell the
+// user *how* to file PF/ESI, deposit TDS, etc.)
+const RECIPE_BY_KIND: Record<CalendarKind, string> = {
+  tds_deposit: 'rec_hr_tds_challan',
+  tds_24q: 'rec_hr_form_24q',
+  pt: 'rec_hr_pt',
+  pf_esi: 'rec_hr_pf_esi',
 };
+
+function openGuide(recipeId: string) {
+  window.dispatchEvent(new CustomEvent('runq:open-help', { detail: { recipeId } }));
+}
 
 function pillStyle(days: number, done: boolean): { bg: string; fg: string; label: string } {
   if (done) return { bg: 'var(--surface-2)', fg: 'var(--text-3)', label: 'filed' };
@@ -77,7 +71,6 @@ function pillStyle(days: number, done: boolean): { bg: string; fg: string; label
 }
 
 export function StatutoryCalendar() {
-  const navigate = useNavigate();
   const today = startOfDay(new Date());
   const { data } = useStatutoryCalendar();
 
@@ -108,7 +101,8 @@ export function StatutoryCalendar() {
             <li key={`${m.kind}-${i}`}>
               <button
                 type="button"
-                onClick={() => navigate({ to: ROUTE_BY_KIND[m.kind] })}
+                onClick={() => openGuide(RECIPE_BY_KIND[m.kind])}
+                title="Open step-by-step guide"
                 className="flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-opacity hover:opacity-90"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
               >
@@ -134,6 +128,12 @@ export function StatutoryCalendar() {
                   style={{ background: pill.bg, color: pill.fg }}
                 >
                   {pill.label}
+                </span>
+                <span
+                  className="flex shrink-0 items-center gap-1 text-[10px] font-medium"
+                  style={{ color: 'var(--accent-text)' }}
+                >
+                  <BookOpen size={12} /> Steps
                 </span>
               </button>
             </li>

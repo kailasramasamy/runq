@@ -43,8 +43,12 @@ export interface RecipeStep {
   screenshot?: ScreenshotSpec | null;
 }
 
+/** Which app module a piece of help content belongs to. */
+export type ModuleKey = 'finance' | 'hr';
+
 export interface Recipe {
   id: string;
+  module: ModuleKey;
   jobId: string;
   title: string;
   summary: string;
@@ -55,27 +59,31 @@ export interface Recipe {
 
 export interface Job {
   id: string;
+  module: ModuleKey;
   title: string;
   description: string;
   icon:
     | 'trending-up' | 'send' | 'check-circle-2'
-    | 'settings-2' | 'file-output' | 'sparkles';
+    | 'settings-2' | 'file-output' | 'sparkles'
+    | 'users' | 'calendar-check' | 'landmark';
   accent: Tone;
   recipes: string[];
 }
 
 export interface QuickLink {
+  module: ModuleKey;
   label: string;
   icon: string;
 }
 
 export interface ChangelogItem {
+  module: ModuleKey;
   date: string;
   title: string;
   body: string;
 }
 
-export const JOBS: Job[] = [
+const FINANCE_JOBS: Omit<Job, 'module'>[] = [
   {
     id: 'get_paid',
     title: 'Get paid faster',
@@ -139,7 +147,7 @@ const COLS = {
   gstReturns: ['Period', 'Type', 'Status', 'ARN', 'Filed at'],
 };
 
-export const RECIPES: Recipe[] = [
+const FINANCE_RECIPES: Omit<Recipe, 'module'>[] = [
   // ── Get paid faster ────────────────────────────────────────────────────
   {
     id: 'rec_create_invoice',
@@ -445,7 +453,7 @@ export const RECIPES: Recipe[] = [
   },
 ];
 
-export const QUICK_LINKS: QuickLink[] = [
+const FINANCE_QUICK_LINKS: Omit<QuickLink, 'module'>[] = [
   { label: 'How do I issue a credit note?', icon: 'file-minus' },
   { label: 'Why is my GSTR-1 mismatched?', icon: 'alert-triangle' },
   { label: 'How does TDS auto-deduction work?', icon: 'scissors' },
@@ -454,10 +462,258 @@ export const QUICK_LINKS: QuickLink[] = [
   { label: 'Connect my bank via account aggregator', icon: 'landmark' },
 ];
 
-export const WHATS_NEW: ChangelogItem[] = [
+const FINANCE_WHATS_NEW: Omit<ChangelogItem, 'module'>[] = [
   { date: 'May 4, 2026', title: 'Pay runs are 3x faster', body: 'Bulk approval and parallel posting cut a 50-bill run from 4 minutes to under 90 seconds.' },
   { date: 'Apr 28, 2026', title: 'AI document inbox', body: 'Drop a PDF — runQ extracts vendor, date, GST, line items, and links to a PO.' },
   { date: 'Apr 22, 2026', title: 'GSTR-2B reconciliation', body: 'ITC mismatches surface inline on each bill, with one-click resolution.' },
+];
+
+// ── HR & Payroll content ─────────────────────────────────────────────────
+
+const HR_JOBS: Omit<Job, 'module'>[] = [
+  {
+    id: 'hr_onboard',
+    title: 'Onboard your team',
+    description: 'Add employees, departments, and their salary structures.',
+    icon: 'users',
+    accent: 'emerald',
+    recipes: ['rec_hr_add_employee', 'rec_hr_salary_structure', 'rec_hr_assign_salary'],
+  },
+  {
+    id: 'hr_payroll',
+    title: 'Run payroll',
+    description: 'Track attendance and leave, then process the monthly pay run.',
+    icon: 'calendar-check',
+    accent: 'blue',
+    recipes: ['rec_hr_attendance', 'rec_hr_leave', 'rec_hr_payroll_run'],
+  },
+  {
+    id: 'hr_compliance',
+    title: 'Stay compliant',
+    description: 'PF, ESI, PT challans, quarterly Form 24Q, and annual Form 16.',
+    icon: 'landmark',
+    accent: 'violet',
+    recipes: ['rec_hr_pf_esi', 'rec_hr_pt', 'rec_hr_tds_challan', 'rec_hr_form_24q', 'rec_hr_form_16'],
+  },
+  {
+    id: 'hr_setup',
+    title: 'Set up HR',
+    description: 'Statutory registration IDs and salary component masters.',
+    icon: 'settings-2',
+    accent: 'amber',
+    recipes: ['rec_hr_statutory_setup'],
+  },
+];
+
+const HR_RECIPES: Omit<Recipe, 'module'>[] = [
+  // ── Onboard your team ──────────────────────────────────────────────────
+  {
+    id: 'rec_hr_add_employee',
+    jobId: 'hr_onboard',
+    title: 'Add an employee',
+    summary: 'Create an employee record with personal, statutory, and bank details.',
+    minutes: 5,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open the Employees module', body: 'From the HR sidebar, go to **Employees** and click **New employee**.' },
+      { title: 'Enter personal details', body: 'Name, date of birth, **gender** (drives Professional Tax slabs in some states), contact, and address.' },
+      { title: 'Set employment details', body: 'Joining date, department, designation, and employment type — permanent, contract, intern, or wage.' },
+      { title: 'Add statutory & bank details', body: 'PAN, Aadhaar, UAN, PF and ESI numbers, plus bank account and IFSC for salary payouts.' },
+      { title: 'Save', body: 'Save the record. The employee now appears in payroll runs once you assign them a salary.' },
+    ],
+  },
+  {
+    id: 'rec_hr_salary_structure',
+    jobId: 'hr_onboard',
+    title: 'Build a salary structure',
+    summary: 'Define reusable earning and deduction components.',
+    minutes: 6,
+    difficulty: 'Medium',
+    steps: [
+      { title: 'Open Salary structures', body: 'In the HR sidebar under Payroll, open **Salary structures** and click **New structure**.' },
+      { title: 'Add earning components', body: 'Add Basic, HRA, and allowances. Each component is fixed, a percent of basic, or a percent of CTC.' },
+      { title: 'Mark statutory applicability', body: 'Flag which components are **PF-applicable** and **ESI-applicable** — this drives the statutory calculations.' },
+      { title: 'Save the structure', body: 'Save it. You can now assign this structure to employees when you set their salary.' },
+    ],
+  },
+  {
+    id: 'rec_hr_assign_salary',
+    jobId: 'hr_onboard',
+    title: 'Assign a salary to an employee',
+    summary: 'Attach a CTC and structure to an employee, effective from a date.',
+    minutes: 3,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open the employee', body: 'Go to **Employees**, open the employee, and find the **Salary** section.' },
+      { title: 'Enter CTC and structure', body: 'Set the annual CTC and pick a salary structure. runQ snapshots the components so later structure edits don\'t rewrite history.' },
+      { title: 'Set the effective date', body: 'The assignment applies from this date forward. A mid-year revision is just a new assignment with a later effective date.' },
+    ],
+  },
+  // ── Run payroll ────────────────────────────────────────────────────────
+  {
+    id: 'rec_hr_attendance',
+    jobId: 'hr_payroll',
+    title: 'Track attendance',
+    summary: 'Mark the daily muster so payroll can pro-rate pay.',
+    minutes: 4,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open Attendance', body: 'From the HR sidebar, open **Attendance**. Pick the date you want to mark.' },
+      { title: 'Mark the muster', body: 'Set each employee Present, Half-day, Absent, or on Leave. Add overtime hours where worked.' },
+      { title: 'Understand the payroll link', body: 'If a month has no attendance recorded at all, payroll treats everyone as fully present — so mark days only when you actually track them.' },
+    ],
+  },
+  {
+    id: 'rec_hr_leave',
+    jobId: 'hr_payroll',
+    title: 'Approve a leave request',
+    summary: 'Review and action employee leave so balances and payroll stay correct.',
+    minutes: 3,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open Leave requests', body: 'In the HR sidebar under Leave, open **Leave requests** — pending ones are flagged.' },
+      { title: 'Review the request', body: 'Check the leave type, dates, and the employee\'s remaining balance.' },
+      { title: 'Approve or reject', body: 'Approving deducts the balance and marks those days as leave in attendance, so payroll pro-rates correctly.' },
+    ],
+  },
+  {
+    id: 'rec_hr_payroll_run',
+    jobId: 'hr_payroll',
+    title: 'Process a monthly payroll run',
+    summary: 'Generate payslips for every active employee, then approve and post.',
+    minutes: 7,
+    difficulty: 'Medium',
+    steps: [
+      { title: 'Create the run', body: 'Open **Payroll runs**, click **New run**, and pick the month and year.' },
+      { title: 'Process', body: 'Click **Process**. runQ computes each payslip — earnings pro-rated by attendance, then PF, ESI, PT, and TDS.' },
+      { title: 'Review payslips', body: 'Open individual payslips to check earnings, deductions, and net pay. Re-process if you fix attendance or salary.' },
+      { title: 'Approve', body: 'Click **Approve**. This locks the run, posts the payroll journal entry, and makes the TDS challan available.' },
+      { title: 'Export for payment', body: 'Download the NEFT CSV to pay salaries, and the PF/ESI/PT challans for statutory deposits.' },
+    ],
+  },
+  // ── Stay compliant ─────────────────────────────────────────────────────
+  {
+    id: 'rec_hr_pf_esi',
+    jobId: 'hr_compliance',
+    title: 'File PF & ESI challans',
+    summary: 'Generate the EPFO ECR and ESIC return from an approved run.',
+    minutes: 5,
+    difficulty: 'Medium',
+    steps: [
+      { title: 'Open the approved run', body: 'Go to **Payroll runs** and open a run that\'s been approved.' },
+      { title: 'Review the PF challan', body: 'Click **PF Challan** — runQ rolls up the EPFO account heads (A/c 1, 2, 10, 21). Reconcile against the portal\'s TRRN.' },
+      { title: 'Download the ECR', body: 'Use **PF ECR** to download the pipe-delimited file to upload on the EPFO portal.' },
+      { title: 'Review and export ESI', body: 'Click **ESI Challan** for the IP-wise totals, then **ESI** to download the ESIC monthly contribution return.' },
+      { title: 'Deposit by the 15th', body: 'PF and ESI for a month are both due by the 15th of the next month.' },
+    ],
+  },
+  {
+    id: 'rec_hr_pt',
+    jobId: 'hr_compliance',
+    title: 'Pay Professional Tax',
+    summary: 'Generate the state-wise PT challan from a payroll run.',
+    minutes: 3,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open the run\'s PT challan', body: 'On an approved payroll run, click **PT Challan**. PT is a state levy, so totals are grouped by state.' },
+      { title: 'Check the state and amount', body: 'Confirm the establishment\'s state and the total. February usually carries a higher amount in states like Maharashtra.' },
+      { title: 'Pay on the state portal', body: 'Download the PT return and pay on your state\'s PT portal by its due date — runQ\'s statutory calendar tracks it.' },
+    ],
+  },
+  {
+    id: 'rec_hr_tds_challan',
+    jobId: 'hr_compliance',
+    title: 'Deposit a TDS challan',
+    summary: 'Record the ITNS-281 CIN after depositing salary TDS.',
+    minutes: 4,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open TDS challans', body: 'From the HR sidebar, open **TDS challans**. Approving a payroll run creates a pending challan automatically.' },
+      { title: 'Deposit on the portal', body: 'Pay the TDS via Challan ITNS-281 — due by the 7th of the next month (March by 30 April).' },
+      { title: 'Record the CIN', body: 'Click **Record deposit** and enter the BSR code, challan serial number, and deposit date from the counterfoil.' },
+      { title: 'Why it matters', body: 'The CIN links each deduction to its challan in Form 24Q — you can\'t file the quarterly return without it.' },
+    ],
+  },
+  {
+    id: 'rec_hr_form_24q',
+    jobId: 'hr_compliance',
+    title: 'Generate Form 24Q',
+    summary: 'Build, validate, and download the quarterly TDS return.',
+    minutes: 6,
+    difficulty: 'Medium',
+    steps: [
+      { title: 'Generate the quarter', body: 'Open **Form 24Q**, click **Generate return**, and pick the financial year and quarter.' },
+      { title: 'Review the annexures', body: 'Annexure I is the deductee-wise detail (every quarter); Annexure II — the annual salary computation — is added in Q4.' },
+      { title: 'Validate', body: 'Click **Validate**. runQ flags missing PANs and any TDS without a deposited challan — fix those and re-validate.' },
+      { title: 'Download the worksheet', body: 'Download the worksheet and feed it into NSDL\'s RPU + FVU to produce the .fvu file for upload to TRACES.' },
+      { title: 'Record the token', body: 'After filing, paste the provisional receipt number back into runQ to mark the quarter filed.' },
+    ],
+  },
+  {
+    id: 'rec_hr_form_16',
+    jobId: 'hr_compliance',
+    title: 'Issue Form 16 to employees',
+    summary: 'Generate Part B — the annual salary and tax computation.',
+    minutes: 4,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open Form 16', body: 'From the HR sidebar, open **Form 16** and pick the financial year.' },
+      { title: 'Review per-employee figures', body: 'Each row shows gross salary, standard deduction, tax, TDS deducted, and the balance payable or refundable.' },
+      { title: 'Print Part B', body: 'Click **Form 16** on a row to print Part B. Issue it to employees by 15 June.' },
+      { title: 'Attach Part A', body: 'Part A — the TRACES-signed challan summary — is downloaded separately from TRACES and attached alongside.' },
+    ],
+  },
+  // ── Set up HR ──────────────────────────────────────────────────────────
+  {
+    id: 'rec_hr_statutory_setup',
+    jobId: 'hr_setup',
+    title: 'Configure statutory registration IDs',
+    summary: 'Enter the PF, ESI, PT, and TAN numbers that print on challans.',
+    minutes: 3,
+    difficulty: 'Easy',
+    steps: [
+      { title: 'Open Company settings', body: 'Go to **Settings → Company** and find the **Payroll Statutory** section.' },
+      { title: 'Enter the registration numbers', body: 'Add your ESI registration number, EPFO establishment code, state PT registration number, and TAN.' },
+      { title: 'Set the company state', body: 'The company\'s state drives which Professional Tax slab applies — make sure it\'s correct.' },
+      { title: 'Save', body: 'Save. These IDs now appear on every payroll challan and statutory return.' },
+    ],
+  },
+];
+
+const HR_QUICK_LINKS: Omit<QuickLink, 'module'>[] = [
+  { label: 'How is monthly TDS on salary calculated?', icon: 'scissors' },
+  { label: 'When are PF, ESI, and PT due?', icon: 'landmark' },
+  { label: 'How does attendance affect pay?', icon: 'calendar-check' },
+  { label: 'Add a mid-year salary revision', icon: 'repeat' },
+  { label: 'What goes in Form 24Q Annexure II?', icon: 'file-minus' },
+];
+
+const HR_WHATS_NEW: Omit<ChangelogItem, 'module'>[] = [
+  { date: 'May 14, 2026', title: 'TDS filing — challans, Form 24Q, Form 16', body: 'Track ITNS-281 challans, build the quarterly 24Q return, and issue Form 16 Part B.' },
+  { date: 'May 9, 2026', title: 'Professional Tax', body: 'State-driven PT slabs with per-state challans and a filing-cadence calendar.' },
+  { date: 'May 1, 2026', title: 'Payroll runs', body: 'Process payslips for every employee with PF, ESI, and attendance pro-rating built in.' },
+];
+
+// ── Combined, module-tagged exports ──────────────────────────────────────
+
+export const JOBS: Job[] = [
+  ...FINANCE_JOBS.map((j) => ({ ...j, module: 'finance' as const })),
+  ...HR_JOBS.map((j) => ({ ...j, module: 'hr' as const })),
+];
+
+export const RECIPES: Recipe[] = [
+  ...FINANCE_RECIPES.map((r) => ({ ...r, module: 'finance' as const })),
+  ...HR_RECIPES.map((r) => ({ ...r, module: 'hr' as const })),
+];
+
+export const QUICK_LINKS: QuickLink[] = [
+  ...FINANCE_QUICK_LINKS.map((q) => ({ ...q, module: 'finance' as const })),
+  ...HR_QUICK_LINKS.map((q) => ({ ...q, module: 'hr' as const })),
+];
+
+export const WHATS_NEW: ChangelogItem[] = [
+  ...FINANCE_WHATS_NEW.map((n) => ({ ...n, module: 'finance' as const })),
+  ...HR_WHATS_NEW.map((n) => ({ ...n, module: 'hr' as const })),
 ];
 
 export function getRecipe(id: string): Recipe | undefined {
@@ -476,7 +732,17 @@ export function getNextRecipeInJob(recipeId: string): Recipe | undefined {
   return getRecipe(job.recipes[idx + 1]);
 }
 
-export const TOTAL_RECIPES = RECIPES.length;
+// ── Per-module selectors ─────────────────────────────────────────────────
+
+/** Help routes are namespaced per module: /finance/help, /hr/help. */
+export const helpBasePath = (m: ModuleKey): string => `/${m}/help`;
+
+export const jobsForModule = (m: ModuleKey): Job[] => JOBS.filter((j) => j.module === m);
+export const recipesForModule = (m: ModuleKey): Recipe[] => RECIPES.filter((r) => r.module === m);
+export const quickLinksForModule = (m: ModuleKey): QuickLink[] =>
+  QUICK_LINKS.filter((q) => q.module === m);
+export const whatsNewForModule = (m: ModuleKey): ChangelogItem[] =>
+  WHATS_NEW.filter((n) => n.module === m);
 
 export const TONE_CLASSES: Record<Tone, {
   ring: string;

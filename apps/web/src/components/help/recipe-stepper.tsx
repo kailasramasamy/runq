@@ -4,8 +4,10 @@ import { ArrowLeft, ArrowRight, Check, Clock, Award } from 'lucide-react';
 import {
   getRecipe,
   getNextRecipeInJob,
+  helpBasePath,
   type Recipe,
   type Difficulty,
+  type ModuleKey,
 } from '@/lib/help-recipes';
 import { useHelpProgress, useUpsertRecipeProgress } from '@/hooks/queries/use-help';
 import { StepBody } from './step-body';
@@ -18,11 +20,15 @@ const DIFFICULTY_TONE: Record<Difficulty, string> = {
 
 interface Props {
   recipeId: string;
+  /** Module namespace from the route — fallback for the not-found case;
+   *  a found recipe carries its own module. */
+  module: ModuleKey;
 }
 
-export function RecipeStepperPage({ recipeId }: Props) {
+export function RecipeStepperPage({ recipeId, module }: Props) {
   const navigate = useNavigate();
   const recipe = getRecipe(recipeId);
+  const helpModule = recipe?.module ?? module;
   const progressQuery = useHelpProgress();
   const upsert = useUpsertRecipeProgress();
 
@@ -55,7 +61,7 @@ export function RecipeStepperPage({ recipeId }: Props) {
       <div className="mx-auto max-w-3xl py-10 text-center">
         <div className="text-zinc-500">Recipe not found.</div>
         <button
-          onClick={() => navigate({ to: '/help' })}
+          onClick={() => navigate({ to: helpBasePath(helpModule) as '/' })}
           className="mt-4 text-sm text-indigo-600 hover:underline"
         >
           Back to help
@@ -80,7 +86,7 @@ export function RecipeStepperPage({ recipeId }: Props) {
   }
 
   function backHome() {
-    navigate({ to: '/help' });
+    navigate({ to: helpBasePath(helpModule) as '/' });
   }
 
   if (done) {
@@ -94,7 +100,10 @@ export function RecipeStepperPage({ recipeId }: Props) {
             onBackHome={backHome}
             onNextRecipe={
               nextRecipe
-                ? () => navigate({ to: '/help/$recipeId', params: { recipeId: nextRecipe.id } })
+                ? () => navigate({
+                    to: `${helpBasePath(helpModule)}/$recipeId` as '/finance/help/$recipeId',
+                    params: { recipeId: nextRecipe.id },
+                  })
                 : null
             }
           />

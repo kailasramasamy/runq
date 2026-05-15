@@ -10,7 +10,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   BookOpen, X, ArrowLeft, ArrowRight, ArrowUpRight, Check, Clock,
 } from 'lucide-react';
-import { getRecipe, type Difficulty } from '@/lib/help-recipes';
+import { getRecipe, helpBasePath, type Difficulty } from '@/lib/help-recipes';
 import { StepBody } from './step-body';
 
 const DIFFICULTY_TONE: Record<Difficulty, string> = {
@@ -139,7 +139,10 @@ export function HelpDrawer() {
           <button
             onClick={() => {
               setOpen(false);
-              navigate({ to: '/help/$recipeId', params: { recipeId: recipe.id } });
+              navigate({
+                to: `${helpBasePath(recipe.module)}/$recipeId` as '/finance/help/$recipeId',
+                params: { recipeId: recipe.id },
+              });
             }}
             className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"
           >

@@ -493,7 +493,7 @@ function SidebarContent({
         style={{ borderColor: 'var(--border-soft)' }}
       >
         <Link
-          to="/help"
+          to={activeModule === 'hr' ? '/hr/help' : '/finance/help'}
           title="Help & docs"
           className={cn(
             'flex items-center rounded-md text-[12px] hover:bg-[color:var(--surface-2)]',
