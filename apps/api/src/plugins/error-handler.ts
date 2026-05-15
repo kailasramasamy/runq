@@ -74,6 +74,7 @@ interface FriendlyError {
   error: string;
   message: string;
   field?: string;
+  detail?: string;
 }
 
 // Translate raw Postgres errors into something a user can act on. Returns
@@ -139,12 +140,21 @@ function mapPostgresError(err: unknown): FriendlyError | null {
           : 'A field has an invalid value.',
         field: column ?? undefined,
       };
-    case '22P02':
+    case '22P02': {
+      // invalid_text_representation — Postgres puts the offending value and
+      // target type in the message ("invalid input syntax for type uuid: ..."),
+      // never in `column`. Surface that so the bad field is identifiable.
+      const m = /invalid input syntax for type (\w+)/.exec(e.message ?? '');
+      const target = m?.[1];
       return {
         statusCode: 400,
         error: 'ValidationError',
-        message: 'A field has the wrong type or format.',
+        message: target
+          ? `A field has the wrong format for type ${target}.`
+          : 'A field has the wrong type or format.',
+        ...(e.message ? { detail: e.message } : {}),
       };
+    }
     default:
       return null;
   }
