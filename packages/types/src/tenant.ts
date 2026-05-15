@@ -50,6 +50,15 @@ export interface TenantSettings {
   pfEstablishmentCode?: string;
   ptRegistrationNumber?: string;
   tan?: string;
+  // Statutory toggles — when false, payroll runs skip the corresponding
+  // deduction/contribution entirely. Undefined defaults to enabled, so existing
+  // tenants keep the current behaviour. EPS is a sub-toggle of PF: PF without
+  // EPS is a legitimate config for ₹15k+ joiners after Sep 2014, where the
+  // employer's full 12% lands in A/c 1 instead of diverting 8.33% to A/c 10.
+  payrollPfEnabled?: boolean;
+  payrollEpsEnabled?: boolean;
+  payrollPtEnabled?: boolean;
+  payrollTdsEnabled?: boolean;
   // Chosen at signup from a fixed list (Manufacturing, Trading / Distribution,
   // Retail, Services, Construction, Food & Beverage, Healthcare, Hospitality,
   // Education, IT / Software, Other). Drives catalogue attribute seeding.

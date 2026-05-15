@@ -101,7 +101,7 @@ export class PayrollRunService {
     return {
       run: { id: run.id, month: run.month, year: run.year, status: run.status },
       pfEstablishmentCode: settings.pfEstablishmentCode ?? null,
-      ...calcPfChallan(rows),
+      ...calcPfChallan(rows, { epsEnabled: settings.payrollEpsEnabled !== false }),
     };
   }
 
@@ -313,7 +313,15 @@ export class PayrollRunService {
     const esiCovered = await this.esiContinuedCoverage(run.year, run.month);
 
     // Professional Tax is a state levy — the establishment's state drives the slab.
-    const { stateCode: ptStateCode } = await this.statutorySettings();
+    // Statutory toggles let a tenant disable PF/EPS/PT/TDS globally; undefined
+    // defaults to enabled for back-compat. EPS only matters when PF is enabled.
+    const settings = await this.statutorySettings();
+    const ptStateCode = settings.stateCode;
+    const pfEnabled = settings.payrollPfEnabled !== false;
+    const ptEnabled = settings.payrollPtEnabled !== false;
+    const tdsEnabled = settings.payrollTdsEnabled !== false;
+    // EPS toggle is consumed by pfChallan() directly from settings — payslip
+    // amounts don't change with EPS on/off, only the A/c 1 vs A/c 10 split.
 
     // TDS is an annual tax projected across the FY — gather what's been paid
     // so far and how many months remain, so each run trues up the estimate.
@@ -411,22 +419,26 @@ export class PayrollRunService {
         const gross = r2(earnings.reduce((s, e) => s + e.amount, 0));
         const basicProrated = r2(basic * proRateFactor);
 
-        // Statutory
-        const pf = calcPf(basicProrated);
+        // Statutory — gated by tenant toggles. A disabled component is zeroed
+        // out; the per-employee EPS split is rebuilt at challan time, so
+        // payslip-level PF stays as the employer's full contribution either way.
+        const pf = pfEnabled ? calcPf(basicProrated) : { employee: 0, employer: 0 };
         const esi = calcEsi(gross, esiCovered.has(emp.id));
-        const pt = calcPt(ptStateCode, gross, emp.gender, run.month);
+        const pt = ptEnabled ? calcPt(ptStateCode, gross, emp.gender, run.month) : 0;
         const tdsPrior = tdsHistory.get(emp.id) ?? { grossSoFar: 0, tdsSoFar: 0 };
-        const tds = calcMonthlyTdsNewRegime({
-          fyIncomeSoFar: tdsPrior.grossSoFar,
-          currentMonthGross: gross,
-          futureMonthGross: grossFull,
-          remainingMonths,
-          tdsPaidSoFar: tdsPrior.tdsSoFar,
-        });
+        const tds = tdsEnabled
+          ? calcMonthlyTdsNewRegime({
+              fyIncomeSoFar: tdsPrior.grossSoFar,
+              currentMonthGross: gross,
+              futureMonthGross: grossFull,
+              remainingMonths,
+              tdsPaidSoFar: tdsPrior.tdsSoFar,
+            })
+          : 0;
 
         const lopAmt = r2((earnings.reduce((s, e) => s + e.amount, 0) / Math.max(proRateFactor, 0.0001)) - gross);
         if (lop > 0 && lopAmt > 0) deductions.push({ code: 'LOP', name: 'Loss of Pay', amount: lopAmt });
-        deductions.push({ code: 'PF_EE', name: 'Provident Fund', amount: pf.employee });
+        if (pf.employee > 0) deductions.push({ code: 'PF_EE', name: 'Provident Fund', amount: pf.employee });
         if (esi.employee > 0) deductions.push({ code: 'ESI_EE', name: 'ESI', amount: esi.employee });
         if (pt > 0) deductions.push({ code: 'PT', name: 'Professional Tax', amount: pt });
         if (tds > 0) deductions.push({ code: 'TDS', name: 'TDS', amount: tds });

@@ -53,6 +53,12 @@ export const companySettingsSchema = z.object({
     email: z.string().email().nullish().or(z.literal('')),
     signatureImageUrl: z.string().max(500).nullish(),
   }).nullish(),
+  // Statutory toggles — undefined/true = enabled (back-compat). EPS is a
+  // sub-toggle of PF (employer's 8.33% diversion to A/c 10).
+  payrollPfEnabled: z.boolean().nullish(),
+  payrollEpsEnabled: z.boolean().nullish(),
+  payrollPtEnabled: z.boolean().nullish(),
+  payrollTdsEnabled: z.boolean().nullish(),
 });
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;

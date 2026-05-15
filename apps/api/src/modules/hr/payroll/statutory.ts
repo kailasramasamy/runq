@@ -108,7 +108,9 @@ export interface PfChallan {
  */
 export function calcPfChallan(
   rows: Array<{ pfWages: number; pfEmployee: number; pfEmployer: number }>,
+  options: { epsEnabled?: boolean } = {},
 ): PfChallan {
+  const epsEnabled = options.epsEnabled !== false;
   // EPFO challans are denominated in whole rupees — each per-head figure is
   // rounded before it's summed, mirroring how the portal computes the TRRN.
   let totalPfWages = 0;
@@ -125,7 +127,11 @@ export function calcPfChallan(
     totalPfWages += wages;
 
     // EPS is 8.33%, but hard-capped at 8.33% of the ceiling (₹1,250/head).
-    const eps = Math.min(PF_EPS_CAP, Math.round(wages * PF_EPS_RATE));
+    // When EPS is disabled (e.g. ≥₹15k joiner post-Sep 2014), the employer's
+    // full share lands in A/c 1 instead.
+    const eps = epsEnabled
+      ? Math.min(PF_EPS_CAP, Math.round(wages * PF_EPS_RATE))
+      : 0;
     const epfDiff = Math.max(0, Math.round(r.pfEmployer) - eps); // employer's 3.67% share
     account10Eps += eps;
     account1Epf += Math.round(r.pfEmployee) + epfDiff;

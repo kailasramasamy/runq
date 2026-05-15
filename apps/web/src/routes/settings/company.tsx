@@ -56,6 +56,43 @@ const COMPANY_TABS: { id: TabId; label: string }[] = [
   { id: 'hr-letters', label: 'HR Letters' },
 ];
 
+/**
+ * Inline toggle row for a statutory component (PF / EPS / PT / TDS).
+ * Keeps the component count low — no shared Switch primitive exists yet, and a
+ * native checkbox styled as a switch is enough for this single use site.
+ */
+function StatutoryToggle(props: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 cursor-pointer select-none ${
+        props.disabled ? 'opacity-50 cursor-not-allowed' : ''
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="mt-1 rounded border-zinc-300"
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      <span className="flex-1">
+        <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          {props.label}
+        </span>
+        <span className="block text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          {props.description}
+        </span>
+      </span>
+    </label>
+  );
+}
+
 export function CompanySettingsPage() {
   const { data, isLoading } = useCompanySettings();
   const update = useUpdateCompanySettings();
@@ -93,6 +130,13 @@ export function CompanySettingsPage() {
   const [companyLogoUrl, setCompanyLogoUrl] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [localLogoPreview, setLocalLogoPreview] = useState<string | null>(null);
+  // Statutory toggles — payroll runs skip the corresponding component when off.
+  // Default each to true; an existing tenant with the field undefined keeps the
+  // legacy "everything enabled" behaviour.
+  const [payrollPfEnabled, setPayrollPfEnabled] = useState(true);
+  const [payrollEpsEnabled, setPayrollEpsEnabled] = useState(true);
+  const [payrollPtEnabled, setPayrollPtEnabled] = useState(true);
+  const [payrollTdsEnabled, setPayrollTdsEnabled] = useState(true);
 
   useEffect(() => {
     if (data?.data) {
@@ -133,6 +177,10 @@ export function CompanySettingsPage() {
       setHrSignatoryEmail(sig.email ?? '');
       setHrSignatureImageUrl(sig.signatureImageUrl ?? '');
       setCompanyLogoUrl((data.data as any).companyLogoUrl ?? '');
+      setPayrollPfEnabled((data.data as any).payrollPfEnabled !== false);
+      setPayrollEpsEnabled((data.data as any).payrollEpsEnabled !== false);
+      setPayrollPtEnabled((data.data as any).payrollPtEnabled !== false);
+      setPayrollTdsEnabled((data.data as any).payrollTdsEnabled !== false);
     }
   }, [data]);
 
@@ -182,6 +230,10 @@ export function CompanySettingsPage() {
           email: hrSignatoryEmail || null,
           signatureImageUrl: hrSignatureImageUrl || null,
         },
+        payrollPfEnabled,
+        payrollEpsEnabled,
+        payrollPtEnabled,
+        payrollTdsEnabled,
       });
       // If industry changed, the backend wiped itemAttributeSchema server-side.
       // Invalidate the frontend cache for both the schema query and any cached
@@ -433,6 +485,39 @@ export function CompanySettingsPage() {
                 maxLength={10}
                 helper="Tax Deduction Account Number — used on Form 24Q for payroll TDS."
               />
+
+              {/* Statutory toggles — when off, payroll runs skip the component
+                  entirely (no payslip line, no challan, no JE posting). */}
+              <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 pt-3">
+                  Components Applied to Payroll Runs
+                </div>
+                <StatutoryToggle
+                  label="Provident Fund (PF)"
+                  description="12% employee + 12% employer contribution on PF wages."
+                  checked={payrollPfEnabled}
+                  onChange={setPayrollPfEnabled}
+                />
+                <StatutoryToggle
+                  label="Employee Pension Scheme (EPS)"
+                  description="Diverts 8.33% of employer PF to A/c 10. Turn off for ₹15k+ joiners after Sep 2014 — full 12% then goes to A/c 1."
+                  checked={payrollEpsEnabled}
+                  onChange={setPayrollEpsEnabled}
+                  disabled={!payrollPfEnabled}
+                />
+                <StatutoryToggle
+                  label="Professional Tax (PT)"
+                  description="State-levied monthly deduction; slabs depend on the establishment's state."
+                  checked={payrollPtEnabled}
+                  onChange={setPayrollPtEnabled}
+                />
+                <StatutoryToggle
+                  label="TDS on Salary"
+                  description="Monthly tax deduction projected from new-regime annual liability."
+                  checked={payrollTdsEnabled}
+                  onChange={setPayrollTdsEnabled}
+                />
+              </div>
             </CardContent>
 
             <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
