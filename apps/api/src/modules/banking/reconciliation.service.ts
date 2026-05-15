@@ -11,6 +11,8 @@ import {
   customers,
   vendors,
   accounts,
+  employeePayments,
+  statutoryChallans,
 } from '@runq/db';
 import { extractNarrationPattern } from './categorize.service';
 import type { Db } from '@runq/db';
@@ -29,6 +31,8 @@ import { AgentFeedService } from '../dashboard/agent-feed.service';
 type BankTxnRow = typeof bankTransactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
 type ReceiptRow = typeof paymentReceipts.$inferSelect;
+type EmployeePaymentRow = typeof employeePayments.$inferSelect;
+type StatutoryChallanRow = typeof statutoryChallans.$inferSelect;
 
 interface PendingMatch {
   bankTransactionId: string;
@@ -41,6 +45,8 @@ export interface UnreconciledResult {
   unreconciledBankTxns: BankTxnRow[];
   unreconciledPayments: PaymentRow[];
   unreconciledReceipts: ReceiptRow[];
+  unreconciledEmployeePayments: EmployeePaymentRow[];
+  unreconciledStatutoryChallans: StatutoryChallanRow[];
   suggestedMatches: SmartMatchResult[];
   summary: { bankBalance: number; bookBalance: number; difference: number };
 }
@@ -60,7 +66,13 @@ export class ReconciliationService {
 
     if (!account) throw new NotFoundError('Bank account');
 
-    const [unreconciledBankTxns, unreconciledPayments, unreconciledReceipts] = await Promise.all([
+    const [
+      unreconciledBankTxns,
+      unreconciledPayments,
+      unreconciledReceipts,
+      unreconciledEmployeePayments,
+      unreconciledStatutoryChallans,
+    ] = await Promise.all([
       this.db.select().from(bankTransactions).where(
         and(
           eq(bankTransactions.bankAccountId, bankAccountId),
@@ -82,12 +94,36 @@ export class ReconciliationService {
           isNull(sql`(select id from reconciliation_matches where receipt_id = ${paymentReceipts.id} limit 1)`),
         ),
       ),
+      // Payroll subledger: paid salary/reimbursement disbursements with no
+      // bank-txn match yet. Surfaced here so the recon screen shows "Salary —
+      // May 2026" alongside vendor payments instead of an orphan bank debit.
+      this.db.select().from(employeePayments).where(
+        and(
+          eq(employeePayments.bankAccountId, bankAccountId),
+          eq(employeePayments.tenantId, this.tenantId),
+          eq(employeePayments.status, 'paid'),
+          isNull(sql`(select id from reconciliation_matches where employee_payment_id = ${employeePayments.id} limit 1)`),
+        ),
+      ),
+      // Statutory subledger: deposited PF / ESI / PT / TDS challans —
+      // matched the same way against the bank statement.
+      this.db.select().from(statutoryChallans).where(
+        and(
+          eq(statutoryChallans.bankAccountId, bankAccountId),
+          eq(statutoryChallans.tenantId, this.tenantId),
+          eq(statutoryChallans.status, 'deposited'),
+          isNull(sql`(select id from reconciliation_matches where statutory_challan_id = ${statutoryChallans.id} limit 1)`),
+        ),
+      ),
     ]);
 
     const bankBalance = toNumber(account.currentBalance);
     const totalPayments = unreconciledPayments.reduce((s, p) => s + toNumber(p.amount), 0);
     const totalReceipts = unreconciledReceipts.reduce((s, r) => s + toNumber(r.amount), 0);
-    const bookBalance = bankBalance - totalPayments + totalReceipts;
+    const totalEmployeePayments = unreconciledEmployeePayments.reduce((s, e) => s + toNumber(e.amount), 0);
+    const totalStatutoryChallans = unreconciledStatutoryChallans.reduce((s, c) => s + toNumber(c.amount), 0);
+    const bookBalance = bankBalance - totalPayments - totalEmployeePayments
+      - totalStatutoryChallans + totalReceipts;
 
     const smartMatch = new SmartMatchService(this.db, this.tenantId);
     const tdsMatch = new TdsMatchService(this.db, this.tenantId);
@@ -103,6 +139,8 @@ export class ReconciliationService {
       unreconciledBankTxns,
       unreconciledPayments,
       unreconciledReceipts,
+      unreconciledEmployeePayments,
+      unreconciledStatutoryChallans,
       suggestedMatches,
       summary: { bankBalance, bookBalance, difference: bankBalance - bookBalance },
     };
@@ -245,7 +283,10 @@ export class ReconciliationService {
 
     await this.validateNotInClosedPeriod(txn.transactionDate, txn.bankAccountId);
 
-    const { paymentId, receiptId, vendorId, customerId, matchAmount } = await this.resolveMatchTarget(input);
+    const {
+      paymentId, receiptId, employeePaymentId, statutoryChallanId,
+      vendorId, customerId, matchAmount,
+    } = await this.resolveMatchTarget(input);
 
     const diff = Math.abs(toNumber(txn.amount) - matchAmount);
     if (diff > 1) throw new ConflictError(`Amount mismatch: bank ${txn.amount}, book ${matchAmount}`);
@@ -258,6 +299,8 @@ export class ReconciliationService {
           bankTransactionId: input.bankTransactionId,
           paymentId: paymentId ?? null,
           receiptId: receiptId ?? null,
+          employeePaymentId: employeePaymentId ?? null,
+          statutoryChallanId: statutoryChallanId ?? null,
           matchType: 'manual',
           matchedBy: userId,
         })
@@ -770,9 +813,53 @@ export class ReconciliationService {
       return {
         paymentId: payment.id,
         receiptId: null as null,
+        employeePaymentId: null as null,
+        statutoryChallanId: null as null,
         vendorId: payment.vendorId,
         customerId: null as null,
         matchAmount: toNumber(payment.amount),
+      };
+    }
+
+    if (input.matchType === 'employee_payment') {
+      const [empPay] = await this.db
+        .select()
+        .from(employeePayments)
+        .where(and(
+          eq(employeePayments.id, input.matchId),
+          eq(employeePayments.tenantId, this.tenantId),
+        ))
+        .limit(1);
+      if (!empPay) throw new NotFoundError('Employee payment');
+      return {
+        paymentId: null as null,
+        receiptId: null as null,
+        employeePaymentId: empPay.id,
+        statutoryChallanId: null as null,
+        vendorId: null as null,
+        customerId: null as null,
+        matchAmount: toNumber(empPay.amount),
+      };
+    }
+
+    if (input.matchType === 'statutory_challan') {
+      const [challan] = await this.db
+        .select()
+        .from(statutoryChallans)
+        .where(and(
+          eq(statutoryChallans.id, input.matchId),
+          eq(statutoryChallans.tenantId, this.tenantId),
+        ))
+        .limit(1);
+      if (!challan) throw new NotFoundError('Statutory challan');
+      return {
+        paymentId: null as null,
+        receiptId: null as null,
+        employeePaymentId: null as null,
+        statutoryChallanId: challan.id,
+        vendorId: null as null,
+        customerId: null as null,
+        matchAmount: toNumber(challan.amount),
       };
     }
 
@@ -785,6 +872,8 @@ export class ReconciliationService {
     return {
       paymentId: null as null,
       receiptId: receipt.id,
+      employeePaymentId: null as null,
+      statutoryChallanId: null as null,
       vendorId: null as null,
       customerId: receipt.customerId ?? null,
       matchAmount: toNumber(receipt.amount),

@@ -1,6 +1,6 @@
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import {
-  tdsReturns, tdsChallans, payrollRuns, payslips, employees, tenants,
+  tdsReturns, statutoryChallans, payrollRuns, payslips, employees, tenants,
 } from '@runq/db';
 import type { Db, Form24QData, Form24QAnnexureIRow, Form24QAnnexureIIRow } from '@runq/db';
 import type { TenantSettings } from '@runq/types';
@@ -239,21 +239,23 @@ export class TdsReturnService {
     }));
   }
 
-  /** month-of-year → deposited challan CIN, for linking deductions. */
+  /** month-of-year → deposited challan CIN, for linking deductions.
+   *  Reads from the unified statutory_challans table, filtered to TDS. */
   private async challanCinByMonth(months: Array<{ year: number; month: number }>) {
     const rows = await this.db
       .select()
-      .from(tdsChallans)
+      .from(statutoryChallans)
       .where(and(
-        eq(tdsChallans.tenantId, this.tenantId),
-        inArray(tdsChallans.periodMonth, months.map((m) => m.month)),
-        inArray(tdsChallans.periodYear, months.map((m) => m.year)),
+        eq(statutoryChallans.tenantId, this.tenantId),
+        eq(statutoryChallans.kind, 'tds'),
+        inArray(statutoryChallans.periodMonth, months.map((m) => m.month)),
+        inArray(statutoryChallans.periodYear, months.map((m) => m.year)),
       ));
     const map = new Map<string, { bsr: string | null; serial: string | null; date: string | null }>();
     for (const c of rows) {
       if (c.status !== 'deposited') continue;
       map.set(`${c.periodYear}-${c.periodMonth}`, {
-        bsr: c.bsrCode, serial: c.challanSerialNo, date: c.depositDate,
+        bsr: c.bankBsrCode, serial: c.referenceNumber, date: c.depositDate,
       });
     }
     return map;

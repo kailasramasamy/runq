@@ -18,14 +18,15 @@ import { holidayRoutes } from './holiday.routes';
 import { leaveRoutes } from './leave.routes';
 import { payrollRoutes } from './payroll.routes';
 import { payrollStatutoryRoutes } from './payroll-statutory.routes';
+import { employeePaymentRoutes } from './payroll/employee-payment.routes';
 import { tdsRoutes } from './tds/tds.routes';
 import { wageRegisterRoutes } from './wage-register.routes';
 import { hrDashboardRoutes } from './dashboard.routes';
-import { ReimbursementToBillService } from './reimbursement-to-bill.service';
+import { ExpenseClaimPostingService } from './expense-claim-posting.service';
 import { StatutoryCalendarService } from './statutory-calendar.service';
 import { z } from 'zod';
 
-const postToApSchema = z.object({ employeeId: z.string().uuid() });
+const postExpenseClaimSchema = z.object({ employeeId: z.string().uuid() });
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -40,6 +41,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(leaveRoutes);
   await app.register(payrollRoutes);
   await app.register(payrollStatutoryRoutes);
+  await app.register(employeePaymentRoutes);
   await app.register(tdsRoutes);
   await app.register(wageRegisterRoutes);
   await app.register(hrDashboardRoutes);
@@ -54,14 +56,16 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Post an approved expense claim to AP as a draft bill.
+  // Post an approved expense claim straight to the GL — no AP bill. Books
+  // Dr <expense accounts> / Cr 2111 Employee Reimbursements Payable, which
+  // is later cleared by an employee_payments row when the claimant is paid.
   app.post(
-    '/expense-claims/:id/post-to-ap',
+    '/expense-claims/:id/post',
     { preHandler: [rbacHook([...WRITE_ROLES])] },
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
-      const { employeeId } = postToApSchema.parse(request.body);
-      const svc = new ReimbursementToBillService(request.server.db, request.tenantId);
+      const { employeeId } = postExpenseClaimSchema.parse(request.body);
+      const svc = new ExpenseClaimPostingService(request.server.db, request.tenantId);
       return { data: await svc.post(id, employeeId, request.user!.userId) };
     },
   );

@@ -1,5 +1,5 @@
 import { eq, and, desc } from 'drizzle-orm';
-import { tdsChallans, tdsReturns, payrollRuns, tenants } from '@runq/db';
+import { statutoryChallans, tdsReturns, payrollRuns, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { TenantSettings } from '@runq/types';
 import { ptDueDate } from './payroll/statutory';
@@ -64,11 +64,16 @@ export class StatutoryCalendarService {
     const today = new Date();
     const items: StatutoryDeadline[] = [];
 
-    // TDS deposits — every challan still awaiting deposit.
+    // TDS deposits — every TDS challan still awaiting deposit. Reads from
+    // the unified statutory_challans table, filtered to TDS.
     const challans = await this.db
       .select()
-      .from(tdsChallans)
-      .where(and(eq(tdsChallans.tenantId, this.tenantId), eq(tdsChallans.status, 'pending')));
+      .from(statutoryChallans)
+      .where(and(
+        eq(statutoryChallans.tenantId, this.tenantId),
+        eq(statutoryChallans.kind, 'tds'),
+        eq(statutoryChallans.status, 'pending'),
+      ));
     for (const c of challans) {
       items.push({
         kind: 'tds_deposit',
@@ -76,7 +81,7 @@ export class StatutoryCalendarService {
         sublabel: 'Challan ITNS-281',
         dueDate: tdsDepositDue(c.periodYear, c.periodMonth),
         status: 'pending',
-        amount: Number(c.tdsAmount),
+        amount: Number(c.liabilityAmount),
       });
     }
 

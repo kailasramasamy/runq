@@ -1,17 +1,11 @@
 import {
-  pgTable, uuid, varchar, integer, decimal, text, timestamp,
-  pgEnum, jsonb, index, uniqueIndex, date,
+  pgTable, uuid, varchar, integer, text, timestamp,
+  pgEnum, jsonb, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
-import { payrollRuns } from './payroll';
 
 // ── Enums ──────────────────────────────────────────────────────────────
-
-export const tdsChallanStatusEnum = pgEnum('tds_challan_status', [
-  'pending',    // TDS deducted, not yet deposited with the government
-  'deposited',  // paid via ITNS-281, CIN captured
-]);
 
 export const tdsReturnStatusEnum = pgEnum('tds_return_status', [
   'draft',      // generated from payslips + challans, not yet checked
@@ -61,43 +55,8 @@ export type Form24QData = {
 
 // ── Tables ─────────────────────────────────────────────────────────────
 
-/**
- * Monthly TDS deposit record — Challan ITNS-281. One per payroll run per
- * section. Created `pending` when a run is approved (TDS total is known),
- * moved to `deposited` once the customer pays and captures the CIN
- * (BSR code + challan serial + deposit date).
- */
-export const tdsChallans = pgTable('tds_challans', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-  payrollRunId: uuid('payroll_run_id').references(() => payrollRuns.id, { onDelete: 'set null' }),
-
-  periodMonth: integer('period_month').notNull(),   // 1-12, the deduction month
-  periodYear: integer('period_year').notNull(),
-  section: varchar('section', { length: 10 }).notNull().default('192'), // 192 = salary TDS
-
-  tdsAmount: decimal('tds_amount', { precision: 15, scale: 2 }).notNull().default('0'),
-  interestAmount: decimal('interest_amount', { precision: 15, scale: 2 }).notNull().default('0'),
-  lateFeeAmount: decimal('late_fee_amount', { precision: 15, scale: 2 }).notNull().default('0'),
-  totalAmount: decimal('total_amount', { precision: 15, scale: 2 }).notNull().default('0'),
-
-  status: tdsChallanStatusEnum('status').notNull().default('pending'),
-
-  // CIN — populated on deposit
-  bsrCode: varchar('bsr_code', { length: 7 }),
-  challanSerialNo: varchar('challan_serial_no', { length: 10 }),
-  depositDate: date('deposit_date'),
-  paymentMode: varchar('payment_mode', { length: 30 }),
-  bankRef: varchar('bank_ref', { length: 50 }),
-  depositedBy: uuid('deposited_by').references(() => users.id),
-
-  notes: text('notes'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [
-  index('idx_tds_challan_tenant_status').on(t.tenantId, t.status),
-  uniqueIndex('uq_tds_challan_period').on(t.tenantId, t.periodYear, t.periodMonth, t.section),
-]);
+// Monthly TDS deposit challans now live in the unified `statutory_challans`
+// table (see ./statutory-challans.ts). Filter by `kind = 'tds'`.
 
 /**
  * Quarterly Form 24Q return — mirrors gst_returns. `data` snapshots the full

@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { Plus, Trash2, X, Download, Send, CheckCircle, Banknote } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import {
-  Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, DateInput,
+  Card, CardContent, PageHeader, Button, Badge, Input, Select, Textarea, DateInput, Modal, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
   TableSkeleton, useToast,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import {
-  useExpenseClaims, useExpenseClaim, useCreateExpenseClaim, useSubmitClaim, useApproveClaim, useReimburseClaim, useDeleteExpenseClaim,
+  useExpenseClaims, useExpenseClaim, useCreateExpenseClaim, useSubmitClaim, useApproveClaim,
+  usePostExpenseClaim, useRecordReimbursementPayment, useDeleteExpenseClaim,
   type ExpenseClaim, type ClaimStatus, type ExpenseCategory,
 } from '@/hooks/queries/use-expense-claims';
+import { useEmployees } from '@/hooks/queries/use-hr';
+import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 
 type BadgeVariant = 'default' | 'info' | 'success' | 'danger' | 'outline' | 'primary' | 'warning' | 'cyan';
 
@@ -199,16 +202,16 @@ export function ExpenseClaimsPage() {
   const { toast } = useToast();
   const submitClaim = useSubmitClaim();
   const approveClaim = useApproveClaim();
-  const reimburseClaim = useReimburseClaim();
   const deleteClaim = useDeleteExpenseClaim();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reimburseClaim, setReimburseClaim] = useState<ExpenseClaim | null>(null);
 
   const claims = data?.data ?? [];
   const selected = selectedId ? claims.find((c) => c.id === selectedId) : null;
 
-  async function quickAction(id: string, action: 'submit' | 'approve' | 'reimburse') {
-    const fn = action === 'submit' ? submitClaim : action === 'approve' ? approveClaim : reimburseClaim;
+  async function quickAction(id: string, action: 'submit' | 'approve') {
+    const fn = action === 'submit' ? submitClaim : approveClaim;
     try { await fn.mutateAsync(id); toast(`Claim ${action}ed`, 'success'); }
     catch { toast(`Failed to ${action}`, 'error'); }
   }
@@ -241,6 +244,12 @@ export function ExpenseClaimsPage() {
       />
 
       {showCreate && <CreateForm onClose={() => setShowCreate(false)} />}
+      {reimburseClaim && (
+        <ReimburseModal
+          claim={reimburseClaim}
+          onClose={() => setReimburseClaim(null)}
+        />
+      )}
 
       {/* Mobile card view */}
       <div className="flex flex-col gap-2 md:hidden">
@@ -280,7 +289,7 @@ export function ExpenseClaimsPage() {
                         <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
                       )}
                       {c.status === 'approved' && (
-                        <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
+                        <Button variant="outline" size="sm" onClick={() => setReimburseClaim(c)}><Banknote size={14} /> Reimburse</Button>
                       )}
                       <Button
                         variant="outline"
@@ -335,7 +344,7 @@ export function ExpenseClaimsPage() {
                                 <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
                               )}
                               {c.status === 'approved' && (
-                                <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'reimburse')}><Banknote size={14} /> Reimburse</Button>
+                                <Button variant="outline" size="sm" onClick={() => setReimburseClaim(c)}><Banknote size={14} /> Reimburse</Button>
                               )}
                               {c.status !== 'reimbursed' && (
                                 <Button
@@ -362,5 +371,111 @@ export function ExpenseClaimsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// ─── Reimburse Modal ─────────────────────────────────────────────────────────
+
+/**
+ * One UI step, two backend writes: posts the JE if not yet posted (Dr expense
+ * accounts / Cr 2111), then records the employee payment (Dr 2111 / Cr bank)
+ * and flips the claim to 'reimbursed'. Replaces the legacy two-step
+ * Post-to-AP + status-flip flow.
+ */
+function ReimburseModal({ claim, onClose }: { claim: ExpenseClaim; onClose: () => void }) {
+  const { toast } = useToast();
+  const { data: employeesData } = useEmployees();
+  const { data: banksData } = useBankAccounts();
+  const post = usePostExpenseClaim();
+  const pay = useRecordReimbursementPayment();
+
+  const [employeeId, setEmployeeId] = useState(claim.employeeId ?? '');
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reference, setReference] = useState('');
+
+  const employeeOptions = (employeesData?.data ?? []).map((e: { id: string; employeeCode: string; firstName: string; lastName: string | null }) => ({
+    value: e.id,
+    label: `${e.firstName}${e.lastName ? ' ' + e.lastName : ''} · ${e.employeeCode}`,
+  }));
+  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
+    value: b.id, label: `${b.name} · ${b.bankName}`,
+  }));
+
+  const posted = !!claim.journalEntryId;
+  const busy = post.isPending || pay.isPending;
+
+  async function submit() {
+    try {
+      if (!posted) {
+        await post.mutateAsync({ id: claim.id, employeeId });
+      }
+      await pay.mutateAsync({ expenseClaimId: claim.id, paymentDate, bankAccountId, reference: reference || null });
+      toast('Reimbursement recorded', 'success');
+      onClose();
+    } catch (e: any) {
+      toast(e?.message ?? 'Failed', 'error');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Reimburse — ${claim.claimNumber}`} size="md">
+      <div className="space-y-4">
+        <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+          Reimbursing <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(claim.totalAmount)}</span>{' '}
+          to {claim.claimantName ?? 'the claimant'}.{' '}
+          {posted
+            ? 'Posts Dr 2111 Employee Reimbursements Payable / Cr bank.'
+            : 'Posts the expense JE first (Dr expense accounts / Cr 2111), then settles against the bank.'}
+        </p>
+
+        {!posted && (
+          <Combobox
+            label="Employee"
+            required
+            options={employeeOptions}
+            value={employeeId}
+            onChange={setEmployeeId}
+            placeholder="Which employee is being reimbursed?"
+          />
+        )}
+
+        <Combobox
+          label="Bank account"
+          required
+          options={bankOptions}
+          value={bankAccountId}
+          onChange={setBankAccountId}
+          placeholder="Bank the reimbursement is going out of…"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Payment date"
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+          />
+          <Input
+            label="Reference (UTR / batch)"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="NEFT UTR or batch ID"
+            maxLength={100}
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            loading={busy}
+            disabled={(!posted && !employeeId) || !bankAccountId || !paymentDate}
+            onClick={submit}
+          >
+            <CheckCircle size={13} /> Record reimbursement
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

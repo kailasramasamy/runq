@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer, Landmark, HeartPulse, Coins } from 'lucide-react';
+import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer, Landmark, HeartPulse, Coins, Wallet } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
-  PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal,
+  PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal, Input, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
 import { StatTile, EmptyState, StatusPipeline } from '@/components/ar/primitives';
@@ -11,8 +11,12 @@ import { downloadCSV } from '@/lib/csv-export';
 import {
   usePayrollRun, usePayslips, useProcessPayrollRun, useApprovePayrollRun, useClosePayrollRun,
   usePfChallan, useEsiChallan, usePtChallan,
+  useEmployeePaymentsForRun, useRecordSalaryPayment,
+  useStatutoryChallansForRun, useRecordStatutoryDeposit,
   type PayrollRunStatus, type Payslip,
 } from '@/hooks/queries/use-hr-payroll';
+import { CheckCircle2 } from 'lucide-react';
+import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
 const STATUS_VARIANT: Record<PayrollRunStatus, any> = {
@@ -34,6 +38,8 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const [showPfChallan, setShowPfChallan] = useState(false);
   const [showEsiChallan, setShowEsiChallan] = useState(false);
   const [showPtChallan, setShowPtChallan] = useState(false);
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const { data: paymentsData } = useEmployeePaymentsForRun(runId);
 
   if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
   const run = runData?.data;
@@ -42,6 +48,9 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const slips = psData?.data ?? [];
   const period = `${MONTHS[run.month - 1]} ${run.year}`;
   const locked = run.status === 'approved' || run.status === 'closed';
+  const paidPayment = paymentsData?.data.find((p) => p.status === 'paid');
+  // Net pay can only be settled after approval — and only once per run.
+  const canRecordPayment = !readOnly && locked && !paidPayment;
 
   return (
     <div>
@@ -72,6 +81,16 @@ export function PayrollRunDetailPage({ runId }: Props) {
               })}>
                 <CheckCircle size={13} /> Approve
               </Button>
+            )}
+            {canRecordPayment && (
+              <Button size="sm" onClick={() => setShowRecordPayment(true)}>
+                <Wallet size={13} /> Record salary payment
+              </Button>
+            )}
+            {paidPayment && (
+              <Badge variant="success" title={`UTR ${paidPayment.reference ?? '—'}`}>
+                Paid {paidPayment.paymentDate}
+              </Badge>
             )}
             {!readOnly && run.status === 'approved' && (
               <Button size="sm" variant="outline" onClick={() => close.mutate(runId, {
@@ -200,7 +219,93 @@ export function PayrollRunDetailPage({ runId }: Props) {
       {showPfChallan && <PfChallanModal runId={runId} period={period} onClose={() => setShowPfChallan(false)} />}
       {showEsiChallan && <EsiChallanModal runId={runId} period={period} onClose={() => setShowEsiChallan(false)} />}
       {showPtChallan && <PtChallanModal runId={runId} period={period} onClose={() => setShowPtChallan(false)} />}
+      {showRecordPayment && (
+        <RecordSalaryPaymentModal
+          runId={runId}
+          period={period}
+          netTotal={Number(run.totalNet)}
+          onClose={() => setShowRecordPayment(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function RecordSalaryPaymentModal({
+  runId, period, netTotal, onClose,
+}: { runId: string; period: string; netTotal: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const { data: banksData } = useBankAccounts();
+  const record = useRecordSalaryPayment();
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
+    value: b.id,
+    label: `${b.name} · ${b.bankName}`,
+  }));
+
+  function submit() {
+    record.mutate(
+      { payrollRunId: runId, paymentDate, bankAccountId, reference: reference || null, notes: notes || null },
+      {
+        onSuccess: () => { toast('Salary payment recorded', 'success'); onClose(); },
+        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+      },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Record salary payment — ${period}`} size="md">
+      <div className="space-y-4">
+        <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+          Settles <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(netTotal)}</span>{' '}
+          of net pay against the bank: posts <span className="num">Dr 2110 Salary Payable / Cr bank</span> and makes the
+          transaction reconcilable on the banking screen.
+        </p>
+
+        <Combobox
+          label="Bank account"
+          required
+          options={bankOptions}
+          value={bankAccountId}
+          onChange={setBankAccountId}
+          placeholder="Pick the bank the salaries went out of…"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Payment date"
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+          />
+          <Input
+            label="Reference (UTR / batch)"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="NEFT UTR or batch ID"
+            maxLength={100}
+          />
+        </div>
+
+        <Input
+          label="Notes (optional)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          maxLength={500}
+        />
+
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button loading={record.isPending} disabled={!bankAccountId || !paymentDate} onClick={submit}>
+            <CheckCircle size={13} /> Record payment
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -212,9 +317,15 @@ const PT_STATE_NAMES: Record<string, string> = {
 
 function PtChallanModal({ runId, period, onClose }: { runId: string; period: string; onClose: () => void }) {
   const { data, isLoading } = usePtChallan(runId);
+  const { data: existingData } = useStatutoryChallansForRun(runId, 'pt');
+  const [depositFor, setDepositFor] = useState<{ stateCode: string; amount: number; label: string } | null>(null);
+
   const d = data?.data;
   const challans = d?.challans ?? [];
   const grandTotal = challans.reduce((s, c) => s + c.totalPt, 0);
+  // Lookup deposited PT challan for a given state — drives the badge/button.
+  const depositedFor = (stateCode: string) =>
+    existingData?.data.find((c) => c.stateCode === stateCode && c.status === 'deposited');
 
   return (
     <Modal open onClose={onClose} title={`PT Challan — ${period}`} size="lg">
@@ -241,15 +352,32 @@ function PtChallanModal({ runId, period, onClose }: { runId: string; period: str
                 <CardContent>
                   <table className="w-full text-[13px]">
                     <tbody>
-                      {challans.map((c) => (
-                        <tr key={c.stateCode} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
-                          <td className="py-2">
-                            <div style={{ color: 'var(--text-1)' }}>{PT_STATE_NAMES[c.stateCode] ?? `State ${c.stateCode}`}</div>
-                            <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>{c.totalEmployees} employees</div>
-                          </td>
-                          <td className="num py-2 text-right" style={{ color: 'var(--text-1)' }}>{formatINR(c.totalPt)}</td>
-                        </tr>
-                      ))}
+                      {challans.map((c) => {
+                        const stateLabel = PT_STATE_NAMES[c.stateCode] ?? `State ${c.stateCode}`;
+                        const deposited = depositedFor(c.stateCode);
+                        return (
+                          <tr key={c.stateCode} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
+                            <td className="py-2">
+                              <div style={{ color: 'var(--text-1)' }}>{stateLabel}</div>
+                              <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>{c.totalEmployees} employees</div>
+                            </td>
+                            <td className="num py-2 text-right" style={{ color: 'var(--text-1)' }}>{formatINR(c.totalPt)}</td>
+                            <td className="py-2 pl-2 text-right">
+                              {deposited ? (
+                                <Badge variant="success" title={deposited.referenceNumber ?? undefined}>
+                                  Deposited {deposited.depositDate}
+                                </Badge>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => setDepositFor({
+                                  stateCode: c.stateCode, amount: c.totalPt, label: `PT — ${stateLabel}`,
+                                })}>
+                                  Record deposit
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </CardContent>
@@ -271,13 +399,27 @@ function PtChallanModal({ runId, period, onClose }: { runId: string; period: str
           </div>
         </div>
       )}
+      {depositFor && (
+        <RecordStatutoryDepositModal
+          kind="pt"
+          runId={runId}
+          stateCode={depositFor.stateCode}
+          amount={depositFor.amount}
+          label={depositFor.label}
+          period={period}
+          onClose={() => setDepositFor(null)}
+        />
+      )}
     </Modal>
   );
 }
 
 function PfChallanModal({ runId, period, onClose }: { runId: string; period: string; onClose: () => void }) {
   const { data, isLoading } = usePfChallan(runId);
+  const { data: existing } = useStatutoryChallansForRun(runId, 'pf');
+  const [depositOpen, setDepositOpen] = useState(false);
   const c = data?.data;
+  const deposited = existing?.data.find((x) => x.status === 'deposited');
 
   const row = (label: string, sub: string, amount: number, bold = false) => (
     <tr className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
@@ -332,10 +474,30 @@ function PfChallanModal({ runId, period, onClose }: { runId: string; period: str
             <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Total payable to EPFO</span>
             <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(c.grandTotal)}</span>
           </div>
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            {deposited ? (
+              <Badge variant="success" title={deposited.referenceNumber ?? undefined}>
+                Deposited {deposited.depositDate}{deposited.referenceNumber ? ` · TRRN ${deposited.referenceNumber}` : ''}
+              </Badge>
+            ) : (
+              <Button size="sm" onClick={() => setDepositOpen(true)}>
+                <CheckCircle2 size={13} /> Record deposit
+              </Button>
+            )}
             <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
         </div>
+      )}
+      {depositOpen && c && (
+        <RecordStatutoryDepositModal
+          kind="pf"
+          runId={runId}
+          amount={c.grandTotal}
+          label="PF deposit"
+          period={period}
+          referenceLabel="TRRN"
+          onClose={() => setDepositOpen(false)}
+        />
       )}
     </Modal>
   );
@@ -343,7 +505,10 @@ function PfChallanModal({ runId, period, onClose }: { runId: string; period: str
 
 function EsiChallanModal({ runId, period, onClose }: { runId: string; period: string; onClose: () => void }) {
   const { data, isLoading } = useEsiChallan(runId);
+  const { data: existing } = useStatutoryChallansForRun(runId, 'esi');
+  const [depositOpen, setDepositOpen] = useState(false);
   const c = data?.data;
+  const deposited = existing?.data.find((x) => x.status === 'deposited');
 
   return (
     <Modal open onClose={onClose} title={`ESI Challan — ${period}`} size="lg">
@@ -372,17 +537,136 @@ function EsiChallanModal({ runId, period, onClose }: { runId: string; period: st
             <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Total payable to ESIC</span>
             <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(c.grandTotal)}</span>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Button variant="outline" size="sm" onClick={() => api.download(
               `/hr/payroll-runs/${runId}/exports/esi`,
               `esi-mc-${c.run.year}-${String(c.run.month).padStart(2, '0')}.csv`,
             )}>
               <Download size={13} /> ESI return CSV
             </Button>
+            {deposited ? (
+              <Badge variant="success" title={deposited.referenceNumber ?? undefined}>
+                Deposited {deposited.depositDate}
+              </Badge>
+            ) : (
+              <Button size="sm" onClick={() => setDepositOpen(true)}>
+                <CheckCircle2 size={13} /> Record deposit
+              </Button>
+            )}
             <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
         </div>
       )}
+      {depositOpen && c && (
+        <RecordStatutoryDepositModal
+          kind="esi"
+          runId={runId}
+          amount={c.grandTotal}
+          label="ESI deposit"
+          period={period}
+          referenceLabel="Challan number"
+          onClose={() => setDepositOpen(false)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * Generic record-deposit form for PF / ESI / PT. Posts to /hr/statutory-challans/deposit
+ * which atomically creates the challan and posts the settlement JE
+ * (Dr <liability> / Cr bank). For PT, stateCode pins the per-state challan.
+ */
+function RecordStatutoryDepositModal({
+  kind, runId, stateCode, amount, label, period, referenceLabel, onClose,
+}: {
+  kind: 'pf' | 'esi' | 'pt';
+  runId: string;
+  stateCode?: string;
+  amount: number;
+  label: string;
+  period: string;
+  referenceLabel?: string;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const { data: banksData } = useBankAccounts();
+  const record = useRecordStatutoryDeposit();
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [depositDate, setDepositDate] = useState(new Date().toISOString().slice(0, 10));
+  const [referenceNumber, setReferenceNumber] = useState('');
+  const [interestAmount, setInterestAmount] = useState('');
+  const [lateFeeAmount, setLateFeeAmount] = useState('');
+
+  const interest = Number(interestAmount) || 0;
+  const lateFee = Number(lateFeeAmount) || 0;
+  const total = amount + interest + lateFee;
+  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
+    value: b.id, label: `${b.name} · ${b.bankName}`,
+  }));
+
+  function submit() {
+    record.mutate(
+      {
+        kind, payrollRunId: runId, stateCode: stateCode ?? null,
+        bankAccountId, depositDate,
+        referenceNumber: referenceNumber || null,
+        interestAmount: interest, lateFeeAmount: lateFee,
+      },
+      {
+        onSuccess: () => { toast('Deposit recorded — JE posted', 'success'); onClose(); },
+        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+      },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${label} — ${period}`} size="md">
+      <div className="space-y-4">
+        <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
+          Liability <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(amount)}</span>.
+          Recording posts the settlement JE (Dr liability / Cr bank) so the payable clears
+          and the deposit is reconcilable against the bank statement.
+        </p>
+
+        <Combobox
+          label="Bank account"
+          required
+          options={bankOptions}
+          value={bankAccountId}
+          onChange={setBankAccountId}
+          placeholder="Bank the deposit went out of…"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Deposit date" type="date" value={depositDate}
+            onChange={(e) => setDepositDate(e.target.value)} />
+          <Input
+            label={referenceLabel ?? 'Reference / challan no.'}
+            value={referenceNumber}
+            onChange={(e) => setReferenceNumber(e.target.value)}
+            maxLength={30}
+          />
+          <Input label="Interest (₹)" value={interestAmount}
+            onChange={(e) => setInterestAmount(e.target.value.replace(/[^\d.]/g, ''))}
+            placeholder="0" />
+          <Input label="Late fee (₹)" value={lateFeeAmount}
+            onChange={(e) => setLateFeeAmount(e.target.value.replace(/[^\d.]/g, ''))}
+            placeholder="0" />
+        </div>
+
+        <div className="flex items-center justify-between rounded-md p-3" style={{ background: 'var(--accent-soft)' }}>
+          <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Total deposited</span>
+          <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(total)}</span>
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button loading={record.isPending} disabled={!bankAccountId || !depositDate} onClick={submit}>
+            <CheckCircle2 size={13} /> Record deposit
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }

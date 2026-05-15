@@ -95,6 +95,7 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '2108', name: 'ESI Payable', type: 'liability', parent: '2100' },
   { code: '2109', name: 'Professional Tax Payable', type: 'liability', parent: '2100' },
   { code: '2110', name: 'Salary Payable', type: 'liability', parent: '2100' },
+  { code: '2111', name: 'Employee Reimbursements Payable', type: 'liability', parent: '2100' },
   { code: '2111', name: 'Accrued Expenses', type: 'liability', parent: '2100' },
   { code: '2112', name: 'Provision for Income Tax', type: 'liability', parent: '2100' },
   { code: '2113', name: 'Other Current Liabilities', type: 'liability', parent: '2100' },
@@ -161,6 +162,8 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5205', name: 'Bonus & Incentives', type: 'expense', parent: '5200' },
   { code: '5206', name: 'Staff Welfare', type: 'expense', parent: '5200' },
   { code: '5207', name: 'Contract Labour', type: 'expense', parent: '5200' },
+  { code: '5215', name: 'Statutory Interest', type: 'expense', parent: '5200' },
+  { code: '5216', name: 'Statutory Late Fees', type: 'expense', parent: '5200' },
 
   // Operating Expenses
   { code: '5300', name: 'Operating Expenses', type: 'expense', parent: '5000' },

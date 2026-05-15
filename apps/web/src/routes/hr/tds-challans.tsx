@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Receipt, Landmark, CheckCircle2 } from 'lucide-react';
 import {
-  PageHeader, Button, Input, Modal, useToast,
+  PageHeader, Button, Input, Modal, useToast, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge,
 } from '@/components/ui';
+import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { StatTile, EmptyState } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import {
@@ -115,6 +116,8 @@ export function TdsChallansPage() {
 function RecordDepositModal({ challan, onClose }: { challan: TdsChallan; onClose: () => void }) {
   const { toast } = useToast();
   const record = useRecordTdsDeposit();
+  const { data: banksData } = useBankAccounts();
+  const [bankAccountId, setBankAccountId] = useState('');
   const [bsrCode, setBsrCode] = useState('');
   const [challanSerialNo, setChallanSerialNo] = useState('');
   const [depositDate, setDepositDate] = useState(new Date().toISOString().slice(0, 10));
@@ -125,11 +128,16 @@ function RecordDepositModal({ challan, onClose }: { challan: TdsChallan; onClose
   const interest = Number(interestAmount) || 0;
   const lateFee = Number(lateFeeAmount) || 0;
   const total = Number(challan.tdsAmount) + interest + lateFee;
+  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
+    value: b.id,
+    label: `${b.name} · ${b.bankName}`,
+  }));
 
   function submit() {
     record.mutate(
       {
         id: challan.id,
+        bankAccountId,
         bsrCode,
         challanSerialNo,
         depositDate,
@@ -138,7 +146,7 @@ function RecordDepositModal({ challan, onClose }: { challan: TdsChallan; onClose
         bankRef: bankRef || null,
       },
       {
-        onSuccess: () => { toast('Deposit recorded', 'success'); onClose(); },
+        onSuccess: () => { toast('Deposit recorded — JE posted', 'success'); onClose(); },
         onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
       },
     );
@@ -150,8 +158,19 @@ function RecordDepositModal({ challan, onClose }: { challan: TdsChallan; onClose
         <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
           Enter the CIN from the ITNS-281 challan counterfoil. TDS for this period is{' '}
           <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(Number(challan.tdsAmount))}</span>.
-          Add interest / late fee only if the deposit was delayed.
+          Add interest / late fee only if the deposit was delayed. Recording posts the settlement
+          JE (Dr 2104 TDS Payable / Cr bank) so the liability clears and the deposit is
+          reconcilable against the bank statement.
         </p>
+
+        <Combobox
+          label="Bank account"
+          required
+          options={bankOptions}
+          value={bankAccountId}
+          onChange={setBankAccountId}
+          placeholder="Bank the deposit went out of…"
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <Input
@@ -205,7 +224,7 @@ function RecordDepositModal({ challan, onClose }: { challan: TdsChallan; onClose
           <Button
             onClick={submit}
             loading={record.isPending}
-            disabled={!/^\d{7}$/.test(bsrCode) || !challanSerialNo || !depositDate}
+            disabled={!bankAccountId || !/^\d{7}$/.test(bsrCode) || !challanSerialNo || !depositDate}
           >
             <CheckCircle2 size={13} /> Record deposit
           </Button>

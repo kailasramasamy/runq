@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, decimal, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
+import { journalEntries } from '../gl/journal-entries';
 
 export const expenseClaimStatusEnum = pgEnum('expense_claim_status', [
   'draft', 'submitted', 'approved', 'rejected', 'reimbursed',
@@ -20,7 +21,13 @@ export const expenseClaims = pgTable('expense_claims', {
   rejectionReason: text('rejection_reason'),
   reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
   employeeId: uuid('employee_id'),
+  /** Legacy: AP bill from the old reimbursement-via-vendor flow. Preserved on
+   *  historical claims; new claims post directly to GL via journalEntryId. */
   billId: uuid('bill_id'),
+  /** Settlement-side JE posted when the claim is posted to GL:
+   *  Dr <expense account> / Cr 2111 Employee Reimbursements Payable.
+   *  Cleared later by an employee_payments row (sourceType='expense_claim'). */
+  journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

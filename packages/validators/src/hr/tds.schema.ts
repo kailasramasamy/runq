@@ -2,11 +2,31 @@ import { z } from 'zod';
 
 /** Capture the CIN after a monthly TDS challan (ITNS-281) is paid. */
 export const recordTdsDepositSchema = z.object({
+  bankAccountId: z.string().uuid(),
   bsrCode: z.string().regex(/^\d{7}$/, 'BSR code must be 7 digits'),
   challanSerialNo: z.string().regex(/^\d{1,10}$/, 'Challan serial number must be numeric'),
   depositDate: z.string().date(),
   paymentMode: z.string().max(30).nullish(),
   bankRef: z.string().max(50).nullish(),
+  interestAmount: z.number().nonnegative().default(0),
+  lateFeeAmount: z.number().nonnegative().default(0),
+  notes: z.string().max(500).nullish(),
+});
+
+/** Record a PF / ESI / PT challan deposit against a payroll run. The
+ *  service computes the liability from the run; the input captures the
+ *  bank-side details + any interest / late fee. */
+export const recordStatutoryDepositSchema = z.object({
+  kind: z.enum(['pf', 'esi', 'pt']),
+  payrollRunId: z.string().uuid(),
+  /** PT only: per-state challan; required when kind === 'pt'. */
+  stateCode: z.string().max(2).nullish(),
+  bankAccountId: z.string().uuid(),
+  depositDate: z.string().date(),
+  paymentMode: z.string().max(30).nullish(),
+  bankRef: z.string().max(50).nullish(),
+  /** Reference number on the challan (PF TRRN / ESI challan no / PT portal ref). */
+  referenceNumber: z.string().max(30).nullish(),
   interestAmount: z.number().nonnegative().default(0),
   lateFeeAmount: z.number().nonnegative().default(0),
   notes: z.string().max(500).nullish(),
@@ -30,6 +50,7 @@ export const tdsFinancialYearQuerySchema = z.object({
 });
 
 export type RecordTdsDepositInput = z.infer<typeof recordTdsDepositSchema>;
+export type RecordStatutoryDepositInput = z.infer<typeof recordStatutoryDepositSchema>;
 export type Tds24QQuery = z.infer<typeof tds24QQuerySchema>;
 export type FileTdsReturnInput = z.infer<typeof fileTdsReturnSchema>;
 export type TdsFinancialYearQuery = z.infer<typeof tdsFinancialYearQuerySchema>;

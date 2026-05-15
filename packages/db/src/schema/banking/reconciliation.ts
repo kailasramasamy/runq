@@ -5,6 +5,8 @@ import { bankTransactions } from './bank-transactions';
 import { payments } from '../ap/payments';
 import { paymentReceipts } from '../ar/receipts';
 import { journalEntries } from '../gl/journal-entries';
+import { employeePayments } from '../hr/employee-payments';
+import { statutoryChallans } from '../hr/statutory-challans';
 import { users } from '../user';
 
 export const reconMatchTypeEnum = pgEnum('recon_match_type', ['auto_utr', 'auto_amount_date', 'manual', 'expense_post']);
@@ -32,6 +34,8 @@ export const reconciliationMatches = pgTable('reconciliation_matches', {
   paymentId: uuid('payment_id').references(() => payments.id),
   receiptId: uuid('receipt_id').references(() => paymentReceipts.id),
   journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
+  employeePaymentId: uuid('employee_payment_id').references(() => employeePayments.id),
+  statutoryChallanId: uuid('statutory_challan_id').references(() => statutoryChallans.id),
   matchType: reconMatchTypeEnum('match_type').notNull(),
   matchedBy: uuid('matched_by').references(() => users.id),
   matchedAt: timestamp('matched_at', { withTimezone: true }).notNull().defaultNow(),
@@ -41,4 +45,6 @@ export const reconciliationMatches = pgTable('reconciliation_matches', {
   index('idx_rm_payment_id').on(t.paymentId),
   index('idx_rm_receipt_id').on(t.receiptId),
   index('idx_rm_journal_entry_id').on(t.journalEntryId),
+  index('idx_rm_employee_payment_id').on(t.employeePaymentId),
+  index('idx_rm_statutory_challan_id').on(t.statutoryChallanId),
 ]);

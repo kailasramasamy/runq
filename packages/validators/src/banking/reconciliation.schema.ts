@@ -7,7 +7,10 @@ export const autoReconcileSchema = z.object({
 
 export const manualMatchSchema = z.object({
   bankTransactionId: z.string().uuid(),
-  matchType: z.enum(['vendor_payment', 'payment_receipt']),
+  matchType: z.enum([
+    'vendor_payment', 'payment_receipt',
+    'employee_payment', 'statutory_challan',
+  ]),
   matchId: z.string().uuid(),
 });
 

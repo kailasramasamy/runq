@@ -294,6 +294,7 @@ export function useTdsChallans() {
 }
 
 export interface RecordTdsDepositInput {
+  bankAccountId: string;
   bsrCode: string;
   challanSerialNo: string;
   depositDate: string;
@@ -416,6 +417,123 @@ export function useStatutoryCalendar() {
   return useQuery({
     queryKey: ['hr', 'statutory-calendar'],
     queryFn: () => api.get<ApiSuccess<StatutoryDeadline[]>>(`/hr/statutory-calendar`),
+  });
+}
+
+// ─── Statutory challans (PF / ESI / PT / TDS settlement) ────────────────
+
+export type StatutoryChallanKind = 'pf' | 'esi' | 'pt' | 'tds';
+export type StatutoryChallanStatus = 'pending' | 'deposited';
+
+export interface StatutoryChallan {
+  id: string;
+  kind: StatutoryChallanKind;
+  payrollRunId: string | null;
+  periodMonth: number;
+  periodYear: number;
+  stateCode: string | null;
+  section: string | null;
+  liabilityAmount: string;
+  interestAmount: string;
+  lateFeeAmount: string;
+  amount: string;
+  status: StatutoryChallanStatus;
+  bankBsrCode: string | null;
+  referenceNumber: string | null;
+  depositDate: string | null;
+  paymentMode: string | null;
+  bankRef: string | null;
+  bankAccountId: string | null;
+  journalEntryId: string | null;
+  notes: string | null;
+}
+
+export function useStatutoryChallansForRun(
+  runId: string | null,
+  kind?: StatutoryChallanKind,
+) {
+  const q = new URLSearchParams();
+  if (runId) q.set('payrollRunId', runId);
+  if (kind) q.set('kind', kind);
+  return useQuery({
+    queryKey: ['hr', 'statutory-challans', runId, kind],
+    queryFn: () => api.get<ApiSuccess<StatutoryChallan[]>>(`/hr/statutory-challans?${q.toString()}`),
+    enabled: !!runId,
+  });
+}
+
+export interface RecordStatutoryDepositInput {
+  kind: 'pf' | 'esi' | 'pt';
+  payrollRunId: string;
+  stateCode?: string | null;
+  bankAccountId: string;
+  depositDate: string;
+  paymentMode?: string | null;
+  bankRef?: string | null;
+  referenceNumber?: string | null;
+  interestAmount?: number;
+  lateFeeAmount?: number;
+  notes?: string | null;
+}
+
+export function useRecordStatutoryDeposit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: RecordStatutoryDepositInput) =>
+      api.post<ApiSuccess<StatutoryChallan>>(`/hr/statutory-challans/deposit`, d),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['hr', 'statutory-challans', vars.payrollRunId] });
+      qc.invalidateQueries({ queryKey: ['hr', 'statutory-challans', vars.payrollRunId, vars.kind] });
+    },
+  });
+}
+
+// ─── Employee payments (payroll subledger settlement) ────────────────────
+
+export type EmployeePaymentStatus = 'pending' | 'paid';
+export type EmployeePaymentMethod = 'bank_transfer' | 'cash' | 'cheque';
+
+export interface EmployeePayment {
+  id: string;
+  sourceType: 'payroll_run' | 'expense_claim';
+  payrollRunId: string | null;
+  expenseClaimId: string | null;
+  employeeId: string | null;
+  paymentDate: string;
+  amount: string;
+  bankAccountId: string | null;
+  paymentMethod: EmployeePaymentMethod;
+  reference: string | null;
+  status: EmployeePaymentStatus;
+  journalEntryId: string | null;
+  notes: string | null;
+}
+
+export function useEmployeePaymentsForRun(runId: string | null) {
+  return useQuery({
+    queryKey: ['hr', 'employee-payments', 'run', runId],
+    queryFn: () => api.get<ApiSuccess<EmployeePayment[]>>(`/hr/employee-payments?payrollRunId=${runId}`),
+    enabled: !!runId,
+  });
+}
+
+export interface RecordSalaryPaymentInput {
+  payrollRunId: string;
+  paymentDate: string;
+  bankAccountId: string;
+  paymentMethod?: EmployeePaymentMethod;
+  reference?: string | null;
+  notes?: string | null;
+}
+export function useRecordSalaryPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: RecordSalaryPaymentInput) =>
+      api.post<ApiSuccess<EmployeePayment>>(`/hr/employee-payments`, d),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['hr', 'employee-payments', 'run', vars.payrollRunId] });
+      qc.invalidateQueries({ queryKey: PR_KEYS.run(vars.payrollRunId) });
+    },
   });
 }
 

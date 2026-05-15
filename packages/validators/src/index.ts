@@ -51,6 +51,7 @@ export * from './hr/holiday.schema';
 export * from './hr/leave.schema';
 export * from './hr/payroll.schema';
 export * from './hr/tds.schema';
+export * from './hr/employee-payment.schema';
 export * from './common/webhook-endpoint.schema';
 export * from './fa/category.schema';
 export * from './fa/asset.schema';
