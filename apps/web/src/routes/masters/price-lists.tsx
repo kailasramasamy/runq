@@ -687,7 +687,7 @@ export function PriceListsPage() {
     : allPriceLists;
 
   function openDetail(id: string) {
-    navigate({ to: '/masters/price-lists/$priceListId', params: { priceListId: id } });
+    navigate({ to: '/finance/masters/price-lists/$priceListId', params: { priceListId: id } });
   }
 
   return (

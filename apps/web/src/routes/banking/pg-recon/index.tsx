@@ -62,7 +62,7 @@ export function PGReconciliationPage() {
         title="PG reconciliation"
         description="Reconcile payment gateway settlements (Razorpay, PhonePe, Paytm) against your books."
         actions={
-          <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
+          <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/banking/pg-recon/import' })}>
             Import settlement
           </Button>
         }
@@ -115,7 +115,7 @@ export function PGReconciliationPage() {
                   title="No settlements found"
                   description="Import a PG settlement file to get started."
                   action={(
-                    <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/pg-recon/import' })}>
+                    <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/banking/pg-recon/import' })}>
                       Import settlement
                     </Button>
                   )}
@@ -125,7 +125,7 @@ export function PGReconciliationPage() {
           ) : settlements.map((s) => (
             <TableRow
               key={s.id}
-              onClick={() => navigate({ to: `/banking/pg-recon/${s.id}` as never })}
+              onClick={() => navigate({ to: `/finance/banking/pg-recon/${s.id}` as never })}
             >
               <TableCell numeric style={{ color: 'var(--text-2)' }}>
                 {s.id.length > 16 ? `${s.id.slice(0, 16)}…` : s.id}

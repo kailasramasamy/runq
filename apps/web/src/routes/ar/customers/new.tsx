@@ -31,14 +31,14 @@ export function NewCustomerPage() {
           try {
             await updateQuote.mutateAsync({ id: quoteId, data: { customerId: newId } });
             toast('Customer created and linked to quote', 'success');
-            navigate({ to: '/ar/quotes' });
+            navigate({ to: '/finance/ar/quotes' });
           } catch {
             toast('Customer created but failed to link to quote', 'error');
-            navigate({ to: '/ar/customers' });
+            navigate({ to: '/finance/ar/customers' });
           }
         } else {
           toast('Customer created successfully', 'success');
-          navigate({ to: '/ar/customers' });
+          navigate({ to: '/finance/ar/customers' });
         }
       },
       onError: () => {
@@ -48,7 +48,7 @@ export function NewCustomerPage() {
   }
 
   function handleCancel() {
-    navigate({ to: quoteId ? '/ar/quotes' : '/ar/customers' });
+    navigate({ to: quoteId ? '/finance/ar/quotes' : '/finance/ar/customers' });
   }
 
   return (

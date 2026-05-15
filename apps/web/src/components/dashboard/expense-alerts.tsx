@@ -48,7 +48,7 @@ function AnomalyRow({ item }: { item: Anomaly }) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate({ to: `/ap/bills/${item.invoiceId}` as '/' })}
+          onClick={() => navigate({ to: `/finance/ap/bills/${item.invoiceId}` as '/' })}
           className="text-xs"
         >
           View
@@ -102,7 +102,7 @@ export function ExpenseAlertsWidget() {
         )}
         {hasMore && (
           <button
-            onClick={() => navigate({ to: '/ap/bills' as '/' })}
+            onClick={() => navigate({ to: '/finance/ap/bills' as '/' })}
             className="mt-3 w-full text-center text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             View all {allAnomalies.length} alerts &rarr;

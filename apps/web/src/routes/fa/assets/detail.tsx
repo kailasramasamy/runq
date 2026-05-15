@@ -65,7 +65,7 @@ function DisposeDialog({
             {result.journalEntryId && (
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Journal Entry</p>
-                <Link to={`/gl/journal-entries/${result.journalEntryId}` as '/'} className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
+                <Link to={`/finance/gl/journal-entries/${result.journalEntryId}` as '/'} className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
                   View JE <ExternalLink size={12} />
                 </Link>
               </div>
@@ -253,7 +253,7 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/fa/assets' });
+    else navigate({ to: '/finance/fa/assets' });
   }
   const { data, isLoading, isError } = useFixedAsset(assetId);
   const asset = data?.data;

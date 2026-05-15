@@ -92,7 +92,7 @@ export function CollectionsPage() {
         description="Track follow-ups on overdue invoices, assign to teammates, and log outcomes."
         actions={
           <>
-            <Button variant="outline" size="sm" icon={<Bell size={13} />} onClick={() => navigate({ to: '/ar/dunning' })}>
+            <Button variant="outline" size="sm" icon={<Bell size={13} />} onClick={() => navigate({ to: '/finance/ar/dunning' })}>
               Dunning rules
             </Button>
             <Button size="sm" icon={<UserPlus size={13} />} onClick={() => setShowForm((v) => !v)}>
@@ -177,7 +177,7 @@ function CaseCard({ assignment }: { assignment: CollectionAssignment }) {
   }
 
   function goToInvoice() {
-    navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } });
+    navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId: assignment.invoiceId } });
   }
 
   return (

@@ -333,7 +333,7 @@ function DetailView({ quote, onClose }: { quote: Quote; onClose: () => void }) {
               if (quote.customerName) params.set('name', quote.customerName);
               if (quote.prospectEmail) params.set('email', quote.prospectEmail);
               if (quote.prospectPhone) params.set('phone', quote.prospectPhone);
-              navigate({ to: `/ar/customers/new?${params.toString()}` as any });
+              navigate({ to: `/finance/ar/customers/new?${params.toString()}` as any });
             }}
           >
             <UserPlus size={14} /> Onboard as Customer
@@ -425,7 +425,7 @@ export function QuotesSection() {
                   icon={<FileText size={18} />}
                   title="No quotes yet"
                   description="Create your first sales quote to track customer enquiries."
-                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>New quote</ArButton>}
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/quotes/new' as never })}>New quote</ArButton>}
                 />
               </td>
             </tr>
@@ -476,7 +476,7 @@ export function QuotesPage() {
             <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('quotes.csv', ['Quote#', 'Date', 'Customer', 'Amount', 'Status', 'Expiry'], quotes.map(q => [q.quoteNumber, q.quoteDate, q.customerName, String(q.totalAmount), q.status, q.expiryDate ?? '']))}>
               Export
             </ArButton>
-            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>New quote</ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/quotes/new' as never })}>New quote</ArButton>
           </>
         }
       />

@@ -165,10 +165,10 @@ export function ScanBillPage() {
           <CardFooter className="flex items-center justify-between">
             <Button variant="outline" onClick={reset}>Scan Another</Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate({ to: '/ap/bills/$billId', params: { billId: commitResult.billId } })}>
+              <Button variant="outline" onClick={() => navigate({ to: '/finance/ap/bills/$billId', params: { billId: commitResult.billId } })}>
                 View Bill
               </Button>
-              <Button onClick={() => navigate({ to: '/ap/bills' })}>All Bills</Button>
+              <Button onClick={() => navigate({ to: '/finance/ap/bills' })}>All Bills</Button>
             </div>
           </CardFooter>
         </Card>

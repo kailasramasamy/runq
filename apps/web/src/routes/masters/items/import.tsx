@@ -149,7 +149,7 @@ export function ImportItemsPage() {
         title="Smart Import Items"
         description="Upload a CSV or Excel file. AI extracts item data from any source — supplier price lists, internal catalogues, tender documents, or messy spreadsheets."
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items' })}>
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/masters/items' })}>
             <ArrowLeft size={14} /> Back to Items
           </Button>
         }
@@ -184,7 +184,7 @@ export function ImportItemsPage() {
       )}
 
       {step === 'result' && result && (
-        <ResultStep result={result} onImportMore={reset} onDone={() => navigate({ to: '/masters/items' })} />
+        <ResultStep result={result} onImportMore={reset} onDone={() => navigate({ to: '/finance/masters/items' })} />
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/debit-notes' });
+    else navigate({ to: '/finance/ap/debit-notes' });
   }
   function handleIssue() {
     issueMutation.mutate(debitNoteId, {
@@ -143,7 +143,7 @@ export function DebitNoteDetailPage({ debitNoteId }: Props) {
 
       {dn.invoiceId && (
         <button
-          onClick={() => navigate({ to: '/ap/bills/$billId', params: { billId: dn.invoiceId! } })}
+          onClick={() => navigate({ to: '/finance/ap/bills/$billId', params: { billId: dn.invoiceId! } })}
           className="mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12.5px] font-medium hover:bg-[var(--surface-2)]"
           style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
         >

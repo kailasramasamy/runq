@@ -229,7 +229,7 @@ export function AcceptInvitePage() {
           tenantName: lookup.invitingTenantName,
         });
       }
-      window.location.href = '/finance/';
+      window.location.href = '/finance';
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Something went wrong';
       setSubmitError(msg);
@@ -393,7 +393,7 @@ function Shell({ children, title = 'Start your runQ books' }: { children: React.
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-50 via-white to-indigo-50 px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <img src="/finance/runq-dark.png" alt="runQ" className="h-10 w-auto" />
+          <img src="/runq-dark.png" alt="runQ" className="h-10 w-auto" />
           <div className="text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
               {title.split('runQ').length > 1 ? (

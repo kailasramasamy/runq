@@ -125,7 +125,7 @@ function PaymentQueue() {
         onSuccess: (res) => {
           toast('Pay run created.', 'success');
           setSelected(new Set());
-          navigate({ to: '/ap/pay-runs/$runId', params: { runId: res.data.id } });
+          navigate({ to: '/finance/ap/pay-runs/$runId', params: { runId: res.data.id } });
         },
         onError: () => toast('Failed to create pay run.', 'error'),
       },
@@ -328,7 +328,7 @@ function PastPayRuns() {
             {runs.map((r) => (
               <TableRow
                 key={r.id}
-                onClick={() => navigate({ to: '/ap/pay-runs/$runId', params: { runId: r.id } })}
+                onClick={() => navigate({ to: '/finance/ap/pay-runs/$runId', params: { runId: r.id } })}
               >
                 <TableCell>
                   <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>{r.runId}</span>

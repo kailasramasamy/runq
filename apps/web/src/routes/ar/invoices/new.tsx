@@ -14,7 +14,7 @@ export function NewInvoicePage() {
       onSuccess: (res) => {
         toast('Invoice created successfully', 'success');
         const id = (res as any)?.data?.id;
-        navigate({ to: id ? `/ar/invoices/${id}` : '/ar/invoices' });
+        navigate({ to: id ? `/finance/ar/invoices/${id}` : '/finance/ar/invoices' });
       },
       onError: () => {
         toast('Failed to create invoice. Please try again.', 'error');
@@ -35,7 +35,7 @@ export function NewInvoicePage() {
       />
       <InvoiceForm
         onSubmit={handleSubmit}
-        onCancel={() => navigate({ to: '/ar/invoices' })}
+        onCancel={() => navigate({ to: '/finance/ar/invoices' })}
         isLoading={mutation.isPending}
       />
     </div>

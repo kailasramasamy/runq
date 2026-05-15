@@ -148,7 +148,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/masters/price-lists' });
+    else navigate({ to: '/finance/masters/price-lists' });
   }
   const { data, isLoading, isError } = usePriceList(priceListId);
   const toggle = useTogglePriceList();
@@ -331,7 +331,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
           <CardContent className="py-12 text-center text-sm text-zinc-500">
             Price list not found.
             <div className="mt-4">
-              <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/price-lists' })}>
+              <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/masters/price-lists' })}>
                 <ArrowLeft size={14} /> Back to Price Lists
               </Button>
             </div>

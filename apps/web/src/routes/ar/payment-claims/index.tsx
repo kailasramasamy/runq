@@ -278,7 +278,7 @@ function ClaimRow({
                 <span>
                   Customer:{' '}
                   <Link
-                    to="/ar/customers/$customerId"
+                    to="/finance/ar/customers/$customerId"
                     params={{ customerId: claim.customerId }}
                     className="font-medium text-indigo-600 hover:underline"
                   >
@@ -335,7 +335,7 @@ function ClaimRow({
                         <tr key={a.invoiceId} className="border-t" style={{ borderColor: 'var(--border)' }}>
                           <td className="px-3 py-2">
                             <Link
-                              to="/ar/invoices/$invoiceId"
+                              to="/finance/ar/invoices/$invoiceId"
                               params={{ invoiceId: a.invoiceId }}
                               className="font-mono font-medium text-indigo-600 hover:underline"
                             >

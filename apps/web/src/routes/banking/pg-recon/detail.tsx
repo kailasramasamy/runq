@@ -103,7 +103,7 @@ export function PGSettlementDetailPage({ settlementId }: Props) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/banking/pg-recon' });
+    else navigate({ to: '/finance/banking/pg-recon' });
   }
   const { toast } = useToast();
   const [reconcileResult, setReconcileResult] = useState<{

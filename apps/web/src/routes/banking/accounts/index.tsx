@@ -87,7 +87,7 @@ export function BankAccountListPage() {
   const accounts = data?.data ?? [];
 
   function handleView(id: string) {
-    navigate({ to: '/banking/accounts/$accountId', params: { accountId: id } });
+    navigate({ to: '/finance/banking/accounts/$accountId', params: { accountId: id } });
   }
 
   const totalBalance = accounts.reduce((a, b) => a + Number(b.currentBalance ?? 0), 0);
@@ -102,7 +102,7 @@ export function BankAccountListPage() {
         description="Linked bank and credit accounts — balances refresh on each statement import."
         actions={
           !readOnly ? (
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/banking/accounts/new' })}>
               New account
             </Button>
           ) : null
@@ -133,7 +133,7 @@ export function BankAccountListPage() {
             title="No bank accounts yet"
             description="Add your first bank account to start tracking transactions."
             action={
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/banking/accounts/new' })}>
                 New account
               </Button>
             }

@@ -53,7 +53,7 @@ export function NewAssetPage() {
         gstAmount: gstAmount ? parseFloat(gstAmount) : 0,
       },
       {
-        onSuccess: () => { toast('Asset created', 'success'); navigate({ to: '/fa/assets' }); },
+        onSuccess: () => { toast('Asset created', 'success'); navigate({ to: '/finance/fa/assets' }); },
         onError: (err: any) => setError(err?.message ?? 'Failed to create asset'),
       },
     );
@@ -118,7 +118,7 @@ export function NewAssetPage() {
 
             <div className="flex items-center gap-3 pt-2">
               <Button type="submit" variant="primary" size="sm" loading={createMutation.isPending}>Create Asset</Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => navigate({ to: '/fa/assets' })}>Cancel</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/fa/assets' })}>Cancel</Button>
             </div>
           </form>
         </CardContent>

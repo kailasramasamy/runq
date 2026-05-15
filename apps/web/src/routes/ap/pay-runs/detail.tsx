@@ -123,7 +123,7 @@ function LineRow({ line, checked, onToggle, onVendorCreated }: LineRowProps & { 
         <TableCell className="font-mono text-xs">
           {line.purchaseInvoiceId ? (
             <Link
-              to="/ap/bills/$billId"
+              to="/finance/ap/bills/$billId"
               params={{ billId: line.purchaseInvoiceId }}
               className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"
             >
@@ -340,7 +340,7 @@ export function PayRunDetailPage({ runId }: { runId: string }) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/pay-runs' });
+    else navigate({ to: '/finance/ap/pay-runs' });
   }
   const [selected, setSelected] = useState<string[]>([]);
   const { data, isLoading } = usePaymentRun(runId);

@@ -101,7 +101,7 @@ function Content({ entry }: { entry: JournalEntryWithLines }) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/gl/journal-entries' });
+    else navigate({ to: '/finance/gl/journal-entries' });
   }
 
   function fixAll() {

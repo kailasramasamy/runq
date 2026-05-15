@@ -50,7 +50,7 @@ export function InvoiceListPage() {
 
   function updateSearch(patch: Partial<typeof params>, resetPage = true) {
     navigate({
-      to: '/ar/invoices',
+      to: '/finance/ar/invoices',
       search: (prev) => {
         const next = { ...(prev as typeof params), ...patch };
         if (resetPage) next.page = undefined;
@@ -137,7 +137,7 @@ export function InvoiceListPage() {
   const total = meta?.total ?? 0;
 
   function handleView(id: string) {
-    navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: id } });
+    navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId: id } });
   }
 
   async function handleExportCSV() {
@@ -184,7 +184,7 @@ export function InvoiceListPage() {
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/invoices/import' })}>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/ar/invoices/import' })}>
                   Import
                 </Button>
                 <NewInvoiceMenu>
@@ -323,7 +323,7 @@ export function InvoiceListPage() {
                   title={statusFilter || customerFilter ? 'No invoices match your filters' : 'No invoices yet'}
                   description={statusFilter || customerFilter ? 'Try adjusting your filters.' : 'Create your first invoice to get started.'}
                   action={!statusFilter && !customerFilter && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/invoices/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/invoices/new' })}>
                       New invoice
                     </Button>
                   )}

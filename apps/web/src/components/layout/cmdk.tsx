@@ -24,20 +24,20 @@ type CmdItem = {
 
 const ITEMS: CmdItem[] = [
   // Quick actions
-  { id: 'a-inv', label: 'New invoice', icon: FileText, to: '/ar/invoices/new', section: 'actions' },
-  { id: 'a-pay', label: 'Record payment', icon: CreditCard, to: '/ap/payments/new', section: 'actions' },
-  { id: 'a-rec', label: 'Reconcile bank', icon: Landmark, to: '/banking', section: 'actions' },
-  { id: 'a-bill', label: 'New bill', icon: FileInput, to: '/ap/bills/new', section: 'actions' },
-  { id: 'a-rep', label: 'Run report', icon: BarChart3, to: '/reports', section: 'actions' },
-  { id: 'a-rcp', label: 'Record receipt', icon: Receipt, to: '/ar/receipts/new', section: 'actions' },
+  { id: 'a-inv', label: 'New invoice', icon: FileText, to: '/finance/ar/invoices/new', section: 'actions' },
+  { id: 'a-pay', label: 'Record payment', icon: CreditCard, to: '/finance/ap/payments/new', section: 'actions' },
+  { id: 'a-rec', label: 'Reconcile bank', icon: Landmark, to: '/finance/banking', section: 'actions' },
+  { id: 'a-bill', label: 'New bill', icon: FileInput, to: '/finance/ap/bills/new', section: 'actions' },
+  { id: 'a-rep', label: 'Run report', icon: BarChart3, to: '/finance/reports', section: 'actions' },
+  { id: 'a-rcp', label: 'Record receipt', icon: Receipt, to: '/finance/ar/receipts/new', section: 'actions' },
   // Navigate
-  { id: 'n-dash', label: 'Go to Dashboard', icon: LayoutDashboard, to: '/', section: 'navigate' },
-  { id: 'n-bills', label: 'Go to Bills', icon: FileInput, to: '/ap/bills', section: 'navigate' },
-  { id: 'n-inv', label: 'Go to Invoices', icon: FileText, to: '/ar/invoices', section: 'navigate' },
-  { id: 'n-vend', label: 'Go to Vendors', icon: Building2, to: '/ap/vendors', section: 'navigate' },
-  { id: 'n-cust', label: 'Go to Customers', icon: Users, to: '/ar/customers', section: 'navigate' },
-  { id: 'n-bank', label: 'Go to Banking', icon: Landmark, to: '/banking', section: 'navigate' },
-  { id: 'n-gst', label: 'Go to GST filing', icon: ShieldCheck, to: '/gst', section: 'navigate' },
+  { id: 'n-dash', label: 'Go to Dashboard', icon: LayoutDashboard, to: '/finance', section: 'navigate' },
+  { id: 'n-bills', label: 'Go to Bills', icon: FileInput, to: '/finance/ap/bills', section: 'navigate' },
+  { id: 'n-inv', label: 'Go to Invoices', icon: FileText, to: '/finance/ar/invoices', section: 'navigate' },
+  { id: 'n-vend', label: 'Go to Vendors', icon: Building2, to: '/finance/ap/vendors', section: 'navigate' },
+  { id: 'n-cust', label: 'Go to Customers', icon: Users, to: '/finance/ar/customers', section: 'navigate' },
+  { id: 'n-bank', label: 'Go to Banking', icon: Landmark, to: '/finance/banking', section: 'navigate' },
+  { id: 'n-gst', label: 'Go to GST filing', icon: ShieldCheck, to: '/finance/gst', section: 'navigate' },
   // Ask runQ
   { id: 'q-ar', label: 'Why is my AR up this month?', icon: Sparkles, prompt: 'Why is my AR up this month?', section: 'ask' },
   { id: 'q-cash', label: 'Forecast cash for the next 60 days', icon: Sparkles, prompt: 'Forecast cash for the next 60 days', section: 'ask' },
@@ -97,7 +97,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         label: c.name,
         sublabel: `Customer${c.gstin ? ` · ${c.gstin}` : ''}`,
         icon: Users,
-        to: `/ar/customers/${c.id}`,
+        to: `/finance/ar/customers/${c.id}`,
         section: 'records',
       });
     });
@@ -107,7 +107,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         label: inv.invoiceNumber,
         sublabel: `Invoice · ${inv.customerName}`,
         icon: FileText,
-        to: `/ar/invoices/${inv.id}`,
+        to: `/finance/ar/invoices/${inv.id}`,
         section: 'records',
       });
     });

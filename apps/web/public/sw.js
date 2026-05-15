@@ -1,17 +1,17 @@
 // runq service worker — narrowly scoped to handle the PWA share target.
 // Does NOT precache app assets or interfere with HMR; the only fetch event
-// it touches is POST /finance/share-receive (the manifest share_target action).
+// it touches is POST /share-receive (the manifest share_target action).
 //
 // Flow:
 //   1. Android user shares files from WhatsApp → runq via Share Sheet
-//   2. The browser POSTs the multipart form to /finance/share-receive
+//   2. The browser POSTs the multipart form to /share-receive
 //   3. This SW intercepts that POST, stashes the files in IndexedDB,
 //      and 303-redirects the user to /finance/ar/po-inbox?share=pending
 //   4. The inbox page reads from IndexedDB on mount and uploads each file
 //      via the existing useUploadPoFile mutation (which uses the user's
 //      JWT from localStorage — auth lives in the main thread, not the SW).
 
-const SHARE_RECEIVE_PATH = '/finance/share-receive';
+const SHARE_RECEIVE_PATH = '/share-receive';
 const REDIRECT_TO = '/finance/ar/po-inbox?share=pending';
 const REDIRECT_ERROR = '/finance/ar/po-inbox?share=error';
 const DB_NAME = 'runq-share';

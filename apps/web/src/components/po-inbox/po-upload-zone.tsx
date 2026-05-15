@@ -201,7 +201,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
     if (!duplicate) return;
     const id = duplicate.duplicateOfUploadId;
     setDuplicate(null);
-    navigate({ to: '/ar/po-inbox/$uploadId' as never, params: { uploadId: id } as never });
+    navigate({ to: '/finance/ar/po-inbox/$uploadId' as never, params: { uploadId: id } as never });
   }, [duplicate, navigate]);
 
   const handleDiscardAndRetry = useCallback(async () => {

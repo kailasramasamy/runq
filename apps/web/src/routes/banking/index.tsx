@@ -36,31 +36,31 @@ const TOOLS: ToolLink[] = [
   {
     label: 'Transactions',
     description: 'Browse statement entries, search, and reconcile.',
-    to: '/banking/transactions',
+    to: '/finance/banking/transactions',
     icon: ArrowUpDown,
   },
   {
     label: 'Reconciliation',
     description: 'Match bank transactions to invoices and payments.',
-    to: '/banking/reconciliation',
+    to: '/finance/banking/reconciliation',
     icon: ClipboardCheck,
   },
   {
     label: 'PG reconciliation',
     description: 'Reconcile gateway settlements (Razorpay, PhonePe, Paytm).',
-    to: '/banking/pg-recon',
+    to: '/finance/banking/pg-recon',
     icon: CreditCard,
   },
   {
     label: 'Cheques',
     description: 'Track received and issued cheques, post-dated cheques.',
-    to: '/banking/cheques',
+    to: '/finance/banking/cheques',
     icon: ScrollText,
   },
   {
     label: 'Petty cash',
     description: 'Manage petty cash funds across locations.',
-    to: '/banking/petty-cash',
+    to: '/finance/banking/petty-cash',
     icon: Wallet,
   },
 ];
@@ -129,7 +129,7 @@ export function BankingHubPage() {
   const accounts = data?.data ?? [];
 
   function handleView(id: string) {
-    navigate({ to: '/banking/accounts/$accountId', params: { accountId: id } });
+    navigate({ to: '/finance/banking/accounts/$accountId', params: { accountId: id } });
   }
 
   const totalBalance = accounts.reduce((a, b) => a + Number(b.currentBalance ?? 0), 0);
@@ -142,7 +142,7 @@ export function BankingHubPage() {
         title="Banking"
         description="Linked bank accounts, transactions, reconciliation, cheques, and petty cash — all in one place."
         actions={
-          <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
+          <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/banking/accounts/new' })}>
             New account
           </Button>
         }
@@ -185,7 +185,7 @@ export function BankingHubPage() {
               title="No bank accounts yet"
               description="Add your first bank account to start tracking transactions."
               action={
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/banking/accounts/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/banking/accounts/new' })}>
                   New account
                 </Button>
               }

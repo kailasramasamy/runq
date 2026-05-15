@@ -13,7 +13,7 @@ export function AdvancePaymentPage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Advance payment recorded successfully.', 'success');
-        navigate({ to: '/ap/payments' });
+        navigate({ to: '/finance/ap/payments' });
       },
       onError: () => {
         toast('Failed to record advance payment. Please try again.', 'error');

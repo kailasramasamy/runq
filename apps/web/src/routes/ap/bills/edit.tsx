@@ -48,7 +48,7 @@ export function EditBillPage({ billId }: Props) {
       {
         onSuccess: () => {
           toast('Bill updated successfully.', 'success');
-          navigate({ to: '/ap/bills/$billId', params: { billId } });
+          navigate({ to: '/finance/ap/bills/$billId', params: { billId } });
         },
         onError: () => {
           toast('Failed to update bill. Please check your inputs and try again.', 'error');

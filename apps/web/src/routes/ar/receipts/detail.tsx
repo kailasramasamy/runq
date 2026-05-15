@@ -61,7 +61,7 @@ export function ReceiptDetailPage({ receiptId }: Props) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/receipts' });
+    else navigate({ to: '/finance/ar/receipts' });
   }
   const { data, isLoading, isError } = useReceipt(receiptId);
   const { data: bankData } = useBankAccounts();

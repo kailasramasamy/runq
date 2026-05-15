@@ -410,7 +410,7 @@ export function ImportTransactionsPage() {
             <Button variant="outline" onClick={() => { setPhase('upload'); setFiles([]); setParseResult(null); setCommitResult(null); }}>
               Import More
             </Button>
-            <Button onClick={() => navigate({ to: '/banking/transactions' })}>
+            <Button onClick={() => navigate({ to: '/finance/banking/transactions' })}>
               View Transactions
             </Button>
           </CardFooter>

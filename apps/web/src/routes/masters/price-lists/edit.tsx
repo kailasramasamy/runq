@@ -9,7 +9,7 @@ export function PriceListEditPage({ priceListId }: { priceListId: string }) {
   const pl = data?.data ?? null;
 
   function handleClose() {
-    navigate({ to: '/masters/price-lists/$priceListId', params: { priceListId } });
+    navigate({ to: '/finance/masters/price-lists/$priceListId', params: { priceListId } });
   }
 
   if (isLoading) {

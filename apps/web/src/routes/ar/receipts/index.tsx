@@ -60,7 +60,7 @@ export function ReceiptListPage() {
   }, {});
 
   function handleView(id: string) {
-    navigate({ to: '/ar/receipts/$receiptId', params: { receiptId: id } });
+    navigate({ to: '/finance/ar/receipts/$receiptId', params: { receiptId: id } });
   }
 
   return (
@@ -90,7 +90,7 @@ export function ReceiptListPage() {
               Export
             </Button>
             {!readOnly && (
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/receipts/new' })}>
                 Record receipt
               </Button>
             )}
@@ -177,7 +177,7 @@ export function ReceiptListPage() {
                   title="No receipts found"
                   description="Record a payment received from a customer against their invoices."
                   action={(
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/receipts/new' })}>
                       Record receipt
                     </Button>
                   )}

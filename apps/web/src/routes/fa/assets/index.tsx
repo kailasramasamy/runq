@@ -62,7 +62,7 @@ export function AssetListPage() {
         description="All fixed assets tracked by the company."
         breadcrumbs={[{ label: 'Fixed Assets', href: '/fa' }, { label: 'Asset Register' }]}
         actions={
-          <Button size="sm" onClick={() => navigate({ to: '/fa/assets/new' })}>
+          <Button size="sm" onClick={() => navigate({ to: '/finance/fa/assets/new' })}>
             <Plus size={14} /> New Asset
           </Button>
         }
@@ -104,7 +104,7 @@ export function AssetListPage() {
             <div
               key={asset.id}
               className="cursor-pointer rounded-lg border border-zinc-200 bg-white p-3 active:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:active:bg-zinc-800"
-              onClick={() => navigate({ to: `/fa/assets/${asset.id}` })}
+              onClick={() => navigate({ to: `/finance/fa/assets/${asset.id}` })}
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-zinc-500">{asset.assetCode}</span>
@@ -143,7 +143,7 @@ export function AssetListPage() {
               </td></tr>
             ) : (
               assets.map((asset) => (
-                <TableRow key={asset.id} className="cursor-pointer" onClick={() => navigate({ to: `/fa/assets/${asset.id}` })}>
+                <TableRow key={asset.id} className="cursor-pointer" onClick={() => navigate({ to: `/finance/fa/assets/${asset.id}` })}>
                   <TableCell className="font-mono text-xs text-zinc-500">{asset.assetCode}</TableCell>
                   <TableCell className="font-medium">{asset.name}</TableCell>
                   <TableCell className="text-zinc-500 dark:text-zinc-400">{(asset as any).categoryName ?? '—'}</TableCell>

@@ -64,18 +64,18 @@ export function PaymentListPage() {
             >
               Export
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/advance' })}>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/ap/payments/advance' })}>
               Advance
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/direct' })}>
+                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/ap/payments/direct' })}>
                   Direct
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/ap/payments/bulk' })}>
+                <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/ap/payments/bulk' })}>
                   Bulk
                 </Button>
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/payments/new' })}>
                   New payment
                 </Button>
               </>
@@ -139,7 +139,7 @@ export function PaymentListPage() {
                   title="No payments found"
                   description="Record a new payment against vendor bills or log an advance payment."
                   action={(
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/payments/new' })}>
                       New payment
                     </Button>
                   )}
@@ -149,7 +149,7 @@ export function PaymentListPage() {
           ) : payments.map((p) => (
             <TableRow
               key={p.id}
-              onClick={() => navigate({ to: '/ap/payments/$paymentId', params: { paymentId: p.id } })}
+              onClick={() => navigate({ to: '/finance/ap/payments/$paymentId', params: { paymentId: p.id } })}
             >
               <TableCell numeric style={{ color: 'var(--text-2)' }}>{formatDate(p.paymentDate)}</TableCell>
               <TableCell>

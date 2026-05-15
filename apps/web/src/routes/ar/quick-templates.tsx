@@ -426,7 +426,7 @@ export function QuickTemplatesPage() {
         breadcrumbs={[{ label: 'AR' }, { label: 'Quick Templates' }]}
         description="Save recurring invoice structures. Generate invoices by entering quantities."
         actions={
-          <Button size="sm" onClick={() => navigate({ to: '/ar/quick-templates/new' })}>
+          <Button size="sm" onClick={() => navigate({ to: '/finance/ar/quick-templates/new' })}>
             <Plus size={14} /> New Template
           </Button>
         }
@@ -444,8 +444,8 @@ export function QuickTemplatesPage() {
                 <TemplateCard
                   key={tpl.id}
                   tpl={tpl}
-                  onGenerate={() => navigate({ to: '/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
-                  onEdit={() => navigate({ to: '/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
+                  onGenerate={() => navigate({ to: '/finance/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
+                  onEdit={() => navigate({ to: '/finance/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
                   onDelete={() => handleDelete(tpl.id, tpl.name)}
                   deleteDisabled={deleteTemplate.isPending}
                 />
@@ -492,14 +492,14 @@ export function QuickTemplatesPage() {
                         <div className="flex gap-1 justify-end">
                           <Button
                             size="sm"
-                            onClick={() => navigate({ to: '/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
+                            onClick={() => navigate({ to: '/finance/ar/quick-templates/$templateId/generate', params: { templateId: tpl.id } })}
                           >
                             <Zap size={14} /> Generate
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => navigate({ to: '/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
+                            onClick={() => navigate({ to: '/finance/ar/quick-templates/$templateId/edit', params: { templateId: tpl.id } })}
                           >
                             <Pencil size={14} /> Edit
                           </Button>
@@ -529,7 +529,7 @@ export function QuickTemplatesPage() {
 
 export function QuickTemplateNewPage() {
   const navigate = useNavigate();
-  const back = () => navigate({ to: '/ar/quick-templates' });
+  const back = () => navigate({ to: '/finance/ar/quick-templates' });
 
   return (
     <div className="max-w-5xl">
@@ -554,7 +554,7 @@ export function QuickTemplateNewPage() {
 
 export function QuickTemplateEditPage({ templateId }: { templateId: string }) {
   const navigate = useNavigate();
-  const back = () => navigate({ to: '/ar/quick-templates' });
+  const back = () => navigate({ to: '/finance/ar/quick-templates' });
   const { data, isLoading } = useQuickTemplate(templateId);
   const template = data?.data;
 
@@ -591,7 +591,7 @@ export function QuickTemplateEditPage({ templateId }: { templateId: string }) {
 
 export function QuickTemplateGeneratePage({ templateId }: { templateId: string }) {
   const navigate = useNavigate();
-  const back = () => navigate({ to: '/ar/quick-templates' });
+  const back = () => navigate({ to: '/finance/ar/quick-templates' });
   const { data, isLoading } = useQuickTemplate(templateId);
   const template = data?.data;
 

@@ -307,7 +307,7 @@ export function TransactionsPage() {
             >
               {categorize.isPending ? 'Categorising…' : 'Auto-categorise'}
             </Button>
-            <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/banking/transactions/import' })}>
+            <Button size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/banking/transactions/import' })}>
               Import statement
             </Button>
           </>
@@ -426,7 +426,7 @@ export function TransactionsPage() {
             title="No transactions found"
             description="Import a bank statement to view transactions here."
             action={
-              <Button size="sm" onClick={() => navigate({ to: '/banking/transactions/import' })}>
+              <Button size="sm" onClick={() => navigate({ to: '/finance/banking/transactions/import' })}>
                 <Upload size={14} /> Import CSV
               </Button>
             }
@@ -468,7 +468,7 @@ export function TransactionsPage() {
                     action={
                       <Button
                         size="sm"
-                        onClick={() => navigate({ to: '/banking/transactions/import' })}
+                        onClick={() => navigate({ to: '/finance/banking/transactions/import' })}
                       >
                         <Upload size={14} /> Import CSV
                       </Button>

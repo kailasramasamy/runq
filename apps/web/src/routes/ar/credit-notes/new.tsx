@@ -13,7 +13,7 @@ export function NewCreditNotePage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Credit note created successfully.', 'success');
-        navigate({ to: '/ar/credit-notes' });
+        navigate({ to: '/finance/ar/credit-notes' });
       },
       onError: () => {
         toast('Failed to create credit note. Please check your inputs and try again.', 'error');

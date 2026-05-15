@@ -169,7 +169,7 @@ function BulkActionsBar({
     const ids = needsReviewRows.map((r) => r.id);
     const queue = ids.join(',');
     void navigate({
-      to: '/ar/po-inbox/$uploadId' as never,
+      to: '/finance/ar/po-inbox/$uploadId' as never,
       params: { uploadId: ids[0]! } as never,
       search: { queue } as never,
     });
@@ -426,7 +426,7 @@ function PoInboxRowCard({ row }: { row: PoInboxRow }) {
 
   return (
     <Link
-      to="/ar/po-inbox/$uploadId"
+      to="/finance/ar/po-inbox/$uploadId"
       params={{ uploadId: row.id }}
       className={`${cardClass} cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}
     >

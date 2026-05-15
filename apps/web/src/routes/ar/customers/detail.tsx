@@ -62,11 +62,11 @@ export function CustomerDetailPage({ customerId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/customers' });
+    else navigate({ to: '/finance/ar/customers' });
   }
   function handleDeleteConfirm() {
     deleteMutation.mutate(customerId, {
-      onSuccess: () => navigate({ to: '/ar/customers' }),
+      onSuccess: () => navigate({ to: '/finance/ar/customers' }),
     });
   }
 
@@ -150,7 +150,7 @@ export function CustomerDetailPage({ customerId }: Props) {
             </div>
             {pendingClaims.length > 0 && (
               <button
-                onClick={() => navigate({ to: '/ar/payment-claims' })}
+                onClick={() => navigate({ to: '/finance/ar/payment-claims' })}
                 className="mt-2 mr-2 inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-[11.5px] hover:bg-amber-100"
                 style={{ borderColor: '#fde68a', background: '#fffbeb', color: '#92400e' }}
               >
@@ -175,10 +175,10 @@ export function CustomerDetailPage({ customerId }: Props) {
               </div>
             )}
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/invoices/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/invoices/new' })}>
                 New invoice
               </Button>
-              <Button variant="outline" size="sm" icon={<Receipt size={13} />} onClick={() => navigate({ to: '/ar/receipts/new' })}>
+              <Button variant="outline" size="sm" icon={<Receipt size={13} />} onClick={() => navigate({ to: '/finance/ar/receipts/new' })}>
                 Record receipt
               </Button>
               <Button variant="outline" size="sm" icon={<Bell size={13} />}>Send reminder</Button>
@@ -233,7 +233,7 @@ export function CustomerDetailPage({ customerId }: Props) {
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent invoices</h3>
             <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({invoices.length})</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ar/invoices', search: { customer: customerId } as any })}>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/ar/invoices', search: { customer: customerId } as any })}>
             View all
           </Button>
         </div>
@@ -259,7 +259,7 @@ export function CustomerDetailPage({ customerId }: Props) {
               {invoices.map((inv) => (
                 <TableRow
                   key={inv.id}
-                  onClick={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId: inv.id } })}
+                  onClick={() => navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId: inv.id } })}
                 >
                   <TableCell>
                     <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
@@ -289,7 +289,7 @@ export function CustomerDetailPage({ customerId }: Props) {
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Receipts</h3>
             <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({receipts.length})</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ar/receipts' })}>View all</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/ar/receipts' })}>View all</Button>
         </div>
         {receipts.length === 0 ? (
           <EmptyState
@@ -309,7 +309,7 @@ export function CustomerDetailPage({ customerId }: Props) {
             </TableHeader>
             <TableBody>
               {receipts.map((r) => (
-                <TableRow key={r.id} onClick={() => navigate({ to: '/ar/receipts/$receiptId', params: { receiptId: r.id } })}>
+                <TableRow key={r.id} onClick={() => navigate({ to: '/finance/ar/receipts/$receiptId', params: { receiptId: r.id } })}>
                   <TableCell numeric>{formatDate(r.receiptDate)}</TableCell>
                   <TableCell className="capitalize" style={{ color: 'var(--text-2)' }}>
                     {r.paymentMethod.replace(/_/g, ' ')}

@@ -104,7 +104,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/invoices' });
+    else navigate({ to: '/finance/ar/invoices' });
   }
   function getPrintUrl(format?: 'pdf') {
     const tenantId = user?.tenantId ?? '';
@@ -130,7 +130,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
       await deleteMutation.mutateAsync(invoice.id);
       toast(`Invoice ${invoice.invoiceNumber} discarded`, 'success');
       setShowDiscard(false);
-      navigate({ to: '/ar/invoices' });
+      navigate({ to: '/finance/ar/invoices' });
     } catch (err) {
       toast((err as Error).message || 'Failed to discard invoice', 'error');
     }
@@ -141,7 +141,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
       await hardDeleteMutation.mutateAsync(invoice.id);
       toast(`Invoice ${invoice.invoiceNumber} deleted`, 'success');
       setShowDelete(false);
-      navigate({ to: '/ar/invoices' });
+      navigate({ to: '/finance/ar/invoices' });
     } catch (err) {
       toast((err as Error).message || 'Failed to delete invoice', 'error');
     }
@@ -215,7 +215,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               onSend={handleSend}
               onMarkPaid={() => setShowMarkPaid(true)}
               onPaidFromWallet={handleMarkPaidFromWallet}
-              onEdit={() => navigate({ to: '/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
+              onEdit={() => navigate({ to: '/finance/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
               onDiscard={() => setShowDiscard(true)}
               onDelete={() => setShowDelete(true)}
             />
@@ -247,7 +247,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => navigate({ to: '/ar/payment-claims' })}
+            onClick={() => navigate({ to: '/finance/ar/payment-claims' })}
           >
             Open report
           </Button>
@@ -589,7 +589,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               <button
                 className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border py-1.5 text-[11.5px] font-medium hover:bg-[var(--surface-2)]"
                 style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
-                onClick={() => navigate({ to: '/ar/customers/$customerId', params: { customerId: customer.id } })}
+                onClick={() => navigate({ to: '/finance/ar/customers/$customerId', params: { customerId: customer.id } })}
               >
                 <Eye size={12} /> View customer
               </button>
@@ -655,7 +655,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               <button
                 className="mt-1.5 flex w-full items-center gap-1.5 border-t pt-1.5 text-[11px] hover:underline"
                 style={{ borderColor: 'var(--border-soft)', color: 'var(--accent-text)' }}
-                onClick={() => navigate({ to: '/ar/credit-notes/new' })}
+                onClick={() => navigate({ to: '/finance/ar/credit-notes/new' })}
               >
                 <Plus size={11} /> Issue credit note
               </button>

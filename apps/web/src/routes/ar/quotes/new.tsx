@@ -17,7 +17,7 @@ export function NewQuotePage() {
         title="New sales quote"
         description="Quote a customer or prospect for upcoming work."
       />
-      <CreateForm onClose={() => navigate({ to: '/ar/quotes' as never })} />
+      <CreateForm onClose={() => navigate({ to: '/finance/ar/quotes' as never })} />
     </div>
   );
 }

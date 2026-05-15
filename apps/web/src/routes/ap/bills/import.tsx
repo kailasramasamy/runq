@@ -395,7 +395,7 @@ export function ImportBillsPage() {
             )}
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={() => navigate({ to: '/ap/bills' })}>View Bills</Button>
+            <Button onClick={() => navigate({ to: '/finance/ap/bills' })}>View Bills</Button>
           </CardFooter>
         </Card>
       )}

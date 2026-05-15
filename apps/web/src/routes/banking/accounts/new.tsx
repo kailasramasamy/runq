@@ -14,7 +14,7 @@ export function NewBankAccountPage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Bank account created successfully.', 'success');
-        navigate({ to: '/banking/accounts' });
+        navigate({ to: '/finance/banking/accounts' });
       },
       onError: () => {
         toast('Failed to create bank account. Please check your inputs and try again.', 'error');

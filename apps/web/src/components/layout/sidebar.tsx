@@ -76,7 +76,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Money',
     items: [
-      { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/expenses/claims' },
+      { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/finance/expenses/claims' },
     ],
   },
   {
@@ -91,69 +91,69 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
     items: [
-      { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-      { key: 'analytics', label: 'Analytics', icon: PieChart, path: '/analytics' },
-      { key: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
+      { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/finance' },
+      { key: 'analytics', label: 'Analytics', icon: PieChart, path: '/finance/analytics' },
+      { key: 'inbox', label: 'Inbox', icon: Inbox, path: '/finance/inbox' },
     ],
   },
   {
     label: 'Money in',
     items: [
-      { key: 'invoices', label: 'Invoices', icon: FileText, path: '/ar/invoices' },
-      { key: 'quick-invoice', label: 'Quick invoice', icon: Zap, path: '/ar/quick-templates' },
-      { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/ar/quotes' },
-      { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/ar/credit-notes' },
-      { key: 'receipts', label: 'Receipts', icon: Receipt, path: '/ar/receipts' },
-      { key: 'payment-claims', label: 'Payment reports', icon: HandCoins, path: '/ar/payment-claims' },
-      { key: 'customers', label: 'Customers', icon: Users, path: '/ar/customers' },
-      { key: 'collections', label: 'Collections', icon: AlarmClock, path: '/ar/collections' },
+      { key: 'invoices', label: 'Invoices', icon: FileText, path: '/finance/ar/invoices' },
+      { key: 'quick-invoice', label: 'Quick invoice', icon: Zap, path: '/finance/ar/quick-templates' },
+      { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/finance/ar/quotes' },
+      { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/finance/ar/credit-notes' },
+      { key: 'receipts', label: 'Receipts', icon: Receipt, path: '/finance/ar/receipts' },
+      { key: 'payment-claims', label: 'Payment reports', icon: HandCoins, path: '/finance/ar/payment-claims' },
+      { key: 'customers', label: 'Customers', icon: Users, path: '/finance/ar/customers' },
+      { key: 'collections', label: 'Collections', icon: AlarmClock, path: '/finance/ar/collections' },
     ],
   },
   {
     label: 'Money out',
     items: [
-      { key: 'bills', label: 'Bills', icon: FileInput, path: '/ap/bills' },
-      { key: 'debitnotes', label: 'Debit notes', icon: FileX, path: '/ap/debit-notes' },
-      { key: 'payments', label: 'Payments', icon: CreditCard, path: '/ap/payments' },
-      { key: 'vendors', label: 'Vendors', icon: Building2, path: '/ap/vendors' },
-      { key: 'expenses', label: 'Expenses', icon: Wallet, path: '/expenses' },
-      { key: 'payruns', label: 'Pay runs', icon: Split, path: '/ap/pay-runs' },
+      { key: 'bills', label: 'Bills', icon: FileInput, path: '/finance/ap/bills' },
+      { key: 'debitnotes', label: 'Debit notes', icon: FileX, path: '/finance/ap/debit-notes' },
+      { key: 'payments', label: 'Payments', icon: CreditCard, path: '/finance/ap/payments' },
+      { key: 'vendors', label: 'Vendors', icon: Building2, path: '/finance/ap/vendors' },
+      { key: 'expenses', label: 'Expenses', icon: Wallet, path: '/finance/expenses' },
+      { key: 'payruns', label: 'Pay runs', icon: Split, path: '/finance/ap/pay-runs' },
     ],
   },
   {
     label: 'Inventory',
     items: [
-      { key: 'items', label: 'Items', icon: Package, path: '/masters/items' },
-      { key: 'categories', label: 'Categories', icon: Layers, path: '/masters/categories' },
-      { key: 'price-lists', label: 'Price lists', icon: BarChart3, path: '/masters/price-lists' },
+      { key: 'items', label: 'Items', icon: Package, path: '/finance/masters/items' },
+      { key: 'categories', label: 'Categories', icon: Layers, path: '/finance/masters/categories' },
+      { key: 'price-lists', label: 'Price lists', icon: BarChart3, path: '/finance/masters/price-lists' },
     ],
   },
   {
     label: 'Books',
     items: [
-      { key: 'banking', label: 'Banking', icon: Landmark, path: '/banking' },
-      { key: 'journal', label: 'Journal entries', icon: NotebookPen, path: '/gl/journal-entries' },
-      { key: 'ledger', label: 'General ledger', icon: BookOpen, path: '/gl' },
-      { key: 'assets', label: 'Fixed assets', icon: Boxes, path: '/fa' },
-      { key: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
-      { key: 'budgets', label: 'Budgets', icon: Target, path: '/budgets' },
+      { key: 'banking', label: 'Banking', icon: Landmark, path: '/finance/banking' },
+      { key: 'journal', label: 'Journal entries', icon: NotebookPen, path: '/finance/gl/journal-entries' },
+      { key: 'ledger', label: 'General ledger', icon: BookOpen, path: '/finance/gl' },
+      { key: 'assets', label: 'Fixed assets', icon: Boxes, path: '/finance/fa' },
+      { key: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' },
+      { key: 'budgets', label: 'Budgets', icon: Target, path: '/finance/budgets' },
     ],
   },
   {
     label: 'Compliance',
     items: [
-      { key: 'gst-returns', label: 'GST returns', icon: ShieldCheck, path: '/gst/returns' },
-      { key: 'gst-recon', label: 'GST reconciliation', icon: ClipboardCheck, path: '/gst/reconciliation' },
-      { key: 'gst-readiness', label: 'GST readiness', icon: FileCheck2, path: '/gst/readiness' },
-      { key: 'audit', label: 'Audit trail', icon: History, path: '/audit/gap-scan' },
+      { key: 'gst-returns', label: 'GST returns', icon: ShieldCheck, path: '/finance/gst/returns' },
+      { key: 'gst-recon', label: 'GST reconciliation', icon: ClipboardCheck, path: '/finance/gst/reconciliation' },
+      { key: 'gst-readiness', label: 'GST readiness', icon: FileCheck2, path: '/finance/gst/readiness' },
+      { key: 'audit', label: 'Audit trail', icon: History, path: '/finance/audit/gap-scan' },
     ],
   },
   {
     label: 'Setup',
     items: [
-      { key: 'wf-approvals', label: 'Approvals', icon: ClipboardCheck, path: '/workflows/approvals' },
-      { key: 'wf-tasks', label: 'Tasks', icon: ScrollText, path: '/workflows/tasks' },
-      { key: 'workflows', label: 'Workflows', icon: GitBranch, path: '/workflows' },
+      { key: 'wf-approvals', label: 'Approvals', icon: ClipboardCheck, path: '/finance/workflows/approvals' },
+      { key: 'wf-tasks', label: 'Tasks', icon: ScrollText, path: '/finance/workflows/tasks' },
+      { key: 'workflows', label: 'Workflows', icon: GitBranch, path: '/finance/workflows' },
       { key: 'users', label: 'Users & roles', icon: UserCog, path: '/settings/users' },
       { key: 'client-invites', label: 'Invitations', icon: Mail, path: '/settings/client-invites' },
       { key: 'settings', label: 'Settings', icon: Settings, path: '/settings/setup' },
@@ -163,7 +163,7 @@ export const NAV_GROUPS: NavGroup[] = [
 
 type ModuleKey = 'finance' | 'hr';
 const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
-  { key: 'finance', label: 'Finance', path: '/', icon: Wallet2, description: 'AR, AP, banking, GST' },
+  { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
 ];
 
@@ -309,6 +309,12 @@ function NavItemRow({
   );
 }
 
+// Remembers the module the user was last in before entering Settings. The
+// /settings/* pages are shared across modules and carry no module info in
+// their path, so without this they'd always snap the sidebar back to Finance.
+// Module-scoped so the desktop and mobile sidebars share one memory.
+let lastActiveModule: 'hr' | 'finance' = 'finance';
+
 function SidebarContent({
   onNavigate, collapsed = false, onToggleCollapse,
 }: {
@@ -324,8 +330,14 @@ function SidebarContent({
   const pendingClaimsQuery = usePendingPaymentClaimsCount();
   const pendingClaimsCount = pendingClaimsQuery.data ?? 0;
 
-  const activeModule: 'hr' | 'finance' =
-    currentPath === '/hr' || currentPath.startsWith('/hr/') ? 'hr' : 'finance';
+  // Settings is a shared namespace — keep whichever module the user came from.
+  const isSettings = currentPath === '/settings' || currentPath.startsWith('/settings/');
+  const activeModule: 'hr' | 'finance' = isSettings
+    ? lastActiveModule
+    : currentPath === '/hr' || currentPath.startsWith('/hr/')
+      ? 'hr'
+      : 'finance';
+  if (!isSettings) lastActiveModule = activeModule;
   const groups = activeModule === 'hr' ? HR_NAV_GROUPS : NAV_GROUPS;
 
   const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));

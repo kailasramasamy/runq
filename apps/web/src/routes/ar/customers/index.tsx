@@ -59,7 +59,7 @@ export function CustomerListPage() {
   const activeCount = customers.filter((c) => c.isActive).length;
 
   function handleView(id: string) {
-    navigate({ to: '/ar/customers/$customerId', params: { customerId: id } });
+    navigate({ to: '/finance/ar/customers/$customerId', params: { customerId: id } });
   }
   function handleDeleteConfirm() {
     if (!deleteId) return;
@@ -92,10 +92,10 @@ export function CustomerListPage() {
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ar/customers/import' })}>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/ar/customers/import' })}>
                   Import customers
                 </Button>
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/customers/new' })}>
                   New customer
                 </Button>
               </>
@@ -186,7 +186,7 @@ export function CustomerListPage() {
                   title={search ? 'No customers match your search' : 'No customers yet'}
                   description={search ? 'Try a different search term.' : 'Add your first customer to get started.'}
                   action={!search && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/customers/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/customers/new' })}>
                       New customer
                     </Button>
                   )}

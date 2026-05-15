@@ -226,7 +226,7 @@ export function ImportPGSettlementPage() {
             {result.imported > 0 && (
               <Button
                 onClick={() =>
-                  navigate({ to: `/banking/pg-recon/${result.settlementId}` })
+                  navigate({ to: `/finance/banking/pg-recon/${result.settlementId}` })
                 }
               >
                 View Settlement

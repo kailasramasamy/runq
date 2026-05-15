@@ -82,7 +82,7 @@ export function DebitNoteListPage() {
               Export
             </Button>
             {!readOnly && (
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/debit-notes/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/debit-notes/new' })}>
                 New debit note
               </Button>
             )}
@@ -163,7 +163,7 @@ export function DebitNoteListPage() {
           ) : debitNotes.map((dn) => (
             <TableRow
               key={dn.id}
-              onClick={() => navigate({ to: '/ap/debit-notes/$debitNoteId', params: { debitNoteId: dn.id } })}
+              onClick={() => navigate({ to: '/finance/ap/debit-notes/$debitNoteId', params: { debitNoteId: dn.id } })}
             >
               <TableCell>
                 <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
@@ -178,7 +178,7 @@ export function DebitNoteListPage() {
               <TableCell>
                 {dn.invoiceId ? (
                   <Link
-                    to="/ap/bills/$billId"
+                    to="/finance/ap/bills/$billId"
                     params={{ billId: dn.invoiceId }}
                     onClick={(e) => e.stopPropagation()}
                     className="num text-[11.5px] hover:underline"

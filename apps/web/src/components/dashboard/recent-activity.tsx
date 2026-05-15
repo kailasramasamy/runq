@@ -120,7 +120,7 @@ export function RecentActivity() {
         style={{ borderColor: 'var(--border-soft)' }}
       >
         <button
-          onClick={() => navigate({ to: '/audit/gap-scan' })}
+          onClick={() => navigate({ to: '/finance/audit/gap-scan' })}
           className="flex items-center gap-1 font-medium hover:underline"
           style={{ color: 'var(--accent-text)' }}
         >

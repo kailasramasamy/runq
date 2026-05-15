@@ -37,7 +37,7 @@ export function CreditNoteDetailPage({ creditNoteId }: Props) {
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/credit-notes' });
+    else navigate({ to: '/finance/ar/credit-notes' });
   }
   const { data, isLoading, isError } = useCreditNote(creditNoteId);
   const issueMutation = useIssueCreditNote();

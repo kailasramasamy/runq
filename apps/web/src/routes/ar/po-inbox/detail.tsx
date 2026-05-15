@@ -162,7 +162,7 @@ function ApprovedBanner({ draft }: { draft: PoInboxDetail }) {
         size="sm"
         onClick={() =>
           navigate({
-            to: '/ar/invoices/$invoiceId' as never,
+            to: '/finance/ar/invoices/$invoiceId' as never,
             params: { invoiceId: draft.approvedInvoiceId } as never,
           })
         }
@@ -215,7 +215,7 @@ function ReviewActions({
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ar/po-inbox' });
+    else navigate({ to: '/finance/ar/po-inbox' });
   }
   const { toast } = useToast();
   const approve = useApprovePoDraft();
@@ -232,7 +232,7 @@ function ReviewActions({
   const advanceAfterAction = (fallback: () => void) => {
     if (queue && queue.next) {
       void navigate({
-        to: '/ar/po-inbox/$uploadId' as never,
+        to: '/finance/ar/po-inbox/$uploadId' as never,
         params: { uploadId: queue.next } as never,
         search: { queue: queue.ids.join(',') } as never,
       });
@@ -240,7 +240,7 @@ function ReviewActions({
     }
     if (queue && !queue.next) {
       // End of queue — back to inbox
-      void navigate({ to: '/ar/po-inbox' as never });
+      void navigate({ to: '/finance/ar/po-inbox' as never });
       return;
     }
     fallback();
@@ -252,7 +252,7 @@ function ReviewActions({
       toast(`Invoice ${res.data.invoiceNumber} created (draft)`, 'success');
       advanceAfterAction(() => {
         void navigate({
-          to: '/ar/invoices/$invoiceId' as never,
+          to: '/finance/ar/invoices/$invoiceId' as never,
           params: { invoiceId: res.data.invoiceId } as never,
         });
       });
@@ -274,7 +274,7 @@ function ReviewActions({
     try {
       await discard.mutateAsync(draft.id);
       toast('PO deleted', 'success');
-      void navigate({ to: '/ar/po-inbox' });
+      void navigate({ to: '/finance/ar/po-inbox' });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Delete failed', 'error');
     }
@@ -284,12 +284,12 @@ function ReviewActions({
     if (!queue) return;
     if (queue.next) {
       void navigate({
-        to: '/ar/po-inbox/$uploadId' as never,
+        to: '/finance/ar/po-inbox/$uploadId' as never,
         params: { uploadId: queue.next } as never,
         search: { queue: queue.ids.join(',') } as never,
       });
     } else {
-      void navigate({ to: '/ar/po-inbox' as never });
+      void navigate({ to: '/finance/ar/po-inbox' as never });
     }
   };
 
@@ -903,12 +903,12 @@ function RejectModal({
       if (queue) {
         if (queue.next) {
           void navigate({
-            to: '/ar/po-inbox/$uploadId' as never,
+            to: '/finance/ar/po-inbox/$uploadId' as never,
             params: { uploadId: queue.next } as never,
             search: { queue: queue.ids.join(',') } as never,
           });
         } else {
-          void navigate({ to: '/ar/po-inbox' as never });
+          void navigate({ to: '/finance/ar/po-inbox' as never });
         }
       }
     } catch (err) {

@@ -51,7 +51,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/banking/accounts' });
+    else navigate({ to: '/finance/banking/accounts' });
   }
 
   if (isLoading) {
@@ -94,7 +94,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
           <>
             <Button variant="ghost" size="sm" icon={<ArrowLeft size={13} />} onClick={goBack}>Back</Button>
             <Button variant="outline" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEdit(true)}>Edit</Button>
-            <Button variant="outline" size="sm" icon={<ArrowUpDown size={13} />} onClick={() => navigate({ to: '/banking/transactions', search: { accountId } as never })}>
+            <Button variant="outline" size="sm" icon={<ArrowUpDown size={13} />} onClick={() => navigate({ to: '/finance/banking/transactions', search: { accountId } as never })}>
               Transactions
             </Button>
           </>
@@ -133,7 +133,7 @@ export function BankAccountDetailPage({ accountId }: Props) {
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent transactions</h3>
             <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({recentTxns.length})</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/banking/transactions', search: { accountId } as never })}>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/banking/transactions', search: { accountId } as never })}>
             View all
           </Button>
         </div>

@@ -30,7 +30,7 @@ export function PaymentDetailPage({ paymentId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/payments' });
+    else navigate({ to: '/finance/ap/payments' });
   }
 
   if (isLoading) {
@@ -223,7 +223,7 @@ export function PaymentDetailPage({ paymentId }: Props) {
             <button
               className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border py-1.5 text-[11.5px] font-medium hover:bg-[var(--surface-2)]"
               style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
-              onClick={() => navigate({ to: '/ap/vendors/$vendorId', params: { vendorId: payment.vendorId } })}
+              onClick={() => navigate({ to: '/finance/ap/vendors/$vendorId', params: { vendorId: payment.vendorId } })}
             >
               View vendor
             </button>

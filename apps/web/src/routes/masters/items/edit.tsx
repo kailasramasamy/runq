@@ -38,7 +38,7 @@ export function ItemEditPage({
   // edit was opened directly (e.g. from a deep link).
   const goBack = () => {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/masters/items' });
+    else navigate({ to: '/finance/masters/items' });
   };
 
   async function handleDelete() {
@@ -121,7 +121,7 @@ export function ItemEditPage({
                 size="sm"
                 onClick={() =>
                   navigate({
-                    to: '/masters/items/$itemId/analysis',
+                    to: '/finance/masters/items/$itemId/analysis',
                     params: { itemId: item!.id },
                     search: { from: 'edit' },
                   })
@@ -162,7 +162,7 @@ export function ItemEditPage({
                 ? undefined
                 : () =>
                     navigate({
-                      to: '/masters/items/$itemId/analysis',
+                      to: '/finance/masters/items/$itemId/analysis',
                       params: { itemId: item!.id },
                       search: { from: 'edit' },
                     })

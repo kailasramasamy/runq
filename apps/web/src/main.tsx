@@ -12,8 +12,7 @@ import { AcceptInvitePage } from './routes/accept-invite';
 import { initInstallPromptCapture } from './lib/pwa-install';
 import './app.css';
 
-const basepath = '/finance';
-const router = createRouter({ routeTree, basepath });
+const router = createRouter({ routeTree });
 
 // Capture beforeinstallprompt as early as possible — the browser only fires
 // this event once, very soon after page load, so we have to be ready before
@@ -21,12 +20,12 @@ const router = createRouter({ routeTree, basepath });
 initInstallPromptCapture();
 
 // Register the share-target service worker. The SW only intercepts POSTs
-// to /finance/share-receive — it does NOT cache app assets, so it won't
+// to /share-receive — it does NOT cache app assets, so it won't
 // interfere with Vite HMR in dev. Safe to register in both dev and prod.
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/finance/sw.js', { scope: '/finance/' })
+      .register('/sw.js', { scope: '/' })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.warn('[runq] SW registration failed:', err);
@@ -76,11 +75,10 @@ class ErrorBoundary extends Component<
   }
 }
 
-// Standalone login page — served at /login (outside the /finance basepath)
+// Standalone login page — served at /login, rendered outside the router.
 const isLoginPath = window.location.pathname === '/login' || window.location.pathname === '/login/';
-// Public accept-invite page. Served under the app basepath so Vite's dev
-// server (and the production fallback) resolve it correctly. Match both
-// forms so links generated before the basepath fix still work.
+// Public accept-invite page, rendered outside the router. Also matches the
+// legacy /finance/signup/invite/ form so older emailed links still resolve.
 const isAcceptInvitePath =
   window.location.pathname.startsWith('/signup/invite/') ||
   window.location.pathname.startsWith('/finance/signup/invite/');

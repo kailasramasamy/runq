@@ -47,7 +47,7 @@ export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Ta
               >
                 Export
               </Button>
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/quotes/new' as never })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/quotes/new' as never })}>
                 New quote
               </Button>
             </>
@@ -70,7 +70,7 @@ export function QuotesAndOrdersPage({ initialTab = 'quotes' }: { initialTab?: Ta
               >
                 Export
               </Button>
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/sales-orders/new' as never })}>
                 New order
               </Button>
             </>

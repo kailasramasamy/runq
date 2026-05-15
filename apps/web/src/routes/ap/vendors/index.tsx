@@ -56,7 +56,7 @@ export function VendorListPage() {
   const categoryCount = new Set(vendors.map((v) => v.category).filter(Boolean)).size;
 
   function handleView(id: string) {
-    navigate({ to: '/ap/vendors/$vendorId', params: { vendorId: id } });
+    navigate({ to: '/finance/ap/vendors/$vendorId', params: { vendorId: id } });
   }
   function handleDeleteConfirm() {
     if (!deleteId) return;
@@ -91,10 +91,10 @@ export function VendorListPage() {
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/vendors/import' })}>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/import' })}>
                   Import vendors
                 </Button>
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/new' })}>
                   New vendor
                 </Button>
               </>
@@ -179,7 +179,7 @@ export function VendorListPage() {
                   title={search ? 'No vendors match your search' : 'No vendors yet'}
                   description={search ? 'Try a different search term.' : 'Add your first vendor to get started.'}
                   action={!search && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/vendors/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/new' })}>
                       New vendor
                     </Button>
                   )}

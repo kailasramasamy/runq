@@ -69,7 +69,7 @@ export function QuickInvoiceWidget() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate({ to: '/ar/quick-templates' as '/' })}
+              onClick={() => navigate({ to: '/finance/ar/quick-templates' as '/' })}
             >
               All Templates <ArrowRight size={14} />
             </Button>

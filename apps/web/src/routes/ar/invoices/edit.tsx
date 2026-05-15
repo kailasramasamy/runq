@@ -21,7 +21,7 @@ export function EditInvoicePage({ invoiceId }: Props) {
       {
         onSuccess: () => {
           toast('Invoice updated successfully.', 'success');
-          navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } });
+          navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId } });
         },
         onError: () => {
           toast('Failed to update invoice. Please check your inputs and try again.', 'error');
@@ -95,7 +95,7 @@ export function EditInvoicePage({ invoiceId }: Props) {
       <InvoiceForm
         initialData={invoice}
         onSubmit={handleSubmit}
-        onCancel={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } })}
+        onCancel={() => navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId } })}
         isLoading={mutation.isPending}
         submitLabel={isAmendingSent ? 'Save & repost' : 'Save Changes'}
       />
@@ -130,7 +130,7 @@ function HsnOnlyEditor({ invoiceId, invoice }: { invoiceId: string; invoice: Sal
       {
         onSuccess: () => {
           toast(`Updated HSN on ${changed.length} line${changed.length > 1 ? 's' : ''}.`, 'success');
-          navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } });
+          navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId } });
         },
         onError: () => toast('Failed to update HSN. Try again.', 'error'),
       },
@@ -181,7 +181,7 @@ function HsnOnlyEditor({ invoiceId, invoice }: { invoiceId: string; invoice: Sal
       <div className="mt-6 flex items-center justify-end gap-3">
         <Button
           variant="outline"
-          onClick={() => navigate({ to: '/ar/invoices/$invoiceId', params: { invoiceId } })}
+          onClick={() => navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId } })}
           disabled={mutation.isPending}
         >
           Cancel

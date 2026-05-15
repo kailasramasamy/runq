@@ -158,7 +158,7 @@ export function DashboardHero({ onAskAgent }: { onAskAgent?: () => void } = {}) 
             </button>
             {overdueCount > 0 && (
               <button
-                onClick={() => navigate({ to: '/ar/invoices', search: { status: 'overdue' } })}
+                onClick={() => navigate({ to: '/finance/ar/invoices', search: { status: 'overdue' } })}
                 className="flex h-9 items-center gap-2 whitespace-nowrap rounded-md border px-3.5 text-[13px] font-medium hover:bg-[color:var(--surface)]"
                 style={{
                   borderColor: 'var(--border)',
@@ -170,7 +170,7 @@ export function DashboardHero({ onAskAgent }: { onAskAgent?: () => void } = {}) 
               </button>
             )}
             <button
-              onClick={() => navigate({ to: '/agent/activity' })}
+              onClick={() => navigate({ to: '/finance/agent/activity' })}
               className="flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-[13px] hover:bg-[color:var(--surface-2)]"
               style={{ color: 'var(--text-2)' }}
             >

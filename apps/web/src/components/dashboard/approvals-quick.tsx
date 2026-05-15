@@ -16,11 +16,11 @@ type ApprovalRow = PurchaseInvoice & { vendorName?: string | null };
 type QA = { label: string; icon: LucideIcon; to?: string; key?: 'new-invoice' };
 const QUICK_ACTIONS: QA[] = [
   { label: 'New invoice', icon: FileText, key: 'new-invoice' },
-  { label: 'Record payment', icon: CreditCard, to: '/ap/payments/new' },
-  { label: 'Add expense', icon: Receipt, to: '/expenses/new' },
-  { label: 'Reconcile', icon: RefreshCw, to: '/banking' },
-  { label: 'New bill', icon: FileInput, to: '/ap/bills/new' },
-  { label: 'Run report', icon: BarChart3, to: '/reports' },
+  { label: 'Record payment', icon: CreditCard, to: '/finance/ap/payments/new' },
+  { label: 'Add expense', icon: Receipt, to: '/finance/expenses/new' },
+  { label: 'Reconcile', icon: RefreshCw, to: '/finance/banking' },
+  { label: 'New bill', icon: FileInput, to: '/finance/ap/bills/new' },
+  { label: 'Run report', icon: BarChart3, to: '/finance/reports' },
 ];
 
 function dueLabel(dueDate: string): string {
@@ -120,7 +120,7 @@ export function ApprovalsAndQuickActions() {
                     {acting === a.id ? '…' : 'Approve'}
                   </button>
                   <button
-                    onClick={() => navigate({ to: '/ap/bills' })}
+                    onClick={() => navigate({ to: '/finance/ap/bills' })}
                     className="rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-[color:var(--surface-2)]"
                     style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
                   >

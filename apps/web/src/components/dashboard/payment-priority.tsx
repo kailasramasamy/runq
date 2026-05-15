@@ -49,7 +49,7 @@ function PaymentRow({ item }: { item: PrioritizedPayment }) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate({ to: '/ap/payments/new' as '/' })}
+          onClick={() => navigate({ to: '/finance/ap/payments/new' as '/' })}
           className="text-xs"
         >
           Pay
@@ -120,7 +120,7 @@ export function PaymentPriorityWidget() {
         )}
         {hasMore && (
           <button
-            onClick={() => navigate({ to: '/ap/bills' as '/' })}
+            onClick={() => navigate({ to: '/finance/ap/bills' as '/' })}
             className="mt-3 w-full text-center text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             View all {allPayments.length} payments &rarr;

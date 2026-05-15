@@ -181,7 +181,7 @@ export function GstReturnsPage() {
               <TableCell align="right">
                 <div className="flex items-center justify-end gap-1">
                   <Link
-                    to={(r.returnType === 'gstr3b' ? '/gst/returns/$returnId/3b' : '/gst/returns/$returnId') as '/'}
+                    to={(r.returnType === 'gstr3b' ? '/finance/gst/returns/$returnId/3b' : '/finance/gst/returns/$returnId') as '/'}
                     params={{ returnId: r.id }}
                     className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11.5px] font-medium hover:opacity-90"
                     style={{ background: 'var(--accent)', color: 'white' }}

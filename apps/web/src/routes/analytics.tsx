@@ -75,7 +75,7 @@ export function AnalyticsPage() {
         severity: 'critical',
         message: 'Cash projected to go negative in 7 days — review collections immediately',
         ctaLabel: 'View banking',
-        onCta: () => navigate({ to: '/banking' }),
+        onCta: () => navigate({ to: '/finance/banking' }),
       });
     }
     if (bs.data && !bs.data.balanced) {
@@ -84,7 +84,7 @@ export function AnalyticsPage() {
         severity: 'critical',
         message: 'Balance Sheet is imbalanced — equity mismatch requires investigation',
         ctaLabel: 'View BS',
-        onCta: () => navigate({ to: '/reports/balance-sheet' }),
+        onCta: () => navigate({ to: '/finance/reports/balance-sheet' }),
       });
     }
     if (salesMtd.data && salesMtd.data.prevAmount > 0) {
@@ -95,7 +95,7 @@ export function AnalyticsPage() {
           severity: 'warning',
           message: `Sales this month ${formatINR(salesMtd.data.amount)} — down ${Math.abs(delta).toFixed(0)}% vs last month ${formatINR(salesMtd.data.prevAmount)}`,
           ctaLabel: 'View invoices',
-          onCta: () => navigate({ to: '/ar/invoices' }),
+          onCta: () => navigate({ to: '/finance/ar/invoices' }),
         });
       }
     }
@@ -127,7 +127,7 @@ export function AnalyticsPage() {
               icon: Landmark,
               tone: 'neutral',
               ctaLabel: 'View banking',
-              onCta: () => navigate({ to: '/banking' }),
+              onCta: () => navigate({ to: '/finance/banking' }),
               loading: cashPos.isLoading,
             },
             {
@@ -137,7 +137,7 @@ export function AnalyticsPage() {
               icon: ArrowDownCircle,
               tone: 'accent',
               ctaLabel: 'View invoices',
-              onCta: () => navigate({ to: '/ar/invoices' }),
+              onCta: () => navigate({ to: '/finance/ar/invoices' }),
               loading: ar.isLoading,
             },
             {
@@ -147,7 +147,7 @@ export function AnalyticsPage() {
               icon: ArrowUpCircle,
               tone: 'neg',
               ctaLabel: 'View bills',
-              onCta: () => navigate({ to: '/ap/bills' }),
+              onCta: () => navigate({ to: '/finance/ap/bills' }),
               loading: ap.isLoading,
             },
             {
@@ -157,7 +157,7 @@ export function AnalyticsPage() {
               icon: TrendingUp,
               tone: 'pos',
               ctaLabel: 'View P&L',
-              onCta: () => navigate({ to: '/reports/profit-and-loss' }),
+              onCta: () => navigate({ to: '/finance/reports/profit-and-loss' }),
               loading: pnl.isLoading,
             },
           ]}
@@ -166,63 +166,63 @@ export function AnalyticsPage() {
         {/* Section 1 — Performance */}
         <SectionLabel id="sec-performance" title="Performance" sub="Last 12 months" />
         <div className="mb-7 grid gap-4" style={{ gridTemplateColumns: '1.6fr 1fr 1fr' }}>
-          <RevExpCard onDrill={() => navigate({ to: '/reports/profit-and-loss' })} />
-          <BankTrendCard onDrill={() => navigate({ to: '/banking' })} />
-          <DsoCard onDrill={() => navigate({ to: '/ar/invoices' })} />
+          <RevExpCard onDrill={() => navigate({ to: '/finance/reports/profit-and-loss' })} />
+          <BankTrendCard onDrill={() => navigate({ to: '/finance/banking' })} />
+          <DsoCard onDrill={() => navigate({ to: '/finance/ar/invoices' })} />
         </div>
 
         {/* Section 2 — Cash & Liquidity */}
         <SectionLabel id="sec-cash" title="Cash & Liquidity" />
         <div className="mb-7 grid grid-cols-3 gap-4">
-          <CashPositionCard onDrill={() => navigate({ to: '/banking' })} />
-          <CashForecastCard onDrill={() => navigate({ to: '/banking' })} />
-          <RunwayCashFlowCard onDrill={() => navigate({ to: '/reports/cash-flow' })} />
+          <CashPositionCard onDrill={() => navigate({ to: '/finance/banking' })} />
+          <CashForecastCard onDrill={() => navigate({ to: '/finance/banking' })} />
+          <RunwayCashFlowCard onDrill={() => navigate({ to: '/finance/reports/cash-flow' })} />
         </div>
 
         {/* Section 3 — Receivables & Payables */}
         <SectionLabel id="sec-arap" title="Receivables & Payables" />
         <div className="mb-7 grid grid-cols-3 gap-4">
-          <ArAgingCard onDrill={() => navigate({ to: '/ar/invoices' })} />
-          <ApAgingCard onDrill={() => navigate({ to: '/ap/bills' })} />
-          <TopOverdueCustomersCard onDrill={() => navigate({ to: '/ar/invoices' })} />
+          <ArAgingCard onDrill={() => navigate({ to: '/finance/ar/invoices' })} />
+          <ApAgingCard onDrill={() => navigate({ to: '/finance/ap/bills' })} />
+          <TopOverdueCustomersCard onDrill={() => navigate({ to: '/finance/ar/invoices' })} />
         </div>
 
         {/* Section 4 — Activity */}
         <SectionLabel id="sec-activity" title="Activity" />
         <div className="mb-7 grid grid-cols-3 gap-4">
-          <SalesMtdCard onDrill={() => navigate({ to: '/ar/invoices' })} />
-          <BillsDueWeekCard onDrill={() => navigate({ to: '/ap/bills' })} />
-          <TopVendorsBySpendCard onDrill={() => navigate({ to: '/ap/bills' })} />
+          <SalesMtdCard onDrill={() => navigate({ to: '/finance/ar/invoices' })} />
+          <BillsDueWeekCard onDrill={() => navigate({ to: '/finance/ap/bills' })} />
+          <TopVendorsBySpendCard onDrill={() => navigate({ to: '/finance/ap/bills' })} />
         </div>
 
         {/* Section 5 — Books Health */}
         <SectionLabel id="sec-books" title="Books Health" />
         <div className="mb-3 grid grid-cols-4 gap-4">
-          <PnlCard onDrill={() => navigate({ to: '/reports/profit-and-loss' })} />
-          <BsCard onDrill={() => navigate({ to: '/reports/balance-sheet' })} />
-          <TbCard onDrill={() => navigate({ to: '/reports/trial-balance' })} />
-          <UnreconciledCard onDrill={() => navigate({ to: '/banking' })} />
+          <PnlCard onDrill={() => navigate({ to: '/finance/reports/profit-and-loss' })} />
+          <BsCard onDrill={() => navigate({ to: '/finance/reports/balance-sheet' })} />
+          <TbCard onDrill={() => navigate({ to: '/finance/reports/trial-balance' })} />
+          <UnreconciledCard onDrill={() => navigate({ to: '/finance/banking' })} />
         </div>
         <div className="mb-7 grid grid-cols-2 gap-4">
-          <SuspenseCard onDrill={() => navigate({ to: '/gl' })} />
-          <PendingApprovalsCard onDrill={() => navigate({ to: '/inbox' })} />
+          <SuspenseCard onDrill={() => navigate({ to: '/finance/gl' })} />
+          <PendingApprovalsCard onDrill={() => navigate({ to: '/finance/inbox' })} />
         </div>
 
         {/* Section 6 — Profitability */}
         <SectionLabel id="sec-profitability" title="Profitability" />
         <div className="mb-7 grid grid-cols-3 gap-4">
-          <GrossMarginCard onDrill={() => navigate({ to: '/reports/profit-and-loss' })} />
-          <CashFlowCard onDrill={() => navigate({ to: '/reports/cash-flow' })} />
-          <TopExpenseCategoriesCard onDrill={() => navigate({ to: '/reports' })} />
+          <GrossMarginCard onDrill={() => navigate({ to: '/finance/reports/profit-and-loss' })} />
+          <CashFlowCard onDrill={() => navigate({ to: '/finance/reports/cash-flow' })} />
+          <TopExpenseCategoriesCard onDrill={() => navigate({ to: '/finance/reports' })} />
         </div>
 
         {/* Section 7 — GST Compliance */}
         <SectionLabel id="sec-gst" title="GST Compliance" sub="Previous filing period" />
         <div className="mb-10 grid grid-cols-4 gap-4">
-          <GstLiabilityCard onDrill={() => navigate({ to: '/gst' })} />
-          <Gstr2bReconCard onDrill={() => navigate({ to: '/gst' })} />
-          <Gstr1Vs3bCard onDrill={() => navigate({ to: '/gst' })} />
-          <VendorsNotFiledCard onDrill={() => navigate({ to: '/gst' })} />
+          <GstLiabilityCard onDrill={() => navigate({ to: '/finance/gst' })} />
+          <Gstr2bReconCard onDrill={() => navigate({ to: '/finance/gst' })} />
+          <Gstr1Vs3bCard onDrill={() => navigate({ to: '/finance/gst' })} />
+          <VendorsNotFiledCard onDrill={() => navigate({ to: '/finance/gst' })} />
         </div>
       </div>
     </div>

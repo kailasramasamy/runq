@@ -211,7 +211,7 @@ export function ImportVendorsPage() {
             )}
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={() => navigate({ to: '/ap/vendors' })}>View Vendors</Button>
+            <Button onClick={() => navigate({ to: '/finance/ap/vendors' })}>View Vendors</Button>
           </CardFooter>
         </Card>
       )}

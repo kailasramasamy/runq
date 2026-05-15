@@ -14,7 +14,7 @@ export function NewVendorPage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Vendor created successfully', 'success');
-        navigate({ to: '/ap/vendors' });
+        navigate({ to: '/finance/ap/vendors' });
       },
       onError: () => {
         toast('Failed to create vendor. Please try again.', 'error');
@@ -23,7 +23,7 @@ export function NewVendorPage() {
   }
 
   function handleCancel() {
-    navigate({ to: '/ap/vendors' });
+    navigate({ to: '/finance/ap/vendors' });
   }
 
   return (

@@ -38,9 +38,9 @@ export function ItemAnalysisPage({
 
   const goBack = () => {
     if (from === 'edit') {
-      navigate({ to: '/masters/items/$itemId/edit', params: { itemId } });
+      navigate({ to: '/finance/masters/items/$itemId/edit', params: { itemId } });
     } else {
-      navigate({ to: '/masters/items' });
+      navigate({ to: '/finance/masters/items' });
     }
   };
   const backLabel = from === 'edit' ? 'Back to Edit' : 'Back to Items';

@@ -15,7 +15,7 @@ export function NewSalesOrderPage() {
         title="New sales order"
         description="Confirm a customer order before invoicing."
       />
-      <CreateForm onClose={() => navigate({ to: '/ar/sales-orders' as never })} />
+      <CreateForm onClose={() => navigate({ to: '/finance/ar/sales-orders' as never })} />
     </div>
   );
 }

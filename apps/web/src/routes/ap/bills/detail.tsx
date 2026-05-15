@@ -89,7 +89,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
     applyAdvanceMutation.mutate(invoice.id);
   }, [applyAdvanceMutation, invoice.id]);
   const onLinkPo = useCallback(() => {
-    navigate({ to: '/ap/bills/$billId/edit', params: { billId: invoice.id } });
+    navigate({ to: '/finance/ap/bills/$billId/edit', params: { billId: invoice.id } });
   }, [navigate, invoice.id]);
 
   const gaps = useDerivedGaps(invoice, advanceBalance, { onApprove, onRecordPayment, onApplyAdvance, onLinkPo });
@@ -99,7 +99,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/bills' });
+    else navigate({ to: '/finance/ap/bills' });
   }
 
   const balance = Number(invoice.balanceDue);
@@ -176,7 +176,7 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={() =>
           deleteMutation.mutate(invoice.id, {
-            onSuccess: () => { setShowDeleteDialog(false); navigate({ to: '/ap/bills' }); },
+            onSuccess: () => { setShowDeleteDialog(false); navigate({ to: '/finance/ap/bills' }); },
           })
         }
         title={invoice.status === 'draft' ? 'Delete Bill' : 'Cancel Bill'}
@@ -261,7 +261,7 @@ function BillHeader({ invoice, balance, total, paid, overdueDays, isOverdue, gap
             <Download size={15} />PDF
           </button>
           {(isDraft || canAmend) && (
-            <Link to="/ap/bills/$billId/edit" params={{ billId: invoice.id }}>
+            <Link to="/finance/ap/bills/$billId/edit" params={{ billId: invoice.id }}>
               <button className="bd-btn bd-btn-ghost"><Pencil size={15} />{isDraft ? 'Edit' : 'Amend'}</button>
             </Link>
           )}

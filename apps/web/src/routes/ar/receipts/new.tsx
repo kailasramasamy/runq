@@ -13,7 +13,7 @@ export function NewReceiptPage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Receipt recorded successfully.', 'success');
-        navigate({ to: '/ar/receipts' });
+        navigate({ to: '/finance/ar/receipts' });
       },
       onError: () => {
         toast('Failed to record receipt. Please check your inputs and try again.', 'error');

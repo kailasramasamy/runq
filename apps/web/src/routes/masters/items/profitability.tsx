@@ -185,7 +185,7 @@ export function ItemProfitabilityPage() {
 
   const openItemAnalysis = (id: string) =>
     navigate({
-      to: '/masters/items/$itemId/analysis',
+      to: '/finance/masters/items/$itemId/analysis',
       params: { itemId: id },
       search: { from: 'list' },
     });
@@ -201,7 +201,7 @@ export function ItemProfitabilityPage() {
         ]}
         description="Cost vs. selling price across your catalogue. Loss-making and marginal items surface first so you can fix pricing before they bleed."
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/masters/items' })}>
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/finance/masters/items' })}>
             <ArrowLeft size={14} /> Back to Items
           </Button>
         }

@@ -162,7 +162,7 @@ function GstReadinessCard() {
           </div>
         </div>
         <button
-          onClick={() => navigate({ to: '/gst' })}
+          onClick={() => navigate({ to: '/finance/gst' })}
           className="flex shrink-0 items-center gap-1 text-[12px] font-medium hover:underline"
           style={{ color: 'var(--accent-text)' }}
         >
@@ -252,11 +252,11 @@ function GstReadinessCard() {
 }
 
 const PERIOD_CLOSE_LINKS: Record<string, string> = {
-  bank_recon: '/banking/reconciliation',
-  invoices_reviewed: '/ar/invoices',
-  bills_approved: '/ap/bills',
-  gst_filed: '/gst',
-  period_lock: '/reports/fiscal-periods',
+  bank_recon: '/finance/banking',
+  invoices_reviewed: '/finance/ar/invoices',
+  bills_approved: '/finance/ap/bills',
+  gst_filed: '/finance/gst',
+  period_lock: '/finance/reports',
 };
 
 function PeriodCloseCard() {

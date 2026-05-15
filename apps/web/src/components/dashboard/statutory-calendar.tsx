@@ -64,8 +64,8 @@ const ROUTE_BY_KIND: Record<CalendarKind, string> = {
   tds_24q: '/hr/form-24q',
   pt: '/hr/payroll-runs',
   pf_esi: '/hr/payroll-runs',
-  gstr1: '/gst',
-  gstr3b: '/gst',
+  gstr1: '/finance/gst',
+  gstr3b: '/finance/gst',
 };
 
 function pillStyle(days: number, done: boolean): { bg: string; fg: string; label: string } {

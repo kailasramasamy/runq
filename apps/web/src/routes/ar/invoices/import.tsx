@@ -453,7 +453,7 @@ export function InvoiceImportPage() {
             )}
 
             <div className="flex gap-2 pt-2">
-              <Button onClick={() => navigate({ to: '/ar/invoices' })}>Go to Invoices</Button>
+              <Button onClick={() => navigate({ to: '/finance/ar/invoices' })}>Go to Invoices</Button>
               <Button variant="outline" onClick={reset}>
                 Import more
               </Button>

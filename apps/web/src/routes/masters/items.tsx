@@ -66,7 +66,7 @@ export function ItemsPage() {
 
   function updateSearch(patch: { q?: string; page?: number }, resetPage = true) {
     navigate({
-      to: '/masters/items',
+      to: '/finance/masters/items',
       search: (prev) => {
         const next = { ...(prev as typeof params), ...patch };
         if (resetPage) next.page = undefined;
@@ -120,10 +120,10 @@ export function ItemsPage() {
   );
 
   const openEdit = (id: string) =>
-    navigate({ to: '/masters/items/$itemId/edit', params: { itemId: id } });
+    navigate({ to: '/finance/masters/items/$itemId/edit', params: { itemId: id } });
   const openAnalysis = (id: string) =>
     navigate({
-      to: '/masters/items/$itemId/analysis',
+      to: '/finance/masters/items/$itemId/analysis',
       params: { itemId: id },
       search: { from: 'list' },
     });
@@ -195,13 +195,13 @@ export function ItemsPage() {
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" icon={<TrendingUp size={13} />} onClick={() => navigate({ to: '/masters/items/profitability' })}>
+            <Button variant="outline" size="sm" icon={<TrendingUp size={13} />} onClick={() => navigate({ to: '/finance/masters/items/profitability' })}>
               Profitability
             </Button>
-            <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => navigate({ to: '/masters/items/import' })}>
+            <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => navigate({ to: '/finance/masters/items/import' })}>
               Smart import
             </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/masters/items/new' })}>
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/masters/items/new' })}>
               New item
             </Button>
           </>
@@ -270,7 +270,7 @@ export function ItemsPage() {
                   title={search ? `No items match "${search}"` : 'No items yet'}
                   description={search ? 'Try a different search term.' : 'Add your first item to get started.'}
                   action={!search && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/masters/items/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/masters/items/new' })}>
                       New item
                     </Button>
                   )}
@@ -330,7 +330,7 @@ export function ItemsPage() {
                   <button
                     className="rounded p-1 hover:bg-[var(--surface-2)]"
                     style={{ color: 'var(--text-3)' }}
-                    onClick={() => navigate({ to: '/masters/items/new', search: { duplicateOf: item.id } })}
+                    onClick={() => navigate({ to: '/finance/masters/items/new', search: { duplicateOf: item.id } })}
                     title="Duplicate"
                   >
                     <Copy size={13} />

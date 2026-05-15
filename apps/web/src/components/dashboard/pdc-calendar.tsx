@@ -18,7 +18,7 @@ export function PDCCalendarWidget() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate({ to: '/banking/cheques' as '/' })}
+            onClick={() => navigate({ to: '/finance/banking/cheques' as '/' })}
             className="text-xs"
           >
             View all

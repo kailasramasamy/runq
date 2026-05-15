@@ -12,7 +12,7 @@ export function NewBillPage() {
     mutation.mutate(data, {
       onSuccess: (res) => {
         const id = (res as any)?.data?.id;
-        navigate({ to: id ? `/ap/bills/${id}` : '/ap/bills' });
+        navigate({ to: id ? `/finance/ap/bills/${id}` : '/finance/ap/bills' });
       },
     });
   }

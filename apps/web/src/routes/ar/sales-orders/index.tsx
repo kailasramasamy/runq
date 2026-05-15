@@ -288,7 +288,7 @@ export function SalesOrdersSection() {
                   icon={<FileText size={18} />}
                   title="No sales orders yet"
                   description="Create a sales order to lock in a confirmed customer commitment."
-                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>New order</ArButton>}
+                  action={<ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/sales-orders/new' as never })}>New order</ArButton>}
                 />
               </td>
             </tr>
@@ -336,7 +336,7 @@ export function SalesOrdersPage() {
             <ArButton variant="outline" size="sm" icon={<Download size={13} />} onClick={() => downloadCSV('sales-orders.csv', ['Order#', 'Date', 'Customer', 'Amount', 'Status'], orders.map(o => [o.orderNumber, o.orderDate, o.customerName, String(o.totalAmount), o.status]))}>
               Export
             </ArButton>
-            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/sales-orders/new' as never })}>New order</ArButton>
+            <ArButton size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/sales-orders/new' as never })}>New order</ArButton>
           </>
         }
       />

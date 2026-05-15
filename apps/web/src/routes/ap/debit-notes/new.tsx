@@ -13,7 +13,7 @@ export function NewDebitNotePage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Debit note created successfully.', 'success');
-        navigate({ to: '/ap/debit-notes' });
+        navigate({ to: '/finance/ap/debit-notes' });
       },
       onError: () => {
         toast('Failed to create debit note. Please try again.', 'error');

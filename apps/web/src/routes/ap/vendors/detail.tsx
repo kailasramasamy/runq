@@ -34,11 +34,11 @@ export function VendorDetailPage({ vendorId }: Props) {
 
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/ap/vendors' });
+    else navigate({ to: '/finance/ap/vendors' });
   }
   function handleDeleteConfirm() {
     deleteMutation.mutate(vendorId, {
-      onSuccess: () => navigate({ to: '/ap/vendors' }),
+      onSuccess: () => navigate({ to: '/finance/ap/vendors' }),
     });
   }
 
@@ -117,10 +117,10 @@ export function VendorDetailPage({ vendorId }: Props) {
               <span>Net <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{vendor.paymentTermsDays}d</span> terms</span>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/bills/new' })}>
                 New bill
               </Button>
-              <Button variant="outline" size="sm" icon={<CreditCard size={13} />} onClick={() => navigate({ to: '/ap/payments/new' })}>
+              <Button variant="outline" size="sm" icon={<CreditCard size={13} />} onClick={() => navigate({ to: '/finance/ap/payments/new' })}>
                 Record payment
               </Button>
             </div>
@@ -189,7 +189,7 @@ export function VendorDetailPage({ vendorId }: Props) {
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent bills</h3>
             <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({bills.length})</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/ap/bills' })}>View all</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/ap/bills' })}>View all</Button>
         </div>
         {bills.length === 0 ? (
           <EmptyState
@@ -213,7 +213,7 @@ export function VendorDetailPage({ vendorId }: Props) {
               {bills.map((b) => (
                 <TableRow
                   key={b.id}
-                  onClick={() => navigate({ to: '/ap/bills/$billId', params: { billId: b.id } })}
+                  onClick={() => navigate({ to: '/finance/ap/bills/$billId', params: { billId: b.id } })}
                 >
                   <TableCell>
                     <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>

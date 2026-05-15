@@ -59,7 +59,7 @@ export function AgentFeed() {
             <span>Live</span>
             <span style={{ color: 'var(--border)' }}>·</span>
             <button
-              onClick={() => navigate({ to: '/agent/activity' })}
+              onClick={() => navigate({ to: '/finance/agent/activity' })}
               className="font-medium hover:underline"
               style={{ color: 'var(--accent-text)' }}
             >

@@ -75,7 +75,7 @@ export function BillListPage() {
 
   function updateSearch(patch: Partial<typeof params>, resetPage = true): void {
     navigate({
-      to: '/ap/bills',
+      to: '/finance/ap/bills',
       search: (prev) => {
         const next = { ...(prev as typeof params), ...patch };
         if (resetPage) next.page = undefined;
@@ -194,7 +194,7 @@ export function BillListPage() {
           const run = (res as { data: { id: string; runId: string } }).data;
           toast(`Created pay run ${run.runId} with ${ids.length} bill(s)`, 'success');
           setSelectedIds([]);
-          navigate({ to: '/ap/pay-runs/$runId', params: { runId: run.id } });
+          navigate({ to: '/finance/ap/pay-runs/$runId', params: { runId: run.id } });
         },
         onError: () => toast('Failed to create pay run', 'error'),
       },
@@ -218,7 +218,7 @@ export function BillListPage() {
     });
   }
   function handleRowClick(bill: PurchaseInvoice) {
-    navigate({ to: '/ap/bills/$billId', params: { billId: bill.id } });
+    navigate({ to: '/finance/ap/bills/$billId', params: { billId: bill.id } });
   }
 
   return (
@@ -249,13 +249,13 @@ export function BillListPage() {
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" icon={<ScanLine size={13} />} onClick={() => navigate({ to: '/ap/bills/scan' })}>
+                <Button variant="outline" size="sm" icon={<ScanLine size={13} />} onClick={() => navigate({ to: '/finance/ap/bills/scan' })}>
                   Scan
                 </Button>
-                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/ap/bills/import' })}>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/ap/bills/import' })}>
                   Import
                 </Button>
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/bills/new' })}>
                   New bill
                 </Button>
               </>
@@ -406,7 +406,7 @@ export function BillListPage() {
                   title={hasFilters ? 'No bills match your filters' : 'No bills yet'}
                   description={hasFilters ? 'Try adjusting your filters.' : 'Create your first vendor bill to get started.'}
                   action={!hasFilters && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ap/bills/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/bills/new' })}>
                       New bill
                     </Button>
                   )}

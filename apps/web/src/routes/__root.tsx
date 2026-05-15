@@ -265,22 +265,37 @@ const dashboardLayoutRoute = createRoute({
   component: DashboardLayout,
 });
 
+// ─── Finance module — namespaced under /finance ──────────────────────────────
+
+const financeRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/finance',
+  component: () => <Outlet />,
+});
+
+// Bare "/" lands on the finance dashboard — finance is the default module.
+const rootRedirectRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/',
+  component: () => <Navigate to="/finance" />,
+});
+
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const dashboardRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/',
   component: DashboardPage,
 });
 
 const inboxRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/inbox',
   component: InboxPage,
 });
 
 const analyticsRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/analytics',
   component: AnalyticsPage,
 });
@@ -288,7 +303,7 @@ const analyticsRoute = createRoute({
 // ─── AP Routes ───────────────────────────────────────────────────────────────
 
 const apRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/ap',
   component: () => <Outlet />,
 });
@@ -296,7 +311,7 @@ const apRoute = createRoute({
 const apIndexRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/',
-  component: () => <Navigate to="/ap/vendors" />,
+  component: () => <Navigate to="/finance/ap/vendors" />,
 });
 
 const vendorsRoute = createRoute({
@@ -446,7 +461,7 @@ const payRunDetailRoute = createRoute({
 const paymentQueueRedirectRoute = createRoute({
   getParentRoute: () => apRoute,
   path: '/queue',
-  component: () => <Navigate to="/ap/pay-runs" />,
+  component: () => <Navigate to="/finance/ap/pay-runs" />,
 });
 
 const paymentQueueDetailRedirectRoute = createRoute({
@@ -454,7 +469,7 @@ const paymentQueueDetailRedirectRoute = createRoute({
   path: '/queue/$batchId',
   component: () => {
     const { batchId } = paymentQueueDetailRedirectRoute.useParams();
-    return <Navigate to="/ap/pay-runs/$runId" params={{ runId: batchId }} />;
+    return <Navigate to="/finance/ap/pay-runs/$runId" params={{ runId: batchId }} />;
   },
 });
 
@@ -482,7 +497,7 @@ const debitNoteDetailRoute = createRoute({
 // ─── AR Routes ───────────────────────────────────────────────────────────────
 
 const arRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/ar',
   component: () => <Outlet />,
 });
@@ -490,7 +505,7 @@ const arRoute = createRoute({
 const arIndexRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/',
-  component: () => <Navigate to="/ar/customers" />,
+  component: () => <Navigate to="/finance/ar/customers" />,
 });
 
 const customersRoute = createRoute({
@@ -706,7 +721,7 @@ const quickTemplateGenerateRoute = createRoute({
 // ─── Banking Routes ───────────────────────────────────────────────────────────
 
 const bankingRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/banking',
   component: () => <Outlet />,
 });
@@ -792,10 +807,10 @@ const pgReconDetailRoute = createRoute({
 // ─── General Ledger Sub-navigation ───────────────────────────────────────────
 
 const GL_TABS = [
-  { label: 'Chart of Accounts', path: '/gl/accounts' },
-  { label: 'Journal Entries', path: '/gl/journal-entries' },
-  { label: 'Trial Balance', path: '/gl/trial-balance' },
-  { label: 'Fiscal Periods', path: '/gl/fiscal-periods' },
+  { label: 'Chart of Accounts', path: '/finance/gl/accounts' },
+  { label: 'Journal Entries', path: '/finance/gl/journal-entries' },
+  { label: 'Trial Balance', path: '/finance/gl/trial-balance' },
+  { label: 'Fiscal Periods', path: '/finance/gl/fiscal-periods' },
 ];
 
 function GlNav() {
@@ -811,7 +826,7 @@ function GlNav() {
         {GL_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/gl/accounts' | '/gl/journal-entries' | '/gl/trial-balance'}
+            to={path as '/finance/gl/accounts' | '/finance/gl/journal-entries' | '/finance/gl/trial-balance'}
             className={[
               'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
               current.startsWith(path)
@@ -839,7 +854,7 @@ function GlLayout() {
 // ─── GL Routes ────────────────────────────────────────────────────────────────
 
 const glRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/gl',
   component: GlLayout,
 });
@@ -847,7 +862,7 @@ const glRoute = createRoute({
 const glIndexRoute = createRoute({
   getParentRoute: () => glRoute,
   path: '/',
-  component: () => <Navigate to="/gl/accounts" />,
+  component: () => <Navigate to="/finance/gl/accounts" />,
 });
 
 const glAccountsRoute = createRoute({
@@ -927,7 +942,7 @@ function FaLayout() {
 // ─── Fixed Assets Routes ─────────────────────────────────────────────────────
 
 const faRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/fa',
   component: FaLayout,
 });
@@ -935,7 +950,7 @@ const faRoute = createRoute({
 const faIndexRoute = createRoute({
   getParentRoute: () => faRoute,
   path: '/',
-  component: () => <Navigate to="/fa/assets" />,
+  component: () => <Navigate to="/finance/fa/assets" />,
 });
 
 const faCategoriesRoute = createRoute({
@@ -986,7 +1001,7 @@ const faImportRoute = createRoute({
 // ─── GST Filing Routes ───────────────────────────────────────────────────────
 
 const gstRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/gst',
   component: () => <Outlet />,
 });
@@ -994,7 +1009,7 @@ const gstRoute = createRoute({
 const gstIndexRoute = createRoute({
   getParentRoute: () => gstRoute,
   path: '/',
-  component: () => <Navigate to="/gst/returns" />,
+  component: () => <Navigate to="/finance/gst/returns" />,
 });
 
 const gstReturnsRoute = createRoute({
@@ -1104,14 +1119,14 @@ const settingsOpeningBalancesRoute = createRoute({
 // ─── Reports Sub-navigation ──────────────────────────────────────────────────
 
 const REPORTS_TABS = [
-  { label: 'P&L', path: '/reports/profit-and-loss' },
-  { label: 'Balance Sheet', path: '/reports/balance-sheet' },
-  { label: 'Trial Balance', path: '/reports/trial-balance' },
-  { label: 'Cash Flow', path: '/reports/cash-flow' },
-  { label: 'Expenses', path: '/reports/expense-analytics' },
-  { label: 'Revenue', path: '/reports/revenue-analytics' },
-  { label: 'Comparison', path: '/reports/comparison' },
-  { label: 'Forecast', path: '/reports/cash-flow-forecast' },
+  { label: 'P&L', path: '/finance/reports/profit-and-loss' },
+  { label: 'Balance Sheet', path: '/finance/reports/balance-sheet' },
+  { label: 'Trial Balance', path: '/finance/reports/trial-balance' },
+  { label: 'Cash Flow', path: '/finance/reports/cash-flow' },
+  { label: 'Expenses', path: '/finance/reports/expense-analytics' },
+  { label: 'Revenue', path: '/finance/reports/revenue-analytics' },
+  { label: 'Comparison', path: '/finance/reports/comparison' },
+  { label: 'Forecast', path: '/finance/reports/cash-flow-forecast' },
 ];
 
 function ReportsNav() {
@@ -1127,7 +1142,7 @@ function ReportsNav() {
         {REPORTS_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/reports/profit-and-loss'}
+            to={path as '/finance/reports/profit-and-loss'}
             className={[
               'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors whitespace-nowrap',
               current.startsWith(path)
@@ -1155,7 +1170,7 @@ function ReportsLayout() {
 // ─── Reports Routes ──────────────────────────────────────────────────────────
 
 const reportsRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/reports',
   component: ReportsLayout,
 });
@@ -1163,7 +1178,7 @@ const reportsRoute = createRoute({
 const reportsIndexRoute = createRoute({
   getParentRoute: () => reportsRoute,
   path: '/',
-  component: () => <Navigate to="/reports/profit-and-loss" />,
+  component: () => <Navigate to="/finance/reports/profit-and-loss" />,
 });
 
 const reportsPnlRoute = createRoute({
@@ -1217,7 +1232,7 @@ const reportsForecastRoute = createRoute({
 // ─── Workflows Routes ────────────────────────────────────────────────────────
 
 const workflowsRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/workflows',
   component: () => <Outlet />,
 });
@@ -1243,11 +1258,11 @@ const workflowsTasksRoute = createRoute({
 // ─── Vendor Management Sub-navigation ────────────────────────────────────────
 
 const VM_TABS = [
-  { label: 'Contracts', path: '/vendor-management/contracts' },
-  { label: 'Ratings', path: '/vendor-management/ratings' },
-  { label: 'Requisitions', path: '/vendor-management/requisitions' },
-  { label: 'Payment Schedules', path: '/vendor-management/payment-schedules' },
-  { label: 'Early Discounts', path: '/vendor-management/early-discounts' },
+  { label: 'Contracts', path: '/finance/vendor-management/contracts' },
+  { label: 'Ratings', path: '/finance/vendor-management/ratings' },
+  { label: 'Requisitions', path: '/finance/vendor-management/requisitions' },
+  { label: 'Payment Schedules', path: '/finance/vendor-management/payment-schedules' },
+  { label: 'Early Discounts', path: '/finance/vendor-management/early-discounts' },
 ];
 
 function VmNav() {
@@ -1263,7 +1278,7 @@ function VmNav() {
         {VM_TABS.map(({ label, path }) => (
           <Link
             key={label}
-            to={path as '/vendor-management/contracts'}
+            to={path as '/finance/vendor-management/contracts'}
             className={[
               'px-3 py-2 text-xs sm:text-sm sm:px-4 font-medium whitespace-nowrap border-b-2 -mb-px transition-colors whitespace-nowrap',
               current.startsWith(path)
@@ -1291,7 +1306,7 @@ function VmLayout() {
 // ─── Vendor Management Routes ────────────────────────────────────────────────
 
 const vmRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/vendor-management',
   component: VmLayout,
 });
@@ -1299,7 +1314,7 @@ const vmRoute = createRoute({
 const vmIndexRoute = createRoute({
   getParentRoute: () => vmRoute,
   path: '/',
-  component: () => <Navigate to="/vendor-management/contracts" />,
+  component: () => <Navigate to="/finance/vendor-management/contracts" />,
 });
 
 const vmContractsRoute = createRoute({
@@ -1395,7 +1410,7 @@ const settingsWebhooksRoute = createRoute({
 
 // Masters routes
 const mastersRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/masters',
   component: () => <Outlet />,
 });
@@ -1403,7 +1418,7 @@ const mastersRoute = createRoute({
 const mastersIndexRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/',
-  component: () => <Navigate to="/masters/items" />,
+  component: () => <Navigate to="/finance/masters/items" />,
 });
 
 const mastersItemsRoute = createRoute({
@@ -1490,7 +1505,7 @@ const mastersPriceListEditRoute = createRoute({
 
 // Expenses routes
 const expensesRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/expenses',
   component: () => <Outlet />,
 });
@@ -1498,7 +1513,7 @@ const expensesRoute = createRoute({
 const expensesIndexRoute = createRoute({
   getParentRoute: () => expensesRoute,
   path: '/',
-  component: () => <Navigate to="/expenses/claims" />,
+  component: () => <Navigate to="/finance/expenses/claims" />,
 });
 
 const expenseClaimsRoute = createRoute({
@@ -1630,7 +1645,7 @@ const hrContractLabourRoute = createRoute({
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
 const agentActivityRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/agent/activity',
   component: AgentActivityPage,
 });
@@ -1676,7 +1691,7 @@ const vendorPortalRoute = createRoute({
 // ─── Audit ────────────────────────────────────────────────────────────────────
 
 const auditRoute = createRoute({
-  getParentRoute: () => dashboardLayoutRoute,
+  getParentRoute: () => financeRoute,
   path: '/audit',
   component: () => <Outlet />,
 });
@@ -1828,130 +1843,154 @@ export const routeTree = rootRoute.addChildren([
     adminSettingsRoute,
   ]),
   dashboardLayoutRoute.addChildren([
-    dashboardRoute,
-    inboxRoute,
-    analyticsRoute,
-    agentActivityRoute,
-    apRoute.addChildren([
-      apIndexRoute,
-      vendorsRoute,
-      vendorNewRoute,
-      vendorImportRoute,
-      vendorDetailRoute,
-      billsRoute,
-      billNewRoute,
-      billImportRoute,
-      billScanRoute,
-      billDetailRoute,
-      billEditRoute,
-      paymentsRoute,
-      paymentNewRoute,
-      paymentAdvanceRoute,
-      paymentDirectRoute,
-      paymentBulkRoute,
-      paymentDetailRoute,
-      payRunsRoute,
-      payRunDetailRoute,
-      paymentQueueRedirectRoute,
-      paymentQueueDetailRedirectRoute,
-      debitNotesRoute,
-      debitNoteNewRoute,
-      debitNoteDetailRoute,
-    ]),
-    arRoute.addChildren([
-      arIndexRoute,
-      customersRoute,
-      customerNewRoute,
-      customerImportRoute,
-      customerDetailRoute,
-      invoicesRoute,
-      invoiceNewRoute,
-      invoiceImportRoute,
-      invoiceDetailRoute,
-      invoiceEditRoute,
-      receiptsRoute,
-      paymentClaimsRoute,
-      receiptNewRoute,
-      receiptDetailRoute,
-      creditNotesRoute,
-      creditNoteNewRoute,
-      creditNoteDetailRoute,
-      poInboxRoute,
-      poInboxDetailRoute,
-      dunningRoute,
-      quotesRoute,
-      quoteNewRoute,
-      salesOrdersRoute,
-      salesOrderNewRoute,
-      collectionsRoute,
-      quickTemplatesRoute,
-      quickTemplateNewRoute,
-      quickTemplateEditRoute,
-      quickTemplateGenerateRoute,
-    ]),
-    bankingRoute.addChildren([
-      bankingIndexRoute,
-      bankAccountsRoute,
-      bankAccountNewRoute,
-      bankAccountDetailRoute,
-      bankTransactionsRoute,
-      bankTransactionsImportRoute,
-      bankReconciliationRoute,
-      bankChequesRoute,
-      pettyCashRoute,
-      pgReconRoute,
-      pgReconImportRoute,
-      pgReconDetailRoute,
-    ]),
-    glRoute.addChildren([
-      glIndexRoute,
-      glAccountsRoute,
-      glJournalEntriesRoute,
-      glJournalEntryDetailRoute,
-      glTrialBalanceRoute,
-      glFiscalPeriodsRoute,
-    ]),
-    faRoute.addChildren([
-      faIndexRoute,
-      faCategoriesRoute,
-      faAssetsRoute,
-      faNewAssetRoute,
-      faAssetDetailRoute,
-      faDepreciationRoute,
-      faBlockOfAssetsRoute,
-      faImportRoute,
-    ]),
-    gstRoute.addChildren([
-      gstIndexRoute,
-      gstReturnsRoute,
-      gstReturnDetailRoute,
-      gst3bDetailRoute,
-      gstReconciliationRoute,
-      gstReadinessRoute,
-    ]),
-    reportsRoute.addChildren([
-      reportsIndexRoute,
-      reportsPnlRoute,
-      reportsBsRoute,
-      reportsTbRoute,
-      reportsCfRoute,
-      reportsExpenseRoute,
-      reportsRevenueRoute,
-      reportsComparisonRoute,
-      reportsForecastRoute,
-    ]),
-    workflowsRoute.addChildren([
-      workflowsIndexRoute,
-      workflowsApprovalsRoute,
-      workflowsTasksRoute,
-    ]),
-    vmRoute.addChildren([
-      vmIndexRoute,
-      vmContractsRoute,
-      vmRatingsRoute,
-      vmRequisitionsRoute,
-      vmPaymentSchedulesRoute,
-      vmEarlyDiscountsRoute,
+    rootRedirectRoute,
+    financeRoute.addChildren([
+      dashboardRoute,
+      inboxRoute,
+      analyticsRoute,
+      agentActivityRoute,
+      apRoute.addChildren([
+        apIndexRoute,
+        vendorsRoute,
+        vendorNewRoute,
+        vendorImportRoute,
+        vendorDetailRoute,
+        billsRoute,
+        billNewRoute,
+        billImportRoute,
+        billScanRoute,
+        billDetailRoute,
+        billEditRoute,
+        paymentsRoute,
+        paymentNewRoute,
+        paymentAdvanceRoute,
+        paymentDirectRoute,
+        paymentBulkRoute,
+        paymentDetailRoute,
+        payRunsRoute,
+        payRunDetailRoute,
+        paymentQueueRedirectRoute,
+        paymentQueueDetailRedirectRoute,
+        debitNotesRoute,
+        debitNoteNewRoute,
+        debitNoteDetailRoute,
+      ]),
+      arRoute.addChildren([
+        arIndexRoute,
+        customersRoute,
+        customerNewRoute,
+        customerImportRoute,
+        customerDetailRoute,
+        invoicesRoute,
+        invoiceNewRoute,
+        invoiceImportRoute,
+        invoiceDetailRoute,
+        invoiceEditRoute,
+        receiptsRoute,
+        paymentClaimsRoute,
+        receiptNewRoute,
+        receiptDetailRoute,
+        creditNotesRoute,
+        creditNoteNewRoute,
+        creditNoteDetailRoute,
+        poInboxRoute,
+        poInboxDetailRoute,
+        dunningRoute,
+        quotesRoute,
+        quoteNewRoute,
+        salesOrdersRoute,
+        salesOrderNewRoute,
+        collectionsRoute,
+        quickTemplatesRoute,
+        quickTemplateNewRoute,
+        quickTemplateEditRoute,
+        quickTemplateGenerateRoute,
+      ]),
+      bankingRoute.addChildren([
+        bankingIndexRoute,
+        bankAccountsRoute,
+        bankAccountNewRoute,
+        bankAccountDetailRoute,
+        bankTransactionsRoute,
+        bankTransactionsImportRoute,
+        bankReconciliationRoute,
+        bankChequesRoute,
+        pettyCashRoute,
+        pgReconRoute,
+        pgReconImportRoute,
+        pgReconDetailRoute,
+      ]),
+      glRoute.addChildren([
+        glIndexRoute,
+        glAccountsRoute,
+        glJournalEntriesRoute,
+        glJournalEntryDetailRoute,
+        glTrialBalanceRoute,
+        glFiscalPeriodsRoute,
+      ]),
+      faRoute.addChildren([
+        faIndexRoute,
+        faCategoriesRoute,
+        faAssetsRoute,
+        faNewAssetRoute,
+        faAssetDetailRoute,
+        faDepreciationRoute,
+        faBlockOfAssetsRoute,
+        faImportRoute,
+      ]),
+      gstRoute.addChildren([
+        gstIndexRoute,
+        gstReturnsRoute,
+        gstReturnDetailRoute,
+        gst3bDetailRoute,
+        gstReconciliationRoute,
+        gstReadinessRoute,
+      ]),
+      reportsRoute.addChildren([
+        reportsIndexRoute,
+        reportsPnlRoute,
+        reportsBsRoute,
+        reportsTbRoute,
+        reportsCfRoute,
+        reportsExpenseRoute,
+        reportsRevenueRoute,
+        reportsComparisonRoute,
+        reportsForecastRoute,
+      ]),
+      workflowsRoute.addChildren([
+        workflowsIndexRoute,
+        workflowsApprovalsRoute,
+        workflowsTasksRoute,
+      ]),
+      vmRoute.addChildren([
+        vmIndexRoute,
+        vmContractsRoute,
+        vmRatingsRoute,
+        vmRequisitionsRoute,
+        vmPaymentSchedulesRoute,
+        vmEarlyDiscountsRoute,
+      ]),
+      mastersRoute.addChildren([
+        mastersIndexRoute,
+        mastersItemsRoute,
+        mastersItemsImportRoute,
+        mastersItemsProfitabilityRoute,
+        mastersItemsNewRoute,
+        mastersItemsEditRoute,
+        mastersItemsAnalysisRoute,
+        mastersCategoriesRoute,
+        mastersPriceListsRoute,
+        mastersPriceListDetailRoute,
+        mastersPriceListEditRoute,
+      ]),
+      expensesRoute.addChildren([
+        expensesIndexRoute,
+        expenseClaimsRoute,
+      ]),
+      auditRoute.addChildren([
+        gapScanRoute,
+        customerSplitRoute,
+      ]),
     ]),
     settingsRoute.addChildren([
       settingsIndexRoute,
@@ -1972,23 +2011,6 @@ export const routeTree = rootRoute.addChildren([
       settingsTallyImportRoute,
       settingsWebhooksRoute,
       settingsOpeningBalancesRoute,
-    ]),
-    mastersRoute.addChildren([
-      mastersIndexRoute,
-      mastersItemsRoute,
-      mastersItemsImportRoute,
-      mastersItemsProfitabilityRoute,
-      mastersItemsNewRoute,
-      mastersItemsEditRoute,
-      mastersItemsAnalysisRoute,
-      mastersCategoriesRoute,
-      mastersPriceListsRoute,
-      mastersPriceListDetailRoute,
-      mastersPriceListEditRoute,
-    ]),
-    expensesRoute.addChildren([
-      expensesIndexRoute,
-      expenseClaimsRoute,
     ]),
     hrRoute.addChildren([
       hrIndexRoute,
@@ -2015,10 +2037,6 @@ export const routeTree = rootRoute.addChildren([
     helpRoute.addChildren([
       helpIndexRoute,
       helpRecipeRoute,
-    ]),
-    auditRoute.addChildren([
-      gapScanRoute,
-      customerSplitRoute,
     ]),
   ]),
 ]);

@@ -6,7 +6,7 @@ interface MenuItem {
   icon: ReactNode;
   label: string;
   description: string;
-  to: '/ar/invoices/new' | '/ar/po-inbox';
+  to: '/finance/ar/invoices/new' | '/finance/ar/po-inbox';
 }
 
 const ITEMS: MenuItem[] = [
@@ -14,13 +14,13 @@ const ITEMS: MenuItem[] = [
     icon: <Inbox size={16} />,
     label: 'Generate from PO',
     description: 'Create an invoice from an inbound purchase order in PO Inbox.',
-    to: '/ar/po-inbox',
+    to: '/finance/ar/po-inbox',
   },
   {
     icon: <FilePlus2 size={16} />,
     label: 'Blank invoice',
     description: 'Start from scratch with the new invoice form.',
-    to: '/ar/invoices/new',
+    to: '/finance/ar/invoices/new',
   },
 ];
 

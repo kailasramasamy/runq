@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
-  base: '/finance/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -13,7 +13,7 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
           if (req.url === '/login' || req.url === '/login/') {
-            req.url = '/finance/index.html';
+            req.url = '/index.html';
           }
           next();
         });

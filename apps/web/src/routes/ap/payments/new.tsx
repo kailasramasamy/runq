@@ -14,7 +14,7 @@ export function NewPaymentPage() {
     mutation.mutate(data, {
       onSuccess: () => {
         toast('Payment recorded successfully.', 'success');
-        navigate({ to: '/ap/payments' });
+        navigate({ to: '/finance/ap/payments' });
       },
       onError: () => {
         toast('Failed to record payment. Please check your inputs and try again.', 'error');

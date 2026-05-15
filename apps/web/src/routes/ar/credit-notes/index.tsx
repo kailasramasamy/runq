@@ -89,7 +89,7 @@ export function CreditNoteListPage() {
               Export
             </Button>
             {!readOnly && (
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/ar/credit-notes/new' })}>
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ar/credit-notes/new' })}>
                 New credit note
               </Button>
             )}
@@ -170,7 +170,7 @@ export function CreditNoteListPage() {
           ) : creditNotes.map((cn) => (
             <TableRow
               key={cn.id}
-              onClick={() => navigate({ to: '/ar/credit-notes/$creditNoteId', params: { creditNoteId: cn.id } })}
+              onClick={() => navigate({ to: '/finance/ar/credit-notes/$creditNoteId', params: { creditNoteId: cn.id } })}
             >
               <TableCell>
                 <span className="num text-[12px] font-medium" style={{ color: 'var(--accent-text)' }}>
@@ -185,7 +185,7 @@ export function CreditNoteListPage() {
               <TableCell>
                 {cn.invoiceId ? (
                   <Link
-                    to="/ar/invoices/$invoiceId"
+                    to="/finance/ar/invoices/$invoiceId"
                     params={{ invoiceId: cn.invoiceId }}
                     onClick={(e) => e.stopPropagation()}
                     className="num text-[11.5px] hover:underline"

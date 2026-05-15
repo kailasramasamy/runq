@@ -99,7 +99,7 @@ export function TrialBalancePage() {
                           <tr
                             key={a.code}
                             className="cursor-pointer border-b border-zinc-100 transition-colors hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40"
-                            onClick={() => navigate({ to: '/gl', search: { accountCode: a.code, asOfDate } as never })}
+                            onClick={() => navigate({ to: '/finance/gl', search: { accountCode: a.code, asOfDate } as never })}
                             title={`Drill into ${a.code} ${a.name}`}
                           >
                             <td className="py-1.5 pr-2 font-mono text-[12.5px] text-zinc-500 dark:text-zinc-400">{a.code}</td>

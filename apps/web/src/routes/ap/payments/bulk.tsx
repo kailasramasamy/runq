@@ -99,7 +99,7 @@ function ManualBatchTab() {
         onSuccess: (res) => {
           const d = res.data as BatchPaymentResult;
           toast(`Created ${d.created} payments totalling ₹${d.totalAmount.toLocaleString('en-IN')}`, 'success');
-          navigate({ to: '/ap/payments' });
+          navigate({ to: '/finance/ap/payments' });
         },
         onError: () => toast('Batch payment failed. Please try again.', 'error'),
       },
@@ -353,7 +353,7 @@ function CsvImportTab() {
               <Button variant="outline" onClick={() => { setStep(1); setResult(null); setPreview([]); setCsvData(''); }}>
                 Import Another Batch
               </Button>
-              <Link to="/ap/payments">
+              <Link to="/finance/ap/payments">
                 <Button>Go to Payments</Button>
               </Link>
             </CardFooter>

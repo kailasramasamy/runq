@@ -97,7 +97,7 @@ export function CashflowForecast() {
           </span>
           <span className="hidden sm:inline" style={{ color: 'var(--border)' }}>·</span>
           <button
-            onClick={() => navigate({ to: '/reports' })}
+            onClick={() => navigate({ to: '/finance/reports' })}
             className="inline-flex items-center gap-1 font-medium hover:underline"
             style={{ color: 'var(--accent-text)' }}
           >
