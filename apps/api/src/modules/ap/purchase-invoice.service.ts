@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte, desc, isNull, ilike } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, desc, isNull, ilike, inArray } from 'drizzle-orm';
 import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments, paymentAllocations, bankAccounts, accounts } from '@runq/db';
 import { GLService } from '../gl/gl.service';
 import type { Db } from '@runq/db';
@@ -702,10 +702,21 @@ export class PurchaseInvoiceService {
   }
 
   private buildWhereClause(filters: PurchaseInvoiceFilter) {
+    // Status filter accepts CSV ("draft,approved,partially_paid") so callers
+    // can express groups like "all unpaid"; schema-level refine guarantees
+    // each part is a valid enum value.
+    const statusParts = filters.status
+      ? filters.status.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+    type Status = typeof purchaseInvoices.status.enumValues[number];
     return and(
       eq(purchaseInvoices.tenantId, this.tenantId),
       filters.vendorId ? eq(purchaseInvoices.vendorId, filters.vendorId) : undefined,
-      filters.status ? eq(purchaseInvoices.status, filters.status) : undefined,
+      statusParts.length === 1
+        ? eq(purchaseInvoices.status, statusParts[0] as Status)
+        : statusParts.length > 1
+          ? inArray(purchaseInvoices.status, statusParts as Status[])
+          : undefined,
       filters.search ? sql`(${purchaseInvoices.invoiceNumber} ILIKE ${'%' + filters.search + '%'} OR EXISTS (SELECT 1 FROM ${vendors} WHERE ${vendors.id} = ${purchaseInvoices.vendorId} AND ${vendors.name} ILIKE ${'%' + filters.search + '%'}))` : undefined,
       filters.overdue ? sql`${purchaseInvoices.dueDate} < CURRENT_DATE AND ${purchaseInvoices.balanceDue} > 0` : undefined,
       filters.dateFrom ? gte(purchaseInvoices.invoiceDate, filters.dateFrom) : undefined,

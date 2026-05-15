@@ -14,7 +14,6 @@ import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/swipe_action.dart';
-import 'invoices_screen.dart' show StatChip;
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../api/repos.dart' show billsRepo;
 
@@ -24,9 +23,14 @@ class _Tab {
   const _Tab(this.key, this.label, this.statusFilter);
 }
 
+// "Pending" = every bill that's still owed — i.e., not paid or cancelled.
+// Backend status filter accepts CSV; the schema validates each part.
+const _pendingStatuses =
+    'draft,pending_match,matched,approved,partially_paid';
+
 const _tabs = <_Tab>[
   _Tab('all', 'All', null),
-  _Tab('to_approve', 'Pending', 'pending_match'),
+  _Tab('pending', 'Pending', _pendingStatuses),
   _Tab('approved', 'Approved', 'approved'),
   _Tab('paid', 'Paid', 'paid'),
 ];
@@ -93,12 +97,12 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     // sum the loaded page (limit 50) elsewhere as a quick read.
     final count = list.maybeWhen(data: (page) => page.total, orElse: () => null);
     final (double? amount, String amountLabel) = switch (tabKey) {
-      'to_approve' => (
+      'pending' => (
           list.maybeWhen(
-            data: (p) => p.data.fold<double>(0, (s, b) => s + b.totalAmount),
+            data: (p) => p.data.fold<double>(0, (s, b) => s + b.balanceDue),
             orElse: () => null,
           ),
-          'pending',
+          'to pay',
         ),
       'approved' => (
           list.maybeWhen(
@@ -256,29 +260,107 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Padding(
-            padding: EdgeInsets.only(left: canPop ? 8 : 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                StatChip(
-                  icon: Icons.description_rounded,
-                  label: count == null ? '—' : '$count',
-                  sub: count == 1 ? 'bill' : 'bills',
-                ),
-                StatChip(
-                  icon: Icons.account_balance_wallet_rounded,
-                  label: amount == null ? '—' : formatINR(amount!, compact: true),
-                  sub: amountLabel,
-                  tinted: true,
-                ),
-              ],
+            padding: EdgeInsets.only(left: canPop ? 8 : 0, right: 4),
+            // IntrinsicHeight bounds the Row's vertical extent so the
+            // stretched-cross-axis children get a finite height to fill.
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.description_rounded,
+                      label: count == 1 ? 'BILL' : 'BILLS',
+                      value: count == null ? '—' : '$count',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: amountLabel.toUpperCase(),
+                      value: amount == null ? '—' : formatINR(amount, compact: true),
+                      tinted: true,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (searchOpen) ...[
             const SizedBox(height: 12),
             _InlineSearch(value: searchValue, onChanged: onSearchChanged),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact stat card used in the 2-column header grid. Replaces the older
+/// chip-style pills so the count + amount-to-pay read as proper KPIs.
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  /// Brand-tinted variant for the headline amount card.
+  final bool tinted;
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.tinted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    // Use theme-aware brand tokens so the tinted card stays subtle in dark
+    // mode — RunqColors.indigo is the saturated light-mode brand and reads
+    // far too loud on a near-black surface.
+    final tintBg = tinted ? t.brandSubtle : t.surface;
+    final accent = tinted ? t.brand : t.muted;
+    return RunqCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      color: tintBg,
+      border: Border.all(
+        color: tinted ? t.brand.withValues(alpha: 0.22) : t.hairline,
+        width: 0.5,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: accent),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: RunqText.micro.copyWith(
+                    color: accent,
+                    fontSize: 10.5,
+                    letterSpacing: 0.05 * 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: RunqText.tabular(
+              size: 22,
+              w: FontWeight.w700,
+              color: tinted ? t.brand : t.ink,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -674,13 +756,15 @@ class BillRow extends ConsumerWidget {
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // dctx is the dialog route's own context — popping with the outer
+      // context tears down the page in a GoRouter shell instead.
+      builder: (dctx) => AlertDialog(
         title: const Text('Delete bill?'),
         content: Text('Remove ${bill.invoiceNumber} from ${bill.vendorName}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: RunqColors.redInk,
               foregroundColor: Colors.white,
@@ -704,11 +788,43 @@ class BillRow extends ConsumerWidget {
   }
 
   Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
-    // The bill mark-paid flow lives in the detail screen — there's no
-    // 1-click mark-paid endpoint, and bills usually need a bank-account
-    // selection. So swipe nudges into the detail's payment sheet.
     if (bill.id.isEmpty) return;
-    context.push('/bills/${bill.id}');
+    final amount = bill.balanceDue > 0 ? bill.balanceDue : bill.totalAmount;
+    final ok = await showDialog<bool>(
+      context: context,
+      // Use the builder's context (dctx) — popping with the outer context
+      // walks up to the page navigator (only one page deep in the shell)
+      // and tears the screen down instead of the dialog.
+      builder: (dctx) => AlertDialog(
+        title: const Text('Mark as paid?'),
+        content: Text(
+          'Record ${formatINR(amount)} for ${bill.invoiceNumber} as paid by you. '
+          'Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced.',
+          style: RunqText.body.copyWith(fontSize: 14),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dctx, true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF047857)),
+            child: const Text('Mark paid'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+    try {
+      await billsRepo.markPaid(bill.id, amount: amount);
+      await _refreshAll(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context,
+          'Marked ${formatINR(amount, compact: true)} paid · ${bill.invoiceNumber}',
+          kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't mark paid: $e", kind: SnackKind.error);
+    }
   }
 }
 

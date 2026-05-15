@@ -391,6 +391,24 @@ class BillsRepo {
     await apiClient.post('/ap/purchase-invoices/$id/approve', const {});
   }
 
+  /// Quick "mark as paid" — records the bill as owner-paid. The server
+  /// books a Petty Cash payment and pairs it with an owner-injection JE so
+  /// the cash trail stays balanced. Used by the list swipe action and the
+  /// bill-detail Mark as paid CTA. Pass [amount] = balance_due to settle
+  /// in full; the server clamps and updates status to paid / partially_paid.
+  Future<void> markPaid(
+    String id, {
+    required double amount,
+    DateTime? paymentDate,
+    String? notes,
+  }) async {
+    await apiClient.post('/ap/purchase-invoices/$id/record-owner-payment', {
+      'amount': amount,
+      'paymentDate': (paymentDate ?? DateTime.now()).toIso8601String().substring(0, 10),
+      if (notes != null) 'notes': notes,
+    });
+  }
+
   /// Delete a bill. Server dispatches based on status:
   ///   - draft → permanent removal (bill, items, attached scanned file)
   ///   - anything else → soft cancel (status flip, audit preserved)

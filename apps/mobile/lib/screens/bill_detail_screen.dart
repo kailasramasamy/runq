@@ -25,7 +25,17 @@ bool _canAmendBill(BillWithDetails bill) {
   return false;
 }
 
-bool _canShowActions(BillWithDetails bill) => _canAmendBill(bill);
+/// Bottom card now hosts only the primary state-CTA — Approve (drafts) or
+/// Mark as paid (approved / partially-paid with a balance). Edit + Delete
+/// moved to the top-right options menu.
+bool _hasPrimaryCta(BillWithDetails bill) {
+  if (bill.status == 'draft') return true;
+  if ((bill.status == 'approved' || bill.status == 'partially_paid') &&
+      bill.balanceDue > 0) {
+    return true;
+  }
+  return false;
+}
 
 class BillDetailScreen extends ConsumerWidget {
   final String id;
@@ -34,6 +44,14 @@ class BillDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(billDetailProvider(id));
+    // Single mutation hook used by every action on this screen (approve,
+    // mark paid, delete). Invalidates the detail AND the list/summary so
+    // the bills screen reflects the change without a manual pull-to-refresh.
+    void onMutated() {
+      ref.invalidate(billDetailProvider(id));
+      ref.invalidate(billsProvider);
+      ref.invalidate(billsSummaryProvider);
+    }
     return Scaffold(
       body: SafeArea(
         child: AsyncSlot<BillWithDetails>(
@@ -41,10 +59,7 @@ class BillDetailScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(billDetailProvider(id)),
           data: (bill) => Column(
             children: [
-              _Header(
-                bill: bill,
-                onEdited: () => ref.invalidate(billDetailProvider(id)),
-              ),
+              _Header(bill: bill, onMutated: onMutated),
               Expanded(
                 child: ListView(
                   physics: const BouncingScrollPhysics(),
@@ -59,12 +74,9 @@ class BillDetailScreen extends ConsumerWidget {
                     _GstBreakdownCard(bill: bill),
                     const SizedBox(height: 14),
                     _AttachmentsCard(billId: id),
-                    if (_canShowActions(bill)) ...[
+                    if (_hasPrimaryCta(bill)) ...[
                       const SizedBox(height: 14),
-                      _ActionsCard(
-                        bill: bill,
-                        onChanged: () => ref.invalidate(billDetailProvider(id)),
-                      ),
+                      _ActionsCard(bill: bill, onChanged: onMutated),
                     ],
                   ],
                 ),
@@ -79,8 +91,10 @@ class BillDetailScreen extends ConsumerWidget {
 
 class _Header extends StatefulWidget {
   final BillWithDetails bill;
-  final VoidCallback onEdited;
-  const _Header({required this.bill, required this.onEdited});
+  /// Called after a header mutation (delete) so the parent can invalidate
+  /// the detail + bills list providers.
+  final VoidCallback onMutated;
+  const _Header({required this.bill, required this.onMutated});
 
   @override
   State<_Header> createState() => _HeaderState();
@@ -94,6 +108,99 @@ class _HeaderState extends State<_Header> {
     // Push the full edit screen. It owns its own save flow and refreshes
     // providers on success; the detail page rerenders when we come back.
     context.push('/bills/${widget.bill.id}/edit');
+  }
+
+  Future<void> _showOptionsSheet() async {
+    if (_busy) return;
+    final t = RT(context);
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: t.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 14),
+              _OptionTile(
+                icon: Icons.edit_outlined,
+                tint: RunqColors.indigo,
+                title: 'Edit bill',
+                subtitle: 'Change invoice number, dates, line items',
+                onTap: () => Navigator.pop(sctx, 'edit'),
+              ),
+              _OptionTile(
+                icon: Icons.delete_outline_rounded,
+                tint: RunqColors.redInk,
+                title: 'Delete bill',
+                subtitle: 'Permanently remove the bill and its attachment',
+                destructive: true,
+                onTap: () => Navigator.pop(sctx, 'delete'),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (picked) {
+      case 'edit':
+        _openEditor();
+        break;
+      case 'delete':
+        await _delete();
+        break;
+    }
+  }
+
+  Future<void> _delete() async {
+    if (_busy) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete bill'),
+        content: Text(
+          'Permanently delete bill ${widget.bill.invoiceNumber}? '
+          'The line items and any attached scanned document will be removed. This cannot be undone.',
+          style: RunqText.body.copyWith(fontSize: 14),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: RunqColors.redInk),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await billsRepo.remove(widget.bill.id);
+      if (!mounted) return;
+      showRunqSnack(context, 'Bill deleted', kind: SnackKind.success);
+      // Refresh list/summary first so the row disappears as soon as the
+      // user lands back on the bills screen — then pop off the detail.
+      widget.onMutated();
+      context.pop();
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (mounted) showRunqSnack(context, 'Could not delete.', kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -111,25 +218,25 @@ class _HeaderState extends State<_Header> {
           ),
           Expanded(child: Center(child: Text(widget.bill.invoiceNumber, style: RunqText.bodyStrong.copyWith(color: t.ink)))),
           if (canEdit)
-            Tooltip(
-              message: 'Edit bill',
-              child: Material(
-                color: t.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: t.hairline, width: 0.5),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: _busy ? null : _openEditor,
-                  child: SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: Center(
-                      child: _busy
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Icon(Icons.edit_outlined, size: 18, color: t.ink),
-                    ),
+            // Tap opens a clean bottom sheet with Edit / Delete tiles instead
+            // of a Material popup menu — sits better with the rest of the
+            // app's bottom-sheet conventions (bill intake, invoice quick).
+            Material(
+              color: t.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: t.hairline, width: 0.5),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _busy ? null : _showOptionsSheet,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Center(
+                    child: _busy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(Icons.more_vert_rounded, size: 20, color: t.ink),
                   ),
                 ),
               ),
@@ -137,6 +244,58 @@ class _HeaderState extends State<_Header> {
           else
             const SizedBox(width: 40),
         ],
+      ),
+    );
+  }
+}
+
+/// Tile used inside the header options bottom sheet. Mirrors the bill-intake
+/// chooser tiles so the two sheets feel like part of the same family.
+class _OptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color tint;
+  final String title, subtitle;
+  final bool destructive;
+  final VoidCallback onTap;
+  const _OptionTile({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final titleColor = destructive ? tint : t.ink;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: tint.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: tint, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: RunqText.bodyStrong.copyWith(color: titleColor)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2),
+          ],
+        ),
       ),
     );
   }
@@ -734,26 +893,28 @@ class _ActionsCardState extends State<_ActionsCard> {
     }
   }
 
-  Future<void> _delete() async {
+  Future<void> _markPaid() async {
+    final amount = widget.bill.balanceDue;
+    if (amount <= 0) return;
     final ok = await _confirm(
-      title: 'Delete bill',
-      body: 'Permanently delete bill ${widget.bill.invoiceNumber}? '
-          'The line items and any attached scanned document will be removed. This cannot be undone.',
-      confirmLabel: 'Delete',
-      confirmColor: RunqColors.redInk,
+      title: 'Mark as paid',
+      body: 'Record ${formatINR(amount, paise: true)} for bill ${widget.bill.invoiceNumber} as paid by you. '
+          'Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced.',
+      confirmLabel: 'Mark paid',
+      confirmColor: const Color(0xFF047857),
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
-      await billsRepo.remove(widget.bill.id);
+      await billsRepo.markPaid(widget.bill.id, amount: amount);
       if (!mounted) return;
-      showRunqSnack(context, 'Bill deleted', kind: SnackKind.success);
-      // Bill is gone — pop back to the list rather than landing on a 404.
-      context.pop();
+      showRunqSnack(context, 'Marked ${formatINR(amount, compact: true)} paid',
+          kind: SnackKind.success);
+      widget.onChanged();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
-      if (mounted) showRunqSnack(context, 'Could not delete.', kind: SnackKind.error);
+      if (mounted) showRunqSnack(context, 'Could not mark paid.', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -762,10 +923,35 @@ class _ActionsCardState extends State<_ActionsCard> {
   @override
   Widget build(BuildContext context) {
     final isDraft = widget.bill.status == 'draft';
+    // Single state-CTA: Approve drafts, otherwise Mark as paid (the parent
+    // gates this card via _hasPrimaryCta so we know one of these applies).
     final blurb = isDraft
-        ? 'Approve to post the bill to your books, or delete to remove it (and the scanned original).'
-        : 'Amend if the vendor revised the bill (line items, qty, amounts) — '
-            'the GL posting is re-issued in place. Delete to remove the bill entirely.';
+        ? 'Approve to post the bill to your books and make it available for payment.'
+        : 'Settle the balance — books an owner-paid payment via Petty Cash with a paired owner-injection JE.';
+    final spinner = _busy
+        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+        : null;
+    final button = isDraft
+        ? FilledButton.icon(
+            onPressed: _busy ? null : _approve,
+            icon: spinner ?? const Icon(Icons.check_rounded, size: 18),
+            label: const Text('Approve', style: TextStyle(height: 1.0)),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          )
+        : FilledButton.icon(
+            onPressed: _busy ? null : _markPaid,
+            icon: spinner ?? const Icon(Icons.check_rounded, size: 18),
+            label: Text(
+              'Mark ${formatINR(widget.bill.balanceDue, compact: true)} paid',
+              style: const TextStyle(height: 1.0),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          );
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -778,53 +964,7 @@ class _ActionsCardState extends State<_ActionsCard> {
             style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: isDraft
-                      ? FilledButton.icon(
-                          onPressed: _busy ? null : _approve,
-                          icon: _busy
-                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.check_rounded, size: 18),
-                          label: const Text('Approve', style: TextStyle(height: 1.0)),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => context.push('/bills/${widget.bill.id}/edit'),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Amend', style: TextStyle(height: 1.0)),
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _delete,
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: RunqColors.redInk),
-                    label: const Text('Delete', style: TextStyle(color: RunqColors.redInk, height: 1.0)),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: RunqColors.redInk.withValues(alpha: 0.4), width: 0.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          SizedBox(height: 44, width: double.infinity, child: button),
         ],
       ),
     );

@@ -30,7 +30,9 @@ const _tabs = <_Tab>[
   _Tab('all', 'All', null),
   _Tab('draft', 'Draft', 'draft'),
   _Tab('overdue', 'Overdue', 'overdue'),
-  _Tab('unpaid', 'Unpaid', 'sent'),
+  // 'unpaid' is a backend sentinel that resolves to (sent OR partially_paid)
+  // with balance_due > 0 — i.e., everything still owed by the customer.
+  _Tab('unpaid', 'Unpaid', 'unpaid'),
   _Tab('paid', 'Paid', 'paid'),
 ];
 
@@ -266,23 +268,31 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Padding(
-            padding: EdgeInsets.only(left: canPop ? 8 : 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                StatChip(
-                  icon: Icons.receipt_long_rounded,
-                  label: count == null ? '—' : '$count',
-                  sub: count == 1 ? 'invoice' : 'invoices',
-                ),
-                StatChip(
-                  icon: Icons.account_balance_wallet_rounded,
-                  label: amount == null ? '—' : formatINR(amount!, compact: true),
-                  sub: amountLabel,
-                  tinted: true,
-                ),
-              ],
+            padding: EdgeInsets.only(left: canPop ? 8 : 0, right: 4),
+            // IntrinsicHeight bounds the Row's vertical extent so the
+            // stretched-cross-axis children get a finite height to fill.
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.receipt_long_rounded,
+                      label: count == 1 ? 'INVOICE' : 'INVOICES',
+                      value: count == null ? '—' : '$count',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _StatCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: amountLabel.toUpperCase(),
+                      value: amount == null ? '—' : formatINR(amount, compact: true),
+                      tinted: true,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (searchOpen) ...[
@@ -295,53 +305,69 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Inline pill showing a number + unit, used in the screen header.
-/// Has a "tinted" variant that picks up the brand color so the second
-/// chip in a row reads as the primary metric (e.g. money outstanding).
-class StatChip extends StatelessWidget {
+/// Compact stat card used in the 2-column header grid. Replaces the older
+/// chip-style pills so the count + headline amount read as proper KPIs.
+class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String sub;
+  final String value;
+  /// Brand-tinted variant for the headline amount card.
   final bool tinted;
-  const StatChip({
-    super.key,
+  const _StatCard({
     required this.icon,
     required this.label,
-    required this.sub,
+    required this.value,
     this.tinted = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final fg = tinted ? t.brand : t.ink;
-    final bg = tinted ? t.brandSubtle : t.bgWarmer;
-    final border = tinted ? t.brand.withValues(alpha: 0.18) : t.hairline;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border.all(color: border, width: 0.5),
-        borderRadius: BorderRadius.circular(999),
+    // Use theme-aware brand tokens so the tinted card stays subtle in dark
+    // mode — RunqColors.indigo is the saturated light-mode brand and reads
+    // far too loud on a near-black surface.
+    final tintBg = tinted ? t.brandSubtle : t.surface;
+    final accent = tinted ? t.brand : t.muted;
+    return RunqCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      color: tintBg,
+      border: Border.all(
+        color: tinted ? t.brand.withValues(alpha: 0.22) : t.hairline,
+        width: 0.5,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: RunqText.tabular(size: 14, w: FontWeight.w700, color: fg),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: accent),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: RunqText.micro.copyWith(
+                    color: accent,
+                    fontSize: 10.5,
+                    letterSpacing: 0.05 * 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
+          const SizedBox(height: 8),
           Text(
-            sub,
-            style: RunqText.caption.copyWith(
-              color: tinted ? t.brand.withValues(alpha: 0.85) : t.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+            value,
+            style: RunqText.tabular(
+              size: 22,
+              w: FontWeight.w700,
+              color: tinted ? t.brand : t.ink,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

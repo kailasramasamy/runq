@@ -241,7 +241,7 @@ class _PurchasesGrid extends ConsumerWidget {
           captionColor: pendingApproval > 0 ? const Color(0xFF92400E) : t.muted,
           onTap: () => context.push(
             pendingApproval > 0
-                ? '/purchases/bills?tab=to_approve'
+                ? '/purchases/bills?tab=pending'
                 : '/purchases/bills',
           ),
         ),

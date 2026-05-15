@@ -45,9 +45,22 @@ export const createPurchaseInvoiceSchema = z.object({
 
 export const updatePurchaseInvoiceSchema = createPurchaseInvoiceSchema.partial();
 
+export const PURCHASE_INVOICE_STATUS_VALUES = [
+  'draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled',
+] as const;
+
 export const purchaseInvoiceFilterSchema = z.object({
   vendorId: z.string().uuid().optional(),
-  status: z.enum(['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled']).optional(),
+  // Accepts a single status (`approved`) or a comma-separated list
+  // (`draft,approved,partially_paid`) so tabs can express groups like
+  // "all unpaid". Each part must be a valid status.
+  status: z.string()
+    .refine(
+      (s) => s.split(',').map((p) => p.trim()).filter(Boolean)
+        .every((p) => (PURCHASE_INVOICE_STATUS_VALUES as readonly string[]).includes(p)),
+      { message: `status must be one or more of: ${PURCHASE_INVOICE_STATUS_VALUES.join(', ')}` },
+    )
+    .optional(),
   vendorCategory: z.string().optional(),
   vendorTag: z.string().optional(),
   search: z.string().optional(),

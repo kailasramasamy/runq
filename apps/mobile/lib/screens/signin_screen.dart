@@ -643,6 +643,10 @@ class _ThemedField extends StatelessWidget {
             autofillHints: autofillHints,
             textInputAction: textInputAction,
             onSubmitted: onSubmitted,
+            // Default is 20px — too tight here. Pushes the focused field up
+            // enough that the Sign-in button + signup link stay visible
+            // above the keypad without manual scrolling.
+            scrollPadding: const EdgeInsets.only(bottom: 140),
             style: RunqText.body.copyWith(color: palette.fieldText, fontSize: 14),
             cursorColor: palette.linkInk,
             decoration: InputDecoration(
