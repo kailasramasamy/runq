@@ -4,7 +4,7 @@ import {
   Sparkles, CheckCircle2, ChevronRight,
   Building2, FileText, Layers, BookOpen,
   Plug, Bell, BarChart3, ShieldCheck,
-  FileX, FileInput, UserCog,
+  FileX, FileInput, UserCog, Mail, Landmark,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard';
@@ -21,47 +21,45 @@ interface SetupLink {
 
 interface SetupGroup {
   label: string;
+  description: string;
   items: SetupLink[];
 }
 
+// Settings are grouped by which module owns them. "Common" is shared by every
+// module; "Finance" and "HR & Payroll" are module-specific. As new modules add
+// their own settings, they get their own group here.
 const GROUPS: SetupGroup[] = [
   {
-    label: 'Organization',
+    label: 'Common',
+    description: 'Shared across every module.',
     items: [
-      { label: 'Company', description: 'Legal entity, GSTIN, address, branding.', to: '/settings/company', icon: Building2 },
+      { label: 'Company', description: 'Legal entity, GSTIN, address, branding, statutory IDs.', to: '/settings/company', icon: Building2 },
       { label: 'Users & roles', description: 'Invite people, manage permissions.', to: '/settings/users', icon: UserCog },
-      { label: 'CA portal', description: 'Share read-only access with your accountant.', to: '/settings/ca-portal', icon: ShieldCheck },
+      { label: 'Email provider', description: 'SMTP / Postmark / Resend for outbound mail.', to: '/settings/email-provider', icon: Mail },
+      { label: 'Webhooks', description: 'Push events to external systems.', to: '/settings/webhooks', icon: Plug },
+      { label: 'Notifications', description: 'Per-user channel preferences.', to: '/settings/notifications', icon: Bell },
     ],
   },
   {
-    label: 'Operational',
+    label: 'Finance',
+    description: 'Accounting, invoicing, integrations, and data migration.',
     items: [
+      { label: 'CA portal', description: 'Share read-only access with your accountant.', to: '/settings/ca-portal', icon: ShieldCheck },
       { label: 'Invoice numbering', description: 'Series, prefixes, fiscal-year rollover.', to: '/settings/invoice-numbering', icon: FileText },
       { label: 'Item attributes', description: 'Custom catalogue fields per industry.', to: '/settings/item-attributes', icon: Layers },
       { label: 'Opening balances', description: 'Set initial balances when migrating mid-year.', to: '/settings/opening-balances', icon: BookOpen },
-    ],
-  },
-  {
-    label: 'Integrations',
-    items: [
       { label: 'Integrations', description: 'Razorpay, Stripe, GSP, and other connectors.', to: '/settings/integrations', icon: Plug },
       { label: 'Bill sync', description: 'Ingest bills from external systems via API or CSV.', to: '/settings/bill-sync', icon: Plug },
-      { label: 'Email provider', description: 'SMTP / Postmark / Resend for outbound mail.', to: '/settings/email-provider', icon: Bell },
-      { label: 'Webhooks', description: 'Push events to external systems.', to: '/settings/webhooks', icon: Plug },
-    ],
-  },
-  {
-    label: 'Imports & exports',
-    items: [
       { label: 'Tally export', description: 'Export ledger postings to Tally XML.', to: '/settings/tally-export', icon: FileX },
       { label: 'Migrate from Tally', description: 'Bulk-import customers, vendors, items, opening balances.', to: '/settings/tally-import', icon: FileInput },
       { label: 'Scheduled reports', description: 'Auto-email reports on a cadence.', to: '/settings/scheduled-reports', icon: BarChart3 },
     ],
   },
   {
-    label: 'Notifications',
+    label: 'HR & Payroll',
+    description: 'Employees, payroll, and statutory compliance.',
     items: [
-      { label: 'Notifications', description: 'Per-user channel preferences.', to: '/settings/notifications', icon: Bell },
+      { label: 'Payroll statutory IDs', description: 'PF, ESI, PT and TAN registration numbers — set under Company.', to: '/settings/company', icon: Landmark },
     ],
   },
 ];
@@ -87,7 +85,7 @@ export function SetupPage() {
     <div>
       <PageHeader
         title="Settings"
-        description="Configure your company, users, integrations, imports, and notifications — everything ops-related lives here."
+        description="Grouped by module — Common settings are shared everywhere, while Finance and HR & Payroll have their own."
       />
 
       <OnboardingWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
@@ -171,22 +169,28 @@ export function SetupPage() {
         )}
       </div>
 
-      {/* Categorized hub */}
-      <div className="space-y-6">
-        {GROUPS.map((group) => (
-          <div key={group.label}>
-            <h3
-              className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.1em]"
-              style={{ color: 'var(--text-3)' }}
-            >
-              {group.label}
-            </h3>
+      {/* Module-grouped settings hub */}
+      <div className="space-y-8">
+        {GROUPS.map((group, gi) => (
+          <div
+            key={group.label}
+            className={gi > 0 ? 'border-t pt-7' : ''}
+            style={gi > 0 ? { borderColor: 'var(--border)' } : undefined}
+          >
+            <div className="mb-3">
+              <h3 className="text-[14px] font-semibold tracking-tight" style={{ color: 'var(--text-1)' }}>
+                {group.label}
+              </h3>
+              <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--text-3)' }}>
+                {group.description}
+              </p>
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
-                    key={item.to}
+                    key={`${group.label}/${item.label}`}
                     onClick={() => navigate({ to: item.to as '/' })}
                     className="group flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-all hover:shadow-sm"
                     style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
