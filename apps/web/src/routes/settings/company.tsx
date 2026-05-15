@@ -9,6 +9,7 @@ import {
   Input,
   Select,
 } from '@/components/ui';
+import { Tabs } from '@/components/ar/primitives';
 import { useCompanySettings, useUpdateCompanySettings } from '@/hooks/queries/use-settings';
 import { useToast } from '@/components/ui';
 import { INDIAN_STATE_OPTIONS } from '@/lib/indian-states';
@@ -45,12 +46,22 @@ const PAYMENT_TERMS_OPTIONS = [
   { value: '90', label: 'Net 90 days' },
 ];
 
+type TabId = 'general' | 'gst' | 'payroll' | 'upi';
+
+const COMPANY_TABS: { id: TabId; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'gst', label: 'GST Profile' },
+  { id: 'payroll', label: 'Payroll Statutory' },
+  { id: 'upi', label: 'UPI Collection' },
+];
+
 export function CompanySettingsPage() {
   const { data, isLoading } = useCompanySettings();
   const update = useUpdateCompanySettings();
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<TabId>('general');
   const [fyMonth, setFyMonth] = useState('4');
   const [paymentTerms, setPaymentTerms] = useState('30');
   const [industry, setIndustry] = useState<string>('');
@@ -170,266 +181,278 @@ export function CompanySettingsPage() {
         description="Configure your company's financial preferences."
       />
 
+      <Tabs<TabId> active={activeTab} onChange={setActiveTab} tabs={COMPANY_TABS} />
+
+      {/* All tabs share one form + state, so switching tabs never drops edits;
+          Save Changes persists every section regardless of which tab is open. */}
       <form onSubmit={handleSave}>
-        <Card className="max-w-xl">
-          <CardContent className="space-y-5 pt-5">
-            {/* Company Name (read-only) */}
-            <Input
-              label="Company Name"
-              value={isLoading ? '—' : (data?.data?.name ?? '')}
-              readOnly
-              disabled
-              helper="Contact support to change your company name."
-            />
-
-            {/* Currency */}
-            <Input
-              label="Currency"
-              value="INR — Indian Rupee (₹)"
-              readOnly
-              disabled
-              helper="Currency is fixed to INR for this tenant."
-            />
-
-            {/* Financial Year Start */}
-            <Select
-              label="Financial Year Start Month"
-              value={fyMonth}
-              onChange={(e) => setFyMonth(e.target.value)}
-              options={MONTH_OPTIONS}
-              helper="The month your financial year begins. Default: April (India)."
-            />
-
-            {/* Default Payment Terms */}
-            <Select
-              label="Default Payment Terms"
-              value={paymentTerms}
-              onChange={(e) => setPaymentTerms(e.target.value)}
-              options={PAYMENT_TERMS_OPTIONS}
-              helper="Applied to new bills and invoices by default."
-            />
-
-            {/* Industry — drives the Catalogue Attributes preset on the items master. */}
-            <Select
-              label="Industry"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              options={INDUSTRY_OPTIONS}
-              helper="Determines the default fields under Catalogue Details on each item. Changing this resets your Catalogue Attributes to the new industry's defaults."
-            />
-
-            {/* Default Margin % — used by Items Smart Import */}
-            <Input
-              label="Default Margin %"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={defaultMargin}
-              onChange={(e) => setDefaultMargin(e.target.value)}
-              placeholder="e.g. 30"
-              helper="Used by Items › Smart Import when the source row has no margin value. Leave blank to skip."
-            />
-          </CardContent>
-
-          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <Building2 size={14} />
-              <span>Changes apply to all new documents.</span>
-            </div>
-            <Button type="submit" loading={update.isPending}>
-              Save Changes
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* GST Profile Section */}
-        <Card className="mt-6 max-w-xl">
-          <CardContent className="space-y-5 pt-5">
-            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              <ShieldCheck size={16} />
-              <span>GST Profile</span>
-            </div>
-
-            <Input
-              label="GSTIN"
-              value={gstin}
-              onChange={(e) => setGstin(e.target.value.toUpperCase())}
-              placeholder="e.g. 27AABCU9603R1ZM"
-              maxLength={15}
-              helper="Your company's GST registration number. Used for invoices and Tally export."
-            />
-
-            <Input
-              label="GST Portal Username"
-              value={gstUsername}
-              onChange={(e) => setGstUsername(e.target.value)}
-              placeholder="Your gst.gov.in login username"
-              helper="Auto-populated when authenticating to file GSTR-1 / GSTR-3B."
-            />
-
-            <Input
-              label="Authorized Signatory PAN"
-              value={gstAuthSignatoryPan}
-              onChange={(e) => setGstAuthSignatoryPan(e.target.value.toUpperCase())}
-              placeholder="e.g. ABCDE1234F"
-              maxLength={10}
-              helper="PAN of the partner/director registered as authorized signatory on the GST portal. Required for EVC OTP. Often differs from the firm PAN embedded in the GSTIN."
-            />
-
-            <Input
-              label="GST Filing Start Period"
-              type="month"
-              value={gstFilingStart}
-              onChange={(e) => setGstFilingStart(e.target.value)}
-              className="dark:[color-scheme:dark]"
-              helper="First month runq manages GST filing. Earlier periods are treated as filed externally (e.g. by your CA)."
-            />
-
-            <Input
-              label="Legal / Trade Name"
-              value={legalName}
-              onChange={(e) => setLegalName(e.target.value)}
-              placeholder="Registered business name"
-            />
-
-            <Select
-              label="State"
-              value={stateCode}
-              onChange={(e) => {
-                setStateCode(e.target.value);
-                const selected = INDIAN_STATE_OPTIONS.find((s) => s.value === e.target.value);
-                if (selected) setState(selected.label);
-              }}
-              options={[{ value: '', label: 'Select state…' }, ...INDIAN_STATE_OPTIONS]}
-              helper="State of GST registration. Determines inter/intra-state tax on invoices."
-            />
-
-            <Input
-              label="Address Line 1"
-              value={addressLine1}
-              onChange={(e) => setAddressLine1(e.target.value)}
-              placeholder="Building, street"
-            />
-
-            <Input
-              label="Address Line 2"
-              value={addressLine2}
-              onChange={(e) => setAddressLine2(e.target.value)}
-              placeholder="Area, landmark"
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* ─── General ─── */}
+        {activeTab === 'general' && (
+          <Card className="max-w-xl">
+            <CardContent className="space-y-5 pt-5">
+              {/* Company Name (read-only) */}
               <Input
-                label="City"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
+                label="Company Name"
+                value={isLoading ? '—' : (data?.data?.name ?? '')}
+                readOnly
+                disabled
+                helper="Contact support to change your company name."
               />
+
+              {/* Currency */}
               <Input
-                label="Pincode"
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
-                maxLength={6}
-                placeholder="e.g. 400001"
+                label="Currency"
+                value="INR — Indian Rupee (₹)"
+                readOnly
+                disabled
+                helper="Currency is fixed to INR for this tenant."
               />
-            </div>
 
-          </CardContent>
+              {/* Financial Year Start */}
+              <Select
+                label="Financial Year Start Month"
+                value={fyMonth}
+                onChange={(e) => setFyMonth(e.target.value)}
+                options={MONTH_OPTIONS}
+                helper="The month your financial year begins. Default: April (India)."
+              />
 
-          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <Building2 size={14} />
-              <span>Changes apply to all new documents.</span>
-            </div>
-            <Button type="submit" loading={update.isPending}>
-              Save Changes
-            </Button>
-          </CardFooter>
-        </Card>
+              {/* Default Payment Terms */}
+              <Select
+                label="Default Payment Terms"
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+                options={PAYMENT_TERMS_OPTIONS}
+                helper="Applied to new bills and invoices by default."
+              />
 
-        {/* Payroll Statutory Section */}
-        <Card className="mt-6 max-w-xl">
-          <CardContent className="space-y-5 pt-5">
-            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              <Landmark size={16} />
-              <span>Payroll Statutory</span>
-            </div>
+              {/* Industry — drives the Catalogue Attributes preset on the items master. */}
+              <Select
+                label="Industry"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                options={INDUSTRY_OPTIONS}
+                helper="Determines the default fields under Catalogue Details on each item. Changing this resets your Catalogue Attributes to the new industry's defaults."
+              />
 
-            <Input
-              label="ESI Registration Number"
-              value={esiRegistrationNumber}
-              onChange={(e) => setEsiRegistrationNumber(e.target.value.replace(/\D/g, ''))}
-              placeholder="17-digit ESIC employer code"
-              maxLength={17}
-              helper="Printed on the monthly ESI challan and return."
-            />
+              {/* Default Margin % — used by Items Smart Import */}
+              <Input
+                label="Default Margin %"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={defaultMargin}
+                onChange={(e) => setDefaultMargin(e.target.value)}
+                placeholder="e.g. 30"
+                helper="Used by Items › Smart Import when the source row has no margin value. Leave blank to skip."
+              />
+            </CardContent>
 
-            <Input
-              label="PF Establishment Code"
-              value={pfEstablishmentCode}
-              onChange={(e) => setPfEstablishmentCode(e.target.value)}
-              placeholder="e.g. KNRGN0012345000"
-              maxLength={30}
-              helper="EPFO establishment code shown on the PF challan."
-            />
+            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Building2 size={14} />
+                <span>Changes apply to all new documents.</span>
+              </div>
+              <Button type="submit" loading={update.isPending}>
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
 
-            <Input
-              label="Professional Tax Registration Number"
-              value={ptRegistrationNumber}
-              onChange={(e) => setPtRegistrationNumber(e.target.value)}
-              placeholder="State PT enrolment number"
-              maxLength={30}
-              helper="State-issued Professional Tax enrolment / registration number."
-            />
+        {/* ─── GST Profile ─── */}
+        {activeTab === 'gst' && (
+          <Card className="max-w-xl">
+            <CardContent className="space-y-5 pt-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <ShieldCheck size={16} />
+                <span>GST Profile</span>
+              </div>
 
-            <Input
-              label="TAN"
-              value={tan}
-              onChange={(e) => setTan(e.target.value.toUpperCase())}
-              placeholder="e.g. BLRC12345D"
-              maxLength={10}
-              helper="Tax Deduction Account Number — used on Form 24Q for payroll TDS."
-            />
-          </CardContent>
+              <Input
+                label="GSTIN"
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                placeholder="e.g. 27AABCU9603R1ZM"
+                maxLength={15}
+                helper="Your company's GST registration number. Used for invoices and Tally export."
+              />
 
-          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <Building2 size={14} />
-              <span>Appears on payroll challans and statutory returns.</span>
-            </div>
-            <Button type="submit" loading={update.isPending}>
-              Save Changes
-            </Button>
-          </CardFooter>
-        </Card>
+              <Input
+                label="GST Portal Username"
+                value={gstUsername}
+                onChange={(e) => setGstUsername(e.target.value)}
+                placeholder="Your gst.gov.in login username"
+                helper="Auto-populated when authenticating to file GSTR-1 / GSTR-3B."
+              />
 
-        {/* UPI Collection Section */}
-        <Card className="mt-6 max-w-xl">
-          <CardContent className="space-y-5 pt-5">
-            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              <QrCode size={16} />
-              <span>UPI Collection</span>
-            </div>
+              <Input
+                label="Authorized Signatory PAN"
+                value={gstAuthSignatoryPan}
+                onChange={(e) => setGstAuthSignatoryPan(e.target.value.toUpperCase())}
+                placeholder="e.g. ABCDE1234F"
+                maxLength={10}
+                helper="PAN of the partner/director registered as authorized signatory on the GST portal. Required for EVC OTP. Often differs from the firm PAN embedded in the GSTIN."
+              />
 
-            <Input
-              label="UPI ID"
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value.toLowerCase())}
-              placeholder="e.g. yourcompany@hdfcbank"
-              helper="Used for UPI payment links on invoices and customer portal."
-            />
-          </CardContent>
+              <Input
+                label="GST Filing Start Period"
+                type="month"
+                value={gstFilingStart}
+                onChange={(e) => setGstFilingStart(e.target.value)}
+                className="dark:[color-scheme:dark]"
+                helper="First month runq manages GST filing. Earlier periods are treated as filed externally (e.g. by your CA)."
+              />
 
-          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <Building2 size={14} />
-              <span>Appears on invoices and customer portal.</span>
-            </div>
-            <Button type="submit" loading={update.isPending}>
-              Save Changes
-            </Button>
-          </CardFooter>
-        </Card>
+              <Input
+                label="Legal / Trade Name"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+                placeholder="Registered business name"
+              />
+
+              <Select
+                label="State"
+                value={stateCode}
+                onChange={(e) => {
+                  setStateCode(e.target.value);
+                  const selected = INDIAN_STATE_OPTIONS.find((s) => s.value === e.target.value);
+                  if (selected) setState(selected.label);
+                }}
+                options={[{ value: '', label: 'Select state…' }, ...INDIAN_STATE_OPTIONS]}
+                helper="State of GST registration. Determines inter/intra-state tax on invoices."
+              />
+
+              <Input
+                label="Address Line 1"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                placeholder="Building, street"
+              />
+
+              <Input
+                label="Address Line 2"
+                value={addressLine2}
+                onChange={(e) => setAddressLine2(e.target.value)}
+                placeholder="Area, landmark"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="City"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+                <Input
+                  label="Pincode"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
+                  maxLength={6}
+                  placeholder="e.g. 400001"
+                />
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Building2 size={14} />
+                <span>Changes apply to all new documents.</span>
+              </div>
+              <Button type="submit" loading={update.isPending}>
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+
+        {/* ─── Payroll Statutory ─── */}
+        {activeTab === 'payroll' && (
+          <Card className="max-w-xl">
+            <CardContent className="space-y-5 pt-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <Landmark size={16} />
+                <span>Payroll Statutory</span>
+              </div>
+
+              <Input
+                label="ESI Registration Number"
+                value={esiRegistrationNumber}
+                onChange={(e) => setEsiRegistrationNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="17-digit ESIC employer code"
+                maxLength={17}
+                helper="Printed on the monthly ESI challan and return."
+              />
+
+              <Input
+                label="PF Establishment Code"
+                value={pfEstablishmentCode}
+                onChange={(e) => setPfEstablishmentCode(e.target.value)}
+                placeholder="e.g. KNRGN0012345000"
+                maxLength={30}
+                helper="EPFO establishment code shown on the PF challan."
+              />
+
+              <Input
+                label="Professional Tax Registration Number"
+                value={ptRegistrationNumber}
+                onChange={(e) => setPtRegistrationNumber(e.target.value)}
+                placeholder="State PT enrolment number"
+                maxLength={30}
+                helper="State-issued Professional Tax enrolment / registration number."
+              />
+
+              <Input
+                label="TAN"
+                value={tan}
+                onChange={(e) => setTan(e.target.value.toUpperCase())}
+                placeholder="e.g. BLRC12345D"
+                maxLength={10}
+                helper="Tax Deduction Account Number — used on Form 24Q for payroll TDS."
+              />
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Building2 size={14} />
+                <span>Appears on payroll challans and statutory returns.</span>
+              </div>
+              <Button type="submit" loading={update.isPending}>
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+
+        {/* ─── UPI Collection ─── */}
+        {activeTab === 'upi' && (
+          <Card className="max-w-xl">
+            <CardContent className="space-y-5 pt-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <QrCode size={16} />
+                <span>UPI Collection</span>
+              </div>
+
+              <Input
+                label="UPI ID"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value.toLowerCase())}
+                placeholder="e.g. yourcompany@hdfcbank"
+                helper="Used for UPI payment links on invoices and customer portal."
+              />
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Building2 size={14} />
+                <span>Appears on invoices and customer portal.</span>
+              </div>
+              <Button type="submit" loading={update.isPending}>
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
       </form>
     </div>
   );
