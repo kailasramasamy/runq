@@ -15,7 +15,7 @@ import {
 } from '../../hooks/queries/use-dashboard';
 import type { Notification as Notif } from '../../hooks/queries/use-dashboard';
 import { CommandPalette, useCommandPalette } from './cmdk';
-import { NAV_GROUPS } from './sidebar';
+import { NAV_GROUPS, HR_NAV_GROUPS } from './sidebar';
 
 /** Build the prior 4 FY codes ending at the current FY (Apr–Mar). */
 function buildFyOptions(): { value: string; label: string }[] {
@@ -67,12 +67,15 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClose: () =
   }, [active, onClose, ref]);
 }
 
-/** Resolve the current path into (group label, item label) using sidebar nav. */
+/** Resolve the current path into (group label, item label) using sidebar nav.
+ *  Scans both Finance and HR nav lists — a path like /hr/employees lives in
+ *  HR_NAV_GROUPS, so checking only NAV_GROUPS would render the breadcrumb as
+ *  "Hr" via the fallback. Longest-path match wins across both. */
 function resolveCrumbs(path: string): { group: string | null; leaf: string } {
   if (path === '/') return { group: null, leaf: 'Dashboard' };
 
   let bestMatch: { group: string | null; leaf: string; score: number } | null = null;
-  for (const group of NAV_GROUPS) {
+  for (const group of [...NAV_GROUPS, ...HR_NAV_GROUPS]) {
     for (const item of group.items) {
       if (item.path === '/') continue; // dashboard handled above
       if (path === item.path || path.startsWith(item.path + '/')) {
