@@ -5,8 +5,9 @@ import { downloadCSV } from '@/lib/csv-export';
 import {
   PageHeader, Button, Badge, Input, Select, StatTile,
   Table, TableHeader, Th, TableBody, TableRow, TableCell,
-  Pagination, EmptyState, Avatar,
+  Pagination, EmptyState,
 } from '@/components/ar/primitives';
+import { EmployeeAvatar } from '@/components/hr/employee-avatar';
 import { ConfirmationDialog } from '@/components/ui';
 import { useIsReadOnly } from '@/providers/auth-provider';
 import {
@@ -193,7 +194,7 @@ export function EmployeeListPage() {
               <TableRow key={e.id} onClick={() => handleView(e.id)}>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
-                    <Avatar name={name} size={28} />
+                    <EmployeeAvatar employeeId={e.id} name={name} photoKey={e.photoUrl ?? null} size={28} />
                     <div className="min-w-0">
                       <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{name}</div>
                       <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{e.employeeCode}</div>
