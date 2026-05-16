@@ -11,6 +11,7 @@ import {
 import { OverviewTab, LeaveTab, PayrollTab } from './_employee-tabs';
 import { DocumentsTab } from './_documents-tab';
 import { PhotoCropModal } from '@/components/hr/photo-crop-modal';
+import { formatIndianNumber } from '@/lib/utils';
 
 const STATUS_BADGE: Record<EmployeeStatus, { variant: any; label: string }> = {
   active: { variant: 'success', label: 'Active' },
@@ -97,12 +98,23 @@ export function EmployeeDetailPage({ employeeId }: Props) {
           </div>
           <div className="hidden gap-px overflow-hidden rounded-lg sm:grid sm:grid-cols-3" style={{ background: 'var(--border)' }}>
             {[
-              { label: 'CTC', value: employee.ctcAnnual ? `₹${(Number(employee.ctcAnnual) / 100000).toFixed(1)}L` : '—' },
-              { label: 'Joined', value: employee.joiningDate },
-              { label: 'Type', value: employee.employmentType.replace('_', ' ') },
+              // Indian SMEs anchor on monthly take-home, so lead with that
+              // and treat annual CTC as the supporting subtitle.
+              employee.ctcAnnual
+                ? {
+                    label: 'Monthly',
+                    value: `₹${formatIndianNumber(Math.round(Number(employee.ctcAnnual) / 12))}`,
+                    sub: `₹${(Number(employee.ctcAnnual) / 100000).toFixed(1)}L / yr`,
+                  }
+                : { label: 'Monthly', value: '—', sub: undefined },
+              { label: 'Joined', value: employee.joiningDate, sub: undefined },
+              { label: 'Type', value: employee.employmentType.replace('_', ' '), sub: undefined },
             ].map((s) => (
               <div key={s.label} className="px-4 py-2.5 text-center" style={{ background: 'var(--surface)' }}>
-                <div className="text-[13px] font-bold capitalize" style={{ color: 'var(--text-1)' }}>{s.value}</div>
+                <div className="num text-[13px] font-bold capitalize" style={{ color: 'var(--text-1)' }}>{s.value}</div>
+                {s.sub && (
+                  <div className="num text-[10px]" style={{ color: 'var(--text-3)' }}>{s.sub}</div>
+                )}
                 <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
                   {s.label}
                 </div>

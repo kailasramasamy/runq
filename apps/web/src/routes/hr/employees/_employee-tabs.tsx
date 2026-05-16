@@ -78,7 +78,24 @@ export function OverviewTab({ employee }: { employee: EmployeeRecord }) {
 
       <SectionCard title="Payroll settings">
         <Field label="Salary structure" value={current?.salaryStructureId ? 'Assigned' : 'Not assigned'} />
-        <Field label="Annual CTC" value={employee.ctcAnnual ? formatINR(Number(employee.ctcAnnual)) : null} />
+        {/* Lead with monthly — that's the figure Indian SME employees and
+            employers anchor on — and treat the annual CTC as supporting
+            context on the same row. */}
+        <Field
+          label="Monthly salary"
+          value={employee.ctcAnnual ? (
+            <>
+              <span>{formatINR(Math.round(Number(employee.ctcAnnual) / 12))}</span>
+              <span className="ml-1 text-[11px] font-normal" style={{ color: 'var(--text-3)' }}>
+                / month
+              </span>
+            </>
+          ) : null}
+        />
+        <Field
+          label="Annual CTC"
+          value={employee.ctcAnnual ? formatINR(Number(employee.ctcAnnual)) : null}
+        />
         <Field label="Employment type" value={employee.employmentType.replace('_', ' ')} />
         <Field label="Status" value={employee.status.replace('_', ' ')} />
       </SectionCard>

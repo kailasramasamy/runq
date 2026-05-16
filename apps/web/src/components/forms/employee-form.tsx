@@ -164,7 +164,28 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, isLoading }: Pro
             {initialData && (
               <Input label="Exit date" type="date" value={form.exitDate} onChange={(e) => up('exitDate', e.target.value)} />
             )}
-            <Input label="CTC (annual ₹)" type="number" min="0" step="1" value={form.ctcAnnual} onChange={(e) => up('ctcAnnual', e.target.value)} />
+            {/* Most Indian SME hires happen with a monthly number on the
+                table, so give the user a monthly input that auto-syncs to
+                the annual CTC (the DB column). Either field can drive the
+                other — typing in monthly fills annual = monthly × 12; typing
+                in annual fills monthly = annual / 12 (rounded). */}
+            <Input
+              label="Monthly salary (₹)"
+              type="number" min="0" step="1"
+              value={form.ctcAnnual ? String(Math.round(Number(form.ctcAnnual) / 12)) : ''}
+              onChange={(e) => {
+                const monthly = e.target.value;
+                up('ctcAnnual', monthly === '' ? '' : String(Number(monthly) * 12));
+              }}
+              helper="What the employee sees per month. Annual CTC updates automatically."
+            />
+            <Input
+              label="Annual CTC (₹)"
+              type="number" min="0" step="1"
+              value={form.ctcAnnual}
+              onChange={(e) => up('ctcAnnual', e.target.value)}
+              helper="Total cost to company per year."
+            />
             <Input label="Daily wage rate (₹)" type="number" min="0" step="1" value={form.dailyWageRate} onChange={(e) => up('dailyWageRate', e.target.value)} helper="For wage/contract workers — used by wage register" />
             <Input label="Contractor agency" value={form.agency} onChange={(e) => up('agency', e.target.value)} helper="For contract labour through an agency" />
           </div>
