@@ -423,6 +423,74 @@ export function ReconciliationPage() {
         </Card>
       )}
 
+      {/* Vendor decision modal — shown when book-from-2B finds a near-duplicate */}
+      <Modal
+        open={!!vendorDecision}
+        title="Possible duplicate vendor"
+        onClose={() => setVendorDecision(null)}
+      >
+        {vendorDecision && (
+          <div className="space-y-4">
+            <div className="text-sm text-zinc-700 dark:text-zinc-300">
+              <p>
+                GSTR-2B has invoice <span className="font-mono">{vendorDecision.match.invoiceNumber2b}</span> from{' '}
+                <span className="font-medium">{vendorDecision.match.supplierName ?? vendorDecision.match.supplierGstin}</span>{' '}
+                <span className="font-mono text-xs text-zinc-500">({vendorDecision.match.supplierGstin})</span>.
+              </p>
+              <p className="mt-1.5 text-xs text-zinc-500">
+                One or more existing vendors look like the same supplier. Pick one to merge into
+                (its GSTIN will be updated to match 2B), or create a brand-new vendor anyway.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {vendorDecision.candidates.map((c) => (
+                <div
+                  key={c.id}
+                  className="border border-zinc-200 dark:border-zinc-700 rounded-md p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{c.name}</p>
+                    <p className="text-[11px] font-mono text-zinc-500">{c.gstin ?? 'no GSTIN'}</p>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                      {candidateReasonLabel[c.reason]}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={bookMutation.isPending}
+                    onClick={() =>
+                      runBook(
+                        { matchId: vendorDecision.match.id, vendorAction: 'use_existing', existingVendorId: c.id },
+                        vendorDecision.match,
+                      )
+                    }
+                  >
+                    Use & fix GSTIN
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700">
+              <Button variant="ghost" onClick={() => setVendorDecision(null)}>Cancel</Button>
+              <Button
+                variant="outline"
+                disabled={bookMutation.isPending}
+                onClick={() =>
+                  runBook(
+                    { matchId: vendorDecision.match.id, vendorAction: 'create_new' },
+                    vendorDecision.match,
+                  )
+                }
+              >
+                Create new vendor anyway
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* OTP Auth Modal */}
       <Modal open={showOtpModal} title="Authenticate with GST Portal" onClose={() => setShowOtpModal(false)}>
         <div className="space-y-4">
