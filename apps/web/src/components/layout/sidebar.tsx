@@ -384,10 +384,15 @@ function SidebarContent({
           <>
             <div className="flex min-w-0 items-center gap-2">
               <Link to="/" className="flex min-w-0 items-center" onClick={onNavigate}>
+                {/* w-auto + max-w-none override Tailwind preflight's
+                    `max-width: 100%`, which would otherwise compress the
+                    logo's width when the ModuleSwitcher pill takes more
+                    space (e.g. "HR & Payroll" vs. "Finance"), squishing
+                    its aspect ratio. */}
                 <img
                   src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`}
                   alt="runQ"
-                  className="h-[22px] shrink-0"
+                  className="h-[22px] w-auto max-w-none shrink-0"
                 />
               </Link>
               <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />
