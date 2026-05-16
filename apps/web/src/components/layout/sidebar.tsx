@@ -392,7 +392,7 @@ function SidebarContent({
                 <img
                   src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'runq-light.png' : 'runq-dark.png'}`}
                   alt="runQ"
-                  className="h-[22px] w-auto max-w-none shrink-0"
+                  className="h-[18px] w-auto max-w-none shrink-0"
                 />
               </Link>
               <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />
