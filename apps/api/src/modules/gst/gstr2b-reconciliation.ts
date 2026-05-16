@@ -7,6 +7,8 @@ import type { Gstr2bEntry, Gstr3bData } from '@runq/db';
 import { createGspClient } from './gsp-client';
 import type { GspAuthToken } from './gsp-client';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { INDIAN_STATES } from '../../utils/indian-states';
+import { PurchaseInvoiceService } from '../ap/purchase-invoice.service';
 
 type Gstr2bDataRow = typeof gstr2bData.$inferSelect;
 type MatchRow = typeof gstr2bMatches.$inferSelect;
@@ -288,6 +290,100 @@ export class Gstr2bReconciliationService {
     return this.computeSummary(matches as any);
   }
 
+  // ── Book a 2B entry into the ledger as a draft purchase invoice ──────
+
+  /**
+   * Convert a `not_in_books` 2B match into a draft purchase invoice so
+   * the owner can claim the ITC. Finds (or creates) the vendor by GSTIN,
+   * derives the tax rate from the 2B tax/taxable ratio, then re-links the
+   * match to the new bill. The bill is created in `draft` status — the
+   * owner reviews/approves it in the bills screen before posting to GL.
+   */
+  async bookFromMatch(
+    matchId: string,
+    userId?: string,
+  ): Promise<{ billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }> {
+    const [match] = await this.db
+      .select()
+      .from(gstr2bMatches)
+      .where(and(eq(gstr2bMatches.id, matchId), eq(gstr2bMatches.tenantId, this.tenantId)))
+      .limit(1);
+    if (!match) throw new NotFoundError('GSTR-2B match');
+    if (match.matchStatus !== 'not_in_books') {
+      throw new ConflictError('Only "not in books" entries can be booked');
+    }
+
+    const vendorId = await this.findOrCreateVendor(match.supplierGstin, match.supplierName);
+    const invoiceDate = parseDdMmYyyy(match.invoiceDate2b)
+      ?? new Date().toISOString().slice(0, 10);
+
+    const taxable = Number(match.taxableValue2b);
+    const tax = Number(match.igst2b) + Number(match.cgst2b) + Number(match.sgst2b);
+    // Rate snapped to 2dp — the create-bill service recomputes cgst/sgst/igst
+    // from this rate against the buyer/seller state so the per-line tax
+    // columns are consistent. Owner can adjust before approving.
+    const taxRate = taxable > 0 ? Math.round((tax / taxable) * 10000) / 100 : 0;
+    const totalAmount = Math.round((taxable + tax) * 100) / 100;
+
+    const billSvc = new PurchaseInvoiceService(this.db, this.tenantId);
+    const bill = await billSvc.create({
+      vendorId,
+      invoiceNumber: match.invoiceNumber2b,
+      invoiceDate,
+      dueDate: invoiceDate,
+      items: [{
+        itemName: `From GSTR-2B: ${match.invoiceNumber2b}`,
+        quantity: 1,
+        unitPrice: taxable,
+        amount: taxable,
+        taxCategory: tax > 0 ? 'taxable' : 'exempt',
+        taxRate,
+      }],
+      subtotal: taxable,
+      taxAmount: tax,
+      totalAmount,
+      reverseCharge: false,
+    } as Parameters<PurchaseInvoiceService['create']>[0], userId);
+
+    const taxableDiff = Math.abs(taxable - Number(bill.subtotal));
+    const newStatus: 'matched' | 'mismatched' = taxableDiff <= VALUE_TOLERANCE ? 'matched' : 'mismatched';
+    await this.db
+      .update(gstr2bMatches)
+      .set({
+        purchaseInvoiceId: bill.id,
+        invoiceNumberBooks: bill.invoiceNumber,
+        taxableValueBooks: String(bill.subtotal),
+        igstBooks: String(bill.igstAmount),
+        cgstBooks: String(bill.cgstAmount),
+        sgstBooks: String(bill.sgstAmount),
+        matchStatus: newStatus,
+        valueDiff: String(taxableDiff),
+      })
+      .where(eq(gstr2bMatches.id, matchId));
+
+    return { billId: bill.id, vendorId, matchStatus: newStatus };
+  }
+
+  private async findOrCreateVendor(gstin: string, supplierName: string | null): Promise<string> {
+    const [existing] = await this.db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.gstin, gstin)))
+      .limit(1);
+    if (existing) return existing.id;
+
+    const stateCode = gstin.slice(0, 2);
+    const stateName = INDIAN_STATES[stateCode] ?? null;
+    const cleanName = (supplierName ?? '').replace(/,\s*$/, '').trim() || `Supplier ${gstin}`;
+    const [created] = await this.db.insert(vendors).values({
+      tenantId: this.tenantId,
+      name: cleanName,
+      gstin,
+      state: stateName,
+    }).returning({ id: vendors.id });
+    return created!.id;
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────
 
   private matchKey(gstin: string, invoiceNumber: string): string {
@@ -457,4 +553,11 @@ export class Gstr2bReconciliationService {
     const fmt = (d: Date) => d.toISOString().split('T')[0];
     return { periodStart: fmt(start), periodEnd: fmt(end) };
   }
+}
+
+/** GSTN returns invoice_date as DD-MM-YYYY; bills store YYYY-MM-DD. */
+function parseDdMmYyyy(s: string | null): string | null {
+  if (!s) return null;
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }

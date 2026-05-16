@@ -228,6 +228,15 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.getSummary(period) };
   });
 
+  // Promote a `not_in_books` match into a draft purchase invoice so the
+  // owner can claim the ITC. Returns the new bill id + post-link status.
+  app.post('/2b/matches/:matchId/book', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
+    const { matchId } = z.object({ matchId: z.string().uuid() }).parse(request.params);
+    const svc = new Gstr2bReconciliationService(request.server.db, request.tenantId);
+    const result = await svc.bookFromMatch(matchId, request.user?.userId);
+    return reply.status(201).send({ data: result });
+  });
+
   // ─── GST Readiness (dashboard widget) ──────────────────────────────
 
   app.get('/readiness', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

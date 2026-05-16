@@ -135,14 +135,17 @@ export class PurchaseInvoiceService {
       const gst = await this.computeGstForBill(tx, input.vendorId, input.items, input.reverseCharge);
       const tdsTotal = this.computeTdsTotal(input.items);
 
-      // Honor the totals the caller passed in — they reflect what the user
-      // confirmed in the review screen against the printed bill, and are
-      // authoritative even when our per-line GST recomputation lands on a
-      // slightly different number (rounding, charges outside GST, etc.).
-      // Per-line GST breakdown still comes from `gst` so cgst/sgst/igst
-      // columns stay populated for ITC/return purposes.
+      // Honor the caller's subtotal/totalAmount — they reflect what the
+      // user confirmed against the printed bill (freight, round-off, and
+      // other non-GST charges live in the gap between subtotal and total).
+      // But taxAmount MUST equal the sum of per-line GST or the header
+      // diverges from the cgst/sgst/igst/cess columns we derive from
+      // `gst`, breaking ITC aggregation and GSTR-3B Table 4. The AI
+      // extractor in particular nulls taxAmount to 0 on rounding
+      // mismatches while line items still carry tax — trusting it there
+      // silently under-claimed ITC. So tax is always line-derived.
       const subtotal = input.subtotal ?? gst.summary.subtotal;
-      const taxAmount = input.taxAmount ?? gst.summary.taxAmount;
+      const taxAmount = gst.summary.taxAmount;
       const totalAmount = input.totalAmount;
 
       const [invoice] = await tx
@@ -497,6 +500,19 @@ export class PurchaseInvoiceService {
     }
     const needsJeRebuild = existing.status !== 'draft';
 
+    // If line items change, recompute GST so header tax columns stay in
+    // lockstep with per-line cgst/sgst/igst/cess. Reuse vendor + RCM flag
+    // from the existing bill when the caller didn't pass new ones.
+    const itemsChanging = !!(input.items && input.items.length > 0);
+    const gst = itemsChanging
+      ? await this.computeGstForBill(
+          this.db,
+          input.vendorId ?? existing.vendorId,
+          input.items!,
+          input.reverseCharge ?? existing.reverseCharge,
+        )
+      : null;
+
     await this.db.transaction(async (tx) => {
       await tx
         .update(purchaseInvoices)
@@ -507,17 +523,27 @@ export class PurchaseInvoiceService {
           ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
           ...(input.poId !== undefined && { poId: input.poId ?? null }),
           ...(input.subtotal !== undefined && { subtotal: String(input.subtotal) }),
-          ...(input.taxAmount !== undefined && { taxAmount: String(input.taxAmount) }),
           ...(input.totalAmount !== undefined && {
             totalAmount: String(input.totalAmount),
             balanceDue: String(input.totalAmount),
           }),
+          ...(gst && {
+            taxAmount: String(gst.summary.taxAmount),
+            cgstAmount: String(gst.summary.cgstAmount),
+            sgstAmount: String(gst.summary.sgstAmount),
+            igstAmount: String(gst.summary.igstAmount),
+            cessAmount: String(gst.summary.cessAmount),
+            placeOfSupply: gst.placeOfSupply?.placeOfSupply ?? null,
+            placeOfSupplyCode: gst.placeOfSupply?.placeOfSupplyCode ?? null,
+            isInterState: gst.placeOfSupply?.isInterState ?? null,
+          }),
+          ...(input.reverseCharge !== undefined && { reverseCharge: input.reverseCharge }),
           updatedAt: new Date(),
         })
         .where(and(eq(purchaseInvoices.id, id), eq(purchaseInvoices.tenantId, this.tenantId)));
 
-      if (input.items && input.items.length > 0) {
-        await this.replaceLineItems(id, input.items);
+      if (itemsChanging) {
+        await this.replaceLineItems(tx as unknown as Db, id, input.items!, gst!.itemTaxes);
       }
 
       // Amending an already-posted bill: unwind the existing JE and
@@ -626,34 +652,54 @@ export class PurchaseInvoiceService {
   }
 
   private async replaceLineItems(
+    db: Db,
     invoiceId: string,
     items: NonNullable<UpdatePurchaseInvoiceInput['items']>,
+    itemTaxes: TaxBreakdown[],
   ): Promise<void> {
-    await this.db
+    await db
       .delete(purchaseInvoiceItems)
       .where(and(eq(purchaseInvoiceItems.invoiceId, invoiceId), eq(purchaseInvoiceItems.tenantId, this.tenantId)));
 
-    await this.db.insert(purchaseInvoiceItems).values(
-      items.map((item) => ({
-        tenantId: this.tenantId,
-        invoiceId,
-        itemName: item.itemName!,
-        sku: item.sku ?? null,
-        quantity: String(item.quantity),
-        unitPrice: String(item.unitPrice),
-        amount: String(item.amount),
-        hsnSacCode: item.hsnSacCode ?? null,
-        taxCategory: (item.taxCategory as TaxCategory) ?? null,
-        taxRate: item.taxRate != null ? String(item.taxRate) : null,
-        tdsSection: item.tdsSection ?? null,
-        tdsRate: item.tdsRate != null ? String(item.tdsRate) : null,
-      })),
+    await db.insert(purchaseInvoiceItems).values(
+      items.map((item, i) => {
+        const tax = itemTaxes[i]!;
+        const itemTds = (item.tdsRate ?? 0) * item.amount / 100;
+        return {
+          tenantId: this.tenantId,
+          invoiceId,
+          itemName: item.itemName!,
+          sku: item.sku ?? null,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice),
+          amount: String(item.amount),
+          hsnSacCode: item.hsnSacCode ?? null,
+          taxCategory: (item.taxCategory as TaxCategory) ?? null,
+          taxRate: item.taxRate != null ? String(item.taxRate) : null,
+          cgstRate: String(tax.cgstRate),
+          cgstAmount: String(tax.cgstAmount),
+          sgstRate: String(tax.sgstRate),
+          sgstAmount: String(tax.sgstAmount),
+          igstRate: String(tax.igstRate),
+          igstAmount: String(tax.igstAmount),
+          cessRate: String(tax.cessRate),
+          cessAmount: String(tax.cessAmount),
+          tdsSection: item.tdsSection ?? null,
+          tdsRate: item.tdsRate != null ? String(item.tdsRate) : null,
+          tdsAmount: String(Math.round(itemTds * 100) / 100),
+        };
+      }),
     );
   }
 
-  async summary(): Promise<BillsSummary> {
+  async summary(scope?: { vendorId?: string }): Promise<BillsSummary> {
     const today = new Date().toISOString().split('T')[0]!;
     const monthStart = today.slice(0, 7) + '-01';
+    // Optional vendor scope — narrows every metric to one vendor so the
+    // mobile bills screen can show per-vendor outstanding / overdue / etc.
+    const vendorScope = scope?.vendorId
+      ? eq(purchaseInvoices.vendorId, scope.vendorId)
+      : undefined;
 
     const [outstanding, overdue, pendingApproval, paidThisMonth] = await Promise.all([
       this.db
@@ -661,6 +707,7 @@ export class PurchaseInvoiceService {
         .from(purchaseInvoices)
         .where(and(
           eq(purchaseInvoices.tenantId, this.tenantId),
+          vendorScope,
           sql`${purchaseInvoices.status} NOT IN ('paid', 'cancelled', 'draft')`,
         )),
       this.db
@@ -671,6 +718,7 @@ export class PurchaseInvoiceService {
         .from(purchaseInvoices)
         .where(and(
           eq(purchaseInvoices.tenantId, this.tenantId),
+          vendorScope,
           sql`${purchaseInvoices.dueDate} < ${today}`,
           sql`${purchaseInvoices.status} NOT IN ('paid', 'cancelled')`,
           sql`${purchaseInvoices.balanceDue} > 0`,
@@ -680,6 +728,7 @@ export class PurchaseInvoiceService {
         .from(purchaseInvoices)
         .where(and(
           eq(purchaseInvoices.tenantId, this.tenantId),
+          vendorScope,
           sql`${purchaseInvoices.status} IN ('draft', 'pending_match', 'matched')`,
         )),
       this.db
@@ -687,6 +736,7 @@ export class PurchaseInvoiceService {
         .from(purchaseInvoices)
         .where(and(
           eq(purchaseInvoices.tenantId, this.tenantId),
+          vendorScope,
           sql`${purchaseInvoices.status} IN ('paid', 'partially_paid')`,
           gte(purchaseInvoices.updatedAt, new Date(monthStart)),
         )),

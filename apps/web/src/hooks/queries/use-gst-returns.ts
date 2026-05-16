@@ -266,6 +266,20 @@ export function use2bMatches(period: string, status?: string) {
   });
 }
 
+export function useBookFromMatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (matchId: string) =>
+      api.post<ApiSuccess<{ billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }>>(
+        `/gst/2b/matches/${matchId}/book`,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gst-2b'] });
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+    },
+  });
+}
+
 export function use2bSummary(period: string) {
   return useQuery({
     queryKey: RECON_KEYS.summary(period),

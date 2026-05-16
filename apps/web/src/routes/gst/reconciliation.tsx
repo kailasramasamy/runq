@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary,
-  useRequestOtp, useVerifyOtp, useForceLogout,
+  useRequestOtp, useVerifyOtp, useForceLogout, useBookFromMatch,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { Gstr2bMatch, ReconSummary } from '@/hooks/queries/use-gst-returns';
@@ -114,6 +114,8 @@ export function ReconciliationPage() {
 
   const pullMutation = usePull2b();
   const reconMutation = useReconcile2b();
+  const bookMutation = useBookFromMatch();
+  const [bookingId, setBookingId] = useState<string | null>(null);
   const { data: summaryData } = use2bSummary(period);
   const { data: matchesData, isLoading: matchesLoading } = use2bMatches(period, statusFilter);
 
@@ -330,6 +332,7 @@ export function ReconciliationPage() {
                   <Th className="text-right">CGST</Th>
                   <Th className="text-right">SGST</Th>
                   <Th className="text-right">Total Tax</Th>
+                  <Th className="text-right">Action</Th>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -339,6 +342,8 @@ export function ReconciliationPage() {
                   const cgst = Number(m.cgst2b);
                   const sgst = Number(m.sgst2b);
                   const totalTax = igst + cgst + sgst;
+                  const canBook = m.matchStatus === 'not_in_books';
+                  const isBookingThis = bookMutation.isPending && bookingId === m.id;
                   return (
                     <TableRow key={m.id}>
                       <TableCell>
@@ -355,6 +360,36 @@ export function ReconciliationPage() {
                       <TableCell align="right" numeric className="text-zinc-500">{cgst ? formatINR(cgst) : '—'}</TableCell>
                       <TableCell align="right" numeric className="text-zinc-500">{sgst ? formatINR(sgst) : '—'}</TableCell>
                       <TableCell align="right" numeric className="font-medium">{formatINR(totalTax)}</TableCell>
+                      <TableCell align="right">
+                        {canBook && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={bookMutation.isPending}
+                            onClick={() => {
+                              setBookingId(m.id);
+                              bookMutation.mutate(m.id, {
+                                onSuccess: (res: any) => {
+                                  const status = res?.data?.matchStatus;
+                                  toast(
+                                    status === 'matched'
+                                      ? 'Draft bill created and matched'
+                                      : 'Draft bill created (amounts differ — review in Bills)',
+                                    'success',
+                                  );
+                                  setBookingId(null);
+                                },
+                                onError: (err: any) => {
+                                  toast(err?.message ?? 'Failed to book bill', 'error');
+                                  setBookingId(null);
+                                },
+                              });
+                            }}
+                          >
+                            {isBookingThis ? 'Booking…' : 'Book'}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
