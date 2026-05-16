@@ -1,16 +1,5 @@
 {$SITE_ADDRESS:localhost:8080}
 
-# Web SPA bundles (hashed JS/CSS emitted by Vite to dist/assets/). Vite uses
-# absolute base="/", so the HTML at /login and /finance/* references
-# /assets/index-XXX.js from the document root — not /finance/assets/...
-# Without this rule, those requests fall through to the marketing catch-all
-# and 200-return the marketing index.html, which the browser then tries to
-# parse as a JS module → blank page.
-handle /assets/* {
-	root * /srv/web
-	file_server
-}
-
 # Login page (shared, served from web app)
 handle /login {
 	root * /srv/web

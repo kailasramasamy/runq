@@ -3,8 +3,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
-export default defineConfig({
-  base: '/',
+export default defineConfig(({ command }) => ({
+  // Production base — Caddy mounts the SPA at /finance/* (with prefix strip),
+  // so emitting assets under /finance/assets/... keeps them isolated from the
+  // marketing site's /assets/... (apps/www). Dev server keeps serving from /.
+  base: command === 'build' ? '/finance/' : '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -39,4 +42,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
