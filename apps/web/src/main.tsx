@@ -12,7 +12,12 @@ import { AcceptInvitePage } from './routes/accept-invite';
 import { initInstallPromptCapture } from './lib/pwa-install';
 import './app.css';
 
-const router = createRouter({ routeTree });
+// The finance SPA is mounted at /finance/* by Caddy (which strips the prefix
+// before file lookup). Telling the router the same basepath makes <Link>s
+// generate /finance/... hrefs, and lets URL bar refreshes survive — without
+// this, refreshing /finance/dashboard would land on the marketing site at
+// the post-strip path.
+const router = createRouter({ routeTree, basepath: '/finance' });
 
 // Capture beforeinstallprompt as early as possible — the browser only fires
 // this event once, very soon after page load, so we have to be ready before
@@ -62,7 +67,7 @@ class ErrorBoundary extends Component<
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = import.meta.env.BASE_URL; }}
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/finance/'; }}
               className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Go to Dashboard

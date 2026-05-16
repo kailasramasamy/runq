@@ -37,7 +37,7 @@ export function ImpersonationBanner() {
     if (platformToken) {
       localStorage.setItem('runq-token', platformToken);
       localStorage.removeItem(PLATFORM_TOKEN_KEY);
-      window.location.href = '/admin';
+      window.location.href = '/finance/admin';
     } else {
       localStorage.removeItem('runq-token');
       window.location.href = '/login';
