@@ -109,18 +109,23 @@ async function deletePhoto(employeeId: string): Promise<void> {
   if (!res.ok) throw await res.json();
 }
 
+/**
+ * Invalidate every cache that carries an employee's photoUrl. The detail
+ * page lives at ['hr','employees','detail',id] and the list at
+ * ['hr','employees', filters] — both share the 'hr','employees' prefix, so
+ * one invalidation catches all of them. Without this, the cached employee
+ * record keeps the stale photoUrl and the avatar query never re-enables.
+ */
+function invalidatePhotoCaches(qc: ReturnType<typeof useQueryClient>, employeeId: string) {
+  qc.invalidateQueries({ queryKey: ['hr', 'employees'] });
+  qc.invalidateQueries({ queryKey: KEYS.photo(employeeId) });
+}
+
 export function useUploadEmployeePhoto(employeeId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => uploadPhoto({ employeeId, file }),
-    onSuccess: () => {
-      // Invalidate both the employee record (carries photoUrl) and the
-      // dedicated photo cache key so any <img> using employeePhotoUrl(id)
-      // refetches with a busted query string.
-      qc.invalidateQueries({ queryKey: ['employee', employeeId] });
-      qc.invalidateQueries({ queryKey: ['employees'] });
-      qc.invalidateQueries({ queryKey: KEYS.photo(employeeId) });
-    },
+    onSuccess: () => invalidatePhotoCaches(qc, employeeId),
   });
 }
 
@@ -128,11 +133,7 @@ export function useDeleteEmployeePhoto(employeeId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => deletePhoto(employeeId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['employee', employeeId] });
-      qc.invalidateQueries({ queryKey: ['employees'] });
-      qc.invalidateQueries({ queryKey: KEYS.photo(employeeId) });
-    },
+    onSuccess: () => invalidatePhotoCaches(qc, employeeId),
   });
 }
 
