@@ -394,3 +394,16 @@ final hrExpiringDocsProvider =
     FutureProvider<List<HrExpiringDoc>>((ref) async {
   return _watchAuth(ref, () => hrRepo.expiringDocuments(daysAhead: 90));
 });
+
+/// Active announcements (pinned first, newest second, expired filtered).
+/// Post / delete should invalidate this provider so the feed updates.
+final hrAnnouncementsProvider =
+    FutureProvider<List<HrAnnouncement>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.announcements());
+});
+
+/// Last 20 HR events, rolled up from leave / employees / payroll / documents.
+final hrRecentActivityProvider =
+    FutureProvider<List<HrActivityEvent>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.recentActivity());
+});

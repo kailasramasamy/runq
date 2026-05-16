@@ -13,6 +13,7 @@ import {
 import { usePayrollRuns } from '@/hooks/queries/use-hr-payroll';
 import { StatutoryCalendar } from '@/components/dashboard/statutory-calendar';
 import { PeopleContextSections } from '@/components/dashboard/hr-people-sections';
+import { AnnouncementsSection, RecentActivitySection } from '@/components/dashboard/hr-feed-sections';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -333,9 +334,19 @@ export function HRDashboardPage() {
         />
       </div>
 
+      {/* Announcements — admin-posted noticeboard, top 3 rows. */}
+      <div className="mb-6">
+        <AnnouncementsSection />
+      </div>
+
       {/* People context — who's out, celebrations, joiners/exits, attendance
           sparkline, expiring documents. Mirrors mobile HR home. */}
       <PeopleContextSections />
+
+      {/* Recent activity — last 20 HR events rolled up across modules. */}
+      <div className="mb-6">
+        <RecentActivitySection />
+      </div>
 
       {/* Statutory calendar — TDS, Form 24Q, PT, PF/ESI, GST deadlines */}
       <div className="mb-6">

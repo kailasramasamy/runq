@@ -617,3 +617,78 @@ export function useExpiringDocuments(daysAhead = 90) {
     ),
   });
 }
+
+// ─── Announcements ─────────────────────────────────────────────────────────
+
+export type AnnouncementAudience = 'all' | 'managers';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  audience: AnnouncementAudience;
+  pinned: boolean;
+  postedAt: string;
+  expiresAt: string | null;
+  postedById: string | null;
+  postedByName: string | null;
+}
+
+export function useAnnouncements() {
+  return useQuery({
+    queryKey: ['hr', 'announcements'],
+    queryFn: () => api.get<ApiSuccess<Announcement[]>>('/hr/announcements'),
+  });
+}
+
+export function useCreateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      title: string;
+      body: string;
+      audience?: AnnouncementAudience;
+      pinned?: boolean;
+      // ISO string; null/undefined → never expires.
+      expiresAt?: string | null;
+    }) => api.post<ApiSuccess<Announcement>>('/hr/announcements', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
+  });
+}
+
+export function useDeleteAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/hr/announcements/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
+  });
+}
+
+// ─── Recent activity ───────────────────────────────────────────────────────
+
+export type ActivityKind =
+  | 'employee_added'
+  | 'employee_exited'
+  | 'leave_approved'
+  | 'leave_rejected'
+  | 'salary_assigned'
+  | 'document_uploaded'
+  | 'payroll_started';
+
+export interface ActivityEvent {
+  id: string;
+  kind: ActivityKind;
+  occurredAt: string;
+  title: string;
+  subject: string | null;
+  employeeId: string | null;
+  employeeName: string | null;
+}
+
+/** Rolled-up HR events for the manager dashboard. Server returns up to 20. */
+export function useRecentActivity() {
+  return useQuery({
+    queryKey: ['hr', 'dashboard', 'recent-activity'],
+    queryFn: () => api.get<ApiSuccess<ActivityEvent[]>>('/hr/dashboard/recent-activity'),
+  });
+}

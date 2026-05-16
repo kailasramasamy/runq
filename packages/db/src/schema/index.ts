@@ -69,6 +69,7 @@ export * from './hr/payroll';
 export * from './hr/tds';
 export * from './hr/statutory-challans';
 export * from './hr/employee-payments';
+export * from './hr/announcements';
 export * from './common/webhook-endpoints';
 export * from './ar/quick-templates';
 export * from './ar/po-inbox';

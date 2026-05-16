@@ -23,6 +23,8 @@ import { employeePaymentRoutes } from './payroll/employee-payment.routes';
 import { tdsRoutes } from './tds/tds.routes';
 import { wageRegisterRoutes } from './wage-register.routes';
 import { hrDashboardRoutes } from './dashboard.routes';
+import { hrAnnouncementRoutes } from './announcement.routes';
+import { hrRecentActivityRoutes } from './recent-activity.routes';
 import { ExpenseClaimPostingService } from './expense-claim-posting.service';
 import { StatutoryCalendarService } from './statutory-calendar.service';
 import { employees, users, payslips, payrollRuns } from '@runq/db';
@@ -49,6 +51,8 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(tdsRoutes);
   await app.register(wageRegisterRoutes);
   await app.register(hrDashboardRoutes);
+  await app.register(hrAnnouncementRoutes);
+  await app.register(hrRecentActivityRoutes);
 
   // GET /hr/me — resolve the logged-in user to their employee record (by
   // email match within the tenant) and indicate whether they should see

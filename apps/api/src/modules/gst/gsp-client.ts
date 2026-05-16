@@ -813,31 +813,35 @@ export class WhiteBooksGspClient implements GspClient {
   }
 
   private transformGstr3bForUpload(gstin: string, period: string, data: Gstr3bData) {
+    // GSTN schema validates numeric fields against a 2-decimal pattern;
+    // raw JS sums like 6000.879999999999 fail. Round every numeric leaf
+    // through this helper before serialising.
+    const r = (n: number) => Math.round((n ?? 0) * 100) / 100;
     return {
       gstin,
       ret_period: period,
       sup_details: {
         osup_det: {
-          txval: data.table31.outwardTaxableInterState.taxableValue + data.table31.outwardTaxableIntraState.taxableValue,
-          iamt: data.table31.outwardTaxableInterState.igst,
-          camt: data.table31.outwardTaxableIntraState.cgst,
-          samt: data.table31.outwardTaxableIntraState.sgst,
-          csamt: (data.table31.outwardTaxableInterState.cess ?? 0) + (data.table31.outwardTaxableIntraState.cess ?? 0),
+          txval: r(data.table31.outwardTaxableInterState.taxableValue + data.table31.outwardTaxableIntraState.taxableValue),
+          iamt: r(data.table31.outwardTaxableInterState.igst),
+          camt: r(data.table31.outwardTaxableIntraState.cgst),
+          samt: r(data.table31.outwardTaxableIntraState.sgst),
+          csamt: r((data.table31.outwardTaxableInterState.cess ?? 0) + (data.table31.outwardTaxableIntraState.cess ?? 0)),
         },
         osup_zero: {
-          txval: data.table31.zeroRatedSupplies.taxableValue,
-          iamt: data.table31.zeroRatedSupplies.igst,
-          csamt: data.table31.zeroRatedSupplies.cess ?? 0,
+          txval: r(data.table31.zeroRatedSupplies.taxableValue),
+          iamt: r(data.table31.zeroRatedSupplies.igst),
+          csamt: r(data.table31.zeroRatedSupplies.cess ?? 0),
         },
-        osup_nil_exmp: { txval: data.table31.nilRatedExempt.taxableValue },
-        osup_nongst: { txval: data.table31.nonGstOutward.taxableValue },
+        osup_nil_exmp: { txval: r(data.table31.nilRatedExempt.taxableValue) },
+        osup_nongst: { txval: r(data.table31.nonGstOutward.taxableValue) },
         // Table 3.1(d): Inward supplies liable to reverse charge
         isup_rev: {
           txval: 0,
-          iamt: data.table4.itcAvailable.inwardReverseCharge.igst,
-          camt: data.table4.itcAvailable.inwardReverseCharge.cgst,
-          samt: data.table4.itcAvailable.inwardReverseCharge.sgst,
-          csamt: data.table4.itcAvailable.inwardReverseCharge.cess,
+          iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst),
+          camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst),
+          samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst),
+          csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess),
         },
       },
       // Table 3.2: Inter-state supplies to unregistered/composition/UIN.
@@ -846,23 +850,23 @@ export class WhiteBooksGspClient implements GspClient {
       inter_sup: {
         unreg_details: data.table32
           .filter((e) => e.taxableValue > 0)
-          .map((e) => ({ pos: e.placeOfSupply, txval: e.taxableValue, iamt: e.igst })),
+          .map((e) => ({ pos: e.placeOfSupply, txval: r(e.taxableValue), iamt: r(e.igst) })),
         comp_details: [],
         uin_details: [],
       },
       itc_elg: {
         itc_avl: [
-          { ty: 'IMPG', iamt: data.table4.itcAvailable.importGoods.igst, camt: data.table4.itcAvailable.importGoods.cgst, samt: data.table4.itcAvailable.importGoods.sgst, csamt: data.table4.itcAvailable.importGoods.cess },
-          { ty: 'IMPS', iamt: data.table4.itcAvailable.importServices.igst, camt: data.table4.itcAvailable.importServices.cgst, samt: data.table4.itcAvailable.importServices.sgst, csamt: data.table4.itcAvailable.importServices.cess },
-          { ty: 'ISRC', iamt: data.table4.itcAvailable.inwardReverseCharge.igst, camt: data.table4.itcAvailable.inwardReverseCharge.cgst, samt: data.table4.itcAvailable.inwardReverseCharge.sgst, csamt: data.table4.itcAvailable.inwardReverseCharge.cess },
-          { ty: 'ISD', iamt: data.table4.itcAvailable.isd.igst, camt: data.table4.itcAvailable.isd.cgst, samt: data.table4.itcAvailable.isd.sgst, csamt: data.table4.itcAvailable.isd.cess },
-          { ty: 'OTH', iamt: data.table4.itcAvailable.allOtherItc.igst, camt: data.table4.itcAvailable.allOtherItc.cgst, samt: data.table4.itcAvailable.allOtherItc.sgst, csamt: data.table4.itcAvailable.allOtherItc.cess },
+          { ty: 'IMPG', iamt: r(data.table4.itcAvailable.importGoods.igst), camt: r(data.table4.itcAvailable.importGoods.cgst), samt: r(data.table4.itcAvailable.importGoods.sgst), csamt: r(data.table4.itcAvailable.importGoods.cess) },
+          { ty: 'IMPS', iamt: r(data.table4.itcAvailable.importServices.igst), camt: r(data.table4.itcAvailable.importServices.cgst), samt: r(data.table4.itcAvailable.importServices.sgst), csamt: r(data.table4.itcAvailable.importServices.cess) },
+          { ty: 'ISRC', iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst), camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst), samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst), csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess) },
+          { ty: 'ISD', iamt: r(data.table4.itcAvailable.isd.igst), camt: r(data.table4.itcAvailable.isd.cgst), samt: r(data.table4.itcAvailable.isd.sgst), csamt: r(data.table4.itcAvailable.isd.cess) },
+          { ty: 'OTH', iamt: r(data.table4.itcAvailable.allOtherItc.igst), camt: r(data.table4.itcAvailable.allOtherItc.cgst), samt: r(data.table4.itcAvailable.allOtherItc.sgst), csamt: r(data.table4.itcAvailable.allOtherItc.cess) },
         ],
         itc_rev: [
-          { ty: 'RUL', iamt: data.table4.itcReversed.rule4243.igst, camt: data.table4.itcReversed.rule4243.cgst, samt: data.table4.itcReversed.rule4243.sgst, csamt: data.table4.itcReversed.rule4243.cess },
-          { ty: 'OTH', iamt: data.table4.itcReversed.others.igst, camt: data.table4.itcReversed.others.cgst, samt: data.table4.itcReversed.others.sgst, csamt: data.table4.itcReversed.others.cess },
+          { ty: 'RUL', iamt: r(data.table4.itcReversed.rule4243.igst), camt: r(data.table4.itcReversed.rule4243.cgst), samt: r(data.table4.itcReversed.rule4243.sgst), csamt: r(data.table4.itcReversed.rule4243.cess) },
+          { ty: 'OTH', iamt: r(data.table4.itcReversed.others.igst), camt: r(data.table4.itcReversed.others.cgst), samt: r(data.table4.itcReversed.others.sgst), csamt: r(data.table4.itcReversed.others.cess) },
         ],
-        itc_net: { iamt: data.table4.netItc.igst, camt: data.table4.netItc.cgst, samt: data.table4.netItc.sgst, csamt: data.table4.netItc.cess },
+        itc_net: { iamt: r(data.table4.netItc.igst), camt: r(data.table4.netItc.cgst), samt: r(data.table4.netItc.sgst), csamt: r(data.table4.netItc.cess) },
         // GSTN schema requires itc_inelg (Section 17(5) + other ineligible).
         // We don't track these yet — send zero rows so the schema is satisfied.
         itc_inelg: [
@@ -872,18 +876,18 @@ export class WhiteBooksGspClient implements GspClient {
       },
       // Table 5: Exempt, nil-rated, non-GST inward supplies. GSTN spec
       // requires two rows split by `ty`: 'GST' = exempt/nil-rated from
-      // composition or unregistered supplier; 'NON_GST' = non-GST supplies.
+      // composition or unregistered supplier; 'NONGST' = non-GST supplies.
       inward_sup: {
         isup_details: [
           {
             ty: 'GST',
-            inter: data.table5.interState.nilRated + data.table5.interState.exempt,
-            intra: data.table5.intraState.nilRated + data.table5.intraState.exempt,
+            inter: r(data.table5.interState.nilRated + data.table5.interState.exempt),
+            intra: r(data.table5.intraState.nilRated + data.table5.intraState.exempt),
           },
           {
-            ty: 'NON_GST',
-            inter: data.table5.interState.nonGst,
-            intra: data.table5.intraState.nonGst,
+            ty: 'NONGST',
+            inter: r(data.table5.interState.nonGst),
+            intra: r(data.table5.intraState.nonGst),
           },
         ],
       },
@@ -893,7 +897,7 @@ export class WhiteBooksGspClient implements GspClient {
           iamt: 0, camt: 0, samt: 0, csamt: 0,
         },
         ltfee_details: {
-          iamt: 0, camt: data.table51.lateFee / 2, samt: data.table51.lateFee / 2, csamt: 0,
+          iamt: 0, camt: r(data.table51.lateFee / 2), samt: r(data.table51.lateFee / 2), csamt: 0,
         },
       },
     };

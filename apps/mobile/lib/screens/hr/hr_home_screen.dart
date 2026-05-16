@@ -19,6 +19,7 @@ import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_dashboard_sections.dart';
+import 'widgets/hr_feed_sections.dart';
 import 'widgets/hr_widgets.dart';
 
 class HrHomeScreen extends ConsumerStatefulWidget {
@@ -657,13 +658,15 @@ class _ManagerBody extends ConsumerWidget {
           const SizedBox(height: 18),
           // People-context sections — the parts a daily HR manager looks
           // for first (who's out, whose birthday is it, recent moments,
-          // attendance pulse, expiring docs). Each self-hides when empty
-          // so a quiet day stays quiet.
+          // attendance pulse, expiring docs). Each renders an empty-state
+          // card on quiet days so the surfaces stay discoverable.
+          const HrAnnouncementsSection(),
           const HrWhoIsOutSection(),
           const HrCelebrationsSection(),
           const HrPeopleMomentsSection(),
           const HrAttendanceTrendSection(),
           const HrExpiringDocsSection(),
+          const HrRecentActivitySection(),
           // Statutory calendar — upcoming compliance deadlines (TDS /
           // 24Q / PT). Hidden when the list is empty so a quiet month
           // doesn't surface an empty section.

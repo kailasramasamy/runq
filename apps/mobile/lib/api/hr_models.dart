@@ -1107,3 +1107,70 @@ class HrPayslip {
     return '${months[month - 1]} $year';
   }
 }
+
+// ─── /hr/announcements ─────────────────────────────────────────────────────
+
+/// Manager dashboard noticeboard row. Pinned rows render first; expiresAt
+/// is null when the announcement never expires.
+class HrAnnouncement {
+  final String id, title, body;
+  /// 'all' | 'managers'
+  final String audience;
+  final bool pinned;
+  final DateTime postedAt;
+  final DateTime? expiresAt;
+  final String? postedByName;
+
+  HrAnnouncement({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.audience,
+    required this.pinned,
+    required this.postedAt,
+    this.expiresAt,
+    this.postedByName,
+  });
+
+  factory HrAnnouncement.fromJson(Map<String, dynamic> j) => HrAnnouncement(
+        id: _strOr(j['id'], ''),
+        title: _strOr(j['title'], ''),
+        body: _strOr(j['body'], ''),
+        audience: _strOr(j['audience'], 'all'),
+        pinned: _bool(j['pinned']),
+        postedAt: _dt(j['postedAt']) ?? DateTime.now(),
+        expiresAt: _dt(j['expiresAt']),
+        postedByName: _str(j['postedByName']),
+      );
+}
+
+// ─── /hr/dashboard/recent-activity ─────────────────────────────────────────
+
+/// Rolled-up HR event for the activity feed. `kind` is one of:
+///   employee_added | employee_exited | leave_approved | leave_rejected
+///   salary_assigned | document_uploaded | payroll_started
+class HrActivityEvent {
+  final String id, kind, title;
+  final DateTime occurredAt;
+  final String? subject, employeeId, employeeName;
+
+  HrActivityEvent({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.occurredAt,
+    this.subject,
+    this.employeeId,
+    this.employeeName,
+  });
+
+  factory HrActivityEvent.fromJson(Map<String, dynamic> j) => HrActivityEvent(
+        id: _strOr(j['id'], ''),
+        kind: _strOr(j['kind'], 'employee_added'),
+        title: _strOr(j['title'], ''),
+        occurredAt: _dt(j['occurredAt']) ?? DateTime.now(),
+        subject: _str(j['subject']),
+        employeeId: _str(j['employeeId']),
+        employeeName: _str(j['employeeName']),
+      );
+}

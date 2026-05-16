@@ -43,6 +43,39 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+/// Compact placeholder rendered when a section has no rows. We always show
+/// the card so managers know the surface exists — they used to disappear
+/// silently, which made the feature feel missing.
+class _EmptyCard extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _EmptyCard({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: t.hairline, width: 0.5),
+        boxShadow: RunqShadows.card,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: t.muted2),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Who's out today ──────────────────────────────────────────────────────
 
 class HrWhoIsOutSection extends ConsumerWidget {
@@ -53,7 +86,18 @@ class HrWhoIsOutSection extends ConsumerWidget {
     final t = RT(context);
     final async = ref.watch(hrWhoIsOutTodayProvider);
     final rows = async.asData?.value ?? const [];
-    if (rows.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: const [
+            _SectionLabel('Who\'s out today'),
+            _EmptyCard(icon: Icons.check_circle_outline, text: 'Everyone\'s in today.'),
+          ],
+        ),
+      );
+    }
     final top = rows.take(3).toList();
     final extra = rows.length - top.length;
     return Padding(
@@ -156,7 +200,18 @@ class HrCelebrationsSection extends ConsumerWidget {
     final t = RT(context);
     final async = ref.watch(hrCelebrationsProvider);
     final rows = async.asData?.value ?? const [];
-    if (rows.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: const [
+            _SectionLabel('Celebrations this week'),
+            _EmptyCard(icon: Icons.cake_outlined, text: 'No birthdays or anniversaries in the next 7 days.'),
+          ],
+        ),
+      );
+    }
     final top = rows.take(4).toList();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -268,12 +323,12 @@ class HrPeopleMomentsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(hrPeopleMomentsProvider);
     final data = async.asData?.value;
-    if (data == null) return const SizedBox.shrink();
-    final joiners = data.joinersThisMonth;
-    final exits = data.exitsThisMonth;
-    if (joiners.isEmpty && exits.isEmpty) return const SizedBox.shrink();
     const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     final mLabel = months[DateTime.now().month - 1];
+    final joiners = data?.joinersThisMonth ?? const [];
+    final exits = data?.exitsThisMonth ?? const [];
+    // Always render the two tiles — zero counts read as "nothing this month",
+    // which is informative on its own. We used to hide the whole section.
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -396,7 +451,18 @@ class HrAttendanceTrendSection extends ConsumerWidget {
     final async = ref.watch(hrAttendanceTrend7dProvider);
     final pts = async.asData?.value ?? const [];
     final hasData = pts.any((p) => p.total > 0);
-    if (!hasData) return const SizedBox.shrink();
+    if (!hasData) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: const [
+            _SectionLabel('Attendance trend · last 7 days'),
+            _EmptyCard(icon: Icons.show_chart_rounded, text: 'No attendance marked in the last 7 days.'),
+          ],
+        ),
+      );
+    }
     final avg = pts
             .where((p) => p.total > 0)
             .map((p) => p.ratio)
@@ -511,7 +577,18 @@ class HrExpiringDocsSection extends ConsumerWidget {
     final t = RT(context);
     final async = ref.watch(hrExpiringDocsProvider);
     final rows = async.asData?.value ?? const [];
-    if (rows.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: const [
+            _SectionLabel('Document expiries'),
+            _EmptyCard(icon: Icons.verified_outlined, text: 'No employee documents expiring in the next 90 days.'),
+          ],
+        ),
+      );
+    }
     final top = rows.take(4).toList();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),

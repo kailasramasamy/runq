@@ -640,6 +640,41 @@ class HrRepo {
     final res = await apiClient.post('/hr/payroll-runs/$id/close');
     return HrPayrollRun.fromJson(_data(res));
   }
+
+  // ── Announcements ───────────────────────────────────────────────────────
+
+  Future<List<HrAnnouncement>> announcements() async {
+    final res = await apiClient.get('/hr/announcements');
+    return _dataList(res).map(HrAnnouncement.fromJson).toList();
+  }
+
+  Future<HrAnnouncement> createAnnouncement({
+    required String title,
+    required String body,
+    String audience = 'all',
+    bool pinned = false,
+    DateTime? expiresAt,
+  }) async {
+    final res = await apiClient.post('/hr/announcements', {
+      'title': title,
+      'body': body,
+      'audience': audience,
+      'pinned': pinned,
+      if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
+    });
+    return HrAnnouncement.fromJson(_data(res));
+  }
+
+  Future<void> deleteAnnouncement(String id) async {
+    await apiClient.delete('/hr/announcements/$id');
+  }
+
+  // ── Recent activity feed ────────────────────────────────────────────────
+
+  Future<List<HrActivityEvent>> recentActivity() async {
+    final res = await apiClient.get('/hr/dashboard/recent-activity');
+    return _dataList(res).map(HrActivityEvent.fromJson).toList();
+  }
 }
 
 final hrRepo = HrRepo();
