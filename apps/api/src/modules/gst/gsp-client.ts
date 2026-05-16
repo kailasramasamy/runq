@@ -813,12 +813,6 @@ export class WhiteBooksGspClient implements GspClient {
   }
 
   private transformGstr3bForUpload(gstin: string, period: string, data: Gstr3bData) {
-    // Table 3.2 → inter_sup (inter-state supplies to unregistered/composition/UIN)
-    const unreg = data.table32.reduce(
-      (acc, e) => ({ txval: acc.txval + e.taxableValue, iamt: acc.iamt + e.igst }),
-      { txval: 0, iamt: 0 },
-    );
-
     return {
       gstin,
       ret_period: period,
@@ -846,9 +840,13 @@ export class WhiteBooksGspClient implements GspClient {
           csamt: data.table4.itcAvailable.inwardReverseCharge.cess,
         },
       },
-      // Table 3.2: Inter-state supplies
+      // Table 3.2: Inter-state supplies to unregistered/composition/UIN.
+      // GSTN rejects rows with empty pos or zero values — only emit per
+      // actual table32 entry (each carries its own 2-digit pos code).
       inter_sup: {
-        unreg_details: [{ txval: unreg.txval, iamt: unreg.iamt, pos: '' }],
+        unreg_details: data.table32
+          .filter((e) => e.taxableValue > 0)
+          .map((e) => ({ pos: e.placeOfSupply, txval: e.taxableValue, iamt: e.igst })),
         comp_details: [],
         uin_details: [],
       },
@@ -865,14 +863,27 @@ export class WhiteBooksGspClient implements GspClient {
           { ty: 'OTH', iamt: data.table4.itcReversed.others.igst, camt: data.table4.itcReversed.others.cgst, samt: data.table4.itcReversed.others.sgst, csamt: data.table4.itcReversed.others.cess },
         ],
         itc_net: { iamt: data.table4.netItc.igst, camt: data.table4.netItc.cgst, samt: data.table4.netItc.sgst, csamt: data.table4.netItc.cess },
+        // GSTN schema requires itc_inelg (Section 17(5) + other ineligible).
+        // We don't track these yet — send zero rows so the schema is satisfied.
+        itc_inelg: [
+          { ty: 'RUL', iamt: 0, camt: 0, samt: 0, csamt: 0 },
+          { ty: 'OTH', iamt: 0, camt: 0, samt: 0, csamt: 0 },
+        ],
       },
-      // Table 5: Exempt, nil-rated, non-GST inward supplies
+      // Table 5: Exempt, nil-rated, non-GST inward supplies. GSTN spec
+      // requires two rows split by `ty`: 'GST' = exempt/nil-rated from
+      // composition or unregistered supplier; 'NON_GST' = non-GST supplies.
       inward_sup: {
         isup_details: [
           {
-            ty: 'ISRC',
-            inter: data.table5.interState.nilRated + data.table5.interState.exempt + data.table5.interState.nonGst,
-            intra: data.table5.intraState.nilRated + data.table5.intraState.exempt + data.table5.intraState.nonGst,
+            ty: 'GST',
+            inter: data.table5.interState.nilRated + data.table5.interState.exempt,
+            intra: data.table5.intraState.nilRated + data.table5.intraState.exempt,
+          },
+          {
+            ty: 'NON_GST',
+            inter: data.table5.interState.nonGst,
+            intra: data.table5.intraState.nonGst,
           },
         ],
       },
