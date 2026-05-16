@@ -140,14 +140,21 @@ export function useDeleteEmployeePhoto(employeeId: string) {
  * Authenticated photo URL. The API streams the image, requiring a Bearer
  * token in headers — but <img src=…> can't carry headers. We blob-fetch on
  * demand via useEmployeePhotoSrc() instead.
+ *
+ * `photoKey` is the current employees.photo_url value; including it in the
+ * queryKey gives us automatic refetch when a new upload changes the key,
+ * and `cache: 'no-cache'` forces revalidation past the server's 5-minute
+ * Cache-Control. Without these, the browser would serve the old photo from
+ * disk cache after an upload — see also useUploadEmployeePhoto.
  */
-export function useEmployeePhotoSrc(employeeId: string, hasPhoto: boolean) {
+export function useEmployeePhotoSrc(employeeId: string, photoKey: string | null) {
   return useQuery({
-    queryKey: KEYS.photo(employeeId),
-    enabled: !!employeeId && hasPhoto,
+    queryKey: [...KEYS.photo(employeeId), photoKey],
+    enabled: !!employeeId && !!photoKey,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/hr/employees/${employeeId}/photo`, {
         headers: authHeaders(),
+        cache: 'no-cache',
       });
       if (!res.ok) return null;
       const blob = await res.blob();

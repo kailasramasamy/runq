@@ -82,7 +82,7 @@ export function EmployeeDetailPage({ employeeId }: Props) {
         style={{ background: 'linear-gradient(135deg, var(--accent-soft) 0%, var(--surface-2) 100%)', borderColor: 'var(--border)' }}
       >
         <div className="flex items-start gap-4">
-          <AvatarUploader employeeId={employeeId} name={name} hasPhoto={!!employee.photoUrl} />
+          <AvatarUploader employeeId={employeeId} name={name} photoKey={employee.photoUrl} />
           <div className="min-w-0 flex-1">
             <div className="text-[17px] font-bold" style={{ color: 'var(--text-1)' }}>{name}</div>
             <div className="mt-0.5 text-[13px]" style={{ color: 'var(--text-2)' }}>
@@ -149,23 +149,27 @@ export function EmployeeDetailPage({ employeeId }: Props) {
 }
 
 /**
- * Avatar in the profile header with hover-overlay controls. Click anywhere
- * on the avatar to upload; trash icon (when a photo exists) to remove.
+ * Avatar in the profile header. Behaviour splits on whether a photo exists:
+ *   - With a photo: tap → opens a fullscreen lightbox. A small camera badge
+ *     (always visible) handles replace; trash badge (hover) handles delete.
+ *   - No photo: tap → opens the file picker, since there's nothing to view.
  * Image is fetched as a blob through the authenticated endpoint and turned
  * into an object URL — <img src> can't carry a bearer token directly.
  */
 function AvatarUploader({
-  employeeId, name, hasPhoto,
+  employeeId, name, photoKey,
 }: {
   employeeId: string;
   name: string;
-  hasPhoto: boolean;
+  photoKey: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { data: photoSrc } = useEmployeePhotoSrc(employeeId, hasPhoto);
+  const { data: photoSrc } = useEmployeePhotoSrc(employeeId, photoKey);
   const upload = useUploadEmployeePhoto(employeeId);
   const remove = useDeleteEmployeePhoto(employeeId);
   const { toast } = useToast();
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const hasPhoto = !!photoKey;
 
   function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -178,49 +182,88 @@ function AvatarUploader({
   }
 
   return (
-    <div className="group relative">
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="block rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2"
-        style={{ ['--tw-ring-color' as any]: 'var(--accent)' }}
-        title="Click to upload photo"
-      >
-        <Avatar name={name} size={56} src={photoSrc ?? undefined} />
-        <span
-          className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          <Camera size={18} color="white" />
-        </span>
-      </button>
-      {hasPhoto && (
+    <>
+      <div className="group relative">
         <button
           type="button"
-          onClick={() => {
-            if (!confirm('Remove this photo?')) return;
-            remove.mutate(undefined, {
-              onSuccess: () => toast('Photo removed', 'success'),
-              onError: (err: any) => toast(err?.message ?? 'Delete failed', 'error'),
-            });
-          }}
-          title="Remove photo"
-          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={() => hasPhoto ? setLightboxOpen(true) : inputRef.current?.click()}
+          className="block rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2"
+          style={{ ['--tw-ring-color' as any]: 'var(--accent)' }}
+          title={hasPhoto ? 'View photo' : 'Upload photo'}
+        >
+          <Avatar name={name} size={56} src={photoSrc ?? undefined} />
+        </button>
+        {/* Camera badge: replace photo. Always visible when one exists, fades
+            in on hover otherwise so empty avatars still hint at uploadability. */}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          title={hasPhoto ? 'Replace photo' : 'Upload photo'}
+          className={`absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition-opacity ${hasPhoto ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
           style={{
-            background: 'var(--surface)',
-            borderColor: 'var(--border)',
-            color: 'var(--neg)',
+            background: 'var(--accent)',
+            borderColor: 'var(--surface)',
+            color: 'white',
           }}
         >
-          <Trash2 size={11} />
+          <Camera size={12} />
         </button>
+        {hasPhoto && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirm('Remove this photo?')) return;
+              remove.mutate(undefined, {
+                onSuccess: () => toast('Photo removed', 'success'),
+                onError: (err: any) => toast(err?.message ?? 'Delete failed', 'error'),
+              });
+            }}
+            title="Remove photo"
+            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border opacity-0 transition-opacity group-hover:opacity-100"
+            style={{
+              background: 'var(--surface)',
+              borderColor: 'var(--border)',
+              color: 'var(--neg)',
+            }}
+          >
+            <Trash2 size={11} />
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          className="hidden"
+          onChange={pick}
+        />
+      </div>
+
+      {/* Fullscreen lightbox. Click anywhere outside the image or press Esc
+          (handled by browser's default focus) to dismiss. */}
+      {lightboxOpen && photoSrc && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(false)}
+            className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+            title="Close"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={photoSrc}
+            alt={name}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl"
+          />
+        </div>
       )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/jpg,image/webp"
-        className="hidden"
-        onChange={pick}
-      />
-    </div>
+    </>
   );
 }
