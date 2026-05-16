@@ -10,6 +10,7 @@ import {
 } from '@/hooks/queries/use-employee-documents';
 import { OverviewTab, LeaveTab, PayrollTab } from './_employee-tabs';
 import { DocumentsTab } from './_documents-tab';
+import { PhotoCropModal } from '@/components/hr/photo-crop-modal';
 
 const STATUS_BADGE: Record<EmployeeStatus, { variant: any; label: string }> = {
   active: { variant: 'success', label: 'Active' },
@@ -169,16 +170,30 @@ function AvatarUploader({
   const remove = useDeleteEmployeePhoto(employeeId);
   const { toast } = useToast();
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // Holds the raw file from <input> until the crop modal confirms or cancels.
+  // Once the user confirms, we upload the cropped Blob (named to match
+  // multipart form expectations) instead of the original.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const hasPhoto = !!photoKey;
 
   function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    upload.mutate(file, {
+    setPendingFile(file);
+    e.target.value = '';
+  }
+
+  function handleCropConfirm(blob: Blob) {
+    if (!pendingFile) return;
+    // Re-wrap as a File so the multipart form treats it like a regular
+    // upload with a sensible filename + the cropped JPEG content type.
+    const baseName = pendingFile.name.replace(/\.[^.]+$/, '');
+    const cropped = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+    setPendingFile(null);
+    upload.mutate(cropped, {
       onSuccess: () => toast('Photo updated', 'success'),
       onError: (err: any) => toast(err?.message ?? 'Upload failed', 'error'),
     });
-    e.target.value = '';
   }
 
   return (
@@ -263,6 +278,15 @@ function AvatarUploader({
             className="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl"
           />
         </div>
+      )}
+
+      {/* Crop modal — shown after a file is picked, before upload. */}
+      {pendingFile && (
+        <PhotoCropModal
+          srcFile={pendingFile}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setPendingFile(null)}
+        />
       )}
     </>
   );

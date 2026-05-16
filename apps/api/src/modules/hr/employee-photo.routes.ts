@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { eq, and } from 'drizzle-orm';
 import { employees } from '@runq/db';
 import { z } from 'zod';
+import sharp from 'sharp';
 import { rbacHook } from '../../hooks/rbac';
 import { AppError, NotFoundError } from '../../utils/errors';
 import { getStorageProvider } from '../../utils/storage';
@@ -18,7 +19,27 @@ const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const idParamSchema = z.object({ id: z.string().uuid() });
 
 const PHOTO_MIMES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'] as const;
-const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB ceiling on upload
+const PHOTO_SIZE_PX = 512;                // final stored resolution (square)
+const PHOTO_JPEG_QUALITY = 85;            // visually lossless at avatar sizes
+
+/**
+ * Decode the uploaded image, center-cover-crop to a square at PHOTO_SIZE_PX,
+ * strip EXIF, JPEG-encode at quality 85. A 5 MB phone photo lands at
+ * ~30–80 KB after this. Works as a safety net even when the client has
+ * already cropped — re-running cover on a square no-ops, and re-encoding
+ * keeps every stored photo at the same format and quality.
+ */
+async function optimizePhoto(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate() // honour EXIF orientation before stripping metadata
+    .resize(PHOTO_SIZE_PX, PHOTO_SIZE_PX, {
+      fit: 'cover',
+      position: 'centre',
+    })
+    .jpeg({ quality: PHOTO_JPEG_QUALITY, mozjpeg: true })
+    .toBuffer();
+}
 
 export const employeePhotoRoutes: FastifyPluginAsync = async (app) => {
   app.post(
@@ -32,8 +53,8 @@ export const employeePhotoRoutes: FastifyPluginAsync = async (app) => {
       if (!PHOTO_MIMES.includes(file.mimetype as any)) {
         throw new AppError(400, `Photo must be PNG, JPG, or WEBP (got ${file.mimetype})`);
       }
-      const buffer = await file.toBuffer();
-      if (buffer.length > PHOTO_MAX_BYTES) {
+      const rawBuffer = await file.toBuffer();
+      if (rawBuffer.length > PHOTO_MAX_BYTES) {
         throw new AppError(400, 'Photo exceeds 5 MB limit');
       }
 
@@ -46,14 +67,26 @@ export const employeePhotoRoutes: FastifyPluginAsync = async (app) => {
         .limit(1);
       if (!emp) throw new NotFoundError('Employee');
 
+      // Square-crop + downscale + re-encode before we ship it to S3. The
+      // client-side crop modal already normalises framing, but running
+      // sharp here also covers script uploads and out-of-bounds inputs.
+      let optimized: Buffer;
+      try {
+        optimized = await optimizePhoto(rawBuffer);
+      } catch (err: any) {
+        throw new AppError(400, `Could not read image: ${err?.message ?? 'unknown'}`);
+      }
+
       const storage = getStorageProvider();
       const storageKey = await storage.upload({
         tenantId: request.tenantId,
         entityType: 'employee_photo',
         entityId: id,
-        fileName: file.filename,
-        mimeType: file.mimetype,
-        data: buffer,
+        // Force a .jpg suffix so storage providers that key off the
+        // filename's extension serve the right Content-Type.
+        fileName: file.filename.replace(/\.[^.]+$/, '') + '.jpg',
+        mimeType: 'image/jpeg',
+        data: optimized,
       });
 
       await request.server.db
@@ -111,10 +144,12 @@ export const employeePhotoRoutes: FastifyPluginAsync = async (app) => {
       if (!emp || !emp.photoUrl) throw new NotFoundError('Photo');
 
       const stream = await getStorageProvider().getStream(emp.photoUrl);
-      // Browser caches the photo for 5 minutes per session — short enough
-      // that a fresh upload shows up quickly, long enough to avoid re-fetch
-      // on every list render.
-      reply.header('Cache-Control', 'private, max-age=300');
+      // Optimized photos are always stored as JPEG (see optimizePhoto). The
+      // browser still revalidates with no-cache on the client side, so we
+      // can let it cache the response without staleness risk.
+      reply
+        .header('Content-Type', 'image/jpeg')
+        .header('Cache-Control', 'private, max-age=300');
       return reply.send(stream);
     },
   );

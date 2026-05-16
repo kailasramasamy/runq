@@ -25,6 +25,8 @@ import { wageRegisterRoutes } from './wage-register.routes';
 import { hrDashboardRoutes } from './dashboard.routes';
 import { ExpenseClaimPostingService } from './expense-claim-posting.service';
 import { StatutoryCalendarService } from './statutory-calendar.service';
+import { employees, users, payslips, payrollRuns } from '@runq/db';
+import { and, eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 const postExpenseClaimSchema = z.object({ employeeId: z.string().uuid() });
@@ -47,6 +49,126 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(tdsRoutes);
   await app.register(wageRegisterRoutes);
   await app.register(hrDashboardRoutes);
+
+  // GET /hr/me — resolve the logged-in user to their employee record (by
+  // email match within the tenant) and indicate whether they should see
+  // manager-only surfaces in the mobile app. `isManager` is true for system
+  // roles owner/accountant OR when the matched employee has direct reports.
+  // Returns 204 when the user has no employee row (web-only admin/CA login).
+  app.get(
+    '/me',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request, reply) => {
+      const userId = request.user!.userId;
+      const tenantId = request.tenantId;
+
+      const [userRow] = await request.server.db
+        .select({ email: users.email, role: users.role })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!userRow) return reply.status(404).send({ message: 'User not found' });
+
+      const [emp] = await request.server.db
+        .select({
+          id: employees.id,
+          employeeCode: employees.employeeCode,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+          email: employees.email,
+          photoUrl: employees.photoUrl,
+          designationId: employees.designationId,
+          departmentId: employees.departmentId,
+          status: employees.status,
+        })
+        .from(employees)
+        .where(
+          and(
+            eq(employees.tenantId, tenantId),
+            sql`lower(${employees.email}) = lower(${userRow.email})`,
+          ),
+        )
+        .limit(1);
+
+      const isSystemManager = userRow.role === 'owner' || userRow.role === 'accountant';
+      let hasReports = false;
+      if (emp) {
+        const [{ count }] = await request.server.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.tenantId, tenantId),
+              eq(employees.reportingToId, emp.id),
+            ),
+          );
+        hasReports = (count ?? 0) > 0;
+      }
+
+      return {
+        data: {
+          employee: emp ?? null,
+          isManager: isSystemManager || hasReports,
+          systemRole: userRow.role,
+        },
+      };
+    },
+  );
+
+  // GET /hr/me/payslips — last N payslips for the logged-in user's employee
+  // record (newest first). Mobile uses this for the Pay tab without having
+  // to know any payroll-run IDs. Each row includes month/year/runStatus so
+  // the UI can render period + payment status without a second fetch.
+  app.get(
+    '/me/payslips',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const userId = request.user!.userId;
+      const tenantId = request.tenantId;
+      const [userRow] = await request.server.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!userRow) return { data: [] };
+
+      const [emp] = await request.server.db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(
+          and(
+            eq(employees.tenantId, tenantId),
+            sql`lower(${employees.email}) = lower(${userRow.email})`,
+          ),
+        )
+        .limit(1);
+      if (!emp) return { data: [] };
+
+      const rows = await request.server.db
+        .select({
+          ps: payslips,
+          month: payrollRuns.month,
+          year: payrollRuns.year,
+          runStatus: payrollRuns.status,
+        })
+        .from(payslips)
+        .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
+        .where(
+          and(eq(payslips.tenantId, tenantId), eq(payslips.employeeId, emp.id)),
+        )
+        .orderBy(desc(payrollRuns.year), desc(payrollRuns.month))
+        .limit(24);
+
+      return {
+        data: rows.map((r) => ({
+          ...r.ps,
+          month: r.month,
+          year: r.year,
+          runStatus: r.runStatus,
+        })),
+      };
+    },
+  );
 
   // Upcoming statutory deadlines (TDS deposits, Form 24Q, PT) with filing status.
   app.get(
