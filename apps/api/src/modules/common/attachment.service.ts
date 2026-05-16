@@ -20,6 +20,7 @@ export class AttachmentService {
     mimeType: string;
     data: Buffer;
     uploadedBy: string;
+    documentKind?: string | null;
   }): Promise<DocumentAttachment> {
     const storageKey = await this.storage.upload({
       tenantId: this.tenantId,
@@ -36,6 +37,7 @@ export class AttachmentService {
         tenantId: this.tenantId,
         entityType: params.entityType,
         entityId: params.entityId,
+        documentKind: params.documentKind ?? null,
         fileName: params.fileName,
         fileSize: params.fileSize,
         mimeType: params.mimeType,
@@ -50,17 +52,20 @@ export class AttachmentService {
   async listByEntity(
     entityType: AttachmentEntityType,
     entityId: string,
+    documentKind?: string,
   ): Promise<DocumentAttachment[]> {
+    const conditions = [
+      eq(documentAttachments.tenantId, this.tenantId),
+      eq(documentAttachments.entityType, entityType),
+      eq(documentAttachments.entityId, entityId),
+    ];
+    if (documentKind) {
+      conditions.push(eq(documentAttachments.documentKind, documentKind));
+    }
     const rows = await this.db
       .select()
       .from(documentAttachments)
-      .where(
-        and(
-          eq(documentAttachments.tenantId, this.tenantId),
-          eq(documentAttachments.entityType, entityType),
-          eq(documentAttachments.entityId, entityId),
-        ),
-      )
+      .where(and(...conditions))
       .orderBy(documentAttachments.createdAt);
 
     return rows.map(this.toAttachment);
@@ -103,6 +108,7 @@ export class AttachmentService {
       tenantId: row.tenantId,
       entityType: row.entityType,
       entityId: row.entityId,
+      documentKind: row.documentKind ?? null,
       fileName: row.fileName,
       fileSize: row.fileSize,
       mimeType: row.mimeType,

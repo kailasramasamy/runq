@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Pencil, X, ArrowLeft } from 'lucide-react';
+import { Pencil, X, ArrowLeft, Camera, Trash2 } from 'lucide-react';
 import { PageHeader, Button, Badge, useToast } from '@/components/ui';
 import { Avatar } from '@/components/ar/primitives';
 import { EmployeeForm } from '@/components/forms/employee-form';
 import { useEmployee, useUpdateEmployee, type EmployeeStatus } from '@/hooks/queries/use-hr';
+import {
+  useEmployeePhotoSrc, useUploadEmployeePhoto, useDeleteEmployeePhoto,
+} from '@/hooks/queries/use-employee-documents';
 import { OverviewTab, LeaveTab, PayrollTab } from './_employee-tabs';
+import { DocumentsTab } from './_documents-tab';
 
 const STATUS_BADGE: Record<EmployeeStatus, { variant: any; label: string }> = {
   active: { variant: 'success', label: 'Active' },
@@ -14,7 +18,7 @@ const STATUS_BADGE: Record<EmployeeStatus, { variant: any; label: string }> = {
   terminated: { variant: 'danger', label: 'Terminated' },
 };
 
-type Tab = 'overview' | 'leave' | 'payroll';
+type Tab = 'overview' | 'documents' | 'leave' | 'payroll';
 
 interface Props { employeeId: string }
 
@@ -78,7 +82,7 @@ export function EmployeeDetailPage({ employeeId }: Props) {
         style={{ background: 'linear-gradient(135deg, var(--accent-soft) 0%, var(--surface-2) 100%)', borderColor: 'var(--border)' }}
       >
         <div className="flex items-start gap-4">
-          <Avatar name={name} size={56} />
+          <AvatarUploader employeeId={employeeId} name={name} hasPhoto={!!employee.photoUrl} />
           <div className="min-w-0 flex-1">
             <div className="text-[17px] font-bold" style={{ color: 'var(--text-1)' }}>{name}</div>
             <div className="mt-0.5 text-[13px]" style={{ color: 'var(--text-2)' }}>
@@ -109,7 +113,7 @@ export function EmployeeDetailPage({ employeeId }: Props) {
 
       {/* Tab strip */}
       <div className="mb-4 flex gap-0 border-b" style={{ borderColor: 'var(--border)' }}>
-        {(['overview', 'leave', 'payroll'] as Tab[]).map((t) => (
+        {(['overview', 'documents', 'leave', 'payroll'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -137,8 +141,86 @@ export function EmployeeDetailPage({ employeeId }: Props) {
           <OverviewTab employee={employee} />
         )
       )}
+      {tab === 'documents' && <DocumentsTab employeeId={employeeId} />}
       {tab === 'leave' && <LeaveTab employeeId={employeeId} />}
       {tab === 'payroll' && <PayrollTab employeeId={employeeId} />}
+    </div>
+  );
+}
+
+/**
+ * Avatar in the profile header with hover-overlay controls. Click anywhere
+ * on the avatar to upload; trash icon (when a photo exists) to remove.
+ * Image is fetched as a blob through the authenticated endpoint and turned
+ * into an object URL — <img src> can't carry a bearer token directly.
+ */
+function AvatarUploader({
+  employeeId, name, hasPhoto,
+}: {
+  employeeId: string;
+  name: string;
+  hasPhoto: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { data: photoSrc } = useEmployeePhotoSrc(employeeId, hasPhoto);
+  const upload = useUploadEmployeePhoto(employeeId);
+  const remove = useDeleteEmployeePhoto(employeeId);
+  const { toast } = useToast();
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    upload.mutate(file, {
+      onSuccess: () => toast('Photo updated', 'success'),
+      onError: (err: any) => toast(err?.message ?? 'Upload failed', 'error'),
+    });
+    e.target.value = '';
+  }
+
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="block rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2"
+        style={{ ['--tw-ring-color' as any]: 'var(--accent)' }}
+        title="Click to upload photo"
+      >
+        <Avatar name={name} size={56} src={photoSrc ?? undefined} />
+        <span
+          className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <Camera size={18} color="white" />
+        </span>
+      </button>
+      {hasPhoto && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!confirm('Remove this photo?')) return;
+            remove.mutate(undefined, {
+              onSuccess: () => toast('Photo removed', 'success'),
+              onError: (err: any) => toast(err?.message ?? 'Delete failed', 'error'),
+            });
+          }}
+          title="Remove photo"
+          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border opacity-0 transition-opacity group-hover:opacity-100"
+          style={{
+            background: 'var(--surface)',
+            borderColor: 'var(--border)',
+            color: 'var(--neg)',
+          }}
+        >
+          <Trash2 size={11} />
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        className="hidden"
+        onChange={pick}
+      />
     </div>
   );
 }

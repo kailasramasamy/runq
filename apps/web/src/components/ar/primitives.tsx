@@ -559,8 +559,34 @@ function hashHue(name: string): number {
   return h % 360;
 }
 
-export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
+export function Avatar({
+  name, size = 28, src,
+}: { name: string; size?: number; src?: string | null }) {
   const hue = hashHue(name);
+  // When a photo URL is supplied, render it on top of the initials. The
+  // initials show through if the image fails to load (no onError handler
+  // needed — broken <img> renders alt text or blank, and the pill background
+  // remains visible behind it for any transparency).
+  if (src) {
+    return (
+      <span
+        className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold"
+        style={{
+          width: size, height: size,
+          fontSize: Math.max(10, Math.round(size * 0.4)),
+          background: `oklch(0.92 0.06 ${hue})`,
+          color: `oklch(0.35 0.12 ${hue})`,
+        }}
+      >
+        <span aria-hidden="true">{initials(name) || '?'}</span>
+        <img
+          src={src}
+          alt={name}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      </span>
+    );
+  }
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold"

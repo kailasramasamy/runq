@@ -8,6 +8,7 @@ export const attachmentEntityTypeEnum = pgEnum('attachment_entity_type', [
   'payment',
   'receipt',
   'expense',
+  'employee',
 ]);
 
 export const documentAttachments = pgTable('document_attachments', {
@@ -15,6 +16,10 @@ export const documentAttachments = pgTable('document_attachments', {
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   entityType: attachmentEntityTypeEnum('entity_type').notNull(),
   entityId: uuid('entity_id').notNull(),
+  // Optional categorisation tag (e.g. 'aadhaar', 'pan', 'offer_letter') —
+  // nullable for the finance attachments that don't need a kind. HR rows
+  // always set it; the UI groups Documents tab cards by this value.
+  documentKind: varchar('document_kind', { length: 40 }),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileSize: integer('file_size').notNull(),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
@@ -23,4 +28,5 @@ export const documentAttachments = pgTable('document_attachments', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_da_tenant_entity').on(t.tenantId, t.entityType, t.entityId),
+  index('idx_da_entity_kind').on(t.tenantId, t.entityType, t.entityId, t.documentKind),
 ]);

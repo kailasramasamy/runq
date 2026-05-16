@@ -51,6 +51,11 @@ export const employees = pgTable('employees', {
   bankIfsc: varchar('bank_ifsc', { length: 11 }),
   bankName: varchar('bank_name', { length: 100 }),
 
+  // Profile photo — S3 storage key for the avatar. Stored as a direct column
+  // rather than going through document_attachments because there's exactly
+  // one per employee and it's read on every employee card/row render.
+  photoUrl: varchar('photo_url', { length: 500 }),
+
   ctcAnnual: decimal('ctc_annual', { precision: 15, scale: 2 }),
 
   agency: varchar('agency', { length: 150 }),

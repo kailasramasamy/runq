@@ -52,6 +52,7 @@ export interface Employee {
   bankAccountNumber: string | null;
   bankIfsc: string | null;
   bankName: string | null;
+  photoUrl: string | null;
   ctcAnnual: string | null;
   agency: string | null;
   dailyWageRate: string | null;

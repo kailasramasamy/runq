@@ -1,5 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
-import { attachmentParamsSchema, attachmentIdSchema, ALLOWED_MIME_TYPES } from '@runq/validators';
+import {
+  attachmentParamsSchema, attachmentIdSchema,
+  ALLOWED_MIME_TYPES, HR_DOC_ALLOWED_MIME_TYPES,
+  employeeDocumentKindSchema,
+} from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { AttachmentService } from './attachment.service';
 import { getStorageProvider } from '../../utils/storage';
@@ -17,10 +21,22 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
       const file = await request.file();
       if (!file) throw new AppError(400, 'No file uploaded');
 
-      validateMimeType(file.mimetype);
+      // Employee docs use a stricter image+PDF whitelist; finance docs allow
+      // spreadsheets and CSV too. Validation diverges accordingly.
+      validateMimeType(file.mimetype, params.entityType);
 
       const buffer = await file.toBuffer();
       validateFileSize(buffer.length);
+
+      // `kind` is an optional multipart field, only meaningful for HR uploads.
+      // multipart fields arrive on the same iterator as files — pull from
+      // `file.fields` which Fastify aggregates after the file is consumed.
+      const kindField = (file.fields as Record<string, { value?: string } | undefined>)?.kind;
+      const rawKind = kindField?.value;
+      const documentKind =
+        params.entityType === 'employee' && rawKind
+          ? employeeDocumentKindSchema.parse(rawKind)
+          : null;
 
       const service = createService(request);
       const data = await service.upload({
@@ -31,6 +47,7 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
         mimeType: file.mimetype,
         data: buffer,
         uploadedBy: request.user!.userId,
+        documentKind,
       });
 
       reply.code(201);
@@ -43,8 +60,10 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
       const params = attachmentParamsSchema.parse(request.params);
+      const q = request.query as { kind?: string };
+      const documentKind = q.kind ? employeeDocumentKindSchema.parse(q.kind) : undefined;
       const service = createService(request);
-      const data = await service.listByEntity(params.entityType, params.entityId);
+      const data = await service.listByEntity(params.entityType, params.entityId, documentKind);
       return { data };
     },
   );
@@ -88,9 +107,13 @@ function createService(request: { server: { db: any }; tenantId: string }) {
   );
 }
 
-function validateMimeType(mimeType: string): void {
-  if (!ALLOWED_MIME_TYPES.includes(mimeType as any)) {
-    throw new AppError(400, `File type '${mimeType}' is not allowed. Allowed: PDF, PNG, JPG, XLSX, CSV`);
+function validateMimeType(mimeType: string, entityType: string): void {
+  const whitelist =
+    entityType === 'employee' ? HR_DOC_ALLOWED_MIME_TYPES : ALLOWED_MIME_TYPES;
+  if (!whitelist.includes(mimeType as any)) {
+    const label =
+      entityType === 'employee' ? 'PDF, PNG, JPG, WEBP' : 'PDF, PNG, JPG, XLSX, CSV';
+    throw new AppError(400, `File type '${mimeType}' is not allowed. Allowed: ${label}`);
   }
 }
 
