@@ -1,13 +1,32 @@
 import { useRef, useState } from 'react';
 import {
   Upload, Trash2, Eye, Download, FileText, Image as ImageIcon, Loader2,
+  AlertTriangle, CalendarClock,
 } from 'lucide-react';
-import { useToast } from '@/components/ui';
+import { Modal, useToast } from '@/components/ui';
 import type { DocumentAttachment, EmployeeDocumentKind } from '@runq/types';
 import {
   useEmployeeDocuments, useUploadEmployeeDocument, useDeleteEmployeeDocument,
   documentDownloadUrl,
 } from '@/hooks/queries/use-employee-documents';
+
+/** Kinds with a natural expiry date — only these prompt for one on upload. */
+const KINDS_WITH_EXPIRY: ReadonlySet<EmployeeDocumentKind> = new Set([
+  'aadhaar', 'passport', 'driving_license', 'voter_id',
+  'address_proof', 'photo_id_card', 'employment_contract',
+]);
+
+/** Sensible default expiry per kind so the picker has somewhere to start. */
+function defaultExpiry(kind: EmployeeDocumentKind): string {
+  const now = new Date();
+  const out = new Date(now);
+  const yearsAhead = kind === 'passport' ? 10
+    : kind === 'driving_license' ? 5
+    : kind === 'employment_contract' ? 1
+    : 5;
+  out.setFullYear(now.getFullYear() + yearsAhead);
+  return out.toISOString().slice(0, 10);
+}
 
 /** Doc kind metadata — label, section grouping, single vs multi expected. */
 const KIND_META: Record<EmployeeDocumentKind, { label: string; section: 'identity' | 'employment' | 'other' }> = {
@@ -125,15 +144,32 @@ function KindCard({
   const upload = useUploadEmployeeDocument(employeeId);
   const remove = useDeleteEmployeeDocument(employeeId);
   const { toast } = useToast();
+  // Two-step upload for expirable kinds — pick file → modal collects
+  // optional expiry → POST. Non-expirable kinds go straight to upload.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
+    if (KINDS_WITH_EXPIRY.has(kind)) {
+      setPendingFile(file);
+      return;
+    }
     upload.mutate({ file, kind }, {
       onSuccess: () => toast(`${meta.label} uploaded`, 'success'),
       onError: (err: any) => toast(err?.message ?? 'Upload failed', 'error'),
     });
-    e.target.value = '';
+  }
+
+  function uploadWithExpiry(expiryDate: string | null) {
+    if (!pendingFile) return;
+    const file = pendingFile;
+    setPendingFile(null);
+    upload.mutate({ file, kind, expiryDate }, {
+      onSuccess: () => toast(`${meta.label} uploaded`, 'success'),
+      onError: (err: any) => toast(err?.message ?? 'Upload failed', 'error'),
+    });
   }
 
   function handleDelete(id: string) {
@@ -183,7 +219,94 @@ function KindCard({
           ))}
         </ul>
       )}
+      <ExpiryPromptModal
+        open={pendingFile !== null}
+        kind={kind}
+        fileName={pendingFile?.name ?? ''}
+        onCancel={() => setPendingFile(null)}
+        onSkip={() => uploadWithExpiry(null)}
+        onSubmit={uploadWithExpiry}
+      />
     </div>
+  );
+}
+
+/** Compact "when does this expire?" modal opened after a file pick for
+ *  kinds with a natural expiry. Skip falls back to a null expiry. */
+function ExpiryPromptModal({
+  open, kind, fileName, onCancel, onSkip, onSubmit,
+}: {
+  open: boolean;
+  kind: EmployeeDocumentKind;
+  fileName: string;
+  onCancel: () => void;
+  onSkip: () => void;
+  onSubmit: (yyyyMmDd: string) => void;
+}) {
+  const [value, setValue] = useState<string>(() => defaultExpiry(kind));
+  return (
+    <Modal open={open} onClose={onCancel} title={`${KIND_META[kind].label} expiry`} size="sm">
+      <div className="space-y-3 px-4 py-4 sm:px-6">
+        <div className="text-[12px]" style={{ color: 'var(--text-2)' }}>
+          When does <span className="font-medium" style={{ color: 'var(--text-1)' }}>{fileName}</span> expire?
+          We'll show a warning on the dashboard 90 days before. Skip if it doesn't expire.
+        </div>
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-full rounded-md border px-3 py-2 text-[13px]"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
+        />
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="rounded-md border px-3 py-1.5 text-[12px]"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit(value)}
+            disabled={!value}
+            className="rounded-md px-3 py-1.5 text-[12px] font-medium text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            Save expiry & upload
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Tone-graded urgency chip — red ≤7d, amber ≤30d, slate beyond. */
+function ExpiryChip({ iso }: { iso: string }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(iso + 'T00:00:00');
+  const daysLeft = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  const tone =
+    daysLeft < 0 ? { bg: 'rgba(239,68,68,0.12)', fg: 'rgb(220,38,38)' }
+    : daysLeft <= 7 ? { bg: 'rgba(239,68,68,0.12)', fg: 'rgb(220,38,38)' }
+    : daysLeft <= 30 ? { bg: 'rgba(245,158,11,0.15)', fg: 'rgb(180,83,9)' }
+    : { bg: 'var(--surface-2)', fg: 'var(--text-3)' };
+  const label =
+    daysLeft < 0 ? `Expired ${-daysLeft}d ago`
+    : daysLeft === 0 ? 'Expires today'
+    : `Expires in ${daysLeft}d`;
+  const Ico = daysLeft <= 30 ? AlertTriangle : CalendarClock;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+      style={{ background: tone.bg, color: tone.fg }}
+      title={`Expires ${iso}`}
+    >
+      <Ico size={10} />
+      {label}
+    </span>
   );
 }
 
@@ -222,6 +345,7 @@ function DocRow({
       style={{ color: 'var(--text-1)' }}>
       <Icon size={14} style={{ color: 'var(--text-3)' }} />
       <span className="min-w-0 flex-1 truncate" title={doc.fileName}>{doc.fileName}</span>
+      {doc.expiryDate && <ExpiryChip iso={doc.expiryDate} />}
       <span className="text-[10px]" style={{ color: 'var(--text-3)' }}>{bytes(doc.fileSize)}</span>
       <button type="button" onClick={() => open('view')} title="View" className="rounded p-0.5 hover:bg-[color:var(--surface-2)]" style={{ color: 'var(--text-2)' }}>
         <Eye size={13} />

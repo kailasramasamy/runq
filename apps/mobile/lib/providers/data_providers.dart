@@ -61,30 +61,41 @@ final invoiceSummaryProvider = FutureProvider<InvoiceSummary>((ref) async {
 });
 
 class InvoiceFilter {
+  final String? customerId;
   final String? status;
   final String? search;
   final DateTime? dateFrom;
   final DateTime? dateTo;
-  const InvoiceFilter({this.status, this.search, this.dateFrom, this.dateTo});
+  const InvoiceFilter({this.customerId, this.status, this.search, this.dateFrom, this.dateTo});
 
   @override
   bool operator ==(Object o) =>
       o is InvoiceFilter &&
+      o.customerId == customerId &&
       o.status == status &&
       o.search == search &&
       o.dateFrom == dateFrom &&
       o.dateTo == dateTo;
   @override
-  int get hashCode => Object.hash(status, search, dateFrom, dateTo);
+  int get hashCode => Object.hash(customerId, status, search, dateFrom, dateTo);
 }
 
 final invoicesProvider = FutureProvider.family<PaginatedResponse<Invoice>, InvoiceFilter>((ref, f) async {
   return _watchAuth(ref, () => invoicesRepo.list(
+        customerId: f.customerId,
         status: f.status,
         search: f.search,
         dateFrom: f.dateFrom,
         dateTo: f.dateTo,
       ));
+});
+
+/// Per-customer summary — scopes every metric (totals, overdue, draft count)
+/// to the given customer. Pass `null` to get the tenant-wide summary, same
+/// as [invoiceSummaryProvider] (we keep both so existing call sites that
+/// only ever want the global view stay untouched).
+final filteredInvoiceSummaryProvider = FutureProvider.family<InvoiceSummary, String?>((ref, customerId) async {
+  return _watchAuth(ref, () => invoicesRepo.summary(customerId: customerId));
 });
 
 final invoiceDetailProvider = FutureProvider.family<InvoiceWithDetails, String>((ref, id) async {
@@ -100,30 +111,41 @@ final billsSummaryProvider = FutureProvider<BillsSummary>((ref) async {
 });
 
 class BillFilter {
+  final String? vendorId;
   final String? status;
   final String? search;
   final DateTime? dateFrom;
   final DateTime? dateTo;
-  const BillFilter({this.status, this.search, this.dateFrom, this.dateTo});
+  const BillFilter({this.vendorId, this.status, this.search, this.dateFrom, this.dateTo});
 
   @override
   bool operator ==(Object o) =>
       o is BillFilter &&
+      o.vendorId == vendorId &&
       o.status == status &&
       o.search == search &&
       o.dateFrom == dateFrom &&
       o.dateTo == dateTo;
   @override
-  int get hashCode => Object.hash(status, search, dateFrom, dateTo);
+  int get hashCode => Object.hash(vendorId, status, search, dateFrom, dateTo);
 }
 
 final billsProvider = FutureProvider.family<PaginatedResponse<Bill>, BillFilter>((ref, f) async {
   return _watchAuth(ref, () => billsRepo.list(
+        vendorId: f.vendorId,
         status: f.status,
         search: f.search,
         dateFrom: f.dateFrom,
         dateTo: f.dateTo,
       ));
+});
+
+/// Per-vendor AP summary — scopes outstanding / overdue / pending-approval
+/// counts to the given vendor. Pass `null` to get the tenant-wide view
+/// (same payload as [billsSummaryProvider]). Existing call sites use
+/// [billsSummaryProvider] unchanged so the dashboard isn't disturbed.
+final filteredBillsSummaryProvider = FutureProvider.family<BillsSummary, String?>((ref, vendorId) async {
+  return _watchAuth(ref, () => billsRepo.summary(vendorId: vendorId));
 });
 
 final billDetailProvider = FutureProvider.family<BillWithDetails, String>((ref, id) async {

@@ -294,15 +294,16 @@ export class Gstr2bReconciliationService {
 
   /**
    * Convert a `not_in_books` 2B match into a draft purchase invoice so
-   * the owner can claim the ITC. Finds (or creates) the vendor by GSTIN,
-   * derives the tax rate from the 2B tax/taxable ratio, then re-links the
-   * match to the new bill. The bill is created in `draft` status — the
-   * owner reviews/approves it in the bills screen before posting to GL.
+   * the owner can claim the ITC. Resolves the vendor (auto if uncontested,
+   * else returns candidate duplicates for the caller to pick from), then
+   * creates a draft bill with rate derived from the 2B tax/taxable ratio.
+   * The bill is in `draft` status — the owner approves it before posting.
    */
   async bookFromMatch(
     matchId: string,
+    options?: BookFromMatchOptions,
     userId?: string,
-  ): Promise<{ billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }> {
+  ): Promise<BookFromMatchResult> {
     const [match] = await this.db
       .select()
       .from(gstr2bMatches)
@@ -313,7 +314,12 @@ export class Gstr2bReconciliationService {
       throw new ConflictError('Only "not in books" entries can be booked');
     }
 
-    const vendorId = await this.findOrCreateVendor(match.supplierGstin, match.supplierName);
+    const resolution = await this.resolveVendor(match.supplierGstin, match.supplierName, options);
+    if (resolution.kind === 'needs_decision') {
+      return { status: 'needs_vendor_decision', candidates: resolution.candidates };
+    }
+    const vendorId = resolution.vendorId;
+
     const invoiceDate = parseDdMmYyyy(match.invoiceDate2b)
       ?? new Date().toISOString().slice(0, 10);
 
@@ -361,17 +367,85 @@ export class Gstr2bReconciliationService {
       })
       .where(eq(gstr2bMatches.id, matchId));
 
-    return { billId: bill.id, vendorId, matchStatus: newStatus };
+    return { status: 'booked', billId: bill.id, vendorId, matchStatus: newStatus };
   }
 
-  private async findOrCreateVendor(gstin: string, supplierName: string | null): Promise<string> {
-    const [existing] = await this.db
+  /**
+   * Decide which vendor the new bill should attach to. Three paths:
+   *  1. Caller forced `use_existing` → patch that vendor's GSTIN to the 2B
+   *     value (covers the typo-fix case) and use it.
+   *  2. Caller forced `create_new` → skip duplicate detection.
+   *  3. Auto → exact GSTIN match wins; otherwise scan for near-duplicates
+   *     and bounce the decision back to the caller if any are found.
+   */
+  private async resolveVendor(
+    gstin: string,
+    supplierName: string | null,
+    options?: BookFromMatchOptions,
+  ): Promise<{ kind: 'resolved'; vendorId: string } | { kind: 'needs_decision'; candidates: VendorCandidate[] }> {
+    if (options?.vendorAction === 'use_existing' && options.existingVendorId) {
+      await this.db.update(vendors)
+        .set({ gstin, updatedAt: new Date() })
+        .where(and(eq(vendors.id, options.existingVendorId), eq(vendors.tenantId, this.tenantId)));
+      return { kind: 'resolved', vendorId: options.existingVendorId };
+    }
+    if (options?.vendorAction === 'create_new') {
+      return { kind: 'resolved', vendorId: await this.createVendor(gstin, supplierName) };
+    }
+
+    const [exact] = await this.db
       .select({ id: vendors.id })
       .from(vendors)
       .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.gstin, gstin)))
       .limit(1);
-    if (existing) return existing.id;
+    if (exact) return { kind: 'resolved', vendorId: exact.id };
 
+    const candidates = await this.findDuplicateCandidates(gstin, supplierName);
+    if (candidates.length > 0) return { kind: 'needs_decision', candidates };
+
+    return { kind: 'resolved', vendorId: await this.createVendor(gstin, supplierName) };
+  }
+
+  /**
+   * Three signals that flag an existing vendor as "probably the same entity":
+   *  - GSTIN positions 3-12 match (same PAN — same legal entity, maybe a
+   *    different state branch, but also catches typos in state-code/checksum).
+   *  - Levenshtein distance 1 on GSTIN (single-char typo — Padma Q↔O case).
+   *  - Normalized name match when GSTIN is absent or unrelated (Electrotech
+   *    case where the books vendor had the tenant's own GSTIN by mistake).
+   * Returns the candidate vendors so the caller can decide merge vs new.
+   */
+  private async findDuplicateCandidates(
+    gstin: string,
+    supplierName: string | null,
+  ): Promise<VendorCandidate[]> {
+    const panPortion = gstin.length === 15 ? gstin.slice(2, 12) : '';
+    const normName = normalizeName(supplierName ?? '');
+
+    const all = await this.db
+      .select({ id: vendors.id, name: vendors.name, gstin: vendors.gstin })
+      .from(vendors)
+      .where(eq(vendors.tenantId, this.tenantId));
+
+    const out: VendorCandidate[] = [];
+    for (const v of all) {
+      if (v.gstin === gstin) continue;
+      if (v.gstin && v.gstin.length === 15 && panPortion && v.gstin.slice(2, 12) === panPortion) {
+        out.push({ id: v.id, name: v.name, gstin: v.gstin, reason: 'same_pan' });
+        continue;
+      }
+      if (v.gstin && v.gstin.length === 15 && levenshtein1(v.gstin, gstin)) {
+        out.push({ id: v.id, name: v.name, gstin: v.gstin, reason: 'gstin_typo' });
+        continue;
+      }
+      if (normName && normName.length >= 4 && normalizeName(v.name) === normName) {
+        out.push({ id: v.id, name: v.name, gstin: v.gstin, reason: 'same_name' });
+      }
+    }
+    return out;
+  }
+
+  private async createVendor(gstin: string, supplierName: string | null): Promise<string> {
     const stateCode = gstin.slice(0, 2);
     const stateName = INDIAN_STATES[stateCode] ?? null;
     const cleanName = (supplierName ?? '').replace(/,\s*$/, '').trim() || `Supplier ${gstin}`;
@@ -561,3 +635,38 @@ function parseDdMmYyyy(s: string | null): string | null {
   const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
+
+/** Strip punctuation/whitespace and lowercase — for "same supplier name?" check. */
+function normalizeName(name: string): string {
+  return name.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+/**
+ * True iff strings differ by exactly one substitution. Cheaper than
+ * full Levenshtein and sufficient for catching GSTIN single-char typos
+ * (length 15, equal length, one differing position).
+ */
+function levenshtein1(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diffs = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i] && ++diffs > 1) return false;
+  }
+  return diffs === 1;
+}
+
+export interface VendorCandidate {
+  id: string;
+  name: string;
+  gstin: string | null;
+  reason: 'same_pan' | 'gstin_typo' | 'same_name';
+}
+
+export interface BookFromMatchOptions {
+  vendorAction?: 'use_existing' | 'create_new';
+  existingVendorId?: string;
+}
+
+export type BookFromMatchResult =
+  | { status: 'booked'; billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }
+  | { status: 'needs_vendor_decision'; candidates: VendorCandidate[] };

@@ -38,6 +38,9 @@ export interface DocumentAttachment {
   fileSize: number;
   mimeType: string;
   storageKey: string;
+  /** YYYY-MM-DD when set. HR docs use it for ID / contract expiry
+   *  tracking; finance attachments leave it null. */
+  expiryDate: string | null;
   uploadedBy: string | null;
   createdAt: string;
 }

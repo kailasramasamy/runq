@@ -12,6 +12,7 @@ import {
 } from '@/hooks/queries/use-hr';
 import { usePayrollRuns } from '@/hooks/queries/use-hr-payroll';
 import { StatutoryCalendar } from '@/components/dashboard/statutory-calendar';
+import { PeopleContextSections } from '@/components/dashboard/hr-people-sections';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -331,6 +332,10 @@ export function HRDashboardPage() {
           onClick={() => navigate({ to: '/hr/payroll-runs' })}
         />
       </div>
+
+      {/* People context — who's out, celebrations, joiners/exits, attendance
+          sparkline, expiring documents. Mirrors mobile HR home. */}
+      <PeopleContextSections />
 
       {/* Statutory calendar — TDS, Form 24Q, PT, PF/ESI, GST deadlines */}
       <div className="mb-6">

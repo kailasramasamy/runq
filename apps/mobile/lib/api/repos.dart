@@ -52,12 +52,21 @@ class DashboardRepo {
 }
 
 class InvoicesRepo {
-  Future<InvoiceSummary> summary() async {
-    final res = await apiClient.get('/ar/invoices/summary');
+  /// Tenant-wide AR summary. Pass [customerId] to scope every metric
+  /// (totals, overdue, draft count, …) to one customer — backend filter
+  /// schema already accepts it.
+  Future<InvoiceSummary> summary({String? customerId}) async {
+    final qp = <String, String>{};
+    if (customerId != null && customerId.isNotEmpty) qp['customerId'] = customerId;
+    final url = qp.isEmpty
+        ? '/ar/invoices/summary'
+        : '/ar/invoices/summary?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get(url);
     return InvoiceSummary.fromJson(_data(res));
   }
 
   Future<PaginatedResponse<Invoice>> list({
+    String? customerId,
     String? status,
     String? search,
     DateTime? dateFrom,
@@ -66,6 +75,7 @@ class InvoicesRepo {
     int limit = 50,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (customerId != null && customerId.isNotEmpty) qp['customerId'] = customerId;
     if (status != null && status.isNotEmpty) qp['status'] = status;
     if (search != null && search.isNotEmpty) qp['search'] = search;
     if (dateFrom != null) qp['dateFrom'] = _isoDate(dateFrom);
@@ -294,12 +304,21 @@ class CustomersRepo {
 }
 
 class BillsRepo {
-  Future<BillsSummary> summary() async {
-    final res = await apiClient.get('/ap/purchase-invoices/summary');
+  /// Tenant-wide AP summary. Pass [vendorId] to scope every metric
+  /// (outstanding, overdue, pending approval, paid this month) to one
+  /// vendor — backend reuses the bill filter schema for this query.
+  Future<BillsSummary> summary({String? vendorId}) async {
+    final qp = <String, String>{};
+    if (vendorId != null && vendorId.isNotEmpty) qp['vendorId'] = vendorId;
+    final url = qp.isEmpty
+        ? '/ap/purchase-invoices/summary'
+        : '/ap/purchase-invoices/summary?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get(url);
     return BillsSummary.fromJson(_data(res));
   }
 
   Future<PaginatedResponse<Bill>> list({
+    String? vendorId,
     String? status,
     String? search,
     DateTime? dateFrom,
@@ -308,6 +327,7 @@ class BillsRepo {
     int limit = 50,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (vendorId != null && vendorId.isNotEmpty) qp['vendorId'] = vendorId;
     if (status != null && status.isNotEmpty) qp['status'] = status;
     if (search != null && search.isNotEmpty) qp['search'] = search;
     if (dateFrom != null) qp['dateFrom'] = _isoDate(dateFrom);
@@ -632,6 +652,14 @@ class PoRepo {
     return _dataList(res).map(ItemSummary.fromJson).toList();
   }
 
+  /// Sibling SKUs of an item — same product, different sizes. Backs the
+  /// "change UoM" picker in the PO line editor so a 100ml line can swap to
+  /// the 1L SKU. Returns an empty list when the item has no siblings.
+  Future<List<ItemSummary>> itemVariants(String itemId) async {
+    final res = await apiClient.get('/masters/items/$itemId/variants');
+    return _dataList(res).map(ItemSummary.fromJson).toList();
+  }
+
   String? _guessMime(String path) {
     final ext = path.toLowerCase().split('.').last;
     switch (ext) {
@@ -757,6 +785,19 @@ class GstRepo {
 final dashboardRepo = DashboardRepo();
 final invoicesRepo = InvoicesRepo();
 final customersRepo = CustomersRepo();
+
+class VendorsRepo {
+  /// First page of vendors, optionally filtered by search. Powers the
+  /// vendor picker on the bills screen filter chip.
+  Future<List<VendorSummary>> list({String? search, int limit = 100}) async {
+    final qp = <String, String>{'limit': '$limit'};
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    final res = await apiClient.get('/ap/vendors?${Uri(queryParameters: qp).query}');
+    return _dataList(res).map(VendorSummary.fromJson).toList();
+  }
+}
+
+final vendorsRepo = VendorsRepo();
 final expensesRepo = ExpensesRepo();
 final inboxRepo = InboxRepo();
 

@@ -5,7 +5,7 @@ import {
   useRequestOtp, useVerifyOtp, useForceLogout, useBookFromMatch,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
-import type { Gstr2bMatch, ReconSummary } from '@/hooks/queries/use-gst-returns';
+import type { Gstr2bMatch, ReconSummary, VendorCandidate, BookFromMatchPayload } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
   Button, Card, CardContent, Badge, Combobox,
@@ -116,6 +116,48 @@ export function ReconciliationPage() {
   const reconMutation = useReconcile2b();
   const bookMutation = useBookFromMatch();
   const [bookingId, setBookingId] = useState<string | null>(null);
+  // When the backend spots a near-duplicate vendor for a 2B entry, it
+  // returns the candidates instead of silently creating a fresh vendor
+  // (which is how we ended up with double-vendor "ELECTROTECH SYSTEMS"
+  // and Padma Q/O records the first time around). The modal lets the
+  // user merge into the existing vendor (auto-patching its GSTIN to the
+  // 2B value) or force-create a new one.
+  const [vendorDecision, setVendorDecision] = useState<
+    { match: Gstr2bMatch; candidates: VendorCandidate[] } | null
+  >(null);
+
+  function runBook(payload: BookFromMatchPayload, sourceMatch: Gstr2bMatch) {
+    setBookingId(sourceMatch.id);
+    bookMutation.mutate(payload, {
+      onSuccess: (res: any) => {
+        setBookingId(null);
+        const data = res?.data;
+        if (data?.status === 'needs_vendor_decision') {
+          setVendorDecision({ match: sourceMatch, candidates: data.candidates });
+          return;
+        }
+        if (data?.status === 'booked') {
+          setVendorDecision(null);
+          toast(
+            data.matchStatus === 'matched'
+              ? 'Draft bill created and matched'
+              : 'Draft bill created (amounts differ — review in Bills)',
+            'success',
+          );
+        }
+      },
+      onError: (err: any) => {
+        setBookingId(null);
+        toast(err?.message ?? 'Failed to book bill', 'error');
+      },
+    });
+  }
+
+  const candidateReasonLabel: Record<VendorCandidate['reason'], string> = {
+    same_pan: 'Same PAN — likely same legal entity',
+    gstin_typo: 'GSTIN differs by one character — likely a typo',
+    same_name: 'Same supplier name — GSTIN may be wrong on the existing record',
+  };
   const { data: summaryData } = use2bSummary(period);
   const { data: matchesData, isLoading: matchesLoading } = use2bMatches(period, statusFilter);
 
@@ -366,25 +408,7 @@ export function ReconciliationPage() {
                             size="sm"
                             variant="outline"
                             disabled={bookMutation.isPending}
-                            onClick={() => {
-                              setBookingId(m.id);
-                              bookMutation.mutate(m.id, {
-                                onSuccess: (res: any) => {
-                                  const status = res?.data?.matchStatus;
-                                  toast(
-                                    status === 'matched'
-                                      ? 'Draft bill created and matched'
-                                      : 'Draft bill created (amounts differ — review in Bills)',
-                                    'success',
-                                  );
-                                  setBookingId(null);
-                                },
-                                onError: (err: any) => {
-                                  toast(err?.message ?? 'Failed to book bill', 'error');
-                                  setBookingId(null);
-                                },
-                              });
-                            }}
+                            onClick={() => runBook({ matchId: m.id }, m)}
                           >
                             {isBookingThis ? 'Booking…' : 'Book'}
                           </Button>

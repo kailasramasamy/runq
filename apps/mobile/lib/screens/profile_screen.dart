@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/app_module_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/theme_mode_provider.dart';
@@ -87,6 +88,26 @@ class ProfileScreen extends ConsumerWidget {
                         // it would stack a second instance with the same
                         // pageKey and trip the duplicate-key assertion.
                         onTap: () => context.go('/banking'),
+                      ),
+                    ],
+                  ),
+                  _Group(
+                    title: 'Modules',
+                    rows: [
+                      _RowSpec(
+                        icon: Icons.groups_rounded,
+                        iconBg: RunqColors.indigo.withValues(alpha: 0.10),
+                        iconFg: RunqColors.indigo,
+                        label: 'HR & Payroll',
+                        value: 'Switch',
+                        // Flip the global module switch, then jump to the HR
+                        // home. Using `go` instead of `push` so the back
+                        // stack resets to a clean HR-only history.
+                        onTap: () async {
+                          await ref.read(appModuleProvider.notifier)
+                              .setModule(AppModule.hr);
+                          if (context.mounted) context.go('/hr/home');
+                        },
                       ),
                     ],
                   ),

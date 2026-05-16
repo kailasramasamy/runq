@@ -594,3 +594,26 @@ export function useDailyMuster(date: string) {
     enabled: !!date,
   });
 }
+
+/** Joined row from `GET /hr/dashboard/expiring-documents`. */
+export interface ExpiringDoc {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePhotoUrl: string | null;
+  documentKind: string | null;
+  fileName: string;
+  expiryDate: string; // YYYY-MM-DD
+}
+
+/** HR docs expiring within the next `daysAhead` window. Drives the
+ *  manager dashboard's "Document expiries" card. */
+export function useExpiringDocuments(daysAhead = 90) {
+  return useQuery({
+    queryKey: ['hr', 'dashboard', 'expiring-docs', daysAhead],
+    queryFn: () => api.get<ApiSuccess<ExpiringDoc[]>>(
+      `/hr/dashboard/expiring-documents?daysAhead=${daysAhead}`,
+    ),
+  });
+}

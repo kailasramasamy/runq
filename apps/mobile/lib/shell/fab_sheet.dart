@@ -5,18 +5,108 @@ import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 import '../widgets/invoice_create_sheet.dart';
 
-class _Action {
+/// One row in the centre-FAB action sheet. Public so module-specific
+/// builders (Finance + HR) can hand their list to [FabSheet] without
+/// duplicating the row visuals.
+class FabAction {
   final IconData icon;
   final String title, sub;
   final Color tint;
   final void Function(BuildContext) onTap;
-  const _Action(this.icon, this.title, this.sub, this.tint, this.onTap);
+  const FabAction({
+    required this.icon,
+    required this.title,
+    required this.sub,
+    required this.tint,
+    required this.onTap,
+  });
 }
+
+/// Action set surfaced when the user is in Finance mode. Original quick
+/// actions — bill, invoice, payment, vendor pay, expenses.
+List<FabAction> financeFabActions() => [
+      FabAction(
+        icon: Icons.receipt_long_outlined,
+        title: 'Add a bill',
+        sub: 'Scan or upload',
+        tint: RunqColors.indigo,
+        onTap: (ctx) => startBillIntake(ctx),
+      ),
+      FabAction(
+        icon: Icons.send_outlined,
+        title: 'Create invoice',
+        sub: 'From a PO, blank, or upload',
+        tint: const Color(0xFF06B6D4),
+        onTap: (ctx) => showInvoiceCreateSheet(ctx),
+      ),
+      FabAction(
+        icon: Icons.payments_outlined,
+        title: 'Record payment',
+        sub: 'Mark a payment received',
+        tint: RunqColors.greenInk,
+        onTap: (ctx) => ctx.push('/invoices'),
+      ),
+      FabAction(
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'Pay a vendor',
+        sub: 'From any bank account',
+        tint: RunqColors.amberInk,
+        onTap: (ctx) => ctx.push('/bills'),
+      ),
+      FabAction(
+        icon: Icons.savings_outlined,
+        title: 'Expenses',
+        sub: 'Record + view out-of-pocket spends',
+        tint: const Color(0xFF7C3AED),
+        onTap: (ctx) => ctx.push('/expenses'),
+      ),
+    ];
+
+/// Action set surfaced when the user is in HR mode. Mirrors the most
+/// common employee + manager workflows in one tap. Uses the HR teal
+/// palette (with one cyan/green accent for visual rhythm) to keep the
+/// sheet on-brand for HR.
+List<FabAction> hrFabActions() => [
+      FabAction(
+        icon: Icons.fingerprint_rounded,
+        title: 'Check in / out',
+        sub: 'Stamp today\'s attendance',
+        tint: const Color(0xFF0891B2), // HR teal
+        onTap: (ctx) => ctx.push('/hr/time'),
+      ),
+      FabAction(
+        icon: Icons.event_available_outlined,
+        title: 'Apply for leave',
+        sub: 'CL · EL · SL — quick request',
+        tint: const Color(0xFF06B6D4),
+        onTap: (ctx) => ctx.push('/hr/pay?tab=leave'),
+      ),
+      FabAction(
+        icon: Icons.receipt_outlined,
+        title: 'Submit expense',
+        sub: 'Out-of-pocket claim',
+        tint: RunqColors.greenInk,
+        onTap: (ctx) => ctx.push('/hr/expense-claims/new'),
+      ),
+      FabAction(
+        icon: Icons.description_outlined,
+        title: 'My latest payslip',
+        sub: 'View this month\'s breakdown',
+        tint: const Color(0xFF155E75), // HR teal deep
+        onTap: (ctx) => ctx.push('/hr/pay'),
+      ),
+    ];
 
 class FabSheet extends StatelessWidget {
   final double progress;
   final VoidCallback onClose;
-  const FabSheet({super.key, required this.progress, required this.onClose});
+  final List<FabAction> actions;
+  const FabSheet({
+    super.key,
+    required this.progress,
+    required this.onClose,
+    required this.actions,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,46 +114,6 @@ class FabSheet extends StatelessWidget {
 
     final media = MediaQuery.of(context);
     final t = RT(context);
-    final actions = <_Action>[
-      _Action(
-        Icons.receipt_long_outlined,
-        'Add a bill',
-        'Scan or upload',
-        RunqColors.indigo,
-        (ctx) => startBillIntake(ctx),
-      ),
-      _Action(
-        Icons.send_outlined,
-        'Create invoice',
-        'From a PO, blank, or upload',
-        const Color(0xFF06B6D4),
-        (ctx) => showInvoiceCreateSheet(ctx),
-      ),
-      _Action(
-        Icons.payments_outlined,
-        'Record payment',
-        'Mark a payment received',
-        RunqColors.greenInk,
-        (ctx) => ctx.push('/invoices'),
-      ),
-      _Action(
-        Icons.account_balance_wallet_outlined,
-        'Pay a vendor',
-        'From any bank account',
-        RunqColors.amberInk,
-        (ctx) => ctx.push('/bills'),
-      ),
-      _Action(
-        Icons.savings_outlined,
-        'Expenses',
-        'Record + view out-of-pocket spends',
-        const Color(0xFF7C3AED),
-        // Land on the list (which has its own Record-expense FAB) so this
-        // single FAB entry covers both browsing past claims and adding a
-        // new one — no duplicate "view all" / "add" pair to maintain.
-        (ctx) => ctx.push('/expenses'),
-      ),
-    ];
 
     return Positioned(
       left: 0,
@@ -107,7 +157,7 @@ class FabSheet extends StatelessWidget {
 }
 
 class _ActionRow extends StatelessWidget {
-  final _Action action;
+  final FabAction action;
   final VoidCallback onTap;
   const _ActionRow({required this.action, required this.onTap});
 
@@ -147,3 +197,4 @@ class _ActionRow extends StatelessWidget {
     );
   }
 }
+

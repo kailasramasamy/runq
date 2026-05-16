@@ -78,6 +78,20 @@ export const itemRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Sibling SKUs of `id` — same product, different sizes. Backs the mobile
+  // PO line editor's "swap variant" picker so a 100ml line can be flipped
+  // to the 1L SKU (or vice-versa) without re-searching the masters.
+  app.get(
+    '/:id/variants',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new ItemService(request.server.db, request.tenantId);
+      const variants = await service.findVariants(id);
+      return { data: variants };
+    },
+  );
+
   app.post(
     '/',
     { preHandler: [rbacHook([...WRITE_ROLES])] },

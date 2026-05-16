@@ -37,11 +37,15 @@ class GradientAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = size <= 36 ? 12.0 : 18.0;
-    final fontSize = size <= 36 ? 12.0 : 22.0;
-    final shadowOpacity = size <= 36 ? 0.30 : 0.35;
-    final shadowBlur = size <= 36 ? 6.0 : 18.0;
-    final shadowOffsetY = size <= 36 ? 2.0 : 6.0;
+    // Threshold widened to 40 so the dashboard header avatar (now 40pt to
+    // match the search/notification icon buttons) keeps the rounded-square
+    // look. The 64pt profile hero still trips the larger-radius branch.
+    final isSmall = size <= 40;
+    final radius = isSmall ? 12.0 : 18.0;
+    final fontSize = isSmall ? 12.0 : 22.0;
+    final shadowOpacity = isSmall ? 0.30 : 0.35;
+    final shadowBlur = isSmall ? 6.0 : 18.0;
+    final shadowOffsetY = isSmall ? 2.0 : 6.0;
 
     final tile = Container(
       width: size,

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/app_module_provider.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 import 'fab_sheet.dart';
@@ -11,23 +13,34 @@ class _Tab {
   const _Tab(this.path, this.label, this.icon, this.activeIcon);
 }
 
-const _tabs = <_Tab>[
+// Two parallel tab sets, one per module. The shell swaps them based on the
+// active module — staying in HR doesn't bleed Finance tabs into the nav,
+// and vice versa. The centre FAB also picks its action list from the same
+// module signal.
+const _financeTabs = <_Tab>[
   _Tab('/home', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab('/purchases', 'Purchases', Icons.shopping_bag_outlined, Icons.shopping_bag_rounded),
   _Tab('/sales', 'Sales', Icons.trending_up_outlined, Icons.trending_up_rounded),
   _Tab('/money', 'Money', Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded),
 ];
 
-class RootShell extends StatefulWidget {
+const _hrTabs = <_Tab>[
+  _Tab('/hr/home', 'Home', Icons.home_outlined, Icons.home_rounded),
+  _Tab('/hr/people', 'People', Icons.groups_outlined, Icons.groups_rounded),
+  _Tab('/hr/time', 'Time', Icons.access_time_outlined, Icons.access_time_filled_rounded),
+  _Tab('/hr/pay', 'Pay', Icons.payments_outlined, Icons.payments_rounded),
+];
+
+class RootShell extends ConsumerStatefulWidget {
   final GoRouterState state;
   final Widget child;
   const RootShell({super.key, required this.state, required this.child});
 
   @override
-  State<RootShell> createState() => _RootShellState();
+  ConsumerState<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> with SingleTickerProviderStateMixin {
+class _RootShellState extends ConsumerState<RootShell> with SingleTickerProviderStateMixin {
   late final AnimationController _fabCtrl;
 
   @override
@@ -42,9 +55,9 @@ class _RootShellState extends State<RootShell> with SingleTickerProviderStateMix
     super.dispose();
   }
 
-  int _activeIndex(String location) {
-    for (var i = 0; i < _tabs.length; i++) {
-      if (location.startsWith(_tabs[i].path)) return i;
+  int _activeIndex(List<_Tab> tabs, String location) {
+    for (var i = 0; i < tabs.length; i++) {
+      if (location.startsWith(tabs[i].path)) return i;
     }
     return 0;
   }
@@ -60,7 +73,25 @@ class _RootShellState extends State<RootShell> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     final loc = widget.state.uri.toString();
-    final active = _activeIndex(loc);
+    // Derive module from the *current route* — not from the provider —
+    // so the bottom nav always matches what the user is looking at. The
+    // provider is just a persistence helper for "last-used module"; if
+    // the splash lands on /home but prefs still say HR (e.g. an admin
+    // who switched yesterday), reading prefs would show HR tabs over a
+    // Finance screen. Reading the route avoids that drift.
+    final module = loc.startsWith('/hr') ? AppModule.hr : AppModule.finance;
+    // Mirror the active route into the persisted module so the next cold
+    // start lands the user in the same module they left. Done as a side
+    // effect after build to avoid mutating provider state mid-build.
+    final stored = ref.read(appModuleProvider);
+    if (stored != module) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(appModuleProvider.notifier).setModule(module);
+      });
+    }
+    final tabs = module == AppModule.hr ? _hrTabs : _financeTabs;
+    final active = _activeIndex(tabs, loc);
+    final actions = module == AppModule.hr ? hrFabActions() : financeFabActions();
 
     final bg = Theme.of(context).scaffoldBackgroundColor;
     final sysBottom = MediaQuery.of(context).padding.bottom;
@@ -109,13 +140,28 @@ class _RootShellState extends State<RootShell> with SingleTickerProviderStateMix
             builder: (_, __) => FabSheet(
               progress: _fabCtrl.value,
               onClose: _toggleSheet,
+              actions: actions,
             ),
           ),
         ],
       ),
       bottomNavigationBar: _BottomNavPill(
+        tabs: tabs,
         activeIndex: active,
-        onTap: (i) => context.go(_tabs[i].path),
+        // Brand colour for the active tab + centre FAB. HR uses teal so
+        // the bottom bar stays on-brand when the user is in HR mode.
+        accent: module == AppModule.hr ? const Color(0xFF0891B2) : RunqColors.indigo,
+        // HR module uses a Home-only shell: every non-Home destination is
+        // pushed onto the root navigator (bot nav disappears, back arrow
+        // appears). Finance keeps the classic switch-between-tabs flow.
+        onTap: (i) {
+          final target = tabs[i].path;
+          if (module == AppModule.hr && i != 0) {
+            context.push(target);
+          } else {
+            context.go(target);
+          }
+        },
         onFab: _toggleSheet,
         fabCtrl: _fabCtrl,
       ),
@@ -124,12 +170,16 @@ class _RootShellState extends State<RootShell> with SingleTickerProviderStateMix
 }
 
 class _BottomNavPill extends StatelessWidget {
+  final List<_Tab> tabs;
   final int activeIndex;
+  final Color accent;
   final ValueChanged<int> onTap;
   final VoidCallback onFab;
   final AnimationController fabCtrl;
   const _BottomNavPill({
+    required this.tabs,
     required this.activeIndex,
+    required this.accent,
     required this.onTap,
     required this.onFab,
     required this.fabCtrl,
@@ -161,10 +211,10 @@ class _BottomNavPill extends StatelessWidget {
               child: Row(
                 children: [
                   for (var i = 0; i < 2; i++)
-                    Expanded(child: _NavItem(tab: _tabs[i], active: i == activeIndex, onTap: () => onTap(i))),
-                  _FabButton(onTap: onFab, fabCtrl: fabCtrl),
-                  for (var i = 2; i < _tabs.length; i++)
-                    Expanded(child: _NavItem(tab: _tabs[i], active: i == activeIndex, onTap: () => onTap(i))),
+                    Expanded(child: _NavItem(tab: tabs[i], active: i == activeIndex, accent: accent, onTap: () => onTap(i))),
+                  _FabButton(onTap: onFab, fabCtrl: fabCtrl, accent: accent),
+                  for (var i = 2; i < tabs.length; i++)
+                    Expanded(child: _NavItem(tab: tabs[i], active: i == activeIndex, accent: accent, onTap: () => onTap(i))),
                 ],
               ),
             ),
@@ -177,8 +227,14 @@ class _BottomNavPill extends StatelessWidget {
 class _NavItem extends StatelessWidget {
   final _Tab tab;
   final bool active;
+  final Color accent;
   final VoidCallback onTap;
-  const _NavItem({required this.tab, required this.active, required this.onTap});
+  const _NavItem({
+    required this.tab,
+    required this.active,
+    required this.accent,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +243,7 @@ class _NavItem extends StatelessWidget {
     // Inactive tabs need more contrast in dark mode — `muted` (a warm beige)
     // sits too close to the surface tint and the labels go ghosted.
     final inactive = isDark ? t.ink2 : t.muted;
-    final color = active ? t.brand : inactive;
+    final color = active ? accent : inactive;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(RunqRadii.smallCard),
@@ -217,7 +273,8 @@ class _NavItem extends StatelessWidget {
 class _FabButton extends StatelessWidget {
   final VoidCallback onTap;
   final AnimationController fabCtrl;
-  const _FabButton({required this.onTap, required this.fabCtrl});
+  final Color accent;
+  const _FabButton({required this.onTap, required this.fabCtrl, required this.accent});
 
   @override
   Widget build(BuildContext context) {
@@ -232,10 +289,18 @@ class _FabButton extends StatelessWidget {
               width: 52,
               height: 52,
               alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: RunqColors.indigo,
+              decoration: BoxDecoration(
+                color: accent,
                 shape: BoxShape.circle,
-                boxShadow: RunqShadows.fab,
+                // Derive the glow from the accent so HR's teal FAB has a
+                // teal shadow, not the default indigo from RunqShadows.fab.
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.40),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Transform.rotate(
                 angle: fabCtrl.value * 0.785,

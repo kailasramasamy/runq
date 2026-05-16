@@ -28,14 +28,24 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
       const buffer = await file.toBuffer();
       validateFileSize(buffer.length);
 
-      // `kind` is an optional multipart field, only meaningful for HR uploads.
-      // multipart fields arrive on the same iterator as files — pull from
-      // `file.fields` which Fastify aggregates after the file is consumed.
-      const kindField = (file.fields as Record<string, { value?: string } | undefined>)?.kind;
-      const rawKind = kindField?.value;
+      // `kind` and `expiryDate` are optional multipart fields, only
+      // meaningful for HR uploads. multipart fields arrive on the same
+      // iterator as files — pull from `file.fields` which Fastify
+      // aggregates after the file is consumed.
+      const fieldVal = (name: string): string | undefined =>
+        (file.fields as Record<string, { value?: string } | undefined>)?.[name]?.value;
+      const rawKind = fieldVal('kind');
       const documentKind =
         params.entityType === 'employee' && rawKind
           ? employeeDocumentKindSchema.parse(rawKind)
+          : null;
+      // Expiry date is optional and only applied to employee docs. Format
+      // is YYYY-MM-DD; anything else is dropped silently rather than
+      // failing the whole upload.
+      const rawExpiry = fieldVal('expiryDate');
+      const expiryDate =
+        params.entityType === 'employee' && rawExpiry && /^\d{4}-\d{2}-\d{2}$/.test(rawExpiry)
+          ? rawExpiry
           : null;
 
       const service = createService(request);
@@ -48,6 +58,7 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
         data: buffer,
         uploadedBy: request.user!.userId,
         documentKind,
+        expiryDate,
       });
 
       reply.code(201);

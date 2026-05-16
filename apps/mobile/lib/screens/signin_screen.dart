@@ -6,7 +6,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
+import '../providers/app_module_provider.dart';
+import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/hr_providers.dart';
 import '../theme/runq_theme.dart';
 
 // Theme-aware colour palette for the sign-in screen. The whole screen used
@@ -189,7 +192,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
     try {
       await ref.read(authProvider.notifier).login(_email.text, _password.text);
       if (!mounted) return;
-      context.go('/home');
+      // Wait briefly for /hr/me so the landing matches role on first paint
+      // — admins get Finance Home, everyone else gets HR Home. The router
+      // redirect catches stragglers if HrMe takes longer than the budget.
+      try {
+        await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
+      } catch (_) {}
+      if (!mounted) return;
+      final role = ref.read(appRoleProvider);
+      // Non-admins always land in HR. Admins return to the module they
+      // last used, so a sign-in mid-day doesn't yank them out of context.
+      String landing;
+      if (!role.canAccessFinance) {
+        landing = '/hr/home';
+      } else {
+        landing = ref.read(appModuleProvider) == AppModule.hr ? '/hr/home' : '/home';
+      }
+      context.go(landing);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.statusCode == 401

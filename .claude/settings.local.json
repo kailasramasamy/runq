@@ -19,7 +19,15 @@
       "WebFetch(domain:developer.sandbox.co.in)",
       "WebFetch(domain:open.substack.com)",
       "WebFetch(domain:aiblewmymind.substack.com)",
-      "WebFetch(domain:www.runq.in)"
+      "WebFetch(domain:www.runq.in)",
+      "Skill(claude-api)",
+      "Skill(schedule)",
+      "WebFetch(domain:cleartax.in)",
+      "WebFetch(domain:developer.gst.gov.in)",
+      "Bash(mkdir -p ~/.claude/channels/telegram/approved)",
+      "Bash(printf '988114797')",
+      "Read(//Users/vaidehi/.claude/channels/telegram/**)",
+      "WebFetch(domain:www.stockregister.in)"
     ]
   }
 }

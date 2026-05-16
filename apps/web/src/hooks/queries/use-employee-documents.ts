@@ -37,10 +37,13 @@ async function uploadDocument(params: {
   employeeId: string;
   file: File;
   kind: EmployeeDocumentKind;
+  /** YYYY-MM-DD — optional, dropped server-side if format is invalid. */
+  expiryDate?: string | null;
 }): Promise<DocumentAttachment> {
   const form = new FormData();
   form.append('file', params.file);
   form.append('kind', params.kind);
+  if (params.expiryDate) form.append('expiryDate', params.expiryDate);
   const res = await fetch(
     `${BASE_URL}/common/attachments/employee/${params.employeeId}`,
     { method: 'POST', headers: authHeaders(), body: form },
@@ -68,9 +71,14 @@ export function useEmployeeDocuments(employeeId: string) {
 export function useUploadEmployeeDocument(employeeId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (params: { file: File; kind: EmployeeDocumentKind }) =>
+    mutationFn: (params: { file: File; kind: EmployeeDocumentKind; expiryDate?: string | null }) =>
       uploadDocument({ employeeId, ...params }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.documents(employeeId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.documents(employeeId) });
+      // Dashboard expiring-docs card reads from a sibling query; bump it
+      // so a freshly-uploaded doc with expiry shows up immediately.
+      qc.invalidateQueries({ queryKey: ['hr', 'dashboard', 'expiring-docs'] });
+    },
   });
 }
 

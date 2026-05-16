@@ -13,6 +13,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
+import '../widgets/customer_picker_screen.dart';
 import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/date_range_sheet.dart';
@@ -54,12 +55,15 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   bool searchOpen = false;
   DateTime? dateFrom;
   DateTime? dateTo;
+  String? customerId;
+  String? customerName;
 
   bool get _hasDateFilter => dateFrom != null || dateTo != null;
 
   InvoiceFilter get _filter {
     final t = _tabs.firstWhere((t) => t.key == tabKey, orElse: () => _tabs.first);
     return InvoiceFilter(
+      customerId: customerId,
       status: t.statusFilter,
       search: search.trim().isEmpty ? null : search.trim(),
       dateFrom: dateFrom,
@@ -73,11 +77,28 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     // instantly. We then await the active filter's future so callers can rely
     // on the data being fresh by the time `_refresh()` resolves.
     ref.invalidate(invoiceSummaryProvider);
+    ref.invalidate(filteredInvoiceSummaryProvider);
     for (final t in _tabs) {
-      ref.invalidate(invoicesProvider(InvoiceFilter(status: t.statusFilter)));
+      ref.invalidate(invoicesProvider(InvoiceFilter(customerId: customerId, status: t.statusFilter)));
     }
     ref.invalidate(invoicesProvider(_filter));
     await ref.read(invoicesProvider(_filter).future).catchError((_) => throw 0);
+  }
+
+  Future<void> _pickCustomer() async {
+    final picked = await showCustomerPicker(context, currentCustomerId: customerId);
+    if (picked == null) return;
+    setState(() {
+      customerId = picked.id;
+      customerName = picked.name;
+    });
+  }
+
+  void _clearCustomer() {
+    setState(() {
+      customerId = null;
+      customerName = null;
+    });
   }
 
   Future<void> _openFilterSheet() async {
@@ -91,7 +112,11 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final summary = ref.watch(invoiceSummaryProvider);
+    // When a customer is selected, source the summary metrics from the
+    // per-customer family so the count + due reflect that customer alone.
+    final summary = customerId == null
+        ? ref.watch(invoiceSummaryProvider)
+        : ref.watch(filteredInvoiceSummaryProvider(customerId));
     final list = ref.watch(invoicesProvider(_filter));
 
     // Header stat chips — count + amount, both tab-aware so they stay in
@@ -135,7 +160,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     // One badge per tab — pagination meta gives accurate `total` regardless
     // of page size, so each filter combo costs one cached request.
     int? cnt(String? status) => ref
-        .watch(invoicesProvider(InvoiceFilter(status: status)))
+        .watch(invoicesProvider(InvoiceFilter(customerId: customerId, status: status)))
         .maybeWhen(data: (p) => p.total, orElse: () => null);
     final badges = <String, int>{
       for (final t in _tabs)
@@ -153,6 +178,9 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
             count: count,
             amount: amount,
             amountLabel: amountLabel,
+            customerName: customerName,
+            onPickCustomer: _pickCustomer,
+            onClearCustomer: _clearCustomer,
             searchOpen: searchOpen,
             searchValue: search,
             onSearchToggle: () => setState(() {
@@ -211,6 +239,12 @@ class _Header extends StatelessWidget {
   final int? count;
   final double? amount;
   final String amountLabel;
+  /// Active customer filter, if any. When set, the chip below the title row
+  /// shows the customer name with an ✕ to clear; tapping the chip area
+  /// re-opens the picker.
+  final String? customerName;
+  final VoidCallback onPickCustomer;
+  final VoidCallback onClearCustomer;
   final bool searchOpen;
   final String searchValue;
   final VoidCallback onSearchToggle;
@@ -221,6 +255,9 @@ class _Header extends StatelessWidget {
     required this.count,
     required this.amount,
     required this.amountLabel,
+    required this.customerName,
+    required this.onPickCustomer,
+    required this.onClearCustomer,
     required this.searchOpen,
     required this.searchValue,
     required this.onSearchToggle,
@@ -265,6 +302,19 @@ class _Header extends StatelessWidget {
                 showDot: filterActive,
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          // Customer filter chip — sets the scope for the metric cards
+          // and list below. When no customer is selected, renders a small
+          // "All customers ▾" affordance; selected state shows the name
+          // with an ✕ clear.
+          Padding(
+            padding: EdgeInsets.only(left: canPop ? 8 : 0),
+            child: _CustomerFilterChip(
+              name: customerName,
+              onPick: onPickCustomer,
+              onClear: onClearCustomer,
+            ),
           ),
           const SizedBox(height: 10),
           Padding(
@@ -378,6 +428,74 @@ class _StatCard extends StatelessWidget {
 /// Square-with-rounded-corners icon button used for the header search and
 /// filter affordances. Matches the design — softer than a full circle, more
 /// "tap-target" than a flat IconButton.
+/// Customer scope chip for the invoices screen header. Two states:
+/// - none picked → muted "All customers ▾" affordance, full row taps to pick
+/// - picked      → brand-tinted chip with the name and an ✕ clear button;
+///                 tapping the name area re-opens the picker
+class _CustomerFilterChip extends StatelessWidget {
+  final String? name;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+  const _CustomerFilterChip({required this.name, required this.onPick, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final selected = name != null && name!.isNotEmpty;
+    final bg = selected ? t.brandSubtle : t.surface;
+    final border = selected ? t.brand.withValues(alpha: 0.22) : t.hairline;
+    final fg = selected ? t.brand : t.muted;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onPick,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(10, 6, selected ? 4 : 12, 6),
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border, width: 0.5),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.person_outline_rounded, size: 14, color: fg),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  selected ? name! : 'All customers',
+                  style: RunqText.bodyStrong.copyWith(
+                    color: selected ? t.brand : t.ink,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (selected)
+                InkWell(
+                  onTap: onClear,
+                  customBorder: const CircleBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close_rounded, size: 14, color: fg),
+                  ),
+                )
+              else
+                Icon(Icons.expand_more_rounded, size: 16, color: fg),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _IconChip extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;

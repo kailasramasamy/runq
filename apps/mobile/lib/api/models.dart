@@ -1451,6 +1451,28 @@ class CustomerSummary {
       );
 }
 
+/// Lightweight vendor row for the bills-screen vendor filter picker.
+/// Mirrors [CustomerSummary] — only the fields the picker actually needs.
+class VendorSummary {
+  final String id;
+  final String name;
+  final String? gstin;
+  final bool isActive;
+  VendorSummary({
+    required this.id,
+    required this.name,
+    this.gstin,
+    this.isActive = true,
+  });
+
+  factory VendorSummary.fromJson(Map<String, dynamic> j) => VendorSummary(
+        id: _strOr(j['id'], ''),
+        name: _strOr(j['name'], ''),
+        gstin: _str(j['gstin']),
+        isActive: j['isActive'] is bool ? j['isActive'] as bool : true,
+      );
+}
+
 class ItemSummary {
   final String id;
   final String name;

@@ -95,6 +95,52 @@ export class ItemService {
     };
   }
 
+  /// Strip trailing size tokens from a name so siblings can be matched on
+  /// the "product" portion alone. Handles forms like:
+  ///   "Mustard Oil 100ml"       → "Mustard Oil"
+  ///   "A2 Cow Milk 500 ML"      → "A2 Cow Milk"
+  ///   "Sugar 1 kg"              → "Sugar"
+  ///   "Atta - 5kg"              → "Atta"
+  /// Case-insensitive; only strips the *trailing* size, so "100ml jar" is
+  /// untouched (we'd treat it as a different product family).
+  static stripSizeSuffix(name: string): string {
+    const unit = '(?:ml|l|g|kg|gm|mg|ltr|pcs|nos|pc|pack)';
+    const re = new RegExp(`[\\s,\\-]*\\d+(?:\\.\\d+)?\\s*${unit}\\b\\s*$`, 'i');
+    return name.replace(re, '').trim();
+  }
+
+  /// Sibling SKUs of `id` — same tenant, active, same stripped product name.
+  /// Excludes the source item itself. Used by the mobile PO line editor to
+  /// let the user swap to a different pack size (e.g. 100ml ↔ 1L).
+  async findVariants(id: string): Promise<Item[]> {
+    const source = await this.getById(id);
+    const root = ItemService.stripSizeSuffix(source.name);
+    if (!root) return [];
+    // Match items whose stripped name equals the source root. We compare in
+    // SQL by re-applying the same regex via a Postgres expression; cheaper
+    // alternative is to fetch by name-ilike and filter in JS, which keeps
+    // the regex logic in one place. Few items per tenant ⇒ JS filter is fine.
+    const candidates = await this.db
+      .select()
+      .from(items)
+      .where(
+        and(
+          eq(items.tenantId, this.tenantId),
+          eq(items.isActive, true),
+          ilike(items.name, `${root}%`),
+        ),
+      )
+      .orderBy(items.name);
+    return candidates
+      .filter((c) => c.id !== id)
+      .filter(
+        (c) =>
+          ItemService.stripSizeSuffix(c.name).toLowerCase() ===
+          root.toLowerCase(),
+      )
+      .map((r) => this.toItem(r));
+  }
+
   async getById(id: string): Promise<Item> {
     const [row] = await this.db
       .select()

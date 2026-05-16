@@ -21,6 +21,9 @@ export class AttachmentService {
     data: Buffer;
     uploadedBy: string;
     documentKind?: string | null;
+    /// YYYY-MM-DD when set; null for non-HR attachments and HR docs
+    /// without an expiry (e.g. educational certificates).
+    expiryDate?: string | null;
   }): Promise<DocumentAttachment> {
     const storageKey = await this.storage.upload({
       tenantId: this.tenantId,
@@ -42,6 +45,7 @@ export class AttachmentService {
         fileSize: params.fileSize,
         mimeType: params.mimeType,
         storageKey,
+        expiryDate: params.expiryDate ?? null,
         uploadedBy: params.uploadedBy,
       })
       .returning();
@@ -113,6 +117,7 @@ export class AttachmentService {
       fileSize: row.fileSize,
       mimeType: row.mimeType,
       storageKey: row.storageKey,
+      expiryDate: row.expiryDate ?? null,
       uploadedBy: row.uploadedBy,
       createdAt: row.createdAt.toISOString(),
     };

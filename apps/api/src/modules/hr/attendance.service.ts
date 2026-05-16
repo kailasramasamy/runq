@@ -33,6 +33,7 @@ export class AttendanceService {
         employeeCode: employees.employeeCode,
         firstName: employees.firstName,
         lastName: employees.lastName,
+        photoUrl: employees.photoUrl,
       })
       .from(attendance)
       .innerJoin(employees, eq(employees.id, attendance.employeeId))
@@ -43,6 +44,7 @@ export class AttendanceService {
       ...r.att,
       employeeCode: r.employeeCode,
       employeeName: `${r.firstName}${r.lastName ? ' ' + r.lastName : ''}`,
+      employeePhotoUrl: r.photoUrl,
     }));
   }
 

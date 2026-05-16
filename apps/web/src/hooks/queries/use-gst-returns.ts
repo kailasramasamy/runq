@@ -266,16 +266,33 @@ export function use2bMatches(period: string, status?: string) {
   });
 }
 
+export type VendorCandidate = {
+  id: string;
+  name: string;
+  gstin: string | null;
+  reason: 'same_pan' | 'gstin_typo' | 'same_name';
+};
+
+export type BookFromMatchResult =
+  | { status: 'booked'; billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }
+  | { status: 'needs_vendor_decision'; candidates: VendorCandidate[] };
+
+export type BookFromMatchPayload = {
+  matchId: string;
+  vendorAction?: 'use_existing' | 'create_new';
+  existingVendorId?: string;
+};
+
 export function useBookFromMatch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (matchId: string) =>
-      api.post<ApiSuccess<{ billId: string; vendorId: string; matchStatus: 'matched' | 'mismatched' }>>(
-        `/gst/2b/matches/${matchId}/book`,
-      ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['gst-2b'] });
-      qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+    mutationFn: ({ matchId, ...body }: BookFromMatchPayload) =>
+      api.post<ApiSuccess<BookFromMatchResult>>(`/gst/2b/matches/${matchId}/book`, body),
+    onSuccess: (res) => {
+      if (res?.data?.status === 'booked') {
+        qc.invalidateQueries({ queryKey: ['gst-2b'] });
+        qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+      }
     },
   });
 }

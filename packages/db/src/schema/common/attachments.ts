@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, timestamp, pgEnum, index, date } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
 
@@ -24,9 +24,16 @@ export const documentAttachments = pgTable('document_attachments', {
   fileSize: integer('file_size').notNull(),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  /// Optional expiry — HR docs use this for Aadhaar / passport / driving
+  /// licence / employment contract end-dates. Surfaced on the dashboard's
+  /// "expiring soon" section so compliance gaps get caught early.
+  expiryDate: date('expiry_date'),
   uploadedBy: uuid('uploaded_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_da_tenant_entity').on(t.tenantId, t.entityType, t.entityId),
   index('idx_da_entity_kind').on(t.tenantId, t.entityType, t.entityId, t.documentKind),
+  // Powers the expiring-docs dashboard query — index by tenant + expiry
+  // so the "next 90 days" sweep doesn't full-scan the table.
+  index('idx_da_tenant_expiry').on(t.tenantId, t.expiryDate),
 ]);

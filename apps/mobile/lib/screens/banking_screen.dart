@@ -17,7 +17,20 @@ final _selectedAccountProvider = StateProvider<String?>((_) => null);
 
 enum _ReconFilter { all, unmatched, matched }
 
-final _reconFilterProvider = StateProvider<_ReconFilter>((_) => _ReconFilter.all);
+// Default to `unmatched` — this screen is reached from the home Reconcile
+// quick action, so landing on pending rows is what the user expects.
+final _reconFilterProvider = StateProvider<_ReconFilter>((_) => _ReconFilter.unmatched);
+
+/// Party filter — a vendor or customer the user picks to narrow the txn
+/// list to rows tied to (or suggested for) that party. `null` = all parties.
+class _PartySel {
+  final String id;
+  final String name;
+  final bool isVendor; // false ⇒ customer
+  const _PartySel({required this.id, required this.name, required this.isVendor});
+}
+
+final _partyFilterProvider = StateProvider<_PartySel?>((_) => null);
 
 class BankingScreen extends ConsumerWidget {
   const BankingScreen({super.key});
@@ -75,7 +88,13 @@ class _Body extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final txns = ref.watch(bankTxnsProvider(selected.id));
     final filter = ref.watch(_reconFilterProvider);
+    final party = ref.watch(_partyFilterProvider);
     final total = accounts.fold<double>(0, (s, a) => s + a.currentBalance);
+
+    final parties = txns.maybeWhen(
+      data: (page) => _collectParties(page.data),
+      orElse: () => const <_PartySel>[],
+    );
 
     // Match count for the *currently selected* account, derived from its
     // loaded txns. Other accounts don't get a badge — we don't preload all
@@ -111,16 +130,29 @@ class _Body extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           sliver: SliverToBoxAdapter(child: _SyncedTillChip(accountId: selected.id)),
         ),
+        // Auto-categorize acts on unreconciled rows, so only surface the
+        // banner when the user is looking at that filter.
+        if (filter == _ReconFilter.unmatched)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            sliver: SliverToBoxAdapter(child: _AiReconcileBanner(accountId: selected.id)),
+          ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          sliver: SliverToBoxAdapter(child: _AiReconcileBanner(accountId: selected.id)),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           sliver: SliverToBoxAdapter(
             child: _FilterPills(
               active: filter,
               onChange: (f) => ref.read(_reconFilterProvider.notifier).state = f,
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          sliver: SliverToBoxAdapter(
+            child: _PartyFilterChip(
+              selected: party,
+              parties: parties,
+              onChange: (p) => ref.read(_partyFilterProvider.notifier).state = p,
             ),
           ),
         ),
@@ -129,7 +161,7 @@ class _Body extends ConsumerWidget {
             value: txns,
             onRetry: () => ref.invalidate(bankTxnsProvider(selected.id)),
             data: (page) {
-              final items = _filterItems(page.data, filter);
+              final items = _filterItems(_filterByParty(page.data, party), filter);
               if (items.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.all(24),
@@ -150,6 +182,33 @@ class _Body extends ConsumerWidget {
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );
+  }
+
+  List<BankTxn> _filterByParty(List<BankTxn> items, _PartySel? p) {
+    if (p == null) return items;
+    return items.where((t) {
+      return p.isVendor ? t.vendorId == p.id : t.customerId == p.id;
+    }).toList();
+  }
+
+  /// Unique vendors + customers seen in the loaded txns, sorted by name.
+  /// We dedupe on `(isVendor, id)` so a name reused across vendor/customer
+  /// records still shows once per role.
+  static List<_PartySel> _collectParties(List<BankTxn> items) {
+    final seen = <String, _PartySel>{};
+    for (final t in items) {
+      if (t.vendorId != null && (t.vendorName ?? '').isNotEmpty) {
+        seen.putIfAbsent('v:${t.vendorId}',
+            () => _PartySel(id: t.vendorId!, name: t.vendorName!, isVendor: true));
+      }
+      if (t.customerId != null && (t.customerName ?? '').isNotEmpty) {
+        seen.putIfAbsent('c:${t.customerId}',
+            () => _PartySel(id: t.customerId!, name: t.customerName!, isVendor: false));
+      }
+    }
+    final list = seen.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
   }
 
   List<BankTxn> _filterItems(List<BankTxn> items, _ReconFilter f) {
@@ -575,6 +634,222 @@ class _FilterPill extends StatelessWidget {
               color: active ? Colors.white : t.muted,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tappable chip showing the active party filter (or "All parties"). Opens
+/// a search sheet listing the parties found in the loaded txns. Disabled
+/// when the loaded page has no party-tagged rows to pick from.
+class _PartyFilterChip extends StatelessWidget {
+  final _PartySel? selected;
+  final List<_PartySel> parties;
+  final ValueChanged<_PartySel?> onChange;
+  const _PartyFilterChip({
+    required this.selected,
+    required this.parties,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final hasOptions = parties.isNotEmpty;
+    final active = selected != null;
+    final label = selected?.name ?? 'All parties';
+    final icon = selected == null
+        ? Icons.people_alt_outlined
+        : (selected!.isVendor ? Icons.store_outlined : Icons.person_outline_rounded);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: hasOptions ? () => _open(context) : null,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: active ? RunqColors.indigo.withValues(alpha: 0.08) : t.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: active ? RunqColors.indigo : t.hairline,
+                    width: active ? 1.0 : 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 14, color: active ? RunqColors.indigo : t.muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: RunqText.bodyStrong.copyWith(
+                          fontSize: 12,
+                          color: active ? RunqColors.indigo : (hasOptions ? t.ink : t.muted2),
+                        ),
+                      ),
+                    ),
+                    if (active)
+                      InkWell(
+                        onTap: () => onChange(null),
+                        borderRadius: BorderRadius.circular(999),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(Icons.close_rounded, size: 14, color: RunqColors.indigo),
+                        ),
+                      )
+                    else
+                      Icon(Icons.expand_more_rounded, size: 16, color: t.muted),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<_PartySel?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: RT(context).surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _PartyPickerSheet(parties: parties, selected: selected),
+    );
+    // Sheet returns: a `_PartySel` for a pick, our sentinel (empty id) for
+    // Clear, and null on dismiss. Only Clear and Pick mutate state.
+    if (picked == null) return;
+    if (picked.id.isEmpty) {
+      onChange(null);
+    } else {
+      onChange(picked);
+    }
+  }
+}
+
+class _PartyPickerSheet extends StatefulWidget {
+  final List<_PartySel> parties;
+  final _PartySel? selected;
+  const _PartyPickerSheet({required this.parties, required this.selected});
+
+  @override
+  State<_PartyPickerSheet> createState() => _PartyPickerSheetState();
+}
+
+class _PartyPickerSheetState extends State<_PartyPickerSheet> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final q = _q.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? widget.parties
+        : widget.parties.where((p) => p.name.toLowerCase().contains(q)).toList();
+
+    // Cap at 70% of screen so the sheet has a bounded height; the list
+    // region inside flexes to fit whatever's left after header + search.
+    final maxH = MediaQuery.of(context).size.height * 0.70;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Filter by party',
+                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+                  ),
+                  if (widget.selected != null)
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(
+                        const _PartySel(id: '', name: '', isVendor: true),
+                      ),
+                      child: const Text('Clear'),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                autofocus: false,
+                textCapitalization: TextCapitalization.none,
+                decoration: InputDecoration(
+                  hintText: 'Search vendors and customers',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: t.hairline),
+                  ),
+                ),
+                onChanged: (v) => setState(() => _q = v),
+              ),
+            ),
+            Flexible(
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('No matches',
+                          style: RunqText.body.copyWith(color: t.muted)),
+                    )
+                  : ListView.separated(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          Divider(height: 1, color: t.hairlineSoft),
+                      itemBuilder: (_, i) {
+                        final p = filtered[i];
+                        final isSelected = widget.selected?.id == p.id &&
+                            widget.selected?.isVendor == p.isVendor;
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(
+                            p.isVendor ? Icons.store_outlined : Icons.person_outline_rounded,
+                            size: 20,
+                            color: t.muted,
+                          ),
+                          title: Text(p.name,
+                              style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                          subtitle: Text(p.isVendor ? 'Vendor' : 'Customer',
+                              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+                          trailing: isSelected
+                              ? Icon(Icons.check_rounded, size: 18, color: RunqColors.indigo)
+                              : null,
+                          onTap: () => Navigator.of(context).pop(p),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
         ),
       ),
     );

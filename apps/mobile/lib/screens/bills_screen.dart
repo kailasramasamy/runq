@@ -14,6 +14,7 @@ import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/swipe_action.dart';
+import '../widgets/vendor_picker_screen.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../api/repos.dart' show billsRepo;
 
@@ -53,12 +54,15 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
   bool searchOpen = false;
   DateTime? dateFrom;
   DateTime? dateTo;
+  String? vendorId;
+  String? vendorName;
 
   bool get _hasDateFilter => dateFrom != null || dateTo != null;
 
   BillFilter get _filter {
     final t = _tabs.firstWhere((t) => t.key == tabKey, orElse: () => _tabs.first);
     return BillFilter(
+      vendorId: vendorId,
       status: t.statusFilter,
       search: search.trim().isEmpty ? null : search.trim(),
       dateFrom: dateFrom,
@@ -71,11 +75,28 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     // update together after a swipe action; await the active filter so this
     // future completes only when fresh data has landed.
     ref.invalidate(billsSummaryProvider);
+    ref.invalidate(filteredBillsSummaryProvider);
     for (final t in _tabs) {
-      ref.invalidate(billsProvider(BillFilter(status: t.statusFilter)));
+      ref.invalidate(billsProvider(BillFilter(vendorId: vendorId, status: t.statusFilter)));
     }
     ref.invalidate(billsProvider(_filter));
     await ref.read(billsProvider(_filter).future).catchError((_) => throw 0);
+  }
+
+  Future<void> _pickVendor() async {
+    final picked = await showVendorPicker(context, currentVendorId: vendorId);
+    if (picked == null) return;
+    setState(() {
+      vendorId = picked.id;
+      vendorName = picked.name;
+    });
+  }
+
+  void _clearVendor() {
+    setState(() {
+      vendorId = null;
+      vendorName = null;
+    });
   }
 
   Future<void> _openFilterSheet() async {
@@ -90,7 +111,11 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
   @override
   Widget build(BuildContext context) {
     final list = ref.watch(billsProvider(_filter));
-    final summary = ref.watch(billsSummaryProvider);
+    // When a vendor is selected, source the summary from the per-vendor
+    // family so the count + outstanding cards reflect that vendor alone.
+    final summary = vendorId == null
+        ? ref.watch(billsSummaryProvider)
+        : ref.watch(filteredBillsSummaryProvider(vendorId));
 
     // Header stat chips — both count and amount track the active tab.
     // We use summary fields where the tenant-wide total is meaningful and
@@ -127,7 +152,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     // Counts on every tab. Pagination meta gives accurate `total` regardless
     // of page size, so each filter combo costs one cached request.
     int? cnt(String? status) => ref
-        .watch(billsProvider(BillFilter(status: status)))
+        .watch(billsProvider(BillFilter(vendorId: vendorId, status: status)))
         .maybeWhen(data: (p) => p.total, orElse: () => null);
     final badges = <String, int>{
       for (final t in _tabs)
@@ -143,6 +168,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
             count: count,
             amount: amount,
             amountLabel: amountLabel,
+            vendorName: vendorName,
+            onPickVendor: _pickVendor,
+            onClearVendor: _clearVendor,
             searchOpen: searchOpen,
             searchValue: search,
             onSearchToggle: () => setState(() {
@@ -207,10 +235,18 @@ class _Header extends StatelessWidget {
   final int? count;
   final double? amount;
   final String amountLabel;
+  /// Active vendor scope for the screen, if any. Drives the chip below
+  /// the title row.
+  final String? vendorName;
+  final VoidCallback onPickVendor;
+  final VoidCallback onClearVendor;
   const _Header({
     required this.count,
     required this.amount,
     required this.amountLabel,
+    required this.vendorName,
+    required this.onPickVendor,
+    required this.onClearVendor,
     required this.searchOpen,
     required this.searchValue,
     required this.onSearchToggle,
@@ -257,6 +293,18 @@ class _Header extends StatelessWidget {
               const SizedBox(width: 8),
               _ScanButton(onTap: () => startBillIntake(context)),
             ],
+          ),
+          const SizedBox(height: 10),
+          // Vendor scope chip — sets the scope for the metric cards and
+          // list below. "All vendors ▾" when none picked; tinted name + ✕
+          // when scoped.
+          Padding(
+            padding: EdgeInsets.only(left: canPop ? 8 : 0),
+            child: _VendorFilterChip(
+              name: vendorName,
+              onPick: onPickVendor,
+              onClear: onClearVendor,
+            ),
           ),
           const SizedBox(height: 10),
           Padding(
@@ -369,6 +417,73 @@ class _StatCard extends StatelessWidget {
 
 /// Square-with-rounded-corners icon button used for the header search and
 /// filter affordances. Matches invoices for visual consistency.
+/// Vendor scope chip for the bills screen header. Mirrors the invoices
+/// screen's customer chip — muted "All vendors ▾" when nothing picked,
+/// brand-tinted name + ✕ clear when a vendor is scoped.
+class _VendorFilterChip extends StatelessWidget {
+  final String? name;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+  const _VendorFilterChip({required this.name, required this.onPick, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final selected = name != null && name!.isNotEmpty;
+    final bg = selected ? t.brandSubtle : t.surface;
+    final border = selected ? t.brand.withValues(alpha: 0.22) : t.hairline;
+    final fg = selected ? t.brand : t.muted;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onPick,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(10, 6, selected ? 4 : 12, 6),
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border, width: 0.5),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.store_outlined, size: 14, color: fg),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  selected ? name! : 'All vendors',
+                  style: RunqText.bodyStrong.copyWith(
+                    color: selected ? t.brand : t.ink,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (selected)
+                InkWell(
+                  onTap: onClear,
+                  customBorder: const CircleBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close_rounded, size: 14, color: fg),
+                  ),
+                )
+              else
+                Icon(Icons.expand_more_rounded, size: 16, color: fg),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _IconChip extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;

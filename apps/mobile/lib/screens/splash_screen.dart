@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/app_module_provider.dart';
+import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/hr_providers.dart';
 import '../theme/runq_theme.dart';
 
 class _Palette {
@@ -95,12 +98,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
     if (!mounted) return;
     auth = ref.read(authProvider);
     if (auth.isAuthenticated) {
-      context.go('/home');
+      context.go(await _resolveLanding());
     } else if (auth.sessionExpired) {
       context.go('/signin?session=expired');
     } else {
       context.go('/signin');
     }
+  }
+
+  /// Pick the landing route. Non-admins always land in HR (their only
+  /// surface). Admins return to whichever module they were last in, so
+  /// hot-restart preserves context. Waits up to ~600ms for /hr/me so the
+  /// role lookup doesn't race with the first paint.
+  Future<String> _resolveLanding() async {
+    try {
+      await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
+    } catch (_) {
+      // Fall through to whatever role the provider already has.
+    }
+    final role = ref.read(appRoleProvider);
+    if (!role.canAccessFinance) return '/hr/home';
+    final lastModule = ref.read(appModuleProvider);
+    return lastModule == AppModule.hr ? '/hr/home' : '/home';
   }
 
   @override

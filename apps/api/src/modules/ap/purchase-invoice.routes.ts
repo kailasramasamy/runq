@@ -42,8 +42,11 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     '/summary',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
+      // Reuses the list filter schema so callers can scope summary to one
+      // vendor (?vendorId=…). Other filter fields are accepted but ignored.
+      const filters = purchaseInvoiceFilterSchema.parse(request.query);
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
-      const summary = await service.summary();
+      const summary = await service.summary({ vendorId: filters.vendorId });
       return { data: summary };
     },
   );

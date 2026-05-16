@@ -32,6 +32,7 @@ export class LeaveRequestService {
         employeeCode: employees.employeeCode,
         firstName: employees.firstName,
         lastName: employees.lastName,
+        photoUrl: employees.photoUrl,
       })
       .from(leaveRequests)
       .innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequests.leaveTypeId))
@@ -46,6 +47,7 @@ export class LeaveRequestService {
       isPaid: r.isPaid,
       employeeCode: r.employeeCode,
       employeeName: `${r.firstName}${r.lastName ? ' ' + r.lastName : ''}`,
+      employeePhotoUrl: r.photoUrl,
     }));
   }
 

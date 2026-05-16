@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/app_module_provider.dart';
+import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
-import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../widgets/gradient_avatar.dart';
 import '../widgets/section_head.dart';
+import 'hr/widgets/hr_widgets.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
 import 'dashboard/spotlight_cards.dart';
@@ -110,46 +112,73 @@ class _Header extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
     final approvals = ref.watch(pendingApprovalsProvider);
     final hasNotifications = approvals.maybeWhen(data: (l) => l.isNotEmpty, orElse: () => false);
+    final role = ref.watch(appRoleProvider);
+
+    const months = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December',
+    ];
+    final today = DateTime.now();
+    final dateLabel = '${_weekday(today.weekday)}, ${today.day} ${months[today.month - 1]}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _greeting(),
-                  style: RunqText.body.copyWith(color: t.muted),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (role.canSwitchModule)
+                HrModulePill(
+                  moduleLabel: 'Finance',
+                  targetLabel: 'HR',
+                  onDarkSurface: false,
+                  // Finance keeps its indigo identity on the pill — HR pill
+                  // uses its own teal default.
+                  accent: RunqColors.indigo,
+                  onTap: () async {
+                    await ref.read(appModuleProvider.notifier).setModule(AppModule.hr);
+                    if (context.mounted) context.go('/hr/home');
+                  },
                 ),
-                Text(
-                  _firstName(user?.name, user?.email),
-                  style: RunqText.h2.copyWith(color: t.ink),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+              const Spacer(),
+              _IconButton(
+                icon: Icons.search_rounded,
+                onTap: () => context.push('/search'),
+              ),
+              const SizedBox(width: 8),
+              _IconButton(
+                icon: Icons.notifications_none_rounded,
+                badge: hasNotifications,
+                onTap: () => context.push('/approvals'),
+              ),
+              const SizedBox(width: 8),
+              _AvatarButton(name: user?.name ?? user?.email ?? '?'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(dateLabel,
+              style: TextStyle(color: t.muted, fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(
+            '${_greeting()}, ${_firstName(user?.name, user?.email)} 👋',
+            style: TextStyle(
+              color: t.ink,
+              fontSize: 22, fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(width: 8),
-          _IconButton(
-            icon: Icons.search_rounded,
-            onTap: () => context.push('/search'),
-          ),
-          const SizedBox(width: 8),
-          _IconButton(
-            icon: Icons.notifications_none_rounded,
-            badge: hasNotifications,
-            onTap: () => context.push('/approvals'),
-          ),
-          const SizedBox(width: 8),
-          _AvatarButton(name: user?.name ?? user?.email ?? '?'),
         ],
       ),
     );
+  }
+
+  static String _weekday(int wd) {
+    const labels = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return labels[wd - 1];
   }
 }
 
@@ -162,7 +191,7 @@ class _AvatarButton extends StatelessWidget {
     return InkWell(
       onTap: () => context.push('/profile'),
       borderRadius: BorderRadius.circular(12),
-      child: GradientAvatar(name: name, size: 36),
+      child: GradientAvatar(name: name, size: 40),
     );
   }
 }
@@ -209,3 +238,4 @@ class _IconButton extends StatelessWidget {
     );
   }
 }
+

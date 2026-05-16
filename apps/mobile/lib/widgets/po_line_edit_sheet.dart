@@ -57,7 +57,11 @@ class _LineEditSheetState extends State<_LineEditSheet> {
     _rate = TextEditingController(text: l.effectiveRate > 0 ? _fmt(l.effectiveRate) : '');
     _itemId = l.matchedItemId;
     _itemLabel = l.matchedItemId != null ? l.displayName : null;
-    _itemUnit = l.displayUom;
+    // Prefer the UoM the parser captured from the PO — that's what the user
+    // sees on the printed line ("100ml") and what they're editing. The
+    // master's pack size (often the canonical 1L SKU) is available via the
+    // variant picker if they want to swap.
+    _itemUnit = l.rawUom ?? l.displayUom;
     _gstRate = l.effectiveGstRate;
   }
 
@@ -98,6 +102,32 @@ class _LineEditSheetState extends State<_LineEditSheet> {
       // a rate via price-lists on save.
       final master = picked.defaultSellingPrice;
       _rate.text = (master != null && master > 0) ? _fmt(master) : '';
+    });
+  }
+
+  /// Open a sheet listing sibling SKUs (same product, different sizes) and
+  /// swap the line's matched item to the picked one. Behaves like a slim
+  /// "change UoM" affordance — picking "100ml" replaces 1L on the line.
+  Future<void> _pickVariant() async {
+    final id = _itemId;
+    if (id == null) return;
+    final picked = await showModalBottomSheet<ItemSummary>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _VariantPickerSheet(itemId: id, currentUnit: _itemUnit),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _itemId = picked.id;
+      _itemLabel = picked.name;
+      _itemUnit = picked.unit ?? _itemUnit;
+      _gstRate = picked.gstRate ?? _gstRate;
+      // Repricing on variant swap is intentional — the 1L and 100ml SKUs
+      // have different master rates; users editing a line want the new
+      // canonical rate, not the old one stuck on the field.
+      final master = picked.defaultSellingPrice;
+      if (master != null && master > 0) _rate.text = _fmt(master);
     });
   }
 
@@ -212,7 +242,16 @@ class _LineEditSheetState extends State<_LineEditSheet> {
                   child: _Field(
                     controller: _qty,
                     label: 'Quantity',
-                    suffix: _itemUnit,
+                    // Inert text suffix when no item is matched (we can't
+                    // look up variants without an itemId). Tappable chip
+                    // when matched — opens the variant picker.
+                    suffix: _itemId == null ? _itemUnit : null,
+                    suffixWidget: _itemId == null
+                        ? null
+                        : _UomTapSuffix(
+                            unit: _itemUnit ?? '—',
+                            onTap: _pickVariant,
+                          ),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
@@ -367,8 +406,9 @@ class _Field extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final String? prefix, suffix, hintText;
+  final Widget? suffixWidget;
   final ValueChanged<String>? onChanged;
-  const _Field({required this.controller, required this.label, this.prefix, this.suffix, this.hintText, this.onChanged});
+  const _Field({required this.controller, required this.label, this.prefix, this.suffix, this.suffixWidget, this.hintText, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -388,7 +428,9 @@ class _Field extends StatelessWidget {
             filled: true,
             fillColor: t.inputFill,
             prefixText: prefix,
-            suffixText: suffix,
+            suffixText: suffixWidget == null ? suffix : null,
+            suffixIcon: suffixWidget,
+            suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
             hintText: hintText,
             hintStyle: RunqText.body.copyWith(color: t.muted),
             border: OutlineInputBorder(
@@ -618,6 +660,219 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
                     ],
                   ),
                 ),
+                Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Tappable suffix shown inside the Quantity field when an item is matched.
+/// Displays the current UoM and opens the variant picker — visually mimics
+/// the plain `suffixText` look so the field doesn't grow taller.
+class _UomTapSuffix extends StatelessWidget {
+  final String unit;
+  final VoidCallback onTap;
+  const _UomTapSuffix({required this.unit, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                unit,
+                style: RunqText.body.copyWith(
+                  fontSize: 14,
+                  color: RunqColors.indigo,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.expand_more_rounded, size: 16, color: RunqColors.indigo),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet listing sibling SKUs of `itemId` (same product, different
+/// sizes). Tapping a row pops with the picked ItemSummary so the parent
+/// can swap the matched item on the line. Renders an empty state when the
+/// product has no other variants.
+class _VariantPickerSheet extends StatefulWidget {
+  final String itemId;
+  final String? currentUnit;
+  const _VariantPickerSheet({required this.itemId, required this.currentUnit});
+
+  @override
+  State<_VariantPickerSheet> createState() => _VariantPickerSheetState();
+}
+
+class _VariantPickerSheetState extends State<_VariantPickerSheet> {
+  List<ItemSummary> _variants = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await poRepo.itemVariants(widget.itemId);
+      if (!mounted) return;
+      setState(() {
+        _variants = res;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load variants';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final maxH = MediaQuery.of(context).size.height * 0.65;
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxH),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Change size', style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+          const SizedBox(height: 4),
+          Text(
+            widget.currentUnit != null ? 'Current: ${widget.currentUnit}' : 'Pick another size',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+          const SizedBox(height: 14),
+          Flexible(child: _body(t)),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(RunqTokens t) {
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator(color: RT(context).brand)),
+      );
+    }
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(child: Text(_error!, style: RunqText.body.copyWith(color: t.muted))),
+      );
+    }
+    if (_variants.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 32, color: t.muted2),
+            const SizedBox(height: 8),
+            Text(
+              'No other sizes for this product',
+              textAlign: TextAlign.center,
+              style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Add more variants in the items master, or use "Pick an item" to switch products.',
+              textAlign: TextAlign.center,
+              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: _variants.length,
+      separatorBuilder: (_, __) => Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+      itemBuilder: (_, i) {
+        final v = _variants[i];
+        final unitLabel = (v.unit != null && v.unit!.isNotEmpty) ? v.unit! : '—';
+        final priceLabel = (v.defaultSellingPrice != null && v.defaultSellingPrice! > 0)
+            ? formatINR(v.defaultSellingPrice!)
+            : null;
+        return InkWell(
+          onTap: () => Navigator.of(context).pop(v),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: RunqColors.indigo.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    unitLabel,
+                    style: RunqText.bodyStrong.copyWith(
+                      fontSize: 13,
+                      color: RunqColors.indigo,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    v.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (priceLabel != null) ...[
+                  const SizedBox(width: 8),
+                  Text(priceLabel, style: RunqText.tabular(size: 13, w: FontWeight.w600)),
+                ],
+                const SizedBox(width: 6),
                 Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
               ],
             ),

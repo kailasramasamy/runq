@@ -51,6 +51,22 @@ import 'screens/po_processing_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/hr/hr_home_screen.dart';
+import 'screens/hr/hr_people_screen.dart';
+import 'screens/hr/hr_employee_detail_screen.dart';
+import 'screens/hr/hr_time_screen.dart';
+import 'screens/hr/hr_pay_screen.dart';
+import 'screens/hr/hr_payslip_detail_screen.dart';
+import 'screens/hr/hr_more_screen.dart';
+import 'screens/hr/hr_holidays_screen.dart';
+import 'screens/hr/hr_leave_types_screen.dart';
+import 'screens/hr/hr_employee_form_screen.dart';
+import 'screens/hr/hr_expense_claims_screen.dart';
+import 'screens/hr/hr_salary_components_screen.dart';
+import 'screens/hr/hr_salary_structures_screen.dart';
+import 'screens/hr/hr_payroll_runs_screen.dart';
+import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
+import 'providers/app_role_provider.dart';
 import 'services/po_intake.dart';
 
 final rootKey = GlobalKey<NavigatorState>();
@@ -78,6 +94,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           '/home', '/sales', '/purchases', '/money',
           '/invoices', '/bills', '/banking',
           '/approvals', '/agent', '/po', '/profile',
+          '/hr',
         };
         final isProtected = protected.any(loc.startsWith);
         if (auth.sessionExpired && loc != '/signin' && loc != '/splash') {
@@ -85,6 +102,30 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         }
         if (isProtected && !auth.isAuthenticated && !auth.isLoading) {
           return '/signin';
+        }
+
+        // Role-based gating. Skip while still on splash/signin — we don't
+        // want to bounce a half-authed user around. Also skip when /hr/me
+        // is still loading, otherwise an admin flashes /hr/home for a beat
+        // before being moved to /home.
+        if (!auth.isAuthenticated || loc == '/splash' || loc == '/signin') {
+          return null;
+        }
+        final roleAsync = ref.read(appRoleAsyncProvider);
+        final role = roleAsync.asData?.value;
+        if (role == null) return null; // wait for /hr/me
+
+        // Finance + sibling surfaces are admin-only. Non-admins land in HR.
+        const financeRoots = {
+          '/home', '/sales', '/purchases', '/money',
+          '/banking', '/invoices', '/bills', '/expenses',
+          '/po', '/po-inbox', '/po-drafts',
+          '/agent', '/approvals', '/inbox',
+          '/quick-invoice',
+        };
+        final inFinanceRoot = financeRoots.any(loc.startsWith);
+        if (inFinanceRoot && !role.canAccessFinance) {
+          return '/hr/home';
         }
         return null;
       },
@@ -118,7 +159,160 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             GoRoute(path: '/sales', pageBuilder: _fadePage((_) => const SalesHubScreen())),
             GoRoute(path: '/purchases', pageBuilder: _fadePage((_) => const PurchasesHubScreen())),
             GoRoute(path: '/money', pageBuilder: _fadePage((_) => const MoneyHubScreen())),
+            // HR Home is the only HR surface that keeps the bot nav. The
+            // other "tabs" (People/Time/Pay) live outside the shell so
+            // any drill-down from Home reads as a focused workspace with
+            // a back arrow — no chrome competing for attention.
+            GoRoute(path: '/hr/home', pageBuilder: _fadePage((_) => const HrHomeScreen())),
           ],
+        ),
+        // HR drill-downs — pushed via the root navigator so the bot nav
+        // disappears and each screen takes the full viewport. Reachable
+        // from Home cards/banners + from the bot nav (which still lists
+        // them as convenience entry points while on Home).
+        GoRoute(
+          path: '/hr/people',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrPeopleScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/time',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrTimeScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/pay',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrPayScreen(initialTab: state.uri.queryParameters['tab']),
+            key: state.pageKey,
+          ),
+        ),
+        // Push-style routes for HR detail screens — kept outside the shell
+        // so the bottom nav doesn't repaint while drilling in.
+        GoRoute(
+          path: '/hr/people/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrEmployeeDetailScreen(id: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/hr/payslips/:runId/:payslipId',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrPayslipDetailScreen(
+              runId: state.pathParameters['runId']!,
+              payslipId: state.pathParameters['payslipId']!,
+            ),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/hr/more',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrMoreScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/holidays',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrHolidaysScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/leave-types',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrLeaveTypesScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/employees/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrEmployeeFormScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/employees/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            // Edit takes the existing employee via `extra` so we don't
+            // double-fetch from the network — caller already had it loaded.
+            final emp = state.extra as HrEmployee?;
+            return _slidePage(
+              HrEmployeeFormScreen(existing: emp),
+              key: state.pageKey,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/hr/expense-claims',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrExpenseClaimsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/expense-claims/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrExpenseClaimFormScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/expense-claims/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrExpenseClaimDetailScreen(id: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/hr/expense-claims/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            final claim = state.extra as HrExpenseClaim?;
+            return _slidePage(
+              HrExpenseClaimFormScreen(existing: claim),
+              key: state.pageKey,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/hr/salary-components',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrSalaryComponentsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/salary-structures',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrSalaryStructuresScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/salary-structures/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrSalaryStructureFormScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/salary-structures/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrSalaryStructureFormScreen(id: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/hr/payroll-runs',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrPayrollRunsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/payroll-runs/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrPayrollRunDetailScreen(id: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         // Section-hub sub-screens. Existing list/detail screens live under
         // their hub's URL space. Old paths (/invoices, /bills, /banking) are
@@ -416,14 +610,23 @@ class _MissingFileFallback extends StatelessWidget {
 
 class _AuthListenable extends ChangeNotifier {
   _AuthListenable(this._ref) {
-    _sub = _ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
+    _authSub = _ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
+    // Role flips after /hr/me resolves; the redirect needs to re-run so an
+    // admin can be moved off /hr/home back to /home, and a non-admin
+    // landing on /home gets bounced to /hr/home.
+    _roleSub = _ref.listen<AsyncValue<AppRole>>(
+      appRoleAsyncProvider,
+      (_, __) => notifyListeners(),
+    );
   }
   final Ref _ref;
-  late final ProviderSubscription<AuthState> _sub;
+  late final ProviderSubscription<AuthState> _authSub;
+  late final ProviderSubscription<AsyncValue<AppRole>> _roleSub;
 
   @override
   void dispose() {
-    _sub.close();
+    _authSub.close();
+    _roleSub.close();
     super.dispose();
   }
 }
