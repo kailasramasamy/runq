@@ -12,7 +12,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   CardSkeleton, useToast, Modal,
 } from '@/components/ui';
-import { PageHeader } from '@/components/ar/primitives';
+import { PageHeader, StatusPipeline } from '@/components/ar/primitives';
 
 function periodLabel(period: string): string {
   const month = parseInt(period.substring(0, 2), 10);
@@ -217,6 +217,25 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
           </Badge>
         }
       />
+
+      {/* Lifecycle stepper — at-a-glance "where am I" indicator across
+          the whole 3B flow. Maps DB status → step:
+            draft → Generate; validated → Validate; uploaded → Upload;
+            filed → File. Error status falls back to whichever stage the
+            return left off at, so the user still sees where they stalled. */}
+      <Card className="mb-4">
+        <CardContent className="py-4">
+          <StatusPipeline
+            steps={[
+              { key: 'draft',     label: 'Generated' },
+              { key: 'validated', label: 'Validated' },
+              { key: 'uploaded',  label: 'Uploaded' },
+              { key: 'filed',     label: 'Filed' },
+            ]}
+            current={ret.status === 'error' ? (ret.arn ? 'filed' : 'uploaded') : ret.status}
+          />
+        </CardContent>
+      </Card>
 
       {/* Filed success */}
       {ret.status === 'filed' && ret.arn && (
