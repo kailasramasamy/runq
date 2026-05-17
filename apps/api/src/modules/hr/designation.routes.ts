@@ -3,8 +3,8 @@ import { createDesignationSchema, updateDesignationSchema, uuidParamSchema } fro
 import { rbacHook } from '../../hooks/rbac';
 import { DesignationService } from './designation.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 export const designationRoutes: FastifyPluginAsync = async (app) => {
   app.get('/designations', { preHandler: [rbacHook([...ALL])] }, async (req) => {

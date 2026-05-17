@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { WageRegisterService } from './wage-register.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 
 const monthQuery = z.object({
   year: z.coerce.number().int().min(2000).max(2100),

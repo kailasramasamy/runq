@@ -10,7 +10,7 @@ import {
 import { NotFoundError } from '../../utils/errors';
 import { PayrollRunService } from './payroll/payroll-run.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 
 async function loadRunExportData(db: any, tenantId: string, runId: string) {
   const [run] = await db

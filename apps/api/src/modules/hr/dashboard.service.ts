@@ -1,6 +1,7 @@
 import { eq, and, isNull, gte, lte, sql, notExists } from 'drizzle-orm';
 import { employees, employeeSalary, attendance, payrollRuns } from '@runq/db';
 import type { Db } from '@runq/db';
+import { applyHrScope, type HrAccessScope } from './access-scope';
 
 const PROBATION_DAYS = 90;
 const ATTENDANCE_TREND_MONTHS = 6;
@@ -27,7 +28,14 @@ function lastNMonths(n: number): Array<{ year: number; month: number }> {
  * One round-trip instead of the frontend stitching together 5 queries.
  */
 export class HrDashboardService {
-  constructor(private readonly db: Db, private readonly tenantId: string) {}
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+    /// When a manager calls this endpoint, only their scoped employees
+    /// should count toward "needs attention" tiles. Defaults to org-wide
+    /// for callers that don't have a request handy (admin scripts, tests).
+    private readonly scope: HrAccessScope = { kind: 'all' },
+  ) {}
 
   async summary() {
     const today = new Date().toISOString().slice(0, 10);
@@ -39,11 +47,18 @@ export class HrDashboardService {
     const trendMonths = lastNMonths(ATTENDANCE_TREND_MONTHS);
     const trendStart = `${trendMonths[0].year}-${String(trendMonths[0].month).padStart(2, '0')}-01`;
 
-    const activeEmployee = and(
+    // For managers we narrow every active-employee aggregate to the team
+    // they can see. Org-wide scopes (`all`) pass through unchanged.
+    const activeEmployee = applyHrScope(this.scope, employees.id, and(
       eq(employees.tenantId, this.tenantId),
       eq(employees.status, 'active'),
       isNull(employees.deletedAt),
-    );
+    ));
+    const scopedAttendance = applyHrScope(this.scope, attendance.employeeId, and(
+      eq(attendance.tenantId, this.tenantId),
+      gte(attendance.date, trendStart),
+      lte(attendance.date, today),
+    ));
 
     const [
       payrollRun,
@@ -120,11 +135,7 @@ export class HrDashboardService {
           total: sql<number>`count(*)::int`,
         })
         .from(attendance)
-        .where(and(
-          eq(attendance.tenantId, this.tenantId),
-          gte(attendance.date, trendStart),
-          lte(attendance.date, today),
-        ))
+        .where(scopedAttendance)
         .groupBy(
           sql`extract(year from ${attendance.date})`,
           sql`extract(month from ${attendance.date})`,

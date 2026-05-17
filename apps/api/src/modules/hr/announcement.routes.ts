@@ -7,8 +7,9 @@ import { rbacHook } from '../../hooks/rbac';
 // Anyone in the HR module can read announcements; only owners post or delete.
 // We keep this scoped narrowly — there's no "edit" endpoint by design,
 // since announcements are short-lived; admins delete and repost if needed.
-const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
-const WRITE_ROLES = ['owner'] as const;
+const READ_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
+// HR can also post announcements (People Ops use case).
+const WRITE_ROLES = ['owner', 'hr'] as const;
 
 const createSchema = z.object({
   title: z.string().min(2).max(140),

@@ -3,8 +3,8 @@ import { createDepartmentSchema, updateDepartmentSchema, uuidParamSchema } from 
 import { rbacHook } from '../../hooks/rbac';
 import { DepartmentService } from './department.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 export const departmentRoutes: FastifyPluginAsync = async (app) => {
   app.get('/departments', { preHandler: [rbacHook([...ALL])] }, async (req) => {

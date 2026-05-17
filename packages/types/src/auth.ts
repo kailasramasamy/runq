@@ -1,4 +1,6 @@
-export type UserRole = 'owner' | 'accountant' | 'viewer' | 'client_owner';
+// `hr` = People Ops persona. Tenant-wide HR read + full HR write, but
+// no Finance write. Added with mig 0084.
+export type UserRole = 'owner' | 'accountant' | 'viewer' | 'client_owner' | 'hr';
 export type PlatformRole = 'super_admin' | 'support' | 'billing_ops' | 'read_only';
 
 export interface User {

@@ -9,19 +9,26 @@ import type {
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { countLeaveDays } from './leave-days';
 import { LeaveBalanceService } from './leave-balance.service';
+import { applyHrScope, type HrAccessScope } from './access-scope';
 
 export class LeaveRequestService {
-  constructor(private readonly db: Db, private readonly tenantId: string) {}
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+    /// Optional scope. Defaults to org-wide so internal callers (payroll
+    /// posting, balance carry-forward) keep their tenant-wide view.
+    private readonly scope: HrAccessScope = { kind: 'all' },
+  ) {}
 
   async list(filter: LeaveRequestFilter) {
-    const where = and(
+    const where = applyHrScope(this.scope, leaveRequests.employeeId, and(
       eq(leaveRequests.tenantId, this.tenantId),
       filter.employeeId ? eq(leaveRequests.employeeId, filter.employeeId) : undefined,
       filter.leaveTypeId ? eq(leaveRequests.leaveTypeId, filter.leaveTypeId) : undefined,
       filter.status ? eq(leaveRequests.status, filter.status) : undefined,
       filter.dateFrom ? gte(leaveRequests.fromDate, filter.dateFrom) : undefined,
       filter.dateTo ? lte(leaveRequests.toDate, filter.dateTo) : undefined,
-    );
+    ));
 
     const rows = await this.db
       .select({
@@ -132,8 +139,10 @@ export class LeaveRequestService {
     const [row] = await this.db
       .select()
       .from(leaveRequests)
-      .where(and(eq(leaveRequests.id, id), eq(leaveRequests.tenantId, this.tenantId)))
+      .where(applyHrScope(this.scope, leaveRequests.employeeId,
+        and(eq(leaveRequests.id, id), eq(leaveRequests.tenantId, this.tenantId))))
       .limit(1);
+    // Out-of-scope rows look like not-found — never reveal forbidden ids.
     if (!row) throw new NotFoundError('Leave request');
     return row;
   }

@@ -3,9 +3,10 @@
 // "has direct reports" signal) so every gate in the UI reads the same enum.
 //
 // Mapping:
-//   admin    — system role owner | accountant
+//   admin    — system role owner | accountant | hr (People Ops persona)
 //   manager  — non-admin with `hasReports = true` (set server-side via
-//              employees.reportingToId backfill)
+//              employees.reportingToId backfill) OR a department head
+//              (server includes them in the manager scope)
 //   employee — everything else (viewer, client_owner, or a user with no
 //              employee row at all)
 //
@@ -22,11 +23,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/hr_models.dart';
 import 'hr_providers.dart';
 
-enum AppRole { admin, manager, employee }
+enum AppRole { admin, hr, manager, employee }
 
 extension AppRoleX on AppRole {
+  /// Finance access is owner/accountant only. HR and Managers are walled
+  /// off — they only see the HR module.
   bool get canAccessFinance => this == AppRole.admin;
-  bool get canSeeManagerPersona => this == AppRole.admin || this == AppRole.manager;
+  /// Manager dashboards + persona toggle — admins, HR, and team managers.
+  bool get canSeeManagerPersona =>
+      this == AppRole.admin || this == AppRole.hr || this == AppRole.manager;
+  /// Only admins have a Finance module to flip into. HR is HR-only.
   bool get canSwitchModule => this == AppRole.admin;
 }
 
@@ -53,6 +59,7 @@ final appRoleAsyncProvider = Provider<AsyncValue<AppRole>>((ref) {
 AppRole _classify(HrMe me) {
   final r = me.systemRole.toLowerCase();
   if (r == 'owner' || r == 'accountant') return AppRole.admin;
+  if (r == 'hr') return AppRole.hr;
   if (me.isManager) return AppRole.manager;
   return AppRole.employee;
 }

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Plus, Trash2, Briefcase } from 'lucide-react';
 import {
-  PageHeader, Button, Input,
+  PageHeader, Button, Input, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
 import { EmptyState } from '@/components/ar/primitives';
 import {
   useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment,
+  useEmployees,
   type Department,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
@@ -15,6 +16,8 @@ export function DepartmentsPage() {
   const readOnly = useIsReadOnly();
   const { toast } = useToast();
   const { data, isLoading } = useDepartments();
+  // Employees feed the Head picker — limit 200 matches the server cap.
+  const { data: empData } = useEmployees({ limit: 200 });
   const create = useCreateDepartment();
   const update = useUpdateDepartment();
   const remove = useDeleteDepartment();
@@ -26,8 +29,19 @@ export function DepartmentsPage() {
   const [editing, setEditing] = useState<Department | null>(null);
   const [editName, setEditName] = useState('');
   const [editCode, setEditCode] = useState('');
+  const [editHead, setEditHead] = useState<string>('');
 
   const departments = data?.data ?? [];
+  const headOptions = [
+    { value: '', label: '— None —' },
+    ...((empData?.data ?? []).map((e) => ({
+      value: e.id,
+      label: `${e.firstName}${e.lastName ? ' ' + e.lastName : ''} · ${e.employeeCode}`,
+    }))),
+  ];
+  const headNameById = new Map(
+    (empData?.data ?? []).map((e) => [e.id, `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`]),
+  );
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -42,11 +56,17 @@ export function DepartmentsPage() {
     setEditing(d);
     setEditName(d.name);
     setEditCode(d.code ?? '');
+    setEditHead(d.headEmployeeId ?? '');
   }
 
   function saveEdit() {
     if (!editing) return;
-    update.mutate({ id: editing.id, name: editName.trim(), code: editCode.trim() || null }, {
+    update.mutate({
+      id: editing.id,
+      name: editName.trim(),
+      code: editCode.trim() || null,
+      headEmployeeId: editHead || null,
+    }, {
       onSuccess: () => { setEditing(null); toast('Department updated', 'success'); },
       onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
     });
@@ -81,15 +101,16 @@ export function DepartmentsPage() {
           <tr>
             <Th>Name</Th>
             <Th>Code</Th>
+            <Th>Head</Th>
             <Th align="right">Employees</Th>
             <Th align="right" />
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <tr><td colSpan={4} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
+            <tr><td colSpan={5} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : departments.length === 0 ? (
-            <tr><td colSpan={4}><EmptyState icon={<Briefcase size={18} />} title="No departments yet" description="Add your first department above." /></td></tr>
+            <tr><td colSpan={5}><EmptyState icon={<Briefcase size={18} />} title="No departments yet" description="Add your first department above." /></td></tr>
           ) : departments.map((d) => (
             <TableRow key={d.id}>
               <TableCell>
@@ -103,6 +124,19 @@ export function DepartmentsPage() {
                 {editing?.id === d.id ? (
                   <Input value={editCode} onChange={(e) => setEditCode(e.target.value)} />
                 ) : (d.code ?? <span style={{ color: 'var(--text-3)' }}>—</span>)}
+              </TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                {editing?.id === d.id ? (
+                  <Combobox
+                    options={headOptions}
+                    value={editHead}
+                    onChange={setEditHead}
+                  />
+                ) : d.headEmployeeId ? (
+                  headNameById.get(d.headEmployeeId) ?? <span style={{ color: 'var(--text-3)' }}>—</span>
+                ) : (
+                  <span style={{ color: 'var(--text-3)' }}>—</span>
+                )}
               </TableCell>
               <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{d.employeeCount ?? 0}</TableCell>
               <TableCell align="right">

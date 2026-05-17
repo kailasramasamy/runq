@@ -9,9 +9,10 @@ import { rbacHook } from '../../hooks/rbac';
 import { LeaveTypeService } from './leave-type.service';
 import { LeaveBalanceService } from './leave-balance.service';
 import { LeaveRequestService } from './leave-request.service';
+import { resolveHrAccessScope } from './access-scope';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const carryForwardSchema = z.object({
   fromYear: z.number().int().min(2000).max(2100),
@@ -71,18 +72,22 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
   // --- Leave requests ---
   app.get('/leave-requests', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const filter = leaveRequestFilterSchema.parse(req.query);
-    const svc = new LeaveRequestService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
     return { data: await svc.list(filter) };
   });
 
   app.get('/leave-requests/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
-    const svc = new LeaveRequestService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
     return { data: await svc.getById(id) };
   });
 
   app.post('/leave-requests', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
     const input = createLeaveRequestSchema.parse(req.body);
+    // Submission is self-serve; the service already checks the employee
+    // belongs to the tenant. No scope filter needed on insert.
     const svc = new LeaveRequestService(req.server.db, req.tenantId);
     return reply.status(201).send({ data: await svc.create(input) });
   });
@@ -90,13 +95,16 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
   app.put('/leave-requests/:id/review', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = reviewLeaveRequestSchema.parse(req.body);
-    const svc = new LeaveRequestService(req.server.db, req.tenantId);
+    // Review goes through scope — a manager can only approve their team.
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
     return { data: await svc.review(id, input, req.user!.userId) };
   });
 
   app.put('/leave-requests/:id/cancel', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
-    const svc = new LeaveRequestService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
     return { data: await svc.cancel(id) };
   });
 };

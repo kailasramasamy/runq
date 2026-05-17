@@ -5,8 +5,8 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { ShiftService } from './shift.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 export const shiftRoutes: FastifyPluginAsync = async (app) => {
   app.get('/shifts', { preHandler: [rbacHook([...ALL])] }, async (req) => {

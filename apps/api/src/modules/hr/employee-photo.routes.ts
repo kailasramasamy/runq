@@ -14,8 +14,8 @@ import { getStorageProvider } from '../../utils/storage';
  * only; 5 MB ceiling (photos shouldn't approach the 10 MB doc cap).
  */
 
-const WRITE_ROLES = ['owner', 'accountant'] as const;
-const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
+const WRITE_ROLES = ['owner', 'accountant', 'hr'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
 const idParamSchema = z.object({ id: z.string().uuid() });
 
 const PHOTO_MIMES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'] as const;

@@ -8,7 +8,7 @@ import { StatTile } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import {
   useEmployees, useDepartments, useDailyMuster, useLeaveRequests, useAttendance,
-  useHolidays, useHrDashboard,
+  useHolidays, useHrDashboard, useHrMe,
 } from '@/hooks/queries/use-hr';
 import { usePayrollRuns } from '@/hooks/queries/use-hr-payroll';
 import { StatutoryCalendar } from '@/components/dashboard/statutory-calendar';
@@ -150,6 +150,15 @@ export function HRDashboardPage() {
   const { data: weekAttData } = useAttendance({ dateFrom: week[0], dateTo: week[week.length - 1] });
   const { data: holidayData } = useHolidays(year);
   const { data: dashData } = useHrDashboard();
+  const { data: meData } = useHrMe();
+  const me = meData?.data;
+  // "Showing your team (N)" — scoped managers; "Showing all" — admins/HR.
+  // We never show the badge for self/none scopes (those land on the
+  // employee dashboard rather than this manager view).
+  const scopeBadge = !me ? null
+    : me.scopeKind === 'subset' ? `Showing your team · ${me.visibleCount ?? 0} people`
+    : me.scopeKind === 'all' ? 'Showing the full organisation'
+    : null;
 
   const total = empData?.meta?.total ?? 0;
   const muster: MusterData = musterData?.data ?? { present: 0, absent: 0, half_day: 0, leave: 0, holiday: 0, week_off: 0 };
@@ -199,7 +208,7 @@ export function HRDashboardPage() {
         fullWidth
         breadcrumbs={[{ label: 'HR' }]}
         title="HR & Payroll"
-        description="Workforce, time, attendance, and payroll for your factory."
+        description={scopeBadge ?? "Workforce, time, attendance, and payroll for your factory."}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">

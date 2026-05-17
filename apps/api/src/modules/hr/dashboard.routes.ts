@@ -3,8 +3,9 @@ import { and, eq, gte, lte, sql } from 'drizzle-orm';
 import { documentAttachments, employees } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { HrDashboardService } from './dashboard.service';
+import { applyHrScope, resolveHrAccessScope } from './access-scope';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -12,7 +13,8 @@ function isoDate(d: Date): string {
 
 export const hrDashboardRoutes: FastifyPluginAsync = async (app) => {
   app.get('/dashboard', { preHandler: [rbacHook([...ALL])] }, async (req) => {
-    const svc = new HrDashboardService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new HrDashboardService(req.server.db, req.tenantId, scope);
     return { data: await svc.summary() };
   });
 
@@ -28,6 +30,19 @@ export const hrDashboardRoutes: FastifyPluginAsync = async (app) => {
       const today = new Date();
       const horizon = new Date(today);
       horizon.setDate(horizon.getDate() + daysAhead);
+
+      // Scope: managers only see expiries for employees in their visible
+      // team; admins/hr see the tenant.
+      const scope = await resolveHrAccessScope(req);
+      const where = applyHrScope(scope, documentAttachments.entityId, and(
+        eq(documentAttachments.tenantId, req.tenantId),
+        eq(documentAttachments.entityType, 'employee'),
+        // `expiryDate` is a DATE column; comparing as strings is
+        // correct since both sides are YYYY-MM-DD lexically sortable.
+        sql`${documentAttachments.expiryDate} IS NOT NULL`,
+        gte(documentAttachments.expiryDate, isoDate(today)),
+        lte(documentAttachments.expiryDate, isoDate(horizon)),
+      ));
 
       const rows = await req.server.db
         .select({
@@ -49,17 +64,7 @@ export const hrDashboardRoutes: FastifyPluginAsync = async (app) => {
             eq(employees.tenantId, req.tenantId),
           ),
         )
-        .where(
-          and(
-            eq(documentAttachments.tenantId, req.tenantId),
-            eq(documentAttachments.entityType, 'employee'),
-            // `expiryDate` is a DATE column; comparing as strings is
-            // correct since both sides are YYYY-MM-DD lexically sortable.
-            sql`${documentAttachments.expiryDate} IS NOT NULL`,
-            gte(documentAttachments.expiryDate, isoDate(today)),
-            lte(documentAttachments.expiryDate, isoDate(horizon)),
-          ),
-        )
+        .where(where)
         .orderBy(documentAttachments.expiryDate)
         .limit(50);
 

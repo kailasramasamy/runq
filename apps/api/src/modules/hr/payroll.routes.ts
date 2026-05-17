@@ -13,8 +13,8 @@ import { SalaryStructureService } from './payroll/salary-structure.service';
 import { EmployeeSalaryService } from './payroll/employee-salary.service';
 import { PayrollRunService } from './payroll/payroll-run.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const employeeIdQuery = z.object({ employeeId: z.string().uuid() });
 const payslipParams = z.object({ id: z.string().uuid(), payslipId: z.string().uuid() });

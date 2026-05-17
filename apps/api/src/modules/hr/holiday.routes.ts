@@ -4,8 +4,8 @@ import { createHolidaySchema, updateHolidaySchema, uuidParamSchema } from '@runq
 import { rbacHook } from '../../hooks/rbac';
 import { HolidayService } from './holiday.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const yearQuery = z.object({ year: z.coerce.number().int().min(2000).max(2100).optional() });
 

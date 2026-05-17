@@ -5,6 +5,7 @@ import type {
   UpsertAttendanceInput, AttendanceFilter, BiometricImportInput,
 } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+import { applyHrScope, type HrAccessScope } from './access-scope';
 
 function calcHours(checkIn?: string | null, checkOut?: string | null): number | null {
   if (!checkIn || !checkOut) return null;
@@ -16,16 +17,21 @@ function calcHours(checkIn?: string | null, checkOut?: string | null): number | 
 }
 
 export class AttendanceService {
-  constructor(private readonly db: Db, private readonly tenantId: string) {}
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+    /// Optional scope. Defaults to org-wide for payroll / cron callers.
+    private readonly scope: HrAccessScope = { kind: 'all' },
+  ) {}
 
   async list(filter: AttendanceFilter) {
-    const where = and(
+    const where = applyHrScope(this.scope, attendance.employeeId, and(
       eq(attendance.tenantId, this.tenantId),
       filter.employeeId ? eq(attendance.employeeId, filter.employeeId) : undefined,
       filter.dateFrom ? gte(attendance.date, filter.dateFrom) : undefined,
       filter.dateTo ? lte(attendance.date, filter.dateTo) : undefined,
       filter.status ? eq(attendance.status, filter.status) : undefined,
-    );
+    ));
 
     const rows = await this.db
       .select({
@@ -150,7 +156,8 @@ export class AttendanceService {
         count: sql<number>`count(*)::int`,
       })
       .from(attendance)
-      .where(and(eq(attendance.tenantId, this.tenantId), eq(attendance.date, date)))
+      .where(applyHrScope(this.scope, attendance.employeeId,
+        and(eq(attendance.tenantId, this.tenantId), eq(attendance.date, date))))
       .groupBy(attendance.status);
 
     const totals: Record<string, number> = {

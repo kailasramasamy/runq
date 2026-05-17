@@ -109,11 +109,24 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
         hasReports = (count ?? 0) > 0;
       }
 
+      // Surface the access scope so the mobile/web UI can label the
+      // dashboard correctly ("Showing your team (N)" vs "Showing all").
+      // Cheap — the resolver is memoised per request and the result is
+      // a single integer (count or null).
+      const { resolveHrAccessScope } = await import('./access-scope');
+      const scope = await resolveHrAccessScope(request);
+      const scopeKind = scope.kind;
+      const visibleCount = scope.kind === 'subset' ? scope.ids.size
+        : scope.kind === 'self' ? 1
+        : null; // null = org-wide
+
       return {
         data: {
           employee: emp ?? null,
           isManager: isSystemManager || hasReports,
           systemRole: userRow.role,
+          scopeKind,
+          visibleCount,
         },
       };
     },

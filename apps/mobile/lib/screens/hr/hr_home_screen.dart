@@ -562,11 +562,22 @@ class _ManagerBody extends ConsumerWidget {
     final dash = dashAsync.asData?.value;
     final pendingCount = pendingAsync.asData?.value.length ?? 0;
 
+    final me = ref.watch(hrMeProvider).asData?.value;
+    // "Showing your team (N)" pill for scoped users; quiet for admins/HR.
+    final scopeLabel = me == null ? null
+        : me.scopeKind == 'subset' && me.visibleCount != null
+            ? 'Showing your team · ${me.visibleCount} people'
+            : null;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (scopeLabel != null) ...[
+            _ScopePill(label: scopeLabel),
+            const SizedBox(height: 12),
+          ],
           // Quick actions strip — top-of-page chips for the manager's
           // daily four-action loop. Replaces the multi-tap "more →
           // module" navigation for the most-frequent destinations.
@@ -1174,6 +1185,39 @@ class _PendingBanner extends StatelessWidget {
 
 
 // ─── Quick actions strip (manager) ────────────────────────────────────────
+
+/// Small teal pill telling scoped managers what they're looking at.
+/// Quiet for org-wide scopes — admins don't need a reminder.
+class _ScopePill extends StatelessWidget {
+  final String label;
+  const _ScopePill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: HrColors.tealSubtle,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.people_alt_outlined, size: 12, color: HrColors.brand(context)),
+            const SizedBox(width: 5),
+            Text(label,
+                style: TextStyle(
+                  color: HrColors.brand(context),
+                  fontSize: 11, fontWeight: FontWeight.w700,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _QuickActionsStrip extends ConsumerWidget {
   const _QuickActionsStrip();

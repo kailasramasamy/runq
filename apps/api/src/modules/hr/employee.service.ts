@@ -6,17 +6,24 @@ import type {
   CreateEmployeeInput, UpdateEmployeeInput, EmployeeFilter,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { applyHrScope } from './access-scope';
 
 type EmployeeRow = typeof employees.$inferSelect;
 
 export class EmployeeService {
-  constructor(private readonly db: Db, private readonly tenantId: string) {}
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+    /// Optional per-request scope. Defaults to org-wide so internal
+    /// callers (services, scripts, payroll jobs) keep their full view.
+    private readonly scope: import('./access-scope').HrAccessScope = { kind: 'all' },
+  ) {}
 
   async list(filter: EmployeeFilter) {
     const { page, limit, search, status, departmentId, designationId, employmentType } = filter;
     const { offset } = applyPagination(page, limit);
 
-    const where = and(
+    const where = applyHrScope(this.scope, employees.id, and(
       eq(employees.tenantId, this.tenantId),
       isNull(employees.deletedAt),
       status ? eq(employees.status, status) : undefined,
@@ -32,7 +39,7 @@ export class EmployeeService {
             ilike(employees.phone, `%${search}%`),
           )
         : undefined,
-    );
+    ));
 
     const [rows, countResult] = await Promise.all([
       this.db
@@ -68,12 +75,14 @@ export class EmployeeService {
       .from(employees)
       .leftJoin(departments, eq(departments.id, employees.departmentId))
       .leftJoin(designations, eq(designations.id, employees.designationId))
-      .where(and(
+      .where(applyHrScope(this.scope, employees.id, and(
         eq(employees.id, id),
         eq(employees.tenantId, this.tenantId),
         isNull(employees.deletedAt),
-      ))
+      )))
       .limit(1);
+    // Out-of-scope rows look identical to non-existent ones to the caller
+    // — both 404. We never reveal that a record exists but is forbidden.
     if (!row) throw new NotFoundError('Employee');
     return { ...row.emp, departmentName: row.departmentName, designationName: row.designationName };
   }
@@ -113,11 +122,11 @@ export class EmployeeService {
     const [row] = await this.db
       .update(employees)
       .set({ ...this.normalize(input), updatedAt: new Date() } as any)
-      .where(and(
+      .where(applyHrScope(this.scope, employees.id, and(
         eq(employees.id, id),
         eq(employees.tenantId, this.tenantId),
         isNull(employees.deletedAt),
-      ))
+      )))
       .returning();
     if (!row) throw new NotFoundError('Employee');
     return row;
@@ -127,7 +136,8 @@ export class EmployeeService {
     const [row] = await this.db
       .update(employees)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(employees.id, id), eq(employees.tenantId, this.tenantId)))
+      .where(applyHrScope(this.scope, employees.id,
+        and(eq(employees.id, id), eq(employees.tenantId, this.tenantId))))
       .returning();
     if (!row) throw new NotFoundError('Employee');
     return row;

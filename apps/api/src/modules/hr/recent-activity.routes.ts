@@ -5,8 +5,9 @@ import {
   documentAttachments,
 } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
+import { applyHrScope, resolveHrAccessScope } from './access-scope';
 
-const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
 
 type ActivityKind =
   | 'employee_added'
@@ -38,6 +39,7 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
       const tenantId = req.tenantId;
       const db = req.server.db;
       const LIMIT_PER_SOURCE = 10;
+      const scope = await resolveHrAccessScope(req);
 
       const [empAdds, empExits, leavesReviewed, salaries, docs, runs] = await Promise.all([
         db.select({
@@ -48,7 +50,7 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
           employeeId: employees.id,
         })
           .from(employees)
-          .where(eq(employees.tenantId, tenantId))
+          .where(applyHrScope(scope, employees.id, eq(employees.tenantId, tenantId)))
           .orderBy(desc(employees.createdAt))
           .limit(LIMIT_PER_SOURCE),
 
@@ -60,7 +62,9 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
           employeeId: employees.id,
         })
           .from(employees)
-          .where(and(eq(employees.tenantId, tenantId), isNotNull(employees.exitDate)))
+          .where(applyHrScope(scope, employees.id, and(
+            eq(employees.tenantId, tenantId), isNotNull(employees.exitDate),
+          )))
           .orderBy(desc(employees.exitDate))
           .limit(LIMIT_PER_SOURCE),
 
@@ -74,10 +78,10 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
         })
           .from(leaveRequests)
           .innerJoin(employees, eq(employees.id, leaveRequests.employeeId))
-          .where(and(
+          .where(applyHrScope(scope, leaveRequests.employeeId, and(
             eq(leaveRequests.tenantId, tenantId),
             isNotNull(leaveRequests.reviewedAt),
-          ))
+          )))
           .orderBy(desc(leaveRequests.reviewedAt))
           .limit(LIMIT_PER_SOURCE),
 
@@ -90,7 +94,8 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
         })
           .from(employeeSalary)
           .innerJoin(employees, eq(employees.id, employeeSalary.employeeId))
-          .where(eq(employeeSalary.tenantId, tenantId))
+          .where(applyHrScope(scope, employeeSalary.employeeId,
+            eq(employeeSalary.tenantId, tenantId)))
           .orderBy(desc(employeeSalary.createdAt))
           .limit(LIMIT_PER_SOURCE),
 
@@ -104,23 +109,27 @@ export const hrRecentActivityRoutes: FastifyPluginAsync = async (app) => {
         })
           .from(documentAttachments)
           .innerJoin(employees, eq(employees.id, documentAttachments.entityId))
-          .where(and(
+          .where(applyHrScope(scope, documentAttachments.entityId, and(
             eq(documentAttachments.tenantId, tenantId),
             eq(documentAttachments.entityType, 'employee'),
-          ))
+          )))
           .orderBy(desc(documentAttachments.createdAt))
           .limit(LIMIT_PER_SOURCE),
 
-        db.select({
-          id: payrollRuns.id,
-          when: payrollRuns.createdAt,
-          month: payrollRuns.month,
-          year: payrollRuns.year,
-        })
-          .from(payrollRuns)
-          .where(eq(payrollRuns.tenantId, tenantId))
-          .orderBy(desc(payrollRuns.createdAt))
-          .limit(LIMIT_PER_SOURCE),
+        // Payroll runs are tenant-wide events; managers don't run payroll,
+        // so we only surface them for org-wide scopes (admins/HR/accountant).
+        scope.kind === 'all'
+          ? db.select({
+              id: payrollRuns.id,
+              when: payrollRuns.createdAt,
+              month: payrollRuns.month,
+              year: payrollRuns.year,
+            })
+              .from(payrollRuns)
+              .where(eq(payrollRuns.tenantId, tenantId))
+              .orderBy(desc(payrollRuns.createdAt))
+              .limit(LIMIT_PER_SOURCE)
+          : Promise.resolve([] as Array<{ id: string; when: Date | null; month: number; year: number }>),
       ]);
 
       const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

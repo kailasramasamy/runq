@@ -13,6 +13,10 @@ export interface Department {
   name: string;
   code: string | null;
   parentId: string | null;
+  /// When set, this employee's hrAccessScope includes everyone in this
+  /// dept (in addition to their reporting subtree). Lets a head of HR
+  /// see all of HR without putting every HR employee under one manager.
+  headEmployeeId: string | null;
   isActive: boolean;
   employeeCount?: number;
 }
@@ -615,6 +619,28 @@ export function useExpiringDocuments(daysAhead = 90) {
     queryFn: () => api.get<ApiSuccess<ExpiringDoc[]>>(
       `/hr/dashboard/expiring-documents?daysAhead=${daysAhead}`,
     ),
+  });
+}
+
+// ─── /hr/me ────────────────────────────────────────────────────────────────
+
+/** Slim response from `/hr/me` — used by the dashboard to badge scope. */
+export interface HrMe {
+  employee: { id: string; firstName: string; lastName: string | null } | null;
+  isManager: boolean;
+  systemRole: 'owner' | 'accountant' | 'viewer' | 'client_owner' | 'hr';
+  /// 'all' | 'subset' | 'self' | 'none' — set by the server's access-scope
+  /// resolver. The badge maps these to "Showing all" / "Showing your team".
+  scopeKind: 'all' | 'subset' | 'self' | 'none';
+  /// Count of employees the caller can see. Null for org-wide (`all`) so
+  /// we don't display a misleading number on the admin dashboard.
+  visibleCount: number | null;
+}
+
+export function useHrMe() {
+  return useQuery({
+    queryKey: ['hr', 'me'],
+    queryFn: () => api.get<ApiSuccess<HrMe>>('/hr/me'),
   });
 }
 

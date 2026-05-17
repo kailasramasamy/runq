@@ -53,11 +53,27 @@ class HrMe {
   /// employee has direct reports. Drives the persona toggle visibility.
   final bool isManager;
 
-  /// Raw tenant role (`owner`/`accountant`/`viewer`). Useful for finer-grained
-  /// gating on the More tab.
+  /// Raw tenant role (`owner`/`accountant`/`viewer`/`hr`). Useful for
+  /// finer-grained gating on the More tab.
   final String systemRole;
 
-  HrMe({required this.employee, required this.isManager, required this.systemRole});
+  /// Access scope returned by the server — one of:
+  /// 'all'    org-wide read (owner/accountant/hr/client_owner)
+  /// 'subset' reporting subtree + dept-head expansions
+  /// 'self'   only their own data
+  /// 'none'   no matched employee row
+  final String scopeKind;
+
+  /// Number of employees visible to this user. Null for org-wide scope.
+  final int? visibleCount;
+
+  HrMe({
+    required this.employee,
+    required this.isManager,
+    required this.systemRole,
+    this.scopeKind = 'all',
+    this.visibleCount,
+  });
 
   factory HrMe.fromJson(Map<String, dynamic> j) {
     final empRaw = j['employee'];
@@ -65,6 +81,8 @@ class HrMe {
       employee: empRaw is Map<String, dynamic> ? HrEmployeeBrief.fromJson(empRaw) : null,
       isManager: _bool(j['isManager']),
       systemRole: _strOr(j['systemRole'], 'viewer'),
+      scopeKind: _strOr(j['scopeKind'], 'all'),
+      visibleCount: j['visibleCount'] == null ? null : _int(j['visibleCount']),
     );
   }
 

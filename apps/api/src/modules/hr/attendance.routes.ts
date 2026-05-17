@@ -6,16 +6,18 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { AttendanceService } from './attendance.service';
+import { resolveHrAccessScope } from './access-scope';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
-const WRITE = ['owner', 'accountant'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const dateOnlyQuery = z.object({ date: z.string().date() });
 
 export const attendanceRoutes: FastifyPluginAsync = async (app) => {
   app.get('/attendance', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const filter = attendanceFilterSchema.parse(req.query);
-    const svc = new AttendanceService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new AttendanceService(req.server.db, req.tenantId, scope);
     return { data: await svc.list(filter) };
   });
 
@@ -45,7 +47,8 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/attendance/muster', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const { date } = dateOnlyQuery.parse(req.query);
-    const svc = new AttendanceService(req.server.db, req.tenantId);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new AttendanceService(req.server.db, req.tenantId, scope);
     return { data: await svc.dailyMuster(date) };
   });
 };

@@ -31,12 +31,15 @@ import type { User, UserRole } from '@runq/types';
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'Owner' },
   { value: 'accountant', label: 'Accountant' },
+  // People Ops persona — tenant-wide HR read + full HR write, no Finance.
+  { value: 'hr', label: 'HR' },
   { value: 'viewer', label: 'Viewer' },
 ];
 
 function roleBadgeVariant(role: UserRole) {
   if (role === 'owner') return 'primary' as const;
   if (role === 'accountant') return 'info' as const;
+  if (role === 'hr') return 'cyan' as const;
   return 'default' as const;
 }
 
