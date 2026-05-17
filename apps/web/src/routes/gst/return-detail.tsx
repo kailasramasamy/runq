@@ -122,10 +122,11 @@ function B2CSSection({ data }: { data: any[] }) {
   );
 }
 
-/** Stepped progress UI for the GSTR-1 filing flow. The backend call is
- *  one mutation, but it internally runs proceedfile → poll-summary →
- *  retevcfile. We approximate progress by elapsed time since each step
- *  has a typical duration. Total expected: ~60-90s. */
+/** Stepped progress UI for the GSTR-1 file flow. The backend mutation
+ *  runs three sequential GSTN calls: newproceedfile (move return to
+ *  ready-to-file state) → retsum (poll until GSTN computes the summary
+ *  + checksum) → retevcfile (submit with EVC). Progress is an elapsed-
+ *  time approximation, not a real per-step signal. */
 function FilingProgress() {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -135,9 +136,9 @@ function FilingProgress() {
   }, []);
 
   const steps = [
-    { label: 'Triggering GSTN summary generation', startsAt: 0, endsAt: 4 },
-    { label: 'Waiting for GSTN to compute summary', startsAt: 4, endsAt: 70 },
-    { label: 'Submitting filing with EVC', startsAt: 70, endsAt: 90 },
+    { label: 'Marking return ready to file',                   startsAt: 0,  endsAt: 5  },
+    { label: 'Waiting for GSTN to compute summary + checksum', startsAt: 5,  endsAt: 70 },
+    { label: 'Submitting with EVC',                            startsAt: 70, endsAt: 90 },
   ];
   const totalDuration = 90;
   const pct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
@@ -148,6 +149,8 @@ function FilingProgress() {
         <span className="font-medium text-zinc-700 dark:text-zinc-300">Filing in progress</span>
         <span className="text-zinc-500">{elapsed}s elapsed · ~60–90s typical</span>
       </div>
+      {/* GSTR-1's compute-summary step is the long pole — GSTN may take
+          up to a minute on larger returns. */}
       <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
         <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }} />
       </div>
@@ -795,6 +798,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
                 {fileMutation.isPending ? 'Filing…' : 'File Return'}
               </Button>
               {fileMutation.isPending && <FilingProgress />}
+              {!fileMutation.isPending && (
               <button
                 type="button"
                 onClick={() => requestEvcMutation.mutate(ret.id, {
@@ -806,6 +810,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
               >
                 Didn't get it? Resend EVC
               </button>
+              )}
             </>
           )}
         </div>
