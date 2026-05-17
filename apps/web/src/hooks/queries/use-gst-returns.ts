@@ -14,6 +14,8 @@ export interface GstReturn {
   status: 'draft' | 'validated' | 'uploaded' | 'filed' | 'error';
   data: unknown;
   errorDetails: Array<{ code: string; message: string; section?: string }> | null;
+  verifyDrift: Array<{ section: string; field: string; sent: number; stored: number; delta: number }> | null;
+  verifiedAt: string | null;
   arn: string | null;
   filedAt: string | null;
   filedBy: string | null;
@@ -296,6 +298,15 @@ export type BookFromMatchPayload = {
   vendorAction?: 'use_existing' | 'create_new';
   existingVendorId?: string;
 };
+
+export function useVerify3b() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<ApiSuccess<unknown>>(`/gst/returns/${id}/verify-3b`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['gst-return'] }),
+  });
+}
 
 export function useBookFromMatch() {
   const qc = useQueryClient();

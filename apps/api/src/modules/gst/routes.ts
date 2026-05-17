@@ -236,6 +236,16 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.listReconciledPeriods() };
   });
 
+  // Manually re-run post-save verification of a 3B against GSTN's stored
+  // summary. Auto-runs once after each upload; this endpoint lets the
+  // user re-check (e.g. after WhiteBooks propagation, or after manually
+  // fixing values in the GST portal directly).
+  app.post('/returns/:id/verify-3b', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = idParam.parse(request.params);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    return { data: await svc.verify3b(id) };
+  });
+
   // Promote a `not_in_books` match into a draft purchase invoice so the
   // owner can claim the ITC. Returns the new bill id, or — if a similar
   // vendor already exists (typo'd GSTIN, same legal entity, etc.) —

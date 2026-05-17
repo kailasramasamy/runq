@@ -198,6 +198,19 @@ export const gstReturns = pgTable('gst_returns', {
   status: gstReturnStatusEnum('status').notNull().default('draft'),
   data: jsonb('data').$type<Gstr1Data | Gstr3bData>(),              // full return payload
   errorDetails: jsonb('error_details').$type<Array<{ code: string; message: string; section?: string }>>(),
+  // Post-save verification: after we save a 3B/1 to GSTN, we re-fetch
+  // the stored summary and diff against what we sent. Any non-trivial
+  // drift (section silently dropped, value mismatch beyond Re 1) is
+  // recorded here so the UI can warn before the user clicks File and
+  // discovers a downstream compute failure (e.g. RT-3BGC-9017).
+  verifyDrift: jsonb('verify_drift').$type<Array<{
+    section: string;
+    field: string;
+    sent: number;
+    stored: number;
+    delta: number;
+  }>>(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
   arn: varchar('arn', { length: 50 }),                               // acknowledgement ref from GSTN
   filedAt: timestamp('filed_at', { withTimezone: true }),
   filedBy: uuid('filed_by').references(() => users.id),

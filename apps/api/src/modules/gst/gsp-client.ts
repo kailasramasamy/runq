@@ -63,6 +63,7 @@ export interface GspClient {
 
   getAutoPopulated3b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr3bData>;
   saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult>;
+  getRawGstr3bSummary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>>;
   fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult>;
 
   getGstr2b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<unknown>;
@@ -422,6 +423,19 @@ export class WhiteBooksGspClient implements GspClient {
     const res = await fetch(url, { method: 'GET', headers });
     const result = await res.json();
     return this.transformGstr3bResponse(result.data || result);
+  }
+
+  /** Fetch the GSTN-stored 3B summary in raw form, before transformation.
+   *  Used by the post-save verification path so we can diff what we sent
+   *  against what GSTN actually persisted — silent-drops (e.g. Table 5
+   *  decimal-rejection) surface here without needing transformGstr3bResponse
+   *  to be fully wired up. */
+  async getRawGstr3bSummary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>> {
+    const stateCode = stateCodeFromGstin(gstin);
+    const url = withEmail('/gstr3b/retsum', { gstin, retperiod: period });
+    const res = await fetch(url, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
+    const result = await res.json();
+    return (result?.data ?? result ?? {}) as Record<string, unknown>;
   }
 
   async saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult> {
@@ -935,17 +949,22 @@ export class WhiteBooksGspClient implements GspClient {
       // Table 5: Exempt, nil-rated, non-GST inward supplies. GSTN spec
       // requires two rows split by `ty`: 'GST' = exempt/nil-rated from
       // composition or unregistered supplier; 'NONGST' = non-GST supplies.
+      // CRITICAL: inter/intra MUST be integers — GSTN's compute pipeline
+      // silently drops the entire section when decimals are sent, which
+      // surfaces later as the unhelpful RT-3BGC-9017 generic offset
+      // failure. The schema validator accepts decimals (false-OK), the
+      // compute step rejects them. Round to integer rupees.
       inward_sup: {
         isup_details: [
           {
             ty: 'GST',
-            inter: r(data.table5.interState.nilRated + data.table5.interState.exempt),
-            intra: r(data.table5.intraState.nilRated + data.table5.intraState.exempt),
+            inter: Math.round(data.table5.interState.nilRated + data.table5.interState.exempt),
+            intra: Math.round(data.table5.intraState.nilRated + data.table5.intraState.exempt),
           },
           {
             ty: 'NONGST',
-            inter: r(data.table5.interState.nonGst),
-            intra: r(data.table5.intraState.nonGst),
+            inter: Math.round(data.table5.interState.nonGst),
+            intra: Math.round(data.table5.intraState.nonGst),
           },
         ],
       },

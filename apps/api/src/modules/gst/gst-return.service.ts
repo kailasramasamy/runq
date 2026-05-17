@@ -241,8 +241,16 @@ export class GstReturnService {
     if (result.success) {
       await this.db
         .update(gstReturns)
-        .set({ status: 'uploaded', errorDetails: null, updatedAt: new Date() })
+        .set({ status: 'uploaded', errorDetails: null, verifyDrift: null, verifiedAt: null, updatedAt: new Date() })
         .where(eq(gstReturns.id, id));
+      // Fire-and-forget verification — don't block the upload response on
+      // it but capture drift before the user clicks File. Errors here
+      // don't fail the upload (they're a soft warning).
+      try {
+        await this.verify3b(id);
+      } catch (e) {
+        console.error('[gst-upload-3b] post-save verify failed', e);
+      }
     } else {
       await this.db
         .update(gstReturns)
@@ -251,6 +259,29 @@ export class GstReturnService {
     }
 
     return result;
+  }
+
+  /**
+   * After SAVE: pull the GSTN-stored summary, diff every numeric leaf in
+   * the sections that matter for compute (Table 3.1, Table 4 ITC,
+   * Table 5 inward), persist any drift > Re 1. Surfaces silent-drops
+   * (Table 5 decimal-rejection was the canonical case) before the user
+   * tries to File and hits an opaque RT-3BGC-9017.
+   */
+  async verify3b(id: string): Promise<typeof gstReturns.$inferSelect['verifyDrift']> {
+    const ret = await this.getById(id);
+    const profile = await this.getTenantGstProfile();
+    const token = await this.getValidToken(ret.gstin);
+    const stored = await this.gsp.getRawGstr3bSummary(token, ret.gstin, profile.gstUsername, ret.period);
+    const sent = ret.data as Gstr3bData | null;
+    if (!sent) return null;
+
+    const drift = diff3b(sent, stored);
+    await this.db
+      .update(gstReturns)
+      .set({ verifyDrift: drift, verifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(gstReturns.id, id));
+    return drift;
   }
 
   // ── Fetch auto-populated 3B from GSTN ──────────────────────────────
@@ -666,4 +697,53 @@ export class GstReturnService {
     const fmt = (d: Date) => d.toISOString().split('T')[0];
     return { periodStart: fmt(start), periodEnd: fmt(end) };
   }
+}
+
+/**
+ * Compare what runq sent for a 3B against what GSTN actually stored.
+ * Only flags drift > Re 1 (rounding/paise differences are noise; GSTN
+ * itself rounds). Returns the list of (section, field) deltas, or [] if
+ * everything matches.
+ */
+function diff3b(sent: Gstr3bData, stored: Record<string, unknown>): Array<{
+  section: string; field: string; sent: number; stored: number; delta: number;
+}> {
+  const out: Array<{ section: string; field: string; sent: number; stored: number; delta: number }> = [];
+  const TOL = 1;
+  const sup = (stored?.sup_details ?? {}) as Record<string, Record<string, number>>;
+  const inw = (stored?.inward_sup ?? {}) as { isup_details?: Array<Record<string, unknown>> };
+  const itc = (stored?.itc_elg ?? {}) as { itc_avl?: Array<Record<string, number>>; itc_net?: Record<string, number> };
+
+  const cmp = (section: string, field: string, sentVal: number, storedVal: number) => {
+    const d = Math.abs((sentVal || 0) - (storedVal || 0));
+    if (d > TOL) out.push({ section, field, sent: sentVal || 0, stored: storedVal || 0, delta: d });
+  };
+
+  // Table 3.1
+  const outwardTotal = sent.table31.outwardTaxableInterState.taxableValue + sent.table31.outwardTaxableIntraState.taxableValue;
+  cmp('Table 3.1 outward taxable', 'txval', outwardTotal, Number(sup?.osup_det?.txval));
+  cmp('Table 3.1 outward taxable', 'iamt',  sent.table31.outwardTaxableInterState.igst, Number(sup?.osup_det?.iamt));
+  cmp('Table 3.1 outward taxable', 'camt',  sent.table31.outwardTaxableIntraState.cgst, Number(sup?.osup_det?.camt));
+  cmp('Table 3.1 outward taxable', 'samt',  sent.table31.outwardTaxableIntraState.sgst, Number(sup?.osup_det?.samt));
+  cmp('Table 3.1 nil/exempt outward', 'txval', sent.table31.nilRatedExempt.taxableValue, Number(sup?.osup_nil_exmp?.txval));
+
+  // Table 5 — the canonical silent-drop case. Compare GST + NONGST rows.
+  const sentGstInter   = Math.round(sent.table5.interState.nilRated + sent.table5.interState.exempt);
+  const sentGstIntra   = Math.round(sent.table5.intraState.nilRated + sent.table5.intraState.exempt);
+  const sentNonInter   = Math.round(sent.table5.interState.nonGst);
+  const sentNonIntra   = Math.round(sent.table5.intraState.nonGst);
+  const findRow = (ty: string) => (inw?.isup_details ?? []).find((r) => r?.ty === ty);
+  const gstRow  = (findRow('GST')  ?? {}) as Record<string, unknown>;
+  const nonRow  = (findRow('NONGST') ?? {}) as Record<string, unknown>;
+  cmp('Table 5 GST (exempt+nil)',  'inter', sentGstInter, Number(gstRow?.inter ?? 0));
+  cmp('Table 5 GST (exempt+nil)',  'intra', sentGstIntra, Number(gstRow?.intra ?? 0));
+  cmp('Table 5 NONGST',            'inter', sentNonInter, Number(nonRow?.inter ?? 0));
+  cmp('Table 5 NONGST',            'intra', sentNonIntra, Number(nonRow?.intra ?? 0));
+
+  // Table 4 — net ITC is the headline number; per-row diffs would be noisy.
+  cmp('Table 4 net ITC', 'iamt', sent.table4.netItc.igst, Number(itc?.itc_net?.iamt));
+  cmp('Table 4 net ITC', 'camt', sent.table4.netItc.cgst, Number(itc?.itc_net?.camt));
+  cmp('Table 4 net ITC', 'samt', sent.table4.netItc.sgst, Number(itc?.itc_net?.samt));
+
+  return out;
 }

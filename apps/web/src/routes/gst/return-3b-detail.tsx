@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle, Upload, FileCheck, Shield, AlertTriangle } from 'lucide-react';
 import {
   useGstReturn, useValidateReturn, useRequestOtp, useVerifyOtp,
-  useUpload3b, useFileReturn, useAutoPopulated3b, useForceLogout, useRequestEvcOtp,
+  useUpload3b, useFileReturn, useAutoPopulated3b, useForceLogout, useRequestEvcOtp, useVerify3b,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
@@ -110,6 +110,7 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
   const uploadMutation = useUpload3b();
   const fileMutation = useFileReturn();
   const requestEvcMutation = useRequestEvcOtp();
+  const verifyMutation = useVerify3b();
   const forceLogoutMutation = useForceLogout();
   const { data: companyData } = useCompanySettings();
 
@@ -236,6 +237,65 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
           />
         </CardContent>
       </Card>
+
+      {/* Post-save verification drift warning — surfaces silent-drops by
+          GSTN (e.g. Table 5 decimal-rejection that previously masked as
+          a downstream RT-3BGC-9017 at File time). Catches the problem
+          before the user clicks File. */}
+      {ret.verifyDrift && ret.verifyDrift.length > 0 && (
+        <Card className="mb-4 border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/10">
+          <CardContent className="py-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  Data drift after upload to GSTN
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                  GSTN stored different values than we sent for {ret.verifyDrift.length} field
+                  {ret.verifyDrift.length === 1 ? '' : 's'}. Filing now will use GSTN's values, not yours.
+                  Re-upload the draft, or fix on the portal directly before filing.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={verifyMutation.isPending}
+                onClick={() => verifyMutation.mutate(returnId, {
+                  onSuccess: (res: any) => toast(`Re-verified — ${(res?.data?.length ?? 0)} drift fields`, 'success'),
+                  onError: (e: any) => toast(e?.message ?? 'Verify failed', 'error'),
+                })}
+              >
+                {verifyMutation.isPending ? 'Re-verifying…' : 'Re-verify'}
+              </Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Section</Th>
+                  <Th>Field</Th>
+                  <Th className="text-right">Sent</Th>
+                  <Th className="text-right">Stored on GSTN</Th>
+                  <Th className="text-right">Delta</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ret.verifyDrift.map((d, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-xs">{d.section}</TableCell>
+                    <TableCell className="text-xs font-mono">{d.field}</TableCell>
+                    <TableCell align="right" numeric>{formatINR(d.sent)}</TableCell>
+                    <TableCell align="right" numeric className={d.stored === 0 ? 'text-red-600 font-medium' : ''}>
+                      {formatINR(d.stored)}{d.stored === 0 && ' (dropped)'}
+                    </TableCell>
+                    <TableCell align="right" numeric>{formatINR(d.delta)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filed success */}
       {ret.status === 'filed' && ret.arn && (
