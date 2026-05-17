@@ -609,7 +609,7 @@ class _ManagerBody extends ConsumerWidget {
               Expanded(child: HrMusterTile(label: 'W/Off', value: muster?.weekOff ?? 0, kind: MusterKind.weekoff)),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 28),
           // "Needs attention" action cards — exact set the web HR
           // dashboard surfaces above the fold.
           _SectionLabel('Needs attention'),
