@@ -447,23 +447,30 @@ export class WhiteBooksGspClient implements GspClient {
   async fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult> {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
+    // Tag every log line so the user can grep Railway logs for one
+    // filing attempt across all three steps.
+    const tag = `[GST 3B file ${gstin}/${period}]`;
 
     // Step 1: Offset liability (computes cash + ITC utilization for the
-    // saved 3B). Don't swallow errors — without successful offset, the
+    // saved 3B). WhiteBooks /gstr3b/retoffset is a PUT (matches /retsave
+    // convention). Don't swallow errors — without successful offset, the
     // GSTN summary won't carry a chksum, and retevcfile will reject.
     const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };
+    const submitBody = { gstin, ret_period: period };
+    console.log(`${tag} step1 retoffset PUT body=${JSON.stringify(submitBody)}`);
     const submitRes = await fetch(withEmail('/gstr3b/retoffset'), {
-      method: 'POST',
+      method: 'PUT',
       headers: submitHeaders,
-      body: JSON.stringify({ gstin, ret_period: period }),
+      body: JSON.stringify(submitBody),
     });
     const submitData = await submitRes.json();
+    console.log(`${tag} step1 retoffset http=${submitRes.status} resp=${JSON.stringify(submitData)}`);
     const offsetOk = submitData?.status_cd === '1' || submitData?.status === 1
       // Some GSPs return a refid+ackno on async accept — treat as OK and rely on retsum.
       || !!submitData?.data?.reference_id || !!submitData?.data?.refid;
     if (!offsetOk && submitData?.error) {
       const err = submitData.error;
-      console.error('[GST] fileGstr3b retoffset failed', JSON.stringify(submitData));
+      console.error(`${tag} step1 retoffset FAILED`, JSON.stringify(submitData));
       return {
         success: false,
         errors: [{
@@ -479,13 +486,14 @@ export class WhiteBooksGspClient implements GspClient {
     const sumUrl = withEmail('/gstr3b/retsum', { gstin, retperiod: period });
     const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
     const sumData = await sumRes.json();
+    console.log(`${tag} step2 retsum http=${sumRes.status} resp=${JSON.stringify(sumData)}`);
     const chksum = sumData?.data?.chksum
       ?? sumData?.chksum
       ?? sumData?.data?.summary?.chksum
       ?? sumData?.data?.gstr3b?.chksum
       ?? sumData?.data?.data?.chksum;
     if (!chksum) {
-      console.error('[GST] fileGstr3b retsum returned no chksum', JSON.stringify(sumData));
+      console.error(`${tag} step2 retsum NO_CHKSUM`, JSON.stringify(sumData));
       const apiErr = sumData?.error?.message || sumData?.error?.error_msg;
       return {
         success: false,
@@ -498,19 +506,25 @@ export class WhiteBooksGspClient implements GspClient {
       };
     }
 
-    const url = withEmail('/gstr3b/retevcfile', { pan, evcotp: evc });
+    const url = withEmail('/gstr3b/retevcfile', { pan, evcotp: '***' });
     const headers = {
       ...commonHeaders(username, stateCode, token.txn),
       'gstin': gstin,
       'ret_period': period,
     };
 
-    const res = await fetch(url, {
+    const fileBody = { gstin, ret_period: period, chksum, isnil: 'N' };
+    console.log(`${tag} step3 retevcfile POST url=${url.replace(/evcotp=\*\*\*/, 'evcotp=<6digits>')} body=${JSON.stringify(fileBody)}`);
+    const res = await fetch(withEmail('/gstr3b/retevcfile', { pan, evcotp: evc }), {
       method: 'POST',
       headers,
-      body: JSON.stringify({ gstin, ret_period: period, chksum, isnil: 'N' }),
+      body: JSON.stringify(fileBody),
     });
     const result = await res.json();
+    console.log(`${tag} step3 retevcfile http=${res.status} resp=${JSON.stringify(result)}`);
+    if (!(result.status_cd === '1' || result.status === 1)) {
+      console.error(`${tag} step3 retevcfile FAILED`, JSON.stringify(result));
+    }
 
     return {
       success: result.status_cd === '1' || result.status === 1,
