@@ -339,11 +339,14 @@ export function StatusPipeline({
   steps, current,
 }: { steps: Array<{ key: string; label: string }>; current: string }) {
   const idx = steps.findIndex((s) => s.key === current);
+  // Terminal step (e.g. "Filed", "Closed") is the end of the lifecycle —
+  // mark it done rather than current so it shows the ✓/green state.
+  const terminalReached = idx === steps.length - 1;
   return (
     <div className="flex items-start">
       {steps.map((step, i) => {
-        const done = i < idx;
-        const cur = i === idx;
+        const done = i < idx || (terminalReached && i === idx);
+        const cur = i === idx && !terminalReached;
         return (
           <div key={step.key} className="flex flex-1 items-start last:flex-none">
             <div className="flex flex-col items-center gap-1.5">
