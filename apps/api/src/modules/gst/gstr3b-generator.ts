@@ -54,9 +54,20 @@ export class Gstr3bGenerator {
     let zeroTaxable = 0, zeroIgst = 0, zeroCess = 0;
     let nilExemptTaxable = 0;
 
-    // B2B invoices
+    // B2B invoices — mixed invoices contain both taxable AND nil-rated
+    // line items. Route each item to the correct Table 3.1 bucket by
+    // its rate, otherwise nil-rated dairy items (gstRate=0) get
+    // double-counted into outward taxable (was the case for Vrindavan
+    // Apr 042026: ₹3,60,969 of nil items wrongly counted as taxable).
+    const isItemTaxable = (item: { gstRate?: number; igstAmount: number; cgstAmount: number; sgstAmount: number }) =>
+      (item.gstRate ?? 0) > 0 || item.igstAmount > 0 || item.cgstAmount > 0 || item.sgstAmount > 0;
     for (const inv of data.b2b) {
       for (const item of inv.items) {
+        if (!isItemTaxable(item)) {
+          // Nil/exempt B2B line item — count once in the nil bucket.
+          nilExemptTaxable += item.taxableValue;
+          continue;
+        }
         if (item.igstAmount > 0) {
           interTaxable += item.taxableValue;
           interIgst += item.igstAmount;
@@ -70,8 +81,14 @@ export class Gstr3bGenerator {
       }
     }
 
-    // B2CS
+    // B2CS — same rate-based split. B2CS entries are aggregated by
+    // rate already, but a "0% rate" entry would belong in the nil
+    // bucket, not outward taxable.
     for (const e of data.b2cs) {
+      if (e.igstAmount === 0 && e.cgstAmount === 0 && e.sgstAmount === 0) {
+        nilExemptTaxable += e.taxableValue;
+        continue;
+      }
       if (e.supplyType === 'INTER') {
         interTaxable += e.taxableValue;
         interIgst += e.igstAmount;

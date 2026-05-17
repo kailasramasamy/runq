@@ -64,7 +64,7 @@ export interface GspClient {
   getAutoPopulated3b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr3bData>;
   saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult>;
   getRawGstr3bSummary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>>;
-  fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult>;
+  fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string, data?: Gstr3bData): Promise<FilingResult>;
 
   getGstr2b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<unknown>;
 }
@@ -458,7 +458,7 @@ export class WhiteBooksGspClient implements GspClient {
     };
   }
 
-  async fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult> {
+  async fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string, data?: Gstr3bData): Promise<FilingResult> {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
     // Tag every log line so the user can grep Railway logs for one
@@ -491,12 +491,15 @@ export class WhiteBooksGspClient implements GspClient {
     // i.e. drain IGST first across both, only then own-head credits,
     // only then cash. `liab_id` is OUTPUT of offset, not input.
     //
-    // TODO(may-fix): switch to correct WhiteBooks endpoint (pending
-    // their support response), or construct pditc per Rule 88A from
-    // data.table4 + data.table6 if we keep this endpoint. See
-    // [[project_gstr3b_filing_blockers]] memory.
+    // Until WhiteBooks confirms the right endpoint, send the Rule-88A
+    // correct pdcash + pditc body anyway — closest to what GSTN does
+    // internally. May start working if WhiteBooks fixes their wrapper
+    // without us redeploying. Falls back to legacy minimal body if
+    // `data` isn't available (e.g. older call sites).
     const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };
-    const submitBody = { gstin, ret_period: period };
+    const submitBody: Record<string, unknown> = data
+      ? buildRetoffsetBody(gstin, period, data)
+      : { gstin, ret_period: period };
     console.log(`${tag} step1 retoffset PUT body=${JSON.stringify(submitBody)}`);
     const submitRes = await fetch(withEmail('/gstr3b/retoffset'), {
       method: 'PUT',
@@ -972,14 +975,28 @@ export class WhiteBooksGspClient implements GspClient {
           { ty: 'OTH', iamt: 0, camt: 0, samt: 0, csamt: 0 },
         ],
       },
-      // Table 5: Exempt, nil-rated, non-GST inward supplies. Per the
-      // WhiteBooks retsave reference payload, isup_details only carries
-      // rows for non-zero values — sending an all-zero NONGST entry
-      // alongside a populated GST entry causes the entire inward_sup
-      // section to be silently dropped by GSTN's compute pipeline
-      // (which then surfaces as RT-3BGC-9017 at file time).
-      // Same filtering pattern we already apply to inter_sup.unreg_details.
-      // Integers only — decimals were also rejected silently in testing.
+      // Table 5: Exempt, nil-rated, non-GST inward supplies.
+      //
+      // **KNOWN GAP** — GSTN silently drops the entire inward_sup section
+      // from saves submitted via WhiteBooks' /gstr3b/retsave, even though
+      // the payload shape is structurally correct (proven via portal save
+      // round-trip: same {ty, inter, intra} shape persists when entered
+      // on portal directly, dropped when sent via our API). Trigger is
+      // something in our request envelope (header collision? body field
+      // ordering? eco_dtls interaction?) — not the section structure.
+      //
+      // Mitigation: Layer 2 post-save verify (gst-return.service.ts
+      // verify3b) detects this and surfaces a yellow warning card on the
+      // 3B detail page with "Stored on GSTN: ₹0 (dropped)" so the user
+      // knows to manually enter Table 5 on portal before clicking File.
+      //
+      // Fix path TBD: WhiteBooks support ticket (pending). When their
+      // /retsave is fixed, this section will start persisting without
+      // any code change here.
+      //
+      // We still send the correctly-shaped payload — keep the array
+      // filtered to non-zero rows (matches WhiteBooks reference pattern;
+      // all-zero NONGST row was speculative noise).
       inward_sup: {
         isup_details: ([
           {
@@ -1047,6 +1064,69 @@ export class WhiteBooksGspClient implements GspClient {
       },
     };
   }
+}
+
+/**
+ * Build the pdcash + pditc body for /gstr3b/retoffset.
+ *
+ * Implements Rule 88A: IGST credit MUST be exhausted first — against
+ * IGST liability, then against CGST, then against SGST. Only after IGST
+ * is fully drained do we use own-head CGST/SGST credits. Anything still
+ * unpaid hits the cash ledger. Confirmed via portal DevTools capture
+ * (Vrindavan Apr 042026) — GSTN's own algorithm follows this exact
+ * sequence and rejects any other allocation with RT-3BAS1070.
+ *
+ * Liability values are taken from data.table61 (post-88A compute by our
+ * generator) and ITC availability from data.table4.netItc. All values
+ * rounded to integer rupees (matches what GSTN's tx_pmt returns).
+ */
+function buildRetoffsetBody(gstin: string, period: string, data: Gstr3bData) {
+  const r = (n: number) => Math.round(n || 0);
+  const t6 = data.table61;
+  const itc = data.table4.netItc;
+
+  // IGST credit cascade per Rule 88A.
+  let igstRemain = itc.igst;
+  const igstToIgst = Math.min(igstRemain, t6.igst.payable);
+  igstRemain -= igstToIgst;
+  const igstToCgst = Math.min(igstRemain, t6.cgst.payable);
+  igstRemain -= igstToCgst;
+  const igstToSgst = Math.min(igstRemain, t6.sgst.payable);
+  // (any igstRemain left over carries forward as unutilized ITC)
+
+  // Own-head credit covers whatever IGST didn't.
+  const cgstOwnUsed = Math.min(itc.cgst, t6.cgst.payable - igstToCgst);
+  const sgstOwnUsed = Math.min(itc.sgst, t6.sgst.payable - igstToSgst);
+  const cessUsed = Math.min(itc.cess, t6.cess.payable);
+
+  return {
+    gstin,
+    ret_period: period,
+    pdcash: [{
+      // liab_ldg_id is OUTPUT not INPUT — GSTN generates it post-offset.
+      // Sending 0 is correct per Vrindavan Apr 042026 test.
+      liab_ldg_id: 0,
+      trans_typ: 30002,
+      ipd: r(t6.igst.cashPaid),
+      cpd: r(t6.cgst.cashPaid),
+      spd: r(t6.sgst.cashPaid),
+      cspd: r(t6.cess.cashPaid),
+      c_intrpd: 0, c_lfeepd: 0, cs_intrpd: 0,
+      i_intrpd: 0, s_intrpd: 0, s_lfeepd: 0,
+    }],
+    pditc: {
+      liab_ldg_id: 0,
+      trans_typ: 30002,
+      i_pdi: r(igstToIgst),
+      i_pdc: r(igstToCgst),
+      i_pds: r(igstToSgst),
+      c_pdc: r(cgstOwnUsed),
+      c_pdi: 0,                         // CGST → IGST not allowed (one-way)
+      s_pdi: 0,                         // SGST → IGST not allowed
+      s_pds: r(sgstOwnUsed),
+      cs_pdcs: r(cessUsed),
+    },
+  };
 }
 
 // ── Factory ────────────────────────────────────────────────────────────

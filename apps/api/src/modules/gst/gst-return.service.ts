@@ -570,7 +570,10 @@ export class GstReturnService {
     const signatoryPan = settings.gstAuthSignatoryPan?.trim().toUpperCase();
     const callFile = () => ret.returnType === 'gstr1'
       ? this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan)
-      : this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan);
+      // Pass the saved 3B `data` to fileGstr3b so it can construct the
+      // Rule-88A retoffset payload (pdcash + pditc) from the generator
+      // output rather than sending an empty body that GSTN rejects.
+      : this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan, ret.data as Gstr3bData);
     let result = await callFile();
     // Auto-heal for stale GSTN-side state. Two known codes:
     //   GSTR-1  RT_FIL_09       — signed summary went stale.

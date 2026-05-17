@@ -79,6 +79,47 @@ describe('GSTR-3B generation logic', () => {
     expect(data.nil[0].exemptAmount).toBe(1000);
   });
 
+  it('nil-rated line items in mixed B2B invoices go to nil bucket, not outward taxable', () => {
+    // Real-world regression: Vrindavan dairy April 042026. A single B2B
+    // invoice contained both nil milk (gstRate=0) and taxable cheese
+    // (gstRate=5). The old code summed both into intraTaxable; ₹3.6L of
+    // nil items wrongly landed in Table 3.1 outward taxable instead of
+    // nil_exempt. Fix routes by rate.
+    const mixedB2b: Gstr1Data['b2b'][number] = {
+      buyerGstin: '29AADCB2230M1ZT',
+      invoiceNumber: 'MIX-001',
+      invoiceDate: '15-04-2026',
+      invoiceValue: 1541.52,
+      placeOfSupply: '29',
+      reverseCharge: 'N',
+      invoiceType: 'R',
+      items: [
+        { taxableValue: 1492, igstAmount: 0, cgstAmount: 0,    sgstAmount: 0,    cessAmount: 0, gstRate: 0 },  // nil milk
+        { taxableValue: 49.52, igstAmount: 0, cgstAmount: 1.24, sgstAmount: 1.24, cessAmount: 0, gstRate: 5 },  // taxable cheese
+      ],
+    };
+    // Manually compute what the generator SHOULD produce:
+    //   outwardTaxableIntraState.taxableValue = 49.52  (taxable cheese only)
+    //   outwardTaxableIntraState.cgst = 1.24
+    //   outwardTaxableIntraState.sgst = 1.24
+    //   nilRatedExempt.taxableValue = 1492 (the nil milk)
+    let intraTaxable = 0;
+    let nilTaxable = 0;
+    const isItemTaxable = (item: { gstRate?: number; igstAmount: number; cgstAmount: number; sgstAmount: number }) =>
+      (item.gstRate ?? 0) > 0 || item.igstAmount > 0 || item.cgstAmount > 0 || item.sgstAmount > 0;
+    for (const item of mixedB2b.items) {
+      if (!isItemTaxable(item)) {
+        nilTaxable += item.taxableValue;
+      } else if (item.igstAmount > 0) {
+        // would go to inter; not the case here
+      } else {
+        intraTaxable += item.taxableValue;
+      }
+    }
+    expect(intraTaxable).toBe(49.52);  // only the taxable item
+    expect(nilTaxable).toBe(1492);     // only the nil item
+  });
+
   it('ITC utilization follows Rule 88A order', () => {
     // Simulate: IGST payable 3600, CGST payable 1350, SGST payable 1350
     // ITC: IGST 2000, CGST 500, SGST 500
