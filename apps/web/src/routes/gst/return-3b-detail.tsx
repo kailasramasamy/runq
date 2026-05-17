@@ -429,6 +429,35 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
         </CardContent>
       </Card>
 
+      {/* Table 5: Exempt, nil-rated & non-GST inward supplies */}
+      <Card className="mb-4">
+        <CardHeader title="5 — Exempt, Nil-rated & Non-GST Inward Supplies" />
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <Th>Nature of Supply</Th>
+                <Th className="text-right">Inter-state</Th>
+                <Th className="text-right">Intra-state</Th>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {([
+                ['From a supplier under composition / nil-rated', 'nilRated'],
+                ['Exempt', 'exempt'],
+                ['Non-GST supply', 'nonGst'],
+              ] as const).map(([label, key]) => (
+                <TableRow key={key}>
+                  <TableCell>{label}</TableCell>
+                  <TableCell className="text-right">{formatINR(d?.table5?.interState?.[key] ?? 0)}</TableCell>
+                  <TableCell className="text-right">{formatINR(d?.table5?.intraState?.[key] ?? 0)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       {/* Table 6.1: Tax Liability */}
       <Card className="mb-4">
         <CardHeader title="6.1 — Tax Liability & Payment" />
