@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
 import {
-  usePull2b, useReconcile2b, use2bMatches, use2bSummary,
+  usePull2b, useReconcile2b, use2bMatches, use2bSummary, use2bPeriods,
   useRequestOtp, useVerifyOtp, useForceLogout, useBookFromMatch,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
@@ -115,6 +115,8 @@ export function ReconciliationPage() {
   const pullMutation = usePull2b();
   const reconMutation = useReconcile2b();
   const bookMutation = useBookFromMatch();
+  const { data: periodsData } = use2bPeriods();
+  const reconciledPeriods = periodsData?.data ?? [];
   const [bookingId, setBookingId] = useState<string | null>(null);
   // When the backend spots a near-duplicate vendor for a 2B entry, it
   // returns the candidates instead of silently creating a fresh vendor
@@ -301,6 +303,73 @@ export function ReconciliationPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* History — every period the tenant has already reconciled, with
+          per-period rollup. Click a row to load it into the main view. */}
+      {reconciledPeriods.length > 0 && (
+        <Card className="mb-6">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Previously reconciled periods</h3>
+              <span className="text-xs text-zinc-500">{reconciledPeriods.length} period{reconciledPeriods.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <Th>Period</Th>
+                    <Th>Pulled</Th>
+                    <Th className="text-right">Matched</Th>
+                    <Th className="text-right">Mismatched</Th>
+                    <Th className="text-right">Not in books</Th>
+                    <Th className="text-right">Not in 2B</Th>
+                    <Th className="text-right">ITC available</Th>
+                    <Th className="text-right">ITC claimable</Th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reconciledPeriods.map((p) => {
+                    const isActive = p.period === period;
+                    const unresolved = p.summary.notInBooks.count + p.summary.notIn2b.count + p.summary.mismatched.count;
+                    return (
+                      <TableRow
+                        key={p.period}
+                        className={[
+                          'cursor-pointer transition-colors',
+                          isActive ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/50',
+                        ].join(' ')}
+                        onClick={() => { setPeriod(p.period); setStatusFilter(undefined); }}
+                      >
+                        <TableCell className="font-medium">
+                          {periodLabel(p.period)}
+                          {unresolved === 0 && (
+                            <Badge variant="success" className="ml-2 text-[10px]">clean</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-zinc-500">
+                          {p.pulledAt ? new Date(p.pulledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </TableCell>
+                        <TableCell align="right" numeric className="text-green-600">{p.summary.matched.count}</TableCell>
+                        <TableCell align="right" numeric className={p.summary.mismatched.count > 0 ? 'text-amber-600' : 'text-zinc-400'}>
+                          {p.summary.mismatched.count}
+                        </TableCell>
+                        <TableCell align="right" numeric className={p.summary.notInBooks.count > 0 ? 'text-red-600' : 'text-zinc-400'}>
+                          {p.summary.notInBooks.count}
+                        </TableCell>
+                        <TableCell align="right" numeric className={p.summary.notIn2b.count > 0 ? 'text-blue-600' : 'text-zinc-400'}>
+                          {p.summary.notIn2b.count}
+                        </TableCell>
+                        <TableCell align="right" numeric>{formatINR(p.summary.totalItcAvailable)}</TableCell>
+                        <TableCell align="right" numeric className="font-medium text-green-600">{formatINR(p.summary.totalItcClaimable)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary */}
       {summary && (

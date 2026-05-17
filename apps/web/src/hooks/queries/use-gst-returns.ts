@@ -237,7 +237,21 @@ export interface ReconSummary {
 const RECON_KEYS = {
   matches: (period: string, status?: string) => ['gst-2b', 'matches', period, status] as const,
   summary: (period: string) => ['gst-2b', 'summary', period] as const,
+  periods: () => ['gst-2b', 'periods'] as const,
 };
+
+export interface ReconciledPeriod {
+  period: string;
+  pulledAt: string | null;
+  summary: ReconSummary;
+}
+
+export function use2bPeriods() {
+  return useQuery({
+    queryKey: RECON_KEYS.periods(),
+    queryFn: () => api.get<ApiSuccess<ReconciledPeriod[]>>('/gst/2b/periods'),
+  });
+}
 
 export function usePull2b() {
   const qc = useQueryClient();

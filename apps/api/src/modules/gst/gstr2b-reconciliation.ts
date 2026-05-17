@@ -290,6 +290,55 @@ export class Gstr2bReconciliationService {
     return this.computeSummary(matches as any);
   }
 
+  /**
+   * List every 2B period the tenant has pulled, with a per-period rollup
+   * so the reconciliation screen can show an at-a-glance history without
+   * the user having to step through periods one by one.
+   */
+  async listReconciledPeriods(): Promise<Array<{
+    period: string;
+    pulledAt: Date | null;
+    summary: ReconciliationSummary;
+  }>> {
+    // One round-trip: fetch all matches for the tenant + their parent
+    // gstr2bData rows (for pulledAt), then group in memory. Tenants
+    // rarely have >24 months of 2B history, so the bounded scan is fine.
+    const rows = await this.db
+      .select({
+        period: gstr2bMatches.period,
+        matchStatus: gstr2bMatches.matchStatus,
+        taxableValue2b: gstr2bMatches.taxableValue2b,
+        igst2b: gstr2bMatches.igst2b,
+        cgst2b: gstr2bMatches.cgst2b,
+        sgst2b: gstr2bMatches.sgst2b,
+      })
+      .from(gstr2bMatches)
+      .where(eq(gstr2bMatches.tenantId, this.tenantId));
+
+    const pulled = await this.db
+      .select({ period: gstr2bData.period, pulledAt: gstr2bData.pulledAt })
+      .from(gstr2bData)
+      .where(eq(gstr2bData.tenantId, this.tenantId));
+    const pulledByPeriod = new Map(pulled.map((p) => [p.period, p.pulledAt]));
+
+    const byPeriod = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const list = byPeriod.get(r.period) ?? [];
+      list.push(r);
+      byPeriod.set(r.period, list);
+    }
+
+    const out = Array.from(byPeriod.entries()).map(([period, matches]) => ({
+      period,
+      pulledAt: pulledByPeriod.get(period) ?? null,
+      summary: this.computeSummary(matches as any),
+    }));
+    // Newest period first.
+    out.sort((a, b) => b.period.slice(2).concat(b.period.slice(0, 2))
+      .localeCompare(a.period.slice(2).concat(a.period.slice(0, 2))));
+    return out;
+  }
+
   // ── Book a 2B entry into the ledger as a draft purchase invoice ──────
 
   /**

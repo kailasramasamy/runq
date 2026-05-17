@@ -228,6 +228,14 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.getSummary(period) };
   });
 
+  // List every period the tenant has reconciled, newest first. Lets the
+  // reconciliation screen show history without forcing the user to pick
+  // periods blindly from a dropdown.
+  app.get('/2b/periods', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const svc = new Gstr2bReconciliationService(request.server.db, request.tenantId);
+    return { data: await svc.listReconciledPeriods() };
+  });
+
   // Promote a `not_in_books` match into a draft purchase invoice so the
   // owner can claim the ITC. Returns the new bill id, or — if a similar
   // vendor already exists (typo'd GSTIN, same legal entity, etc.) —
