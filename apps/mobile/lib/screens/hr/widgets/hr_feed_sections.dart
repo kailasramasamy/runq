@@ -83,7 +83,7 @@ class HrAnnouncementsSection extends ConsumerWidget {
     final canPost = role == AppRole.admin;
     final top = rows.take(3).toList();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -336,7 +336,7 @@ class HrRecentActivitySection extends ConsumerWidget {
     final rows = async.asData?.value ?? const [];
     final top = rows.take(6).toList();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
