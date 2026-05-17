@@ -541,14 +541,28 @@ export class GstReturnService {
       ? this.gsp.fileGstr1(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan)
       : this.gsp.fileGstr3b(token, ret.gstin, profile.gstUsername, ret.period, evc, signatoryPan);
     let result = await callFile();
-    // Auto-heal: if GSTN says the signed summary is stale (RT_FIL_09),
-    // re-upload the saved data — that invalidates the frozen ready-to-file
-    // state and the next proceedfile generates a fresh signed summary.
-    const stale = result.errors?.some((e) => e.code === 'RT_FIL_09');
-    if (!result.success && stale && ret.returnType === 'gstr1' && ret.data) {
-      console.log('[gst-file] signed summary stale — re-uploading then retrying file');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await this.gsp.uploadGstr1(token, ret.gstin, profile.gstUsername, ret.period, ret.data as any);
+    // Auto-heal for stale GSTN-side state. Two known codes:
+    //   GSTR-1  RT_FIL_09       — signed summary went stale.
+    //   GSTR-3B RT-3BGC-9017    — saved 3B not in sync with the offset/
+    //                             compute pipeline (transient propagation
+    //                             gap inside GSTN).
+    // Fix in both cases is the same: re-save the data, then retry file.
+    const isStaleErr = (code: string) =>
+      code === 'RT_FIL_09' || code === 'RT-3BGC-9017';
+    const stale = result.errors?.some((e) => isStaleErr(e.code));
+    if (!result.success && stale && ret.data) {
+      console.log(`[gst-file] stale GSTN state (${result.errors?.[0]?.code}) — re-saving then retrying`);
+      if (ret.returnType === 'gstr1') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.gsp.uploadGstr1(token, ret.gstin, profile.gstUsername, ret.period, ret.data as any);
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.gsp.saveGstr3b(token, ret.gstin, profile.gstUsername, ret.period, ret.data as any);
+      }
+      // GSTN can take a couple of seconds to propagate the re-save before
+      // the offset call sees it. Brief pause avoids retrying into the
+      // same stale-state error.
+      await new Promise((r) => setTimeout(r, 3000));
       result = await callFile();
     }
 

@@ -471,11 +471,18 @@ export class WhiteBooksGspClient implements GspClient {
     if (!offsetOk && submitData?.error) {
       const err = submitData.error;
       console.error(`${tag} step1 retoffset FAILED`, JSON.stringify(submitData));
+      const code = err.error_cd || err.code || 'OFFSET_FAILED';
+      // Known GSTN error codes: rewrite to a clearer, single-line
+      // message. The raw text is preserved in server logs above.
+      const friendly: Record<string, string> = {
+        'RT-3BGC-9017': 'GSTN saved-3B is out of sync with the offset pipeline (RT-3BGC-9017). Auto-healing by re-saving and retrying — if you still see this after one retry, wait 2 minutes and try again.',
+      };
       return {
         success: false,
         errors: [{
-          code: err.error_cd || err.code || 'OFFSET_FAILED',
-          message: err.message || err.error_msg || 'Liability offset failed — payment may be pending. Check cash ledger and retry.',
+          code,
+          message: friendly[code]
+            || (err.message || err.error_msg || 'Liability offset failed — payment may be pending. Check cash ledger and retry.').trim().replace(/\s+/g, ' '),
         }],
       };
     }
