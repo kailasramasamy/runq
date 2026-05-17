@@ -466,9 +466,35 @@ export class WhiteBooksGspClient implements GspClient {
     const tag = `[GST 3B file ${gstin}/${period}]`;
 
     // Step 1: Offset liability (computes cash + ITC utilization for the
-    // saved 3B). WhiteBooks /gstr3b/retoffset is a PUT (matches /retsave
-    // convention). Don't swallow errors — without successful offset, the
-    // GSTN summary won't carry a chksum, and retevcfile will reject.
+    // saved 3B).
+    //
+    // **KNOWN BROKEN** — Vrindavan Apr 042026 testing (May 17 2026)
+    // proved WhiteBooks' /gstr3b/retoffset returns RT-3BAS1070
+    // ("PARTIAL/EXCESS payment") regardless of payload values. Six
+    // variants tested including the Rule-88A-correct allocation that
+    // GSTN's portal performs internally (drain IGST credit first across
+    // both CGST + SGST liabilities). Same error each time. Auth chain
+    // proven healthy via retsave + retsum working in the same session.
+    //
+    // The actual GSTN endpoint the portal hits is dead simple:
+    //   GET /returns/auth/api/gstr3b/offsetliab?rtn_prd=042026
+    //   → {"status":1,"data":"{\"status_cd\":1}"}
+    // Bare GET, NO body. GSTN computes offset server-side from saved
+    // 3B + ITC + cash ledger. WhiteBooks needs to expose an equivalent
+    // (likely `/gstr3b/offsetliab` or similar) or fix `/retoffset`.
+    //
+    // The Rule 88A allocation GSTN actually performs (from portal
+    // DevTools capture, Vrindavan Apr 042026):
+    //   IGST credit → CGST liability: full amount (₹6,184)
+    //   IGST credit → SGST liability: full amount (₹6,184)
+    //   own CGST/SGST credits: untouched
+    // i.e. drain IGST first across both, only then own-head credits,
+    // only then cash. `liab_id` is OUTPUT of offset, not input.
+    //
+    // TODO(may-fix): switch to correct WhiteBooks endpoint (pending
+    // their support response), or construct pditc per Rule 88A from
+    // data.table4 + data.table6 if we keep this endpoint. See
+    // [[project_gstr3b_filing_blockers]] memory.
     const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };
     const submitBody = { gstin, ret_period: period };
     console.log(`${tag} step1 retoffset PUT body=${JSON.stringify(submitBody)}`);
