@@ -149,14 +149,33 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
   String _iso(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Future<void> _save() async {
+  /// Build a payload from currently-filled fields. When [partial] is true
+  /// we omit unfilled optional fields and silently drop optional values that
+  /// fail their regex (PAN / Aadhaar / IFSC) rather than failing the save —
+  /// the user can fix them later from the same form.
+  Map<String, dynamic> _buildPayload({required bool partial}) {
+    String? clean(TextEditingController c, {bool upper = false, RegExp? regex}) {
+      final v = c.text.trim();
+      if (v.isEmpty) return null;
+      final shaped = upper ? v.toUpperCase() : v;
+      if (regex != null && !regex.hasMatch(shaped)) {
+        // In strict mode the canAdvance gate already blocked this; in
+        // partial mode we drop invalid fragments so a draft can still save.
+        return partial ? null : shaped;
+      }
+      return shaped;
+    }
     final body = <String, dynamic>{
       'employeeCode': _code.text.trim(),
       'firstName': _firstName.text.trim(),
-      'lastName': _str(_lastName),
-      'email': _str(_email),
-      'phone': _str(_phone),
-      'joiningDate': _iso(_joiningDate!),
+      'lastName': clean(_lastName),
+      'email': clean(_email),
+      'phone': clean(_phone),
+      // Draft-saves without a joining date default to today; the server
+      // requires the column on create and the user can fix it later.
+      'joiningDate': _joiningDate != null
+          ? _iso(_joiningDate!)
+          : (partial && widget.existing == null ? _iso(DateTime.now()) : null),
       'confirmationDate': _confirmationDate == null ? null : _iso(_confirmationDate!),
       'departmentId': _departmentId,
       'designationId': _designationId,
@@ -164,33 +183,86 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
       'reportingToId': _reportingToId,
       'dateOfBirth': _dob == null ? null : _iso(_dob!),
       'gender': _gender,
-      'bloodGroup': _str(_bloodGroup == null ? null : TextEditingController(text: _bloodGroup!)),
-      'address': _str(_address),
-      'pan': _str(_pan, upper: true),
-      'aadhaar': _str(_aadhaar),
-      'uan': _str(_uan),
-      'pfNumber': _str(_pfNumber),
-      'esiNumber': _str(_esiNumber),
+      'bloodGroup': _bloodGroup,
+      'address': clean(_address),
+      'pan': clean(_pan, upper: true, regex: _panRegex),
+      'aadhaar': clean(_aadhaar, regex: _aadhaarRegex),
+      'uan': clean(_uan),
+      'pfNumber': clean(_pfNumber),
+      'esiNumber': clean(_esiNumber),
       'ctcAnnual': double.tryParse(_ctcAnnual.text.trim()),
-      'bankName': _str(_bankName),
-      'bankAccountNumber': _str(_bankAcct),
-      'bankIfsc': _str(_bankIfsc, upper: true),
+      'bankName': clean(_bankName),
+      'bankAccountNumber': clean(_bankAcct),
+      'bankIfsc': clean(_bankIfsc, upper: true, regex: _ifscRegex),
       if (_employmentType == 'wage' || _employmentType == 'contract') ...{
-        'agency': _str(_agency),
+        'agency': clean(_agency),
         'dailyWageRate': double.tryParse(_dailyWage.text.trim()),
       },
     };
-    // Strip nulls so the server doesn't overwrite untouched columns to
-    // null on edit. (Schema treats absent ≠ null.)
     body.removeWhere((_, v) => v == null);
+    return body;
+  }
 
+  /// Save now from any step. For create, requires firstName + code; the
+  /// joining date defaults to today. For edit, just patches whatever has
+  /// been entered. Bypasses step-level canAdvance gating so a single-field
+  /// edit doesn't force walking the whole wizard.
+  Future<void> _savePartial() async {
+    if (_firstName.text.trim().isEmpty || _code.text.trim().isEmpty) {
+      showRunqSnack(
+        context,
+        'Name and employee code are required.',
+        kind: SnackKind.error,
+      );
+      throw StateError('missing-minimum');
+    }
+    final isCreate = widget.existing == null;
+    final body = _buildPayload(partial: true);
+    if (isCreate && _joiningDate == null) {
+      // Hint that we defaulted joining date so the user can fix it.
+      // No-op if they later edit and set a real date.
+      showRunqSnack(
+        context,
+        'Joining date defaulted to today — edit later if needed.',
+        kind: SnackKind.info,
+      );
+    }
+    try {
+      if (isCreate) {
+        await hrRepo.createEmployee(body);
+      } else {
+        await hrRepo.updateEmployee(widget.existing!.id, body);
+      }
+      ref.invalidate(hrEmployeesProvider);
+      if (widget.existing != null) {
+        ref.invalidate(hrEmployeeProvider(widget.existing!.id));
+      }
+      if (mounted) {
+        showRunqSnack(
+          context,
+          isCreate ? 'Draft saved — finish details anytime.' : 'Changes saved.',
+          kind: SnackKind.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showRunqSnack(context, 'Save failed: $e', kind: SnackKind.error);
+      }
+      rethrow;
+    }
+  }
+
+  /// Full-walk save fired from the wizard's final Continue button. Same
+  /// payload shape as the partial save, but strict regex validation has
+  /// already gated each step so invalid fragments can't slip through.
+  Future<void> _save() async {
+    final body = _buildPayload(partial: false);
     try {
       if (widget.existing == null) {
         await hrRepo.createEmployee(body);
       } else {
         await hrRepo.updateEmployee(widget.existing!.id, body);
       }
-      // Invalidate the cached list + detail so the change is visible.
       ref.invalidate(hrEmployeesProvider);
       if (widget.existing != null) {
         ref.invalidate(hrEmployeeProvider(widget.existing!.id));
@@ -210,27 +282,24 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
     }
   }
 
-  /// Pull a non-empty trimmed string from a controller, optionally upper.
-  /// Returns null when blank so the server's "ignore absent" semantics
-  /// pick the right behaviour on edit.
-  String? _str(dynamic c, {bool upper = false}) {
-    final raw = c is TextEditingController
-        ? c.text.trim()
-        : (c is String ? c.trim() : '');
-    if (raw.isEmpty) return null;
-    return upper ? raw.toUpperCase() : raw;
-  }
-
   @override
   Widget build(BuildContext context) {
     final deptsAsync = ref.watch(hrDepartmentsProvider);
     final desigsAsync = ref.watch(hrDesignationsProvider);
     final managersAsync = ref.watch(hrEmployeesProvider(const HrEmployeesQuery(status: 'active')));
 
+    final isCreate = widget.existing == null;
     return HrWizard(
-      title: widget.existing == null ? 'New employee' : 'Edit employee',
-      submitLabel: widget.existing == null ? 'Add employee' : 'Save changes',
+      title: isCreate ? 'New employee' : 'Edit employee',
+      submitLabel: isCreate ? 'Add employee' : 'Save changes',
       onSubmit: _save,
+      // "Save draft" on create lets the user persist a partial record so
+      // they don't lose progress when data trickles in. "Save changes" on
+      // edit lets them update a single field without walking every step.
+      secondaryActionLabel: isCreate ? 'Save draft' : 'Save changes',
+      onSecondaryAction: _savePartial,
+      secondaryActionEnabled: () =>
+          _firstName.text.trim().isNotEmpty && _code.text.trim().isNotEmpty,
       steps: [
         HrWizardStep(
           title: 'Basic',

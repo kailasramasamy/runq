@@ -49,6 +49,16 @@ class HrWizard extends StatefulWidget {
   /// section. Defaults to 0.
   final int initialStep;
 
+  /// Optional secondary action surfaced on every step in the header
+  /// (next to the step chip). Use for "Save draft" on a create wizard or
+  /// "Save changes" on an edit wizard so the user doesn't have to walk
+  /// every step to persist a small change. Tap pops the wizard on success.
+  final String? secondaryActionLabel;
+  final Future<void> Function()? onSecondaryAction;
+  /// Gate the secondary action independently of step-level [canAdvance].
+  /// For a "Save draft" this is typically `hasMinimumFields()`.
+  final bool Function()? secondaryActionEnabled;
+
   const HrWizard({
     super.key,
     required this.title,
@@ -56,6 +66,9 @@ class HrWizard extends StatefulWidget {
     required this.onSubmit,
     this.submitLabel = 'Save',
     this.initialStep = 0,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
+    this.secondaryActionEnabled,
   });
 
   @override
@@ -91,6 +104,20 @@ class _HrWizardState extends State<HrWizard> {
     setState(() => _index += 1);
   }
 
+  Future<void> _runSecondary() async {
+    final cb = widget.onSecondaryAction;
+    if (cb == null) return;
+    setState(() => _busy = true);
+    try {
+      await cb();
+      if (mounted) Navigator.of(context).maybePop();
+    } catch (_) {
+      // Caller surfaces the error.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _back() {
     if (_index == 0) {
       Navigator.of(context).maybePop();
@@ -118,6 +145,10 @@ class _HrWizardState extends State<HrWizard> {
                 index: _index,
                 total: widget.steps.length,
                 onBack: _back,
+                secondaryLabel: widget.secondaryActionLabel,
+                onSecondary: widget.onSecondaryAction == null ? null : _runSecondary,
+                secondaryEnabled: !_busy
+                    && (widget.secondaryActionEnabled?.call() ?? true),
               ),
               if (step.subtitle != null)
                 Padding(
@@ -180,13 +211,24 @@ class _Header extends StatelessWidget {
   final String title;
   final int index, total;
   final VoidCallback onBack;
-  const _Header({required this.title, required this.index, required this.total, required this.onBack});
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+  final bool secondaryEnabled;
+  const _Header({
+    required this.title,
+    required this.index,
+    required this.total,
+    required this.onBack,
+    this.secondaryLabel,
+    this.onSecondary,
+    this.secondaryEnabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
       child: Row(
         children: [
           IconButton(
@@ -197,6 +239,20 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(title, style: RunqText.h2.copyWith(color: t.ink, fontSize: 20)),
           ),
+          if (secondaryLabel != null && onSecondary != null) ...[
+            TextButton(
+              onPressed: secondaryEnabled ? onSecondary : null,
+              style: TextButton.styleFrom(
+                foregroundColor: HrColors.brand(context),
+                disabledForegroundColor: t.muted2,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              child: Text(secondaryLabel!,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 4),
+          ],
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
