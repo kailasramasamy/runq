@@ -160,7 +160,7 @@ interface CelebrationItem {
  *  proximity. Re-derives from the standard employee list to avoid a bespoke
  *  endpoint. */
 export function CelebrationsSection() {
-  const { data } = useEmployees({ limit: 500 });
+  const { data } = useEmployees({ limit: 200 });
   const now = today();
   const items: CelebrationItem[] = [];
   for (const e of data?.data ?? []) {
@@ -233,7 +233,7 @@ function CelebrationRow({ item }: { item: CelebrationItem }) {
 /** Two tiles summarising joiners and exits in the current calendar month. */
 export function PeopleMomentsSection() {
   const navigate = useNavigate();
-  const { data } = useEmployees({ limit: 500 });
+  const { data } = useEmployees({ limit: 200 });
   const now = today();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);

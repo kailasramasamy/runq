@@ -294,7 +294,7 @@ class HrCelebration {
 final hrCelebrationsProvider =
     FutureProvider<List<HrCelebration>>((ref) async {
   return _watchAuth(ref, () async {
-    final page = await hrRepo.employees(status: 'active', limit: 500);
+    final page = await hrRepo.employees(status: 'active', limit: 200);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final horizon = today.add(const Duration(days: 7));
@@ -338,7 +338,7 @@ class HrPeopleMoments {
 final hrPeopleMomentsProvider =
     FutureProvider<HrPeopleMoments>((ref) async {
   return _watchAuth(ref, () async {
-    final page = await hrRepo.employees(limit: 500);
+    final page = await hrRepo.employees(limit: 200);
     final now = DateTime.now();
     bool inThisMonth(DateTime? d) =>
         d != null && d.year == now.year && d.month == now.month;
