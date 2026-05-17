@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle, Upload, FileCheck, Shield, AlertTriangle } from 'lucide-react';
 import {
   useGstReturn, useValidateReturn, useRequestOtp, useVerifyOtp,
-  useUpload3b, useFileReturn, useAutoPopulated3b, useForceLogout,
+  useUpload3b, useFileReturn, useAutoPopulated3b, useForceLogout, useRequestEvcOtp,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
 import type { GstReturn } from '@/hooks/queries/use-gst-returns';
@@ -51,6 +51,7 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
   const verifyOtpMutation = useVerifyOtp();
   const uploadMutation = useUpload3b();
   const fileMutation = useFileReturn();
+  const requestEvcMutation = useRequestEvcOtp();
   const forceLogoutMutation = useForceLogout();
   const { data: companyData } = useCompanySettings();
 
@@ -390,10 +391,27 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
         </div>
       </Modal>
 
-      {/* EVC Modal */}
+      {/* EVC Modal — match the GSTR-1 flow: explicit "Send EVC OTP" click
+          first (hits /authentication/otpforevc on the signatory's PAN),
+          then user types the code and files. Without the first click, no
+          OTP request is sent and the user waits forever. */}
       <Modal open={showEvcModal} title="File GSTR-3B" onClose={() => setShowEvcModal(false)}>
         <div className="space-y-4">
-          <p className="text-sm text-zinc-500">Enter the EVC sent to your registered mobile to file the return.</p>
+          <p className="text-sm text-zinc-500">
+            Click "Send EVC OTP" to receive a one-time code on the authorized signatory's
+            registered mobile/email, then enter it below to file the return.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => requestEvcMutation.mutate(returnId, {
+              onSuccess: (res: any) => toast(res?.data?.message ?? 'EVC OTP sent', res?.data?.success ? 'success' : 'error'),
+              onError: (e: any) => toast(e?.message ?? 'Failed to send EVC', 'error'),
+            })}
+            disabled={requestEvcMutation.isPending}
+            className="w-full"
+          >
+            {requestEvcMutation.isPending ? 'Sending…' : 'Send EVC OTP'}
+          </Button>
           <div>
             <label className="text-sm font-medium block mb-1">EVC Code</label>
             <Input value={evc} onChange={(e) => setEvc(e.target.value)} placeholder="Enter EVC" maxLength={6} />
