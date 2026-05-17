@@ -347,6 +347,11 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [showEvcModal, setShowEvcModal] = useState(false);
   const [evc, setEvc] = useState('');
+  // Two-stage EVC flow (mirrors GSTR-3B): only show the OTP input +
+  // File button after the user has explicitly requested the EVC. The
+  // peer-actions layout was tripping users into waiting for an OTP
+  // they never asked for.
+  const [evcOtpSent, setEvcOtpSent] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   const ret = returnData?.data;
@@ -737,36 +742,72 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
         </div>
       </Modal>
 
-      {/* ── EVC Modal ── */}
-      <Modal open={showEvcModal} title="File Return" onClose={() => setShowEvcModal(false)}>
+      {/* ── EVC Modal — staged flow (mirrors GSTR-3B) ── */}
+      <Modal
+        open={showEvcModal}
+        title="File Return"
+        onClose={() => { setShowEvcModal(false); setEvcOtpSent(false); setEvc(''); }}
+      >
         <div className="space-y-4">
-          <p className="text-sm text-zinc-500">
-            Click "Send EVC" to receive a one-time code on your GST-registered mobile/email, then enter it below to file the return.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => requestEvcMutation.mutate(ret.id, {
-              onSuccess: (res) => toast(res.data.message ?? 'EVC OTP sent', res.data.success ? 'success' : 'error'),
-              onError: (e: unknown) => toast((e as { message?: string })?.message ?? 'Failed to send EVC', 'error'),
-            })}
-            disabled={requestEvcMutation.isPending}
-            className="w-full"
-          >
-            {requestEvcMutation.isPending ? 'Sending…' : 'Send EVC OTP'}
-          </Button>
-          <div>
-            <label className="text-sm font-medium block mb-1">EVC Code</label>
-            <Input
-              value={evc}
-              onChange={(e) => setEvc(e.target.value)}
-              placeholder="Enter EVC"
-              maxLength={6}
-            />
-          </div>
-          <Button onClick={handleFile} disabled={fileMutation.isPending} className="w-full">
-            {fileMutation.isPending ? 'Filing…' : 'File Return'}
-          </Button>
-          {fileMutation.isPending && <FilingProgress />}
+          {!evcOtpSent ? (
+            <>
+              <p className="text-sm text-zinc-500">
+                To file this return, GSTN will send a one-time EVC code to the authorized signatory's
+                registered mobile and email. Click below to request it.
+              </p>
+              {requestEvcMutation.isPending && (
+                <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 rounded-md px-3 py-2">
+                  <div className="h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Requesting EVC from GST portal…</span>
+                </div>
+              )}
+              <Button
+                onClick={() => requestEvcMutation.mutate(ret.id, {
+                  onSuccess: (res) => {
+                    const ok = !!res.data.success;
+                    toast(res.data.message ?? (ok ? 'EVC OTP sent' : 'Failed to send EVC OTP'), ok ? 'success' : 'error');
+                    if (ok) setEvcOtpSent(true);
+                  },
+                  onError: (e: unknown) => toast((e as { message?: string })?.message ?? 'Failed to send EVC', 'error'),
+                })}
+                disabled={requestEvcMutation.isPending}
+                className="w-full"
+              >
+                {requestEvcMutation.isPending ? 'Sending…' : 'Send EVC OTP'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-md px-3 py-2">
+                <span>✓ EVC sent to the authorized signatory's registered mobile and email. Enter the 6-digit code below.</span>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">EVC Code</label>
+                <Input
+                  value={evc}
+                  onChange={(e) => setEvc(e.target.value)}
+                  placeholder="Enter 6-digit EVC"
+                  maxLength={6}
+                  autoFocus
+                />
+              </div>
+              <Button onClick={handleFile} disabled={fileMutation.isPending || evc.length < 6} className="w-full">
+                {fileMutation.isPending ? 'Filing…' : 'File Return'}
+              </Button>
+              {fileMutation.isPending && <FilingProgress />}
+              <button
+                type="button"
+                onClick={() => requestEvcMutation.mutate(ret.id, {
+                  onSuccess: (res) => toast(res.data.message ?? 'EVC resent', res.data.success ? 'success' : 'error'),
+                  onError: (e: unknown) => toast((e as { message?: string })?.message ?? 'Failed to resend', 'error'),
+                })}
+                disabled={requestEvcMutation.isPending}
+                className="text-xs text-primary-600 hover:underline disabled:opacity-50"
+              >
+                Didn't get it? Resend EVC
+              </button>
+            </>
+          )}
         </div>
       </Modal>
     </div>
