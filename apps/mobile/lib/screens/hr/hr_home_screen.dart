@@ -317,7 +317,7 @@ class _EmployeeBodyState extends ConsumerState<_EmployeeBody> {
                       const HrStatusBadge(status: 'active', label: 'Checked in'),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 26),
                 Center(
                   child: HrBiometricButton(
                     state: _bio,
@@ -655,7 +655,7 @@ class _ManagerBody extends ConsumerWidget {
               onTap: () => context.push('/hr/people'),
             ),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 26),
           // People-context sections — the parts a daily HR manager looks
           // for first (who's out, whose birthday is it, recent moments,
           // attendance pulse, expiring docs). Each renders an empty-state

@@ -88,7 +88,7 @@ class HrWhoIsOutSection extends ConsumerWidget {
     final rows = async.asData?.value ?? const [];
     if (rows.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
@@ -101,7 +101,7 @@ class HrWhoIsOutSection extends ConsumerWidget {
     final top = rows.take(3).toList();
     final extra = rows.length - top.length;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -202,7 +202,7 @@ class HrCelebrationsSection extends ConsumerWidget {
     final rows = async.asData?.value ?? const [];
     if (rows.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
@@ -214,7 +214,7 @@ class HrCelebrationsSection extends ConsumerWidget {
     }
     final top = rows.take(4).toList();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -330,7 +330,7 @@ class HrPeopleMomentsSection extends ConsumerWidget {
     // Always render the two tiles — zero counts read as "nothing this month",
     // which is informative on its own. We used to hide the whole section.
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -453,7 +453,7 @@ class HrAttendanceTrendSection extends ConsumerWidget {
     final hasData = pts.any((p) => p.total > 0);
     if (!hasData) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
@@ -470,7 +470,7 @@ class HrAttendanceTrendSection extends ConsumerWidget {
         pts.where((p) => p.total > 0).length;
     final avgPct = (avg * 100).round();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -579,7 +579,7 @@ class HrExpiringDocsSection extends ConsumerWidget {
     final rows = async.asData?.value ?? const [];
     if (rows.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: const [
@@ -591,7 +591,7 @@ class HrExpiringDocsSection extends ConsumerWidget {
     }
     final top = rows.take(4).toList();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
