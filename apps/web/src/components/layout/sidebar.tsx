@@ -14,6 +14,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Menu, X,
   ArrowDownToLine, ArrowUpFromLine, HandCoins,
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
+  Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -41,6 +42,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
     label: 'Workforce',
     items: [
       { key: 'hr-employees', label: 'Employees', icon: Users, path: '/hr/employees' },
+      { key: 'hr-org-chart', label: 'Org chart', icon: Network, path: '/hr/org-chart' },
       { key: 'hr-departments', label: 'Departments', icon: Briefcase, path: '/hr/departments' },
       { key: 'hr-designations', label: 'Designations', icon: IdCard, path: '/hr/designations' },
       { key: 'hr-contract-labour', label: 'Contract labour', icon: HardHat, path: '/hr/contract-labour' },

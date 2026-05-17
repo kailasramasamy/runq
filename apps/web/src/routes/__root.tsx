@@ -136,6 +136,7 @@ import { EmployeeListPage } from './hr/employees/index';
 import { NewEmployeePage } from './hr/employees/new';
 import { EmployeeDetailPage } from './hr/employees/detail';
 import { DepartmentsPage } from './hr/departments';
+import { OrgChartPage } from './hr/org-chart';
 import { DesignationsPage } from './hr/designations';
 import { ShiftsPage } from './hr/shifts';
 import { HolidaysPage } from './hr/holidays';
@@ -1557,6 +1558,11 @@ const hrDepartmentsRoute = createRoute({
   path: '/departments',
   component: DepartmentsPage,
 });
+const hrOrgChartRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/org-chart',
+  component: OrgChartPage,
+});
 const hrDesignationsRoute = createRoute({
   getParentRoute: () => hrRoute,
   path: '/designations',
@@ -2040,6 +2046,7 @@ export const routeTree = rootRoute.addChildren([
       hrEmployeeNewRoute,
       hrEmployeeDetailRoute,
       hrDepartmentsRoute,
+      hrOrgChartRoute,
       hrDesignationsRoute,
       hrShiftsRoute,
       hrHolidaysRoute,
