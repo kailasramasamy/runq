@@ -955,26 +955,39 @@ export class WhiteBooksGspClient implements GspClient {
         eco_sup: { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 },
         eco_reg_sup: { txval: 0 },
       },
-      itc_elg: {
-        itc_avl: [
-          { ty: 'IMPG', iamt: r(data.table4.itcAvailable.importGoods.igst), camt: r(data.table4.itcAvailable.importGoods.cgst), samt: r(data.table4.itcAvailable.importGoods.sgst), csamt: r(data.table4.itcAvailable.importGoods.cess) },
-          { ty: 'IMPS', iamt: r(data.table4.itcAvailable.importServices.igst), camt: r(data.table4.itcAvailable.importServices.cgst), samt: r(data.table4.itcAvailable.importServices.sgst), csamt: r(data.table4.itcAvailable.importServices.cess) },
-          { ty: 'ISRC', iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst), camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst), samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst), csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess) },
-          { ty: 'ISD', iamt: r(data.table4.itcAvailable.isd.igst), camt: r(data.table4.itcAvailable.isd.cgst), samt: r(data.table4.itcAvailable.isd.sgst), csamt: r(data.table4.itcAvailable.isd.cess) },
-          { ty: 'OTH', iamt: r(data.table4.itcAvailable.allOtherItc.igst), camt: r(data.table4.itcAvailable.allOtherItc.cgst), samt: r(data.table4.itcAvailable.allOtherItc.sgst), csamt: r(data.table4.itcAvailable.allOtherItc.cess) },
-        ],
-        itc_rev: [
-          { ty: 'RUL', iamt: r(data.table4.itcReversed.rule4243.igst), camt: r(data.table4.itcReversed.rule4243.cgst), samt: r(data.table4.itcReversed.rule4243.sgst), csamt: r(data.table4.itcReversed.rule4243.cess) },
-          { ty: 'OTH', iamt: r(data.table4.itcReversed.others.igst), camt: r(data.table4.itcReversed.others.cgst), samt: r(data.table4.itcReversed.others.sgst), csamt: r(data.table4.itcReversed.others.cess) },
-        ],
-        itc_net: { iamt: r(data.table4.netItc.igst), camt: r(data.table4.netItc.cgst), samt: r(data.table4.netItc.sgst), csamt: r(data.table4.netItc.cess) },
-        // GSTN schema requires itc_inelg (Section 17(5) + other ineligible).
-        // We don't track these yet — send zero rows so the schema is satisfied.
-        itc_inelg: [
-          { ty: 'RUL', iamt: 0, camt: 0, samt: 0, csamt: 0 },
-          { ty: 'OTH', iamt: 0, camt: 0, samt: 0, csamt: 0 },
-        ],
-      },
+      itc_elg: (() => {
+        // Per the WhiteBooks retsave reference payload, itc_elg sub-arrays
+        // only carry rows with non-zero values. We previously sent all 5
+        // itc_avl categories + both RUL/OTH for itc_rev/itc_inelg even
+        // when zero — likely poisoning the save and silently dropping
+        // sibling sections (canonical case: inward_sup never persisted
+        // for Vrindavan Apr 042026 despite correct shape). Same filter
+        // pattern we already apply to inter_sup.unreg_details and
+        // inward_sup.isup_details.
+        const nonZero = <T extends { iamt: number; camt: number; samt: number; csamt: number }>(row: T): boolean =>
+          row.iamt > 0 || row.camt > 0 || row.samt > 0 || row.csamt > 0;
+        const itcAvl = [
+          { ty: 'IMPG' as const, iamt: r(data.table4.itcAvailable.importGoods.igst),        camt: r(data.table4.itcAvailable.importGoods.cgst),        samt: r(data.table4.itcAvailable.importGoods.sgst),        csamt: r(data.table4.itcAvailable.importGoods.cess) },
+          { ty: 'IMPS' as const, iamt: r(data.table4.itcAvailable.importServices.igst),     camt: r(data.table4.itcAvailable.importServices.cgst),     samt: r(data.table4.itcAvailable.importServices.sgst),     csamt: r(data.table4.itcAvailable.importServices.cess) },
+          { ty: 'ISRC' as const, iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst), camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst), samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst), csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess) },
+          { ty: 'ISD'  as const, iamt: r(data.table4.itcAvailable.isd.igst),                 camt: r(data.table4.itcAvailable.isd.cgst),                 samt: r(data.table4.itcAvailable.isd.sgst),                 csamt: r(data.table4.itcAvailable.isd.cess) },
+          { ty: 'OTH'  as const, iamt: r(data.table4.itcAvailable.allOtherItc.igst),         camt: r(data.table4.itcAvailable.allOtherItc.cgst),         samt: r(data.table4.itcAvailable.allOtherItc.sgst),         csamt: r(data.table4.itcAvailable.allOtherItc.cess) },
+        ].filter(nonZero);
+        const itcRev = [
+          { ty: 'RUL' as const, iamt: r(data.table4.itcReversed.rule4243.igst), camt: r(data.table4.itcReversed.rule4243.cgst), samt: r(data.table4.itcReversed.rule4243.sgst), csamt: r(data.table4.itcReversed.rule4243.cess) },
+          { ty: 'OTH' as const, iamt: r(data.table4.itcReversed.others.igst),    camt: r(data.table4.itcReversed.others.cgst),    samt: r(data.table4.itcReversed.others.sgst),    csamt: r(data.table4.itcReversed.others.cess) },
+        ].filter(nonZero);
+        // itc_inelg: we don't track ineligible ITC yet, so always empty
+        // after filtering. Send the empty array so the schema key exists
+        // (some validators require all top-level itc_elg keys present).
+        const itcInelg: typeof itcRev = [];
+        return {
+          itc_avl: itcAvl,
+          itc_rev: itcRev,
+          itc_net: { iamt: r(data.table4.netItc.igst), camt: r(data.table4.netItc.cgst), samt: r(data.table4.netItc.sgst), csamt: r(data.table4.netItc.cess) },
+          itc_inelg: itcInelg,
+        };
+      })(),
       // Table 5: Exempt, nil-rated, non-GST inward supplies.
       //
       // **KNOWN GAP** — GSTN silently drops the entire inward_sup section
