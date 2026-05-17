@@ -52,10 +52,9 @@ export function LoginPage() {
     setLoading(true);
     try {
       const { platform } = await login(email, password, '');
-      // The finance SPA is mounted at /finance/* by Caddy; Vite base stays at '/'
-      // so /login can be served standalone outside the router. Hardcode the
-      // post-login destination — BASE_URL would land on the marketing site.
-      window.location.href = platform ? '/finance/admin' : '/finance/';
+      // Admin lives at /admin (top-level); regular users land on Finance.
+      // Hardcode the destination — BASE_URL would land on the marketing site.
+      window.location.href = platform ? '/admin' : '/finance/';
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)

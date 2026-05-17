@@ -1,5 +1,25 @@
 {$SITE_ADDRESS:localhost:8080}
 
+# SPA bundles. Vite emits everything under /app-assets/ (see
+# apps/web/vite.config.ts → base). Caddy serves them directly from the SPA
+# dist with the prefix stripped, so the request /app-assets/assets/foo.js
+# resolves to /srv/web/assets/foo.js without colliding with the marketing
+# site's own /assets/ tree.
+handle /app-assets/* {
+	uri strip_prefix /app-assets
+	root * /srv/web
+	file_server
+}
+
+# Service worker + manifest live at the SPA root (`/sw.js` is registered
+# with scope `/`, which the browser only allows when the script is served
+# from at or above that scope). Pull them straight off the SPA dist.
+@spaRootFiles path /sw.js /manifest.webmanifest
+handle @spaRootFiles {
+	root * /srv/web
+	file_server
+}
+
 # Login page (shared, served from web app)
 handle /login {
 	root * /srv/web
@@ -7,17 +27,19 @@ handle /login {
 	file_server
 }
 
-# Finance app (SPA)
-handle /finance/* {
-	uri strip_prefix /finance
+# SPA route surfaces. The SPA owns these top-level URL spaces — every
+# request that lands here (including deep links and refreshes) loads
+# /srv/web/index.html and lets TanStack Router resolve the route. No
+# prefix stripping: the router matches the literal URL.
+#
+# Keep this list aligned with the top-level paths registered in
+# apps/web/src/routes/__root.tsx. Adding a new module here is a one-line
+# change — append its base path.
+@spa path /finance /finance/* /hr /hr/* /settings /settings/* /admin /admin/* /portal /portal/* /ca/* /vendor-portal/* /signup/invite/* /accept-invite /dashboard /inbox /analytics
+handle @spa {
 	root * /srv/web
 	try_files {path} /index.html
 	file_server
-}
-
-# Exact /finance redirect to /finance/
-handle /finance {
-	redir /finance/ permanent
 }
 
 # API proxy

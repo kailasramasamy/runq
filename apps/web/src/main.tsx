@@ -12,12 +12,12 @@ import { AcceptInvitePage } from './routes/accept-invite';
 import { initInstallPromptCapture } from './lib/pwa-install';
 import './app.css';
 
-// The finance SPA is mounted at /finance/* by Caddy (which strips the prefix
-// before file lookup). Telling the router the same basepath makes <Link>s
-// generate /finance/... hrefs, and lets URL bar refreshes survive — without
-// this, refreshing /finance/dashboard would land on the marketing site at
-// the post-strip path.
-const router = createRouter({ routeTree, basepath: '/finance' });
+// The SPA owns several top-level URL spaces (/finance, /hr, /settings,
+// /admin, …). Caddy serves each of those paths from the SPA bundle without
+// stripping prefixes, so <Link to="/hr/holidays"> produces a literal
+// /hr/holidays URL — no router basepath needed (and a basepath here would
+// wrongly glue /finance in front of HR links).
+const router = createRouter({ routeTree });
 
 // Capture beforeinstallprompt as early as possible — the browser only fires
 // this event once, very soon after page load, so we have to be ready before

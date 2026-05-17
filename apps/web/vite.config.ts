@@ -4,10 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig(({ command }) => ({
-  // Production base — Caddy mounts the SPA at /finance/* (with prefix strip),
-  // so emitting assets under /finance/assets/... keeps them isolated from the
-  // marketing site's /assets/... (apps/www). Dev server keeps serving from /.
-  base: command === 'build' ? '/finance/' : '/',
+  // Production base — the SPA owns multiple top-level URL spaces (/finance,
+  // /hr, /settings, /admin, ...), so we can't tie its assets to any single
+  // one of them. Emit under a neutral `/app-assets/` prefix that Caddy
+  // serves directly from the SPA dist, leaving the marketing site's
+  // `/assets/...` untouched. Dev server keeps serving from / for HMR.
+  base: command === 'build' ? '/app-assets/' : '/',
   plugins: [
     react(),
     tailwindcss(),
