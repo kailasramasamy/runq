@@ -6,9 +6,18 @@ import { useDepartments, useDesignations } from '@/hooks/queries/use-hr';
 interface Props {
   initialData?: Employee;
   onSubmit: (data: any) => void;
+  /** Optional partial-save handler. When set, renders a "Save draft" button
+   *  alongside the primary submit; it skips client validation and the
+   *  cleaner drops optional fields with invalid format (PAN/Aadhaar/IFSC)
+   *  so a partially-filled record can still persist. */
+  onSaveDraft?: (data: any) => void;
   onCancel?: () => void;
   isLoading: boolean;
 }
+
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const AADHAAR_RE = /^[0-9]{12}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 type FormState = {
   employeeCode: string; firstName: string; lastName: string;
@@ -56,14 +65,17 @@ function buildInitial(e?: Employee): FormState {
   };
 }
 
-function clean(s: FormState) {
+function clean(s: FormState, { partial = false }: { partial?: boolean } = {}) {
   const out: any = { ...s };
   for (const k of Object.keys(out)) {
     if (out[k] === '') out[k] = null;
   }
   out.employeeCode = s.employeeCode.trim();
   out.firstName = s.firstName.trim();
-  out.joiningDate = s.joiningDate;
+  // On a partial save, default the joining date to today so a brand-new
+  // draft still satisfies the server's required-on-create column. The user
+  // can correct it when they finish the record.
+  out.joiningDate = s.joiningDate || (partial ? new Date().toISOString().slice(0, 10) : s.joiningDate);
   out.status = s.status;
   out.employmentType = s.employmentType;
   if (out.gender === null) delete out.gender;
@@ -71,10 +83,19 @@ function clean(s: FormState) {
   else delete out.ctcAnnual;
   if (s.dailyWageRate) out.dailyWageRate = Number(s.dailyWageRate);
   else delete out.dailyWageRate;
+  // Drop optional regex'd fields when partial-saving and they don't match —
+  // a draft with a half-typed PAN should still save. The full-walk submit
+  // path keeps them so the server returns its precise validation error.
+  if (partial) {
+    if (out.pan && !PAN_RE.test(String(out.pan).toUpperCase())) out.pan = null;
+    if (out.aadhaar && !AADHAAR_RE.test(String(out.aadhaar))) out.aadhaar = null;
+    if (out.bankIfsc && !IFSC_RE.test(String(out.bankIfsc).toUpperCase())) out.bankIfsc = null;
+    if (out.uan && String(out.uan).length !== 12) out.uan = null;
+  }
   return out;
 }
 
-export function EmployeeForm({ initialData, onSubmit, onCancel, isLoading }: Props) {
+export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isLoading }: Props) {
   const [form, setForm] = useState<FormState>(() => buildInitial(initialData));
   const { data: deptData } = useDepartments();
   const { data: desigData } = useDesignations();
@@ -218,6 +239,17 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, isLoading }: Pro
 
       <div className="flex items-center justify-end gap-2">
         {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>}
+        {onSaveDraft && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLoading || !form.firstName.trim() || !form.employeeCode.trim()}
+            onClick={() => onSaveDraft(clean(form, { partial: true }))}
+            title="Save what you have now — finish details anytime"
+          >
+            Save draft
+          </Button>
+        )}
         <Button type="submit" disabled={isLoading}>{isLoading ? 'Saving…' : initialData ? 'Save changes' : 'Create employee'}</Button>
       </div>
     </form>

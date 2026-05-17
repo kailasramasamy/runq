@@ -18,6 +18,18 @@ export function NewEmployeePage() {
     });
   }
 
+  /// Persists whatever's filled so far — same endpoint, payload pre-cleaned
+  /// by the form so optional fields with broken format are dropped.
+  function handleDraft(data: any) {
+    mutation.mutate(data, {
+      onSuccess: () => {
+        toast('Draft saved — finish details anytime', 'success');
+        navigate({ to: '/hr/employees' });
+      },
+      onError: (e: any) => toast(e?.message ?? 'Failed to save draft', 'error'),
+    });
+  }
+
   return (
     <div className="max-w-3xl">
       <PageHeader
@@ -31,6 +43,7 @@ export function NewEmployeePage() {
       />
       <EmployeeForm
         onSubmit={handleSubmit}
+        onSaveDraft={handleDraft}
         onCancel={() => navigate({ to: '/hr/employees' })}
         isLoading={mutation.isPending}
       />
