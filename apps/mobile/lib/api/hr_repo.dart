@@ -82,6 +82,38 @@ class HrRepo {
     await apiClient.delete('/hr/employees/$id');
   }
 
+  /// Send (or re-send) an app invite to the employee. The server reuses
+  /// the existing join_tenant invite flow — on accept, a `viewer` user is
+  /// created and linked to this tenant by email.
+  Future<HrInviteResult> inviteEmployee(String id) async {
+    final res = await apiClient.post('/hr/employees/$id/invite', {});
+    final d = _data(res) as Map<String, dynamic>;
+    return HrInviteResult(
+      token: d['token'] as String,
+      inviteUrl: d['inviteUrl'] as String,
+      email: d['email'] as String?,
+      expiresAt: DateTime.parse(d['expiresAt'] as String),
+      emailDelivery: d['emailDelivery'] as String,
+      reused: d['reused'] as bool? ?? false,
+    );
+  }
+
+  /// Inspect whether an employee already has an app account, has a pending
+  /// invite, or hasn't been invited yet. Drives the UI's status chip.
+  Future<HrInviteStatus> employeeInviteStatus(String id) async {
+    final res = await apiClient.get('/hr/employees/$id/invite-status');
+    final d = _data(res) as Map<String, dynamic>;
+    final latest = d['latestInvite'] as Map<String, dynamic>?;
+    return HrInviteStatus(
+      status: d['status'] as String,
+      accountActive: d['accountActive'] as bool? ?? false,
+      inviteUrl: latest?['inviteUrl'] as String?,
+      expiresAt: latest?['expiresAt'] != null
+          ? DateTime.parse(latest!['expiresAt'] as String)
+          : null,
+    );
+  }
+
   /// Multipart upload to `/hr/employees/:id/photo`. Server resizes +
   /// re-encodes to JPEG, then stores the S3 key on `employees.photo_url`.
   Future<void> uploadEmployeePhoto(String id, File file) async {

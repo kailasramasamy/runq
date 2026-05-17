@@ -21,6 +21,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
+import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../services/hr_document_intake.dart';
 import 'hr_assign_salary_sheet.dart';
@@ -1409,14 +1410,19 @@ Future<void> _showActionsSheet(BuildContext context, HrEmployee emp) {
   );
 }
 
-class _ActionsSheet extends StatelessWidget {
+class _ActionsSheet extends ConsumerWidget {
   final HrEmployee emp;
   const _ActionsSheet({required this.emp});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final inset = MediaQuery.of(context).viewInsets.bottom;
+    final role = ref.watch(appRoleProvider);
+    final canInvite = role == AppRole.admin || role == AppRole.hr;
+    final inviteAsync = canInvite
+        ? ref.watch(hrEmployeeInviteStatusProvider(emp.id))
+        : null;
     return Container(
       padding: EdgeInsets.fromLTRB(8, 12, 8, 12 + inset),
       decoration: BoxDecoration(
@@ -1473,6 +1479,7 @@ class _ActionsSheet extends StatelessWidget {
                 showRunqSnack(context, 'Coming soon', kind: SnackKind.info);
               },
             ),
+            if (canInvite) _inviteRow(context, ref, inviteAsync),
           ]),
           const SizedBox(height: 8),
           // Section: copy actions (no Edit flow needed)
@@ -1532,6 +1539,93 @@ class _ActionsSheet extends StatelessWidget {
     if (context.mounted) {
       Navigator.of(context).pop();
       showRunqSnack(context, message, kind: SnackKind.success);
+    }
+  }
+
+  /// "Send / Resend app invite" row — relabels based on current state and
+  /// disables itself when the employee already has an active app account
+  /// or has no email on file. We render a placeholder row while the
+  /// status loads rather than hiding it, so the sheet height doesn't
+  /// jump after the network call returns.
+  _SheetRow _inviteRow(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<HrInviteStatus>? inviteAsync,
+  ) {
+    final status = inviteAsync?.asData?.value;
+    final isLoading = inviteAsync?.isLoading ?? true;
+
+    String label = 'Send app invite';
+    String? trailing;
+    bool disabled = isLoading;
+    IconData icon = Icons.send_outlined;
+    if (status != null) {
+      switch (status.status) {
+        case 'pending':
+          label = 'Resend app invite';
+          trailing = 'Pending';
+          break;
+        case 'expired':
+          label = 'Resend app invite';
+          trailing = 'Expired';
+          break;
+        case 'accepted':
+        case 'active':
+          label = 'App access enabled';
+          trailing = 'Active';
+          icon = Icons.verified_user_outlined;
+          disabled = true;
+          break;
+        case 'inactive':
+          label = 'App account inactive';
+          trailing = 'Inactive';
+          disabled = true;
+          break;
+        case 'no_email':
+          label = 'Add email to invite';
+          disabled = true;
+          break;
+        case 'not_invited':
+        default:
+          label = 'Send app invite';
+      }
+    }
+
+    return _SheetRow(
+      icon: icon,
+      label: label,
+      trailing: trailing,
+      onTap: disabled ? () {} : () async {
+        Navigator.of(context).pop();
+        await _sendInvite(context, ref);
+      },
+    );
+  }
+
+  Future<void> _sendInvite(BuildContext context, WidgetRef ref) async {
+    try {
+      final result = await hrRepo.inviteEmployee(emp.id);
+      // Refresh status so the sheet reads "Pending" next time.
+      ref.invalidate(hrEmployeeInviteStatusProvider(emp.id));
+      // Always stage the link to clipboard so the inviter has a fallback
+      // regardless of whether SMTP delivered. Cheap and never harmful.
+      await Clipboard.setData(ClipboardData(text: result.inviteUrl));
+      if (!context.mounted) return;
+      final emailOk = result.emailDelivery == 'sent';
+      final to = result.email ?? emp.email ?? 'employee';
+      final msg = emailOk
+          ? (result.reused
+              ? 'Invite re-sent to $to · link copied'
+              : 'Invite sent to $to · link copied')
+          : 'Email delivery failed — invite link copied to clipboard';
+      showRunqSnack(
+        context,
+        msg,
+        kind: emailOk ? SnackKind.success : SnackKind.error,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Could not send invite: $e', kind: SnackKind.error);
     }
   }
 }

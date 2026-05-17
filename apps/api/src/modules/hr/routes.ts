@@ -13,6 +13,7 @@ import { departmentRoutes } from './department.routes';
 import { designationRoutes } from './designation.routes';
 import { employeeRoutes } from './employee.routes';
 import { employeePhotoRoutes } from './employee-photo.routes';
+import { hrInviteRoutes } from './invite.routes';
 import { shiftRoutes } from './shift.routes';
 import { attendanceRoutes } from './attendance.routes';
 import { holidayRoutes } from './holiday.routes';
@@ -41,6 +42,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(designationRoutes);
   await app.register(employeeRoutes);
   await app.register(employeePhotoRoutes);
+  await app.register(hrInviteRoutes);
   await app.register(shiftRoutes);
   await app.register(attendanceRoutes);
   await app.register(holidayRoutes);

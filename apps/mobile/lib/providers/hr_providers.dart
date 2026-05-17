@@ -50,6 +50,14 @@ final hrEmployeeProvider =
   return _watchAuth(ref, () => hrRepo.employee(id));
 });
 
+/// App-invite state for a given employee. Watched by the detail screen so
+/// the actions sheet can label the row "Send invite" vs "Resend invite"
+/// vs disable it when an app account already exists.
+final hrEmployeeInviteStatusProvider =
+    FutureProvider.family<HrInviteStatus, String>((ref, id) async {
+  return _watchAuth(ref, () => hrRepo.employeeInviteStatus(id));
+});
+
 /// Attendance for the logged-in user across the current week. The Time tab
 /// pages back/forward via local state, but this provider covers the default.
 final hrMyAttendanceProvider =

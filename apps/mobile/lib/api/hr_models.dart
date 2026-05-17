@@ -127,6 +127,43 @@ class HrEmployeeBrief {
       lastName == null || lastName!.isEmpty ? firstName : '$firstName $lastName';
 }
 
+// ─── /hr/employees/:id/invite ──────────────────────────────────────────────
+
+class HrInviteResult {
+  final String token;
+  final String inviteUrl;
+  final String? email;
+  final DateTime expiresAt;
+  /// 'sent' | 'failed' — best-effort; failure doesn't fail the request.
+  final String emailDelivery;
+  /// True when the server returned an existing pending invite rather than
+  /// creating a new one (re-sent the email, same link).
+  final bool reused;
+  const HrInviteResult({
+    required this.token,
+    required this.inviteUrl,
+    required this.email,
+    required this.expiresAt,
+    required this.emailDelivery,
+    required this.reused,
+  });
+}
+
+class HrInviteStatus {
+  /// 'not_invited' | 'pending' | 'expired' | 'accepted' | 'active' |
+  /// 'inactive' | 'no_email'
+  final String status;
+  final bool accountActive;
+  final String? inviteUrl;
+  final DateTime? expiresAt;
+  const HrInviteStatus({
+    required this.status,
+    required this.accountActive,
+    required this.inviteUrl,
+    required this.expiresAt,
+  });
+}
+
 // ─── /hr/employees ─────────────────────────────────────────────────────────
 
 class HrEmployee {
