@@ -580,7 +580,7 @@ class _ManagerBody extends ConsumerWidget {
               count: pendingCount,
               onTap: () => context.push('/hr/pay?tab=approvals'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 28),
           ],
           // Today's muster — 6 semantic tiles in a 2-row grid (Present /
           // Half day / Leave on top; Absent / Holiday / Week-off below).
