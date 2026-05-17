@@ -1183,28 +1183,34 @@ class _QuickActionsStrip extends ConsumerWidget {
     // Four daily-loop actions, ordered by frequency the manager would
     // tap them on a typical morning. Each routes via push so back returns
     // to Home (consistent with the HR drill-down nav model).
-    return Row(
-      children: [
-        Expanded(child: _QaChip(
-          icon: Icons.person_add_alt_1_outlined, label: 'Add\nemployee',
-          onTap: () => context.push('/hr/employees/new'),
-        )),
-        const SizedBox(width: 8),
-        Expanded(child: _QaChip(
-          icon: Icons.access_time_rounded, label: 'Mark\nattendance',
-          onTap: () => context.push('/hr/time'),
-        )),
-        const SizedBox(width: 8),
-        Expanded(child: _QaChip(
-          icon: Icons.fact_check_outlined, label: 'Approvals',
-          onTap: () => context.push('/hr/pay?tab=approvals'),
-        )),
-        const SizedBox(width: 8),
-        Expanded(child: _QaChip(
-          icon: Icons.calculate_outlined, label: 'Payroll',
-          onTap: () => context.push('/hr/payroll-runs'),
-        )),
-      ],
+    // IntrinsicHeight stretches each chip to the tallest sibling so
+    // two-line labels ("Add\nemployee", "Mark\nattendance") and one-line
+    // ones ("Approvals", "Payroll") sit in identical rectangles.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _QaChip(
+            icon: Icons.person_add_alt_1_outlined, label: 'Add\nemployee',
+            onTap: () => context.push('/hr/employees/new'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _QaChip(
+            icon: Icons.access_time_rounded, label: 'Mark\nattendance',
+            onTap: () => context.push('/hr/time'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _QaChip(
+            icon: Icons.fact_check_outlined, label: 'Approvals',
+            onTap: () => context.push('/hr/pay?tab=approvals'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _QaChip(
+            icon: Icons.calculate_outlined, label: 'Payroll',
+            onTap: () => context.push('/hr/payroll-runs'),
+          )),
+        ],
+      ),
     );
   }
 }
@@ -1229,8 +1235,10 @@ class _QaChip extends StatelessWidget {
           border: Border.all(color: t.hairline, width: 0.5),
           boxShadow: RunqShadows.card,
         ),
+        // Center content vertically so single-line labels don't float to
+        // the top while two-line siblings fill the chip.
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: HrColors.brand(context), size: 20),
             const SizedBox(height: 6),
