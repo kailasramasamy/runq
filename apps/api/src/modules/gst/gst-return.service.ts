@@ -709,8 +709,9 @@ function diff3b(sent: Gstr3bData, stored: Record<string, unknown>): Array<{
   section: string; field: string; sent: number; stored: number; delta: number;
 }> {
   const out: Array<{ section: string; field: string; sent: number; stored: number; delta: number }> = [];
-  const TOL = 1;
-  const sup = (stored?.sup_details ?? {}) as Record<string, Record<string, number>>;
+  // Tolerance: anything ≤ Re 2 is rounding noise (GSTN rounds differently
+  // than us in some places, e.g. CGST/SGST can flip by Re 1 between sides).
+  const TOL = 2;
   const inw = (stored?.inward_sup ?? {}) as { isup_details?: Array<Record<string, unknown>> };
   const itc = (stored?.itc_elg ?? {}) as { itc_avl?: Array<Record<string, number>>; itc_net?: Record<string, number> };
 
@@ -719,13 +720,13 @@ function diff3b(sent: Gstr3bData, stored: Record<string, unknown>): Array<{
     if (d > TOL) out.push({ section, field, sent: sentVal || 0, stored: storedVal || 0, delta: d });
   };
 
-  // Table 3.1
-  const outwardTotal = sent.table31.outwardTaxableInterState.taxableValue + sent.table31.outwardTaxableIntraState.taxableValue;
-  cmp('Table 3.1 outward taxable', 'txval', outwardTotal, Number(sup?.osup_det?.txval));
-  cmp('Table 3.1 outward taxable', 'iamt',  sent.table31.outwardTaxableInterState.igst, Number(sup?.osup_det?.iamt));
-  cmp('Table 3.1 outward taxable', 'camt',  sent.table31.outwardTaxableIntraState.cgst, Number(sup?.osup_det?.camt));
-  cmp('Table 3.1 outward taxable', 'samt',  sent.table31.outwardTaxableIntraState.sgst, Number(sup?.osup_det?.samt));
-  cmp('Table 3.1 nil/exempt outward', 'txval', sent.table31.nilRatedExempt.taxableValue, Number(sup?.osup_nil_exmp?.txval));
+  // Table 3.1 outward (sup_details.osup_det/osup_nil_exmp/etc) is
+  // deliberately NOT diffed — GSTN auto-populates these from the filed
+  // GSTR-1 and overrides whatever we send. Any drift here is expected
+  // ("we computed differently from how GSTN aggregates GSTR-1"), not
+  // actionable from runq, and false-alarms the user. We rely on the
+  // GSTR-1 ↔ 3B generator consistency check (separate work) to ensure
+  // our books match GSTN's auto-populated values.
 
   // Table 5 — the canonical silent-drop case. Compare GST + NONGST rows.
   const sentGstInter   = Math.round(sent.table5.interState.nilRated + sent.table5.interState.exempt);

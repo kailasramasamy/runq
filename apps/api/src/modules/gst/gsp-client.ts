@@ -946,27 +946,27 @@ export class WhiteBooksGspClient implements GspClient {
           { ty: 'OTH', iamt: 0, camt: 0, samt: 0, csamt: 0 },
         ],
       },
-      // Table 5: Exempt, nil-rated, non-GST inward supplies. GSTN spec
-      // requires two rows split by `ty`: 'GST' = exempt/nil-rated from
-      // composition or unregistered supplier; 'NONGST' = non-GST supplies.
-      // CRITICAL: inter/intra MUST be integers — GSTN's compute pipeline
-      // silently drops the entire section when decimals are sent, which
-      // surfaces later as the unhelpful RT-3BGC-9017 generic offset
-      // failure. The schema validator accepts decimals (false-OK), the
-      // compute step rejects them. Round to integer rupees.
+      // Table 5: Exempt, nil-rated, non-GST inward supplies. Per the
+      // WhiteBooks retsave reference payload, isup_details only carries
+      // rows for non-zero values — sending an all-zero NONGST entry
+      // alongside a populated GST entry causes the entire inward_sup
+      // section to be silently dropped by GSTN's compute pipeline
+      // (which then surfaces as RT-3BGC-9017 at file time).
+      // Same filtering pattern we already apply to inter_sup.unreg_details.
+      // Integers only — decimals were also rejected silently in testing.
       inward_sup: {
-        isup_details: [
+        isup_details: ([
           {
-            ty: 'GST',
+            ty: 'GST' as const,
             inter: Math.round(data.table5.interState.nilRated + data.table5.interState.exempt),
             intra: Math.round(data.table5.intraState.nilRated + data.table5.intraState.exempt),
           },
           {
-            ty: 'NONGST',
+            ty: 'NONGST' as const,
             inter: Math.round(data.table5.interState.nonGst),
             intra: Math.round(data.table5.intraState.nonGst),
           },
-        ],
+        ]).filter((row) => row.inter > 0 || row.intra > 0),
       },
       // Table 5.1: Interest declared by taxpayer. Note: ltfee_details is
       // intentionally NOT sent at SAVE — GSTN computes late fees server-
