@@ -448,24 +448,54 @@ export class WhiteBooksGspClient implements GspClient {
     const stateCode = stateCodeFromGstin(gstin);
     const pan = (signatoryPan ?? gstin.substring(2, 12)).toUpperCase();
 
-    // Step 1: Submit
+    // Step 1: Offset liability (computes cash + ITC utilization for the
+    // saved 3B). Don't swallow errors — without successful offset, the
+    // GSTN summary won't carry a chksum, and retevcfile will reject.
     const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };
     const submitRes = await fetch(withEmail('/gstr3b/retoffset'), {
-      method: 'PUT',
+      method: 'POST',
       headers: submitHeaders,
       body: JSON.stringify({ gstin, ret_period: period }),
     });
-    await submitRes.json();
-    // Some flows skip retoffset; for 3B the offset call generates liability.
-    // If not available, we proceed to fetch summary anyway.
+    const submitData = await submitRes.json();
+    const offsetOk = submitData?.status_cd === '1' || submitData?.status === 1
+      // Some GSPs return a refid+ackno on async accept — treat as OK and rely on retsum.
+      || !!submitData?.data?.reference_id || !!submitData?.data?.refid;
+    if (!offsetOk && submitData?.error) {
+      const err = submitData.error;
+      console.error('[GST] fileGstr3b retoffset failed', JSON.stringify(submitData));
+      return {
+        success: false,
+        errors: [{
+          code: err.error_cd || err.code || 'OFFSET_FAILED',
+          message: err.message || err.error_msg || 'Liability offset failed — payment may be pending. Check cash ledger and retry.',
+        }],
+      };
+    }
 
-    // Step 2: Fetch summary for checksum
+    // Step 2: Fetch the GSTN summary for the chksum needed by retevcfile.
+    // WhiteBooks has wrapped the chksum under different keys across
+    // versions; try the known locations before giving up.
     const sumUrl = withEmail('/gstr3b/retsum', { gstin, retperiod: period });
     const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
     const sumData = await sumRes.json();
-    const chksum = sumData?.data?.chksum || sumData?.chksum;
+    const chksum = sumData?.data?.chksum
+      ?? sumData?.chksum
+      ?? sumData?.data?.summary?.chksum
+      ?? sumData?.data?.gstr3b?.chksum
+      ?? sumData?.data?.data?.chksum;
     if (!chksum) {
-      return { success: false, errors: [{ code: 'NO_CHKSUM', message: 'Could not fetch GSTR-3B checksum from GSTN summary' }] };
+      console.error('[GST] fileGstr3b retsum returned no chksum', JSON.stringify(sumData));
+      const apiErr = sumData?.error?.message || sumData?.error?.error_msg;
+      return {
+        success: false,
+        errors: [{
+          code: 'NO_CHKSUM',
+          message: apiErr
+            ? `GSTN summary error: ${apiErr}`
+            : 'Could not fetch GSTR-3B checksum from GSTN summary. Liability offset may not have completed — wait a minute and retry, or re-upload the draft.',
+        }],
+      };
     }
 
     const url = withEmail('/gstr3b/retevcfile', { pan, evcotp: evc });
