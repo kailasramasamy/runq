@@ -854,6 +854,13 @@ export class WhiteBooksGspClient implements GspClient {
         comp_details: [],
         uin_details: [],
       },
+      // Table 3.1.1: E-commerce supplies (added in GSTR-3B v7.1). We don't
+      // track e-commerce sales yet — send zeros to satisfy the schema.
+      // Strict JSON-schema validators reject the section being absent.
+      eco_dtls: {
+        eco_sup: { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 },
+        eco_reg_sup: { txval: 0 },
+      },
       itc_elg: {
         itc_avl: [
           { ty: 'IMPG', iamt: r(data.table4.itcAvailable.importGoods.igst), camt: r(data.table4.itcAvailable.importGoods.cgst), samt: r(data.table4.itcAvailable.importGoods.sgst), csamt: r(data.table4.itcAvailable.importGoods.cess) },
@@ -891,13 +898,17 @@ export class WhiteBooksGspClient implements GspClient {
           },
         ],
       },
-      // Table 5.1: Interest and late fee
+      // Table 5.1: Interest declared by taxpayer. Note: ltfee_details is
+      // intentionally NOT sent at SAVE — GSTN computes late fees server-
+      // side at FILE time based on actual submission timestamp. Including
+      // ltfee_details here trips strict-validator schemas that disallow
+      // additional properties on the SAVE shape.
       intr_ltfee: {
         intr_details: {
-          iamt: 0, camt: 0, samt: 0, csamt: 0,
-        },
-        ltfee_details: {
-          iamt: 0, camt: r(data.table51.lateFee / 2), samt: r(data.table51.lateFee / 2), csamt: 0,
+          iamt: r(data.table51.interestAmount ?? 0),
+          camt: 0,
+          samt: 0,
+          csamt: 0,
         },
       },
     };
