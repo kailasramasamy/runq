@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Copy, Mail, Plus, Check, Briefcase, Trash2 } from 'lucide-react';
+import { Plus, Mail, Copy, Check, Trash2 } from 'lucide-react';
 import {
-  Button,
   Card,
   CardContent,
-  PageHeader,
+  Button,
   Input,
+  Select,
   Badge,
   Table,
   TableHeader,
@@ -23,8 +23,10 @@ import {
   useRevokeInvite,
   inviteLinkFor,
   type Invite,
+  type InviteRole,
   type InviteStatus,
 } from '@/hooks/queries/use-invites';
+import { INVITE_ROLE_OPTIONS } from './roles';
 
 function errMessage(err: unknown, fallback: string): string {
   return err && typeof err === 'object' && 'message' in err
@@ -38,7 +40,7 @@ function StatusPill({ status }: { status: InviteStatus }) {
   return <Badge variant={variant}>{label}</Badge>;
 }
 
-function ClientInviteRow({
+function InviteRow({
   invite,
   copied,
   onCopy,
@@ -51,7 +53,7 @@ function ClientInviteRow({
 }) {
   const mailHref = invite.email
     ? `mailto:${invite.email}?subject=runQ%20invite&body=${encodeURIComponent(
-        `Hi,\n\nUse this link to sign up for runQ:\n${inviteLinkFor(invite.token)}\n\n` +
+        `Hi,\n\nUse this link to join my runQ books:\n${inviteLinkFor(invite.token)}\n\n` +
           `The link expires on ${new Date(invite.expiresAt).toLocaleDateString()}.\n`,
       )}`
     : undefined;
@@ -59,12 +61,13 @@ function ClientInviteRow({
   return (
     <TableRow>
       <TableCell>
-        <div className="text-sm">
-          {invite.companyName && <span className="font-medium">{invite.companyName}</span>}
-          {invite.companyName && invite.email && <span className="text-zinc-400"> · </span>}
-          {invite.email ?? (invite.companyName ? null : <span className="text-zinc-400">—</span>)}
+        <div className="text-sm text-zinc-900 dark:text-zinc-100">
+          {invite.email ?? <span className="text-zinc-400">No email</span>}
         </div>
         {invite.note && <div className="truncate text-xs text-zinc-500">{invite.note}</div>}
+      </TableCell>
+      <TableCell>
+        <span className="text-xs uppercase text-zinc-600 dark:text-zinc-400">{invite.role}</span>
       </TableCell>
       <TableCell>
         <StatusPill status={invite.status} />
@@ -112,23 +115,25 @@ function ClientInviteRow({
   );
 }
 
-// Onboard a brand-new client onto runQ — the prospect signs up via the link,
-// runQ creates their books, and the inviting CA joins as their accountant.
-// (Inviting a user into THIS tenant lives on Settings → Users & roles.)
-export function ClientInvitesPage() {
+// Section 2 of the Users page — invite someone by email. They click the link
+// and set their own password; used for an external CA or a collaborator.
+export function InviteUserSection() {
   const { toast } = useToast();
   const { data, isLoading } = useInvites();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
 
-  const [companyName, setCompanyName] = useState('');
+  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState<InviteRole>('accountant');
   const [note, setNote] = useState('');
   const [autoEmail, setAutoEmail] = useState(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const invites = (data?.data ?? []).filter((i) => i.inviteType === 'new_tenant');
+  // Only join_tenant invites belong here — new_tenant lives on the Invitations
+  // page, since that onboards a brand-new client tenant, not a user.
+  const invites = (data?.data ?? []).filter((i) => i.inviteType === 'join_tenant');
 
   async function copyLink(token: string) {
     try {
@@ -144,13 +149,12 @@ export function ClientInvitesPage() {
     e.preventDefault();
     try {
       const res = await createInvite.mutateAsync({
-        inviteType: 'new_tenant',
-        companyName: companyName.trim() || undefined,
+        inviteType: 'join_tenant',
+        role,
         email: email.trim() || undefined,
         note: note.trim() || undefined,
         sendEmail: autoEmail && !!email.trim() ? true : undefined,
       });
-      setCompanyName('');
       setEmail('');
       setNote('');
       const delivery = res.data.emailDelivery;
@@ -180,113 +184,120 @@ export function ClientInvitesPage() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Onboard a new client"
-        breadcrumbs={[{ label: 'Settings' }, { label: 'Invitations' }]}
-        description="Generate a signup link for a prospect — runQ creates their books and you join as their accountant."
-      />
-
-      <Card>
-        <CardContent>
-          <div className="mb-4 flex items-center gap-2 text-sm font-medium">
-            <Briefcase size={16} />
-            Bring a new client onto runQ
+    <Card className="mb-4">
+      <CardContent>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Invite a User
+            </h3>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Send an email invite link — the person sets their own password. Use this for an
+              external CA or a collaborator.
+            </p>
           </div>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Client's company name</label>
+          {!open && (
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Plus size={14} />
+              Invite
+            </Button>
+          )}
+        </div>
+
+        {open && (
+          <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="priya@sharma-ca.in"
+            />
+            <Select
+              label="Role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as InviteRole)}
+              options={INVITE_ROLE_OPTIONS}
+            />
+            <div className="sm:col-span-2">
               <Input
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Acme Pvt Ltd"
-                maxLength={255}
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                Pre-fills the signup form so your client doesn't have to retype it.
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Client email (optional)</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="rohit@acme.com"
-              />
-              <label className="mt-2 flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
-                <input
-                  type="checkbox"
-                  checked={autoEmail}
-                  onChange={(e) => setAutoEmail(e.target.checked)}
-                  disabled={!email.trim()}
-                  className="h-3.5 w-3.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                Email the link to this address{!email.trim() ? ' (enter an email first)' : ''}
-              </label>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Note (optional)</label>
-              <Input
+                label="Note (optional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Acme Pvt Ltd onboarding"
                 maxLength={500}
+                placeholder="e.g. GST filing access"
               />
             </div>
-            <Button type="submit" variant="primary" loading={createInvite.isPending}>
-              <Plus size={16} />
-              Generate invite link
-            </Button>
+            <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={autoEmail}
+                onChange={(e) => setAutoEmail(e.target.checked)}
+                disabled={!email.trim()}
+                className="h-3.5 w-3.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Email the invite link to this address{!email.trim() ? ' (enter an email first)' : ''}
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:col-span-2">
+              <Button type="submit" loading={createInvite.isPending} size="sm">
+                <Plus size={14} />
+                Generate invite link
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
           </form>
-        </CardContent>
-      </Card>
+        )}
 
-      <div className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold">Sent invitations</h2>
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <tr>
-                  <Th>Client</Th>
-                  <Th>Status</Th>
-                  <Th>Expires</Th>
-                  <Th align="right">Actions</Th>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableEmpty colSpan={4} message="Loading invitations…" />
-                ) : invites.length === 0 ? (
-                  <TableEmpty colSpan={4} message="No client invitations yet." />
-                ) : (
-                  invites.map((inv) => (
-                    <ClientInviteRow
-                      key={inv.id}
-                      invite={inv}
-                      copied={copiedToken === inv.token}
-                      onCopy={copyLink}
-                      onRevoke={setRevokingId}
-                    />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+        {(isLoading || invites.length > 0) && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Pending & past invites
+            </p>
+            <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <Th>Sent to</Th>
+                    <Th>Role</Th>
+                    <Th>Status</Th>
+                    <Th>Expires</Th>
+                    <Th align="right">Actions</Th>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableEmpty colSpan={5} message="Loading invites…" />
+                  ) : (
+                    invites.map((inv) => (
+                      <InviteRow
+                        key={inv.id}
+                        invite={inv}
+                        copied={copiedToken === inv.token}
+                        onCopy={copyLink}
+                        onRevoke={setRevokingId}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </CardContent>
 
       <ConfirmationDialog
         open={!!revokingId}
         onClose={() => setRevokingId(null)}
         onConfirm={() => revokingId && handleRevoke(revokingId)}
         title="Revoke this invite?"
-        description="The link stops working immediately. If it was already accepted, the client's books are unaffected."
+        description="The link stops working immediately. If it was already accepted, existing access is unaffected."
         confirmLabel="Revoke"
         variant="danger"
         loading={revokeInvite.isPending}
       />
-    </div>
+    </Card>
   );
 }

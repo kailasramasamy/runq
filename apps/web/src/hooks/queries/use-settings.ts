@@ -106,10 +106,26 @@ export interface UpdateUserInput {
   isActive?: boolean;
 }
 
+export interface EligibleEmployee {
+  id: string;
+  name: string;
+  email: string;
+  designation: string | null;
+}
+
 export function useUsers() {
   return useQuery({
     queryKey: SETTINGS_KEYS.users,
     queryFn: () => api.get<{ data: User[] }>('/settings/users'),
+  });
+}
+
+// Active employees without an app account yet — the picker source for Add User.
+export function useEligibleEmployees() {
+  return useQuery({
+    queryKey: [...SETTINGS_KEYS.users, 'eligible-employees'] as const,
+    queryFn: () =>
+      api.get<{ data: EligibleEmployee[] }>('/settings/users/eligible-employees'),
   });
 }
 

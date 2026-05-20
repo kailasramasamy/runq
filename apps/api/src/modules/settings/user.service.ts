@@ -1,5 +1,5 @@
-import { and, eq, sql } from 'drizzle-orm';
-import { users, userTenants } from '@runq/db';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { users, userTenants, employees, designations } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { User } from '@runq/types';
 import argon2 from 'argon2';
@@ -12,14 +12,21 @@ export interface CreateUserInput {
   email: string;
   name: string;
   password: string;
-  role: 'owner' | 'accountant' | 'viewer';
+  role: 'owner' | 'accountant' | 'viewer' | 'hr';
 }
 
 export interface UpdateUserInput {
   name?: string;
   email?: string;
-  role?: 'owner' | 'accountant' | 'viewer';
+  role?: 'owner' | 'accountant' | 'viewer' | 'hr';
   isActive?: boolean;
+}
+
+export interface EligibleEmployee {
+  id: string;
+  name: string;
+  email: string;
+  designation: string | null;
 }
 
 export class UserService {
@@ -56,6 +63,41 @@ export class UserService {
       isActive: r.isActive,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  async listEligibleEmployees(): Promise<EligibleEmployee[]> {
+    // Employees that can still be turned into a login account: active, with an
+    // email on file, and not already linked to a user in THIS tenant. The link
+    // is by email (case-insensitive) — the same key `create()` uses below.
+    const rows = await this.db
+      .select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        email: employees.email,
+        designation: designations.name,
+      })
+      .from(employees)
+      .leftJoin(designations, eq(designations.id, employees.designationId))
+      .leftJoin(users, sql`lower(${users.email}) = lower(${employees.email})`)
+      .leftJoin(
+        userTenants,
+        and(eq(userTenants.userId, users.id), eq(userTenants.tenantId, this.tenantId)),
+      )
+      .where(and(
+        eq(employees.tenantId, this.tenantId),
+        eq(employees.status, 'active'),
+        isNotNull(employees.email),
+        isNull(employees.deletedAt),
+        isNull(userTenants.id),
+      ));
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: [r.firstName, r.lastName].filter(Boolean).join(' '),
+      email: r.email!,
+      designation: r.designation,
     }));
   }
 

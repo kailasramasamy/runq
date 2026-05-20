@@ -10,13 +10,13 @@ const createUserBodySchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(255),
   password: z.string().min(8),
-  role: z.enum(['owner', 'accountant', 'viewer']),
+  role: z.enum(['owner', 'accountant', 'viewer', 'hr']),
 });
 
 const updateUserBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
   email: z.string().email().optional(),
-  role: z.enum(['owner', 'accountant', 'viewer']).optional(),
+  role: z.enum(['owner', 'accountant', 'viewer', 'hr']).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -27,6 +27,16 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const service = new UserService(request.server.db, request.tenantId);
       const data = await service.list();
+      return { data };
+    },
+  );
+
+  app.get(
+    '/eligible-employees',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const service = new UserService(request.server.db, request.tenantId);
+      const data = await service.listEligibleEmployees();
       return { data };
     },
   );
