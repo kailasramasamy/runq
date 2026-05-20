@@ -455,7 +455,9 @@ class HrLeaveRequest {
         typeCode: _strOr(j['typeCode'], ''),
         fromDate: _dt(j['fromDate']) ?? DateTime.now(),
         toDate: _dt(j['toDate']) ?? DateTime.now(),
-        totalDays: _num(j['totalDays']),
+        // API returns the column name `days` (numeric string). The
+        // earlier `totalDays` lookup quietly returned 0 for every row.
+        totalDays: _num(j['days'] ?? j['totalDays']),
         halfDay: _bool(j['halfDay']),
         reason: _str(j['reason']),
         status: _strOr(j['status'], 'pending'),
@@ -1169,11 +1171,24 @@ class HrPayslip {
 /// is null when the announcement never expires.
 class HrAnnouncement {
   final String id, title, body;
-  /// 'all' | 'managers'
+  /// 'all' | 'managers' — role-flavour filter, layered with department.
   final String audience;
+  /// 'general' | 'policy' | 'holiday' | 'event' | 'operational'
+  /// | 'celebration' | 'payroll'. Drives icon + chip colour in the feed.
+  final String category;
+  /// Optional department scope — null means org-wide.
+  final String? departmentId;
+  final String? departmentName;
+  /// Relative API path to the cover image, or null for text-only posts.
+  /// Mobile prepends the base URL when building the Image network call.
+  final String? imageUrl;
   final bool pinned;
   final DateTime postedAt;
   final DateTime? expiresAt;
+  /// Author's user_id. The mobile manager-can-edit check compares this
+  /// to authProvider.user.id; admin / HR rules through canModerateAny
+  /// don't need it but still appreciate the field for audit displays.
+  final String? postedById;
   final String? postedByName;
 
   HrAnnouncement({
@@ -1181,9 +1196,14 @@ class HrAnnouncement {
     required this.title,
     required this.body,
     required this.audience,
+    required this.category,
+    this.departmentId,
+    this.departmentName,
+    this.imageUrl,
     required this.pinned,
     required this.postedAt,
     this.expiresAt,
+    this.postedById,
     this.postedByName,
   });
 
@@ -1192,9 +1212,14 @@ class HrAnnouncement {
         title: _strOr(j['title'], ''),
         body: _strOr(j['body'], ''),
         audience: _strOr(j['audience'], 'all'),
+        category: _strOr(j['category'], 'general'),
+        departmentId: _str(j['departmentId']),
+        departmentName: _str(j['departmentName']),
+        imageUrl: _str(j['imageUrl']),
         pinned: _bool(j['pinned']),
         postedAt: _dt(j['postedAt']) ?? DateTime.now(),
         expiresAt: _dt(j['expiresAt']),
+        postedById: _str(j['postedById']),
         postedByName: _str(j['postedByName']),
       );
 }
@@ -1228,4 +1253,142 @@ class HrActivityEvent {
         employeeId: _str(j['employeeId']),
         employeeName: _str(j['employeeName']),
       );
+}
+
+// ─── Resume profile ─────────────────────────────────────────────────────────
+// AI-extracted enrichment lifted from the employee's resume. Self-reported
+// and unverified — surfaced as a "from resume" block, not an HR record.
+
+class HrResumeExperience {
+  final String company;
+  final String? title, fromDate, toDate, description;
+  const HrResumeExperience({
+    required this.company,
+    this.title,
+    this.fromDate,
+    this.toDate,
+    this.description,
+  });
+
+  factory HrResumeExperience.fromJson(Map<String, dynamic> j) => HrResumeExperience(
+        company: _strOr(j['company'], ''),
+        title: _str(j['title']),
+        fromDate: _str(j['fromDate']),
+        toDate: _str(j['toDate']),
+        description: _str(j['description']),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'company': company,
+        'title': title,
+        'fromDate': fromDate,
+        'toDate': toDate,
+        'description': description,
+      };
+}
+
+class HrResumeEducation {
+  final String degree;
+  final String? institution, year, grade;
+  const HrResumeEducation({
+    required this.degree,
+    this.institution,
+    this.year,
+    this.grade,
+  });
+
+  factory HrResumeEducation.fromJson(Map<String, dynamic> j) => HrResumeEducation(
+        degree: _strOr(j['degree'], ''),
+        institution: _str(j['institution']),
+        year: _str(j['year']),
+        grade: _str(j['grade']),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'degree': degree,
+        'institution': institution,
+        'year': year,
+        'grade': grade,
+      };
+}
+
+class HrResumeCertification {
+  final String name;
+  final String? issuer, year;
+  const HrResumeCertification({required this.name, this.issuer, this.year});
+
+  factory HrResumeCertification.fromJson(Map<String, dynamic> j) => HrResumeCertification(
+        name: _strOr(j['name'], ''),
+        issuer: _str(j['issuer']),
+        year: _str(j['year']),
+      );
+
+  Map<String, dynamic> toJson() => {'name': name, 'issuer': issuer, 'year': year};
+}
+
+class HrResumeProfile {
+  final String id, employeeId;
+  final String? summary;
+  final List<HrResumeExperience> experience;
+  final List<HrResumeEducation> education;
+  final List<String> skills;
+  final List<HrResumeCertification> certifications;
+  final List<String> languages;
+  final double? totalExpYears;
+  final String? sourceAttachmentId;
+  final double? aiConfidence;
+  final bool manuallyEdited;
+  final DateTime? extractedAt;
+
+  const HrResumeProfile({
+    required this.id,
+    required this.employeeId,
+    this.summary,
+    this.experience = const [],
+    this.education = const [],
+    this.skills = const [],
+    this.certifications = const [],
+    this.languages = const [],
+    this.totalExpYears,
+    this.sourceAttachmentId,
+    this.aiConfidence,
+    this.manuallyEdited = false,
+    this.extractedAt,
+  });
+
+  static List<String> _stringList(Object? v) =>
+      (v as List? ?? const []).map((e) => e.toString()).toList();
+
+  factory HrResumeProfile.fromJson(Map<String, dynamic> j) => HrResumeProfile(
+        id: _strOr(j['id'], ''),
+        employeeId: _strOr(j['employeeId'], ''),
+        summary: _str(j['summary']),
+        experience: (j['experience'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(HrResumeExperience.fromJson)
+            .toList(),
+        education: (j['education'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(HrResumeEducation.fromJson)
+            .toList(),
+        skills: _stringList(j['skills']),
+        certifications: (j['certifications'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(HrResumeCertification.fromJson)
+            .toList(),
+        languages: _stringList(j['languages']),
+        totalExpYears: _numOrNull(j['totalExpYears']),
+        sourceAttachmentId: _str(j['sourceAttachmentId']),
+        aiConfidence: _numOrNull(j['aiConfidence']),
+        manuallyEdited: _bool(j['manuallyEdited']),
+        extractedAt: _dt(j['extractedAt']),
+      );
+
+  bool get isEmpty =>
+      (summary == null || summary!.trim().isEmpty) &&
+      experience.isEmpty &&
+      education.isEmpty &&
+      skills.isEmpty &&
+      certifications.isEmpty &&
+      languages.isEmpty;
 }

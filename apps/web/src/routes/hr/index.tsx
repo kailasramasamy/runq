@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
   CalendarClock, ChevronRight, Bell, Calculator, Wallet, UserCheck, Landmark,
-  Building2, TrendingUp, CalendarDays, Activity, ArrowRight,
+  Building2, TrendingUp, CalendarDays, Activity, ArrowRight, LifeBuoy,
 } from 'lucide-react';
 import { PageHeader, Badge } from '@/components/ui';
 import { StatTile } from '@/components/ar/primitives';
@@ -14,6 +14,7 @@ import { usePayrollRuns } from '@/hooks/queries/use-hr-payroll';
 import { StatutoryCalendar } from '@/components/dashboard/statutory-calendar';
 import { PeopleContextSections } from '@/components/dashboard/hr-people-sections';
 import { AnnouncementsSection, RecentActivitySection } from '@/components/dashboard/hr-feed-sections';
+import { EmployeeDashboard } from './_employee-dashboard';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -136,7 +137,18 @@ function Widget({ title, action, children }: { title: string; action?: React.Rea
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
+// Routes `/hr` to the right dashboard: a plain employee (`self` scope) gets
+// the self-service view; managers (`subset`) and admins (`all`) get the
+// full workforce/payroll dashboard below.
 export function HRDashboardPage() {
+  const { data: meData, isLoading } = useHrMe();
+  if (isLoading) return null;
+  const scope = meData?.data?.scopeKind;
+  if (scope === 'self' || scope === 'none') return <EmployeeDashboard />;
+  return <ManagerDashboard />;
+}
+
+function ManagerDashboard() {
   const navigate = useNavigate();
   const date = today();
   const week = lastNDays(7);
@@ -200,6 +212,7 @@ export function HRDashboardPage() {
   const salaryState: CardState = (dash?.employeesWithoutSalary ?? 0) > 0 ? 'attention' : 'good';
   const attendanceState: CardState = (dash?.attendanceNotMarkedToday ?? 0) > 0 ? 'attention' : 'good';
   const confirmState: CardState = (dash?.confirmationsDue ?? 0) > 0 ? 'attention' : 'good';
+  const helpdeskState: CardState = (dash?.helpdeskWaiting ?? 0) > 0 ? 'attention' : 'good';
   const deadlineState: CardState = deadline.daysLeft <= 5 ? 'urgent' : deadline.daysLeft <= 12 ? 'attention' : 'info';
 
   return (
@@ -340,6 +353,14 @@ export function HRDashboardPage() {
           sub={`${deadline.forMonth} dues — pay by ${deadline.due.getDate()} ${MONTHS_SHORT[deadline.due.getMonth()]}`}
           state={deadlineState}
           onClick={() => navigate({ to: '/hr/payroll-runs' })}
+        />
+        <ActionCard
+          icon={LifeBuoy}
+          label="Helpdesk"
+          value={(dash?.helpdeskWaiting ?? 0) > 0 ? `${dash?.helpdeskWaiting} need HR` : 'All handled'}
+          sub={(dash?.helpdeskWaiting ?? 0) > 0 ? 'AI flagged these for human attention' : 'AI is handling employee questions'}
+          state={helpdeskState}
+          onClick={() => navigate({ to: '/hr/helpdesk' })}
         />
       </div>
 

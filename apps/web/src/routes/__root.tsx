@@ -1,12 +1,15 @@
+import { useEffect } from 'react';
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { Topbar } from '../components/layout/topbar';
+import { useAuth, canAccessFinanceModule, canManageHrModule } from '../providers/auth-provider';
 import { FinanceAgent } from '../components/agent/finance-agent';
 import { AgentActivityPage } from './agent/activity';
 import { SupportWidget } from '../components/support/support-widget';
 import { ImpersonationBanner } from '../components/admin/impersonation-banner';
 import { PageWidthProvider, usePageWidth } from '../lib/page-width';
 import { LoginPage } from './login';
+import { ProfilePage } from './profile';
 import { DashboardPage } from './dashboard';
 import { InboxPage } from './inbox';
 import { AnalyticsPage } from './analytics';
@@ -140,6 +143,18 @@ import { OrgChartPage } from './hr/org-chart';
 import { DesignationsPage } from './hr/designations';
 import { ShiftsPage } from './hr/shifts';
 import { HolidaysPage } from './hr/holidays';
+import { GeoFencesPage } from './hr/geo-fences';
+import { AttendancePunchesPage } from './hr/attendance-punches';
+import { RegularizationsPage } from './hr/regularizations';
+import { TaxDeclarationsPage } from './hr/tax-declarations';
+import { LoansPage } from './hr/loans';
+import { LoanPolicyPage } from './hr/loan-policy';
+import { FnfPage } from './hr/fnf';
+import { OnboardingPage } from './hr/onboarding';
+import { LettersPage } from './hr/letters';
+import { HelpdeskPage } from './hr/helpdesk';
+import { PerformancePage } from './hr/performance';
+import { AnnouncementsPage } from './hr/announcements';
 import { AttendancePage } from './hr/attendance';
 import { LeaveTypesPage } from './hr/leave-types';
 import { LeaveRequestsPage } from './hr/leave-requests';
@@ -239,6 +254,13 @@ function DashboardMain() {
 }
 
 function DashboardLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const module = pathname === '/hr' || pathname.startsWith('/hr/') ? 'hr' : 'finance';
+  // Set on <html> rather than a layout div so portalled dropdowns and modals
+  // (rendered outside the layout subtree) still inherit the module accent.
+  useEffect(() => {
+    document.documentElement.dataset.module = module;
+  }, [module]);
   return (
     <PageWidthProvider>
       <div className="flex h-screen flex-col overflow-hidden">
@@ -268,17 +290,32 @@ const dashboardLayoutRoute = createRoute({
 
 // ─── Finance module — namespaced under /finance ──────────────────────────────
 
+// Hard module lock: hr / viewer typing a /finance URL are bounced to HR.
+function FinanceModuleGuard() {
+  const { user, isLoading } = useAuth();
+  if (!isLoading && !canAccessFinanceModule(user?.role)) {
+    return <Navigate to="/hr" replace />;
+  }
+  return <Outlet />;
+}
+
 const financeRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/finance',
-  component: () => <Outlet />,
+  component: FinanceModuleGuard,
 });
 
-// Bare "/" lands on the finance dashboard — finance is the default module.
+// Bare "/" lands on the user's home module. Only owner / accountant /
+// client_owner have the Finance module; hr + viewer go to HR.
+function RootRedirect() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  return <Navigate to={canAccessFinanceModule(user?.role) ? '/finance' : '/hr'} />;
+}
 const rootRedirectRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/',
-  component: () => <Navigate to="/finance" />,
+  component: RootRedirect,
 });
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
@@ -1057,6 +1094,14 @@ const settingsRoute = createRoute({
   component: () => <Outlet />,
 });
 
+// Self-service profile — cross-module, available to every authenticated user
+// (no finance/HR module guard). Reached from the top-right avatar menu.
+const profileRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/profile',
+  component: ProfilePage,
+});
+
 const settingsIndexRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/',
@@ -1525,10 +1570,35 @@ const expenseClaimsRoute = createRoute({
 
 // ─── HR Module Routes ────────────────────────────────────────────────────────
 
+// HR-admin paths (setup, payroll, TDS, onboarding, lifecycle…) are owner/
+// accountant/hr only. A `viewer` keeps the self-service + manager-scoped
+// subset; anything else redirects back to the HR dashboard.
+const VIEWER_HR_PATHS = [
+  '/hr/announcements', '/hr/employees', '/hr/org-chart', '/hr/attendance',
+  '/hr/regularizations', '/hr/holidays', '/hr/leave-requests',
+  '/hr/leave-balances', '/hr/expense-claims',
+];
+function HrModuleGuard() {
+  const { user, isLoading } = useAuth();
+  const { location } = useRouterState();
+  const path = location.pathname;
+  // Only police paths *inside* the HR module. This guard reads the global
+  // router location, and while the user navigates away (e.g. to /profile)
+  // it is still briefly mounted — without the `inHrModule` check it would
+  // see the new path, decide it's "not allowed", and bounce back to /hr.
+  const inHrModule = path === '/hr' || path.startsWith('/hr/');
+  if (!isLoading && !canManageHrModule(user?.role) && inHrModule) {
+    const allowed = path === '/hr'
+      || VIEWER_HR_PATHS.some((p) => path === p || path.startsWith(p + '/'));
+    if (!allowed) return <Navigate to="/hr" replace />;
+  }
+  return <Outlet />;
+}
+
 const hrRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/hr',
-  component: () => <Outlet />,
+  component: HrModuleGuard,
 });
 const hrIndexRoute = createRoute({
   getParentRoute: () => hrRoute,
@@ -1577,6 +1647,22 @@ const hrHolidaysRoute = createRoute({
   getParentRoute: () => hrRoute,
   path: '/holidays',
   component: HolidaysPage,
+});
+const hrGeoFencesRoute = createRoute({ getParentRoute: () => hrRoute, path: '/geo-fences', component: GeoFencesPage });
+const hrAttPunchesRoute = createRoute({ getParentRoute: () => hrRoute, path: '/attendance-punches', component: AttendancePunchesPage });
+const hrRegularizationsRoute = createRoute({ getParentRoute: () => hrRoute, path: '/regularizations', component: RegularizationsPage });
+const hrTaxDeclRoute = createRoute({ getParentRoute: () => hrRoute, path: '/tax-declarations', component: TaxDeclarationsPage });
+const hrLoansRoute = createRoute({ getParentRoute: () => hrRoute, path: '/loans', component: LoansPage });
+const hrLoanPolicyRoute = createRoute({ getParentRoute: () => hrRoute, path: '/loan-policy', component: LoanPolicyPage });
+const hrFnfRoute = createRoute({ getParentRoute: () => hrRoute, path: '/fnf', component: FnfPage });
+const hrOnboardingRoute = createRoute({ getParentRoute: () => hrRoute, path: '/onboarding', component: OnboardingPage });
+const hrLettersRoute = createRoute({ getParentRoute: () => hrRoute, path: '/letters', component: LettersPage });
+const hrHelpdeskRoute = createRoute({ getParentRoute: () => hrRoute, path: '/helpdesk', component: HelpdeskPage });
+const hrPerformanceRoute = createRoute({ getParentRoute: () => hrRoute, path: '/performance', component: PerformancePage });
+const hrAnnouncementsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/announcements',
+  component: AnnouncementsPage,
 });
 const hrAttendanceRoute = createRoute({
   getParentRoute: () => hrRoute,
@@ -1646,6 +1732,14 @@ const hrContractLabourRoute = createRoute({
   getParentRoute: () => hrRoute,
   path: '/contract-labour',
   component: ContractLabourPage,
+});
+// Expense claims spans both modules — employees raise + HR approves here,
+// Finance posts + reimburses. Mounted under HR too so HR-only roles reach
+// it without crossing into the Finance-guarded route tree.
+const hrExpenseClaimsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/expense-claims',
+  component: ExpenseClaimsPage,
 });
 
 // ─── Agent Activity Route ────────────────────────────────────────────────────
@@ -1868,6 +1962,7 @@ export const routeTree = rootRoute.addChildren([
   ]),
   dashboardLayoutRoute.addChildren([
     rootRedirectRoute,
+    profileRoute,
     financeRoute.addChildren([
       dashboardRoute,
       inboxRoute,
@@ -2050,6 +2145,7 @@ export const routeTree = rootRoute.addChildren([
       hrDesignationsRoute,
       hrShiftsRoute,
       hrHolidaysRoute,
+      hrAnnouncementsRoute,
       hrAttendanceRoute,
       hrLeaveTypesRoute,
       hrLeaveRequestsRoute,
@@ -2062,6 +2158,18 @@ export const routeTree = rootRoute.addChildren([
       hrTdsChallansRoute,
       hrForm16Route,
       hrContractLabourRoute,
+      hrExpenseClaimsRoute,
+      hrGeoFencesRoute,
+      hrAttPunchesRoute,
+      hrRegularizationsRoute,
+      hrTaxDeclRoute,
+      hrLoansRoute,
+      hrLoanPolicyRoute,
+      hrFnfRoute,
+      hrOnboardingRoute,
+      hrLettersRoute,
+      hrHelpdeskRoute,
+      hrPerformanceRoute,
       hrHelpRoute.addChildren([
         hrHelpIndexRoute,
         hrHelpRecipeRoute,

@@ -29,9 +29,17 @@ void showRunqSnack(
     SnackKind.info => Icons.info_rounded,
   };
 
-  // Floating SnackBars already stack above the bottomNavigationBar — we just
-  // need a small breathing gap so the toast doesn't kiss the nav pill.
-  const bottomMargin = 12.0;
+  // Snack positioning. SnackBarBehavior.floating already lifts the bar
+  // above any Scaffold.bottomNavigationBar slot — those screens (RootShell
+  // tab nav, HrFormScreen action bar, etc.) need only a tiny breathing
+  // gap. For screens that dock their own action bar inside the body
+  // Column instead of the bottomNavigationBar slot, Flutter doesn't know
+  // to push the toast — we add an extra inset to clear a typical 60-70px
+  // tall docked button bar so the toast doesn't sit under it.
+  final scaffold = Scaffold.maybeOf(context);
+  final hasBottomNav = scaffold?.widget.bottomNavigationBar != null
+      || scaffold?.widget.persistentFooterButtons != null;
+  final bottomMargin = hasBottomNav ? 12.0 : 80.0;
 
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();

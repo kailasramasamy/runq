@@ -29,6 +29,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
+import 'widgets/hr_resume_tab.dart';
 import 'widgets/hr_widgets.dart';
 
 class HrEmployeeDetailScreen extends ConsumerStatefulWidget {
@@ -46,7 +47,7 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -59,6 +60,9 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
   Widget build(BuildContext context) {
     final t = RT(context);
     final empAsync = ref.watch(hrEmployeeProvider(widget.id));
+    // Resume upload/edit is HR-admin only; managers see the tab read-only.
+    final role = ref.watch(appRoleProvider);
+    final canManageResume = role == AppRole.admin || role == AppRole.hr;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -106,6 +110,7 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                         Tab(text: 'Leave'),
                         Tab(text: 'Pay'),
                         Tab(text: 'Docs'),
+                        Tab(text: 'Resume'),
                       ],
                     ),
                   ),
@@ -119,6 +124,7 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                 _LeaveTab(employeeId: emp.id),
                 _PayTab(emp: emp),
                 _DocsTab(employeeId: emp.id, employeeName: emp.displayName),
+                HrResumeTab(employeeId: emp.id, canManage: canManageResume),
               ],
             ),
           );

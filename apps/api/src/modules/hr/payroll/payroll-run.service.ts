@@ -161,9 +161,18 @@ export class PayrollRunService {
         firstName: employees.firstName,
         lastName: employees.lastName,
         employeeCode: employees.employeeCode,
+        // Detail screen renders a "May 2026" header off month + year;
+        // they live on the payroll_runs row, not the payslip itself,
+        // so we have to join them in here. Without these the mobile
+        // `periodLabel` getter falls back to the bare year ("0") since
+        // month defaults to 0 when the field is absent.
+        runMonth: payrollRuns.month,
+        runYear: payrollRuns.year,
+        runStatus: payrollRuns.status,
       })
       .from(payslips)
       .innerJoin(employees, eq(employees.id, payslips.employeeId))
+      .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
       .where(and(
         eq(payslips.tenantId, this.tenantId),
         eq(payslips.id, payslipId),
@@ -175,6 +184,9 @@ export class PayrollRunService {
       ...row.ps,
       employeeCode: row.employeeCode,
       employeeName: `${row.firstName}${row.lastName ? ' ' + row.lastName : ''}`,
+      month: row.runMonth,
+      year: row.runYear,
+      runStatus: row.runStatus,
     };
   }
 

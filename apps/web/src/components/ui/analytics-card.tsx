@@ -67,7 +67,7 @@ export function AnalyticsCard({
             <button
               type="button"
               onClick={onDrillDown}
-              className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              className="inline-flex items-center gap-1 font-medium text-[var(--accent-text)] hover:opacity-80"
             >
               {drillDownLabel}
               <ChevronRight size={14} />

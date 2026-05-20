@@ -30,7 +30,7 @@ export function EmptyState({ icon: Icon, title, description, action, className, 
       {helpHref && (
         <Link
           to={helpHref as '/finance/help'}
-          className="mt-3 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--accent-text)] hover:opacity-80"
         >
           <BookOpen size={12} />
           {helpLabel ?? 'Read the step-by-step guide'}

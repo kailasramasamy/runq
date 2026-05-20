@@ -7,7 +7,7 @@ type Size = 'sm' | 'md' | 'lg';
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600',
+    'bg-[var(--accent)] text-white hover:opacity-90',
   secondary:
     'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700',
   outline:
@@ -35,7 +35,7 @@ export function buttonVariants({
 }) {
   return cn(
     'inline-flex items-center justify-center rounded-md font-medium transition-colors duration-150',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2',
     'disabled:pointer-events-none disabled:opacity-50',
     variantClasses[variant],
     sizeClasses[size],

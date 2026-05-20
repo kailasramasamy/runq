@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input, Select,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import {
   useHolidays, useCreateHoliday, useDeleteHoliday,
 } from '@/hooks/queries/use-hr';
@@ -35,8 +35,16 @@ export function HolidaysPage() {
   const [stateName, setStateName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const holidays = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = holidays.filter((h) => {
+    if (q && !h.name.toLowerCase().includes(q)) return false;
+    if (typeFilter && h.type !== typeFilter) return false;
+    return true;
+  });
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -83,6 +91,22 @@ export function HolidaysPage() {
         </Modal>
       )}
 
+      {holidays.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name…"
+          count={filtered.length}
+          noun="holiday"
+        >
+          <FilterSelect
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[{ value: '', label: 'All types' }, ...TYPE_OPTIONS]}
+          />
+        </ListToolbar>
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -98,7 +122,9 @@ export function HolidaysPage() {
             <tr><td colSpan={5} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : holidays.length === 0 ? (
             <tr><td colSpan={5}><EmptyState icon={<CalendarDays size={18} />} title="No holidays" description="Add holidays for the selected year." /></td></tr>
-          ) : holidays.map((h) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={5}><EmptyState icon={<CalendarDays size={18} />} title="No holidays match" description="Try a different search or filter." /></td></tr>
+          ) : filtered.map((h) => (
             <TableRow key={h.id}>
               <TableCell className="num" style={{ color: 'var(--text-2)' }}>{h.date}</TableCell>
               <TableCell><span className="font-medium" style={{ color: 'var(--text-1)' }}>{h.name}</span></TableCell>

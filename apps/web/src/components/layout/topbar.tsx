@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   Search, Sparkles, ChevronDown, Bell, Sun, Moon, Check,
   AlertCircle, CheckCircle2, Info, LogOut, Settings, Building2,
-  LifeBuoy as LifeBuoyIcon,
+  LifeBuoy as LifeBuoyIcon, UserCircle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
-import { useAuth } from '../../providers/auth-provider';
+import { useAuth, canManageHrModule, canAccessFinanceModule } from '../../providers/auth-provider';
 import { useCompanySettings } from '../../hooks/queries/use-settings';
 import {
   useNotifications, useMarkAllNotificationsRead,
@@ -281,7 +281,17 @@ function ProfileMenu() {
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const initials = (user?.name ?? user?.email ?? 'U').slice(0, 2).toUpperCase();
+
+  function go(to: '/profile' | '/settings' | '/settings/client-invites') {
+    setOpen(false);
+    void navigate({ to });
+  }
+  // Org settings is for HR/finance admins; client/CA invites are a finance
+  // collaboration tool. A plain viewer (employee/manager) sees neither.
+  const showOrgSettings = canManageHrModule(user?.role);
+  const showClientInvites = canAccessFinanceModule(user?.role);
 
   return (
     <div ref={ref} className="relative">
@@ -312,22 +322,34 @@ function ProfileMenu() {
               </div>
             )}
           </div>
-          <Link
-            to="/settings"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-[color:var(--surface-2)]"
+          <button
+            type="button"
+            onClick={() => go('/profile')}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--surface-2)]"
             style={{ color: 'var(--text-1)' }}
           >
-            <Settings size={14} /> Org settings
-          </Link>
-          <Link
-            to="/settings/client-invites"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-[color:var(--surface-2)]"
-            style={{ color: 'var(--text-1)' }}
-          >
-            <Building2 size={14} /> Invite a client / CA
-          </Link>
+            <UserCircle size={14} /> My profile
+          </button>
+          {showOrgSettings && (
+            <button
+              type="button"
+              onClick={() => go('/settings')}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--surface-2)]"
+              style={{ color: 'var(--text-1)' }}
+            >
+              <Settings size={14} /> Org settings
+            </button>
+          )}
+          {showClientInvites && (
+            <button
+              type="button"
+              onClick={() => go('/settings/client-invites')}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--surface-2)]"
+              style={{ color: 'var(--text-1)' }}
+            >
+              <Building2 size={14} /> Invite a client / CA
+            </button>
+          )}
           <button
             onClick={() => { setOpen(false); logout(); }}
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--surface-2)]"

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Upload, Save, CalendarClock, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Save, CalendarClock, Download, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import {
   PageHeader, Button, Input, Select, Card, CardHeader, CardContent,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, Modal,
@@ -9,6 +9,7 @@ import { downloadCSV } from '@/lib/csv-export';
 import {
   useEmployees, useAttendance, useUpsertAttendance,
   useBiometricImport, useDailyMuster, useAttendanceImports,
+  useDepartments,
   type AttendanceStatus,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
@@ -22,9 +23,11 @@ const STATUS_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'week_off', label: 'Week off' },
 ];
 
-// Semantic colours per status — kept as explicit hex (intentional design tokens,
-// the app's variable system has no per-status -bg/-fg trio).
-const STATUS_COLORS: Record<AttendanceStatus, { bg: string; fg: string; border: string }> = {
+// Semantic colours per status. Light + dark variants so the page reads
+// correctly in both themes. Hex values are intentional design tokens —
+// the app's CSS-variable system has no per-status -bg/-fg trio yet.
+type StatusPalette = { bg: string; fg: string; border: string };
+const STATUS_COLORS_LIGHT: Record<AttendanceStatus, StatusPalette> = {
   present: { bg: '#dcfce7', fg: '#14532d', border: '#86efac' },
   absent: { bg: '#fee2e2', fg: '#7f1d1d', border: '#fca5a5' },
   half_day: { bg: '#dbeafe', fg: '#1e3a8a', border: '#93c5fd' },
@@ -32,6 +35,30 @@ const STATUS_COLORS: Record<AttendanceStatus, { bg: string; fg: string; border: 
   holiday: { bg: '#ede9fe', fg: '#4c1d95', border: '#c4b5fd' },
   week_off: { bg: '#f1f5f9', fg: '#475569', border: '#e2e8f0' },
 };
+const STATUS_COLORS_DARK: Record<AttendanceStatus, StatusPalette> = {
+  present: { bg: 'rgba(34,197,94,0.18)', fg: '#86efac', border: 'rgba(34,197,94,0.40)' },
+  absent: { bg: 'rgba(239,68,68,0.18)', fg: '#fca5a5', border: 'rgba(239,68,68,0.40)' },
+  half_day: { bg: 'rgba(59,130,246,0.18)', fg: '#93c5fd', border: 'rgba(59,130,246,0.40)' },
+  leave: { bg: 'rgba(245,158,11,0.18)', fg: '#fcd34d', border: 'rgba(245,158,11,0.40)' },
+  holiday: { bg: 'rgba(139,92,246,0.18)', fg: '#c4b5fd', border: 'rgba(139,92,246,0.40)' },
+  week_off: { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1', border: 'rgba(148,163,184,0.35)' },
+};
+
+function useStatusColors() {
+  // Match the rest of the app — check the documentElement for the .dark
+  // class set by the theme provider.
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  return isDark ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT;
+}
+
+// HTML <input type="time"> requires strict zero-padded HH:MM. Legacy data
+// stored as "9:00" or "5:00" silently renders empty otherwise.
+function padTime(v: string | null | undefined): string {
+  if (!v) return '';
+  const [h = '', m = ''] = v.split(':');
+  if (!h || !m) return '';
+  return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+}
 
 // Keyboard shortcut → status (fires when an attendance row is focused).
 const KEY_MAP: Record<string, AttendanceStatus> = {
@@ -50,24 +77,50 @@ function calcHours(checkIn: string, checkOut: string): number | null {
   return diff > 0 ? diff / 60 : null;
 }
 
+// Shift an ISO date string (YYYY-MM-DD) by N days. The naive
+// `new Date(iso + 'T00:00:00').toISOString()` round-trip silently
+// drops the date by one in any TZ east of UTC (the local-midnight
+// instant is the previous day in UTC). Build the output from local
+// components instead so the calendar nav lands on the right day in
+// every timezone.
 function shiftDate(iso: string, days: number): string {
-  const d = new Date(iso + 'T00:00:00');
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, (m ?? 1) - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function AttendancePage() {
   const readOnly = useIsReadOnly();
   const { toast } = useToast();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const STATUS_COLORS = useStatusColors();
+  const [date, setDate] = useState(todayLocal());
   const [showImport, setShowImport] = useState(false);
 
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const employees = useMemo(() => empData?.data ?? [], [empData]);
+  const { data: deptData } = useDepartments();
+  const departments = deptData?.data ?? [];
 
   const { data: attData, isLoading } = useAttendance({ dateFrom: date, dateTo: date });
   const { data: musterData } = useDailyMuster(date);
   const upsert = useUpsertAttendance();
+
+  // Filter / search state — applied client-side over the loaded roster.
+  // Keeps the UI snappy; the day's roster rarely exceeds the 200 employees
+  // fetched above. Save / muster / "mark all" operate on the unfiltered
+  // employees so a filter view never silently strips off-screen rows.
+  const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<AttendanceStatus | ''>('');
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -81,8 +134,8 @@ export function AttendancePage() {
     for (const r of attData?.data ?? []) {
       map[r.employeeId] = {
         status: r.status,
-        checkIn: r.checkIn ?? '',
-        checkOut: r.checkOut ?? '',
+        checkIn: padTime(r.checkIn),
+        checkOut: padTime(r.checkOut),
       };
     }
     setDrafts(map);
@@ -128,8 +181,8 @@ export function AttendancePage() {
   function handleRowKey(e: React.KeyboardEvent, id: string, idx: number) {
     const k = e.key.toLowerCase();
     if (KEY_MAP[k]) { e.preventDefault(); setDraft(id, { status: KEY_MAP[k] }); return; }
-    if (e.key === 'ArrowDown' && idx < employees.length - 1) { e.preventDefault(); setFocusRow(employees[idx + 1].id); }
-    if (e.key === 'ArrowUp' && idx > 0) { e.preventDefault(); setFocusRow(employees[idx - 1].id); }
+    if (e.key === 'ArrowDown' && idx < displayed.length - 1) { e.preventDefault(); setFocusRow(displayed[idx + 1].id); }
+    if (e.key === 'ArrowUp' && idx > 0) { e.preventDefault(); setFocusRow(displayed[idx - 1].id); }
     if (e.key === 'Escape') setFocusRow(null);
   }
 
@@ -137,6 +190,22 @@ export function AttendancePage() {
   const weekday = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
+
+  // Filtered roster for table rendering. Search matches name + code
+  // case-insensitively. Department + status filters narrow the visible
+  // rows; both default to "all". Unfiltered `employees` is still used
+  // for muster aggregation, mark-all, and save-all.
+  const filtersActive = !!search || !!deptFilter || !!statusFilter;
+  const displayed = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return employees.filter((e) => {
+      if (deptFilter && e.departmentId !== deptFilter) return false;
+      if (statusFilter && (drafts[e.id]?.status ?? 'present') !== statusFilter) return false;
+      if (!q) return true;
+      const name = `${e.firstName} ${e.lastName ?? ''}`.toLowerCase();
+      return name.includes(q) || (e.employeeCode ?? '').toLowerCase().includes(q);
+    });
+  }, [employees, drafts, search, deptFilter, statusFilter]);
 
   return (
     <div>
@@ -177,7 +246,7 @@ export function AttendancePage() {
       />
 
       {/* Date navigation + quick actions */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setDate(shiftDate(date, -1))}
@@ -203,6 +272,14 @@ export function AttendancePage() {
         >
           <ChevronRight size={14} />
         </button>
+        {date !== todayLocal() && (
+          <button
+            type="button"
+            onClick={() => setDate(todayLocal())}
+            className="rounded-md border px-2 py-1 text-[11px] font-semibold hover:bg-[color:var(--surface-2)]"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          >Today</button>
+        )}
         <span className="ml-1 text-[13px]" style={{ color: 'var(--text-2)' }}>{weekday}</span>
         <div className="flex-1" />
         {!readOnly && (
@@ -211,6 +288,67 @@ export function AttendancePage() {
             <Button variant="outline" size="sm" onClick={() => markAll('week_off')}>All week off</Button>
             <Button variant="outline" size="sm" onClick={() => markAll('holiday')}>Mark holiday</Button>
           </div>
+        )}
+      </div>
+
+      {/* Search + filter bar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or code"
+            className="rounded-md border pl-8 pr-7 py-1.5 text-[13px] w-64 outline-none focus:ring-2 focus:ring-[color:var(--accent-soft)]"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-[color:var(--surface-2)]"
+              style={{ color: 'var(--text-3)' }}
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <select
+          value={deptFilter}
+          onChange={(e) => setDeptFilter(e.target.value)}
+          className="rounded-md border px-2 py-1.5 text-[13px] outline-none"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
+        >
+          <option value="">All departments</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as AttendanceStatus | '')}
+          className="rounded-md border px-2 py-1.5 text-[13px] outline-none"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
+        >
+          <option value="">All statuses</option>
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {filtersActive && (
+          <>
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setDeptFilter(''); setStatusFilter(''); }}
+              className="rounded-md border px-2 py-1 text-[11px] font-semibold hover:bg-[color:var(--surface-2)]"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}
+            >Clear filters</button>
+            <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+              Showing {displayed.length} of {employees.length}
+            </span>
+          </>
         )}
       </div>
 
@@ -267,7 +405,9 @@ export function AttendancePage() {
             <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : employees.length === 0 ? (
             <tr><td colSpan={6}><EmptyState icon={<CalendarClock size={18} />} title="No active employees" description="Add employees to start tracking attendance." /></td></tr>
-          ) : employees.map((e, idx) => {
+          ) : displayed.length === 0 ? (
+            <tr><td colSpan={6}><EmptyState icon={<Search size={18} />} title="No matches" description="No employees match the current search or filters." /></td></tr>
+          ) : displayed.map((e, idx) => {
             const d = drafts[e.id] ?? { status: 'present' as AttendanceStatus, checkIn: '', checkOut: '' };
             const c = STATUS_COLORS[d.status];
             const isDirty = dirty.has(e.id);
@@ -284,7 +424,11 @@ export function AttendancePage() {
                 className="border-b outline-none"
                 style={{
                   borderColor: 'var(--border-soft)',
-                  background: isFocused ? 'var(--accent-soft)' : isDirty ? '#fffbeb' : 'transparent',
+                  background: isFocused
+                    ? 'var(--accent-soft)'
+                    : isDirty
+                      ? 'color-mix(in srgb, #f59e0b 12%, transparent)'
+                      : 'transparent',
                 }}
               >
                 <TableCell>

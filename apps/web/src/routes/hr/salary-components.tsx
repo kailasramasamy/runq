@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input, Select,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import {
   useSalaryComponents, useCreateSalaryComponent, useDeleteSalaryComponent, useSeedDefaultComponents,
   type ComponentType, type CalcType,
@@ -43,8 +43,16 @@ export function SalaryComponentsPage() {
   const [isEsi, setIsEsi] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const components = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = components.filter((c) => {
+    if (q && !c.name.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q)) return false;
+    if (typeFilter && c.type !== typeFilter) return false;
+    return true;
+  });
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -104,6 +112,22 @@ export function SalaryComponentsPage() {
         </Modal>
       )}
 
+      {components.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name or code…"
+          count={filtered.length}
+          noun="component"
+        >
+          <FilterSelect
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[{ value: '', label: 'All types' }, ...TYPE_OPTS]}
+          />
+        </ListToolbar>
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -121,7 +145,9 @@ export function SalaryComponentsPage() {
             <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : components.length === 0 ? (
             <tr><td colSpan={7}><EmptyState icon={<Coins size={18} />} title="No components" description="Seed defaults or add manually." /></td></tr>
-          ) : components.map((c) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={7}><EmptyState icon={<Coins size={18} />} title="No components match" description="Try a different search or filter." /></td></tr>
+          ) : filtered.map((c) => (
             <TableRow key={c.id}>
               <TableCell><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{c.code}</span></TableCell>
               <TableCell style={{ color: 'var(--text-2)' }}>{c.name}</TableCell>

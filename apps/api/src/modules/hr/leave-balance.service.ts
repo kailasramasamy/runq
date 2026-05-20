@@ -3,9 +3,17 @@ import { leaveBalances, leaveTypes, employees } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { AdjustLeaveBalanceInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+import { applyHrScope, type HrAccessScope } from './access-scope';
 
 export class LeaveBalanceService {
-  constructor(private readonly db: Db, private readonly tenantId: string) {}
+  /// Optional scope. Defaults to org-wide so internal callers (carry-forward,
+  /// adjust, incrementUsed) keep working; the `/leave-balances` GET passes the
+  /// caller's resolved scope so a viewer sees only their own / their team.
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+    private readonly scope: HrAccessScope = { kind: 'all' },
+  ) {}
 
   /**
    * Ensures a balance row exists for (employee, leaveType, year). Initializes
@@ -47,6 +55,16 @@ export class LeaveBalanceService {
     const conditions = [eq(leaveBalances.tenantId, this.tenantId)];
     if (filter.employeeId) conditions.push(eq(leaveBalances.employeeId, filter.employeeId));
     if (filter.year) conditions.push(eq(leaveBalances.year, filter.year));
+    // Gender-eligibility filter (mig 0090). Hide rows where the leave
+    // type is gender-gated and the employee's gender doesn't match.
+    // NULL-gender employees see only 'all'-applicable types — safer
+    // default than guessing eligibility from a missing field.
+    // Cast both sides to text — applicableGender is varchar, employees.gender
+    // is the `gender` enum type, and Postgres won't compare them directly.
+    conditions.push(sql`(
+      ${leaveTypes.applicableGender} = 'all'
+      OR ${leaveTypes.applicableGender} = ${employees.gender}::text
+    )`);
 
     const rows = await this.db
       .select({
@@ -60,7 +78,7 @@ export class LeaveBalanceService {
       .from(leaveBalances)
       .innerJoin(leaveTypes, eq(leaveTypes.id, leaveBalances.leaveTypeId))
       .innerJoin(employees, eq(employees.id, leaveBalances.employeeId))
-      .where(and(...conditions));
+      .where(applyHrScope(this.scope, leaveBalances.employeeId, and(...conditions)));
 
     return rows.map((r) => ({
       ...r.bal,

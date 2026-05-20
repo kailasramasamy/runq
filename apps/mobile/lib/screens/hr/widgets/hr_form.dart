@@ -160,6 +160,7 @@ class _HrWizardState extends State<HrWizard> {
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                   physics: const BouncingScrollPhysics(),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   child: step.build(context),
                 ),
               ),
@@ -318,24 +319,30 @@ class HrFormScreen extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                 physics: const BouncingScrollPhysics(),
+                // Drag-to-dismiss matches every other scrollable surface
+                // in the app (directory, leave list, expenses list). On
+                // a tall form the keyboard otherwise eats half the
+                // visible area while the user is scanning further down.
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 child: body,
               ),
             ),
-            if (bottomAction != null)
-              SafeArea(
-                top: false,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  decoration: BoxDecoration(
-                    color: t.surface,
-                    border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
-                  ),
-                  child: bottomAction!,
-                ),
-              ),
           ],
         ),
       ),
+      // Bottom action lives on the Scaffold's `bottomNavigationBar`
+      // slot rather than as the last Column child. Flutter's
+      // ScaffoldMessenger lifts floating SnackBars above this slot
+      // automatically, so toasts never sit underneath the button.
+      bottomNavigationBar: bottomAction == null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: bottomAction!,
+              ),
+            ),
     );
   }
 }
@@ -593,6 +600,12 @@ class HrDateField extends StatelessWidget {
       initialDate: init,
       firstDate: firstDate ?? DateTime(1960),
       lastDate: lastDate ?? DateTime.now().add(const Duration(days: 365 * 10)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: HrColors.teal),
+        ),
+        child: child!,
+      ),
     );
     if (picked != null) onChanged(picked);
   }

@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment,
   useEmployees,
@@ -30,8 +30,14 @@ export function DepartmentsPage() {
   const [editName, setEditName] = useState('');
   const [editCode, setEditCode] = useState('');
   const [editHead, setEditHead] = useState<string>('');
+  const [search, setSearch] = useState('');
 
   const departments = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? departments.filter((d) =>
+        d.name.toLowerCase().includes(q) || (d.code ?? '').toLowerCase().includes(q))
+    : departments;
   const headOptions = [
     { value: '', label: '— None —' },
     ...((empData?.data ?? []).map((e) => ({
@@ -96,6 +102,16 @@ export function DepartmentsPage() {
         </Modal>
       )}
 
+      {departments.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name or code…"
+          count={filtered.length}
+          noun="department"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -111,7 +127,9 @@ export function DepartmentsPage() {
             <tr><td colSpan={5} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : departments.length === 0 ? (
             <tr><td colSpan={5}><EmptyState icon={<Briefcase size={18} />} title="No departments yet" description="Add your first department above." /></td></tr>
-          ) : departments.map((d) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={5}><EmptyState icon={<Briefcase size={18} />} title="No departments match" description="Try a different search term." /></td></tr>
+          ) : filtered.map((d) => (
             <TableRow key={d.id}>
               <TableCell>
                 {editing?.id === d.id ? (

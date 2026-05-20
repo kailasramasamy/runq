@@ -23,7 +23,7 @@ export function Pagination({ page, totalPages, total, limit, onPageChange, class
   const pages = getPageNumbers(page, totalPages);
 
   const btnBase = 'inline-flex h-8 w-8 items-center justify-center rounded text-sm transition-colors duration-150 disabled:pointer-events-none disabled:opacity-40';
-  const btnActive = 'bg-indigo-600 text-white dark:bg-indigo-500';
+  const btnActive = 'bg-[var(--accent)] text-white';
   const btnInactive = 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800';
 
   return (

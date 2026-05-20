@@ -3,6 +3,8 @@ import { buildApp } from './app';
 import { initEmailTransport } from './utils/email';
 import { startReportScheduler, stopReportScheduler } from './scheduler/report-scheduler';
 import { startGstScheduler, stopGstScheduler } from './scheduler/gst-scheduler';
+import { startLeaveAccrualScheduler, stopLeaveAccrualScheduler } from './scheduler/leave-accrual-scheduler';
+import { startPerformanceReminderScheduler, stopPerformanceReminderScheduler } from './scheduler/performance-reminder-scheduler';
 import { startAnalyticsScheduler, stopAnalyticsScheduler } from './modules/analytics/scheduler';
 
 async function main() {
@@ -13,6 +15,8 @@ async function main() {
   app.addHook('onClose', () => {
     stopReportScheduler();
     stopGstScheduler();
+    stopLeaveAccrualScheduler();
+    stopPerformanceReminderScheduler();
     stopAnalyticsScheduler();
   });
 
@@ -21,6 +25,8 @@ async function main() {
     app.log.info(`Server running on port ${env.PORT}`);
     startReportScheduler(app.db, app.redis, app.log);
     startGstScheduler(app.db, app.redis, app.log);
+    startLeaveAccrualScheduler(app.db, app.redis, app.log);
+    startPerformanceReminderScheduler(app.db, app.redis, app.log);
     startAnalyticsScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);

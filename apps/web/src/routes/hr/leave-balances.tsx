@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Select, Combobox, useToast,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { EmptyState, Avatar } from '@/components/ar/primitives';
+import { EmptyState, Avatar, SearchInput } from '@/components/ar/primitives';
 import {
   useLeaveBalances, useEmployees, useCarryForwardLeave,
 } from '@/hooks/queries/use-hr';
@@ -15,11 +15,20 @@ export function LeaveBalancesPage() {
   const { toast } = useToast();
   const [year, setYear] = useState(new Date().getFullYear());
   const [employeeId, setEmployeeId] = useState('');
+  const [search, setSearch] = useState('');
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const { data, isLoading } = useLeaveBalances({ year, employeeId: employeeId || undefined });
   const carryForward = useCarryForwardLeave();
 
   const balances = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? balances.filter((b) =>
+        b.employeeName.toLowerCase().includes(q) ||
+        b.employeeCode.toLowerCase().includes(q) ||
+        b.typeName.toLowerCase().includes(q) ||
+        b.typeCode.toLowerCase().includes(q))
+    : balances;
   const empOptions = [
     { value: '', label: 'All employees' },
     ...(empData?.data ?? []).map((e) => ({
@@ -50,6 +59,13 @@ export function LeaveBalancesPage() {
       />
 
       <div className="mb-3 flex flex-wrap items-end gap-2">
+        <div className="w-64">
+          <SearchInput
+            placeholder="Search by employee or leave type…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <div className="w-32">
           <Select
             label="Year"
@@ -62,7 +78,7 @@ export function LeaveBalancesPage() {
           <Combobox label="Employee" options={empOptions} value={employeeId} onChange={setEmployeeId} />
         </div>
         <div className="flex-1" />
-        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{balances.length} rows</span>
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{filtered.length} rows</span>
       </div>
 
       <Table>
@@ -88,7 +104,11 @@ export function LeaveBalancesPage() {
                 description="Balances initialize automatically when leave is requested or approved."
               />
             </td></tr>
-          ) : balances.map((b) => {
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={7}>
+              <EmptyState icon={<Scale size={18} />} title="No balances match" description="Try a different search term." />
+            </td></tr>
+          ) : filtered.map((b) => {
             const accrued = Number(b.accrued);
             const used = Number(b.used);
             const pct = accrued > 0 ? Math.round(Math.min(used / accrued, 1) * 100) : 0;

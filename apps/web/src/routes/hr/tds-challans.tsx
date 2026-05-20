@@ -5,7 +5,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge,
 } from '@/components/ui';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { StatTile, EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import {
   useTdsChallans, useRecordTdsDeposit, type TdsChallan,
@@ -27,8 +27,18 @@ export function TdsChallansPage() {
   const readOnly = useIsReadOnly();
   const { data, isLoading } = useTdsChallans();
   const [deposit, setDeposit] = useState<TdsChallan | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const challans = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = challans.filter((c) => {
+    if (q &&
+      !`${MONTHS[c.periodMonth - 1]} ${c.periodYear}`.toLowerCase().includes(q) &&
+      !(c.section ?? '').toLowerCase().includes(q)) return false;
+    if (statusFilter && c.status !== statusFilter) return false;
+    return true;
+  });
   const pending = challans.filter((c) => c.status === 'pending');
   const pendingTotal = pending.reduce((s, c) => s + Number(c.tdsAmount), 0);
   const depositedTotal = challans
@@ -50,6 +60,26 @@ export function TdsChallansPage() {
         <StatTile label="Pending amount" value={formatINR(pendingTotal)} accentColor="#dc2626" tone="neg" />
         <StatTile label="Deposited" value={formatINR(depositedTotal)} accentColor="#16a34a" />
       </div>
+
+      {challans.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by period or section…"
+          count={filtered.length}
+          noun="challan"
+        >
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'deposited', label: 'Deposited' },
+            ]}
+          />
+        </ListToolbar>
+      )}
 
       <Table>
         <TableHeader>
@@ -75,7 +105,11 @@ export function TdsChallansPage() {
                 description="Approve a payroll run that has TDS — a pending challan appears here automatically."
               />
             </td></tr>
-          ) : challans.map((c) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={8}>
+              <EmptyState icon={<Receipt size={18} />} title="No challans match" description="Try a different search or filter." />
+            </td></tr>
+          ) : filtered.map((c) => (
             <TableRow key={c.id}>
               <TableCell>
                 <span className="num font-medium" style={{ color: 'var(--text-1)' }}>

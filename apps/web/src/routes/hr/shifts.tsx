@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useShifts, useCreateShift, useDeleteShift,
 } from '@/hooks/queries/use-hr';
@@ -27,8 +27,11 @@ export function ShiftsPage() {
   const [isNight, setIsNight] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const shifts = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q ? shifts.filter((s) => s.name.toLowerCase().includes(q)) : shifts;
 
   function toggleDay(d: number) {
     setOffDays((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort());
@@ -101,6 +104,16 @@ export function ShiftsPage() {
         </Modal>
       )}
 
+      {shifts.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name…"
+          count={filtered.length}
+          noun="shift"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -117,7 +130,9 @@ export function ShiftsPage() {
             <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : shifts.length === 0 ? (
             <tr><td colSpan={6}><EmptyState icon={<Clock3 size={18} />} title="No shifts yet" description="Define a shift above." /></td></tr>
-          ) : shifts.map((s) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={6}><EmptyState icon={<Clock3 size={18} />} title="No shifts match" description="Try a different search term." /></td></tr>
+          ) : filtered.map((s) => (
             <TableRow key={s.id}>
               <TableCell><span className="font-medium" style={{ color: 'var(--text-1)' }}>{s.name}</span></TableCell>
               <TableCell className="num" style={{ color: 'var(--text-2)' }}>{s.startTime} – {s.endTime}</TableCell>

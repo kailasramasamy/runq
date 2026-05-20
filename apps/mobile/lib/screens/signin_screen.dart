@@ -143,10 +143,17 @@ class SignInScreen extends ConsumerStatefulWidget {
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
+// Two-step phone + OTP sign-in. Step 1 captures phone and calls
+// /auth/phone-otp/request (no-op today, future SMS dispatch); step 2
+// captures the 6-digit OTP and calls /auth/phone-otp/verify which either
+// returns a session for an existing user or auto-provisions a viewer-role
+// user from a matching employee row.
+enum _Step { phone, otp }
+
 class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerProviderStateMixin {
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  bool _showPassword = false;
+  final _phone = TextEditingController();
+  final _otp = TextEditingController();
+  _Step _step = _Step.phone;
   bool _loading = false;
   String? _error;
 
@@ -173,16 +180,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
 
   @override
   void dispose() {
-    _email.dispose();
-    _password.dispose();
+    _phone.dispose();
+    _otp.dispose();
     _enter.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _requestOtp() async {
     FocusScope.of(context).unfocus();
-    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = 'Enter your email and password to continue.');
+    final phone = _phone.text.trim();
+    // Server normalises (strips non-digits, drops a 91 country prefix), but
+    // we still bail early on obviously-too-short input to save the round trip.
+    if (phone.replaceAll(RegExp(r'\D'), '').length < 10) {
+      setState(() => _error = 'Enter a valid 10-digit mobile number.');
       return;
     }
     setState(() {
@@ -190,7 +200,35 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).login(_email.text, _password.text);
+      await ref.read(authProvider.notifier).requestOtp(phone);
+      if (!mounted) return;
+      setState(() => _step = _Step.otp);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('[signin] requestOtp error: $e');
+      setState(() => _error = kDebugMode
+          ? 'Connection failed: $e'
+          : 'Could not reach the server. Check your connection.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (_otp.text.trim().length != 6) {
+      setState(() => _error = 'Enter the 6-digit OTP.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authProvider.notifier).verifyOtp(_phone.text, _otp.text);
       if (!mounted) return;
       // Wait briefly for /hr/me so the landing matches role on first paint
       // — admins get Finance Home, everyone else gets HR Home. The router
@@ -212,8 +250,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.statusCode == 401
-          ? 'Invalid email or password.'
-          : e.message);
+          ? 'Invalid OTP. Try again.'
+          : e.statusCode == 404
+              ? 'No account found for this phone. Ask your admin to add you.'
+              : e.message);
     } catch (e) {
       if (!mounted) return;
       // Surface the real error in debug so connectivity issues are diagnosable.
@@ -270,13 +310,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           opacity: _cardFade,
                           child: _SignInCard(
                             palette: p,
-                            email: _email,
-                            password: _password,
-                            showPassword: _showPassword,
-                            onToggleShow: () => setState(() => _showPassword = !_showPassword),
+                            phone: _phone,
+                            otp: _otp,
+                            step: _step,
                             error: _error,
                             loading: _loading,
-                            onSubmit: _submit,
+                            onRequestOtp: _requestOtp,
+                            onVerifyOtp: _submit,
+                            onChangePhone: () {
+                              setState(() {
+                                _step = _Step.phone;
+                                _otp.clear();
+                                _error = null;
+                              });
+                            },
                           ),
                         ),
                       ),
@@ -440,25 +487,28 @@ class _SessionExpiredBanner extends StatelessWidget {
 
 class _SignInCard extends StatelessWidget {
   final _Palette palette;
-  final TextEditingController email, password;
-  final bool showPassword;
-  final VoidCallback onToggleShow;
+  final TextEditingController phone, otp;
+  final _Step step;
   final String? error;
   final bool loading;
-  final VoidCallback onSubmit;
+  final VoidCallback onRequestOtp;
+  final VoidCallback onVerifyOtp;
+  final VoidCallback onChangePhone;
   const _SignInCard({
     required this.palette,
-    required this.email,
-    required this.password,
-    required this.showPassword,
-    required this.onToggleShow,
+    required this.phone,
+    required this.otp,
+    required this.step,
     required this.error,
     required this.loading,
-    required this.onSubmit,
+    required this.onRequestOtp,
+    required this.onVerifyOtp,
+    required this.onChangePhone,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isPhoneStep = step == _Step.phone;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -472,54 +522,69 @@ class _SignInCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ThemedField(
-            palette: palette,
-            label: 'Email',
-            controller: email,
-            hint: 'you@company.com',
-            icon: Icons.alternate_email_rounded,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 14),
-          _ThemedField(
-            palette: palette,
-            label: 'Password',
-            controller: password,
-            hint: '••••••••',
-            icon: Icons.lock_outline_rounded,
-            obscure: !showPassword,
-            suffix: GestureDetector(
-              onTap: onToggleShow,
-              child: Icon(
-                showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                size: 18,
-                color: palette.iconMuted,
-              ),
-            ),
-            autofillHints: const [AutofillHints.password],
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => onSubmit(),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () => _openContactPage(context),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  'Forgot password?',
-                  style: RunqText.caption.copyWith(
-                    color: palette.linkInk,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+          if (isPhoneStep)
+            _ThemedField(
+              palette: palette,
+              label: 'Mobile number',
+              controller: phone,
+              hint: '98765 43210',
+              icon: Icons.phone_iphone_rounded,
+              keyboardType: TextInputType.phone,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onRequestOtp(),
+            )
+          else ...[
+            // Echo the phone the user just typed, with an inline "change"
+            // affordance so a typo isn't fatal — going back resets the OTP
+            // field and the error so the user lands cleanly on step 1 again.
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.phone_iphone_rounded, size: 16, color: palette.iconMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      phone.text.trim(),
+                      style: RunqText.body.copyWith(color: palette.fieldText, fontSize: 14),
+                    ),
                   ),
-                ),
+                  GestureDetector(
+                    onTap: loading ? null : onChangePhone,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Text(
+                        'Change',
+                        style: RunqText.caption.copyWith(
+                          color: palette.linkInk,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+            _ThemedField(
+              palette: palette,
+              label: 'One-time password',
+              controller: otp,
+              hint: '••••••',
+              icon: Icons.lock_outline_rounded,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onVerifyOtp(),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Test mode: use 123456',
+                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 11),
+              ),
+            ),
+          ],
           if (error != null) ...[
             const SizedBox(height: 12),
             Container(
@@ -547,7 +612,7 @@ class _SignInCard extends StatelessWidget {
           SizedBox(
             height: 48,
             child: FilledButton(
-              onPressed: loading ? null : onSubmit,
+              onPressed: loading ? null : (isPhoneStep ? onRequestOtp : onVerifyOtp),
               style: FilledButton.styleFrom(
                 backgroundColor: palette.primaryBtn,
                 disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
@@ -562,9 +627,12 @@ class _SignInCard extends StatelessWidget {
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.login_rounded, size: 16),
+                        Icon(isPhoneStep ? Icons.arrow_forward_rounded : Icons.login_rounded, size: 16),
                         const SizedBox(width: 8),
-                        Text('Sign in', style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+                        Text(
+                          isPhoneStep ? 'Send OTP' : 'Sign in',
+                          style: RunqText.bodyStrong.copyWith(color: Colors.white),
+                        ),
                       ],
                     ),
             ),
@@ -615,8 +683,6 @@ class _ThemedField extends StatelessWidget {
   final String label, hint;
   final IconData icon;
   final TextEditingController controller;
-  final bool obscure;
-  final Widget? suffix;
   final TextInputType? keyboardType;
   final List<String>? autofillHints;
   final TextInputAction? textInputAction;
@@ -627,8 +693,6 @@ class _ThemedField extends StatelessWidget {
     required this.hint,
     required this.icon,
     required this.controller,
-    this.obscure = false,
-    this.suffix,
     this.keyboardType,
     this.autofillHints,
     this.textInputAction,
@@ -657,7 +721,6 @@ class _ThemedField extends StatelessWidget {
           ),
           child: TextField(
             controller: controller,
-            obscureText: obscure,
             keyboardType: keyboardType,
             autofillHints: autofillHints,
             textInputAction: textInputAction,
@@ -674,10 +737,6 @@ class _ThemedField extends StatelessWidget {
                 child: Icon(icon, size: 18, color: palette.iconMuted),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-              suffixIcon: suffix == null
-                  ? null
-                  : Padding(padding: const EdgeInsets.only(right: 12), child: suffix),
-              suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
               hintText: hint,
               hintStyle: RunqText.body.copyWith(color: palette.fieldHint, fontSize: 14),
               border: InputBorder.none,

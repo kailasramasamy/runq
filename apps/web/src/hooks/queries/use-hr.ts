@@ -575,6 +575,7 @@ export interface HrDashboardSummary {
   employeesWithoutSalary: number;
   attendanceNotMarkedToday: number;
   confirmationsDue: number;
+  helpdeskWaiting: number;
   attendanceTrend: Array<{
     year: number;
     month: number;
@@ -626,7 +627,15 @@ export function useExpiringDocuments(daysAhead = 90) {
 
 /** Slim response from `/hr/me` — used by the dashboard to badge scope. */
 export interface HrMe {
-  employee: { id: string; firstName: string; lastName: string | null } | null;
+  employee: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+    /// Department the employee belongs to. Used by the announcement
+    /// post modal to show managers their locked-to dept name; server
+    /// also reads this when narrowing a manager's post audience.
+    departmentId: string | null;
+  } | null;
   isManager: boolean;
   systemRole: 'owner' | 'accountant' | 'viewer' | 'client_owner' | 'hr';
   /// 'all' | 'subset' | 'self' | 'none' — set by the server's access-scope
@@ -648,11 +657,25 @@ export function useHrMe() {
 
 export type AnnouncementAudience = 'all' | 'managers';
 
+export type AnnouncementCategory =
+  | 'general'
+  | 'policy'
+  | 'holiday'
+  | 'event'
+  | 'operational'
+  | 'celebration'
+  | 'payroll';
+
 export interface Announcement {
   id: string;
   title: string;
   body: string;
   audience: AnnouncementAudience;
+  category: AnnouncementCategory;
+  departmentId: string | null;
+  departmentName: string | null;
+  /// Relative path served by /hr/announcements/:id/image. NULL = text-only.
+  imageUrl: string | null;
   pinned: boolean;
   postedAt: string;
   expiresAt: string | null;
@@ -674,10 +697,52 @@ export function useCreateAnnouncement() {
       title: string;
       body: string;
       audience?: AnnouncementAudience;
+      category?: AnnouncementCategory;
+      /// Omit / null → org-wide (visible to every department).
+      departmentId?: string | null;
       pinned?: boolean;
       // ISO string; null/undefined → never expires.
       expiresAt?: string | null;
     }) => api.post<ApiSuccess<Announcement>>('/hr/announcements', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
+  });
+}
+
+/// Multipart upload of a cover image for an announcement. The server
+/// resizes + JPEG-encodes; subsequent reads stream via
+/// GET /hr/announcements/:id/image (authenticated, private cache).
+export function useUploadAnnouncementImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { announcementId: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', params.file);
+      const res = await fetch(`/api/v1/hr/announcements/${params.announcementId}/image`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('runq-token') ?? ''}` },
+        body: form,
+      });
+      if (!res.ok) throw await res.json().catch(() => ({ message: 'Upload failed' }));
+      return (await res.json()).data as { storageKey: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
+  });
+}
+
+export function useUpdateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: {
+      id: string;
+      title?: string;
+      body?: string;
+      audience?: AnnouncementAudience;
+      category?: AnnouncementCategory;
+      /// null = clear (move back to org-wide).
+      departmentId?: string | null;
+      pinned?: boolean;
+      expiresAt?: string | null;
+    }) => api.put<ApiSuccess<Announcement>>(`/hr/announcements/${id}`, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
   });
 }
@@ -687,6 +752,26 @@ export function useDeleteAnnouncement() {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/hr/announcements/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
+  });
+}
+
+/// Fetches the cover image as a blob URL the browser can use in
+/// <img src>. Mirrors useEmployeePhotoSrc — needed because the
+/// /image stream requires a Bearer header that <img> can't carry.
+export function useAnnouncementImageSrc(announcementId: string, imageUrl: string | null) {
+  return useQuery({
+    queryKey: ['hr', 'announcements', 'image', announcementId, imageUrl],
+    enabled: !!announcementId && !!imageUrl,
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/hr/announcements/${announcementId}/image`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('runq-token') ?? ''}` },
+        cache: 'no-cache',
+      });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    },
+    staleTime: Infinity,
   });
 }
 

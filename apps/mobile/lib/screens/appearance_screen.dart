@@ -6,6 +6,8 @@ import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../widgets/runq_card.dart';
 
+const _teal = Color(0xFF0891B2);
+
 /// Three-option theme picker (System / Light / Dark). Selection persists
 /// across launches — see `theme_mode_provider.dart`.
 class AppearanceScreen extends ConsumerWidget {
@@ -95,11 +97,11 @@ class _Option extends StatelessWidget {
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: selected ? RunqColors.indigo.withValues(alpha: 0.12) : t.hairlineSoft,
+                color: selected ? _teal.withValues(alpha: 0.12) : t.hairlineSoft,
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: Icon(icon, color: selected ? RunqColors.indigo : t.muted, size: 18),
+              child: Icon(icon, color: selected ? _teal : t.muted, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -113,7 +115,7 @@ class _Option extends StatelessWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle_rounded, color: RT(context).brand, size: 20),
+              Icon(Icons.check_circle_rounded, color: _teal, size: 20),
           ],
         ),
       ),

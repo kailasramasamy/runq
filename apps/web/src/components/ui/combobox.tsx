@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const baseInputClasses =
-  'block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 transition-colors duration-150 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-indigo-400 dark:disabled:bg-zinc-800';
+  'block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 transition-colors duration-150 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:disabled:bg-zinc-800';
 
 interface ComboboxOption {
   value: string;
@@ -261,9 +261,9 @@ export function Combobox({
                     'cursor-pointer px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100',
                     idx < filtered.length - 1 && 'border-b border-zinc-100 dark:border-zinc-800/60',
                     idx === activeIndex
-                      ? 'bg-indigo-50 dark:bg-indigo-900/40'
-                      : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/40',
-                    opt.value === value && 'bg-indigo-50 font-medium dark:bg-indigo-900/40',
+                      ? 'bg-[var(--accent-soft)]'
+                      : 'hover:bg-[var(--accent-soft)]',
+                    opt.value === value && 'bg-[var(--accent-soft)] font-medium',
                   )}
                 >
                   {opt.label}

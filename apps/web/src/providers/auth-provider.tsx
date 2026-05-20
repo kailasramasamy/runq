@@ -27,6 +27,18 @@ function redirectToLoginExpired() {
   window.location.replace(`${base}/login?session=expired`);
 }
 
+// Send an unauthenticated visitor (no token at all) to the login page.
+// Returns true when a redirect was issued, so the caller can skip settling
+// isLoading and avoid a flash of unprotected content before navigation.
+function redirectToLogin(): boolean {
+  if (isRedirecting) return true;
+  if (window.location.pathname.endsWith('/login')) return false;
+  isRedirecting = true;
+  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+  window.location.replace(`${base}/login`);
+  return true;
+}
+
 interface AuthContextValue {
   user: Omit<User, 'createdAt' | 'updatedAt'> | null;
   token: string | null;
@@ -269,7 +281,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {})
         .finally(() => setIsLoading(false));
     } else {
-      setIsLoading(false);
+      // No token. In dev the auto-login above handles non-admin routes, so
+      // this branch only runs for dev /admin (leave it rendering). In prod,
+      // an unauthenticated visitor must be sent to /login.
+      const redirected = !import.meta.env.DEV && redirectToLogin();
+      if (!redirected) setIsLoading(false);
     }
   }, [clearAuth, doLogin, scheduleExpiry, applyTenant]);
 
@@ -327,4 +343,22 @@ export function useAuth() {
 export function useIsReadOnly(): boolean {
   const { user } = useContext(AuthContext);
   return user?.role === 'viewer';
+}
+
+// Roles allowed into the Finance module. `client_owner` is an owner of a
+// client tenant — owner-equivalent. `hr` and `viewer` are HR-only.
+const FINANCE_MODULE_ROLES = new Set<string>(['owner', 'accountant', 'client_owner']);
+
+/** True when the role may open the Finance module at all. */
+export function canAccessFinanceModule(role: string | undefined | null): boolean {
+  return role != null && FINANCE_MODULE_ROLES.has(role);
+}
+
+// Roles with HR-admin access — the full HR menu incl. setup, payroll, TDS,
+// onboarding, etc. `viewer` only gets HR self-service / manager-scoped pages.
+const HR_ADMIN_ROLES = new Set<string>(['owner', 'accountant', 'client_owner', 'hr']);
+
+/** True when the role administers HR (vs. employee/manager self-service). */
+export function canManageHrModule(role: string | undefined | null): boolean {
+  return role != null && HR_ADMIN_ROLES.has(role);
 }

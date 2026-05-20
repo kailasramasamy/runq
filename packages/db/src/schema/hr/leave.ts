@@ -16,6 +16,14 @@ export const leaveTypes = pgTable('leave_types', {
   name: varchar('name', { length: 50 }).notNull(),
   code: varchar('code', { length: 10 }).notNull(),
   daysPerYear: decimal('days_per_year', { precision: 5, scale: 2 }).notNull().default('0'),
+  // Drives the LeaveAccrualService. CHECK-constrained at the DB level
+  // (mig 0089); typed loosely here so future modes (quarterly) don't
+  // need a schema change to land.
+  accrualMode: varchar('accrual_mode', { length: 20 }).notNull().default('upfront').$type<'upfront' | 'monthly' | 'quarterly'>(),
+  // Gender eligibility filter for /hr/leave-balances. NULL-gender
+  // employees see only 'all'-applicable types. CHECK-constrained in mig
+  // 0090.
+  applicableGender: varchar('applicable_gender', { length: 10 }).notNull().default('all').$type<'all' | 'male' | 'female'>(),
   carryForward: boolean('carry_forward').notNull().default(false),
   maxCarryForward: decimal('max_carry_forward', { precision: 5, scale: 2 }),
   encashable: boolean('encashable').notNull().default(false),
@@ -37,6 +45,9 @@ export const leaveBalances = pgTable('leave_balances', {
   opening: decimal('opening', { precision: 6, scale: 2 }).notNull().default('0'),
   accrued: decimal('accrued', { precision: 6, scale: 2 }).notNull().default('0'),
   used: decimal('used', { precision: 6, scale: 2 }).notNull().default('0'),
+  // 0 = no accrual yet this year (fresh January); 12 = fully accrued.
+  // The scheduler bumps this on monthly-mode rows; upfront rows stay at 12.
+  lastAccruedMonth: integer('last_accrued_month').notNull().default(12),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -70,4 +70,25 @@ export interface TenantSettings {
     fromEmail?: string;
     fromName?: string;
   };
+  // Storage key for the company logo. Used in the letter PDF header.
+  companyLogoUrl?: string | null;
+  // HR letter signatory — used at the bottom of every issued letter.
+  // signatureImageUrl is a storage key for the uploaded signature PNG.
+  // HR helpdesk AI agent configuration. Off by default; enable + tier-up
+   // per category to graduate from draft-only to auto-send.
+  agentSupport?: {
+    enabled: boolean;
+    faqs: string;
+    operatorUserId?: string | null;
+    perCategory: Partial<Record<
+      'payroll' | 'leave' | 'attendance' | 'reimbursement' | 'asset' | 'it' | 'document' | 'general',
+      { tier: 0 | 1 | 2 | 3; autoResolve: boolean }
+    >>;
+  };
+  hrSignatory?: {
+    name?: string | null;
+    designation?: string | null;
+    email?: string | null;
+    signatureImageUrl?: string | null;
+  };
 }

@@ -6,6 +6,10 @@
 		<string>runQ uses the camera to scan vendor bills and extract data automatically.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>runQ accesses your photos so you can attach a bill image for AI extraction.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>runQ uses your location to verify attendance check-in inside the designated office or factory geo-fence.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>runQ uses your location to verify attendance check-in inside the designated office or factory geo-fence.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>

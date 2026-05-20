@@ -64,6 +64,28 @@ class HrRepo {
     return HrEmployee.fromJson(_data(res));
   }
 
+  // ── /hr/directory ────────────────────────────────────────────────────────
+  // Org-wide colleague lookup. Returns only safe identity + contact fields
+  // (no salary, no statutory ids) and ignores HrAccessScope, so an employee
+  // can find anyone in the tenant — the way Slack / Teams / Keka do it.
+  // Active employees only.
+  Future<HrEmployeeListPage> directory({
+    String? search,
+    int page = 1,
+    int limit = 25,
+  }) async {
+    final qp = <String, String>{
+      'page': '$page',
+      'limit': '$limit',
+    };
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    final res = await apiClient.get('/hr/directory?${Uri(queryParameters: qp).query}');
+    if (res is Map && res['data'] is List) {
+      return HrEmployeeListPage.fromJson(res.cast<String, dynamic>());
+    }
+    return HrEmployeeListPage(data: const [], page: 1, limit: limit, total: 0, totalPages: 0);
+  }
+
   /// Create / update mirror the server's create + update schemas. The
   /// payload is intentionally typed `Map<String, dynamic>` because the
   /// shape has 25+ optional fields — passing nulls is meaningful (clears
@@ -126,6 +148,49 @@ class HrRepo {
 
   Future<void> deleteEmployeePhoto(String id) async {
     await apiClient.delete('/hr/employees/$id/photo');
+  }
+
+  // ── Resume profile ────────────────────────────────────────────────────────
+  // AI-extracted enrichment from the employee's resume.
+
+  /// Returns null when the employee has no resume profile yet.
+  Future<HrResumeProfile?> resumeProfile(String employeeId) async {
+    final res = await apiClient.get('/hr/employees/$employeeId/resume-profile');
+    if (res is Map && res['data'] == null) return null;
+    final d = _data(res);
+    return d.isEmpty ? null : HrResumeProfile.fromJson(d);
+  }
+
+  /// Multipart upload to `/hr/employees/:id/resume`. The server stores the
+  /// file and runs extraction synchronously, returning the fresh profile.
+  Future<HrResumeProfile> uploadResume(String employeeId, File file, {String? mimeType}) async {
+    final res = await apiClient.upload(
+      '/hr/employees/$employeeId/resume',
+      file,
+      mimeType: mimeType,
+    );
+    return HrResumeProfile.fromJson(_data(res));
+  }
+
+  Future<HrResumeProfile> updateResumeProfile(String employeeId, Map<String, dynamic> body) async {
+    final res = await apiClient.put('/hr/employees/$employeeId/resume-profile', body);
+    return HrResumeProfile.fromJson(_data(res));
+  }
+
+  /// Self-service: the logged-in employee's own resume profile. Null when
+  /// they haven't uploaded a resume yet.
+  Future<HrResumeProfile?> myResumeProfile() async {
+    final res = await apiClient.get('/hr/me/resume-profile');
+    if (res is Map && res['data'] == null) return null;
+    final d = _data(res);
+    return d.isEmpty ? null : HrResumeProfile.fromJson(d);
+  }
+
+  /// Self-service: the employee uploads their own resume; the server
+  /// extracts the profile and returns it.
+  Future<HrResumeProfile> uploadMyResume(File file, {String? mimeType}) async {
+    final res = await apiClient.upload('/hr/me/resume', file, mimeType: mimeType);
+    return HrResumeProfile.fromJson(_data(res));
   }
 
   // ── Department + designation pickers ──────────────────────────────────
@@ -221,8 +286,17 @@ class HrRepo {
 
   // ── /hr/leave-* ──────────────────────────────────────────────────────────
 
-  Future<List<HrLeaveType>> leaveTypes() async {
-    final res = await apiClient.get('/hr/leave-types');
+  /// Pass [forEmployeeId] to scope to types applicable to that employee's
+  /// gender — used by the Apply Leave sheet so an employee doesn't see
+  /// types they can't actually use (e.g. males seeing Maternity). Admin
+  /// screens omit it and see every configured type.
+  Future<List<HrLeaveType>> leaveTypes({String? forEmployeeId}) async {
+    final qp = <String, String>{};
+    if (forEmployeeId != null) qp['forEmployeeId'] = forEmployeeId;
+    final path = qp.isEmpty
+        ? '/hr/leave-types'
+        : '/hr/leave-types?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get(path);
     return _dataList(res).map(HrLeaveType.fromJson).toList();
   }
 
@@ -280,6 +354,28 @@ class HrRepo {
   /// Cancel an own leave request — server checks ownership + status.
   Future<HrLeaveRequest> cancelLeave(String id) async {
     final res = await apiClient.put('/hr/leave-requests/$id/cancel');
+    return HrLeaveRequest.fromJson(_data(res));
+  }
+
+  /// Edit a pending leave request. Server refuses anything non-pending,
+  /// recomputes `days`, and re-checks overlap (excluding this row).
+  /// Pass only the fields you want to change.
+  Future<HrLeaveRequest> updateLeave({
+    required String id,
+    String? leaveTypeId,
+    DateTime? fromDate,
+    DateTime? toDate,
+    bool? halfDay,
+    String? reason,
+  }) async {
+    final body = <String, dynamic>{
+      if (leaveTypeId != null) 'leaveTypeId': leaveTypeId,
+      if (fromDate != null) 'fromDate': _isoDate(fromDate),
+      if (toDate != null) 'toDate': _isoDate(toDate),
+      if (halfDay != null) 'halfDay': halfDay,
+      if (reason != null) 'reason': reason,
+    };
+    final res = await apiClient.put('/hr/leave-requests/$id', body);
     return HrLeaveRequest.fromJson(_data(res));
   }
 
@@ -684,6 +780,8 @@ class HrRepo {
     required String title,
     required String body,
     String audience = 'all',
+    String category = 'general',
+    String? departmentId,
     bool pinned = false,
     DateTime? expiresAt,
   }) async {
@@ -691,9 +789,52 @@ class HrRepo {
       'title': title,
       'body': body,
       'audience': audience,
+      'category': category,
+      if (departmentId != null) 'departmentId': departmentId,
       'pinned': pinned,
       if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
     });
+    return HrAnnouncement.fromJson(_data(res));
+  }
+
+  /// Multipart upload of a cover image for an announcement. Server
+  /// resizes + JPEG-encodes (1600px wide, ~80 KB on a 4K phone shot).
+  /// Replaces any previous image; old S3 blob is best-effort cleaned up.
+  Future<void> uploadAnnouncementImage(String id, File file) async {
+    await apiClient.upload(
+      '/hr/announcements/$id/image',
+      file,
+      mimeType: _guessImageMime(file.path),
+    );
+  }
+
+  /// Partial in-place edit. Only the keys present in [body] get written;
+  /// the server preserves id / postedAt / posted_by_id so audit trail
+  /// stays clean. Image is updated via the dedicated /image route.
+  Future<HrAnnouncement> updateAnnouncement(
+    String id, {
+    String? title,
+    String? body,
+    String? audience,
+    String? category,
+    String? departmentId,
+    bool? departmentIdNull,
+    bool? pinned,
+    DateTime? expiresAt,
+    bool? expiresAtNull,
+  }) async {
+    final payload = <String, dynamic>{
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+      if (audience != null) 'audience': audience,
+      if (category != null) 'category': category,
+      if (departmentIdNull == true) 'departmentId': null
+      else if (departmentId != null) 'departmentId': departmentId,
+      if (pinned != null) 'pinned': pinned,
+      if (expiresAtNull == true) 'expiresAt': null
+      else if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
+    };
+    final res = await apiClient.put('/hr/announcements/$id', payload);
     return HrAnnouncement.fromJson(_data(res));
   }
 

@@ -5,7 +5,7 @@ import {
   PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal, Input, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { StatTile, EmptyState, StatusPipeline } from '@/components/ar/primitives';
+import { StatTile, EmptyState, StatusPipeline, ListToolbar } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import { downloadCSV } from '@/lib/csv-export';
 import {
@@ -39,6 +39,7 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const [showEsiChallan, setShowEsiChallan] = useState(false);
   const [showPtChallan, setShowPtChallan] = useState(false);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const [search, setSearch] = useState('');
   const { data: paymentsData } = useEmployeePaymentsForRun(runId);
 
   if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
@@ -46,6 +47,12 @@ export function PayrollRunDetailPage({ runId }: Props) {
   if (!run) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Run not found.</div>;
 
   const slips = psData?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filteredSlips = q
+    ? slips.filter((s) =>
+        s.employeeName.toLowerCase().includes(q) ||
+        s.employeeCode.toLowerCase().includes(q))
+    : slips;
   const period = `${MONTHS[run.month - 1]} ${run.year}`;
   const locked = run.status === 'approved' || run.status === 'closed';
   const paidPayment = paymentsData?.data.find((p) => p.status === 'paid');
@@ -171,6 +178,16 @@ export function PayrollRunDetailPage({ runId }: Props) {
         <StatTile label="Net pay" value={formatINR(Number(run.totalNet))} accentColor="#16a34a" />
       </div>
 
+      {slips.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by employee name or code…"
+          count={filteredSlips.length}
+          noun="payslip"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -184,15 +201,17 @@ export function PayrollRunDetailPage({ runId }: Props) {
           </tr>
         </TableHeader>
         <TableBody>
-          {slips.length === 0 ? (
+          {filteredSlips.length === 0 ? (
             <tr><td colSpan={7}>
               <EmptyState
                 icon={<Play size={18} />}
-                title="No payslips yet"
-                description={run.status === 'draft' ? "Click Process to generate payslips for all active employees." : "No data."}
+                title={slips.length > 0 ? 'No payslips match' : 'No payslips yet'}
+                description={slips.length > 0
+                  ? 'Try a different search term.'
+                  : run.status === 'draft' ? 'Click Process to generate payslips for all active employees.' : 'No data.'}
               />
             </td></tr>
-          ) : slips.map((s) => (
+          ) : filteredSlips.map((s) => (
             <TableRow key={s.id} onClick={() => setViewPayslip(s)}>
               <TableCell>
                 <div className="min-w-0">

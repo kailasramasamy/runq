@@ -24,6 +24,7 @@ export const employeeDocumentKindSchema = z.enum([
   'address_proof',
   'bank_passbook',
   'photo_id_card',
+  'resume',
   'offer_letter',
   'employment_contract',
   'educational_certificate',

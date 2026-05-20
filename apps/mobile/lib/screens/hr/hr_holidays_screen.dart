@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
+import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -28,6 +29,9 @@ class HrHolidaysScreen extends ConsumerWidget {
     final t = RT(context);
     final year = ref.watch(_yearProvider);
     final holidaysAsync = ref.watch(hrHolidaysByYearProvider(year));
+    // Holidays are tenant-wide config — only admins / HR personnel can
+    // add or edit them. Viewers + managers see the calendar read-only.
+    final canEdit = ref.watch(appRoleProvider).canManageHrSetup;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -64,7 +68,7 @@ class HrHolidaysScreen extends ConsumerWidget {
                       );
                     }
                     final sorted = [...rows]..sort((a, b) => a.date.compareTo(b.date));
-                    return _HolidaysList(rows: sorted, year: year);
+                    return _HolidaysList(rows: sorted, year: year, canEdit: canEdit);
                   },
                 ),
               ),
@@ -72,14 +76,16 @@ class HrHolidaysScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'add-holiday',
-        backgroundColor: HrColors.teal,
-        foregroundColor: Colors.white,
-        onPressed: () => _openEditor(context, ref, year: year),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add holiday'),
-      ),
+      floatingActionButton: canEdit
+          ? FloatingActionButton.extended(
+              heroTag: 'add-holiday',
+              backgroundColor: HrColors.teal,
+              foregroundColor: Colors.white,
+              onPressed: () => _openEditor(context, ref, year: year),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add holiday'),
+            )
+          : null,
     );
   }
 }
@@ -143,7 +149,8 @@ class _YearStrip extends StatelessWidget {
 class _HolidaysList extends ConsumerWidget {
   final List<HrHoliday> rows;
   final int year;
-  const _HolidaysList({required this.rows, required this.year});
+  final bool canEdit;
+  const _HolidaysList({required this.rows, required this.year, required this.canEdit});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -187,8 +194,15 @@ class _HolidaysList extends ConsumerWidget {
                     for (var j = 0; j < items.length; j++) ...[
                       _HolidayTile(
                         holiday: items[j],
-                        onTap: () => _openEditor(context, ref, year: year, existing: items[j]),
-                        onDelete: () => _confirmDelete(context, ref, year: year, holiday: items[j]),
+                        // Read-only for non-admin personas — tapping a
+                        // row to edit, or long-pressing to delete, are
+                        // both gated to the admin/HR set.
+                        onTap: canEdit
+                            ? () => _openEditor(context, ref, year: year, existing: items[j])
+                            : null,
+                        onDelete: canEdit
+                            ? () => _confirmDelete(context, ref, year: year, holiday: items[j])
+                            : null,
                       ),
                       if (j < items.length - 1)
                         Divider(height: 1, thickness: 0.5, color: t.hairlineSoft, indent: 56),
@@ -206,9 +220,11 @@ class _HolidaysList extends ConsumerWidget {
 
 class _HolidayTile extends StatelessWidget {
   final HrHoliday holiday;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-  const _HolidayTile({required this.holiday, required this.onTap, required this.onDelete});
+  /// Both null for read-only personas — InkWell silently disables the
+  /// tap/long-press interactions when the callbacks are null.
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+  const _HolidayTile({required this.holiday, this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {

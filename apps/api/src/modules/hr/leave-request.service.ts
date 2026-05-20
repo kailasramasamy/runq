@@ -5,6 +5,7 @@ import {
 import type { Db } from '@runq/db';
 import type {
   CreateLeaveRequestInput, ReviewLeaveRequestInput, LeaveRequestFilter,
+  UpdateLeaveRequestInput,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { countLeaveDays } from './leave-days';
@@ -151,6 +152,16 @@ export class LeaveRequestService {
     const req = await this.getById(id);
     if (req.status !== 'pending') throw new ConflictError('Request already reviewed');
 
+    // Self-approval guard. A manager (or anyone with a matched employee
+    // row) cannot approve or reject their own leave — that breaks the
+    // separation-of-duties auditors expect. Admin / HR scopes are
+    // {kind:'all'} with no selfEmployeeId, so they fall through.
+    if (this.scope.kind === 'subset' || this.scope.kind === 'self') {
+      if (this.scope.selfEmployeeId === req.employeeId) {
+        throw new ConflictError('You cannot review your own leave request');
+      }
+    }
+
     const status = input.approved ? 'approved' as const : 'rejected' as const;
     const [row] = await this.db
       .update(leaveRequests)
@@ -171,6 +182,90 @@ export class LeaveRequestService {
       // Auto-mark attendance for approved leave days
       await this.markAttendanceForLeave(req.employeeId, req.fromDate, req.toDate, req.halfDay);
     }
+    return row;
+  }
+
+  /// Edit a pending request. Only mutates the fields supplied; recomputes
+  /// `days` if dates or halfDay changed; re-checks the overlap window
+  /// (excluding the row being edited). Frozen once status leaves
+  /// 'pending' — the service throws and the caller surfaces the message.
+  async update(id: string, input: UpdateLeaveRequestInput) {
+    const req = await this.getById(id);
+    if (req.status !== 'pending') {
+      throw new ConflictError('Only pending requests can be edited');
+    }
+
+    const fromDate = input.fromDate ?? req.fromDate;
+    const toDate = input.toDate ?? req.toDate;
+    const halfDay = input.halfDay ?? req.halfDay;
+    const leaveTypeId = input.leaveTypeId ?? req.leaveTypeId;
+
+    // Validate type still belongs to tenant if it changed.
+    if (input.leaveTypeId && input.leaveTypeId !== req.leaveTypeId) {
+      const [type] = await this.db
+        .select({ id: leaveTypes.id })
+        .from(leaveTypes)
+        .where(and(eq(leaveTypes.id, leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
+        .limit(1);
+      if (!type) throw new NotFoundError('Leave type');
+    }
+
+    if (halfDay && fromDate !== toDate) {
+      throw new ConflictError('Half-day leave must be on a single date');
+    }
+
+    // Recompute days if dates / halfDay changed; otherwise reuse.
+    let days = Number(req.days);
+    if (input.fromDate || input.toDate || input.halfDay != null) {
+      const holidayRows = await this.db
+        .select({ date: holidays.date })
+        .from(holidays)
+        .where(and(
+          eq(holidays.tenantId, this.tenantId),
+          gte(holidays.date, fromDate),
+          lte(holidays.date, toDate),
+        ));
+      const holidayDates = new Set(holidayRows.map((r) => r.date));
+      days = countLeaveDays(fromDate, toDate, {
+        halfDay,
+        holidayDates,
+        weeklyOffDays: [0],
+      });
+      if (days <= 0) {
+        throw new ConflictError('Selected range has no working days (all holidays/week-offs)');
+      }
+    }
+
+    // Overlap check — only when the date window changed. Exclude self.
+    if (input.fromDate || input.toDate) {
+      const overlap = await this.db
+        .select({ id: leaveRequests.id })
+        .from(leaveRequests)
+        .where(and(
+          eq(leaveRequests.tenantId, this.tenantId),
+          eq(leaveRequests.employeeId, req.employeeId),
+          inArray(leaveRequests.status, ['pending', 'approved']),
+          lte(leaveRequests.fromDate, toDate),
+          gte(leaveRequests.toDate, fromDate),
+          sql`${leaveRequests.id} <> ${id}`,
+        ))
+        .limit(1);
+      if (overlap[0]) throw new ConflictError('Overlapping leave request exists');
+    }
+
+    const [row] = await this.db
+      .update(leaveRequests)
+      .set({
+        leaveTypeId,
+        fromDate,
+        toDate,
+        halfDay,
+        days: String(days),
+        reason: input.reason !== undefined ? input.reason : req.reason,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(leaveRequests.id, id), eq(leaveRequests.tenantId, this.tenantId)))
+      .returning();
     return row;
   }
 

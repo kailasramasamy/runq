@@ -283,6 +283,10 @@ export function userInvite(p: UserInviteParams): EmailTemplate {
 
 export interface TenantInviteParams {
   inviteType: 'new_tenant' | 'join_tenant';
+  /// Distinguishes employee app invites from CA/collab invites so the
+  /// email copy talks about "your HR portal" rather than "their books."
+  /// Only meaningful for join_tenant invites.
+  audience?: 'finance_collab' | 'employee';
   inviterName: string;
   inviterTenantName: string;
   role: string;
@@ -296,15 +300,24 @@ export interface TenantInviteParams {
 export function tenantInviteEmail(p: TenantInviteParams): EmailTemplate {
   const expires = new Date(p.expiresAtIso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const isNewTenant = p.inviteType === 'new_tenant';
+  const isEmployee = !isNewTenant && p.audience === 'employee';
 
   const subject = isNewTenant
     ? `${p.inviterName} invited you to runQ`
-    : `${p.inviterName} invited you to ${p.inviterTenantName}'s books on runQ`;
+    : isEmployee
+      ? `${p.inviterTenantName} invited you to runQ`
+      : `${p.inviterName} invited you to ${p.inviterTenantName}'s books on runQ`;
 
-  const heading = isNewTenant ? 'Get started on runQ' : `Join ${p.inviterTenantName}'s books`;
+  const heading = isNewTenant
+    ? 'Get started on runQ'
+    : isEmployee
+      ? `Set up your ${p.inviterTenantName} runQ access`
+      : `Join ${p.inviterTenantName}'s books`;
   const intro = isNewTenant
     ? `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterName}</strong> from <strong>${p.inviterTenantName}</strong> has invited you to runQ. Sign up to start your books — they'll be added as your <strong>${p.role}</strong> automatically.</p>`
-    : `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterName}</strong> has invited you to join <strong>${p.inviterTenantName}</strong> on runQ as <strong>${p.role}</strong>.</p>`;
+    : isEmployee
+      ? `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterTenantName}</strong> uses runQ for HR. Set a password to view your attendance, leave, and payslips on the runQ app.</p>`
+      : `<p style="color:#3f3f46;font-size:14px;line-height:1.6"><strong>${p.inviterName}</strong> has invited you to join <strong>${p.inviterTenantName}</strong> on runQ as <strong>${p.role}</strong>.</p>`;
 
   const detailsTable = `
     <table cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e4e4e7;border-radius:6px;width:100%">
@@ -319,7 +332,7 @@ export function tenantInviteEmail(p: TenantInviteParams): EmailTemplate {
     ${intro}
     ${detailsTable}
     <p style="margin:24px 0;text-align:center">
-      <a href="${p.inviteUrl}" style="display:inline-block;padding:12px 32px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">${isNewTenant ? 'Start your books' : 'Accept invite'}</a>
+      <a href="${p.inviteUrl}" style="display:inline-block;padding:12px 32px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600">${isNewTenant ? 'Start your books' : isEmployee ? 'Set up access' : 'Accept invite'}</a>
     </p>
     <p style="color:#71717a;font-size:12px">Or copy this link into your browser:<br/><span style="word-break:break-all">${p.inviteUrl}</span></p>`;
 

@@ -347,7 +347,7 @@ class HrPayrollRunDetailScreen extends ConsumerWidget {
                       await Future<void>.delayed(const Duration(milliseconds: 250));
                     },
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                       children: [
                         _SummaryCard(run: run),
@@ -370,11 +370,16 @@ class HrPayrollRunDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                _ActionBar(run: run),
               ],
             );
           },
         ),
+      ),
+      // Move action bar into bottomNavigationBar slot so SnackBars lift
+      // above it automatically (ScaffoldMessenger respects this slot).
+      bottomNavigationBar: runAsync.maybeWhen(
+        data: (run) => _ActionBar(run: run),
+        orElse: () => null,
       ),
     );
   }
@@ -633,12 +638,11 @@ class _ActionBar extends ConsumerWidget {
     if (actions.isEmpty) return const SizedBox.shrink();
     return SafeArea(
       top: false,
-      child: Container(
+      // Flush bottom bar — no surface strip (matches HrFormScreen and
+      // the expense claim detail). Snack lifts via Scaffold's
+      // bottomNavigationBar slot, not via margin math here.
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
-        ),
         child: Row(children: actions),
       ),
     );

@@ -24,11 +24,16 @@ const _financeTabs = <_Tab>[
   _Tab('/money', 'Money', Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded),
 ];
 
+// People is no longer in the bottom nav — reachable from Home via the
+// search pill (org-wide directory) and the "My team" tile (manager view).
+// Swapped for More, which surfaces all the self-service flows (regularize,
+// tax declaration, loans, onboarding, letters, performance, helpdesk) plus
+// HR setup for admins.
 const _hrTabs = <_Tab>[
   _Tab('/hr/home', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/hr/people', 'People', Icons.groups_outlined, Icons.groups_rounded),
   _Tab('/hr/time', 'Time', Icons.access_time_outlined, Icons.access_time_filled_rounded),
   _Tab('/hr/pay', 'Pay', Icons.payments_outlined, Icons.payments_rounded),
+  _Tab('/hr/more', 'More', Icons.apps_outlined, Icons.apps_rounded),
 ];
 
 class RootShell extends ConsumerStatefulWidget {

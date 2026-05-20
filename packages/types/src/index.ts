@@ -38,5 +38,6 @@ export * from './dashboard';
 export * from './integration';
 export * from './fiscal';
 export * from './hr/expense-claim';
+export * from './hr/resume';
 export * from './common/webhook-endpoint';
 export * from './fa';

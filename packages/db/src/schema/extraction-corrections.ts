@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, jsonb, integer, timestamp, pgEnum, numeric, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenant';
 
-export const extractionDocTypeEnum = pgEnum('extraction_doc_type', ['ap_bill', 'ar_po', 'bank_statement']);
+export const extractionDocTypeEnum = pgEnum('extraction_doc_type', ['ap_bill', 'ar_po', 'bank_statement', 'hr_resume']);
 export const extractionMethodEnum = pgEnum('extraction_method', ['local', 'ai', 'template', 'manual']);
 
 export const extractionCorrections = pgTable('extraction_corrections', {

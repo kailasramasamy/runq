@@ -7,13 +7,25 @@ export const userRoleEnum = pgEnum('user_role', ['owner', 'accountant', 'viewer'
 
 export const inviteTypeEnum = pgEnum('invite_type', ['new_tenant', 'join_tenant']);
 
+// What kind of audience this invite targets — controls the accept-page
+// copy and post-accept redirect. CHECK-constrained at the DB level (see
+// mig 0087); kept as a plain string column instead of an enum because we
+// expect to add future audiences (vendor portal, partner) without an
+// ALTER TYPE round-trip.
+export type InviteAudience = 'finance_collab' | 'employee';
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   email: varchar('email', { length: 255 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
+  // Phone is mobile-app login material; web still uses email+password.
+  // Globally unique when present (partial index, see mig 0088).
+  phone: varchar('phone', { length: 20 }),
   role: userRoleEnum('role').notNull().default('viewer'),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  // Preferred language for AI-assistant replies. ISO 639-1.
+  preferredLanguage: varchar('preferred_language', { length: 5 }).notNull().default('en'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -47,6 +59,7 @@ export const tenantInvites = pgTable(
     invitingUserId: uuid('inviting_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     invitingTenantId: uuid('inviting_tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     inviteType: inviteTypeEnum('invite_type').notNull().default('new_tenant'),
+    audience: varchar('audience', { length: 20 }).notNull().default('finance_collab').$type<InviteAudience>(),
     role: userRoleEnum('role').notNull().default('accountant'),
     email: varchar('email', { length: 255 }),
     // For new_tenant invites: CA can pre-set the prospective client's company

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, ShieldCheck, QrCode, Landmark } from 'lucide-react';
+import { Building2, ShieldCheck, QrCode, Landmark, PenLine, Upload, Trash2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -46,13 +46,14 @@ const PAYMENT_TERMS_OPTIONS = [
   { value: '90', label: 'Net 90 days' },
 ];
 
-type TabId = 'general' | 'gst' | 'payroll' | 'upi';
+type TabId = 'general' | 'gst' | 'payroll' | 'upi' | 'hr-letters';
 
 const COMPANY_TABS: { id: TabId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'gst', label: 'GST Profile' },
   { id: 'payroll', label: 'Payroll Statutory' },
   { id: 'upi', label: 'UPI Collection' },
+  { id: 'hr-letters', label: 'HR Letters' },
 ];
 
 export function CompanySettingsPage() {
@@ -83,6 +84,15 @@ export function CompanySettingsPage() {
   const [pfEstablishmentCode, setPfEstablishmentCode] = useState('');
   const [ptRegistrationNumber, setPtRegistrationNumber] = useState('');
   const [tan, setTan] = useState('');
+  const [hrSignatoryName, setHrSignatoryName] = useState('');
+  const [hrSignatoryDesignation, setHrSignatoryDesignation] = useState('');
+  const [hrSignatoryEmail, setHrSignatoryEmail] = useState('');
+  const [hrSignatureImageUrl, setHrSignatureImageUrl] = useState('');
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [localSignaturePreview, setLocalSignaturePreview] = useState<string | null>(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [localLogoPreview, setLocalLogoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (data?.data) {
@@ -117,6 +127,12 @@ export function CompanySettingsPage() {
       setPfEstablishmentCode(data.data.pfEstablishmentCode ?? '');
       setPtRegistrationNumber(data.data.ptRegistrationNumber ?? '');
       setTan(data.data.tan ?? '');
+      const sig = (data.data as any).hrSignatory ?? {};
+      setHrSignatoryName(sig.name ?? '');
+      setHrSignatoryDesignation(sig.designation ?? '');
+      setHrSignatoryEmail(sig.email ?? '');
+      setHrSignatureImageUrl(sig.signatureImageUrl ?? '');
+      setCompanyLogoUrl((data.data as any).companyLogoUrl ?? '');
     }
   }, [data]);
 
@@ -159,6 +175,13 @@ export function CompanySettingsPage() {
         pfEstablishmentCode: pfEstablishmentCode || null,
         ptRegistrationNumber: ptRegistrationNumber || null,
         tan: tan ? tan.toUpperCase() : null,
+        companyLogoUrl: companyLogoUrl || null,
+        hrSignatory: {
+          name: hrSignatoryName || null,
+          designation: hrSignatoryDesignation || null,
+          email: hrSignatoryEmail || null,
+          signatureImageUrl: hrSignatureImageUrl || null,
+        },
       });
       // If industry changed, the backend wiped itemAttributeSchema server-side.
       // Invalidate the frontend cache for both the schema query and any cached
@@ -453,7 +476,229 @@ export function CompanySettingsPage() {
             </CardFooter>
           </Card>
         )}
+
+        {/* ─── HR Letters ─── */}
+        {activeTab === 'hr-letters' && (
+          <Card className="max-w-xl">
+            <CardContent className="space-y-5 pt-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <Building2 size={16} />
+                <span>Company logo</span>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 -mt-3">
+                Appears in the header of every letter PDF. PNG/JPG/WEBP/SVG, max 2 MB. Transparent background recommended.
+              </p>
+              {companyLogoUrl && (
+                <div className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 bg-white">
+                  <ImagePreview key={companyLogoUrl} endpoint="/api/v1/hr/company-logo" localUrl={localLogoPreview} maxH={20} />
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <label className="inline-flex">
+                  <span className="inline-flex items-center gap-1.5 cursor-pointer rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                    <Upload className="h-4 w-4" />
+                    {uploadingLogo ? 'Uploading…' : companyLogoUrl ? 'Replace logo' : 'Upload logo'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    disabled={uploadingLogo}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (localLogoPreview) URL.revokeObjectURL(localLogoPreview);
+                      setLocalLogoPreview(URL.createObjectURL(file));
+                      setUploadingLogo(true);
+                      try {
+                        const form = new FormData();
+                        form.append('file', file);
+                        const token = localStorage.getItem('runq-token');
+                        const res = await fetch('/api/v1/hr/company-logo', {
+                          method: 'POST',
+                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                          body: form,
+                        });
+                        if (!res.ok) throw new Error((await res.json().catch(() => ({} as any)))?.message ?? `Upload failed (${res.status})`);
+                        const out = await res.json();
+                        setCompanyLogoUrl(out.data.storageKey);
+                        toast('Logo uploaded — save changes to apply', 'success');
+                      } catch (err: any) {
+                        toast(err?.message ?? 'Upload failed', 'error');
+                      } finally {
+                        setUploadingLogo(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+                {companyLogoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompanyLogoUrl('');
+                      if (localLogoPreview) { URL.revokeObjectURL(localLogoPreview); setLocalLogoPreview(null); }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 className="h-4 w-4" />Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="border-t border-zinc-200 dark:border-zinc-700 -mx-6 my-2" />
+
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <PenLine size={16} />
+                <span>HR Signatory</span>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 -mt-3">
+                Printed at the bottom of every letter issued from runq (offer, experience, salary certificate, address proof, etc.).
+              </p>
+
+              <Input
+                label="Signatory Name"
+                value={hrSignatoryName}
+                onChange={(e) => setHrSignatoryName(e.target.value)}
+                placeholder="e.g. Priya Menon"
+                helper="Full name as it should appear under the signature line."
+              />
+              <Input
+                label="Designation"
+                value={hrSignatoryDesignation}
+                onChange={(e) => setHrSignatoryDesignation(e.target.value)}
+                placeholder="e.g. Head of Human Resources"
+              />
+              <Input
+                label="Signatory Email (optional)"
+                type="email"
+                value={hrSignatoryEmail}
+                onChange={(e) => setHrSignatoryEmail(e.target.value)}
+                placeholder="hr@company.com"
+                helper="Used in 'reply to' on letter emails when implemented."
+              />
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Signature Image
+                </label>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Upload a PNG/JPG (max 2 MB) of the signatory's handwritten signature on a clean background. Used when rendering letters as PDFs.
+                </p>
+                {hrSignatureImageUrl && (
+                  <div className="rounded-md border border-zinc-200 dark:border-zinc-700 p-3 bg-white">
+                    <SignaturePreview key={hrSignatureImageUrl} localUrl={localSignaturePreview} />
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex">
+                    <span className="inline-flex items-center gap-1.5 cursor-pointer rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                      <Upload className="h-4 w-4" />
+                      {uploadingSignature ? 'Uploading…' : hrSignatureImageUrl ? 'Replace signature' : 'Upload signature'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      disabled={uploadingSignature}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        // Show the picked file immediately — the server preview
+                        // endpoint only serves the *saved* signature, so we
+                        // skip a roundtrip and just render the local blob.
+                        if (localSignaturePreview) URL.revokeObjectURL(localSignaturePreview);
+                        setLocalSignaturePreview(URL.createObjectURL(file));
+                        setUploadingSignature(true);
+                        try {
+                          const form = new FormData();
+                          form.append('file', file);
+                          const token = localStorage.getItem('runq-token');
+                          const res = await fetch(`/api/v1/hr/signature-image`, {
+                            method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            body: form,
+                          });
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({} as any));
+                            throw new Error(err?.message ?? `Upload failed (${res.status})`);
+                          }
+                          const out = await res.json();
+                          setHrSignatureImageUrl(out.data.storageKey);
+                          toast('Signature uploaded — save changes to apply', 'success');
+                        } catch (err: any) {
+                          toast(err?.message ?? 'Upload failed', 'error');
+                        } finally {
+                          setUploadingSignature(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </label>
+                  {hrSignatureImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHrSignatureImageUrl('');
+                        if (localSignaturePreview) {
+                          URL.revokeObjectURL(localSignaturePreview);
+                          setLocalSignaturePreview(null);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <PenLine size={14} />
+                <span>Used on every letter issued from runq.</span>
+              </div>
+              <Button type="submit" loading={update.isPending}>
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
       </form>
     </div>
   );
+}
+
+function ImagePreview({
+  endpoint, localUrl, maxH = 20,
+}: { endpoint: string; localUrl: string | null; maxH?: number }) {
+  const [src, setSrc] = useState<string | null>(localUrl);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    if (localUrl) { setSrc(localUrl); setMissing(false); return; }
+    let cancelled = false;
+    let revokedUrl: string | null = null;
+    async function load() {
+      const token = localStorage.getItem('runq-token');
+      const res = await fetch(endpoint, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { if (!cancelled) setMissing(true); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      revokedUrl = url;
+      if (!cancelled) setSrc(url);
+    }
+    load();
+    return () => { cancelled = true; if (revokedUrl) URL.revokeObjectURL(revokedUrl); };
+  }, [localUrl, endpoint]);
+  if (src) return <img src={src} alt="" className={`max-w-full object-contain max-h-${maxH}`} style={{ maxHeight: `${maxH * 4}px` }} />;
+  if (missing) return <div className="h-16 flex items-center text-xs text-zinc-500">Click "Save Changes" to apply your upload.</div>;
+  return <div className="h-16 flex items-center text-xs text-zinc-400">Loading preview…</div>;
+}
+
+function SignaturePreview({ localUrl }: { localUrl: string | null }) {
+  return <ImagePreview endpoint="/api/v1/hr/signature-image" localUrl={localUrl} maxH={20} />;
 }

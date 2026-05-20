@@ -28,7 +28,7 @@ export function StatsCard({ title, value, icon: Icon, trend, onClick, className,
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       className={cn(
         'relative overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:p-4',
-        onClick && 'cursor-pointer transition-shadow duration-150 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+        onClick && 'cursor-pointer transition-shadow duration-150 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]',
         className,
       )}
     >

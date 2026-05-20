@@ -10,6 +10,7 @@ import { authPlugin } from './plugins/auth';
 import { tenantContextPlugin } from './plugins/tenant-context';
 import { errorHandlerPlugin } from './plugins/error-handler';
 import { authRoutes } from './modules/auth/routes';
+import { phoneOtpRoutes } from './modules/auth/phone-otp.routes';
 import { apRoutes } from './modules/ap/routes';
 import { arRoutes } from './modules/ar/routes';
 import { invoicePrintRoutes } from './modules/ar/invoice-print.routes';
@@ -46,6 +47,7 @@ import { agentRoutes } from './modules/agent/routes';
 import { supportRoutes } from './modules/support/routes';
 import { helpRoutes } from './modules/help/routes';
 import { supportWsRoutes } from './modules/support/ws';
+import { hrHelpdeskWsRoutes } from './modules/hr/agent/ws';
 import { adminRoutes } from './modules/admin/routes';
 
 export async function buildApp() {
@@ -80,6 +82,7 @@ export async function buildApp() {
     // Stricter rate limit on auth: 10 attempts per minute
     await authScope.register(rateLimit, { max: 10, timeWindow: '1 minute' });
     await authScope.register(authRoutes);
+    await authScope.register(phoneOtpRoutes);
   }, { prefix: '/api/v1/auth' });
   await app.register(async (publicScope) => {
     await publicScope.register(rateLimit, { max: 5, timeWindow: '1 minute' });
@@ -130,6 +133,10 @@ export async function buildApp() {
   // Support WebSocket — auth handled via query param token, must NOT be
   // inside the authenticated scope (which would block WS upgrade requests).
   await app.register(supportWsRoutes, { prefix: '/api/v1/support' });
+
+  // HR helpdesk WebSocket — same query-token auth pattern, registered outside
+  // the auth scope so the upgrade handshake passes.
+  await app.register(hrHelpdeskWsRoutes, { prefix: '/api/v1/hr' });
 
   // Platform admin routes (super-admin only — gated per-route by authenticatePlatform)
   await app.register(adminRoutes, { prefix: '/api/v1/admin' });

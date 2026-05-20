@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useDesignations, useCreateDesignation, useUpdateDesignation, useDeleteDesignation,
   type Designation,
@@ -26,8 +26,13 @@ export function DesignationsPage() {
   const [editing, setEditing] = useState<Designation | null>(null);
   const [editName, setEditName] = useState('');
   const [editLevel, setEditLevel] = useState('');
+  const [search, setSearch] = useState('');
 
   const designations = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? designations.filter((d) => d.name.toLowerCase().includes(q))
+    : designations;
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +67,16 @@ export function DesignationsPage() {
         </Modal>
       )}
 
+      {designations.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name…"
+          count={filtered.length}
+          noun="designation"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -75,7 +90,9 @@ export function DesignationsPage() {
             <tr><td colSpan={3} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : designations.length === 0 ? (
             <tr><td colSpan={3}><EmptyState icon={<IdCard size={18} />} title="No designations yet" description="Add your first designation above." /></td></tr>
-          ) : designations.map((d) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={3}><EmptyState icon={<IdCard size={18} />} title="No designations match" description="Try a different search term." /></td></tr>
+          ) : filtered.map((d) => (
             <TableRow key={d.id}>
               <TableCell>
                 {editing?.id === d.id ? (

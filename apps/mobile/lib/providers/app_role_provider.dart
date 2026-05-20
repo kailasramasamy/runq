@@ -34,6 +34,15 @@ extension AppRoleX on AppRole {
       this == AppRole.admin || this == AppRole.hr || this == AppRole.manager;
   /// Only admins have a Finance module to flip into. HR is HR-only.
   bool get canSwitchModule => this == AppRole.admin;
+  /// HR setup + payroll configuration screens (departments, leave types,
+  /// salary structures, payroll runs). Managers can approve leave but don't
+  /// configure the system — only admins and HR personnel see these surfaces.
+  bool get canManageHrSetup => this == AppRole.admin || this == AppRole.hr;
+  /// Post announcements / celebrations to the feed. Admins + HR can
+  /// post org-wide; managers (line / dept-head) can post inside their
+  /// own department only — the server enforces the dept lock + audience.
+  bool get canPostAnnouncements =>
+      this == AppRole.admin || this == AppRole.hr || this == AppRole.manager;
 }
 
 /// Returns the effective role for the logged-in user. Sync — collapses

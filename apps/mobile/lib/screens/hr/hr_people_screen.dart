@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/hr_models.dart';
+import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -27,6 +28,9 @@ class HrPeopleScreen extends ConsumerWidget {
     final status = ref.watch(_peopleStatusProvider);
     final query = HrEmployeesQuery(search: search.isEmpty ? null : search, status: status);
     final pageAsync = ref.watch(hrEmployeesProvider(query));
+    // Creating an employee row is an admin/HR-only action; managers and
+    // employees see the directory but not the add button.
+    final canAdd = ref.watch(appRoleProvider).canManageHrSetup;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -55,10 +59,11 @@ class HrPeopleScreen extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text('People', style: RunqText.h1.copyWith(color: t.ink)),
                       const Spacer(),
-                      IconButton(
-                        onPressed: () => context.push('/hr/employees/new'),
-                        icon: Icon(Icons.add_rounded, color: HrColors.teal, size: 28),
-                      ),
+                      if (canAdd)
+                        IconButton(
+                          onPressed: () => context.push('/hr/employees/new'),
+                          icon: Icon(Icons.add_rounded, color: HrColors.teal, size: 28),
+                        ),
                     ],
                   ),
                 ),

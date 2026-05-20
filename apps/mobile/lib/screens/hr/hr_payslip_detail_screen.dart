@@ -6,10 +6,14 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../api/api_client.dart';
 import '../../api/hr_models.dart';
 import '../../providers/hr_providers.dart';
+import '../../services/payslip_pdf.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_widgets.dart';
 
@@ -47,12 +51,12 @@ class HrPayslipDetailScreen extends ConsumerWidget {
   }
 }
 
-class _GradientHeader extends StatelessWidget {
+class _GradientHeader extends ConsumerWidget {
   final HrPayslip ps;
   const _GradientHeader({required this.ps});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final topPad = MediaQuery.of(context).padding.top + 12;
     return Container(
       decoration: const BoxDecoration(
@@ -73,9 +77,11 @@ class _GradientHeader extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               ),
               const Spacer(),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.ios_share_rounded, color: Colors.white),
+              Builder(
+                builder: (btnCtx) => IconButton(
+                  onPressed: () => _sharePayslip(btnCtx, ref, ps),
+                  icon: const Icon(Icons.ios_share_rounded, color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -84,20 +90,49 @@ class _GradientHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Net pay', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('Take-home pay', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 4),
-                Text(hrFormatINR(ps.netPay),
+                // Clamp to ₹0 same as the Home hero — a negative net
+                // pay means the employee owes money for the period;
+                // showing "−₹14,956" as the headline read as "we'll
+                // pay you minus fifteen thousand," which it isn't.
+                Text(hrFormatINR(ps.netPay < 0 ? 0 : ps.netPay),
                     style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(ps.periodLabel, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                if (ps.netPay < 0) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.info_outline_rounded, color: Colors.white, size: 13),
+                        const SizedBox(width: 6),
+                        Text('${hrFormatINR(-ps.netPay)} due to company · check with HR',
+                            style: const TextStyle(
+                              color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600,
+                            )),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    _stat('Working', ps.workingDays.toStringAsFixed(0)),
+                    // Plain-language labels — "Working / Paid / LOP"
+                    // is fine on a desktop HR console but reads like
+                    // a quiz to an employee on a phone. Now it spells
+                    // out what each number means.
+                    _stat('Days in month', ps.workingDays.toStringAsFixed(0)),
                     const SizedBox(width: 16),
-                    _stat('Paid', ps.paidDays.toStringAsFixed(0)),
+                    _stat('Days paid', ps.paidDays.toStringAsFixed(ps.paidDays % 1 == 0 ? 0 : 1)),
                     const SizedBox(width: 16),
-                    _stat('LOP', ps.lopDays.toStringAsFixed(ps.lopDays % 1 == 0 ? 0 : 1)),
+                    _stat('Loss of pay', ps.lopDays.toStringAsFixed(ps.lopDays % 1 == 0 ? 0 : 1)),
                   ],
                 ),
               ],
@@ -116,6 +151,57 @@ class _GradientHeader extends StatelessWidget {
           Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
         ],
       );
+
+  // Build an "official" payslip PDF using the local pdf package and
+  // share via share_plus. We fetch company name (best-effort) so the
+  // header reads like a real payslip rather than a runQ-branded slip;
+  // employee name + code come straight off /hr/me.
+  static Future<void> _sharePayslip(BuildContext context, WidgetRef ref, HrPayslip ps) async {
+    try {
+      final me = await ref.read(hrMeProvider.future);
+      final emp = me.employee;
+      final empName = me.displayName.isNotEmpty
+          ? me.displayName
+          : (emp != null ? '${emp.firstName}${emp.lastName != null ? ' ${emp.lastName}' : ''}' : 'Employee');
+      final empCode = emp?.employeeCode ?? '—';
+
+      // Best-effort company name fetch; if it fails the PDF still
+      // renders with a generic "Company" header.
+      String? companyName;
+      try {
+        final res = await apiClient.get('/settings/company');
+        if (res is Map && res['data'] is Map) {
+          final d = (res['data'] as Map).cast<String, dynamic>();
+          companyName = (d['name'] as String?)?.trim();
+        }
+      } catch (_) { /* swallow — name is decorative */ }
+
+      final builder = PayslipPdf(
+        slip: ps,
+        employeeName: empName,
+        employeeCode: empCode,
+        companyName: companyName,
+      );
+      final file = await builder.save();
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+      // iOS share sheet shows `text` and `files` as two separate items
+      // ("Plain Text and 1 Document") even when text is just a caption.
+      // For payslip-as-attachment we want only the PDF — the subject
+      // becomes the email subject / WhatsApp filename hint by itself.
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf', name: file.path.split('/').last)],
+        subject: 'Payslip — ${ps.periodLabel}',
+        sharePositionOrigin: origin,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showRunqSnack(context, 'Could not build PDF: $e', kind: SnackKind.error);
+      }
+    }
+  }
 }
 
 class _Earnings extends StatelessWidget {

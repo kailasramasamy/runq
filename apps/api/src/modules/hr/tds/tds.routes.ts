@@ -19,17 +19,19 @@ const challanListQuery = z.object({
   kind: z.enum(['pf', 'esi', 'pt', 'tds']).optional(),
 });
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
+// TDS challans / returns / Form 16 carry per-deductee PAN + pay — admin
+// roles only, no viewer. Filing is Finance write (owner/accountant).
+const MANAGE = ['owner', 'accountant', 'hr'] as const;
 const WRITE = ['owner', 'accountant'] as const;
 
 export const tdsRoutes: FastifyPluginAsync = async (app) => {
   // ── Monthly TDS deposit challans (ITNS-281) ──────────────────────────
-  app.get('/tds-challans', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/tds-challans', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new TdsChallanService(req.server.db, req.tenantId);
     return { data: await svc.syncAndList() };
   });
 
-  app.get('/tds-challans/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/tds-challans/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new TdsChallanService(req.server.db, req.tenantId);
     return { data: await svc.getById(id) };
@@ -43,12 +45,12 @@ export const tdsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // ── Quarterly Form 24Q returns ───────────────────────────────────────
-  app.get('/tds-returns', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/tds-returns', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new TdsReturnService(req.server.db, req.tenantId);
     return { data: await svc.list() };
   });
 
-  app.get('/tds-returns/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/tds-returns/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new TdsReturnService(req.server.db, req.tenantId);
     return { data: await svc.getById(id) };
@@ -80,7 +82,7 @@ export const tdsRoutes: FastifyPluginAsync = async (app) => {
     return { data: { ok: true } };
   });
 
-  app.get('/tds-returns/:id/export', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/tds-returns/:id/export', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new TdsReturnService(req.server.db, req.tenantId);
     const { filename, body } = await svc.buildExport(id);
@@ -93,7 +95,7 @@ export const tdsRoutes: FastifyPluginAsync = async (app) => {
   // ── PF / ESI / PT challan deposits (statutory subledger settlement) ──
   // List deposited / pending statutory challans, optionally scoped to a run.
   // Used by the PF/ESI/PT modals to surface "already deposited" state.
-  app.get('/statutory-challans', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/statutory-challans', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { payrollRunId, kind } = challanListQuery.parse(req.query);
     const conditions = [eq(statutoryChallans.tenantId, req.tenantId)];
     if (kind) conditions.push(eq(statutoryChallans.kind, kind));
@@ -152,7 +154,7 @@ export const tdsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // ── Form 16 Part B — annual salary + tax computation per employee ────
-  app.get('/tds-form-16', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/tds-form-16', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { financialYear } = tdsFinancialYearQuerySchema.parse(req.query);
     const svc = new TdsForm16Service(req.server.db, req.tenantId);
     return { data: await svc.generate(financialYear) };

@@ -23,7 +23,7 @@ const variantClasses: Record<BadgeVariant, string> = {
   info:
     'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-400',
   primary:
-    'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-400',
+    'bg-[var(--accent-soft)] text-[var(--accent-text)]',
   cyan:
     'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-400',
   outline:

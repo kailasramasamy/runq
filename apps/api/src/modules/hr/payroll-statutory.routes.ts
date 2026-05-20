@@ -10,7 +10,9 @@ import {
 import { NotFoundError } from '../../utils/errors';
 import { PayrollRunService } from './payroll/payroll-run.service';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+// Statutory challans + NEFT/ECR exports carry per-employee pay & bank
+// details — admin roles only, no viewer.
+const MANAGE = ['owner', 'accountant', 'hr'] as const;
 
 async function loadRunExportData(db: any, tenantId: string, runId: string) {
   const [run] = await db
@@ -71,25 +73,25 @@ async function loadRunExportData(db: any, tenantId: string, runId: string) {
 }
 
 export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/payroll-runs/:id/pf-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id/pf-challan', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.pfChallan(id) };
   });
 
-  app.get('/payroll-runs/:id/esi-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id/esi-challan', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.esiChallan(id) };
   });
 
-  app.get('/payroll-runs/:id/pt-challan', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id/pt-challan', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.ptChallan(id) };
   });
 
-  app.get('/payroll-runs/:id/exports/pt', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/payroll-runs/:id/exports/pt', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
     const body = buildPtReturn(employees, payslipsByEmp);
@@ -99,7 +101,7 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
       .send(body);
   });
 
-  app.get('/payroll-runs/:id/exports/pf-ecr', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/payroll-runs/:id/exports/pf-ecr', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
     const body = buildPfEcr(employees, payslipsByEmp);
@@ -109,7 +111,7 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
       .send(body);
   });
 
-  app.get('/payroll-runs/:id/exports/esi', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/payroll-runs/:id/exports/esi', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
     const body = buildEsiReturn(employees, payslipsByEmp);
@@ -119,7 +121,7 @@ export const payrollStatutoryRoutes: FastifyPluginAsync = async (app) => {
       .send(body);
   });
 
-  app.get('/payroll-runs/:id/exports/neft', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/payroll-runs/:id/exports/neft', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id } = uuidParamSchema.parse(req.params);
     const { run, employees, payslipsByEmp } = await loadRunExportData(req.server.db, req.tenantId, id);
     const ref = `PAYROLL-${run.year}-${String(run.month).padStart(2, '0')}`;

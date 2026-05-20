@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Select,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { StatTile, EmptyState, ListToolbar } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import {
   useForm16, type Form16Result, type Form16PartB,
@@ -19,11 +19,19 @@ function currentFinancialYear(): string {
 
 export function Form16Page() {
   const [financialYear, setFinancialYear] = useState(currentFinancialYear());
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useForm16(financialYear);
 
   const result = data?.data;
   const employees = result?.employees ?? [];
   const totalTds = employees.reduce((s, e) => s + e.tdsDeducted, 0);
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? employees.filter((e) =>
+        e.employeeName.toLowerCase().includes(q) ||
+        e.employeeCode.toLowerCase().includes(q) ||
+        (e.employeePan ?? '').toLowerCase().includes(q))
+    : employees;
 
   const startYear = new Date().getFullYear();
   const fyOptions = [startYear - 2, startYear - 1, startYear, startYear + 1].map((y) => {
@@ -56,6 +64,16 @@ export function Form16Page() {
         <StatTile label="Total TDS" value={formatINR(totalTds)} />
       </div>
 
+      {employees.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name, code or PAN…"
+          count={filtered.length}
+          noun="employee"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -80,7 +98,11 @@ export function Form16Page() {
                 description="Process and approve payroll runs to generate Form 16 Part B."
               />
             </td></tr>
-          ) : employees.map((e) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={8}>
+              <EmptyState icon={<FileText size={18} />} title="No employees match" description="Try a different search term." />
+            </td></tr>
+          ) : filtered.map((e) => (
             <TableRow key={e.employeeId}>
               <TableCell>
                 <div className="min-w-0">

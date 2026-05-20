@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { WageRegisterService } from './wage-register.service';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+// Wage register exposes every worker's pay — admin roles only, no viewer.
+const MANAGE = ['owner', 'accountant', 'hr'] as const;
 
 const monthQuery = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
@@ -11,13 +12,13 @@ const monthQuery = z.object({
 });
 
 export const wageRegisterRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/wage-register', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/wage-register', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { year, month } = monthQuery.parse(req.query);
     const svc = new WageRegisterService(req.server.db, req.tenantId);
     return { data: await svc.generate(year, month) };
   });
 
-  app.get('/wage-register/export', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
+  app.get('/wage-register/export', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { year, month } = monthQuery.parse(req.query);
     const svc = new WageRegisterService(req.server.db, req.tenantId);
     const rows = await svc.generate(year, month);

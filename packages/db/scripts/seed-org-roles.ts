@@ -34,18 +34,19 @@ interface LeaderSpec {
   designation: string;             // designation name (create if missing)
   department: 'Administration' | 'Production' | 'Human Resources';
   reportsToCode: string | null;    // employees.employee_code; null = no manager
-  systemRole: 'owner' | 'hr' | 'viewer'; // users.role
+  systemRole: 'owner' | 'accountant' | 'hr' | 'viewer'; // users.role
 }
 
 // Top of the tree. Order matters — reportsToCode must be created/updated
 // before any direct report is processed.
 const TREE: LeaderSpec[] = [
-  // C-suite — all 'viewer' so scope is reporting-tree based, except CEO
-  // who stays 'owner' (existing tenant owner).
+  // C-suite. CEO stays 'owner' (tenant owner); CFO is 'accountant' so the
+  // Finance-write role can be exercised; CTO/VP stay 'viewer' so the
+  // reporting-tree scope path is still covered.
   { code: 'VD000', email: 'kailas@vrindavanmilk.com', designation: 'CEO',
     department: 'Administration', reportsToCode: null, systemRole: 'owner' },
   { code: 'VD001', email: 'cfo@vrindavan.in', designation: 'CFO',
-    department: 'Administration', reportsToCode: 'VD000', systemRole: 'viewer' },
+    department: 'Administration', reportsToCode: 'VD000', systemRole: 'accountant' },
   { code: 'VD002', email: 'cto@vrindavan.in', designation: 'CTO',
     department: 'Administration', reportsToCode: 'VD000', systemRole: 'viewer' },
   { code: 'VD003', email: 'vp@vrindavan.in', designation: 'VP — Operations',
@@ -201,8 +202,13 @@ async function main() {
       .where(eq(employees.id, me.id));
   }
 
-  // 6. Create / update user accounts for each leader. CEO already has a
-  //    user row — we only update their role + skip password.
+  // 6. Sync user accounts. The phone-OTP login path historically minted a
+  //    duplicate `viewer` user when an employee with an existing email
+  //    account logged in on mobile — so an email may map to >1 user row.
+  //    We update *every* matching row to the same role + password so a
+  //    login resolves deterministically regardless of which row it picks.
+  //    The owner keeps their real password; everyone else is reset to
+  //    PASSWORD so web login is predictable for testing.
   const passwordHash = await argon2.hash(PASSWORD);
   for (const s of TREE) {
     const emp = empByCode.get(s.code); if (!emp) continue;
@@ -210,50 +216,51 @@ async function main() {
     const email = emp.email || s.email;
 
     // users has no unique on (tenant_id, email), so do a manual upsert.
-    const existingUser = await db.execute<{ id: string }>(sql`
+    const existingUsers = await db.execute<{ id: string }>(sql`
       SELECT id FROM users
-       WHERE tenant_id = ${TENANT_ID} AND lower(email) = lower(${email})
-       LIMIT 1;
+       WHERE tenant_id = ${TENANT_ID} AND lower(email) = lower(${email});
     `);
-    if (existingUser.rows.length > 0) {
-      await db.execute(sql`
-        UPDATE users
-           SET role = ${s.systemRole},
-               is_active = TRUE,
-               updated_at = NOW()
-         WHERE id = ${existingUser.rows[0].id};
-      `);
-    } else {
+    if (existingUsers.rows.length === 0) {
       await db.execute(sql`
         INSERT INTO users (tenant_id, email, name, role, password_hash, is_active)
         VALUES (
           ${TENANT_ID}, ${email}, ${s.code}, ${s.systemRole}, ${passwordHash}, TRUE
         );
       `);
+    } else if (s.systemRole === 'owner') {
+      await db.execute(sql`
+        UPDATE users
+           SET role = ${s.systemRole}, is_active = TRUE, updated_at = NOW()
+         WHERE tenant_id = ${TENANT_ID} AND lower(email) = lower(${email});
+      `);
+    } else {
+      await db.execute(sql`
+        UPDATE users
+           SET role = ${s.systemRole}, is_active = TRUE,
+               password_hash = ${passwordHash}, updated_at = NOW()
+         WHERE tenant_id = ${TENANT_ID} AND lower(email) = lower(${email});
+      `);
     }
 
-    // user_tenants ON CONFLICT uses the index (user_id, tenant_id).
-    // Drizzle's quoted index name doesn't match; use a manual upsert too.
+    // Ensure a user_tenants membership for every matching user row, and
+    // force the role on each (covers duplicate rows + role drift).
     await db.execute(sql`
-      WITH u AS (
-        SELECT id FROM users
-         WHERE tenant_id = ${TENANT_ID} AND lower(email) = lower(${email})
-         LIMIT 1
-      ),
-      ins AS (
-        INSERT INTO user_tenants (user_id, tenant_id, role)
-        SELECT u.id, ${TENANT_ID}, ${s.systemRole} FROM u
-        WHERE NOT EXISTS (
-          SELECT 1 FROM user_tenants ut
-           WHERE ut.user_id = (SELECT id FROM u)
-             AND ut.tenant_id = ${TENANT_ID}
-        )
-        RETURNING 1
-      )
-      UPDATE user_tenants
+      INSERT INTO user_tenants (user_id, tenant_id, role)
+      SELECT u.id, ${TENANT_ID}, ${s.systemRole}
+        FROM users u
+       WHERE u.tenant_id = ${TENANT_ID} AND lower(u.email) = lower(${email})
+         AND NOT EXISTS (
+           SELECT 1 FROM user_tenants ut
+            WHERE ut.user_id = u.id AND ut.tenant_id = ${TENANT_ID}
+         );
+    `);
+    await db.execute(sql`
+      UPDATE user_tenants ut
          SET role = ${s.systemRole}, updated_at = NOW()
-       WHERE user_id = (SELECT id FROM u)
-         AND tenant_id = ${TENANT_ID};
+        FROM users u
+       WHERE u.id = ut.user_id
+         AND u.tenant_id = ${TENANT_ID} AND lower(u.email) = lower(${email})
+         AND ut.tenant_id = ${TENANT_ID};
     `);
 
     // Keep the employee's email in sync with their user account.

@@ -1,15 +1,52 @@
 import { useState } from 'react';
 import {
   Pin, Plus, Megaphone, Trash2, UserPlus, LogOut, CheckCircle2, XCircle,
-  Wallet, FileText, Receipt, History,
+  Wallet, FileText, Receipt, History, Gavel, Umbrella, Calendar, HardHat,
+  PartyPopper,
 } from 'lucide-react';
-import { Modal, useToast } from '@/components/ui';
+import { useToast } from '@/components/ui';
 import {
-  useAnnouncements, useCreateAnnouncement, useDeleteAnnouncement,
-  useRecentActivity,
-  type Announcement, type ActivityEvent, type ActivityKind,
+  useAnnouncements, useDeleteAnnouncement, useAnnouncementImageSrc,
+  useRecentActivity, useHrMe,
+  type Announcement, type ActivityEvent, type ActivityKind, type AnnouncementCategory,
 } from '@/hooks/queries/use-hr';
 import { useAuth } from '@/providers/auth-provider';
+import { PostAnnouncementModal } from './announcement-post-modal';
+
+// Maps a category code to display label + icon + accent. Same set as
+// the mobile feed so the two surfaces look the same when a user flips
+// from web to phone.
+function categoryMeta(c: AnnouncementCategory): { label: string; Icon: any; color: string } {
+  switch (c) {
+    case 'policy':      return { label: 'Policy',      Icon: Gavel,        color: 'rgb(99,102,241)' };
+    case 'holiday':     return { label: 'Holiday',     Icon: Umbrella,     color: 'rgb(234,88,12)'  };
+    case 'event':       return { label: 'Event',       Icon: Calendar,     color: 'rgb(6,182,212)'  };
+    case 'operational': return { label: 'Operations',  Icon: HardHat,      color: 'rgb(8,145,178)'  };
+    case 'celebration': return { label: 'Celebration', Icon: PartyPopper,  color: 'rgb(236,72,153)' };
+    case 'payroll':     return { label: 'Payroll',     Icon: Wallet,       color: 'rgb(22,163,74)'  };
+    default:            return { label: 'Announcement', Icon: Megaphone,    color: 'rgb(124,58,237)' };
+  }
+}
+
+const CATEGORY_OPTIONS: AnnouncementCategory[] = [
+  'general', 'policy', 'holiday', 'event',
+  'operational', 'celebration', 'payroll',
+];
+
+/// Small <img> that fetches the cover via an auth'd blob URL — the
+/// API stream is private, so a plain `<img src>` would 401. Reused
+/// by the dashboard row + the post-modal preview.
+function AnnouncementImage({
+  announcementId, imageUrl, className,
+}: {
+  announcementId: string;
+  imageUrl: string | null;
+  className?: string;
+}) {
+  const { data: src } = useAnnouncementImageSrc(announcementId, imageUrl);
+  if (!src) return null;
+  return <img src={src} alt="" className={className} />;
+}
 
 /** Manager-dashboard companion to mobile's announcement + activity feeds.
  *  Same backend, same derivations, same accent palette. */
@@ -55,7 +92,20 @@ function EmptyRow({ icon: Icon, text }: { icon: any; text: string }) {
 export function AnnouncementsSection() {
   const { data, isLoading } = useAnnouncements();
   const { user } = useAuth();
-  const canPost = user?.role === 'owner';
+  // Posting opens up to managers (viewer + isManager) too — server
+  // narrows their post to their own department + audience=all.
+  const { data: meResp } = useHrMe();
+  const isManager = meResp?.data?.isManager ?? false;
+  const canPost = user?.role === 'owner'
+    || user?.role === 'accountant'
+    || user?.role === 'hr'
+    || (user?.role === 'viewer' && isManager);
+  // Org-wide delete is admin/HR-only. Managers can still delete their
+  // own posts via the dedicated management page (which checks the
+  // posted_by_id server-side).
+  const canDeleteAny = user?.role === 'owner'
+    || user?.role === 'accountant'
+    || user?.role === 'hr';
   const [postOpen, setPostOpen] = useState(false);
   const rows = data?.data ?? [];
   const top = rows.slice(0, 3);
@@ -82,7 +132,7 @@ export function AnnouncementsSection() {
       >
         <ul className="flex flex-col gap-1.5">
           {top.map((a) => (
-            <AnnouncementRow key={a.id} item={a} canDelete={canPost} />
+            <AnnouncementRow key={a.id} item={a} canDelete={canDeleteAny} />
           ))}
           {rows.length > top.length && (
             <li className="px-2 pt-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
@@ -100,14 +150,31 @@ function AnnouncementRow({ item, canDelete }: { item: Announcement; canDelete: b
   const del = useDeleteAnnouncement();
   const { toast } = useToast();
   const age = relativeTime(item.postedAt);
+  const cat = categoryMeta(item.category);
   const meta = [item.postedByName, age, item.audience === 'managers' ? 'managers only' : null]
     .filter(Boolean).join(' · ');
   return (
     <li className="rounded-md px-2 py-2" style={{ background: 'var(--surface-2)' }}>
-      <div className="flex items-start gap-2">
-        {item.pinned && (
-          <Pin size={12} className="mt-1 shrink-0" style={{ color: 'var(--accent)' }} />
-        )}
+      <div className="flex items-start gap-2.5">
+        {/* Category tile — colored badge with the category icon. Pin
+            overlaid on top-right when the post is pinned. */}
+        <div className="relative shrink-0">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-md"
+            style={{ background: `color-mix(in srgb, ${cat.color} 14%, var(--surface))`, color: cat.color }}
+            title={cat.label}
+          >
+            <cat.Icon size={16} />
+          </div>
+          {item.pinned && (
+            <div
+              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full"
+              style={{ background: 'var(--surface)', color: 'var(--accent)' }}
+            >
+              <Pin size={9} />
+            </div>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-semibold" style={{ color: 'var(--text-1)' }}>
             {item.title}
@@ -115,9 +182,28 @@ function AnnouncementRow({ item, canDelete }: { item: Announcement; canDelete: b
           <div className="mt-0.5 line-clamp-2 text-[11.5px]" style={{ color: 'var(--text-2)' }}>
             {item.body}
           </div>
-          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--text-3)' }}>
-            {meta}
+          {item.imageUrl && (
+            <div className="mt-1.5 overflow-hidden rounded-md" style={{ background: 'var(--surface)' }}>
+              <AnnouncementImage
+                announcementId={item.id}
+                imageUrl={item.imageUrl}
+                className="block h-24 w-full object-cover"
+              />
+            </div>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-3)' }}>
+              {meta}
+            </div>
+            {item.departmentName && (
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider"
+                style={{ background: `color-mix(in srgb, ${cat.color} 14%, transparent)`, color: cat.color }}
+              >
+                {item.departmentName}
+              </span>
+            )}
           </div>
         </div>
         {canDelete && (
@@ -142,85 +228,9 @@ function AnnouncementRow({ item, canDelete }: { item: Announcement; canDelete: b
   );
 }
 
-function PostAnnouncementModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const create = useCreateAnnouncement();
-  const { toast } = useToast();
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [audience, setAudience] = useState<'all' | 'managers'>('all');
-  const [pinned, setPinned] = useState(false);
-
-  function submit() {
-    if (title.trim().length < 2 || body.trim().length < 2) return;
-    create.mutate(
-      { title: title.trim(), body: body.trim(), audience, pinned },
-      {
-        onSuccess: () => {
-          toast('Announcement posted', 'success');
-          setTitle(''); setBody(''); setAudience('all'); setPinned(false);
-          onClose();
-        },
-        onError: (e: any) => toast(e?.message ?? 'Post failed', 'error'),
-      },
-    );
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="New announcement" size="md">
-      <div className="space-y-3 px-4 py-4 sm:px-6">
-        <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Title</label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={140}
-            className="mt-1 w-full rounded-md border px-3 py-2 text-[13px]"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
-          />
-        </div>
-        <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>Body</label>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            maxLength={4000}
-            rows={5}
-            className="mt-1 w-full rounded-md border px-3 py-2 text-[13px]"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
-          />
-        </div>
-        <div className="flex items-center gap-4">
-          <label className="text-[12px]" style={{ color: 'var(--text-2)' }}>Audience</label>
-          <select
-            value={audience}
-            onChange={(e) => setAudience(e.target.value as 'all' | 'managers')}
-            className="rounded-md border px-2 py-1 text-[12px]"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-1)' }}
-          >
-            <option value="all">Everyone</option>
-            <option value="managers">Managers only</option>
-          </select>
-          <label className="ml-auto flex items-center gap-2 text-[12px]" style={{ color: 'var(--text-2)' }}>
-            <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
-            Pin to top
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose}
-            className="rounded-md border px-3 py-1.5 text-[12px]"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-2)' }}>
-            Cancel
-          </button>
-          <button type="button" onClick={submit} disabled={create.isPending}
-            className="rounded-md px-3 py-1.5 text-[12px] font-medium text-white"
-            style={{ background: 'var(--accent)' }}>
-            {create.isPending ? 'Posting…' : 'Post'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// PostAnnouncementModal lives in ./announcement-post-modal so the
+// dedicated /hr/announcements management page can reuse it without
+// pulling in the rest of this file.
 
 // ─── Recent activity ───────────────────────────────────────────────────────
 

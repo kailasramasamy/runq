@@ -314,6 +314,12 @@ class _ManagerTimeState extends ConsumerState<_ManagerTime> {
                   initialDate: _date,
                   firstDate: DateTime.now().subtract(const Duration(days: 90)),
                   lastDate: DateTime.now(),
+                  builder: (ctx, child) => Theme(
+                    data: Theme.of(ctx).copyWith(
+                      colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: HrColors.teal),
+                    ),
+                    child: child!,
+                  ),
                 );
                 if (picked != null) setState(() => _date = picked);
               },

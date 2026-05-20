@@ -24,6 +24,21 @@ export const createLeaveRequestSchema = z.object({
   reason: z.string().max(500).nullish(),
 }).refine((v) => v.fromDate <= v.toDate, { message: 'fromDate must be on or before toDate' });
 
+// Edit a pending leave request. Only the requester can hit this from
+// mobile; the server also gates on `status = 'pending'` so once a
+// manager has acted (approved/rejected/cancelled) the row freezes.
+// All fields optional — clients may patch just the dates.
+export const updateLeaveRequestSchema = z.object({
+  leaveTypeId: z.string().uuid().optional(),
+  fromDate: z.string().date().optional(),
+  toDate: z.string().date().optional(),
+  halfDay: z.boolean().optional(),
+  reason: z.string().max(500).nullish(),
+}).refine(
+  (v) => v.fromDate == null || v.toDate == null || v.fromDate <= v.toDate,
+  { message: 'fromDate must be on or before toDate' },
+);
+
 export const reviewLeaveRequestSchema = z.object({
   approved: z.boolean(),
   rejectionReason: z.string().max(500).nullish(),
@@ -53,6 +68,7 @@ export const adjustLeaveBalanceSchema = z.object({
 export type CreateLeaveTypeInput = z.infer<typeof createLeaveTypeSchema>;
 export type UpdateLeaveTypeInput = z.infer<typeof updateLeaveTypeSchema>;
 export type CreateLeaveRequestInput = z.infer<typeof createLeaveRequestSchema>;
+export type UpdateLeaveRequestInput = z.infer<typeof updateLeaveRequestSchema>;
 export type ReviewLeaveRequestInput = z.infer<typeof reviewLeaveRequestSchema>;
 export type LeaveRequestFilter = z.infer<typeof leaveRequestFilterSchema>;
 export type AdjustLeaveBalanceInput = z.infer<typeof adjustLeaveBalanceSchema>;

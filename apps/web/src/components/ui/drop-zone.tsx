@@ -60,13 +60,13 @@ export function DropZone({ fileName, onFile, onClear, accept = '.csv' }: DropZon
       className={[
         'flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 transition-colors',
         dragging
-          ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-900/20'
+          ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
           : 'border-zinc-300 bg-zinc-50 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-zinc-600',
       ].join(' ')}
     >
       <FileUp size={28} className="mb-2 text-zinc-400" />
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        <span className="font-medium text-indigo-600 dark:text-indigo-400">Click to upload</span> or drag and drop
+        <span className="font-medium text-[var(--accent-text)]">Click to upload</span> or drag and drop
       </p>
       <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">CSV files only</p>
       <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleChange} />

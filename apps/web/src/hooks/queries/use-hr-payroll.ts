@@ -182,6 +182,20 @@ export function usePayslip(runId: string | null, payslipId: string | null) {
     enabled: !!runId && !!payslipId,
   });
 }
+
+// `/hr/me/payslips` — the logged-in user's own payslips, newest first. Each
+// row carries its run's month/year/status so the UI needs no run id.
+export interface MyPayslip extends Payslip {
+  month: number;
+  year: number;
+  runStatus: PayrollRunStatus;
+}
+export function useMyPayslips() {
+  return useQuery({
+    queryKey: ['hr', 'me', 'payslips'],
+    queryFn: () => api.get<ApiSuccess<MyPayslip[]>>('/hr/me/payslips'),
+  });
+}
 export function useCreatePayrollRun() {
   const qc = useQueryClient();
   return useMutation({

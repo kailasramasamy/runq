@@ -237,6 +237,47 @@ export function SearchInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <Input icon={<Search size={13} />} {...props} />;
 }
 
+/**
+ * Standard list-page toolbar: a search box on the left, caller-supplied
+ * filter controls (Select / Combobox / DateRangeFilter) next to it, and an
+ * optional result count pushed to the right. Keeps every list screen's
+ * search/filter row visually identical.
+ */
+export function ListToolbar({
+  search,
+  onSearch,
+  placeholder = 'Search…',
+  count,
+  noun = 'result',
+  children,
+}: {
+  search: string;
+  onSearch: (value: string) => void;
+  placeholder?: string;
+  count?: number;
+  noun?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="w-72 max-w-full">
+        <SearchInput
+          placeholder={placeholder}
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+        />
+      </div>
+      {children}
+      <div className="flex-1" />
+      {count != null && (
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {count} {noun}{count === 1 ? '' : 's'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Select({
   options, className, ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string }[] }) {

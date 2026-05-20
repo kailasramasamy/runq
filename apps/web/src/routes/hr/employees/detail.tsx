@@ -10,6 +10,7 @@ import {
 } from '@/hooks/queries/use-employee-documents';
 import { OverviewTab, LeaveTab, PayrollTab } from './_employee-tabs';
 import { DocumentsTab } from './_documents-tab';
+import { ResumeTab } from './_resume-tab';
 import { PhotoCropModal } from '@/components/hr/photo-crop-modal';
 import { formatIndianNumber } from '@/lib/utils';
 
@@ -20,7 +21,7 @@ const STATUS_BADGE: Record<EmployeeStatus, { variant: any; label: string }> = {
   terminated: { variant: 'danger', label: 'Terminated' },
 };
 
-type Tab = 'overview' | 'documents' | 'leave' | 'payroll';
+type Tab = 'overview' | 'documents' | 'resume' | 'leave' | 'payroll';
 
 interface Props { employeeId: string }
 
@@ -126,7 +127,7 @@ export function EmployeeDetailPage({ employeeId }: Props) {
 
       {/* Tab strip */}
       <div className="mb-4 flex gap-0 border-b" style={{ borderColor: 'var(--border)' }}>
-        {(['overview', 'documents', 'leave', 'payroll'] as Tab[]).map((t) => (
+        {(['overview', 'documents', 'resume', 'leave', 'payroll'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -155,6 +156,7 @@ export function EmployeeDetailPage({ employeeId }: Props) {
         )
       )}
       {tab === 'documents' && <DocumentsTab employeeId={employeeId} />}
+      {tab === 'resume' && <ResumeTab employeeId={employeeId} />}
       {tab === 'leave' && <LeaveTab employeeId={employeeId} />}
       {tab === 'payroll' && <PayrollTab employeeId={employeeId} />}
     </div>

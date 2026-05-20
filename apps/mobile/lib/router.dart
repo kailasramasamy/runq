@@ -43,6 +43,7 @@ import 'screens/about_screen.dart';
 import 'screens/personal_info_screen.dart';
 import 'screens/notifications_settings_screen.dart';
 import 'screens/appearance_screen.dart';
+import 'screens/language_screen.dart';
 import 'screens/help_screen.dart';
 import 'screens/support_chat_screen.dart';
 import 'screens/support_inbox_screen.dart';
@@ -58,13 +59,27 @@ import 'screens/hr/hr_time_screen.dart';
 import 'screens/hr/hr_pay_screen.dart';
 import 'screens/hr/hr_payslip_detail_screen.dart';
 import 'screens/hr/hr_more_screen.dart';
+import 'screens/hr/hr_my_resume_screen.dart';
 import 'screens/hr/hr_holidays_screen.dart';
+import 'screens/hr/hr_activity_screen.dart';
 import 'screens/hr/hr_leave_types_screen.dart';
+import 'screens/hr/hr_directory_screen.dart';
+import 'screens/hr/hr_team_leaves_screen.dart';
+import 'screens/hr/hr_announcements_screen.dart';
 import 'screens/hr/hr_employee_form_screen.dart';
 import 'screens/hr/hr_expense_claims_screen.dart';
 import 'screens/hr/hr_salary_components_screen.dart';
 import 'screens/hr/hr_salary_structures_screen.dart';
 import 'screens/hr/hr_payroll_runs_screen.dart';
+import 'screens/hr/hr_check_in_screen.dart';
+import 'screens/hr/hr_regularizations_screen.dart';
+import 'screens/hr/hr_tax_declaration_screen.dart';
+import 'screens/hr/hr_loans_screen.dart';
+import 'screens/hr/hr_onboarding_screen.dart';
+import 'screens/hr/hr_letters_screen.dart';
+import 'screens/hr/hr_helpdesk_screen.dart';
+import 'screens/hr/hr_performance_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
 import 'providers/app_role_provider.dart';
 import 'services/po_intake.dart';
@@ -215,14 +230,53 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const HrMoreScreen(), key: state.pageKey),
         ),
         GoRoute(
+          path: '/notifications',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const NotificationsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
           path: '/hr/holidays',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrHolidaysScreen(), key: state.pageKey),
         ),
         GoRoute(
+          path: '/hr/my-resume',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrMyResumeScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/activity',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrActivityScreen(), key: state.pageKey),
+        ),
+        GoRoute(
           path: '/hr/leave-types',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrLeaveTypesScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/directory',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrDirectoryScreen(), key: state.pageKey),
+        ),
+        // Manager-only review surfaces — pushed from the Home quick
+        // actions. Bodies are the same widgets the Pay sub-tabs used
+        // to mount, but each is now standalone with its own back arrow
+        // + title.
+        GoRoute(
+          path: '/hr/leaves',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrTeamLeavesScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/team-expenses',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrTeamExpensesScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/announcements',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrAnnouncementsScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/hr/employees/new',
@@ -243,12 +297,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             );
           },
         ),
-        GoRoute(
-          path: '/hr/expense-claims',
-          parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) =>
-              _slidePage(const HrExpenseClaimsScreen(), key: state.pageKey),
-        ),
+        // /hr/expense-claims (list) used to live here as its own
+        // screen; it was folded into Pay > Expenses. /new and /:id
+        // (form + detail) stay as separate routes because they're
+        // multi-step flows that need their own back-stack frame.
         GoRoute(
           path: '/hr/expense-claims/new',
           parentNavigatorKey: rootKey,
@@ -314,6 +366,23 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             key: state.pageKey,
           ),
         ),
+        // Phase-next HR features.
+        GoRoute(path: '/hr/check-in', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrCheckInScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/regularizations', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrRegularizationsScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/tax-declarations', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrTaxDeclarationScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/loans', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrLoansScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/onboarding', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrOnboardingScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/letters', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrLettersScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/helpdesk', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrHelpdeskScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/performance', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrPerformanceScreen(), key: s.pageKey)),
         // Section-hub sub-screens. Existing list/detail screens live under
         // their hub's URL space. Old paths (/invoices, /bills, /banking) are
         // redirected to these by the alias map at the top of the router.
@@ -532,6 +601,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/profile/appearance',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const AppearanceScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/profile/language',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const LanguageScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/profile/support',

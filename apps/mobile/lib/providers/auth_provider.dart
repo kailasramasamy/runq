@@ -80,6 +80,26 @@ class AuthController extends StateNotifier<AuthState> {
       'password': password,
       'tenant': tenant,
     });
+    await _finishLogin(res);
+  }
+
+  // Phone+OTP is the only sign-in path on mobile. Two-step:
+  // requestOtp() is a no-op on the server today (no SMS yet) but we still
+  // call it so the UX is honest about which screen is which, and so wiring
+  // SMS dispatch later doesn't require client changes.
+  Future<void> requestOtp(String phone) async {
+    await apiClient.post('/auth/phone-otp/request', {'phone': phone.trim()});
+  }
+
+  Future<void> verifyOtp(String phone, String otp) async {
+    final res = await apiClient.post('/auth/phone-otp/verify', {
+      'phone': phone.trim(),
+      'otp': otp.trim(),
+    });
+    await _finishLogin(res);
+  }
+
+  Future<void> _finishLogin(Object? res) async {
     final data = (res is Map && res['data'] is Map) ? res['data'] as Map : res as Map;
     final token = data['token'] as String?;
     if (token == null) {

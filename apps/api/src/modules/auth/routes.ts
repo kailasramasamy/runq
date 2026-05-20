@@ -2,12 +2,13 @@ import { FastifyPluginAsync } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { users, tenants, platformUsers, userTenants, tenantInvites, seedCoaForTenant, auditLog } from '@runq/db';
-import { loginSchema, registerSchema, createInviteSchema, acceptInviteSchema, acceptJoinInviteSchema } from '@runq/validators';
+import { loginSchema, registerSchema, createInviteSchema, acceptInviteSchema, acceptJoinInviteSchema, changePasswordSchema } from '@runq/validators';
 import argon2 from 'argon2';
 import { UnauthorizedError, ConflictError, NotFoundError } from '../../utils/errors';
 import { sendEmail } from '../../utils/email';
 import { tenantInviteEmail } from '../../utils/email-templates';
 import { loadEnv } from '../../config/env';
+import { seedDefaultLetterTemplates } from '../hr/phase-next/letter-template-seeds';
 
 const env = loadEnv();
 
@@ -289,8 +290,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       role: 'owner',
     });
 
-    // Seed standard chart of accounts
+    // Seed standard chart of accounts + HR letter templates
     await seedCoaForTenant(app.db, tenant!.id);
+    await seedDefaultLetterTemplates(app.db, tenant!.id);
 
     // Send welcome email (non-blocking — don't fail registration if email fails)
     sendEmail({
@@ -527,6 +529,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         id: tenantInvites.id,
         token: tenantInvites.token,
         inviteType: tenantInvites.inviteType,
+        audience: tenantInvites.audience,
         role: tenantInvites.role,
         email: tenantInvites.email,
         companyName: tenantInvites.companyName,
@@ -550,6 +553,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       data: {
         token: row.token,
         inviteType: row.inviteType,
+        audience: row.audience,
         role: row.role,
         email: row.email,
         companyName: row.companyName,
@@ -890,4 +894,34 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       },
     };
   });
+
+  // Change password for the logged-in user. Verifies the current password
+  // before setting the new one — this is not a forgot-password reset.
+  app.post(
+    '/change-password',
+    { preHandler: [app.authenticate], config: { rateLimit: false } },
+    async (request, reply) => {
+      const userId = request.user.userId;
+      if (!userId) throw new UnauthorizedError('Authentication required');
+      const { currentPassword, newPassword } = changePasswordSchema.parse(request.body);
+
+      const [user] = await app.db
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!user) throw new NotFoundError('User');
+
+      const valid = await argon2.verify(user.passwordHash, currentPassword);
+      if (!valid) throw new UnauthorizedError('Current password is incorrect');
+
+      const passwordHash = await argon2.hash(newPassword);
+      await app.db
+        .update(users)
+        .set({ passwordHash, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      return reply.send({ data: { success: true } });
+    },
+  );
 };

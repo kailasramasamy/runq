@@ -4,12 +4,14 @@ import { Button } from '@/components/ui';
 import { markWelcomePending } from '@/components/welcome-screen';
 
 type InviteType = 'new_tenant' | 'join_tenant';
+type InviteAudience = 'finance_collab' | 'employee';
 type Mode = 'register' | 'login' | 'one_click';
 
 interface InviteLookupResponse {
   data: {
     token: string;
     inviteType: InviteType;
+    audience: InviteAudience;
     role: string;
     email: string | null;
     companyName: string | null;
@@ -222,14 +224,15 @@ export function AcceptInvitePage() {
           invitingUserName: lookup.invitingUser?.name,
           tenantName: data.tenant?.name,
         });
-      } else if (lookup?.inviteType === 'join_tenant' && mode === 'register') {
+      } else if (lookup?.inviteType === 'join_tenant' && mode === 'register' && lookup?.audience !== 'employee') {
         markWelcomePending({
           variant: 'ca_joining',
           invitingUserName: lookup.invitingUser?.name,
           tenantName: lookup.invitingTenantName,
         });
       }
-      window.location.href = '/finance';
+      // Employees land in the HR module; CA/collab invites land in Finance.
+      window.location.href = lookup?.audience === 'employee' ? '/hr' : '/finance';
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Something went wrong';
       setSubmitError(msg);
@@ -264,28 +267,44 @@ export function AcceptInvitePage() {
   }
 
   const isNewTenant = lookup.inviteType === 'new_tenant';
+  const isEmployee = lookup.audience === 'employee';
+
+  const shellTitle = isNewTenant
+    ? 'Start your runQ books'
+    : isEmployee
+      ? `Set up your ${lookup.invitingTenantName} account`
+      : `Join ${lookup.invitingTenantName}`;
+
+  const bannerTitle = isNewTenant
+    ? `${lookup.invitingUser.name} from ${lookup.invitingTenantName} invited you to runQ`
+    : isEmployee
+      ? `${lookup.invitingTenantName} invited you to runQ`
+      : `${lookup.invitingUser.name} from ${lookup.invitingTenantName} invited you to join their books as ${lookup.role}`;
+
+  const bannerBody = isNewTenant
+    ? `They'll be added to your new books as your ${lookup.role}.`
+    : isEmployee
+      ? 'Set a password to view your attendance, leave, and payslips on the runQ app.'
+      : `You'll get ${lookup.role === 'viewer' ? 'read-only' : 'read & write'} access.`;
 
   return (
-    <Shell title={isNewTenant ? 'Start your runQ books' : `Join ${lookup.invitingTenantName}`}>
+    <Shell title={shellTitle}>
       <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)]">
         <div className="mb-4 flex items-start gap-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
           <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0 text-indigo-600" />
           <div className="text-sm">
-            <p className="font-medium text-zinc-900">
-              {lookup.invitingUser.name} from {lookup.invitingTenantName} invited you
-              {isNewTenant ? ' to runQ' : ` to join their books as ${lookup.role}`}
-            </p>
+            <p className="font-medium text-zinc-900">{bannerTitle}</p>
             <p className="mt-1 text-xs text-zinc-600">
-              {isNewTenant
-                ? `They'll be added to your new books as your ${lookup.role}.`
-                : `You'll get ${lookup.role === 'viewer' ? 'read-only' : 'read & write'} access.`}
-              {lookup.note ? ` Note: ${lookup.note}` : ''}
+              {bannerBody}
+              {lookup.note && !isEmployee ? ` Note: ${lookup.note}` : ''}
             </p>
           </div>
         </div>
 
-        {/* For join_tenant, give the invitee a way to switch between modes */}
-        {!isNewTenant && (
+        {/* Mode chips — only meaningful for CA/collab invites where the
+            invitee may already have a runQ account. Employee invites are
+            always "new user, set a password," so we hide the chips. */}
+        {!isNewTenant && !isEmployee && (
           <div className="mb-4 flex flex-wrap gap-1 rounded-md border border-zinc-200 bg-zinc-50 p-1 text-xs">
             {existingToken && (
               <ModeChip active={mode === 'one_click'} onClick={() => setMode('one_click')}>

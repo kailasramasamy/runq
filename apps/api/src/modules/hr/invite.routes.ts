@@ -105,9 +105,11 @@ export const hrInviteRoutes: FastifyPluginAsync = async (app) => {
           invitingUserId: req.user.userId,
           invitingTenantId: req.tenantId,
           inviteType: 'join_tenant',
+          audience: 'employee',
           role: 'viewer',
           email: emp.email,
-          note: `Employee app invite for ${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}`,
+          // Note intentionally blank — the audience field tells the accept
+          // page this is an employee invite, no need for free-text hints.
           expiresAt,
         }).returning();
         invite = created!;
@@ -131,6 +133,7 @@ export const hrInviteRoutes: FastifyPluginAsync = async (app) => {
           .limit(1);
         const tpl = tenantInviteEmail({
           inviteType: 'join_tenant',
+          audience: 'employee',
           inviterName: inviterRow?.name ?? 'Your HR team',
           inviterTenantName: tenantRow?.name ?? 'runQ',
           role: 'viewer',

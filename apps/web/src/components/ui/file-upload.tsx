@@ -91,13 +91,13 @@ function DropZone({ isUploading, onFilesSelected, error }: DropZoneProps) {
         className={cn(
           'flex cursor-pointer flex-col items-center rounded-lg border-2 border-dashed px-4 py-6 transition-colors',
           dragOver
-            ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-500 dark:bg-indigo-900/10'
-            : 'border-zinc-300 hover:border-indigo-300 dark:border-zinc-700 dark:hover:border-indigo-600',
+            ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
+            : 'border-zinc-300 hover:border-[var(--accent)] dark:border-zinc-700',
           isUploading && 'pointer-events-none opacity-60',
         )}
       >
         {isUploading ? (
-          <Loader2 className="mb-2 h-6 w-6 animate-spin text-indigo-500" />
+          <Loader2 className="mb-2 h-6 w-6 animate-spin text-[var(--accent)]" />
         ) : (
           <Upload className="mb-2 h-6 w-6 text-zinc-400" />
         )}

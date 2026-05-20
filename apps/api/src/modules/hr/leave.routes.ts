@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import {
   createLeaveTypeSchema, updateLeaveTypeSchema,
-  createLeaveRequestSchema, reviewLeaveRequestSchema, leaveRequestFilterSchema,
+  createLeaveRequestSchema, updateLeaveRequestSchema, reviewLeaveRequestSchema, leaveRequestFilterSchema,
   leaveBalanceQuerySchema, adjustLeaveBalanceSchema, uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
@@ -19,11 +19,18 @@ const carryForwardSchema = z.object({
   toYear: z.number().int().min(2000).max(2100),
 });
 
+const leaveTypesQuerySchema = z.object({
+  // Mobile clients pass their own employee id to hide gender-gated
+  // types they can't use. Omit on admin screens to see every type.
+  forEmployeeId: z.string().uuid().optional(),
+});
+
 export const leaveRoutes: FastifyPluginAsync = async (app) => {
   // --- Leave types ---
   app.get('/leave-types', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const { forEmployeeId } = leaveTypesQuerySchema.parse(req.query);
     const svc = new LeaveTypeService(req.server.db, req.tenantId);
-    return { data: await svc.list() };
+    return { data: await svc.list({ forEmployeeId }) };
   });
 
   app.post('/leave-types', { preHandler: [rbacHook([...WRITE])] }, async (req, reply) => {
@@ -53,7 +60,9 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
   // --- Leave balances ---
   app.get('/leave-balances', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const filter = leaveBalanceQuerySchema.parse(req.query);
-    const svc = new LeaveBalanceService(req.server.db, req.tenantId);
+    // Scope applies — a viewer sees only their own / their team's balances.
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveBalanceService(req.server.db, req.tenantId, scope);
     return { data: await svc.list(filter) };
   });
 
@@ -92,7 +101,10 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data: await svc.create(input) });
   });
 
-  app.put('/leave-requests/:id/review', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+  // `viewer` is allowed at the route level so a reporting manager can
+  // approve their team's leave; the service then scope-checks (subtree
+  // only) and blocks self-approval. Owner/accountant/hr review org-wide.
+  app.put('/leave-requests/:id/review', { preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer'])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = reviewLeaveRequestSchema.parse(req.body);
     // Review goes through scope — a manager can only approve their team.
@@ -106,5 +118,16 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     const scope = await resolveHrAccessScope(req);
     const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
     return { data: await svc.cancel(id) };
+  });
+
+  // Edit a pending request. ALL roles can hit this; scope keeps viewers
+  // / managers from touching out-of-team rows, and the service itself
+  // refuses anything not in 'pending'.
+  app.put('/leave-requests/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = updateLeaveRequestSchema.parse(req.body);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId, scope);
+    return { data: await svc.update(id, input) };
   });
 };

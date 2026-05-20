@@ -45,9 +45,33 @@ final hrEmployeesProvider =
   );
 });
 
+/// Org-wide directory lookup — bypasses HrAccessScope on the server and
+/// returns only safe identity fields. Powers the colleague search pill so
+/// employees can find anyone in the tenant, not just their own team.
+final hrDirectoryProvider =
+    FutureProvider.family<HrEmployeeListPage, String>((ref, query) async {
+  return _watchAuth(
+    ref,
+    () => hrRepo.directory(search: query.trim().isEmpty ? null : query.trim()),
+  );
+});
+
 final hrEmployeeProvider =
     FutureProvider.family<HrEmployee, String>((ref, id) async {
   return _watchAuth(ref, () => hrRepo.employee(id));
+});
+
+/// AI-extracted resume profile for an employee. Null when no resume has
+/// been uploaded yet. Invalidated by the detail screen after upload/edit.
+final hrResumeProfileProvider =
+    FutureProvider.family<HrResumeProfile?, String>((ref, employeeId) async {
+  return _watchAuth(ref, () => hrRepo.resumeProfile(employeeId));
+});
+
+/// The logged-in employee's own resume profile — backs the My Resume
+/// self-service screen. Invalidated after the employee uploads their resume.
+final hrMyResumeProfileProvider = FutureProvider<HrResumeProfile?>((ref) async {
+  return _watchAuth(ref, () => hrRepo.myResumeProfile());
 });
 
 /// App-invite state for a given employee. Watched by the detail screen so
@@ -103,6 +127,21 @@ final hrLeaveTypesProvider = FutureProvider<List<HrLeaveType>>((ref) async {
   return _watchAuth(ref, () => hrRepo.leaveTypes());
 });
 
+/// Self-scoped leave types — hides gender-gated types the logged-in
+/// employee can't apply for (males → no ML, females → no PAT, NULL
+/// gender → only 'all'-applicable types). Used by the Apply Leave sheet
+/// so the dropdown matches what the balance pills show.
+final hrMyLeaveTypesProvider = FutureProvider<List<HrLeaveType>>((ref) async {
+  final me = await ref.watch(hrMeProvider.future);
+  final empId = me.employee?.id;
+  if (empId == null) {
+    // No employee link → fall back to the unfiltered list. The Apply
+    // sheet still works, the user just won't get the gender filter.
+    return _watchAuth(ref, () => hrRepo.leaveTypes());
+  }
+  return _watchAuth(ref, () => hrRepo.leaveTypes(forEmployeeId: empId));
+});
+
 final hrMyLeaveBalancesProvider =
     FutureProvider<List<HrLeaveBalance>>((ref) async {
   final me = await ref.watch(hrMeProvider.future);
@@ -120,11 +159,51 @@ final hrMyLeaveRequestsProvider =
   return _watchAuth(ref, () => hrRepo.leaveRequests(employeeId: empId));
 });
 
-/// All pending leave requests across the tenant — backs the manager Home
-/// pending-approvals card and the Pay → Approvals subtab.
+/// Reviewed (approved / rejected / cancelled) leave requests within the
+/// caller's HR scope — backs the manager Leaves tab's "Recent decisions"
+/// history section. Server returns these as part of the unfiltered
+/// list; we partition them client-side from the pending pool. Sorted
+/// newest-decision first by the consumer.
+final hrReviewedLeaveRequestsProvider =
+    FutureProvider<List<HrLeaveRequest>>((ref) async {
+  final all = await _watchAuth(ref, () => hrRepo.leaveRequests());
+  return all.where((r) => r.status != 'pending').toList();
+});
+
+/// Submitted expense claims awaiting this user's decision — backs the
+/// manager Home Expenses quick-action badge and any future review queue
+/// surface. Excludes the user's own claims (self-approval is forbidden
+/// server-side anyway). Admin / HR see everyone's submitted claims;
+/// managers see their team's via the existing endpoint (currently
+/// returns tenant-wide for them but the self-filter is the meaningful
+/// trim for the badge count).
+final hrPendingExpenseClaimsProvider =
+    FutureProvider<List<HrExpenseClaim>>((ref) async {
+  final all = await _watchAuth(ref, () => hrRepo.expenseClaims(status: 'submitted'));
+  final myUserId = ref.watch(authProvider).user?.id;
+  if (myUserId == null) return all;
+  return all.where((c) => c.claimantId != myUserId).toList();
+});
+
+/// Pending leave requests this user can act on — backs the manager Home
+/// pending-approvals badge and the Pay → Approvals subtab.
+///
+/// Self-filtered: the server returns everything in the requester's
+/// scope, which for a manager includes their own row. A manager
+/// reviewing their own request is nonsense (self-approval), so we
+/// drop those here. Admin / HR users see the full list because they
+/// genuinely approve requests across the org, including any they
+/// raised themselves (rare in practice but technically allowed).
 final hrPendingLeaveRequestsProvider =
     FutureProvider<List<HrLeaveRequest>>((ref) async {
-  return _watchAuth(ref, () => hrRepo.leaveRequests(status: 'pending'));
+  final all = await _watchAuth(ref, () => hrRepo.leaveRequests(status: 'pending'));
+  final me = ref.watch(hrMeProvider).asData?.value;
+  final selfId = me?.employee?.id;
+  final isAdminOrHr = me?.systemRole == 'owner'
+      || me?.systemRole == 'accountant'
+      || me?.systemRole == 'hr';
+  if (selfId == null || isAdminOrHr) return all;
+  return all.where((r) => r.employeeId != selfId).toList();
 });
 
 final hrHolidaysProvider = FutureProvider<List<HrHoliday>>((ref) async {

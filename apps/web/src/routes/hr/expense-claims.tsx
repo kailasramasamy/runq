@@ -6,6 +6,8 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th,
   TableSkeleton, useToast,
 } from '@/components/ui';
+import { ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
+import { useAuth, canAccessFinanceModule } from '@/providers/auth-provider';
 import { formatINR } from '@/lib/utils';
 import {
   useExpenseClaims, useExpenseClaim, useCreateExpenseClaim, useSubmitClaim, useApproveClaim,
@@ -80,7 +82,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="mb-4 max-w-3xl rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+    <div className="mb-4 max-w-3xl rounded-lg border border-teal-200 bg-teal-50 p-4 dark:border-teal-900/50 dark:bg-teal-950/20">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">New Expense Claim</h4>
         <button type="button" onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -206,9 +208,22 @@ export function ExpenseClaimsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reimburseClaim, setReimburseClaim] = useState<ExpenseClaim | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const { user } = useAuth();
+  // Posting to the GL and reimbursing are Finance-write actions — only
+  // owner / accountant see those buttons. HR roles get raise/submit/approve.
+  const canFinanceWrite = canAccessFinanceModule(user?.role);
 
   const claims = data?.data ?? [];
   const selected = selectedId ? claims.find((c) => c.id === selectedId) : null;
+  const q = search.trim().toLowerCase();
+  const filtered = claims.filter((c) => {
+    if (q && !c.claimNumber.toLowerCase().includes(q) && !c.description.toLowerCase().includes(q)) return false;
+    if (statusFilter && c.status !== statusFilter) return false;
+    return true;
+  });
 
   async function quickAction(id: string, action: 'submit' | 'approve') {
     const fn = action === 'submit' ? submitClaim : approveClaim;
@@ -251,6 +266,29 @@ export function ExpenseClaimsPage() {
         />
       )}
 
+      {claims.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by claim # or description…"
+          count={filtered.length}
+          noun="claim"
+        >
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'submitted', label: 'Submitted' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+              { value: 'reimbursed', label: 'Reimbursed' },
+            ]}
+          />
+        </ListToolbar>
+      )}
+
       {/* Mobile card view */}
       <div className="flex flex-col gap-2 md:hidden">
         {isLoading ? (
@@ -259,14 +297,16 @@ export function ExpenseClaimsPage() {
           ))
         ) : claims.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-500">No expense claims yet.</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">No claims match your search.</p>
         ) : (
-          claims.map((c) => {
+          filtered.map((c) => {
             const si = STATUS_BADGE[c.status];
             const isExpanded = selectedId === c.id;
             return (
               <div key={c.id}>
                 <div
-                  className={`cursor-pointer rounded-lg border bg-white p-3 active:bg-zinc-50 dark:bg-zinc-900 dark:active:bg-zinc-800 ${isExpanded ? 'border-indigo-300 dark:border-indigo-700' : 'border-zinc-200 dark:border-zinc-700'}`}
+                  className={`cursor-pointer rounded-lg border bg-white p-3 active:bg-zinc-50 dark:bg-zinc-900 dark:active:bg-zinc-800 ${isExpanded ? 'border-teal-300 dark:border-teal-700' : 'border-zinc-200 dark:border-zinc-700'}`}
                   onClick={() => setSelectedId(isExpanded ? null : c.id)}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -288,18 +328,20 @@ export function ExpenseClaimsPage() {
                       {c.status === 'submitted' && (
                         <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
                       )}
-                      {c.status === 'approved' && (
+                      {canFinanceWrite && c.status === 'approved' && (
                         <Button variant="outline" size="sm" onClick={() => setReimburseClaim(c)}><Banknote size={14} /> Reimburse</Button>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                        onClick={() => handleDelete(c.id, c.claimNumber)}
-                        loading={deleteClaim.isPending}
-                      >
-                        <Trash2 size={14} /> Delete
-                      </Button>
+                      {canFinanceWrite && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          onClick={() => handleDelete(c.id, c.claimNumber)}
+                          loading={deleteClaim.isPending}
+                        >
+                          <Trash2 size={14} /> Delete
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -323,8 +365,10 @@ export function ExpenseClaimsPage() {
                   <TableSkeleton rows={5} cols={6} />
                 ) : claims.length === 0 ? (
                   <TableEmpty colSpan={6} message="No expense claims yet." />
+                ) : filtered.length === 0 ? (
+                  <TableEmpty colSpan={6} message="No claims match your search." />
                 ) : (
-                  claims.map((c) => {
+                  filtered.map((c) => {
                     const si = STATUS_BADGE[c.status];
                     const isExpanded = selectedId === c.id;
                     return (
@@ -343,10 +387,10 @@ export function ExpenseClaimsPage() {
                               {c.status === 'submitted' && (
                                 <Button variant="outline" size="sm" onClick={() => quickAction(c.id, 'approve')}><CheckCircle size={14} /> Approve</Button>
                               )}
-                              {c.status === 'approved' && (
+                              {canFinanceWrite && c.status === 'approved' && (
                                 <Button variant="outline" size="sm" onClick={() => setReimburseClaim(c)}><Banknote size={14} /> Reimburse</Button>
                               )}
-                              {c.status !== 'reimbursed' && (
+                              {canFinanceWrite && c.status !== 'reimbursed' && (
                                 <Button
                                   variant="outline"
                                   size="sm"

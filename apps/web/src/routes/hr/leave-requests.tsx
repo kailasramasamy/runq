@@ -7,10 +7,9 @@ import {
 import { StatTile, EmptyState, Avatar } from '@/components/ar/primitives';
 import {
   useLeaveRequests, useCreateLeaveRequest, useReviewLeaveRequest, useCancelLeaveRequest,
-  useLeaveTypes, useEmployees,
+  useLeaveTypes, useEmployees, useHrMe,
   type LeaveRequestStatus, type LeaveRequest,
 } from '@/hooks/queries/use-hr';
-import { useIsReadOnly } from '@/providers/auth-provider';
 
 const STATUS_FILTERS: Array<{ value: '' | LeaveRequestStatus; label: string }> = [
   { value: '', label: 'All' },
@@ -27,8 +26,11 @@ const STATUS_VARIANT: Record<LeaveRequestStatus, any> = {
 const VALID_STATUSES: LeaveRequestStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
 
 export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } = {}) {
-  const readOnly = useIsReadOnly();
   const { toast } = useToast();
+  const { data: meData } = useHrMe();
+  // Reviewing (approve/reject) is for admins (`all`) and managers (`subset`);
+  // a plain employee (`self`) can raise and cancel their own requests only.
+  const canReview = meData?.data?.scopeKind === 'all' || meData?.data?.scopeKind === 'subset';
   const [status, setStatus] = useState<'' | LeaveRequestStatus>(
     initialStatus && VALID_STATUSES.includes(initialStatus as LeaveRequestStatus)
       ? (initialStatus as LeaveRequestStatus)
@@ -74,9 +76,9 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
         breadcrumbs={[{ label: 'HR', href: '/hr' }, { label: 'Leave requests' }]}
         title="Leave requests"
         description="Apply, review, and track leaves across the workforce."
-        actions={!readOnly && (
+        actions={
           <Button size="sm" onClick={() => setShowNew(true)}><Plus size={13} /> New request</Button>
-        )}
+        }
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -165,7 +167,7 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
               <TableCell><Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge></TableCell>
               <TableCell align="right">
                 <div className="flex items-center justify-end gap-1">
-                  {!readOnly && r.status === 'pending' && (
+                  {canReview && r.status === 'pending' && (
                     <>
                       <Button
                         size="sm"
@@ -180,7 +182,7 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
                       </Button>
                     </>
                   )}
-                  {!readOnly && (r.status === 'pending' || r.status === 'approved') && (
+                  {(r.status === 'pending' || r.status === 'approved') && (
                     <button
                       className="rounded p-1 hover:bg-[var(--surface-2)]"
                       style={{ color: 'var(--text-3)' }}
@@ -224,6 +226,11 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
 function NewLeaveModal({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const create = useCreateLeaveRequest();
+  const { data: meData } = useHrMe();
+  const me = meData?.data;
+  // A plain employee applies for themselves — pre-fill and hide the picker.
+  // Managers / admins pick whom the request is for.
+  const isSelf = me?.scopeKind === 'self' || me?.scopeKind === 'none';
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const { data: typeData } = useLeaveTypes();
 
@@ -234,10 +241,12 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
   const [halfDay, setHalfDay] = useState(false);
   const [reason, setReason] = useState('');
 
+  const effectiveEmployeeId = isSelf ? (me?.employee?.id ?? '') : employeeId;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     create.mutate({
-      employeeId, leaveTypeId, fromDate, toDate: halfDay ? fromDate : toDate, halfDay, reason: reason || undefined,
+      employeeId: effectiveEmployeeId, leaveTypeId, fromDate, toDate: halfDay ? fromDate : toDate, halfDay, reason: reason || undefined,
     }, {
       onSuccess: () => { toast('Leave applied', 'success'); onClose(); },
       onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
@@ -255,7 +264,16 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title="Apply for leave" size="lg">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <Combobox label="Employee *" options={empOptions} value={employeeId} onChange={setEmployeeId} />
+        {isSelf ? (
+          <div className="rounded-md px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}>
+            Applying as{' '}
+            <span className="font-medium" style={{ color: 'var(--text-1)' }}>
+              {me?.employee ? `${me.employee.firstName}${me.employee.lastName ? ' ' + me.employee.lastName : ''}` : 'you'}
+            </span>
+          </div>
+        ) : (
+          <Combobox label="Employee *" options={empOptions} value={employeeId} onChange={setEmployeeId} />
+        )}
         <Combobox label="Leave type *" options={typeOptions} value={leaveTypeId} onChange={setLeaveTypeId} />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label="From date *" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} required />
@@ -268,7 +286,7 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
         <Textarea label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={!employeeId || !leaveTypeId || !fromDate || create.isPending}>
+          <Button type="submit" disabled={!effectiveEmployeeId || !leaveTypeId || !fromDate || create.isPending}>
             {create.isPending ? 'Applying…' : 'Apply'}
           </Button>
         </div>

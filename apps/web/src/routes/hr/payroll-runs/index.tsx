@@ -5,7 +5,7 @@ import {
   PageHeader, Button, Input, Select, Card, CardHeader, CardContent,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, Modal,
 } from '@/components/ui';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { StatTile, EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import {
   usePayrollRuns, useCreatePayrollRun, type PayrollRunStatus,
@@ -27,10 +27,18 @@ export function PayrollRunsListPage() {
   const { toast } = useToast();
   const { data, isLoading } = usePayrollRuns();
   const [showNew, setShowNew] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const runs = data?.data ?? [];
   const totalGross = runs.reduce((s, r) => s + Number(r.totalGross), 0);
   const totalNet = runs.reduce((s, r) => s + Number(r.totalNet), 0);
+  const q = search.trim().toLowerCase();
+  const filteredRuns = runs.filter((r) => {
+    if (q && !`${MONTHS[r.month - 1]} ${r.year}`.toLowerCase().includes(q)) return false;
+    if (statusFilter && r.status !== statusFilter) return false;
+    return true;
+  });
 
   return (
     <div>
@@ -51,6 +59,28 @@ export function PayrollRunsListPage() {
         <StatTile label="Last run" value={runs[0] ? `${MONTHS[runs[0].month - 1]} ${runs[0].year}` : '—'} />
       </div>
 
+      {runs.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by period…"
+          count={filteredRuns.length}
+          noun="run"
+        >
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'processed', label: 'Processed' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'closed', label: 'Closed' },
+            ]}
+          />
+        </ListToolbar>
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -68,7 +98,9 @@ export function PayrollRunsListPage() {
             <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : runs.length === 0 ? (
             <tr><td colSpan={7}><EmptyState icon={<Calculator size={18} />} title="No payroll runs" description="Start a monthly run to compute salaries." /></td></tr>
-          ) : runs.map((r) => (
+          ) : filteredRuns.length === 0 ? (
+            <tr><td colSpan={7}><EmptyState icon={<Calculator size={18} />} title="No runs match" description="Try a different search or filter." /></td></tr>
+          ) : filteredRuns.map((r) => (
             <TableRow key={r.id} onClick={() => navigate({ to: '/hr/payroll-runs/$runId', params: { runId: r.id } })}>
               <TableCell><span className="font-medium" style={{ color: 'var(--text-1)' }}>{MONTHS[r.month - 1]} {r.year}</span></TableCell>
               <TableCell><Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge></TableCell>

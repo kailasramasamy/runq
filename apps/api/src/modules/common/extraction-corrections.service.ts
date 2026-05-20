@@ -1,7 +1,7 @@
 import { extractionCorrections } from '@runq/db';
 import type { Db } from '@runq/db';
 
-type DocType = 'ap_bill' | 'ar_po' | 'bank_statement';
+type DocType = 'ap_bill' | 'ar_po' | 'bank_statement' | 'hr_resume';
 type Method = 'local' | 'ai' | 'template' | 'manual';
 
 export interface RecordCorrectionParams {

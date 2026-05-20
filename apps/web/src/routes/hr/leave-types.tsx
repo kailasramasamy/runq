@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useLeaveTypes, useCreateLeaveType, useUpdateLeaveType, useDeleteLeaveType, useSeedDefaultLeaveTypes,
   type LeaveType,
@@ -28,8 +28,14 @@ export function LeaveTypesPage() {
   const [isPaid, setIsPaid] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const types = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? types.filter((t: LeaveType) =>
+        t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q))
+    : types;
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -95,6 +101,16 @@ export function LeaveTypesPage() {
         </Modal>
       )}
 
+      {types.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name or code…"
+          count={filtered.length}
+          noun="leave type"
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -112,7 +128,9 @@ export function LeaveTypesPage() {
             <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : types.length === 0 ? (
             <tr><td colSpan={7}><EmptyState icon={<CalendarOff size={18} />} title="No leave types" description="Click Seed defaults or add manually above." /></td></tr>
-          ) : types.map((t: LeaveType) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={7}><EmptyState icon={<CalendarOff size={18} />} title="No leave types match" description="Try a different search term." /></td></tr>
+          ) : filtered.map((t: LeaveType) => (
             <TableRow key={t.id}>
               <TableCell><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{t.code}</span></TableCell>
               <TableCell style={{ color: 'var(--text-2)' }}>{t.name}</TableCell>

@@ -9,8 +9,8 @@ import { AttachmentService } from './attachment.service';
 import { getStorageProvider } from '../../utils/storage';
 import { AppError } from '../../utils/errors';
 
-const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
-const WRITE_ROLES = ['owner', 'accountant'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const WRITE_ROLES = ['owner', 'accountant', 'hr'] as const;
 
 export const attachmentRoutes: FastifyPluginAsync = async (app) => {
   app.post(

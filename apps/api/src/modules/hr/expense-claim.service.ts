@@ -1,7 +1,8 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { expenseClaims, expenseClaimItems, users } from '@runq/db';
+import { expenseClaims, expenseClaimItems, users, employees } from '@runq/db';
 import type { Db } from '@runq/db';
-import { NotFoundError, ConflictError } from '../../utils/errors';
+import { NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
+import { applyHrScope, type HrAccessScope } from './access-scope';
 
 type ClaimRow = typeof expenseClaims.$inferSelect;
 type ItemRow = typeof expenseClaimItems.$inferSelect;
@@ -10,6 +11,10 @@ export class ExpenseClaimService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
+    /// Optional HR scope. Used by approve() to gate a manager to their
+    /// reporting subtree. Defaults to org-wide so admin / accountant /
+    /// internal callers keep their full reach.
+    private readonly scope: HrAccessScope = { kind: 'all' },
   ) {}
 
   async list(filters?: { status?: string; claimantId?: string }) {
@@ -21,11 +26,19 @@ export class ExpenseClaimService {
       conditions.push(eq(expenseClaims.claimantId, filters.claimantId));
     }
 
+    // Scope: a viewer sees only their own claims, a manager their team's.
+    // Claims are keyed by claimant user; left-join to the matching employee
+    // (email match, same as /hr/me) so applyHrScope can filter on emp id.
+    // A claimant with no employee row falls out of any non-`all` scope.
     const rows = await this.db
       .select({ claim: expenseClaims, claimantName: users.name })
       .from(expenseClaims)
       .innerJoin(users, eq(expenseClaims.claimantId, users.id))
-      .where(and(...conditions))
+      .leftJoin(employees, and(
+        eq(employees.tenantId, this.tenantId),
+        sql`lower(${employees.email}) = lower(${users.email})`,
+      ))
+      .where(applyHrScope(this.scope, employees.id, and(...conditions)))
       .orderBy(desc(expenseClaims.createdAt));
 
     return rows.map((r) => ({ ...this.toClaim(r.claim), claimantName: r.claimantName }));
@@ -103,6 +116,36 @@ export class ExpenseClaimService {
     const claim = await this.requireClaim(id);
     if (claim.status !== 'submitted') {
       throw new ConflictError('Only submitted claims can be approved/rejected');
+    }
+
+    // Self-approval guard. A user can never decide on their own claim,
+    // regardless of role — including owners. Audit trail expectation.
+    if (claim.claimantId === userId) {
+      throw new ForbiddenError('You cannot approve or reject your own expense claim');
+    }
+
+    // Scope guard. Managers (kind: 'subset') can only act on claims
+    // filed by employees in their reporting subtree. Resolve the
+    // claim's claimant → employee via the same email-match pattern
+    // /hr/me uses, then check the resulting employee.id is in scope.
+    if (this.scope.kind === 'subset' || this.scope.kind === 'self') {
+      const [emp] = await this.db
+        .select({ id: employees.id })
+        .from(users)
+        .innerJoin(
+          employees,
+          and(
+            eq(employees.tenantId, this.tenantId),
+            sql`lower(${employees.email}) = lower(${users.email})`,
+          ),
+        )
+        .where(eq(users.id, claim.claimantId))
+        .limit(1);
+      const inScope = emp != null
+        && (this.scope.kind === 'subset' ? this.scope.ids.has(emp.id) : this.scope.selfEmployeeId === emp.id);
+      if (!inScope) {
+        throw new ForbiddenError('This claim is outside your approval scope');
+      }
     }
 
     const updates = approved

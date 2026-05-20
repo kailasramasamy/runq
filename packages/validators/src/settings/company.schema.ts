@@ -39,6 +39,20 @@ export const companySettingsSchema = z.object({
   pfEstablishmentCode: z.string().max(30).nullish(),
   ptRegistrationNumber: z.string().max(30).nullish(),
   tan: z.string().regex(/^[A-Z]{4}[0-9]{5}[A-Z]$/, 'Invalid TAN format').nullish(),
+  // HR letter signatory — printed at the bottom of every issued letter
+  // (offer, experience, salary certificate, etc.) under the typed signature
+  // line. `signatureImageUrl` is a storage key for an uploaded signature
+  // PNG; rendered when letters move to PDF (today's plain-text bodies
+  // use the typed name + designation).
+  // Storage key for the tenant's logo. Rendered in the letter PDF header
+   // and (eventually) on invoices/receipts.
+  companyLogoUrl: z.string().max(500).nullish(),
+  hrSignatory: z.object({
+    name: z.string().max(120).nullish(),
+    designation: z.string().max(120).nullish(),
+    email: z.string().email().nullish().or(z.literal('')),
+    signatureImageUrl: z.string().max(500).nullish(),
+  }).nullish(),
 });
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;

@@ -26,9 +26,15 @@ dependencies:
   receive_sharing_intent: ^1.8.1
   package_info_plus: ^8.3.0
   url_launcher: ^6.3.2
+  # Geo-location for HR mobile attendance check-in / out (phase-next).
+  geolocator: ^13.0.4
   # Multi-page bill scanning: stitch scanned page images into a single
   # grayscale PDF on-device before uploading.
   pdf: ^3.11.0
+  # Sibling to `pdf` — used purely for PdfGoogleFonts so the payslip
+  # PDF can render ₹ and em-dash (the default Helvetica core fonts
+  # are ASCII-only). No printer/preview features used.
+  printing: ^5.13.0
   image: ^4.5.4
   # App-sandboxed temp dir — required for share_plus to expose attachment
   # files to the iOS share extension.

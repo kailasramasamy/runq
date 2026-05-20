@@ -1,5 +1,5 @@
 import { eq, and, isNull, gte, lte, sql, notExists } from 'drizzle-orm';
-import { employees, employeeSalary, attendance, payrollRuns } from '@runq/db';
+import { employees, employeeSalary, attendance, payrollRuns, hrTickets } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyHrScope, type HrAccessScope } from './access-scope';
 
@@ -66,6 +66,7 @@ export class HrDashboardService {
       notMarkedRow,
       confirmationsRow,
       attendanceRow,
+      helpdeskWaitingRow,
     ] = await Promise.all([
       // Current month payroll run, if one exists
       this.db
@@ -140,6 +141,18 @@ export class HrDashboardService {
           sql`extract(year from ${attendance.date})`,
           sql`extract(month from ${attendance.date})`,
         ),
+
+      // Helpdesk tickets the AI agent has flagged for human attention.
+      // Either explicitly waiting_human, or agent_escalated_at is set and
+      // the ticket isn't yet closed.
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(hrTickets)
+        .where(and(
+          eq(hrTickets.tenantId, this.tenantId),
+          sql`${hrTickets.status} IN ('open', 'in_progress', 'waiting_human')`,
+          sql`${hrTickets.agentEscalatedAt} IS NOT NULL OR ${hrTickets.status} = 'waiting_human'`,
+        )),
     ]);
 
     const run = payrollRun[0];
@@ -171,6 +184,7 @@ export class HrDashboardService {
       employeesWithoutSalary: missingSalaryRow[0]?.count ?? 0,
       attendanceNotMarkedToday: notMarkedRow[0]?.count ?? 0,
       confirmationsDue: confirmationsRow[0]?.count ?? 0,
+      helpdeskWaiting: helpdeskWaitingRow[0]?.count ?? 0,
       attendanceTrend,
     };
   }

@@ -16,7 +16,7 @@
 // that need the raw set (counts, joins, multi-table filters) read [.ids].
 
 import { FastifyRequest } from 'fastify';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { employees, users } from '@runq/db';
 
 export type HrAccessScope =
@@ -124,7 +124,11 @@ export function applyHrScope(
     ? [scope.selfEmployeeId]
     : Array.from(scope.ids);
   if (ids.length === 0) return and(base, sql`false`);
-  return and(base, sql`${column} = ANY(${ids}::uuid[])`);
+  // Use inArray rather than ANY(::uuid[]) — drizzle binds JS arrays as a
+  // record tuple ($1, $2, …) which Postgres refuses to cast to uuid[]
+  // ("cannot cast type record to uuid[]"). inArray expands to a regular
+  // `column IN ($1, $2, …)` with each id as its own parameter.
+  return and(base, inArray(column, ids));
 }
 
 /// True when the scope is "all" — useful for shortcutting expensive

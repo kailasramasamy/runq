@@ -1,5 +1,5 @@
-import { eq, and, asc } from 'drizzle-orm';
-import { leaveTypes, leaveRequests } from '@runq/db';
+import { eq, and, asc, sql } from 'drizzle-orm';
+import { employees, leaveTypes, leaveRequests } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateLeaveTypeInput, UpdateLeaveTypeInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -16,11 +16,42 @@ const DEFAULT_TYPES = [
 export class LeaveTypeService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
 
-  async list() {
+  /// When `forEmployeeId` is set, hide gender-gated types that don't
+  /// apply to that employee (e.g. Ramesh shouldn't see Maternity in the
+  /// Apply Leave sheet). Admin screens omit the filter and see every
+  /// configured type so they can manage them. NULL-gender employees see
+  /// only 'all'-applicable types — same strict policy as the balances
+  /// endpoint.
+  async list(opts: { forEmployeeId?: string } = {}) {
+    const conditions = [eq(leaveTypes.tenantId, this.tenantId)];
+
+    if (opts.forEmployeeId) {
+      const [emp] = await this.db
+        .select({ gender: employees.gender })
+        .from(employees)
+        .where(and(
+          eq(employees.id, opts.forEmployeeId),
+          eq(employees.tenantId, this.tenantId),
+        ))
+        .limit(1);
+      // Out-of-tenant or non-existent employeeId is silently treated as
+      // "no employee" → only the 'all' types come back. We don't 404
+      // here because /hr/leave-types is a read endpoint many surfaces
+      // rely on and a typo shouldn't crash them.
+      if (emp?.gender) {
+        conditions.push(sql`(
+          ${leaveTypes.applicableGender} = 'all'
+          OR ${leaveTypes.applicableGender} = ${emp.gender}::text
+        )`);
+      } else {
+        conditions.push(sql`${leaveTypes.applicableGender} = 'all'`);
+      }
+    }
+
     return this.db
       .select()
       .from(leaveTypes)
-      .where(eq(leaveTypes.tenantId, this.tenantId))
+      .where(and(...conditions))
       .orderBy(asc(leaveTypes.code));
   }
 

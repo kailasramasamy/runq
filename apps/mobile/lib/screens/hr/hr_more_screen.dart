@@ -11,7 +11,6 @@ import 'package:go_router/go_router.dart';
 import '../../providers/app_module_provider.dart';
 import '../../providers/app_role_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/hr_persona_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -25,7 +24,6 @@ class HrMoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final me = ref.watch(hrMeProvider).asData?.value;
-    final persona = ref.watch(hrPersonaProvider);
     final role = ref.watch(appRoleProvider);
 
     return Scaffold(
@@ -77,53 +75,69 @@ class HrMoreScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (role.canSeeManagerPersona) ...[
-            HrRoleSegment(
-              managerActive: persona == HrPersona.manager,
-              onChange: (m) => ref.read(hrPersonaProvider.notifier)
-                  .setPersona(m ? HrPersona.manager : HrPersona.employee),
-            ),
-            const SizedBox(height: 12),
-          ],
           _QuickGrid(
             items: [
+              _QA(Icons.fingerprint_outlined, 'Check in', const Color(0xFF0EA5E9), () => context.push('/hr/check-in')),
               _QA(Icons.description_outlined, 'My Payslip', const Color(0xFF7C3AED), () => context.push('/hr/pay')),
               _QA(Icons.event_available_outlined, 'Apply Leave', const Color(0xFF06B6D4), () => context.push('/hr/pay?tab=leave')),
-              _QA(Icons.receipt_outlined, 'My Claims', const Color(0xFFD97706), () => context.push('/hr/expense-claims')),
+              _QA(Icons.receipt_outlined, 'My Claims', const Color(0xFFD97706), () => context.push('/hr/pay?tab=expenses')),
               _QA(Icons.groups_outlined, 'Team', const Color(0xFF16A34A), () => context.push('/hr/people')),
+              _QA(Icons.help_outline, 'Helpdesk', const Color(0xFFEC4899), () => context.push('/hr/helpdesk')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SettingsGroup(
+            title: 'Self-service',
+            rows: [
+              _Row(Icons.event_busy_outlined, 'Regularize attendance', onTap: () => context.push('/hr/regularizations')),
+              _Row(Icons.account_balance_outlined, 'Tax declarations (12BB)', onTap: () => context.push('/hr/tax-declarations')),
+              _Row(Icons.credit_card_outlined, 'My loans', onTap: () => context.push('/hr/loans')),
+              _Row(Icons.assignment_turned_in_outlined, 'My onboarding', onTap: () => context.push('/hr/onboarding')),
+              _Row(Icons.contact_page_outlined, 'My resume', onTap: () => context.push('/hr/my-resume')),
+              _Row(Icons.article_outlined, 'My letters', onTap: () => context.push('/hr/letters')),
+              _Row(Icons.flag_circle_outlined, 'My performance', onTap: () => context.push('/hr/performance')),
             ],
           ),
           const SizedBox(height: 16),
-          _SettingsGroup(
-            title: 'HR setup',
-            rows: [
-              const _Row(Icons.apartment_outlined, 'Departments'),
-              const _Row(Icons.badge_outlined, 'Designations'),
-              _Row(Icons.event_note_outlined, 'Leave types', onTap: () => context.push('/hr/leave-types')),
-              _Row(Icons.tune_outlined, 'Adjust leave balance',
-                  onTap: () => showAdjustLeaveBalanceSheet(context)),
-              const _Row(Icons.schedule_outlined, 'Shifts'),
-              _Row(Icons.flag_outlined, 'Holidays', onTap: () => context.push('/hr/holidays')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _SettingsGroup(
-            title: 'Payroll',
-            rows: [
-              _Row(Icons.calculate_outlined, 'Payroll runs',
-                  onTap: () => context.push('/hr/payroll-runs')),
-              _Row(Icons.tune_outlined, 'Salary components',
-                  onTap: () => context.push('/hr/salary-components')),
-              _Row(Icons.layers_outlined, 'Salary structures',
-                  onTap: () => context.push('/hr/salary-structures')),
-            ],
-          ),
-          const SizedBox(height: 12),
+          // HR setup + Payroll are configuration surfaces — admins and HR
+          // personnel only. Managers can approve leave but don't configure
+          // the system; employees see neither group.
+          if (role.canManageHrSetup) ...[
+            _SettingsGroup(
+              title: 'HR setup',
+              rows: [
+                const _Row(Icons.apartment_outlined, 'Departments'),
+                const _Row(Icons.badge_outlined, 'Designations'),
+                _Row(Icons.event_note_outlined, 'Leave types', onTap: () => context.push('/hr/leave-types')),
+                _Row(Icons.tune_outlined, 'Adjust leave balance',
+                    onTap: () => showAdjustLeaveBalanceSheet(context)),
+                const _Row(Icons.schedule_outlined, 'Shifts'),
+                _Row(Icons.flag_outlined, 'Holidays', onTap: () => context.push('/hr/holidays')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SettingsGroup(
+              title: 'Payroll',
+              rows: [
+                _Row(Icons.calculate_outlined, 'Payroll runs',
+                    onTap: () => context.push('/hr/payroll-runs')),
+                _Row(Icons.tune_outlined, 'Salary components',
+                    onTap: () => context.push('/hr/salary-components')),
+                _Row(Icons.layers_outlined, 'Salary structures',
+                    onTap: () => context.push('/hr/salary-structures')),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           _SettingsGroup(
             title: 'Account',
             rows: [
-              const _Row(Icons.notifications_outlined, 'Notifications'),
-              const _Row(Icons.translate_outlined, 'Language'),
+              _Row(Icons.dark_mode_outlined, 'Appearance',
+                  onTap: () => context.push('/profile/appearance')),
+              _Row(Icons.notifications_outlined, 'Notifications',
+                  onTap: () => context.push('/profile/notifications')),
+              _Row(Icons.translate_outlined, 'Language',
+                  onTap: () => context.push('/profile/language')),
               // Module switch is admin-only — managers + employees have no
               // Finance surfaces, so the row would route them to a screen
               // the redirect immediately bounces back from.

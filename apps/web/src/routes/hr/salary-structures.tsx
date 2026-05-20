@@ -4,7 +4,7 @@ import {
   PageHeader, Button, Input, Select, Combobox, Textarea, Card, CardHeader, CardContent,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, Modal, ConfirmationDialog,
 } from '@/components/ui';
-import { EmptyState } from '@/components/ar/primitives';
+import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useSalaryStructures, useSalaryStructure, useCreateSalaryStructure, useDeleteSalaryStructure,
   useSalaryComponents,
@@ -26,8 +26,14 @@ export function SalaryStructuresPage() {
   const [showNew, setShowNew] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const structures = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? structures.filter((s) =>
+        s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q))
+    : structures;
 
   return (
     <div>
@@ -39,6 +45,16 @@ export function SalaryStructuresPage() {
           <Button size="sm" onClick={() => setShowNew(true)}><Plus size={13} /> New structure</Button>
         )}
       />
+
+      {structures.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by name…"
+          count={filtered.length}
+          noun="structure"
+        />
+      )}
 
       <Table>
         <TableHeader>
@@ -53,7 +69,9 @@ export function SalaryStructuresPage() {
             <tr><td colSpan={3} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : structures.length === 0 ? (
             <tr><td colSpan={3}><EmptyState icon={<Layers size={18} />} title="No structures yet" description="Create a structure (e.g. Worker, Office Staff) to assign to employees." /></td></tr>
-          ) : structures.map((s) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={3}><EmptyState icon={<Layers size={18} />} title="No structures match" description="Try a different search term." /></td></tr>
+          ) : filtered.map((s) => (
             <TableRow key={s.id} onClick={() => setViewId(s.id)}>
               <TableCell><span className="font-medium" style={{ color: 'var(--text-1)' }}>{s.name}</span></TableCell>
               <TableCell style={{ color: 'var(--text-2)' }}>{s.description ?? <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>

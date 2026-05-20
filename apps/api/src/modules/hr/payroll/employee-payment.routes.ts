@@ -6,19 +6,21 @@ import {
 import { rbacHook } from '../../../hooks/rbac';
 import { EmployeePaymentService } from './employee-payment.service';
 
-const ALL = ['owner', 'accountant', 'viewer'] as const;
+// Employee payment records carry per-employee pay — admin roles only,
+// no viewer. Recording a payment moves money so WRITE stays owner/accountant.
+const MANAGE = ['owner', 'accountant', 'hr'] as const;
 const WRITE = ['owner', 'accountant'] as const;
 
 const runIdQuery = z.object({ payrollRunId: z.string().uuid().optional() });
 
 export const employeePaymentRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/employee-payments', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/employee-payments', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { payrollRunId } = runIdQuery.parse(req.query);
     const svc = new EmployeePaymentService(req.server.db, req.tenantId);
     return { data: payrollRunId ? await svc.listForRun(payrollRunId) : await svc.list() };
   });
 
-  app.get('/employee-payments/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/employee-payments/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new EmployeePaymentService(req.server.db, req.tenantId);
     return { data: await svc.getById(id) };

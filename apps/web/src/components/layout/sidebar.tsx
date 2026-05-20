@@ -8,7 +8,7 @@ import {
   FileInput, ClipboardCheck, PackageCheck, FileX, CreditCard, Building2, Wallet, Split,
   Package, Warehouse, MoveRight,
   Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target, PieChart,
-  ShieldCheck, FileCheck2, ScrollText, History,
+  ShieldCheck, ScrollText, History,
   GitBranch, Layers, UserCog, Plug, Settings,
   Zap, LifeBuoy, Command, Bell, Mail,
   PanelLeftClose, PanelLeftOpen, Menu, X,
@@ -16,10 +16,12 @@ import {
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
   Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
+  Megaphone, MapPin, UserPlus, LogOut, FileCheck2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
+import { useAuth, canAccessFinanceModule, canManageHrModule } from '../../providers/auth-provider';
 
 export type NavItem = {
   key: string;
@@ -36,6 +38,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
     label: null,
     items: [
       { key: 'hr-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/hr' },
+      { key: 'hr-announcements', label: 'Announcements', icon: Megaphone, path: '/hr/announcements' },
     ],
   },
   {
@@ -52,8 +55,11 @@ export const HR_NAV_GROUPS: NavGroup[] = [
     label: 'Time & attendance',
     items: [
       { key: 'hr-attendance', label: 'Attendance', icon: CalendarClock, path: '/hr/attendance' },
+      { key: 'hr-attendance-punches', label: 'Punches', icon: Clock3, path: '/hr/attendance-punches' },
+      { key: 'hr-regularizations', label: 'Regularizations', icon: ClipboardList, path: '/hr/regularizations' },
       { key: 'hr-shifts', label: 'Shifts', icon: Clock3, path: '/hr/shifts' },
       { key: 'hr-holidays', label: 'Holidays', icon: CalendarDays, path: '/hr/holidays' },
+      { key: 'hr-geo-fences', label: 'Geo-fences', icon: MapPin, path: '/hr/geo-fences' },
     ],
   },
   {
@@ -65,11 +71,29 @@ export const HR_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'Lifecycle',
+    items: [
+      { key: 'hr-onboarding', label: 'Onboarding', icon: UserPlus, path: '/hr/onboarding' },
+      { key: 'hr-letters', label: 'Letters', icon: FileText, path: '/hr/letters' },
+      { key: 'hr-fnf', label: 'Full & final', icon: LogOut, path: '/hr/fnf' },
+    ],
+  },
+  {
+    label: 'Performance & engagement',
+    items: [
+      { key: 'hr-performance', label: 'Performance', icon: Target, path: '/hr/performance' },
+      { key: 'hr-helpdesk', label: 'Helpdesk', icon: LifeBuoy, path: '/hr/helpdesk' },
+    ],
+  },
+  {
     label: 'Payroll',
     items: [
       { key: 'hr-payroll-runs', label: 'Payroll runs', icon: Calculator, path: '/hr/payroll-runs' },
       { key: 'hr-salary-structures', label: 'Salary structures', icon: Layers, path: '/hr/salary-structures' },
       { key: 'hr-salary-components', label: 'Salary components', icon: Coins, path: '/hr/salary-components' },
+      { key: 'hr-tax-declarations', label: 'Tax declarations (12BB)', icon: FileCheck2, path: '/hr/tax-declarations' },
+      { key: 'hr-loans', label: 'Loans & advances', icon: CreditCard, path: '/hr/loans' },
+      { key: 'hr-loan-policy', label: 'Loan policy', icon: ShieldCheck, path: '/hr/loan-policy' },
       { key: 'hr-tds-challans', label: 'TDS challans', icon: Landmark, path: '/hr/tds-challans' },
       { key: 'hr-form-24q', label: 'Form 24Q (TDS)', icon: Receipt, path: '/hr/form-24q' },
       { key: 'hr-form-16', label: 'Form 16', icon: FileText, path: '/hr/form-16' },
@@ -78,7 +102,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Money',
     items: [
-      { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/finance/expenses/claims' },
+      { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/hr/expense-claims' },
     ],
   },
   {
@@ -162,6 +186,15 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+// HR nav keys a non-admin (`viewer` / line manager) may see — self-service
+// and manager-scoped pages only. Everything else (setup, payroll, TDS,
+// onboarding, lifecycle…) is HR-admin only. Mirrors the API allow-lists.
+const VIEWER_HR_KEYS = new Set<string>([
+  'hr-dashboard', 'hr-announcements', 'hr-employees', 'hr-org-chart',
+  'hr-attendance', 'hr-regularizations', 'hr-holidays',
+  'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
+]);
 
 type ModuleKey = 'finance' | 'hr';
 const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
@@ -327,6 +360,15 @@ function SidebarContent({
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme } = useTheme();
+  const { user } = useAuth();
+  // Only owner / accountant / client_owner reach the Finance module;
+  // hr + viewer are HR-only. Hide the module switcher for them and lock
+  // the sidebar to HR.
+  const financeAllowed = canAccessFinanceModule(user?.role);
+  // The Upgrade card is a billing CTA — only owners/accountants/HR admins can act on it.
+  const showUpgrade = canManageHrModule(user?.role);
+  // Help & docs is for owners/accountants/HR admins — not employee self-service.
+  const showHelp = canManageHrModule(user?.role);
   const inboxQuery = useInboxCount();
   const inboxCount = inboxQuery.data?.data?.count ?? 0;
   const pendingClaimsQuery = usePendingPaymentClaimsCount();
@@ -334,13 +376,23 @@ function SidebarContent({
 
   // Settings is a shared namespace — keep whichever module the user came from.
   const isSettings = currentPath === '/settings' || currentPath.startsWith('/settings/');
-  const activeModule: 'hr' | 'finance' = isSettings
-    ? lastActiveModule
-    : currentPath === '/hr' || currentPath.startsWith('/hr/')
-      ? 'hr'
-      : 'finance';
+  const activeModule: 'hr' | 'finance' = !financeAllowed
+    ? 'hr'
+    : isSettings
+      ? lastActiveModule
+      : currentPath === '/hr' || currentPath.startsWith('/hr/')
+        ? 'hr'
+        : 'finance';
   if (!isSettings) lastActiveModule = activeModule;
-  const groups = activeModule === 'hr' ? HR_NAV_GROUPS : NAV_GROUPS;
+  // The ⌘K shortcut palette is Finance-only.
+  const showCommand = activeModule === 'finance';
+  let groups = activeModule === 'hr' ? HR_NAV_GROUPS : NAV_GROUPS;
+  // Non-admin HR users get the trimmed self-service menu.
+  if (activeModule === 'hr' && !canManageHrModule(user?.role)) {
+    groups = HR_NAV_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((i) => VIEWER_HR_KEYS.has(i.key)) }))
+      .filter((g) => g.items.length > 0);
+  }
 
   const allPaths = groups.flatMap((g) => g.items.map((i) => i.path));
   const bestMatch = allPaths
@@ -397,7 +449,7 @@ function SidebarContent({
                   className="h-[18px] w-auto max-w-none shrink-0"
                 />
               </Link>
-              <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />
+              {financeAllowed && <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />}
             </div>
             {onToggleCollapse && (
               <button
@@ -460,7 +512,7 @@ function SidebarContent({
       </nav>
 
       {/* Upgrade card */}
-      {!collapsed && (
+      {!collapsed && showUpgrade && (
         <div className="px-3 pb-3">
           <div
             className="relative overflow-hidden rounded-lg border p-3"
@@ -492,6 +544,7 @@ function SidebarContent({
       )}
 
       {/* Footer: help + ⌘K */}
+      {(showHelp || showCommand) && (
       <div
         className={cn(
           'border-t',
@@ -499,32 +552,37 @@ function SidebarContent({
         )}
         style={{ borderColor: 'var(--border-soft)' }}
       >
-        <Link
-          to={activeModule === 'hr' ? '/hr/help' : '/finance/help'}
-          title="Help & docs"
-          className={cn(
-            'flex items-center rounded-md text-[12px] hover:bg-[color:var(--surface-2)]',
-            collapsed ? 'h-8 w-8 justify-center' : 'h-7 flex-1 gap-2 px-2',
-          )}
-          style={{ color: 'var(--text-3)' }}
-        >
-          <LifeBuoy size={13} />
-          {!collapsed && <span>Help & docs</span>}
-        </Link>
-        <button
-          onClick={() => {
-            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
-          }}
-          title="Keyboard shortcuts (⌘K)"
-          className={cn(
-            'flex items-center justify-center rounded-md hover:bg-[color:var(--surface-2)]',
-            collapsed ? 'h-8 w-8' : 'h-7 w-7',
-          )}
-          style={{ color: 'var(--text-3)' }}
-        >
-          <Command size={13} />
-        </button>
+        {showHelp && (
+          <Link
+            to={activeModule === 'hr' ? '/hr/help' : '/finance/help'}
+            title="Help & docs"
+            className={cn(
+              'flex items-center rounded-md text-[12px] hover:bg-[color:var(--surface-2)]',
+              collapsed ? 'h-8 w-8 justify-center' : 'h-7 flex-1 gap-2 px-2',
+            )}
+            style={{ color: 'var(--text-3)' }}
+          >
+            <LifeBuoy size={13} />
+            {!collapsed && <span>Help & docs</span>}
+          </Link>
+        )}
+        {showCommand && (
+          <button
+            onClick={() => {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+            }}
+            title="Keyboard shortcuts (⌘K)"
+            className={cn(
+              'flex items-center justify-center rounded-md hover:bg-[color:var(--surface-2)]',
+              collapsed ? 'h-8 w-8' : 'h-7 w-7',
+            )}
+            style={{ color: 'var(--text-3)' }}
+          >
+            <Command size={13} />
+          </button>
+        )}
       </div>
+      )}
     </>
   );
 }

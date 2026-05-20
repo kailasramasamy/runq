@@ -6,7 +6,7 @@ import {
   PageHeader, Button, Select, Input, Modal, Badge, useToast,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { StatTile, EmptyState } from '@/components/ar/primitives';
+import { StatTile, EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import {
@@ -43,10 +43,18 @@ export function Form24QPage() {
   const { data, isLoading } = useTdsReturns();
   const [showGenerate, setShowGenerate] = useState(false);
   const [detail, setDetail] = useState<TdsReturn | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const returns = data?.data ?? [];
   const filed = returns.filter((r) => r.status === 'filed').length;
   const totalTds = returns.reduce((s, r) => s + returnTds(r), 0);
+  const q = search.trim().toLowerCase();
+  const filtered = returns.filter((r) => {
+    if (q && !`fy ${r.financialYear} q${r.quarter}`.toLowerCase().includes(q)) return false;
+    if (statusFilter && r.status !== statusFilter) return false;
+    return true;
+  });
 
   return (
     <div>
@@ -70,6 +78,29 @@ export function Form24QPage() {
         <StatTile label="Total TDS reported" value={formatINR(totalTds)} />
       </div>
 
+      {returns.length > 0 && (
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by FY or quarter…"
+          count={filtered.length}
+          noun="return"
+        >
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'validated', label: 'Validated' },
+              { value: 'generated', label: 'Generated' },
+              { value: 'filed', label: 'Filed' },
+              { value: 'error', label: 'Error' },
+            ]}
+          />
+        </ListToolbar>
+      )}
+
       <Table>
         <TableHeader>
           <tr>
@@ -92,7 +123,11 @@ export function Form24QPage() {
                 description="Generate a quarter once its payroll runs are approved and TDS challans deposited."
               />
             </td></tr>
-          ) : returns.map((r) => (
+          ) : filtered.length === 0 ? (
+            <tr><td colSpan={6}>
+              <EmptyState icon={<Receipt size={18} />} title="No returns match" description="Try a different search or filter." />
+            </td></tr>
+          ) : filtered.map((r) => (
             <TableRow key={r.id} onClick={() => setDetail(r)}>
               <TableCell>
                 <span className="num font-medium" style={{ color: 'var(--text-1)' }}>

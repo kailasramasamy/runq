@@ -13,7 +13,8 @@ import { SalaryStructureService } from './payroll/salary-structure.service';
 import { EmployeeSalaryService } from './payroll/employee-salary.service';
 import { PayrollRunService } from './payroll/payroll-run.service';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+// Payroll reads expose company-wide pay data — admin roles only, no viewer.
+const MANAGE = ['owner', 'accountant', 'hr'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const employeeIdQuery = z.object({ employeeId: z.string().uuid() });
@@ -21,7 +22,7 @@ const payslipParams = z.object({ id: z.string().uuid(), payslipId: z.string().uu
 
 export const payrollRoutes: FastifyPluginAsync = async (app) => {
   // --- Salary components ---
-  app.get('/salary-components', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/salary-components', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new SalaryComponentService(req.server.db, req.tenantId);
     return { data: await svc.list() };
   });
@@ -47,11 +48,11 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // --- Salary structures ---
-  app.get('/salary-structures', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/salary-structures', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new SalaryStructureService(req.server.db, req.tenantId);
     return { data: await svc.list() };
   });
-  app.get('/salary-structures/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/salary-structures/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new SalaryStructureService(req.server.db, req.tenantId);
     return { data: await svc.getById(id) };
@@ -74,7 +75,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // --- Employee salaries ---
-  app.get('/employee-salaries', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/employee-salaries', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { employeeId } = employeeIdQuery.parse(req.query);
     const svc = new EmployeeSalaryService(req.server.db, req.tenantId);
     return { data: await svc.listForEmployee(employeeId) };
@@ -86,21 +87,21 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // --- Payroll runs ---
-  app.get('/payroll-runs', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.list() };
   });
-  app.get('/payroll-runs/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.getById(id) };
   });
-  app.get('/payroll-runs/:id/payslips', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id/payslips', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.listPayslips(id) };
   });
-  app.get('/payroll-runs/:id/payslips/:payslipId', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+  app.get('/payroll-runs/:id/payslips/:payslipId', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id, payslipId } = payslipParams.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.getPayslip(id, payslipId) };
