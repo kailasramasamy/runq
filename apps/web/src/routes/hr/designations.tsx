@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Plus, Trash2, IdCard } from 'lucide-react';
+import { Plus, Trash2, IdCard, Sparkles } from 'lucide-react';
 import {
   PageHeader, Button, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
 import { EmptyState, ListToolbar } from '@/components/ar/primitives';
+import { HrAiSuggestDialog } from '@/components/forms/hr-ai-suggest-dialog';
 import {
   useDesignations, useCreateDesignation, useUpdateDesignation, useDeleteDesignation,
+  useSuggestDesignations, useBulkCreateDesignations,
   type Designation,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
@@ -18,10 +20,13 @@ export function DesignationsPage() {
   const create = useCreateDesignation();
   const update = useUpdateDesignation();
   const remove = useDeleteDesignation();
+  const suggestDesigs = useSuggestDesignations();
+  const bulkDesigs = useBulkCreateDesignations();
 
   const [name, setName] = useState('');
   const [level, setLevel] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showAi, setShowAi] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Designation | null>(null);
   const [editName, setEditName] = useState('');
@@ -50,8 +55,25 @@ export function DesignationsPage() {
         title="Designations"
         description="Roles and seniority levels in your organisation."
         actions={!readOnly && (
-          <Button size="sm" onClick={() => setShowAdd(true)}><Plus size={13} /> New designation</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowAi(true)}><Sparkles size={13} /> AI suggest</Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}><Plus size={13} /> New designation</Button>
+          </div>
         )}
+      />
+
+      <HrAiSuggestDialog
+        open={showAi}
+        onClose={() => setShowAi(false)}
+        title="AI — suggest designations"
+        noun="designation"
+        placeholder="e.g. We're a dairy products manufacturer. We collect milk from farmers and make curd, paneer and ghee. Small business, around 40 staff."
+        suggest={async (description) => (await suggestDesigs.mutateAsync(description)).data.suggestions}
+        seed={async (picked) =>
+          (await bulkDesigs.mutateAsync(picked.map((p) => ({ name: p.name, level: p.level })))).data}
+        renderMeta={(s) => (s.level != null ? `Level ${s.level}` : null)}
+        isSuggesting={suggestDesigs.isPending}
+        isSeeding={bulkDesigs.isPending}
       />
 
       {showAdd && (

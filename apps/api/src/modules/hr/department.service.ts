@@ -39,6 +39,33 @@ export class DepartmentService {
     return row;
   }
 
+  async bulkCreate(items: { name: string; code?: string | null }[]) {
+    const existing = await this.db
+      .select({ name: departments.name })
+      .from(departments)
+      .where(eq(departments.tenantId, this.tenantId));
+    const taken = new Set(existing.map((e) => e.name.toLowerCase()));
+
+    const seen = new Set<string>();
+    const values: { tenantId: string; name: string; code: string | null }[] = [];
+    const skipped: string[] = [];
+    for (const item of items) {
+      const name = item.name.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (taken.has(key) || seen.has(key)) {
+        skipped.push(name);
+        continue;
+      }
+      seen.add(key);
+      values.push({ tenantId: this.tenantId, name, code: item.code?.trim() || null });
+    }
+    const created = values.length
+      ? await this.db.insert(departments).values(values).returning()
+      : [];
+    return { created, createdCount: created.length, skipped };
+  }
+
   async update(id: string, input: UpdateDepartmentInput) {
     const [row] = await this.db
       .update(departments)

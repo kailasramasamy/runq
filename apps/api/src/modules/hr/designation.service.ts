@@ -30,6 +30,33 @@ export class DesignationService {
     return row;
   }
 
+  async bulkCreate(items: { name: string; level?: number | null }[]) {
+    const existing = await this.db
+      .select({ name: designations.name })
+      .from(designations)
+      .where(eq(designations.tenantId, this.tenantId));
+    const taken = new Set(existing.map((e) => e.name.toLowerCase()));
+
+    const seen = new Set<string>();
+    const values: { tenantId: string; name: string; level: number | null }[] = [];
+    const skipped: string[] = [];
+    for (const item of items) {
+      const name = item.name.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (taken.has(key) || seen.has(key)) {
+        skipped.push(name);
+        continue;
+      }
+      seen.add(key);
+      values.push({ tenantId: this.tenantId, name, level: item.level ?? null });
+    }
+    const created = values.length
+      ? await this.db.insert(designations).values(values).returning()
+      : [];
+    return { created, createdCount: created.length, skipped };
+  }
+
   async update(id: string, input: UpdateDesignationInput) {
     const [row] = await this.db
       .update(designations)

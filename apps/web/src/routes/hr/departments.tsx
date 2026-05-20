@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Plus, Trash2, Briefcase } from 'lucide-react';
+import { Plus, Trash2, Briefcase, Sparkles } from 'lucide-react';
 import {
   PageHeader, Button, Input, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
 import { EmptyState, ListToolbar } from '@/components/ar/primitives';
+import { HrAiSuggestDialog } from '@/components/forms/hr-ai-suggest-dialog';
 import {
   useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment,
+  useSuggestDepartments, useBulkCreateDepartments,
   useEmployees,
   type Department,
 } from '@/hooks/queries/use-hr';
@@ -21,10 +23,13 @@ export function DepartmentsPage() {
   const create = useCreateDepartment();
   const update = useUpdateDepartment();
   const remove = useDeleteDepartment();
+  const suggestDepts = useSuggestDepartments();
+  const bulkDepts = useBulkCreateDepartments();
 
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showAi, setShowAi] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Department | null>(null);
   const [editName, setEditName] = useState('');
@@ -85,8 +90,25 @@ export function DepartmentsPage() {
         title="Departments"
         description="Define your organisational structure."
         actions={!readOnly && (
-          <Button size="sm" onClick={() => setShowAdd(true)}><Plus size={13} /> New department</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowAi(true)}><Sparkles size={13} /> AI suggest</Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}><Plus size={13} /> New department</Button>
+          </div>
         )}
+      />
+
+      <HrAiSuggestDialog
+        open={showAi}
+        onClose={() => setShowAi(false)}
+        title="AI — suggest departments"
+        noun="department"
+        placeholder="e.g. We're a dairy products manufacturer. We collect milk from farmers and make curd, paneer and ghee. Small business, around 40 staff."
+        suggest={async (description) => (await suggestDepts.mutateAsync(description)).data.suggestions}
+        seed={async (picked) =>
+          (await bulkDepts.mutateAsync(picked.map((p) => ({ name: p.name, code: p.code })))).data}
+        renderMeta={(s) => s.code}
+        isSuggesting={suggestDepts.isPending}
+        isSeeding={bulkDepts.isPending}
       />
 
       {showAdd && (

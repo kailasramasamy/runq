@@ -168,6 +168,38 @@ export function useDeleteDepartment() {
   });
 }
 
+// ─── AI suggest (departments + designations) ─────────────────────────────
+
+export interface DeptSuggestion {
+  name: string;
+  code: string | null;
+  rationale: string;
+}
+export interface DesigSuggestion {
+  name: string;
+  level: number | null;
+  rationale: string;
+}
+export interface BulkSeedResult {
+  createdCount: number;
+  skipped: string[];
+}
+
+export function useSuggestDepartments() {
+  return useMutation({
+    mutationFn: (description: string) =>
+      api.post<ApiSuccess<{ suggestions: DeptSuggestion[] }>>(`/hr/departments/suggest`, { description }),
+  });
+}
+export function useBulkCreateDepartments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (departments: { name: string; code: string | null }[]) =>
+      api.post<ApiSuccess<BulkSeedResult>>(`/hr/departments/bulk`, { departments }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: HR_KEYS.departments }),
+  });
+}
+
 // ─── Designations ────────────────────────────────────────────────────────
 
 export function useDesignations() {
@@ -195,6 +227,20 @@ export function useDeleteDesignation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<Designation>>(`/hr/designations/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: HR_KEYS.designations }),
+  });
+}
+export function useSuggestDesignations() {
+  return useMutation({
+    mutationFn: (description: string) =>
+      api.post<ApiSuccess<{ suggestions: DesigSuggestion[] }>>(`/hr/designations/suggest`, { description }),
+  });
+}
+export function useBulkCreateDesignations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (designations: { name: string; level: number | null }[]) =>
+      api.post<ApiSuccess<BulkSeedResult>>(`/hr/designations/bulk`, { designations }),
     onSuccess: () => qc.invalidateQueries({ queryKey: HR_KEYS.designations }),
   });
 }
