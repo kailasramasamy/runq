@@ -90,16 +90,16 @@ class _GradientHeader extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Take-home pay', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text('Take-home pay', style: RunqText.body.copyWith(color: Colors.white70)),
                 const SizedBox(height: 4),
                 // Clamp to ₹0 same as the Home hero — a negative net
                 // pay means the employee owes money for the period;
                 // showing "−₹14,956" as the headline read as "we'll
                 // pay you minus fifteen thousand," which it isn't.
                 Text(hrFormatINR(ps.netPay < 0 ? 0 : ps.netPay),
-                    style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800)),
+                    style: RunqText.tabular(size: 36, w: FontWeight.w800, color: Colors.white)),
                 const SizedBox(height: 4),
-                Text(ps.periodLabel, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                Text(ps.periodLabel, style: RunqText.body.copyWith(color: Colors.white70)),
                 if (ps.netPay < 0) ...[
                   const SizedBox(height: 10),
                   Container(
@@ -114,9 +114,7 @@ class _GradientHeader extends ConsumerWidget {
                         const Icon(Icons.info_outline_rounded, color: Colors.white, size: 13),
                         const SizedBox(width: 6),
                         Text('${hrFormatINR(-ps.netPay)} due to company · check with HR',
-                            style: const TextStyle(
-                              color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600,
-                            )),
+                            style: RunqText.caption.copyWith(color: Colors.white)),
                       ],
                     ),
                   ),
@@ -146,9 +144,9 @@ class _GradientHeader extends ConsumerWidget {
   Widget _stat(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(label, style: RunqText.label.copyWith(color: Colors.white70)),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(value, style: RunqText.tabular(size: 14, w: FontWeight.w700, color: Colors.white)),
         ],
       );
 
@@ -296,9 +294,9 @@ class _LinesCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 child: Row(
                   children: [
-                    Expanded(child: Text(lines[i].name, style: RunqText.body.copyWith(color: t.ink, fontSize: 13))),
+                    Expanded(child: Text(lines[i].name, style: RunqText.body.copyWith(color: t.ink))),
                     Text(hrFormatINR(lines[i].amount),
-                        style: TextStyle(color: amountColor, fontSize: 13, fontWeight: FontWeight.w700)),
+                        style: RunqText.tabular(size: 13, w: FontWeight.w700, color: amountColor)),
                   ],
                 ),
               ),
@@ -312,9 +310,9 @@ class _LinesCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Expanded(child: Text(totalLabel, style: TextStyle(color: totalInk, fontSize: 13, fontWeight: FontWeight.w700))),
+                Expanded(child: Text(totalLabel, style: RunqText.bodyStrong.copyWith(color: totalInk))),
                 Text(hrFormatINR(totalAmount),
-                    style: TextStyle(color: totalInk, fontSize: 14, fontWeight: FontWeight.w800)),
+                    style: RunqText.tabular(size: 14, w: FontWeight.w800, color: totalInk)),
               ],
             ),
           ),

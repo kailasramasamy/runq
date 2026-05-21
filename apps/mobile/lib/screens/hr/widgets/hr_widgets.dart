@@ -273,7 +273,7 @@ class HrStatusBadge extends StatelessWidget {
       decoration: BoxDecoration(color: pair[0], borderRadius: BorderRadius.circular(999)),
       child: Text(
         (label ?? status).replaceAll('_', ' '),
-        style: TextStyle(color: pair[1], fontSize: 11, fontWeight: FontWeight.w600),
+        style: RunqText.label.copyWith(color: pair[1]),
       ),
     );
   }
@@ -444,9 +444,8 @@ class _Seg extends StatelessWidget {
             const SizedBox(width: 6),
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 220),
-              style: TextStyle(
+              style: RunqText.body.copyWith(
                 color: active ? activeInk : inactiveInk,
-                fontSize: 13,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 letterSpacing: 0.1,
               ),
@@ -514,13 +513,13 @@ class HrModulePill extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               moduleLabel,
-              style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w600),
+              style: RunqText.caption.copyWith(color: ink, fontWeight: FontWeight.w600),
             ),
             if (targetLabel != null) ...[
               const SizedBox(width: 6),
               Text(
                 '→ $targetLabel',
-                style: TextStyle(color: tailInk, fontSize: 12, fontWeight: FontWeight.w500),
+                style: RunqText.caption.copyWith(color: tailInk),
               ),
             ],
           ],
@@ -578,14 +577,11 @@ class HrMusterTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('$value',
-              style: TextStyle(color: pair[1], fontSize: 22, fontWeight: FontWeight.w700)),
+              style: RunqText.tabular(size: 22, w: FontWeight.w700, color: pair[1])),
           const SizedBox(height: 2),
           Text(
             label.toUpperCase(),
-            style: TextStyle(
-              color: pair[1], fontSize: 10, fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
-            ),
+            style: RunqText.micro.copyWith(color: pair[1]),
           ),
         ],
       ),
@@ -693,11 +689,10 @@ class _HrBiometricButtonState extends State<HrBiometricButton>
         const SizedBox(height: 12),
         Text(
           isDone ? 'Checked in!' : (isScan ? 'Scanning…' : 'Tap to check in'),
-          style: TextStyle(
+          style: RunqText.bodyStrong.copyWith(
             color: isDone
                 ? (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF15803D))
                 : (isScan ? HrColors.teal : t.ink),
-            fontSize: 14, fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 2),
@@ -705,7 +700,7 @@ class _HrBiometricButtonState extends State<HrBiometricButton>
           isDone
               ? (widget.successCaption ?? 'Touch ID · Face ID')
               : 'Touch ID · Face ID',
-          style: TextStyle(color: t.muted, fontSize: 11),
+          style: RunqText.caption.copyWith(color: t.muted),
         ),
       ],
     );
@@ -877,7 +872,7 @@ class _HrPendingLeaveCardState extends State<HrPendingLeaveCard>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(widget.employeeName,
-                                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                                     const SizedBox(height: 2),
                                     Text('${widget.employeeCode} · ${widget.leaveTypeName}',
                                         style: RunqText.caption.copyWith(color: t.muted)),
@@ -901,7 +896,7 @@ class _HrPendingLeaveCardState extends State<HrPendingLeaveCard>
                                   children: [
                                     Expanded(
                                       child: Text(_fmtRange(),
-                                          style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                                          style: RunqText.bodyStrong.copyWith(color: t.ink)),
                                     ),
                                     // Inline urgency prompt — same color
                                     // as the stripe so the eye links the
@@ -919,9 +914,8 @@ class _HrPendingLeaveCardState extends State<HrPendingLeaveCard>
                                         ),
                                         const SizedBox(width: 3),
                                         Text(urgency.label,
-                                            style: TextStyle(
+                                            style: RunqText.caption.copyWith(
                                               color: urgency.accent,
-                                              fontSize: 11,
                                               fontWeight: urgency.urgent ? FontWeight.w700 : FontWeight.w600,
                                             )),
                                       ],
@@ -1024,9 +1018,8 @@ class HrWeekStrip extends StatelessWidget {
                 children: [
                   Text(
                     _dayLabel(day.weekday),
-                    style: TextStyle(
+                    style: RunqText.label.copyWith(
                       color: isSelected ? HrColors.teal : t.muted,
-                      fontSize: 11,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1040,9 +1033,9 @@ class HrWeekStrip extends StatelessWidget {
                     alignment: Alignment.center,
                     child: Text(
                       '${day.day}',
-                      style: TextStyle(
+                      style: RunqText.tabular(
+                        size: 14, w: FontWeight.w700,
                         color: isSelected ? Colors.white : pair[1],
-                        fontSize: 13, fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -1137,9 +1130,7 @@ class HrPayslipHero extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(periodLabel,
-                      style: const TextStyle(
-                        color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500,
-                      )),
+                      style: RunqText.body.copyWith(color: Colors.white)),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1148,20 +1139,18 @@ class HrPayslipHero extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(statusLabel,
-                      style: const TextStyle(
-                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
-                      )),
+                      style: RunqText.label.copyWith(
+                          color: Colors.white, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
             const SizedBox(height: 6),
             Text(_fmt(displayNet),
-                style: const TextStyle(
-                  color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                )),
+                style: RunqText.tabular(
+                    size: 28, w: FontWeight.w800, color: Colors.white)),
             Text('Take-home pay',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12)),
+                style: RunqText.caption.copyWith(
+                    color: Colors.white.withValues(alpha: 0.85))),
             if (owed > 0) ...[
               const SizedBox(height: 10),
               Container(
@@ -1176,9 +1165,8 @@ class HrPayslipHero extends StatelessWidget {
                     const Icon(Icons.info_outline_rounded, color: Colors.white, size: 13),
                     const SizedBox(width: 6),
                     Text('${_fmt(owed)} due to company · check with HR',
-                        style: const TextStyle(
-                          color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600,
-                        )),
+                        style: RunqText.caption.copyWith(
+                            color: Colors.white, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -1211,10 +1199,8 @@ class HrPayslipHero extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text('Tap for full breakdown',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500)),
+                  style: RunqText.caption.copyWith(
+                      color: Colors.white.withValues(alpha: 0.75))),
             ),
           ],
         ),
@@ -1227,15 +1213,12 @@ class HrPayslipHero extends StatelessWidget {
       children: [
         Expanded(
           child: Text(label,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13)),
+              style: RunqText.body.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9))),
         ),
         Text(value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              fontFeatures: [FontFeature.tabularFigures()],
-            )),
+            style: RunqText.tabular(
+                size: 14, w: FontWeight.w700, color: Colors.white)),
       ],
     );
   }
@@ -1422,9 +1405,8 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
                   ),
                   child: Text(
                     lt.code,
-                    style: TextStyle(
+                    style: RunqText.bodyStrong.copyWith(
                       color: active ? HrColors.teal : t.ink,
-                      fontSize: 13, fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -1449,7 +1431,7 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
                   color: _halfDay ? HrColors.teal : t.muted, size: 20,
                 ),
                 const SizedBox(width: 6),
-                Text('Half day', style: RunqText.body.copyWith(color: t.ink, fontSize: 13)),
+                Text('Half day', style: RunqText.body.copyWith(color: t.ink)),
               ],
             ),
           ),
@@ -1507,12 +1489,11 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+            Text(label, style: RunqText.caption.copyWith(color: t.muted)),
             const SizedBox(height: 2),
             Text(body,
-                style: TextStyle(
+                style: RunqText.bodyStrong.copyWith(
                   color: value == null ? t.muted : t.ink,
-                  fontSize: 14, fontWeight: FontWeight.w600,
                 )),
           ],
         ),

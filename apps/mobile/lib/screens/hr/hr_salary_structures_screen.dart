@@ -140,12 +140,12 @@ class _StructureRow extends ConsumerWidget {
                   children: [
                     Text(s.name,
                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     if (s.description != null && s.description!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(s.description!,
                           maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                          style: RunqText.caption.copyWith(color: t.muted)),
                     ],
                   ],
                 ),
@@ -326,16 +326,14 @@ class _HrSalaryStructureFormScreenState extends ConsumerState<HrSalaryStructureF
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
                 child: Text(
                   'COMPONENTS',
-                  style: TextStyle(
-                    color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-                  ),
+                  style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5),
                 ),
               ),
               const Spacer(),
               if (fixedTotal > 0)
                 Text(
                   'Fixed ${hrFormatINR(fixedTotal)}',
-                  style: RunqText.bodyStrong.copyWith(color: HrColors.brand(context), fontSize: 13),
+                  style: RunqText.bodyStrong.copyWith(color: HrColors.brand(context)),
                 ),
             ],
           ),
@@ -365,10 +363,10 @@ class _HrSalaryStructureFormScreenState extends ConsumerState<HrSalaryStructureF
               child: Column(
                 children: [
                   Text('No components defined yet',
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 4),
                   Text('Add salary components before building structures.',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                      style: RunqText.caption.copyWith(color: t.muted)),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => context.push('/hr/salary-components'),
@@ -525,10 +523,7 @@ class _StructureLineCard extends StatelessWidget {
                     ),
                     child: Text(
                       hrSalaryComponentTypeLabel(selected.type),
-                      style: TextStyle(
-                        color: HrColors.brand(context),
-                        fontSize: 10.5, fontWeight: FontWeight.w700,
-                      ),
+                      style: RunqText.micro.copyWith(color: HrColors.brand(context)),
                     ),
                   ),
                 const Spacer(),

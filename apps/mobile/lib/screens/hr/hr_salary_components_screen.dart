@@ -108,9 +108,7 @@ class HrSalaryComponentsScreen extends ConsumerWidget {
                             padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
                             child: Text(
                               hrSalaryComponentTypeLabel(k).toUpperCase(),
-                              style: TextStyle(
-                                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-                              ),
+                              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5),
                             ),
                           ),
                           Container(
@@ -180,10 +178,7 @@ class _ComponentRow extends StatelessWidget {
               ),
               child: Text(
                 c.code,
-                style: TextStyle(
-                  color: HrColors.brand(context),
-                  fontSize: 11.5, fontWeight: FontWeight.w700,
-                ),
+                style: RunqText.label.copyWith(color: HrColors.brand(context)),
               ),
             ),
             const SizedBox(width: 10),
@@ -191,7 +186,7 @@ class _ComponentRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(c.name, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                  Text(c.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text(
                     [
@@ -205,7 +200,7 @@ class _ComponentRow extends StatelessWidget {
                       if (c.isEsiApplicable) 'ESI',
                       if (!c.isActive) 'inactive',
                     ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),

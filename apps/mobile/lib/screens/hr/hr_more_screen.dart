@@ -58,7 +58,7 @@ class HrMoreScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(me?.displayName ?? '—', style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+                      Text(me?.displayName ?? '—', style: RunqText.h3.copyWith(color: t.ink)),
                       const SizedBox(height: 2),
                       Text(
                         [
@@ -154,7 +154,7 @@ class HrMoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Center(
-            child: Text('runQ HR · v1.0', style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+            child: Text('runQ HR · v1.0', style: RunqText.caption.copyWith(color: t.muted2)),
           ),
         ],
       ),
@@ -203,7 +203,7 @@ class _QuickGrid extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(qa.label, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                child: Text(qa.label, style: RunqText.bodyStrong.copyWith(color: t.ink)),
               ),
             ],
           ),
@@ -235,7 +235,7 @@ class _SettingsGroup extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text(title.toUpperCase(),
-              style: TextStyle(color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
         ),
         Container(
           decoration: BoxDecoration(
@@ -261,9 +261,8 @@ class _SettingsGroup extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(rows[i].label,
-                              style: TextStyle(
+                              style: RunqText.body.copyWith(
                                 color: rows[i].danger ? const Color(0xFFDC2626) : t.ink,
-                                fontSize: 14, fontWeight: FontWeight.w500,
                               )),
                         ),
                         if (!rows[i].danger) Icon(Icons.chevron_right_rounded, size: 18, color: t.muted),

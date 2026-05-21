@@ -151,12 +151,12 @@ class _SearchField extends StatelessWidget {
               controller: TextEditingController(text: initial)..selection = TextSelection.collapsed(offset: initial.length),
               onChanged: onChanged,
               textCapitalization: TextCapitalization.none,
-              style: TextStyle(color: t.ink, fontSize: 14),
+              style: RunqText.body.copyWith(color: t.ink),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 hintText: 'Search name, code, email',
-                hintStyle: TextStyle(color: t.muted, fontSize: 14),
+                hintStyle: RunqText.body.copyWith(color: t.muted),
               ),
             ),
           ),
@@ -205,9 +205,9 @@ class _FilterChips extends StatelessWidget {
               ),
               child: Text(
                 o.$2,
-                style: TextStyle(
+                style: RunqText.caption.copyWith(
                   color: selected ? Colors.white : t.ink,
-                  fontSize: 12, fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -260,9 +260,9 @@ class _Pill extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(value, style: TextStyle(color: tint, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(value, style: RunqText.tabular(size: 16, w: FontWeight.w700, color: tint)),
           Text(label.toUpperCase(),
-              style: TextStyle(color: tint, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.4)),
+              style: RunqText.micro.copyWith(color: tint, fontWeight: FontWeight.w600, letterSpacing: 0.4)),
         ],
       ),
     );
@@ -308,7 +308,7 @@ class _EmployeeRow extends StatelessWidget {
                   children: [
                     Text(employee.displayName,
                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text(
                       [
@@ -325,7 +325,7 @@ class _EmployeeRow extends StatelessWidget {
               Container(width: 7, height: 7, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
               const SizedBox(width: 4),
               Text(_statusLabel(employee.status),
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ),

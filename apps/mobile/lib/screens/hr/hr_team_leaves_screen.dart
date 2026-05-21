@@ -89,10 +89,10 @@ class HrTeamLeavesBody extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 30, 16, 140),
               children: [
                 const SizedBox(height: 30),
-                Center(child: Text('🎉', style: TextStyle(fontSize: 36))),
+                Center(child: Text('🎉', style: RunqText.display)),
                 const SizedBox(height: 8),
                 Center(child: Text('All caught up!',
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 16))),
+                    style: RunqText.h4.copyWith(color: t.ink))),
                 const SizedBox(height: 4),
                 Center(child: Text('No leave requests yet',
                     style: RunqText.caption.copyWith(color: t.muted))),
@@ -175,7 +175,7 @@ class _TeamLeavesSectionHeader extends StatelessWidget {
           ),
           child: Text('$count',
               style: RunqText.caption.copyWith(
-                  color: t.muted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                  color: t.muted, fontWeight: FontWeight.w700)),
         ),
       ],
     );
@@ -207,11 +207,11 @@ class _TeamLeaveReviewedRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(req.employeeName,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(
                   '${req.typeCode} · $dateLabel · ${req.totalDays.toStringAsFixed(req.totalDays % 1 == 0 ? 0 : 1)}d',
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                  style: RunqText.caption.copyWith(color: t.muted),
                 ),
               ],
             ),

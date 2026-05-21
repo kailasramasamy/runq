@@ -205,9 +205,8 @@ class _SubTabs extends StatelessWidget {
                 child: Center(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
+                    style: RunqText.body.copyWith(
                       color: sel ? t.ink : t.muted,
-                      fontSize: 13,
                       fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                       letterSpacing: sel ? 0.1 : 0.0,
                     ),
@@ -309,7 +308,7 @@ class _PayslipRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(ps.periodLabel, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                    Text(ps.periodLabel, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text('Gross ${hrFormatINR(ps.gross)}', style: RunqText.caption.copyWith(color: t.muted)),
                   ],
@@ -328,7 +327,7 @@ class _PayslipRow extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text('${hrFormatINR(-ps.netPay)} owed',
                           style: RunqText.caption.copyWith(
-                              color: const Color(0xFFDC2626), fontSize: 10.5, fontWeight: FontWeight.w600)),
+                              color: const Color(0xFFDC2626), fontWeight: FontWeight.w600)),
                     ),
                 ],
               ),
@@ -391,9 +390,9 @@ class _LeaveTab extends ConsumerWidget {
                           child: Column(
                             children: [
                               Text(shown[i].balance.toStringAsFixed(shown[i].balance % 1 == 0 ? 0 : 1),
-                                  style: TextStyle(color: t.ink, fontSize: 20, fontWeight: FontWeight.w700)),
+                                  style: RunqText.tabular(size: 20, w: FontWeight.w700, color: t.ink)),
                               Text(shown[i].typeCode,
-                                  style: TextStyle(color: t.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+                                  style: RunqText.label.copyWith(color: t.muted)),
                             ],
                           ),
                         ),
@@ -498,12 +497,12 @@ class _LegendChip extends StatelessWidget {
           children: [
             TextSpan(
               text: code,
-              style: TextStyle(color: t.ink, fontSize: 11, fontWeight: FontWeight.w700),
+              style: RunqText.micro.copyWith(color: t.ink),
             ),
             const TextSpan(text: '  '),
             TextSpan(
               text: name,
-              style: TextStyle(color: t.muted, fontSize: 11, fontWeight: FontWeight.w500),
+              style: RunqText.caption.copyWith(color: t.muted),
             ),
           ],
         ),
@@ -539,8 +538,7 @@ class _LeaveSectionHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text('$count',
-              style: RunqText.caption.copyWith(
-                  color: muted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+              style: RunqText.micro.copyWith(color: muted)),
         ),
       ],
     );
@@ -576,7 +574,7 @@ class _LeaveRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(req.typeName, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                Text(req.typeName, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text('$dateLabel · ${req.totalDays.toStringAsFixed(req.totalDays % 1 == 0 ? 0 : 1)}d',
                     style: RunqText.caption.copyWith(color: t.muted)),
@@ -693,16 +691,16 @@ class _PayrollTab extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${m[(d.payrollMonth >= 1 && d.payrollMonth <= 12 ? d.payrollMonth : now.month) - 1]} ${d.payrollYear > 0 ? d.payrollYear : now.year}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    style: RunqText.body.copyWith(color: Colors.white70)),
                 const SizedBox(height: 6),
                 Text(d.payrollTotalNet > 0 ? hrFormatINR(d.payrollTotalNet) : '—',
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                    style: RunqText.tabular(size: 28, w: FontWeight.w800, color: Colors.white)),
                 const SizedBox(height: 2),
                 Text(
                   d.payrollRunId == null
                       ? 'No run started yet'
                       : 'Latest run · ${(d.payrollStatus ?? 'draft').replaceAll('_', ' ')}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: RunqText.caption.copyWith(color: Colors.white70),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -728,9 +726,9 @@ class _PayrollTab extends ConsumerWidget {
   Widget _heroStat(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(label, style: RunqText.caption.copyWith(color: Colors.white70)),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+          Text(value, style: RunqText.tabular(size: 13, w: FontWeight.w700, color: Colors.white)),
         ],
       );
 }
@@ -771,9 +769,9 @@ class _ApprovalsTab extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 30, 16, 140),
               children: [
                 const SizedBox(height: 30),
-                Center(child: Text('🎉', style: TextStyle(fontSize: 36))),
+                Center(child: Text('🎉', style: RunqText.display)),
                 const SizedBox(height: 8),
-                Center(child: Text('All caught up!', style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 16))),
+                Center(child: Text('All caught up!', style: RunqText.h4.copyWith(color: t.ink))),
                 const SizedBox(height: 4),
                 Center(child: Text('No leave requests yet', style: RunqText.caption.copyWith(color: t.muted))),
               ],
@@ -868,11 +866,11 @@ class _ReviewedLeaveRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(req.employeeName,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(
                   '${req.typeCode} · $dateLabel · ${req.totalDays.toStringAsFixed(req.totalDays % 1 == 0 ? 0 : 1)}d',
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                  style: RunqText.caption.copyWith(color: t.muted),
                 ),
               ],
             ),

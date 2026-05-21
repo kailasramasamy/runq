@@ -14,6 +14,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../api/hr_phase_next.dart';
 import '../../providers/auth_provider.dart';
+import '../../theme/runq_theme.dart';
 import '../../widgets/runq_snack.dart';
 
 const _hrAccent = Color(0xFF0891B2);
@@ -76,7 +77,7 @@ class _Body extends ConsumerWidget {
               Text(
                 'No tickets yet. Tap “Ask HR” below to start a conversation.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: theme.hintColor, fontSize: 13),
+                style: RunqText.body.copyWith(color: theme.hintColor),
               ),
             ]),
           ),
@@ -108,13 +109,13 @@ class _TicketGroupCard extends StatelessWidget {
           child: Row(children: [
             Text(
               label.toUpperCase(),
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.hintColor),
+              style: RunqText.label.copyWith(letterSpacing: 0.8, color: theme.hintColor),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(color: theme.hintColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-              child: Text('$count', style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600)),
+              child: Text('$count', style: RunqText.label.copyWith(color: theme.hintColor)),
             ),
           ]),
         ),
@@ -171,11 +172,11 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('HR Assistant', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              Text('HR Assistant', style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
               Text(
                 'Ask anything about leave, pay, or policies',
-                style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+                style: RunqText.caption.copyWith(color: Theme.of(context).hintColor),
               ),
             ]),
           ),
@@ -185,10 +186,10 @@ class _HeroCard extends StatelessWidget {
               color: _hrAccent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: const [
-              Icon(Icons.auto_awesome, size: 10, color: _hrAccent),
-              SizedBox(width: 3),
-              Text('AI', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _hrAccent, letterSpacing: 0.4)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.auto_awesome, size: 10, color: _hrAccent),
+              const SizedBox(width: 3),
+              Text('AI', style: RunqText.micro.copyWith(color: _hrAccent, letterSpacing: 0.4)),
             ]),
           ),
         ]),
@@ -201,7 +202,7 @@ class _HeroCard extends StatelessWidget {
             const Spacer(),
             Icon(Icons.bolt, size: 14, color: Theme.of(context).hintColor),
             const SizedBox(width: 3),
-            Text('replies in seconds', style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor)),
+            Text('replies in seconds', style: RunqText.caption.copyWith(color: Theme.of(context).hintColor)),
           ]),
         ],
       ]),
@@ -210,9 +211,9 @@ class _HeroCard extends StatelessWidget {
 
   Widget _stat(BuildContext context, String v, String l) {
     return Row(children: [
-      Text(v, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      Text(v, style: RunqText.tabular(size: 20, w: FontWeight.w700)),
       const SizedBox(width: 4),
-      Text(l, style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
+      Text(l, style: RunqText.caption.copyWith(color: Theme.of(context).hintColor)),
     ]);
   }
 }
@@ -249,9 +250,7 @@ class _TicketRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     ticket.subject,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                    style: RunqText.bodyStrong.copyWith(
                       color: dimmed ? theme.hintColor : null,
                     ),
                     maxLines: 1,
@@ -261,19 +260,19 @@ class _TicketRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   _relativeTime(ticket.createdAt),
-                  style: TextStyle(fontSize: 11, color: theme.hintColor),
+                  style: RunqText.caption.copyWith(color: theme.hintColor),
                 ),
               ]),
               const SizedBox(height: 4),
               Row(children: [
                 Text(
                   _categoryLabel(ticket.category),
-                  style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  style: RunqText.caption.copyWith(color: theme.hintColor),
                 ),
-                Text('  ·  ', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                Text('  ·  ', style: RunqText.caption.copyWith(color: theme.hintColor)),
                 Text(
                   ticket.ticketNumber,
-                  style: TextStyle(fontSize: 11, color: theme.hintColor, fontFeatures: const [FontFeature.tabularFigures()]),
+                  style: RunqText.tabular(size: 12, color: theme.hintColor),
                 ),
                 const Spacer(),
                 _StatusPill(status: ticket.status),
@@ -312,7 +311,7 @@ class _PriorityFlag extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.priority_high, size: 12, color: color),
         const SizedBox(width: 2),
-        Text(priority, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+        Text(priority, style: RunqText.micro.copyWith(color: color)),
       ]),
     );
   }
@@ -330,7 +329,7 @@ class _StatusPill extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 12, color: color),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(label, style: RunqText.label.copyWith(color: color)),
       ]),
     );
   }
@@ -455,17 +454,17 @@ class _CategoryGrid extends StatelessWidget {
             child: const Icon(Icons.support_agent, color: _hrAccent, size: 18),
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Text(
               'What can I help with today?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: RunqText.h4,
             ),
           ),
         ]),
         const SizedBox(height: 8),
         Text(
           'Pick a topic to see common questions, or request a letter.',
-          style: TextStyle(fontSize: 13, color: theme.hintColor),
+          style: RunqText.body.copyWith(color: theme.hintColor),
         ),
         const SizedBox(height: 20),
         GridView.count(
@@ -496,7 +495,7 @@ class _CategoryGrid extends StatelessWidget {
                     ),
                     child: Icon(c.$3, color: col, size: 22),
                   ),
-                  Text(c.$2, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: col)),
+                  Text(c.$2, style: RunqText.bodyStrong.copyWith(color: col)),
                 ]),
               ),
             );
@@ -568,12 +567,12 @@ class _PresetsAndInputState extends State<_PresetsAndInput> {
           children: [
             Text(
               'COMMON QUESTIONS',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: theme.hintColor),
+              style: RunqText.label.copyWith(letterSpacing: 0.8, color: theme.hintColor),
             ),
             const SizedBox(height: 4),
             Text(
               'Tap one to ask, or type your own below.',
-              style: TextStyle(fontSize: 12, color: theme.hintColor),
+              style: RunqText.caption.copyWith(color: theme.hintColor),
             ),
             const SizedBox(height: 12),
             ...presets.map((p) => Padding(
@@ -589,7 +588,7 @@ class _PresetsAndInputState extends State<_PresetsAndInput> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(children: [
-                    Expanded(child: Text(p, style: const TextStyle(fontSize: 14))),
+                    Expanded(child: Text(p, style: RunqText.body)),
                     Icon(Icons.arrow_forward, size: 16, color: col),
                   ]),
                 ),
@@ -939,7 +938,7 @@ class _TicketDetailScreenState extends ConsumerState<_TicketDetailScreen> {
                   Expanded(
                     child: Text(
                       t.subject,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ]),
@@ -954,12 +953,12 @@ class _TicketDetailScreenState extends ConsumerState<_TicketDetailScreen> {
                       color: theme.hintColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(t.ticketNumber, style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600)),
+                    child: Text(t.ticketNumber, style: RunqText.label.copyWith(color: theme.hintColor)),
                   ),
                 ]),
                 if (t.description != null && t.description!.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text(t.description!, style: const TextStyle(fontSize: 13, height: 1.4)),
+                  Text(t.description!, style: RunqText.body.copyWith(height: 1.4)),
                 ],
               ]),
             ),
@@ -1065,7 +1064,7 @@ class _CommentBubble extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Text(
                   authorLabel,
-                  style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600),
+                  style: RunqText.label.copyWith(color: theme.hintColor),
                 ),
                 if (!comment.isAgentDraft && comment.agentConfidence != null) ...[
                   const SizedBox(width: 6),
@@ -1075,10 +1074,10 @@ class _CommentBubble extends StatelessWidget {
                       color: _hrAccent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(3),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: const [
-                      Icon(Icons.auto_awesome, size: 8, color: _hrAccent),
-                      SizedBox(width: 2),
-                      Text('AI', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: _hrAccent, letterSpacing: 0.4)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.auto_awesome, size: 8, color: _hrAccent),
+                      const SizedBox(width: 2),
+                      Text('AI', style: RunqText.micro.copyWith(color: _hrAccent, letterSpacing: 0.4)),
                     ]),
                   ),
                 ],
@@ -1106,13 +1105,13 @@ class _CommentBubble extends StatelessWidget {
                     softLineBreak: true,
                     selectable: true,
                     styleSheet: MarkdownStyleSheet(
-                      p: TextStyle(color: fgColor, fontSize: 14, height: 1.4),
-                      strong: TextStyle(color: fgColor, fontSize: 14, height: 1.4, fontWeight: FontWeight.w600),
-                      em: TextStyle(color: fgColor, fontSize: 14, height: 1.4, fontStyle: FontStyle.italic),
-                      listBullet: TextStyle(color: fgColor, fontSize: 14, height: 1.4),
-                      code: TextStyle(color: fgColor, fontSize: 12.5, fontFamily: 'monospace', backgroundColor: theme.hintColor.withValues(alpha: 0.15)),
-                      h3: TextStyle(color: fgColor, fontSize: 14, fontWeight: FontWeight.w600),
-                      h4: TextStyle(color: fgColor, fontSize: 14, fontWeight: FontWeight.w600),
+                      p: RunqText.body.copyWith(color: fgColor, height: 1.4),
+                      strong: RunqText.bodyStrong.copyWith(color: fgColor, height: 1.4),
+                      em: RunqText.body.copyWith(color: fgColor, height: 1.4, fontStyle: FontStyle.italic),
+                      listBullet: RunqText.body.copyWith(color: fgColor, height: 1.4),
+                      code: RunqText.caption.copyWith(color: fgColor, fontFamily: 'monospace', backgroundColor: theme.hintColor.withValues(alpha: 0.15)),
+                      h3: RunqText.bodyStrong.copyWith(color: fgColor),
+                      h4: RunqText.bodyStrong.copyWith(color: fgColor),
                       blockSpacing: 6,
                       listIndent: 18,
                     ),
@@ -1123,7 +1122,7 @@ class _CommentBubble extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(top: 3, left: 6, right: 6),
-            child: Text(timeLabel, style: TextStyle(fontSize: 10, color: theme.hintColor)),
+            child: Text(timeLabel, style: RunqText.micro.copyWith(color: theme.hintColor)),
           ),
         ],
       ),
@@ -1205,11 +1204,11 @@ class _AgentDraftCardState extends State<_AgentDraftCard> {
           const SizedBox(width: 6),
           Text(
             isEscalation ? 'AI FLAGGED — INTERNAL NOTE' : 'AI DRAFT',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: accent, letterSpacing: 0.5),
+            style: RunqText.micro.copyWith(color: accent, letterSpacing: 0.5),
           ),
           if (isEscalation) ...[
             const Spacer(),
-            Text('HR only', style: TextStyle(fontSize: 9, color: theme.hintColor)),
+            Text('HR only', style: RunqText.micro.copyWith(color: theme.hintColor)),
           ] else if (widget.draft.agentConfidence != null) ...[
             const SizedBox(width: 8),
             Container(
@@ -1220,7 +1219,7 @@ class _AgentDraftCardState extends State<_AgentDraftCard> {
               ),
               child: Text(
                 '${widget.draft.agentConfidence} confidence',
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: _confidenceColor(context)),
+                style: RunqText.micro.copyWith(color: _confidenceColor(context)),
               ),
             ),
           ],
@@ -1240,11 +1239,11 @@ class _AgentDraftCardState extends State<_AgentDraftCard> {
             softLineBreak: true,
             selectable: true,
             styleSheet: MarkdownStyleSheet(
-              p: const TextStyle(fontSize: 13, height: 1.4),
-              strong: const TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w600),
-              em: const TextStyle(fontSize: 13, height: 1.4, fontStyle: FontStyle.italic),
-              listBullet: const TextStyle(fontSize: 13, height: 1.4),
-              code: TextStyle(fontSize: 11.5, fontFamily: 'monospace', backgroundColor: theme.hintColor.withValues(alpha: 0.15)),
+              p: RunqText.body.copyWith(height: 1.4),
+              strong: RunqText.bodyStrong.copyWith(height: 1.4),
+              em: RunqText.body.copyWith(height: 1.4, fontStyle: FontStyle.italic),
+              listBullet: RunqText.body.copyWith(height: 1.4),
+              code: RunqText.label.copyWith(fontFamily: 'monospace', backgroundColor: theme.hintColor.withValues(alpha: 0.15)),
               blockSpacing: 6,
               listIndent: 18,
             ),
@@ -1319,7 +1318,7 @@ class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderS
         padding: const EdgeInsets.only(left: 6, bottom: 2),
         child: Text(
           'HR Assistant',
-          style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600),
+          style: RunqText.label.copyWith(color: theme.hintColor),
         ),
       ),
       Container(

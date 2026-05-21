@@ -103,8 +103,8 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                       indicatorSize: TabBarIndicatorSize.label,
                       labelColor: HrColors.teal,
                       unselectedLabelColor: t.muted,
-                      labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                      unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      labelStyle: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+                      unselectedLabelStyle: RunqText.body,
                       tabs: const [
                         Tab(text: 'Info'),
                         Tab(text: 'Leave'),
@@ -178,9 +178,9 @@ class _Hero extends StatelessWidget {
           Text(
             emp.displayName,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: RunqText.h2.copyWith(
               color: Colors.white,
-              fontSize: 22, fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w700,
               letterSpacing: -0.4,
             ),
             maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -192,8 +192,8 @@ class _Hero extends StatelessWidget {
               if (emp.departmentName != null) emp.departmentName!,
             ].join(' · '),
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.78), fontSize: 13,
+            style: RunqText.body.copyWith(
+              color: Colors.white.withValues(alpha: 0.78),
             ),
             maxLines: 1, overflow: TextOverflow.ellipsis,
           ),
@@ -352,7 +352,7 @@ class _PhotoViewer extends StatelessWidget {
                 child: Center(
                   child: Text(
                     name,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: RunqText.bodyStrong.copyWith(color: Colors.white),
                   ),
                 ),
               ),
@@ -390,10 +390,7 @@ class _HeroChip extends StatelessWidget {
           ],
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11, fontWeight: FontWeight.w600,
-            ),
+            style: RunqText.label.copyWith(color: Colors.white),
           ),
         ],
       ),
@@ -484,7 +481,7 @@ class _ActionTile extends StatelessWidget {
             Icon(icon, color: ink, size: 20),
             const SizedBox(height: 6),
             Text(label,
-                style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w600)),
+                style: RunqText.label.copyWith(color: ink)),
           ],
         ),
       ),
@@ -621,9 +618,7 @@ class _Section extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text(
             title.toUpperCase(),
-            style: TextStyle(
-              color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-            ),
+            style: RunqText.label.copyWith(color: t.muted2),
           ),
         ),
         Container(
@@ -670,14 +665,14 @@ class _InfoRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+            child: Text(label, style: RunqText.caption.copyWith(color: t.muted)),
           ),
           const SizedBox(width: 12),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5),
+              style: RunqText.bodyStrong.copyWith(color: t.ink),
               maxLines: 1, overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -726,9 +721,7 @@ class _LeaveTab extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
                   child: Text('Balances ${DateTime.now().year}',
-                      style: TextStyle(
-                        color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-                      )),
+                      style: RunqText.label.copyWith(color: t.muted2)),
                 ),
                 ...rows.map((b) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -772,15 +765,12 @@ class _BalanceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(b.typeCode,
-                    style: TextStyle(
-                      color: HrColors.brand(context),
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                    )),
+                    style: RunqText.label.copyWith(color: HrColors.brand(context))),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(b.typeName,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
               ),
               Text(
                 b.balance.toStringAsFixed(b.balance % 1 == 0 ? 0 : 1),
@@ -788,7 +778,7 @@ class _BalanceCard extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text('days',
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
           const SizedBox(height: 10),
@@ -820,10 +810,10 @@ class _BalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: RunqText.caption.copyWith(color: t.muted2, fontSize: 10)),
+          Text(label, style: RunqText.caption.copyWith(color: t.muted2)),
           const SizedBox(height: 2),
           Text(v.toStringAsFixed(v % 1 == 0 ? 0 : 1),
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
         ],
       ),
     );
@@ -870,7 +860,7 @@ class _PayTab extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           child: Text(
             'Payslips for this employee become available after each payroll run is approved.',
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+            style: RunqText.caption.copyWith(color: t.muted),
           ),
         ),
       ],
@@ -900,25 +890,21 @@ class _CtcCard extends StatelessWidget {
               const Icon(Icons.payments_rounded, color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Text('Annual CTC',
-                  style: TextStyle(
+                  style: RunqText.caption.copyWith(
                     color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.3,
                   )),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             hrFormatINR(annual),
-            style: const TextStyle(
-              color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
+            style: RunqText.tabular(size: 30, w: FontWeight.w800, color: Colors.white),
           ),
           const SizedBox(height: 4),
           Text('${hrFormatINR(monthly)} / month',
-              style: TextStyle(
+              style: RunqText.body.copyWith(
                 color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 13, fontWeight: FontWeight.w500,
               )),
         ],
       ),
@@ -947,23 +933,20 @@ class _WageCard extends StatelessWidget {
               const Icon(Icons.engineering_outlined, color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Text('Daily wage',
-                  style: TextStyle(
+                  style: RunqText.caption.copyWith(
                     color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.3,
                   )),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             hrFormatINR(daily),
-            style: const TextStyle(
-              color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
+            style: RunqText.tabular(size: 30, w: FontWeight.w800, color: Colors.white),
           ),
           const SizedBox(height: 4),
           Text('per day worked',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
+              style: RunqText.body.copyWith(color: Colors.white.withValues(alpha: 0.85))),
         ],
       ),
     );
@@ -1092,9 +1075,7 @@ class _DocSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text(
             title.toUpperCase(),
-            style: TextStyle(
-              color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-            ),
+            style: RunqText.label.copyWith(color: t.muted2),
           ),
         ),
         Container(
@@ -1154,12 +1135,12 @@ class _DocRow extends ConsumerWidget {
                   Text(
                     doc.fileName,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '${_size(doc.fileSize)} · ${_date(doc.createdAt)}',
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                   if (doc.expiryDate != null) ...[
                     const SizedBox(height: 4),
@@ -1377,7 +1358,7 @@ class _DocImageViewerState extends State<_DocImageViewer> {
                 child: Center(
                   child: Text(
                     widget.doc.fileName,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: RunqText.bodyStrong.copyWith(color: Colors.white),
                   ),
                 ),
               ),
@@ -1705,7 +1686,7 @@ class _SheetRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(color: labelInk, fontSize: 14, fontWeight: FontWeight.w500),
+                style: RunqText.body.copyWith(color: labelInk),
               ),
             ),
             if (trailing != null) ...[
@@ -1715,7 +1696,7 @@ class _SheetRow extends StatelessWidget {
                   trailing!,
                   textAlign: TextAlign.right,
                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                  style: RunqText.caption.copyWith(color: t.muted),
                 ),
               ),
             ],
@@ -1809,10 +1790,10 @@ class _EmptyState extends StatelessWidget {
           Icon(icon, color: t.muted2, size: 32),
           const SizedBox(height: 10),
           Text(title, textAlign: TextAlign.center,
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text(subtitle, textAlign: TextAlign.center,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+              style: RunqText.caption.copyWith(color: t.muted)),
         ],
       ),
     );
@@ -1844,7 +1825,7 @@ class _ExpiryChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(text,
-          style: TextStyle(color: ink, fontSize: 10.5, fontWeight: FontWeight.w700)),
+          style: RunqText.micro.copyWith(color: ink)),
     );
   }
 }

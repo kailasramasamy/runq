@@ -154,7 +154,7 @@ class _HrWizardState extends State<HrWizard> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 6),
                   child: Text(step.subtitle!,
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 13)),
+                      style: RunqText.body.copyWith(color: t.muted)),
                 ),
               Expanded(
                 child: SingleChildScrollView(
@@ -238,7 +238,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(title, style: RunqText.h2.copyWith(color: t.ink, fontSize: 20)),
+            child: Text(title, style: RunqText.h2.copyWith(color: t.ink)),
           ),
           if (secondaryLabel != null && onSecondary != null) ...[
             TextButton(
@@ -250,7 +250,7 @@ class _Header extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               ),
               child: Text(secondaryLabel!,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  style: RunqText.body.copyWith(fontWeight: FontWeight.w700)),
             ),
             const SizedBox(width: 4),
           ],
@@ -262,9 +262,9 @@ class _Header extends StatelessWidget {
             ),
             child: Text(
               '${index + 1} of $total',
-              style: TextStyle(
+              style: RunqText.label.copyWith(
                 color: HrColors.brand(context),
-                fontSize: 11, fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -309,7 +309,7 @@ class HrFormScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Expanded(
-                    child: Text(title, style: RunqText.h2.copyWith(color: t.ink, fontSize: 20)),
+                    child: Text(title, style: RunqText.h2.copyWith(color: t.ink)),
                   ),
                   if (appBarAction != null) appBarAction!,
                 ],
@@ -365,9 +365,7 @@ class HrFormSection extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
             child: Text(
               title!.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              ),
+              style: RunqText.label.copyWith(color: t.muted2),
             ),
           ),
         Container(
@@ -431,7 +429,7 @@ class HrTextField extends StatelessWidget {
         children: [
           Text(
             required ? '$label *' : label,
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+            style: RunqText.caption.copyWith(color: t.muted),
           ),
           const SizedBox(height: 4),
           TextField(
@@ -442,10 +440,10 @@ class HrTextField extends StatelessWidget {
             maxLines: maxLines,
             maxLength: maxLength,
             onChanged: onChanged,
-            style: TextStyle(color: t.ink, fontSize: 14, fontWeight: FontWeight.w500),
+            style: RunqText.body.copyWith(color: t.ink),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: t.muted2, fontSize: 14),
+              hintStyle: RunqText.body.copyWith(color: t.muted2),
               isDense: true,
               counterText: '',
               contentPadding: EdgeInsets.zero,
@@ -509,7 +507,7 @@ class HrSelectField<T> extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
-                children: [Text(label, style: RunqText.h3.copyWith(color: t.ink, fontSize: 16))],
+                children: [Text(label, style: RunqText.h4.copyWith(color: t.ink))],
               ),
             ),
             Flexible(
@@ -523,7 +521,7 @@ class HrSelectField<T> extends StatelessWidget {
                   return ListTile(
                     dense: true,
                     title: Text(display(o),
-                        style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.body.copyWith(color: t.ink)),
                     trailing: o == value
                         ? Icon(Icons.check_rounded, color: HrColors.brand(sheetCtx), size: 18)
                         : null,
@@ -555,14 +553,13 @@ class HrSelectField<T> extends StatelessWidget {
                 children: [
                   Text(
                     required ? '$label *' : label,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     shown,
-                    style: TextStyle(
+                    style: RunqText.body.copyWith(
                       color: value == null ? t.muted2 : t.ink,
-                      fontSize: 14, fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
@@ -629,14 +626,13 @@ class HrDateField extends StatelessWidget {
                 children: [
                   Text(
                     required ? '$label *' : label,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     shown,
-                    style: TextStyle(
+                    style: RunqText.body.copyWith(
                       color: value == null ? t.muted2 : t.ink,
-                      fontSize: 14, fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -674,10 +670,10 @@ class HrToggleField extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(color: t.ink, fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(label, style: RunqText.body.copyWith(color: t.ink)),
                 if (sub != null) ...[
                   const SizedBox(height: 2),
-                  Text(sub!, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                  Text(sub!, style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ],
             ),

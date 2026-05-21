@@ -100,9 +100,9 @@ class _HrAnnouncementsScreenState extends ConsumerState<HrAnnouncementsScreen> {
                       ),
                       child: Text(
                         label,
-                        style: TextStyle(
+                        style: RunqText.caption.copyWith(
                           color: selected ? Colors.white : t.ink,
-                          fontSize: 12, fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

@@ -18,6 +18,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../api/hr_phase_next.dart';
+import '../../theme/runq_theme.dart';
 import '../../widgets/runq_snack.dart';
 
 const _hrAccent = Color(0xFF0891B2);
@@ -81,15 +82,15 @@ class _Body extends StatelessWidget {
               const SizedBox(height: 80),
               Icon(Icons.mark_email_unread_outlined, size: 56, color: Theme.of(context).hintColor),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'No letters yet',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: RunqText.h4,
               ),
               const SizedBox(height: 6),
               Text(
                 'Tap "Request letter" below to ask HR for an offer letter, salary certificate, address proof, and more.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+                style: RunqText.body.copyWith(color: Theme.of(context).hintColor),
               ),
             ]),
           ),
@@ -127,9 +128,7 @@ class _SectionHeader extends StatelessWidget {
       child: Row(children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
+          style: RunqText.label.copyWith(
             letterSpacing: 0.8,
             color: theme.hintColor,
           ),
@@ -141,7 +140,7 @@ class _SectionHeader extends StatelessWidget {
             color: theme.hintColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text('$count', style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600)),
+          child: Text('$count', style: RunqText.label.copyWith(color: theme.hintColor)),
         ),
       ]),
     );
@@ -191,17 +190,17 @@ class _LetterCardState extends ConsumerState<_LetterCard> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_kindLabel(l.kind), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(_kindLabel(l.kind), style: RunqText.bodyStrong),
                   const SizedBox(height: 2),
                   if (isIssued && l.subject != null && l.subject!.isNotEmpty)
                     Text(l.subject!, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: theme.hintColor))
+                        style: RunqText.caption.copyWith(color: theme.hintColor))
                   else if (isIssued && l.issuedAt != null)
                     Text('Issued ${DateFormat('d MMM y').format(l.issuedAt!.toLocal())}',
-                        style: TextStyle(fontSize: 12, color: theme.hintColor))
+                        style: RunqText.caption.copyWith(color: theme.hintColor))
                   else if (isPending && l.createdAt != null)
                     Text('Requested ${DateFormat('d MMM y').format(l.createdAt!.toLocal())}',
-                        style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                        style: RunqText.caption.copyWith(color: theme.hintColor)),
                 ]),
               ),
               _StatusPill(
@@ -219,7 +218,7 @@ class _LetterCardState extends ConsumerState<_LetterCard> {
                   color: theme.hintColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(l.requestedReason!, style: const TextStyle(fontSize: 13)),
+                child: Text(l.requestedReason!, style: RunqText.body),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -237,7 +236,7 @@ class _LetterCardState extends ConsumerState<_LetterCard> {
                 child: Row(children: [
                   Icon(Icons.arrow_outward, size: 14, color: theme.hintColor),
                   const SizedBox(width: 4),
-                  Text('Tap to view', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                  Text('Tap to view', style: RunqText.caption.copyWith(color: theme.hintColor)),
                 ]),
               ),
           ]),
@@ -288,7 +287,7 @@ class _StatusPill extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 12, color: color),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(text, style: RunqText.label.copyWith(color: color)),
       ]),
     );
   }
@@ -381,7 +380,7 @@ class _LetterDetailScreenState extends State<_LetterDetailScreen> {
                       child: Text(
                         'Issued on ${DateFormat('d MMMM y').format(letter.issuedAt!.toLocal())}'
                         '${_pages > 0 ? '  •  page ${_currentPage + 1} / $_pages' : ''}',
-                        style: TextStyle(fontSize: 12, color: _hrAccent, fontWeight: FontWeight.w600),
+                        style: RunqText.caption.copyWith(color: _hrAccent),
                       ),
                     ),
                   ]),
@@ -403,7 +402,7 @@ class _LetterDetailScreenState extends State<_LetterDetailScreen> {
           Text('Could not load PDF', style: TextStyle(color: theme.hintColor)),
           if (_error != null) ...[
             const SizedBox(height: 4),
-            Text(_error!, style: TextStyle(color: theme.hintColor, fontSize: 12), textAlign: TextAlign.center),
+            Text(_error!, style: RunqText.caption.copyWith(color: theme.hintColor), textAlign: TextAlign.center),
           ],
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -486,14 +485,14 @@ class _RequestLetterFormState extends ConsumerState<_RequestLetterForm> {
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Request a letter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Request a letter', style: RunqText.h3),
           const SizedBox(height: 4),
           Text(
             'HR will review and issue the letter to you in this app.',
-            style: TextStyle(color: theme.hintColor, fontSize: 13),
+            style: RunqText.body.copyWith(color: theme.hintColor),
           ),
           const SizedBox(height: 16),
-          const Text('Letter type', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text('Letter type', style: RunqText.bodyStrong),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -517,11 +516,9 @@ class _RequestLetterFormState extends ConsumerState<_RequestLetterForm> {
                     const SizedBox(width: 6),
                     Text(
                       opt.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: selected ? Colors.white : null,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                      style: selected
+                          ? RunqText.bodyStrong.copyWith(color: Colors.white)
+                          : RunqText.body,
                     ),
                   ]),
                 ),

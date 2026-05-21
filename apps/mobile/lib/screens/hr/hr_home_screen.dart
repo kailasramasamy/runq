@@ -172,9 +172,9 @@ class _DarkHeader extends ConsumerWidget {
                 )
               else
                 Text('HR & Payroll',
-                    style: TextStyle(
+                    style: RunqText.caption.copyWith(
                       color: t.muted,
-                      fontSize: 12, fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w600,
                     )),
               const Spacer(),
               _BellButton(unread: unread, onTap: () => context.push('/notifications')),
@@ -193,12 +193,12 @@ class _DarkHeader extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(dateLabel,
-              style: TextStyle(color: t.muted, fontSize: 13)),
+              style: RunqText.body.copyWith(color: t.muted)),
           const SizedBox(height: 2),
           Text('$greeting, $firstName 👋',
-              style: TextStyle(
+              style: RunqText.h2.copyWith(
                 color: t.ink,
-                fontSize: 22, fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w700,
                 letterSpacing: -0.5,
               )),
           // Quick-search pill — opens an org-wide directory lookup
@@ -259,7 +259,7 @@ class _BellButton extends StatelessWidget {
                     alignment: Alignment.center,
                     child: Text(
                       unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, height: 1),
+                      style: RunqText.micro.copyWith(color: Colors.white, height: 1),
                     ),
                   ),
                 ),
@@ -498,7 +498,7 @@ class _QuickActionCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(qa.label,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
             ),
           ],
         ),
@@ -531,14 +531,12 @@ class _LeaveBalancesRow extends StatelessWidget {
                 children: [
                   Text(
                     balances[i].balance.toStringAsFixed(balances[i].balance % 1 == 0 ? 0 : 1),
-                    style: TextStyle(color: t.ink, fontSize: 20, fontWeight: FontWeight.w700),
+                    style: RunqText.tabular(size: 20, w: FontWeight.w700, color: t.ink),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     balances[i].typeCode,
-                    style: TextStyle(
-                      color: t.muted, fontSize: 10, fontWeight: FontWeight.w600,
-                    ),
+                    style: RunqText.micro.copyWith(color: t.muted),
                   ),
                 ],
               ),
@@ -566,7 +564,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
-          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const Spacer(),
           if (onTapAll != null)
             GestureDetector(
@@ -579,7 +577,6 @@ class _SectionHeader extends StatelessWidget {
                     Text('View all',
                         style: RunqText.caption.copyWith(
                             color: HrColors.brand(context),
-                            fontSize: 12,
                             fontWeight: FontWeight.w600)),
                     const SizedBox(width: 2),
                     Icon(Icons.chevron_right_rounded, size: 16, color: HrColors.brand(context)),
@@ -638,13 +635,9 @@ class _HolidayRow extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text('${holiday.date.day}',
-                    style: TextStyle(
-                        color: HrColors.brand(context),
-                        fontSize: 16, fontWeight: FontWeight.w800, height: 1.0)),
+                    style: RunqText.tabular(size: 16, w: FontWeight.w800, color: HrColors.brand(context)).copyWith(height: 1.0)),
                 Text(_months[holiday.date.month - 1].toUpperCase(),
-                    style: TextStyle(
-                        color: HrColors.brand(context),
-                        fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                    style: RunqText.micro.copyWith(color: HrColors.brand(context), letterSpacing: 0.4)),
               ],
             ),
           ),
@@ -655,10 +648,10 @@ class _HolidayRow extends StatelessWidget {
               children: [
                 Text(holiday.name,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(_weekdays[holiday.date.weekday - 1],
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                    style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
           ),
@@ -670,7 +663,7 @@ class _HolidayRow extends StatelessWidget {
             ),
             child: Text(chip,
                 style: RunqText.caption.copyWith(
-                    color: t.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+                    color: t.muted, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -978,9 +971,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-        ),
+        style: RunqText.label.copyWith(color: t.muted2),
       ),
     );
   }
@@ -1019,12 +1010,12 @@ class _StatutoryRow extends StatelessWidget {
               children: [
                 Text(item.label,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 if (item.sublabel.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(item.sublabel,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                      style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ],
             ),
@@ -1034,7 +1025,7 @@ class _StatutoryRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: chipBg, borderRadius: BorderRadius.circular(999)),
             child: Text(chipText,
-                style: TextStyle(color: chipInk, fontSize: 11, fontWeight: FontWeight.w700)),
+                style: RunqText.label.copyWith(color: chipInk)),
           ),
         ],
       ),
@@ -1111,14 +1102,12 @@ class _ActionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label.toUpperCase(),
-                      style: TextStyle(
-                        color: t.muted2, fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4,
-                      )),
+                      style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.4)),
                   const SizedBox(height: 4),
                   Text(value,
-                      style: TextStyle(color: _accent, fontSize: 15, fontWeight: FontWeight.w700)),
+                      style: RunqText.bodyStrong.copyWith(color: _accent, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text(sub, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                  Text(sub, style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -1186,7 +1175,7 @@ class _PendingBanner extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text('Needs your attention',
-                  style: TextStyle(color: t.ink, fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontWeight: FontWeight.w800)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1232,7 +1221,7 @@ class _PendingRow extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(label,
-                  style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: RunqText.bodyStrong.copyWith(color: ink)),
             ),
             Icon(Icons.chevron_right_rounded, size: 16, color: muted),
           ],
@@ -1267,10 +1256,7 @@ class _ScopePill extends StatelessWidget {
             Icon(Icons.people_alt_outlined, size: 12, color: HrColors.brand(context)),
             const SizedBox(width: 5),
             Text(label,
-                style: TextStyle(
-                  color: HrColors.brand(context),
-                  fontSize: 11, fontWeight: FontWeight.w700,
-                )),
+                style: RunqText.label.copyWith(color: HrColors.brand(context))),
           ],
         ),
       ),
@@ -1406,9 +1392,7 @@ class _QaChip extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Text(
                         badgeCount > 9 ? '9+' : '$badgeCount',
-                        style: const TextStyle(
-                          color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w800, height: 1,
-                        ),
+                        style: RunqText.micro.copyWith(color: Colors.white, height: 1),
                       ),
                     ),
                   ),
@@ -1418,9 +1402,7 @@ class _QaChip extends StatelessWidget {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: t.ink, fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.15,
-              ),
+              style: RunqText.label.copyWith(color: t.ink, height: 1.15),
             ),
           ],
         ),
@@ -1454,7 +1436,7 @@ class _SearchPill extends StatelessWidget {
             Icon(Icons.search_rounded, color: t.muted, size: 18),
             const SizedBox(width: 8),
             Text('Search employees',
-                style: TextStyle(color: t.muted, fontSize: 13, fontWeight: FontWeight.w500)),
+                style: RunqText.body.copyWith(color: t.muted)),
           ],
         ),
       ),
@@ -1536,10 +1518,10 @@ class _AttendanceStripState extends State<_AttendanceStrip> with SingleTickerPro
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(cfg.title,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text(cfg.subtitle,
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),

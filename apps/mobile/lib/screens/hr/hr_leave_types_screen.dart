@@ -182,9 +182,9 @@ class _LeaveTypeRow extends StatelessWidget {
               ),
               child: Text(
                 lt.code,
-                style: TextStyle(
+                style: RunqText.caption.copyWith(
                   color: HrColors.brand(context),
-                  fontSize: 12, fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -193,7 +193,7 @@ class _LeaveTypeRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(lt.name, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                  Text(lt.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text(
                     [
@@ -203,7 +203,7 @@ class _LeaveTypeRow extends StatelessWidget {
                       if (lt.encashable) 'encashable',
                       if (!lt.isActive) 'inactive',
                     ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),

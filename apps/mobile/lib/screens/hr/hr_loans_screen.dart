@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
+import '../../theme/runq_theme.dart';
 import '../../widgets/runq_snack.dart';
 
 final _money = NumberFormat('#,##,###');
@@ -104,10 +105,10 @@ class HrLoansScreen extends ConsumerWidget {
       builder: (_) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.info_outline, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('You can\'t request a loan yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Row(children: [
+            const Icon(Icons.info_outline, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text('You can\'t request a loan yet', style: RunqText.h3),
           ]),
           const SizedBox(height: 12),
           for (final r in elig.reasons)
@@ -119,9 +120,9 @@ class HrLoansScreen extends ConsumerWidget {
               ]),
             ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Speak to HR if you believe these limits should not apply to you.',
-            style: TextStyle(color: Colors.black54, fontSize: 13),
+            style: RunqText.body.copyWith(color: Colors.black54),
           ),
         ]),
       ),
@@ -149,7 +150,7 @@ class _EligibilityBanner extends StatelessWidget {
             child: Text(
               'You can request up to ₹${_money.format(elig.maxAmount)}'
               '${elig.policy.managerApprovalRequired ? " — needs manager + HR approval" : " — needs HR approval"}.',
-              style: const TextStyle(fontSize: 13),
+              style: RunqText.body,
             ),
           ),
         ]),
@@ -197,14 +198,14 @@ class _TeamRequestCard extends ConsumerWidget {
           Row(children: [
             Expanded(child: Text(req.employeeName, style: const TextStyle(fontWeight: FontWeight.bold))),
             if (req.employeeCode != null)
-              Text(req.employeeCode!, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(req.employeeCode!, style: RunqText.caption.copyWith(color: Colors.black54)),
           ]),
           const SizedBox(height: 4),
           Text('${_kindLabel(req.kind)} — ₹${_money.format(req.principal)} over ${req.totalInstalments} months'),
           if (req.reason != null && req.reason!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text('Reason: ${req.reason}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              child: Text('Reason: ${req.reason}', style: RunqText.caption.copyWith(color: Colors.black54)),
             ),
           const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -309,8 +310,8 @@ class _LoanCard extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_kindLabel(loan.kind), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  Text('₹${_money.format(loan.principal)} principal', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                  Text(_kindLabel(loan.kind), style: RunqText.bodyStrong),
+                  Text('₹${_money.format(loan.principal)} principal', style: RunqText.caption.copyWith(color: theme.hintColor)),
                 ]),
               ),
               Container(
@@ -319,7 +320,7 @@ class _LoanCard extends ConsumerWidget {
                   color: statusColor.withValues(alpha: isDark ? 0.18 : 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(_statusLabel(loan.status), style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                child: Text(_statusLabel(loan.status), style: RunqText.label.copyWith(color: statusColor)),
               ),
             ]),
 
@@ -330,18 +331,18 @@ class _LoanCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Outstanding', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                    Text('Outstanding', style: RunqText.caption.copyWith(color: theme.hintColor)),
                     const SizedBox(height: 2),
                     Text('₹${_money.format(loan.outstanding)}',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                        style: RunqText.numberLg),
                   ]),
                   const Spacer(),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text('Paid ${paidInstalments}/${loan.totalInstalments}',
-                        style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                        style: RunqText.caption.copyWith(color: theme.hintColor)),
                     const SizedBox(height: 2),
                     Text('₹${_money.format(paid)}',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green.shade400)),
+                        style: RunqText.tabular(size: 14, color: Colors.green.shade400)),
                   ]),
                 ],
               ),
@@ -372,7 +373,7 @@ class _LoanCard extends ConsumerWidget {
               if (loan.reason != null && loan.reason!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('Reason: ${loan.reason}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                  child: Text('Reason: ${loan.reason}', style: RunqText.caption.copyWith(color: theme.hintColor)),
                 ),
               Align(
                 alignment: Alignment.centerRight,
@@ -397,7 +398,7 @@ class _LoanCard extends ConsumerWidget {
                 ),
                 child: Text(
                   loan.rejectionReason ?? 'Rejected',
-                  style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                  style: RunqText.caption.copyWith(color: Colors.redAccent),
                 ),
               ),
             ],
@@ -410,9 +411,9 @@ class _LoanCard extends ConsumerWidget {
   Widget _miniStat(BuildContext context, String label, String value) {
     final theme = Theme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 11, color: theme.hintColor)),
+      Text(label, style: RunqText.label.copyWith(color: theme.hintColor)),
       const SizedBox(height: 2),
-      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      Text(value, style: RunqText.bodyStrong),
     ]);
   }
 
@@ -561,11 +562,11 @@ class _RequestLoanFormState extends ConsumerState<_RequestLoanForm> {
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Request loan or advance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Request loan or advance', style: RunqText.h3),
           const SizedBox(height: 4),
           Text(
             'You can request up to ₹${_money.format(maxAmount)}.',
-            style: const TextStyle(color: Colors.black54, fontSize: 13),
+            style: RunqText.body.copyWith(color: Colors.black54),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -721,12 +722,12 @@ class _LoanDetailBody extends StatelessWidget {
             Row(children: [
               Icon(_kindIcon(loan.kind), color: _hrAccent),
               const SizedBox(width: 8),
-              Text(_kindLabel(loan.kind), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(_kindLabel(loan.kind), style: RunqText.h4),
             ]),
             const SizedBox(height: 14),
-            Text('Outstanding', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+            Text('Outstanding', style: RunqText.caption.copyWith(color: theme.hintColor)),
             const SizedBox(height: 2),
-            Text('₹${_money.format(loan.outstanding)}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+            Text('₹${_money.format(loan.outstanding)}', style: RunqText.tabular(size: 32, w: FontWeight.w700)),
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -740,7 +741,7 @@ class _LoanDetailBody extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Paid ₹${_money.format(paid)} of ₹${_money.format(loan.principal)} ($paidCount/${loan.totalInstalments} EMIs)',
-              style: TextStyle(fontSize: 12, color: theme.hintColor),
+              style: RunqText.caption.copyWith(color: theme.hintColor),
             ),
           ]),
         ),
@@ -768,7 +769,7 @@ class _LoanDetailBody extends StatelessWidget {
         // Schedule
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-          child: Text('Repayment schedule', style: TextStyle(fontWeight: FontWeight.bold, color: theme.hintColor, fontSize: 13)),
+          child: Text('Repayment schedule', style: RunqText.bodyStrong.copyWith(color: theme.hintColor)),
         ),
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -792,9 +793,9 @@ class _LoanDetailBody extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label, style: TextStyle(fontSize: 11, color: theme.hintColor)),
+              Text(label, style: RunqText.label.copyWith(color: theme.hintColor)),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(value, style: RunqText.bodyStrong),
             ]),
           ),
         ]),
@@ -829,7 +830,7 @@ class _LoanDetailBody extends StatelessWidget {
                 isPaid && inst.paidAt != null
                     ? 'Paid on ${DateFormat('d MMM y').format(inst.paidAt!.toLocal())}'
                     : 'Pending',
-                style: TextStyle(fontSize: 12, color: color),
+                style: RunqText.caption.copyWith(color: color),
               ),
             ]),
           ),

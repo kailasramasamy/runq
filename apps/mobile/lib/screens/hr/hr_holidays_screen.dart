@@ -131,7 +131,7 @@ class _YearStrip extends StatelessWidget {
             child: Center(
               child: Text(
                 '$year',
-                style: TextStyle(color: t.ink, fontSize: 18, fontWeight: FontWeight.w700),
+                style: RunqText.h3.copyWith(color: t.ink, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -177,8 +177,8 @@ class _HolidaysList extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
                 child: Text(
                   months[m].toUpperCase(),
-                  style: TextStyle(
-                    color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
+                  style: RunqText.label.copyWith(
+                    color: t.muted2, letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -250,15 +250,15 @@ class _HolidayTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('${holiday.date.day}',
-                      style: TextStyle(
+                      style: RunqText.h4.copyWith(
                         color: HrColors.brand(context),
-                        fontSize: 16, fontWeight: FontWeight.w800, height: 1,
+                        fontWeight: FontWeight.w800, height: 1,
                       )),
                   const SizedBox(height: 2),
                   Text(months[holiday.date.month - 1].toUpperCase(),
-                      style: TextStyle(
+                      style: RunqText.micro.copyWith(
                         color: HrColors.brand(context),
-                        fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4,
+                        letterSpacing: 0.4,
                       )),
                 ],
               ),
@@ -273,7 +273,6 @@ class _HolidayTile extends StatelessWidget {
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: RunqText.bodyStrong.copyWith(
                       color: isPast ? t.muted2 : t.ink,
-                      fontSize: 14,
                       decoration: isPast ? TextDecoration.lineThrough : null,
                     ),
                   ),
@@ -283,7 +282,7 @@ class _HolidayTile extends StatelessWidget {
                       weekdays[holiday.date.weekday - 1],
                       if (holiday.type != null) holiday.type!,
                     ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),

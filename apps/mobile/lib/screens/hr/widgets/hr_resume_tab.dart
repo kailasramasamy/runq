@@ -152,14 +152,14 @@ class _EmptyBody extends StatelessWidget {
         const SizedBox(height: 12),
         Text('No resume on file',
             textAlign: TextAlign.center,
-            style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+            style: RunqText.h4.copyWith(color: t.ink)),
         const SizedBox(height: 4),
         Text(
             canUpload
                 ? 'Upload a PDF or image — a profile is extracted automatically.'
                 : 'The employee can upload their resume from the runq app.',
             textAlign: TextAlign.center,
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12.5)),
+            style: RunqText.body.copyWith(color: t.muted)),
         if (canUpload) ...[
           const SizedBox(height: 18),
           Center(
@@ -316,10 +316,10 @@ class _ProvenanceBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(text, style: RunqText.caption.copyWith(color: brand, fontSize: 12)),
+                Text(text, style: RunqText.body.copyWith(color: brand)),
                 const SizedBox(height: 4),
                 Text(_confidenceLabel(profile),
-                    style: TextStyle(color: brand, fontSize: 11, fontWeight: FontWeight.w700)),
+                    style: RunqText.caption.copyWith(color: brand, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -373,7 +373,7 @@ class _SummaryCard extends StatelessWidget {
     return _Card(
       title: 'Summary',
       child: Text(text,
-          style: RunqText.body.copyWith(color: RT(context).ink, fontSize: 13.5, height: 1.45)),
+          style: RunqText.body.copyWith(color: RT(context).ink, height: 1.45)),
     );
   }
 }
@@ -393,7 +393,7 @@ class _NothingExtracted extends StatelessWidget {
         'The resume was processed but no profile fields could be extracted. '
         'Try a clearer file, or add details with Edit.',
         textAlign: TextAlign.center,
-        style: RunqText.caption.copyWith(color: t.muted, fontSize: 12.5),
+        style: RunqText.body.copyWith(color: t.muted),
       ),
     );
   }
@@ -413,9 +413,7 @@ class _Card extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text(title.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              )),
+              style: RunqText.label.copyWith(color: t.muted2)),
         ),
         Container(
           width: double.infinity,
@@ -455,9 +453,7 @@ class _EntryList extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text(title.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              )),
+              style: RunqText.label.copyWith(color: t.muted2)),
         ),
         for (var i = 0; i < entries.length; i++) ...[
           if (i > 0) const SizedBox(height: 8),
@@ -494,7 +490,7 @@ class _EntryCardView extends StatelessWidget {
               const SizedBox(width: 7),
               Expanded(
                 child: Text(entry.title,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
               ),
             ],
           ),
@@ -502,13 +498,13 @@ class _EntryCardView extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 22, top: 2),
               child: Text(entry.meta,
-                  style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11.5)),
+                  style: RunqText.caption.copyWith(color: t.muted2)),
             ),
           if (_has(entry.body))
             Padding(
               padding: const EdgeInsets.only(left: 22, top: 5),
               child: Text(entry.body!.trim(),
-                  style: RunqText.body.copyWith(color: t.muted, fontSize: 12.5, height: 1.4)),
+                  style: RunqText.body.copyWith(color: t.muted, height: 1.4)),
             ),
         ],
       ),
@@ -537,11 +533,7 @@ class _ChipSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(it,
-                  style: TextStyle(
-                    color: HrColors.brand(context),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                  )),
+                  style: RunqText.caption.copyWith(color: HrColors.brand(context))),
             ),
         ],
       ),

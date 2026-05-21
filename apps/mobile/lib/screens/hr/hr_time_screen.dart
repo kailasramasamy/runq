@@ -186,9 +186,9 @@ class _StatPill extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(value, style: TextStyle(color: tint, fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(value, style: RunqText.h3.copyWith(color: tint, fontWeight: FontWeight.w700)),
           Text(label.toUpperCase(),
-              style: TextStyle(color: tint, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.4)),
+              style: RunqText.micro.copyWith(color: tint)),
         ],
       ),
     );
@@ -228,7 +228,7 @@ class _AttRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_dateLabel(row.date),
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(timeRange, style: RunqText.caption.copyWith(color: t.muted)),
               ],
@@ -334,7 +334,7 @@ class _ManagerTimeState extends ConsumerState<_ManagerTime> {
                   children: [
                     Icon(Icons.calendar_today_outlined, size: 14, color: t.muted),
                     const SizedBox(width: 6),
-                    Text(_fmtDate(_date), style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 12)),
+                    Text(_fmtDate(_date), style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   ],
                 ),
               ),
@@ -555,7 +555,7 @@ class _TeamRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(row.employeeName, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                Text(row.employeeName, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(
                   row.checkIn == null ? '—' : '${row.checkIn}${row.checkOut == null ? ' →' : ' → ${row.checkOut}'}',
@@ -610,10 +610,10 @@ class _UnmarkedRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(employee.displayName,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text('${employee.employeeCode} · Not marked',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -766,7 +766,7 @@ class _AttendanceEditSheetState extends State<_AttendanceEditSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(widget.employeeName,
-                          style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                          style: RunqText.h4.copyWith(color: t.ink)),
                       const SizedBox(height: 2),
                       Text(dateLabel, style: RunqText.caption.copyWith(color: t.muted)),
                     ],
@@ -853,15 +853,14 @@ class _TimeRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                  Text(label, style: RunqText.caption.copyWith(color: t.muted)),
                   const SizedBox(height: 2),
                   Text(
                     value == null
                         ? 'Select time'
                         : '${value!.hour.toString().padLeft(2, '0')}:${value!.minute.toString().padLeft(2, '0')}',
-                    style: TextStyle(
+                    style: RunqText.body.copyWith(
                       color: value == null ? t.muted2 : t.ink,
-                      fontSize: 14, fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],

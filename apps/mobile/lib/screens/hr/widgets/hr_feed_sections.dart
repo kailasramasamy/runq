@@ -129,10 +129,7 @@ class _SectionLabel extends StatelessWidget {
       child: Row(
         children: [
           Text(label.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2, fontSize: 11,
-                fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              )),
+              style: RunqText.label.copyWith(color: t.muted2)),
           const Spacer(),
           if (trailing != null) trailing!,
         ],
@@ -162,7 +159,7 @@ Widget _empty(BuildContext context, IconData icon, String text) {
       Icon(icon, size: 18, color: t.muted2),
       const SizedBox(width: 10),
       Expanded(child: Text(text,
-          style: RunqText.caption.copyWith(color: t.muted, fontSize: 12))),
+          style: RunqText.body.copyWith(color: t.muted))),
     ]),
   ));
 }
@@ -204,9 +201,9 @@ class HrAnnouncementsSection extends ConsumerWidget {
                       onTap: () => GoRouter.of(context).push('/hr/announcements'),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text('View all',
-                            style: TextStyle(
+                            style: RunqText.caption.copyWith(
                               color: HrColors.brand(context),
-                              fontSize: 11.5, fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             )),
                         Icon(Icons.chevron_right_rounded, size: 14, color: HrColors.brand(context)),
                       ]),
@@ -216,7 +213,7 @@ class HrAnnouncementsSection extends ConsumerWidget {
                           onTap: () => GoRouter.of(context).push('/hr/announcements'),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Text('+${rows.length - top.length} more',
-                                style: TextStyle(color: t.muted, fontSize: 11,
+                                style: RunqText.caption.copyWith(color: t.muted,
                                     fontWeight: FontWeight.w600)),
                             Icon(Icons.chevron_right_rounded, size: 14, color: t.muted),
                           ]),
@@ -313,12 +310,12 @@ class HrAnnouncementListRow extends ConsumerWidget {
                 children: [
                   Text(item.title,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text.rich(
                     TextSpan(children: _parseInlineFormatting(
                       item.body,
-                      RunqText.caption.copyWith(color: t.muted, fontSize: 11.5, height: 1.35),
+                      RunqText.caption.copyWith(color: t.muted, height: 1.35),
                     )),
                     maxLines: 2, overflow: TextOverflow.ellipsis,
                   ),
@@ -334,8 +331,8 @@ class HrAnnouncementListRow extends ConsumerWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(meta,
-                          style: TextStyle(color: t.muted2, fontSize: 10.5,
-                              fontWeight: FontWeight.w600, letterSpacing: 0.2)),
+                          style: RunqText.caption.copyWith(
+                              color: t.muted2, fontWeight: FontWeight.w600)),
                       if (item.departmentName != null && item.departmentName!.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -344,7 +341,7 @@ class HrAnnouncementListRow extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(item.departmentName!,
-                              style: TextStyle(color: cat.color, fontSize: 9.5, fontWeight: FontWeight.w700)),
+                              style: RunqText.micro.copyWith(color: cat.color)),
                         ),
                     ],
                   ),
@@ -415,14 +412,14 @@ void _showFullBody(BuildContext context, HrAnnouncement item) {
                         Icon(cat.icon, size: 13, color: cat.color),
                         const SizedBox(width: 4),
                         Text(cat.label,
-                            style: TextStyle(color: cat.color, fontSize: 11, fontWeight: FontWeight.w700)),
+                            style: RunqText.label.copyWith(color: cat.color, fontWeight: FontWeight.w700)),
                       ]),
                     ),
                     if (item.pinned)
                       Icon(Icons.push_pin, size: 14, color: HrColors.brand(ctx)),
                     if (item.departmentName != null && item.departmentName!.isNotEmpty)
                       Text(item.departmentName!,
-                          style: TextStyle(color: t.muted, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                          style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -446,7 +443,7 @@ void _showFullBody(BuildContext context, HrAnnouncement item) {
                 if (item.postedByName != null && item.postedByName!.isNotEmpty)
                   Text(
                     '${item.postedByName}  ·  ${_relativeTime(item.postedAt)}',
-                    style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                    style: RunqText.caption.copyWith(color: t.muted2),
                   ),
               ],
             ),
@@ -805,7 +802,7 @@ class _PostAnnouncementSheetState extends ConsumerState<_PostAnnouncementSheet> 
                     _expiresAt == null
                         ? 'Expires on (never)'
                         : 'Expires on ${_expiresAt!.day} ${_monthShort(_expiresAt!.month)} ${_expiresAt!.year}',
-                    style: TextStyle(color: t.ink, fontSize: 13),
+                    style: RunqText.body.copyWith(color: t.ink),
                   ),
                 ),
                 if (_expiresAt != null)
@@ -875,9 +872,9 @@ class HrRecentActivitySection extends ConsumerWidget {
                       onTap: () => GoRouter.of(context).push('/hr/activity'),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text('View all',
-                            style: TextStyle(
+                            style: RunqText.caption.copyWith(
                               color: HrColors.brand(context),
-                              fontSize: 11.5, fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             )),
                         Icon(Icons.chevron_right_rounded, size: 14, color: HrColors.brand(context)),
                       ]),
@@ -934,10 +931,10 @@ class HrActivityListRow extends StatelessWidget {
               children: [
                 Text(subjectLine,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(ageLabel,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                    style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
           ),

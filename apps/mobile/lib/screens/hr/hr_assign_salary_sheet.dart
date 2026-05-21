@@ -115,7 +115,7 @@ class _AssignSheetState extends ConsumerState<_AssignSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Assign salary', style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                      Text('Assign salary', style: RunqText.h4.copyWith(color: t.ink)),
                       const SizedBox(height: 2),
                       Text(widget.employee.displayName,
                           style: RunqText.caption.copyWith(color: t.muted)),
@@ -167,13 +167,13 @@ class _AssignSheetState extends ConsumerState<_AssignSheet> {
                             children: [
                               Expanded(
                                 child: Text(c.name ?? c.code ?? '—',
-                                    style: TextStyle(color: t.ink, fontSize: 13, fontWeight: FontWeight.w500)),
+                                    style: RunqText.body.copyWith(color: t.ink)),
                               ),
                               Text(
                                 c.calcType == 'fixed'
                                     ? '₹${c.value.toStringAsFixed(0)}'
                                     : '${c.value.toStringAsFixed(c.value % 1 == 0 ? 0 : 2)}%',
-                                style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13),
+                                style: RunqText.bodyStrong.copyWith(color: t.ink),
                               ),
                             ],
                           ),
@@ -186,7 +186,7 @@ class _AssignSheetState extends ConsumerState<_AssignSheet> {
                     padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
                     child: Text(
                       'A snapshot of the structure is frozen on assignment. Future edits to the structure won\'t change this employee\'s frozen package.',
-                      style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11.5),
+                      style: RunqText.caption.copyWith(color: t.muted2),
                     ),
                   ),
                 ],

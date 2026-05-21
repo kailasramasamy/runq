@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
 import '../../widgets/runq_snack.dart';
+import '../../theme/runq_theme.dart';
 import 'widgets/hr_colors.dart';
 
 class HrCheckInScreen extends ConsumerStatefulWidget {
@@ -166,9 +167,8 @@ class _HrCheckInScreenState extends ConsumerState<HrCheckInScreen> {
           const SizedBox(height: 8),
           Text('Location is captured automatically when you punch.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              style: RunqText.caption.copyWith(
                     color: Theme.of(context).hintColor,
-                    fontSize: 11.5,
                   )),
         ],
       ),
@@ -233,9 +233,8 @@ class _HrCheckInScreenState extends ConsumerState<HrCheckInScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(
+                    style: RunqText.bodyStrong.copyWith(
                       fontWeight: FontWeight.w700,
-                      fontSize: 13.5,
                       color: color,
                     )),
                 Text(sub,
@@ -373,8 +372,7 @@ class _HrCheckInScreenState extends ConsumerState<HrCheckInScreen> {
                         )),
                 const SizedBox(height: 2),
                 Text(p.insideFence ? 'Inside fence' : 'Outside / no fence',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: RunqText.caption.copyWith(
                       color: p.insideFence ? Colors.green.shade700 : Colors.orange.shade800,
                     )),
               ],

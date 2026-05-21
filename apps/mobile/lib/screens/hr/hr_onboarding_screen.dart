@@ -21,6 +21,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../api/hr_phase_next.dart';
+import '../../theme/runq_theme.dart';
 import '../../widgets/runq_snack.dart';
 
 const _hrAccent = Color(0xFF0891B2);
@@ -99,18 +100,18 @@ class _OnboardingBody extends StatelessWidget {
             Row(children: [
               const Icon(Icons.checklist_rounded, color: _hrAccent),
               const SizedBox(width: 8),
-              const Text('Welcome aboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Welcome aboard', style: RunqText.h4),
               const Spacer(),
               if (wf.status == 'completed')
                 const _StatusPill(text: 'All done', color: Colors.green, icon: Icons.check_circle),
             ]),
             const SizedBox(height: 14),
             Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('${(progress * 100).round()}%', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              Text('${(progress * 100).round()}%', style: RunqText.tabular(size: 28, w: FontWeight.w700)),
               const SizedBox(width: 8),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text('$totalDone of $total tasks complete', style: TextStyle(color: theme.hintColor, fontSize: 13)),
+                child: Text('$totalDone of $total tasks complete', style: RunqText.body.copyWith(color: theme.hintColor)),
               ),
             ]),
             const SizedBox(height: 10),
@@ -127,7 +128,7 @@ class _OnboardingBody extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 '${myPending.length} ${myPending.length == 1 ? "task is" : "tasks are"} waiting for you.',
-                style: TextStyle(fontSize: 12, color: theme.hintColor),
+                style: RunqText.caption.copyWith(color: theme.hintColor),
               ),
             ],
           ]),
@@ -162,12 +163,7 @@ class _SectionHeader extends StatelessWidget {
       child: Row(children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.8,
-            color: theme.hintColor,
-          ),
+          style: RunqText.label.copyWith(color: theme.hintColor),
         ),
         const SizedBox(width: 8),
         Container(
@@ -176,7 +172,7 @@ class _SectionHeader extends StatelessWidget {
             color: theme.hintColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text('$count', style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600)),
+          child: Text('$count', style: RunqText.label.copyWith(color: theme.hintColor)),
         ),
       ]),
     );
@@ -228,22 +224,20 @@ class _ItemCardState extends ConsumerState<_ItemCard> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
                   it.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                  style: RunqText.bodyStrong.copyWith(
                     decoration: it.isCompleted ? TextDecoration.lineThrough : null,
                     color: it.isCompleted ? theme.hintColor : null,
                   ),
                 ),
                 if (it.instructions != null && it.instructions!.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(it.instructions!, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                  Text(it.instructions!, style: RunqText.caption.copyWith(color: theme.hintColor)),
                 ],
                 if (it.isCompleted && it.completedAt != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Completed ${DateFormat('d MMM y').format(it.completedAt!.toLocal())}',
-                    style: const TextStyle(fontSize: 11, color: Colors.green),
+                    style: RunqText.label.copyWith(color: Colors.green),
                   ),
                 ],
               ]),
@@ -295,7 +289,7 @@ class _ItemCardState extends ConsumerState<_ItemCard> {
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Uploaded', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+              Text('Uploaded', style: RunqText.label.copyWith(color: theme.hintColor)),
               Text(it.attachmentFileName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
             ]),
           ),
@@ -321,7 +315,7 @@ class _ItemCardState extends ConsumerState<_ItemCard> {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Upload $kindLabel', style: const TextStyle(fontWeight: FontWeight.w600, color: _hrAccent)),
-                    Text('PDF, PNG, JPG or WEBP, up to 10 MB', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                    Text('PDF, PNG, JPG or WEBP, up to 10 MB', style: RunqText.label.copyWith(color: theme.hintColor)),
                   ]),
                 ),
                 const Icon(Icons.chevron_right, color: _hrAccent),
@@ -424,7 +418,7 @@ class _StatusPill extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 12, color: color),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(text, style: RunqText.label.copyWith(color: color)),
       ]),
     );
   }

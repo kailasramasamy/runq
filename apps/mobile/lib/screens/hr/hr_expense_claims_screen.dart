@@ -214,8 +214,7 @@ class _SectionHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text('$count',
-              style: RunqText.caption.copyWith(
-                  color: muted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+              style: RunqText.micro.copyWith(color: muted)),
         ),
       ],
     );
@@ -266,9 +265,9 @@ class _FilterChips extends StatelessWidget {
               ),
               child: Text(
                 o.$2,
-                style: TextStyle(
+                style: RunqText.caption.copyWith(
                   color: sel ? Colors.white : t.ink,
-                  fontSize: 12, fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -351,7 +350,7 @@ class _ClaimRow extends StatelessWidget {
                             children: [
                               Text(claim.claimNumber,
                                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
                               const SizedBox(height: 2),
                               Text(
                                 [
@@ -359,7 +358,7 @@ class _ClaimRow extends StatelessWidget {
                                   claim.claimantName,
                                 ].join(' · '),
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                                style: RunqText.caption.copyWith(color: t.muted),
                               ),
                               if (urgency != null) ...[
                                 const SizedBox(height: 4),
@@ -374,9 +373,8 @@ class _ClaimRow extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 3),
                                     Text(urgency.label,
-                                        style: TextStyle(
+                                        style: RunqText.label.copyWith(
                                           color: urgency.accent,
-                                          fontSize: 11,
                                           fontWeight: urgency.urgent ? FontWeight.w700 : FontWeight.w600,
                                         )),
                                   ],
@@ -493,7 +491,7 @@ class _DetailHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(claim.claimNumber, style: RunqText.h2.copyWith(color: t.ink, fontSize: 20)),
+                Text(claim.claimNumber, style: RunqText.h2.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(claim.claimantName, style: RunqText.caption.copyWith(color: t.muted)),
               ],
@@ -525,35 +523,32 @@ class _SummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Total claimed',
-              style: TextStyle(
+              style: RunqText.label.copyWith(
                 color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3,
+                letterSpacing: 0.3,
               )),
           const SizedBox(height: 8),
           Text(hrFormatINR(claim.totalAmount),
-              style: const TextStyle(
-                color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800,
-                fontFeatures: [FontFeature.tabularFigures()],
-              )),
+              style: RunqText.tabular(size: 30, w: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 6),
           Text(
             'Claim date · ${claim.claimDate.day} ${m[claim.claimDate.month - 1]} ${claim.claimDate.year}',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
+            style: RunqText.body.copyWith(color: Colors.white.withValues(alpha: 0.85)),
           ),
           if (claim.description != null && claim.description!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(claim.description!,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13)),
+                style: RunqText.body.copyWith(color: Colors.white.withValues(alpha: 0.9))),
           ],
           if (claim.approvedAt != null) ...[
             const SizedBox(height: 6),
             Text('Approved · ${_fmtDt(claim.approvedAt!)}',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11.5)),
+                style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.7))),
           ],
           if (claim.reimbursedAt != null) ...[
             const SizedBox(height: 4),
             Text('Reimbursed · ${_fmtDt(claim.reimbursedAt!)}',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11.5)),
+                style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.7))),
           ],
         ],
       ),
@@ -617,19 +612,18 @@ class _ItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(hrExpenseCategoryLabel(item.category),
-                    style: TextStyle(
+                    style: RunqText.label.copyWith(
                       color: HrColors.brand(context),
-                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
                     )),
                 const SizedBox(height: 2),
                 Text(item.description,
                     maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text('${item.expenseDate.day} ${m[item.expenseDate.month - 1]}',
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                    style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
           ),
@@ -689,10 +683,10 @@ class _RejectionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Rejected',
-                    style: TextStyle(color: const Color(0xFF7F1D1D), fontSize: 12, fontWeight: FontWeight.w700)),
+                    style: RunqText.caption.copyWith(color: const Color(0xFF7F1D1D), fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(reason,
-                    style: const TextStyle(color: Color(0xFF7F1D1D), fontSize: 13)),
+                    style: RunqText.body.copyWith(color: const Color(0xFF7F1D1D))),
               ],
             ),
           ),
@@ -1100,13 +1094,11 @@ class _HrExpenseClaimFormScreenState extends ConsumerState<HrExpenseClaimFormScr
             child: Row(
               children: [
                 Text('ITEMS',
-                    style: TextStyle(
-                      color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-                    )),
+                    style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
                 const Spacer(),
                 if (_lines.isNotEmpty)
                   Text('Total ${hrFormatINR(_total)}',
-                      style: RunqText.bodyStrong.copyWith(color: HrColors.brand(context), fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: HrColors.brand(context))),
               ],
             ),
           ),
@@ -1183,11 +1175,11 @@ class _EmptyItemsHint extends StatelessWidget {
           Icon(Icons.receipt_long_outlined, size: 32, color: t.muted2),
           const SizedBox(height: 8),
           Text('No items yet',
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 2),
           Text('Add expense items one by one — each gets its own date, category, and amount.',
               textAlign: TextAlign.center,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+              style: RunqText.caption.copyWith(color: t.muted)),
         ],
       ),
     );
@@ -1237,15 +1229,15 @@ class _ItemSummaryCard extends StatelessWidget {
                   children: [
                     Text(line.description.isEmpty ? 'Untitled item' : line.description,
                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text('$dateLabel · ${hrExpenseCategoryLabel(line.category)}',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
               Text(hrFormatINR(line.amount),
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                  style: RunqText.tabular(size: 14, color: t.ink)),
               IconButton(
                 tooltip: 'Edit',
                 icon: Icon(Icons.edit_outlined, color: t.muted, size: 18),
@@ -1329,7 +1321,7 @@ class _SubmitOrDraftSheet extends StatelessWidget {
           const SizedBox(height: 14),
           Text('Claim saved',
               textAlign: TextAlign.center,
-              style: RunqText.h3.copyWith(color: t.ink, fontSize: 20)),
+              style: RunqText.h3.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text('${claim.claimNumber} · ${hrFormatINR(claim.totalAmount)}',
               textAlign: TextAlign.center,
@@ -1337,7 +1329,7 @@ class _SubmitOrDraftSheet extends StatelessWidget {
           const SizedBox(height: 8),
           Text('Send it to your manager for approval, or keep it as a draft and submit later from the Expenses list.',
               textAlign: TextAlign.center,
-              style: RunqText.body.copyWith(color: t.muted, fontSize: 13)),
+              style: RunqText.body.copyWith(color: t.muted)),
           const SizedBox(height: 22),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -1441,7 +1433,7 @@ class _ExpenseItemSheetState extends State<_ExpenseItemSheet> {
             child: Row(
               children: [
                 Text(isEdit ? 'Edit item' : 'Add item',
-                    style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+                    style: RunqText.h3.copyWith(color: t.ink)),
                 const Spacer(),
                 IconButton(
                   icon: Icon(Icons.close_rounded, color: t.muted),

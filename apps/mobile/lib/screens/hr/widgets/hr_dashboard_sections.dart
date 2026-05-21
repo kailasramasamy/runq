@@ -32,9 +32,7 @@ class _SectionLabel extends StatelessWidget {
       child: Row(
         children: [
           Text(label.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              )),
+              style: RunqText.label.copyWith(color: t.muted2)),
           const Spacer(),
           if (trailing != null) trailing!,
         ],
@@ -68,7 +66,7 @@ class _EmptyCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                style: RunqText.body.copyWith(color: t.muted)),
           ),
         ],
       ),
@@ -109,7 +107,7 @@ class HrWhoIsOutSection extends ConsumerWidget {
             'Who\'s out today',
             trailing: extra > 0
                 ? Text('+$extra more',
-                    style: TextStyle(color: t.muted, fontSize: 11, fontWeight: FontWeight.w600))
+                    style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600))
                 : null,
           ),
           Container(
@@ -167,14 +165,14 @@ class _WhoOutRow extends StatelessWidget {
                 children: [
                   Text(req.employeeName,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text(
                     [
                       req.typeName,
                       if (backLabel != null) backLabel,
                     ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),
@@ -281,11 +279,11 @@ class _CelebrationRow extends StatelessWidget {
                   Text(
                     '$emoji  ${item.employee.displayName}',
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink),
                   ),
                   const SizedBox(height: 2),
                   Text('$title · $occursLabel',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                      style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -416,22 +414,20 @@ class _MomentTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TextStyle(
-                      color: t.muted2, fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4,
-                    )),
+                    style: RunqText.micro.copyWith(color: t.muted2)),
               ],
             ),
             const SizedBox(height: 8),
             Text('$count',
-                style: TextStyle(
+                style: RunqText.tabular(
+                  size: 22, w: FontWeight.w800,
                   color: disabled ? t.muted2 : tint,
-                  fontSize: 22, fontWeight: FontWeight.w800,
                 )),
             const SizedBox(height: 2),
             Text(
               topNames.isEmpty ? 'No one this month' : topNames.join(', '),
               maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+              style: RunqText.caption.copyWith(color: t.muted),
             ),
           ],
         ),
@@ -489,11 +485,11 @@ class HrAttendanceTrendSection extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Avg present',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                     Text('$avgPct%',
-                        style: TextStyle(
+                        style: RunqText.tabular(
+                          size: 22, w: FontWeight.w800,
                           color: HrColors.brand(context),
-                          fontSize: 22, fontWeight: FontWeight.w800,
                         )),
                   ],
                 ),
@@ -599,7 +595,7 @@ class HrExpiringDocsSection extends ConsumerWidget {
             'Document expiries',
             trailing: rows.length > top.length
                 ? Text('+${rows.length - top.length} more',
-                    style: TextStyle(color: t.muted, fontSize: 11, fontWeight: FontWeight.w600))
+                    style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600))
                 : null,
           ),
           Container(
@@ -661,10 +657,10 @@ class _ExpiringRow extends StatelessWidget {
                 children: [
                   Text(doc.employeeName,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text('$kindLabel · ${doc.employeeCode}',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                      style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -673,7 +669,7 @@ class _ExpiringRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: chipBg, borderRadius: BorderRadius.circular(999)),
               child: Text(chipText,
-                  style: TextStyle(color: chipInk, fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: RunqText.label.copyWith(color: chipInk, fontWeight: FontWeight.w700)),
             ),
           ],
         ),

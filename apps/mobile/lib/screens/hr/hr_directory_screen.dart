@@ -74,7 +74,7 @@ class _HrDirectoryScreenState extends ConsumerState<HrDirectoryScreen> {
                       onChanged: (v) => setState(() => _q = v),
                       decoration: InputDecoration(
                         hintText: 'Search by name, code, phone, email',
-                        hintStyle: TextStyle(color: t.muted2, fontSize: 14),
+                        hintStyle: RunqText.body.copyWith(color: t.muted2),
                         prefixIcon: Icon(Icons.search_rounded, size: 18, color: t.muted),
                         suffixIcon: _q.isEmpty
                             ? null
@@ -132,7 +132,7 @@ class _HrDirectoryScreenState extends ConsumerState<HrDirectoryScreen> {
                           name: e.displayName, photoUrl: e.photoUrl, employeeId: e.id, size: 40,
                         ),
                         title: Text(e.displayName,
-                            style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                            style: RunqText.bodyStrong.copyWith(color: t.ink)),
                         subtitle: Text(
                           [
                             e.employeeCode,
@@ -140,7 +140,7 @@ class _HrDirectoryScreenState extends ConsumerState<HrDirectoryScreen> {
                             if (e.departmentName != null) e.departmentName!,
                           ].join(' · '),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                          style: RunqText.caption.copyWith(color: t.muted),
                         ),
                         trailing: Icon(Icons.chevron_right_rounded, color: t.muted2, size: 18),
                         // Contact card stays a bottom sheet — search list
@@ -308,10 +308,10 @@ class _ContactRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(label,
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                     const SizedBox(height: 2),
                     Text(value,
-                        style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.body.copyWith(color: t.ink)),
                   ],
                 ),
               ),

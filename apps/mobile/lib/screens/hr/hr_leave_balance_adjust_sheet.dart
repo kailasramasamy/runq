@@ -143,7 +143,7 @@ class _AdjustSheetState extends ConsumerState<_AdjustSheet> {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
             child: Row(
               children: [
-                Text('Adjust leave balance', style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                Text('Adjust leave balance', style: RunqText.h4.copyWith(color: t.ink)),
               ],
             ),
           ),
@@ -225,7 +225,7 @@ class _AdjustSheetState extends ConsumerState<_AdjustSheet> {
                     padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
                     child: Text(
                       'Used days aren\'t edited here — adjust by approving/cancelling specific requests instead.',
-                      style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11.5),
+                      style: RunqText.caption.copyWith(color: t.muted2),
                     ),
                   ),
                 ],

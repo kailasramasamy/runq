@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
 import '../../providers/app_role_provider.dart';
+import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
@@ -107,9 +108,8 @@ class _SegmentTabs extends StatelessWidget {
                   child: Center(
                     child: Text(
                       labels[i],
-                      style: TextStyle(
+                      style: RunqText.body.copyWith(
                         color: i == active ? Colors.white : t.muted,
-                        fontSize: 13,
                         fontWeight: i == active ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
@@ -200,16 +200,16 @@ class _RegCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(DateFormat('EEE, d MMM y').format(r.date),
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                      style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text('${r.requestedCheckIn ?? '—'}  →  ${r.requestedCheckOut ?? '—'}',
-                      style: TextStyle(color: t.muted, fontSize: 13)),
+                      style: RunqText.body.copyWith(color: t.muted)),
                   const SizedBox(height: 6),
-                  Text(r.reason, style: TextStyle(color: t.ink, fontSize: 13)),
+                  Text(r.reason, style: RunqText.body.copyWith(color: t.ink)),
                   if (r.status == 'rejected' && (r.rejectionReason ?? '').isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text('Rejection: ${r.rejectionReason}',
-                        style: TextStyle(color: t.muted, fontSize: 12, fontStyle: FontStyle.italic)),
+                        style: RunqText.caption.copyWith(color: t.muted, fontStyle: FontStyle.italic)),
                   ],
                 ],
               ),
@@ -221,7 +221,7 @@ class _RegCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-                  child: Text(label, style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
+                  child: Text(label, style: RunqText.label.copyWith(color: fg)),
                 ),
                 if (canCancel) ...[
                   const SizedBox(height: 6),
@@ -284,12 +284,12 @@ class _PendingCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(DateFormat('EEE, d MMM y').format(r.date),
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text('${r.requestedCheckIn ?? '—'}  →  ${r.requestedCheckOut ?? '—'}',
-                style: TextStyle(color: t.muted, fontSize: 13)),
+                style: RunqText.body.copyWith(color: t.muted)),
             const SizedBox(height: 6),
-            Text(r.reason, style: TextStyle(color: t.ink, fontSize: 13)),
+            Text(r.reason, style: RunqText.body.copyWith(color: t.ink)),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -389,8 +389,8 @@ class _NewRegSheetState extends State<_NewRegSheet> {
                 ),
               ),
             ),
-            const Text('New regularization',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            Text('New regularization',
+                style: RunqText.h3.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
             _FieldLabel('Date'),
             InkWell(
@@ -421,7 +421,7 @@ class _NewRegSheetState extends State<_NewRegSheet> {
                     Icon(Icons.calendar_today_rounded, size: 18, color: t.muted),
                     const SizedBox(width: 10),
                     Text(DateFormat('EEE, d MMM y').format(_date),
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                        style: RunqText.body),
                   ],
                 ),
               ),
@@ -451,7 +451,7 @@ class _NewRegSheetState extends State<_NewRegSheet> {
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'Why was attendance not marked correctly?',
-                hintStyle: TextStyle(color: t.muted, fontSize: 13),
+                hintStyle: RunqText.body.copyWith(color: t.muted),
                 filled: true,
                 fillColor: t.bgWarm,
                 contentPadding: const EdgeInsets.all(12),
@@ -522,7 +522,7 @@ class _FieldLabel extends StatelessWidget {
     final t = RT(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, left: 2),
-      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: t.muted)),
+      child: Text(text, style: RunqText.caption.copyWith(fontWeight: FontWeight.w600, color: t.muted)),
     );
   }
 }
@@ -590,8 +590,7 @@ class _TimePickerField extends StatelessWidget {
                 Expanded(
                   child: Text(
                     value == null ? '—' : _fmt(value!),
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: RunqText.body.copyWith(
                       fontWeight: value == null ? FontWeight.w400 : FontWeight.w600,
                       color: value == null ? t.muted : t.ink,
                     ),

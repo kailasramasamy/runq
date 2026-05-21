@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/hr_phase_next.dart';
+import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
@@ -52,11 +53,11 @@ class HrPerformanceScreen extends ConsumerWidget {
                       Icon(Icons.flag_outlined, size: 56, color: t.muted),
                       const SizedBox(height: 12),
                       Text('No performance cycles yet',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: t.ink)),
+                          style: RunqText.bodyStrong.copyWith(color: t.ink)),
                       const SizedBox(height: 4),
                       Text('When HR sets up your goals, your cycle will appear here.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: t.muted)),
+                          style: RunqText.body.copyWith(color: t.muted)),
                     ]),
                   ),
                 ],
@@ -148,7 +149,7 @@ class _CycleCard extends StatelessWidget {
             Row(children: [
               Expanded(
                 child: Text(group.name,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.ink)),
+                    style: RunqText.h4.copyWith(color: t.ink)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -157,13 +158,13 @@ class _CycleCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(statusLabel,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+                    style: RunqText.label.copyWith(color: statusColor)),
               ),
             ]),
             if (group.startDate != null && group.endDate != null) ...[
               const SizedBox(height: 3),
               Text('${group.startDate} → ${group.endDate}',
-                  style: TextStyle(fontSize: 12, color: t.muted)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
             const SizedBox(height: 12),
             Row(children: [
@@ -172,8 +173,7 @@ class _CycleCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 allRated ? 'All $total goals self-rated' : '$rated of $total goals self-rated',
-                style: TextStyle(
-                  fontSize: 13,
+                style: RunqText.body.copyWith(
                   fontWeight: allRated ? FontWeight.w600 : FontWeight.w500,
                   color: allRated ? Colors.green.shade700 : t.ink,
                 ),
@@ -199,7 +199,7 @@ class _CycleCard extends StatelessWidget {
                 Icon(Icons.rate_review_outlined, size: 14, color: Colors.orange.shade700),
                 const SizedBox(width: 4),
                 Text('Review wrap-up waiting for you',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                    style: RunqText.caption.copyWith(color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
               ]),
             ],
           ]),
@@ -247,7 +247,7 @@ class _CycleDetailScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     'Once you\'ve self-rated your goals, HR will start the review wrap-up — you\'ll see it here.',
-                    style: TextStyle(color: t.muted, fontSize: 13),
+                    style: RunqText.body.copyWith(color: t.muted),
                   ),
                 )
               else
@@ -328,9 +328,9 @@ class _ActionBanner extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: t.ink)),
+            Text(title, style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700, color: t.ink)),
             const SizedBox(height: 2),
-            Text(body, style: TextStyle(fontSize: 12, color: t.muted)),
+            Text(body, style: RunqText.caption.copyWith(color: t.muted)),
           ]),
         ),
       ]),
@@ -347,7 +347,7 @@ class _SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Text(label.toUpperCase(),
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: t.muted)),
+          style: RunqText.label.copyWith(color: t.muted)),
     );
   }
 }
@@ -374,7 +374,7 @@ class _GoalCard extends StatelessWidget {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Text(goal.title,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: t.ink)),
+                style: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700, color: t.ink)),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -383,12 +383,12 @@ class _GoalCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text('${goal.weight.toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: HrColors.brand(context))),
+                style: RunqText.label.copyWith(color: HrColors.brand(context))),
           ),
         ]),
         if (goal.description != null && goal.description!.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(goal.description!, style: TextStyle(fontSize: 13, color: t.muted, height: 1.35)),
+          Text(goal.description!, style: RunqText.body.copyWith(color: t.muted, height: 1.35)),
         ],
         const SizedBox(height: 10),
         // Mid-cycle progress — tap to update.
@@ -412,8 +412,7 @@ class _GoalCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 goal.progressPct == null ? 'Set progress' : '${goal.progressPct}%',
-                style: TextStyle(
-                  fontSize: 12,
+                style: RunqText.caption.copyWith(
                   fontWeight: FontWeight.w600,
                   color: goal.progressPct == null ? HrColors.brand(context) : t.ink,
                 ),
@@ -456,7 +455,7 @@ class _GoalCard extends StatelessWidget {
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
         child: Text(
           '$label: ${empty ? '—' : v.toStringAsFixed(1)}',
-          style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+          style: RunqText.label.copyWith(color: fg),
         ),
       );
     });
@@ -490,7 +489,7 @@ class _ReviewCard extends StatelessWidget {
             ),
             child: Text(
               review.status.replaceAll('_', ' '),
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _statusColor(review.status)),
+              style: RunqText.label.copyWith(color: _statusColor(review.status)),
             ),
           ),
           const Spacer(),
@@ -526,15 +525,15 @@ class _ReviewCard extends StatelessWidget {
         ]),
         if (review.managerComments != null && review.managerComments!.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text("Manager's comments", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: t.muted)),
+          Text("Manager's comments", style: RunqText.label.copyWith(color: t.muted)),
           const SizedBox(height: 2),
-          Text(review.managerComments!, style: TextStyle(fontSize: 13, color: t.ink, height: 1.35)),
+          Text(review.managerComments!, style: RunqText.body.copyWith(color: t.ink, height: 1.35)),
         ],
         if (review.employeeAckComment != null && review.employeeAckComment!.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text('Your acknowledgement note', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: t.muted)),
+          Text('Your acknowledgement note', style: RunqText.label.copyWith(color: t.muted)),
           const SizedBox(height: 2),
-          Text(review.employeeAckComment!, style: TextStyle(fontSize: 13, color: t.ink, height: 1.35)),
+          Text(review.employeeAckComment!, style: RunqText.body.copyWith(color: t.ink, height: 1.35)),
         ],
       ]),
     );
@@ -560,10 +559,10 @@ class _ReviewCard extends StatelessWidget {
         ),
         child: Column(children: [
           Text(v?.toStringAsFixed(1) ?? '—',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: t.ink)),
+              style: RunqText.h3.copyWith(color: t.ink)),
           Text(derived ? '$label · from goals' : label,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, color: t.muted, fontWeight: FontWeight.w600)),
+              style: RunqText.micro.copyWith(color: t.muted)),
         ]),
       ),
     );
@@ -618,17 +617,17 @@ class _SelfRateGoalSheetState extends State<_SelfRateGoalSheet> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.goal.title,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.ink)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           if (widget.goal.description != null) ...[
             const SizedBox(height: 4),
-            Text(widget.goal.description!, style: TextStyle(fontSize: 13, color: t.muted)),
+            Text(widget.goal.description!, style: RunqText.body.copyWith(color: t.muted)),
           ],
           const SizedBox(height: 16),
           Row(children: [
-            Text('Your rating', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.muted)),
+            Text('Your rating', style: RunqText.bodyStrong.copyWith(color: t.muted)),
             const Spacer(),
             Text('${_rating.toStringAsFixed(1)} / 5',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: brand)),
+                style: RunqText.h3.copyWith(color: brand)),
           ]),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -651,7 +650,7 @@ class _SelfRateGoalSheetState extends State<_SelfRateGoalSheet> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(ratingAnchor(_rating),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ratingAnchorColor(_rating))),
+                  style: RunqText.caption.copyWith(fontWeight: FontWeight.w700, color: ratingAnchorColor(_rating))),
             ),
           ),
           const SizedBox(height: 8),
@@ -738,13 +737,13 @@ class _SelfReviewSheetState extends State<_SelfReviewSheet> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('Overall self review',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.ink)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           const SizedBox(height: 12),
           Row(children: [
-            Text('Overall rating', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.muted)),
+            Text('Overall rating', style: RunqText.bodyStrong.copyWith(color: t.muted)),
             const Spacer(),
             Text('${_rating.toStringAsFixed(1)} / 5',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: brand)),
+                style: RunqText.h3.copyWith(color: brand)),
           ]),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -767,7 +766,7 @@ class _SelfReviewSheetState extends State<_SelfReviewSheet> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(ratingAnchor(_rating),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ratingAnchorColor(_rating))),
+                  style: RunqText.caption.copyWith(fontWeight: FontWeight.w700, color: ratingAnchorColor(_rating))),
             ),
           ),
           const SizedBox(height: 10),
@@ -841,11 +840,11 @@ class _AcknowledgeSheetState extends State<_AcknowledgeSheet> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('Acknowledge review',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.ink)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text(
             'Confirm you\'ve seen your finalised review. You can add a note for the record (optional).',
-            style: TextStyle(fontSize: 13, color: t.muted),
+            style: RunqText.body.copyWith(color: t.muted),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -922,16 +921,16 @@ class _ProgressSheetState extends State<_ProgressSheet> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.goal.title,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.ink)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text('How far along are you on this goal?',
-              style: TextStyle(fontSize: 13, color: t.muted)),
+              style: RunqText.body.copyWith(color: t.muted)),
           const SizedBox(height: 16),
           Row(children: [
-            Text('Progress', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.muted)),
+            Text('Progress', style: RunqText.bodyStrong.copyWith(color: t.muted)),
             const Spacer(),
             Text('${_pct.round()}%',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: brand)),
+                style: RunqText.tabular(size: 20, w: FontWeight.w700, color: brand)),
           ]),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(

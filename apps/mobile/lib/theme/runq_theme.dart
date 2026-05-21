@@ -17,6 +17,7 @@ class RunqText {
   );
   static TextStyle h2 = GoogleFonts.publicSans(fontSize: 22, fontWeight: FontWeight.w700, height: 1.15);
   static TextStyle h3 = GoogleFonts.publicSans(fontSize: 18, fontWeight: FontWeight.w600, height: 1.2);
+  static TextStyle h4 = GoogleFonts.publicSans(fontSize: 16, fontWeight: FontWeight.w600, height: 1.25);
   static TextStyle numberLg = GoogleFonts.publicSans(
     fontSize: 24, fontWeight: FontWeight.w700, height: 1.2,
     fontFeatures: const [FontFeature.tabularFigures()],

@@ -143,10 +143,10 @@ class _RunRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(run.periodLabel,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                     const SizedBox(height: 2),
                     Text('${run.totalEmployees} employees',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -293,7 +293,7 @@ class _CreateRunSheetState extends State<_CreateRunSheet> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
             child: Text(
               'Run starts in DRAFT. "Process" generates payslips for every active employee with a salary assignment.',
-              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11.5),
+              style: RunqText.caption.copyWith(color: t.muted2),
             ),
           ),
           const SizedBox(height: 14),
@@ -403,7 +403,7 @@ class _DetailHeader extends StatelessWidget {
           const SizedBox(width: 4),
           Expanded(
             child: Text('${run.periodLabel} payroll',
-                style: RunqText.h2.copyWith(color: t.ink, fontSize: 20)),
+                style: RunqText.h2.copyWith(color: t.ink)),
           ),
           HrStatusBadge(status: run.status),
         ],
@@ -429,16 +429,13 @@ class _SummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Net payroll',
-              style: TextStyle(
+              style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3,
+                letterSpacing: 0.3,
               )),
           const SizedBox(height: 8),
           Text(run.totalNet > 0 ? hrFormatINR(run.totalNet) : '—',
-              style: const TextStyle(
-                color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800,
-                fontFeatures: [FontFeature.tabularFigures()],
-              )),
+              style: RunqText.tabular(size: 30, w: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -452,7 +449,7 @@ class _SummaryCard extends StatelessWidget {
           if (run.notes != null && run.notes!.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(run.notes!,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13)),
+                style: RunqText.body.copyWith(color: Colors.white.withValues(alpha: 0.9))),
           ],
         ],
       ),
@@ -463,13 +460,10 @@ class _SummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
+              style: RunqText.label.copyWith(color: Colors.white.withValues(alpha: 0.7))),
           const SizedBox(height: 2),
           Text(value,
-              style: const TextStyle(
-                color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700,
-                fontFeatures: [FontFeature.tabularFigures()],
-              )),
+              style: RunqText.tabular(size: 13, w: FontWeight.w700, color: Colors.white)),
         ],
       );
 }
@@ -493,14 +487,14 @@ class _EmptyPayslips extends StatelessWidget {
           Icon(Icons.receipt_long_outlined, size: 32, color: t.muted2),
           const SizedBox(height: 10),
           Text('No payslips yet',
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text(
             run.canProcess
                 ? 'Tap "Process" below to generate payslips for every active employee with a salary assignment.'
                 : 'No employees were eligible when this run was processed.',
             textAlign: TextAlign.center,
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+            style: RunqText.caption.copyWith(color: t.muted),
           ),
         ],
       ),
@@ -522,9 +516,7 @@ class _PayslipsCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
           child: Text('PAYSLIPS (${slips.length})',
-              style: TextStyle(
-                color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-              )),
+              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
         ),
         Container(
           decoration: BoxDecoration(
@@ -574,7 +566,7 @@ class _PayslipRow extends StatelessWidget {
                 children: [
                   Text(ps.employeeName ?? '—',
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text(
                     [
@@ -583,7 +575,7 @@ class _PayslipRow extends StatelessWidget {
                       if (ps.lopDays > 0)
                         'LOP ${ps.lopDays.toStringAsFixed(ps.lopDays % 1 == 0 ? 0 : 1)}d',
                     ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),
@@ -605,7 +597,6 @@ class _ActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = RT(context);
     // Lifecycle action gating mirrors the server's enum order — server
     // will refuse out-of-sequence transitions, but we hide the button so
     // the user never sees it.

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../api/hr_models.dart';
 import '../../../api/hr_repo.dart';
 import '../../../providers/hr_providers.dart';
+import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import '../../../widgets/runq_snack.dart';
 import 'hr_colors.dart';
@@ -303,9 +304,7 @@ class _EntryGroup extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
           child: Text(
             title.toUpperCase(),
-            style: TextStyle(
-              color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-            ),
+            style: RunqText.label.copyWith(color: t.muted2),
           ),
         ),
         for (var i = 0; i < count; i++) ...[
@@ -327,11 +326,7 @@ class _EntryGroup extends StatelessWidget {
                 Icon(Icons.add_rounded, size: 17, color: HrColors.brand(context)),
                 const SizedBox(width: 6),
                 Text(addLabel,
-                    style: TextStyle(
-                      color: HrColors.brand(context),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    )),
+                    style: RunqText.bodyStrong.copyWith(color: HrColors.brand(context))),
               ],
             ),
           ),
@@ -365,8 +360,8 @@ class _EntryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(heading,
-                      style: TextStyle(
-                        color: t.muted, fontSize: 11, fontWeight: FontWeight.w700,
+                      style: RunqText.caption.copyWith(
+                        color: t.muted, fontWeight: FontWeight.w700,
                       )),
                 ),
                 IconButton(
@@ -543,9 +538,7 @@ class _ChipListEditorState extends State<_ChipListEditor> {
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
           child: Text(
             widget.title.toUpperCase(),
-            style: TextStyle(
-              color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-            ),
+            style: RunqText.label.copyWith(color: t.muted2),
           ),
         ),
         Container(
@@ -567,7 +560,7 @@ class _ChipListEditorState extends State<_ChipListEditor> {
                     for (var i = 0; i < widget.items.length; i++)
                       Chip(
                         label: Text(widget.items[i],
-                            style: TextStyle(color: HrColors.brand(context), fontSize: 12.5)),
+                            style: RunqText.caption.copyWith(color: HrColors.brand(context))),
                         backgroundColor: HrColors.tealSubtle,
                         side: BorderSide.none,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -582,13 +575,13 @@ class _ChipListEditorState extends State<_ChipListEditor> {
                 ),
               TextField(
                 controller: _ctrl,
-                style: TextStyle(color: t.ink, fontSize: 14, fontWeight: FontWeight.w500),
+                style: RunqText.body.copyWith(color: t.ink),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _add(),
                 onEditingComplete: _add,
                 decoration: InputDecoration(
                   hintText: widget.hint,
-                  hintStyle: TextStyle(color: t.muted2, fontSize: 14),
+                  hintStyle: RunqText.body.copyWith(color: t.muted2),
                   isDense: true,
                   border: InputBorder.none,
                   suffixIcon: IconButton(

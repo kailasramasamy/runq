@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
+import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
@@ -73,11 +74,8 @@ class HrTaxDeclarationScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
                   child: Text('HISTORY',
-                      style: TextStyle(
-                          color: t.muted2,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5)),
+                      // uppercase tracking label → label token (11, w600, letterSpacing)
+                      style: RunqText.label.copyWith(color: t.muted2)),
                 ),
                 ...rows.map((d) => _HistoryTile(d: d)),
               ],
@@ -119,10 +117,8 @@ class _CurrentFyHero extends StatelessWidget {
               const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 22),
               const SizedBox(width: 8),
               Text('FY ${_currentFy()}',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700)),
+                  // section/card title on gradient → h3 (18, w600); original had w700 so keep override
+                  style: RunqText.h3.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
               const Spacer(),
               const Icon(Icons.chevron_right_rounded, color: Colors.white),
             ]),
@@ -131,8 +127,8 @@ class _CurrentFyHero extends StatelessWidget {
               hasDraft
                   ? 'Status: ${existing!.status.toUpperCase()}  •  ₹${_formatInr(existing!.total)} declared'
                   : 'Declare your investments to reduce TDS on salary',
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.92), fontSize: 13),
+              // body content sentence → body (14)
+              style: RunqText.body.copyWith(color: Colors.white.withValues(alpha: 0.92)),
             ),
             const SizedBox(height: 12),
             Container(
@@ -143,8 +139,8 @@ class _CurrentFyHero extends StatelessWidget {
               ),
               child: Text(
                 hasDraft ? 'Continue' : 'Start declaration',
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                // button label in pill → caption (12) with w700 override
+                style: RunqText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -174,19 +170,22 @@ class _HistoryTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // primary line of list row → bodyStrong; original w700 override needed
               Text('FY ${d.financialYear}',
-                  style: TextStyle(color: t.ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
+              // secondary line subtitle with a rupee amount — sentence-case meta → caption (12)
               Text('${d.regime.toUpperCase()} regime  •  ₹${_formatInr(d.total)}',
-                  style: TextStyle(color: t.muted, fontSize: 12)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+          // uppercase badge → micro (10, w700, letterSpacing)
           child: Text(d.status.toUpperCase(),
-              style: TextStyle(color: fg, fontSize: 10.5, fontWeight: FontWeight.w700)),
+              style: RunqText.micro.copyWith(color: fg)),
         ),
       ]),
     );
@@ -455,8 +454,8 @@ class _SectionLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       child: Text(text.toUpperCase(),
-          style: TextStyle(
-              color: t.muted2, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          // uppercase tracking label → label token (11, w600, letterSpacing)
+          style: RunqText.label.copyWith(color: t.muted2)),
     );
   }
 }
@@ -507,12 +506,13 @@ class _TotalBanner extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // label above a metric value — body content (not uppercase label) → body (14)
               Text('Total declared',
-                  style: TextStyle(color: t.muted, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  style: RunqText.body.copyWith(color: t.muted)),
               const SizedBox(height: 2),
+              // rupee total metric → h3 (18); original was 20/w800, use h3 + weight override
               Text('₹${_formatInr(total)}',
-                  style: const TextStyle(
-                      color: HrColors.tealDeep, fontSize: 20, fontWeight: FontWeight.w800)),
+                  style: RunqText.tabular(size: 20, w: FontWeight.w800, color: HrColors.tealDeep)),
             ],
           ),
         ),
@@ -549,16 +549,16 @@ class _RegimePicker extends StatelessWidget {
               children: [
                 Text(label,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    // primary pill label → body (14); original w700, keep override
+                    style: RunqText.body.copyWith(
                         color: active ? Colors.white : t.ink,
-                        fontSize: 13,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(sub,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: active ? Colors.white.withValues(alpha: 0.85) : t.muted,
-                        fontSize: 10.5)),
+                    // sub-description in pill → caption (12)
+                    style: RunqText.caption.copyWith(
+                        color: active ? Colors.white.withValues(alpha: 0.85) : t.muted)),
               ],
             ),
           ),
@@ -595,17 +595,19 @@ class _HowItWorks extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text('$n',
-                    style: const TextStyle(
-                        color: HrColors.tealDeep,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800)),
+                    // step number in small circle → caption (12); original w800 override
+                    style: RunqText.caption.copyWith(
+                        color: HrColors.tealDeep, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 8),
               Text(title,
-                  style: TextStyle(
-                      color: t.ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  // step title (primary line) → bodyStrong (14); original w700 override
+                  style: RunqText.bodyStrong.copyWith(
+                      color: t.ink, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
-              Text(sub, style: TextStyle(color: t.muted, fontSize: 11)),
+              Text(sub,
+                  // step sub text → body (14); original was 11 but sentence-case body content
+                  style: RunqText.body.copyWith(color: t.muted)),
             ],
           ),
         );
@@ -621,8 +623,9 @@ class _HowItWorks extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('How it works',
-              style: TextStyle(
-                  color: t.ink, fontSize: 13, fontWeight: FontWeight.w800)),
+              // card section title → bodyStrong (14); original w800 override
+              style: RunqText.bodyStrong.copyWith(
+                  color: t.ink, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             step(1, 'Declare', 'Enter expected investments for the year.'),
@@ -663,8 +666,9 @@ class _DeductionsAtAGlance extends StatelessWidget {
         children: [
           Row(children: [
             Text('What you can claim',
-                style: TextStyle(
-                    color: t.ink, fontSize: 13, fontWeight: FontWeight.w800)),
+                // card section title → bodyStrong; original w800 override
+                style: RunqText.bodyStrong.copyWith(
+                    color: t.ink, fontWeight: FontWeight.w800)),
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -672,12 +676,10 @@ class _DeductionsAtAGlance extends StatelessWidget {
                 color: HrColors.tealSubtle,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: const Text('OLD REGIME ONLY',
-                  style: TextStyle(
-                      color: HrColors.tealDeep,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4)),
+              child: Text('OLD REGIME ONLY',
+                  // uppercase pill badge → micro (10, w700, letterSpacing)
+                  style: RunqText.micro.copyWith(
+                      color: HrColors.tealDeep, fontWeight: FontWeight.w800)),
             ),
           ]),
           const SizedBox(height: 10),
@@ -687,20 +689,19 @@ class _DeductionsAtAGlance extends StatelessWidget {
                   SizedBox(
                     width: 78,
                     child: Text(e.$1,
-                        style: TextStyle(
-                            color: HrColors.tealDeep,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800)),
+                        // section code (80C etc.) — primary label → bodyStrong; original w800 override
+                        style: RunqText.bodyStrong.copyWith(
+                            color: HrColors.tealDeep, fontWeight: FontWeight.w800)),
                   ),
                   Expanded(
                     child: Text(e.$2,
-                        style: TextStyle(color: t.ink, fontSize: 12.5)),
+                        // description text → body (14)
+                        style: RunqText.body.copyWith(color: t.ink)),
                   ),
                   Text(e.$3,
-                      style: TextStyle(
-                          color: t.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
+                      // cap amount → caption (12) with w600 override (original was 12/w600)
+                      style: RunqText.caption.copyWith(
+                          color: t.muted, fontWeight: FontWeight.w600)),
                 ]),
               )),
         ],
@@ -733,16 +734,16 @@ class _KeyDates extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Key dates',
-                  style: TextStyle(
-                      color: accent,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800)),
+                  // card title → bodyStrong; original w800 override
+                  style: RunqText.bodyStrong.copyWith(
+                      color: accent, fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text(
                   '• Declare early in the FY (Apr–Jun) so monthly TDS reflects it.\n'
                   '• Final proof submission window: Jan – Feb.\n'
                   '• Withdraw and edit any time before HR approves it.',
-                  style: TextStyle(color: body, fontSize: 12, height: 1.5)),
+                  // body content paragraph → body (14); preserve height
+                  style: RunqText.body.copyWith(color: body, height: 1.5)),
             ],
           ),
         ),
@@ -766,10 +767,13 @@ class _NewRegimeInfo extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: TextStyle(
-                          color: t.ink, fontSize: 13, fontWeight: FontWeight.w700)),
+                      // bullet primary line → bodyStrong; original w700 override
+                      style: RunqText.bodyStrong.copyWith(
+                          color: t.ink, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text(sub, style: TextStyle(color: t.muted, fontSize: 12)),
+                  Text(sub,
+                      // bullet sub text → body (14)
+                      style: RunqText.body.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -790,8 +794,9 @@ class _NewRegimeInfo extends StatelessWidget {
             const Icon(Icons.info_outline_rounded, color: HrColors.tealDeep, size: 18),
             const SizedBox(width: 8),
             Text('No declaration needed',
-                style: TextStyle(
-                    color: t.ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                // info card title → bodyStrong (14); original was 14/w700
+                style: RunqText.bodyStrong.copyWith(
+                    color: t.ink, fontWeight: FontWeight.w700)),
           ]),
           const SizedBox(height: 12),
           bullet(Icons.check_circle_outline_rounded, 'Standard deduction ₹75,000',
@@ -804,8 +809,9 @@ class _NewRegimeInfo extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2, bottom: 8),
             child: Text(
               'Switch to old regime above if you want to declare these.',
-              style: TextStyle(
-                  color: HrColors.tealDeep, fontSize: 12, fontWeight: FontWeight.w600),
+              // instructional body text → caption (12) with w600; original was 12/w600
+              style: RunqText.caption.copyWith(
+                  color: HrColors.tealDeep, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -829,7 +835,8 @@ class _LockedBanner extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text('Declaration locked — HR has reviewed this.',
-              style: TextStyle(color: fg, fontSize: 12.5)),
+              // body content sentence → body (14)
+              style: RunqText.body.copyWith(color: fg)),
         ),
       ]),
     );
@@ -858,11 +865,13 @@ class _WithdrawBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Pending HR review',
-                  style: TextStyle(
-                      color: t.ink, fontSize: 13, fontWeight: FontWeight.w700)),
+                  // banner title → bodyStrong; original w700 override
+                  style: RunqText.bodyStrong.copyWith(
+                      color: t.ink, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
               Text('Spotted a mistake? Withdraw to edit and resubmit.',
-                  style: TextStyle(color: t.muted, fontSize: 12)),
+                  // body content sentence → body (14)
+                  style: RunqText.body.copyWith(color: t.muted)),
             ],
           ),
         ),
@@ -875,8 +884,9 @@ class _WithdrawBanner extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
-          child: const Text('Withdraw',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          child: Text('Withdraw',
+              // button label → caption (12) with w700 override
+              style: RunqText.caption.copyWith(fontWeight: FontWeight.w700)),
         ),
       ]),
     );
@@ -930,8 +940,9 @@ class _TaxFieldState extends State<_TaxField> {
               Row(children: [
                 Expanded(
                   child: Text(spec.title,
-                      style: TextStyle(
-                          color: t.ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                      // field title primary line → bodyStrong; original w700 override
+                      style: RunqText.bodyStrong.copyWith(
+                          color: t.ink, fontWeight: FontWeight.w700)),
                 ),
                 if (cap != null)
                   Container(
@@ -943,16 +954,17 @@ class _TaxFieldState extends State<_TaxField> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text('Max ₹${_formatInr(cap)}',
-                        style: TextStyle(
+                        // cap badge → micro (10, w700); original was 10.5/w700
+                        style: RunqText.micro.copyWith(
                             color: overCap
                                 ? const Color(0xFF991B1B)
-                                : HrColors.tealDeep,
-                            fontSize: 10.5, fontWeight: FontWeight.w700)),
+                                : HrColors.tealDeep)),
                   ),
               ]),
               const SizedBox(height: 2),
               Text(spec.helper,
-                  style: TextStyle(color: t.muted, fontSize: 11.5)),
+                  // helper/hint text → body (14); original was 11.5
+                  style: RunqText.body.copyWith(color: t.muted)),
               const SizedBox(height: 8),
               TextField(
                 controller: widget.ctrl,
@@ -960,15 +972,16 @@ class _TaxFieldState extends State<_TaxField> {
                 readOnly: widget.readOnly,
                 keyboardType: const TextInputType.numberWithOptions(decimal: false),
                 inputFormatters: [_IndianCurrencyFormatter()],
-                style: TextStyle(
-                    color: t.ink, fontSize: 16, fontWeight: FontWeight.w600),
+                // currency input → tabular (16, w600)
+                style: RunqText.tabular(size: 16, w: FontWeight.w600, color: t.ink),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: '0',
-                  hintStyle: TextStyle(color: t.muted2, fontSize: 16),
+                  // hint → tabular (16)
+                  hintStyle: RunqText.tabular(size: 16, color: t.muted2),
                   prefixText: '₹  ',
-                  prefixStyle: TextStyle(
-                      color: t.muted, fontSize: 15, fontWeight: FontWeight.w600),
+                  // prefix → tabular (15, w600)
+                  prefixStyle: RunqText.tabular(size: 15, w: FontWeight.w600, color: t.muted),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   enabledBorder: UnderlineInputBorder(
                       borderSide: BorderSide(color: t.hairline, width: 0.8)),
@@ -983,9 +996,9 @@ class _TaxFieldState extends State<_TaxField> {
                     overCap
                         ? 'Exceeds limit by ₹${_formatInr(_value - cap)}'
                         : 'Remaining headroom: ₹${_formatInr(cap - _value)}',
-                    style: TextStyle(
-                        color: overCap ? const Color(0xFF991B1B) : t.muted,
-                        fontSize: 11),
+                    // inline validation message → caption (12)
+                    style: RunqText.caption.copyWith(
+                        color: overCap ? const Color(0xFF991B1B) : t.muted),
                   ),
                 ),
               if (focused) const SizedBox(height: 2),
