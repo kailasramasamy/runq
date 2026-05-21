@@ -38,8 +38,7 @@ class ExpensesScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         onPressed: () => context.push('/expenses/new'),
         icon: const Icon(Icons.add_rounded, size: 18),
-        label: const Text('Record expense',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        label: const Text('Record expense'),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -178,7 +177,7 @@ class _StatTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(label,
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 10.5, letterSpacing: 0.5)),
+            style: RunqText.micro.copyWith(color: t.muted, letterSpacing: 0.5)),
         const SizedBox(height: 4),
         Text(value, style: RunqText.tabular(size: 16, w: FontWeight.w700, color: color)),
       ],
@@ -202,8 +201,7 @@ class _Section extends StatelessWidget {
           child: Row(
             children: [
               Text(title.toUpperCase(),
-                  style: RunqText.caption.copyWith(
-                    fontSize: 10.5,
+                  style: RunqText.micro.copyWith(
                     color: t.muted,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
@@ -216,11 +214,7 @@ class _Section extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text('${items.length}',
-                    style: RunqText.caption.copyWith(
-                      fontSize: 10.5,
-                      color: t.muted,
-                      fontWeight: FontWeight.w700,
-                    )),
+                    style: RunqText.tabular(size: 10, w: FontWeight.w700, color: t.muted)),
               ),
             ],
           ),
@@ -293,7 +287,7 @@ class _ClaimRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${claim.claimNumber} · ${_date(claim.claimDate)}',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                      style: RunqText.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),

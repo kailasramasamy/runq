@@ -51,10 +51,8 @@ class SwipeAction extends StatelessWidget {
                   Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: RunqText.caption.copyWith(
+                    style: RunqText.bodyStrong.copyWith(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
                       height: 1.1,
                     ),
                     maxLines: 1,

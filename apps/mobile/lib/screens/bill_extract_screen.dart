@@ -137,17 +137,17 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
           children: [
             Text(
               'A bill from this vendor with similar details already exists.',
-              style: RunqText.body.copyWith(fontSize: 14),
+              style: RunqText.body,
             ),
             const SizedBox(height: 10),
             Text(
               'Bill #${top.invoiceNumber} · ${top.invoiceDate} · ${formatINR(top.totalAmount)}',
-              style: RunqText.bodyStrong.copyWith(fontSize: 13),
+              style: RunqText.bodyStrong,
             ),
             const SizedBox(height: 4),
             Text(
               top.reasonLabel,
-              style: RunqText.caption.copyWith(color: RunqColors.amberInk, fontSize: 12),
+              style: RunqText.caption.copyWith(color: RunqColors.amberInk),
             ),
           ],
         ),
@@ -605,7 +605,7 @@ class _ConfidenceBadge extends StatelessWidget {
               low
                   ? '$pct% confidence — review every field carefully before saving.'
                   : '$pct% confidence — AI extracted this bill.',
-              style: RunqText.caption.copyWith(color: low ? RunqColors.amberInk : RunqColors.greenInk, fontSize: 12),
+              style: RunqText.caption.copyWith(color: low ? RunqColors.amberInk : RunqColors.greenInk),
             ),
           ),
         ],
@@ -636,7 +636,7 @@ class _DuplicateBanner extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               matches.length == 1 ? 'Possible duplicate' : 'Possible duplicates (${matches.length})',
-              style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 13),
+              style: RunqText.bodyStrong.copyWith(color: ink),
             ),
           ]),
           const SizedBox(height: 8),
@@ -647,11 +647,11 @@ class _DuplicateBanner extends StatelessWidget {
                   children: [
                     Text(
                       'Bill #${m.invoiceNumber} · ${m.invoiceDate} · ${formatINR(m.totalAmount)}',
-                      style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: ink),
                     ),
                     Text(
                       m.reasonLabel,
-                      style: RunqText.caption.copyWith(color: ink, fontSize: 11),
+                      style: RunqText.caption.copyWith(color: ink),
                     ),
                   ],
                 ),
@@ -659,14 +659,14 @@ class _DuplicateBanner extends StatelessWidget {
           if (matches.length > 3)
             Padding(
               padding: const EdgeInsets.only(left: 24, top: 4),
-              child: Text('… and ${matches.length - 3} more', style: RunqText.caption.copyWith(color: ink, fontSize: 11)),
+              child: Text('… and ${matches.length - 3} more', style: RunqText.caption.copyWith(color: ink)),
             ),
           const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.only(left: 24),
             child: Text(
               'You can still save — we\'ll ask once more.',
-              style: RunqText.caption.copyWith(color: ink, fontSize: 11),
+              style: RunqText.caption.copyWith(color: ink),
             ),
           ),
         ],
@@ -695,17 +695,17 @@ class _IssuesBanner extends StatelessWidget {
           Row(children: [
             Icon(Icons.error_outline_rounded, size: 16, color: ink),
             const SizedBox(width: 8),
-            Text('Fix before saving:', style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 13)),
+            Text('Fix before saving:', style: RunqText.bodyStrong.copyWith(color: ink)),
           ]),
           const SizedBox(height: 6),
           ...issues.take(6).map((msg) => Padding(
                 padding: const EdgeInsets.only(left: 24, top: 2),
-                child: Text('• $msg', style: RunqText.caption.copyWith(color: ink, fontSize: 12)),
+                child: Text('• $msg', style: RunqText.caption.copyWith(color: ink)),
               )),
           if (issues.length > 6)
             Padding(
               padding: const EdgeInsets.only(left: 24, top: 2),
-              child: Text('… and ${issues.length - 6} more', style: RunqText.caption.copyWith(color: ink, fontSize: 12)),
+              child: Text('… and ${issues.length - 6} more', style: RunqText.caption.copyWith(color: ink)),
             ),
         ],
       ),
@@ -731,7 +731,7 @@ class _VendorMatchCard extends StatelessWidget {
           Icon(Icons.check_rounded, size: 18, color: ink),
           const SizedBox(width: 8),
           Expanded(
-            child: Text('Matched vendor: ${match.name}', style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 13)),
+            child: Text('Matched vendor: ${match.name}', style: RunqText.bodyStrong.copyWith(color: ink)),
           ),
         ],
       ),
@@ -751,7 +751,7 @@ class _VendorSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('VENDOR', style: RunqText.label.copyWith(fontSize: 11)),
+          Text('VENDOR', style: RunqText.label),
           const SizedBox(height: 8),
           _Input(controller: edited.vendorName, label: 'Name', required: true, onChange: onChange),
           _Input(controller: edited.vendorGstin, label: 'GSTIN', mono: true, onChange: onChange),
@@ -776,7 +776,7 @@ class _InvoiceSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('INVOICE', style: RunqText.label.copyWith(fontSize: 11)),
+          Text('INVOICE', style: RunqText.label),
           const SizedBox(height: 8),
           _Input(controller: edited.invoiceNumber, label: 'Bill #', required: true, mono: true, onChange: onChange),
           _Input(controller: edited.invoiceDate, label: 'Bill date (YYYY-MM-DD)', required: true, onChange: onChange),
@@ -802,7 +802,7 @@ class _ItemsSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('LINE ITEMS (${edited.items.length})', style: RunqText.label.copyWith(fontSize: 11)),
+              Text('LINE ITEMS (${edited.items.length})', style: RunqText.label),
               const Spacer(),
               TextButton.icon(
                 onPressed: () {
@@ -913,14 +913,14 @@ class _ItemRow extends StatelessWidget {
                   children: [
                     Text(
                       name,
-                      style: RunqText.bodyStrong.copyWith(fontSize: 13),
+                      style: RunqText.bodyStrong,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       summary.toString(),
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                      style: RunqText.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),
@@ -931,12 +931,12 @@ class _ItemRow extends StatelessWidget {
                 children: [
                   Text(
                     formatINR(amount),
-                    style: RunqText.bodyStrong.copyWith(fontSize: 13),
+                    style: RunqText.bodyStrong,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Edit',
-                    style: RunqText.caption.copyWith(color: RunqColors.indigo, fontSize: 11),
+                    style: RunqText.caption.copyWith(color: RunqColors.indigo),
                   ),
                 ],
               ),
@@ -1003,7 +1003,7 @@ class _ItemEditSheetState extends State<_ItemEditSheet> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
                 children: [
-                  Text('Item ${widget.index + 1}', style: RunqText.h3.copyWith(fontSize: 16)),
+                  Text('Item ${widget.index + 1}', style: RunqText.h4),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 22),
@@ -1039,7 +1039,7 @@ class _ItemEditSheetState extends State<_ItemEditSheet> {
                       padding: const EdgeInsets.only(top: 4, left: 4),
                       child: Text(
                         'Tax value: ${formatINR(taxValue)}',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                        style: RunqText.caption.copyWith(color: t.muted),
                       ),
                     ),
                 ],
@@ -1084,7 +1084,7 @@ class _TotalsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TOTALS', style: RunqText.label.copyWith(fontSize: 11)),
+          Text('TOTALS', style: RunqText.label),
           const SizedBox(height: 8),
           _Input(controller: edited.subtotal, label: 'Subtotal ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onChange),
           _Input(controller: edited.taxAmount, label: 'Tax ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onChange),
@@ -1093,7 +1093,7 @@ class _TotalsSection extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Subtotal + Tax (${formatINR(subtotal + tax)}) ≠ Total (${formatINR(total)})',
-              style: RunqText.caption.copyWith(color: RunqColors.amberInk, fontSize: 11),
+              style: RunqText.caption.copyWith(color: RunqColors.amberInk),
             ),
           ],
         ],
@@ -1126,8 +1126,8 @@ class _Input extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text(label.toUpperCase(), style: RunqText.label.copyWith(fontSize: 10)),
-            if (required) const Text(' *', style: TextStyle(color: RunqColors.redInk, fontSize: 10)),
+            Text(label.toUpperCase(), style: RunqText.micro),
+            if (required) Text(' *', style: RunqText.micro.copyWith(color: RunqColors.redInk)),
           ]),
           const SizedBox(height: 2),
           TextField(
@@ -1143,7 +1143,6 @@ class _Input extends StatelessWidget {
                 : null,
             onChanged: (_) => onChange?.call(),
             style: RunqText.body.copyWith(
-              fontSize: 14,
               fontFamily: mono ? 'monospace' : null,
             ),
             decoration: InputDecoration(

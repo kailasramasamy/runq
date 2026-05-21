@@ -126,7 +126,7 @@ class _Hero extends StatelessWidget {
             filterQuality: FilterQuality.medium,
           ),
           const SizedBox(height: 14),
-          Text('runQ', style: RunqText.h1.copyWith(fontSize: 26)),
+          Text('runQ', style: RunqText.h1),
           const SizedBox(height: 4),
           Text(
             'Daily-ops finance OS for Indian SMEs.',
@@ -135,7 +135,7 @@ class _Hero extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Run AR, AP, banking, and GST from one place — AI handles the typing.',
-            style: RunqText.caption.copyWith(color: t.muted2, fontSize: 12, height: 1.4),
+            style: RunqText.caption.copyWith(color: t.muted2, height: 1.4),
           ),
         ],
       ),
@@ -182,7 +182,7 @@ class _FeatureCard extends StatelessWidget {
                 child: Icon(icon, color: RT(context).brand, size: 18),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(title, style: RunqText.h3.copyWith(fontSize: 15))),
+              Expanded(child: Text(title, style: RunqText.h4)),
             ],
           ),
           const SizedBox(height: 10),
@@ -200,7 +200,7 @@ class _FeatureCard extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: Text(b, style: RunqText.body.copyWith(fontSize: 13, height: 1.4, color: t.ink2)),
+                    child: Text(b, style: RunqText.body.copyWith(height: 1.4, color: t.ink2)),
                   ),
                 ],
               ),
@@ -220,10 +220,10 @@ class _Footer extends StatelessWidget {
     return Column(
       children: [
         Text('Version $kAppVersionLabel',
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+            style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         Text('© runQ · Built for Indian SMEs',
-            style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+            style: RunqText.caption.copyWith(color: t.muted2)),
       ],
     );
   }

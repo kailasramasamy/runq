@@ -125,7 +125,7 @@ class _BucketBar extends StatelessWidget {
         SizedBox(
           width: 44,
           child: Text(label,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+              style: RunqText.caption.copyWith(color: t.muted)),
         ),
         Expanded(
           child: Container(
@@ -221,9 +221,9 @@ class _OverdueRow extends StatelessWidget {
             children: [
               Text(item.customerName,
                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
               Text('${item.maxDaysOverdue}d overdue',
-                  style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted2)),
             ],
           ),
         ),

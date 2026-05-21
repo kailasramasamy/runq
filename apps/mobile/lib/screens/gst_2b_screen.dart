@@ -217,8 +217,8 @@ class _Header extends StatelessWidget {
                           strokeWidth: 2, color: Colors.white),
                     )
                   : Text('Actions',
-                      style: RunqText.bodyStrong
-                          .copyWith(color: Colors.white, fontSize: 13)),
+                      style: RunqText.body
+                          .copyWith(color: Colors.white)),
             ),
           ),
         ],
@@ -265,9 +265,8 @@ class _PeriodPicker extends ConsumerWidget {
                   alignment: Alignment.center,
                   child: Text(
                     o.label,
-                    style: RunqText.bodyStrong.copyWith(
+                    style: RunqText.body.copyWith(
                       color: active ? Colors.white : t.ink,
-                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -313,18 +312,17 @@ class _SummaryCard extends StatelessWidget {
           Text('CLAIMABLE ITC',
               style: RunqText.label.copyWith(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 11,
               )),
           const SizedBox(height: 8),
           Text(formatINR(summary.totalItcClaimable),
-              style: RunqText.display.copyWith(
-                  color: Colors.white, fontSize: 30, height: 1.05)),
+              style: RunqText.tabular(
+                  size: 30, w: FontWeight.w700, color: Colors.white)
+                .copyWith(height: 1.05)),
           const SizedBox(height: 4),
           Text(
             'of ${formatINR(summary.totalItcAvailable, compact: true)} available in 2B',
             style: RunqText.caption.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 12,
             ),
           ),
           const SizedBox(height: 14),
@@ -377,7 +375,6 @@ class _Stat extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 11,
               )),
           const SizedBox(height: 2),
           Text(value,
@@ -438,9 +435,8 @@ class _StatusTabs extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     tt.count == null ? tt.label : '${tt.label} · ${tt.count}',
-                    style: RunqText.bodyStrong.copyWith(
+                    style: RunqText.body.copyWith(
                       color: active ? Colors.white : t.ink,
-                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -489,13 +485,13 @@ class _MatchRow extends StatelessWidget {
                   match.supplierName?.isNotEmpty == true
                       ? match.supplierName!
                       : match.supplierGstin,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _subtitle(match),
-                  style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                  style: RunqText.caption.copyWith(color: t.muted2),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -516,7 +512,7 @@ class _MatchRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 tax > 0 ? '+${formatINR(tax, compact: true)} tax' : '—',
-                style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                style: RunqText.caption.copyWith(color: t.muted2),
               ),
             ],
           ),

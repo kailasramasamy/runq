@@ -185,7 +185,7 @@ class _Header extends StatelessWidget {
             child: Center(child: Sparkle(size: 18, color: RT(context).brand, animated: true)),
           ),
           const SizedBox(width: 10),
-          Text('Agent', style: RunqText.bodyStrong.copyWith(fontSize: 16)),
+          Text('Agent', style: RunqText.h4),
           const Spacer(),
           IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => context.pop()),
         ],
@@ -244,7 +244,7 @@ class _MsgBubble extends StatelessWidget {
                   if (msg.toolNames.isNotEmpty) ...[
                     const SizedBox(width: 6),
                     Text('· ${msg.toolNames.last}',
-                        style: RunqText.caption.copyWith(color: tk.muted2, fontSize: 11)),
+                        style: RunqText.caption.copyWith(color: tk.muted2)),
                   ],
                 ],
               ),
@@ -290,8 +290,6 @@ class _MsgBubble extends StatelessWidget {
                       child: Text(c,
                           style: RunqText.caption.copyWith(
                             color: RT(context).brand,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
                           )),
                     ),
                   ),

@@ -94,7 +94,7 @@ void showRunqSnack(
               Expanded(
                 child: Text(
                   message,
-                  style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 14, height: 1.3),
+                  style: RunqText.bodyStrong.copyWith(color: ink, height: 1.3),
                   maxLines: 3,
                 ),
               ),

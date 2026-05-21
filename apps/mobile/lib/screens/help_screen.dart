@@ -33,11 +33,11 @@ class HelpScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Need a hand?', style: RunqText.h3.copyWith(fontSize: 16)),
+                        Text('Need a hand?', style: RunqText.h4),
                         const SizedBox(height: 6),
                         Text(
                           'We respond within one business day. Include your invoice/bill number when possible — speeds things up a lot.',
-                          style: RunqText.body.copyWith(color: t.muted, fontSize: 13, height: 1.4),
+                          style: RunqText.body.copyWith(color: t.muted, height: 1.4),
                         ),
                       ],
                     ),
@@ -78,7 +78,7 @@ class HelpScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       'Tip: many things — invoices, bills, GST status — are also available as a quick "Ask agent" question on the dashboard.',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12, height: 1.4),
+                      style: RunqText.caption.copyWith(color: t.muted, height: 1.4),
                     ),
                   ),
                 ],
@@ -135,7 +135,7 @@ class _ContactRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                    style: RunqText.caption.copyWith(color: t.muted),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
                 ],

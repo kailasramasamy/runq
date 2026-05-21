@@ -116,7 +116,7 @@ class _Tile extends StatelessWidget {
                 children: [
                   Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),

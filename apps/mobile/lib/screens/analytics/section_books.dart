@@ -98,7 +98,7 @@ class _PnlCard extends StatelessWidget {
                 '${d.netProfitDeltaPct!.toStringAsFixed(1)}%',
                 style: RunqText.caption.copyWith(
                     color: d.netProfitDeltaPct! >= 0 ? statusInk(context, StatusTone.ok) : statusInk(context, StatusTone.neg),
-                    fontWeight: FontWeight.w600, fontSize: 11.5),
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ],
@@ -132,8 +132,7 @@ class _PeriodToggle extends StatelessWidget {
           child: Text(label,
               style: RunqText.caption.copyWith(
                   color: active ? t.ink : t.muted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11.5)),
+                  fontWeight: FontWeight.w600)),
         ),
       );
     }

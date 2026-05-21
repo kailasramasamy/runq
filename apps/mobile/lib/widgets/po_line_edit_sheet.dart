@@ -218,7 +218,7 @@ class _LineEditSheetState extends State<_LineEditSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('Edit line', style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+            Text('Edit line', style: RunqText.h3.copyWith(color: t.ink)),
             const SizedBox(height: 4),
             Text(l.rawDescription,
                 maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -361,7 +361,6 @@ class _ItemPickerRow extends StatelessWidget {
                   'GST ${gstFmt(gstRate!)}%',
                   style: RunqText.caption.copyWith(
                     color: t.muted,
-                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -396,7 +395,7 @@ class _SkuChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text('SKU $sku',
-            style: RunqText.caption.copyWith(fontSize: 10, color: t.muted)),
+            style: RunqText.micro.copyWith(color: t.muted)),
       ),
     );
   }
@@ -416,7 +415,7 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
@@ -536,10 +535,10 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
                 controller: _ctrl,
                 autofocus: true,
                 onChanged: _onChanged,
-                style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
+                style: RunqText.body.copyWith(color: t.ink),
                 decoration: InputDecoration(
                   hintText: 'Search by name or SKU',
-                  hintStyle: RunqText.body.copyWith(fontSize: 14, color: t.muted2),
+                  hintStyle: RunqText.body.copyWith(color: t.muted2),
                   prefixIcon: Icon(Icons.search_rounded, size: 18, color: t.muted),
                   prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   suffixIcon: _ctrl.text.isEmpty
@@ -602,14 +601,14 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
             Text(
               isQuery ? 'No matching items' : 'No items in your masters yet',
               textAlign: TextAlign.center,
-              style: RunqText.body.copyWith(fontSize: 14, color: t.ink, fontWeight: FontWeight.w600),
+              style: RunqText.bodyStrong.copyWith(color: t.ink),
             ),
             if (isQuery) ...[
               const SizedBox(height: 4),
               Text(
                 'Try fewer words, the SKU code, or a partial name.',
                 textAlign: TextAlign.center,
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                style: RunqText.caption.copyWith(color: t.muted),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -655,7 +654,7 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
                       if (meta.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(meta,
-                            style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                            style: RunqText.caption.copyWith(color: t.muted)),
                       ],
                     ],
                   ),
@@ -692,10 +691,8 @@ class _UomTapSuffix extends StatelessWidget {
             children: [
               Text(
                 unit,
-                style: RunqText.body.copyWith(
-                  fontSize: 14,
+                style: RunqText.bodyStrong.copyWith(
                   color: RunqColors.indigo,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 2),
@@ -781,7 +778,7 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          Text('Change size', style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+          Text('Change size', style: RunqText.h3.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text(
             widget.currentUnit != null ? 'Current: ${widget.currentUnit}' : 'Pick another size',
@@ -824,7 +821,7 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
             Text(
               'Add more variants in the items master, or use "Pick an item" to switch products.',
               textAlign: TextAlign.center,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: t.muted),
             ),
           ],
         ),
@@ -855,7 +852,6 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
                   child: Text(
                     unitLabel,
                     style: RunqText.bodyStrong.copyWith(
-                      fontSize: 13,
                       color: RunqColors.indigo,
                     ),
                   ),

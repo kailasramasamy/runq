@@ -183,11 +183,11 @@ class _SpotlightCard extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              Text(headline, style: RunqText.numberLg.copyWith(color: t.ink, fontSize: 24)),
+              Text(headline, style: RunqText.numberLg.copyWith(color: t.ink)),
               const SizedBox(height: 4),
               Text(
                 sub,
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                style: RunqText.caption.copyWith(color: t.muted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -201,7 +201,7 @@ class _SpotlightCard extends StatelessWidget {
                   Flexible(
                     child: Text(
                       cta,
-                      style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

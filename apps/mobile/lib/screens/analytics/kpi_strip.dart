@@ -159,18 +159,17 @@ class _KpiTile extends StatelessWidget {
               const SizedBox(height: 10),
               Text(label,
                   style: RunqText.caption.copyWith(
-                      color: t.muted, fontSize: 11.5)),
+                      color: t.muted)),
               const SizedBox(height: 2),
               Text(value,
                   style: RunqText.tabular(
-                      size: 19, w: FontWeight.w700, color: t.ink)),
+                      size: 20, w: FontWeight.w700, color: t.ink)),
               if (sub.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(sub,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: RunqText.caption
-                        .copyWith(color: t.muted2, fontSize: 10.5)),
+                    style: RunqText.caption.copyWith(color: t.muted2)),
               ],
             ],
           ),

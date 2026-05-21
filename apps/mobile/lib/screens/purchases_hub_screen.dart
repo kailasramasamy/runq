@@ -112,14 +112,13 @@ class _PurchasesHero extends ConsumerWidget {
               'TO PAY',
               style: RunqText.label.copyWith(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 11,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               formatINR(s.totalOutstanding),
               style: RunqText.display
-                  .copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+                  .copyWith(color: Colors.white, height: 1.05),
             ),
             const SizedBox(height: 12),
             Row(
@@ -175,13 +174,13 @@ class _Stat extends StatelessWidget {
         children: [
           Text(label,
               style: RunqText.caption
-                  .copyWith(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
+                  .copyWith(color: Colors.white.withValues(alpha: 0.7))),
           const SizedBox(height: 4),
           Text(value,
               style: RunqText.tabular(size: 18, w: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 2),
           Text(caption,
-              style: RunqText.caption.copyWith(color: accent, fontSize: 11),
+              style: RunqText.caption.copyWith(color: accent),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -202,13 +201,12 @@ class _Skeleton extends StatelessWidget {
           'TO PAY',
           style: RunqText.label.copyWith(
             color: Colors.white.withValues(alpha: 0.65),
-            fontSize: 11,
           ),
         ),
         const SizedBox(height: 8),
         Text('—',
             style: RunqText.display
-                .copyWith(color: Colors.white, fontSize: 32, height: 1.05)),
+                .copyWith(color: Colors.white, height: 1.05)),
         const SizedBox(height: 22),
       ],
     );

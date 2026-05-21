@@ -189,7 +189,7 @@ class _Hint extends StatelessWidget {
           Icon(Icons.search_rounded, size: 36, color: t.muted2),
           const SizedBox(height: 10),
           Text('Search across runQ',
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           const SizedBox(height: 4),
           Text(
             'Try a customer name, invoice number, vendor or bill number.',
@@ -235,7 +235,7 @@ class _Empty extends StatelessWidget {
               size: 36, color: t.muted2),
           const SizedBox(height: 10),
           Text(error != null ? "Couldn't search" : 'No results for "$query"',
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15),
+              style: RunqText.h4.copyWith(color: t.ink),
               textAlign: TextAlign.center),
           if (error == null) ...[
             const SizedBox(height: 4),
@@ -289,7 +289,7 @@ class _SectionHeader extends StatelessWidget {
           Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted2)),
           const SizedBox(width: 6),
           Text('· $count',
-              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+              style: RunqText.caption.copyWith(color: t.muted2)),
         ],
       ),
     );
@@ -326,7 +326,7 @@ class _InvoiceRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(invoice.customerName,
-                            style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                            style: RunqText.bodyStrong.copyWith(color: t.ink),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       const SizedBox(width: 8),
@@ -339,7 +339,7 @@ class _InvoiceRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text('${invoice.invoiceNumber} · ${_date(invoice.invoiceDate)}',
-                            style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                            style: RunqText.caption.copyWith(color: t.muted2),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       const SizedBox(width: 8),
@@ -386,7 +386,7 @@ class _BillRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(bill.vendorName,
-                            style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                            style: RunqText.bodyStrong.copyWith(color: t.ink),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       const SizedBox(width: 8),
@@ -399,7 +399,7 @@ class _BillRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text('${bill.invoiceNumber} · ${_date(bill.invoiceDate)}',
-                            style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                            style: RunqText.caption.copyWith(color: t.muted2),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       const SizedBox(width: 8),

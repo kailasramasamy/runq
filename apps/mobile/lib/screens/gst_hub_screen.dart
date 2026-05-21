@@ -168,7 +168,7 @@ class _ReadinessCard extends StatelessWidget {
                 child: Text(
                   '${readiness.targetLabel.toUpperCase()} · ${readiness.periodLabel.toUpperCase()}',
                   style: RunqText.label.copyWith(
-                    color: t.muted2, fontSize: 11, letterSpacing: 0.5,
+                    color: t.muted2, letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -206,13 +206,13 @@ class _ReadinessCard extends StatelessWidget {
             failing != null
                 ? (failing.detail ?? failing.label)
                 : '$passing of $total checks passing',
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+            style: RunqText.caption.copyWith(color: t.muted),
           ),
           if (hint != null) ...[
             const SizedBox(height: 8),
             Text(
               hint,
-              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+              style: RunqText.caption.copyWith(color: t.muted2),
             ),
           ],
           const SizedBox(height: 14),
@@ -271,11 +271,11 @@ class _SignalRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(signal.label,
-                    style: RunqText.body.copyWith(color: t.ink, fontSize: 13)),
+                    style: RunqText.body.copyWith(color: t.ink)),
                 if (!ok && signal.detail != null) ...[
                   const SizedBox(height: 2),
                   Text(signal.detail!,
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                      style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ],
             ),
@@ -356,10 +356,10 @@ class _ActionTile extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(label,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
               const SizedBox(height: 2),
               Text(sub,
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ),
@@ -433,11 +433,11 @@ class _ReturnRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('$type · ${ret.periodLabel}',
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   if (ret.arn != null && ret.arn!.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text('ARN ${ret.arn}',
-                        style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                        style: RunqText.caption.copyWith(color: t.muted2),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                   ],
                 ],

@@ -388,7 +388,7 @@ class _SheetItem extends StatelessWidget {
                   Text(label, style: RunqText.body.copyWith(color: fg, fontWeight: FontWeight.w600)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle!, style: RunqText.caption.copyWith(fontSize: 12, color: t.muted)),
+                    Text(subtitle!, style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ],
               ),
@@ -459,7 +459,7 @@ class _HeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(invoice.customerName,
-                        style: RunqText.h3.copyWith(fontSize: 16),
+                        style: RunqText.h4,
                         maxLines: 2, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
                     Text(
@@ -467,7 +467,7 @@ class _HeroCard extends StatelessWidget {
                       // due-date) so the line fits in the avatar row beside
                       // the status pill without wrapping.
                       'Issued ${_shortDate(invoice.invoiceDate)}  ·  Due ${_dueDate(invoice.dueDate)}',
-                      style: RunqText.caption.copyWith(fontSize: 12, color: t.muted),
+                      style: RunqText.caption.copyWith(color: t.muted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -486,7 +486,7 @@ class _HeroCard extends StatelessWidget {
           // followed by the GST breakdown card is self-evidently the
           // invoice total. Caption above only says what it costs in pixels.
           Text(formatINR(invoice.totalAmount),
-              style: RunqText.display.copyWith(fontSize: 30, color: t.ink, height: 1.0)),
+              style: RunqText.tabular(size: 30, w: FontWeight.w700, color: t.ink).copyWith(height: 1.0)),
           if (invoice.balanceDue > 0 && invoice.balanceDue != invoice.totalAmount) ...[
             const SizedBox(height: 6),
             Text('${formatINR(invoice.balanceDue)} balance due',
@@ -531,11 +531,7 @@ class _LineItemsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text('${items.length}',
-                    style: RunqText.caption.copyWith(
-                      fontSize: 10.5,
-                      color: RunqColors.indigo,
-                      fontWeight: FontWeight.w800,
-                    )),
+                    style: RunqText.tabular(size: 10, w: FontWeight.w800, color: RunqColors.indigo)),
               ),
             ],
           ),
@@ -578,12 +574,12 @@ class _ItemRow extends StatelessWidget {
             children: [
               Text(
                 item.itemName.isEmpty ? item.description : item.itemName,
-                style: RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink, height: 1.3),
+                style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.3),
               ),
               const SizedBox(height: 4),
               Text(
                 metaParts.join('  ·  '),
-                style: RunqText.caption.copyWith(fontSize: 11.5, color: t.muted),
+                style: RunqText.caption.copyWith(color: t.muted),
               ),
             ],
           ),
@@ -659,8 +655,8 @@ class _LineRow extends StatelessWidget {
     // "math": Subtotal + GST → Total. Total stays bold + larger to be the
     // visual punctuation at the bottom of the column.
     final labelStyle = strong
-        ? RunqText.bodyStrong.copyWith(fontSize: 15, color: t.ink)
-        : RunqText.body.copyWith(fontSize: 13, color: t.ink2);
+        ? RunqText.bodyStrong.copyWith(color: t.ink)
+        : RunqText.body.copyWith(color: t.ink2);
     final valueStyle = strong
         ? RunqText.tabular(size: 16, w: FontWeight.w800, color: t.ink)
         : RunqText.tabular(size: 13, w: FontWeight.w600, color: t.ink);
@@ -719,7 +715,7 @@ class _ReceiptRow extends StatelessWidget {
             children: [
               Text(_date(r.receiptDate), style: RunqText.caption),
               Text(r.paymentMethod.toUpperCase(),
-                  style: RunqText.caption.copyWith(fontSize: 11, color: RT(context).muted2, letterSpacing: 0.04 * 11)),
+                  style: RunqText.label.copyWith(color: RT(context).muted2, letterSpacing: 0.04 * 11)),
             ],
           ),
         ),

@@ -66,7 +66,6 @@ class HubSectionTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: RunqText.caption.copyWith(
               color: t.muted,
-              fontSize: 11,
               height: 1.2,
               letterSpacing: 0.04 * 11,
             ),
@@ -87,7 +86,6 @@ class HubSectionTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: RunqText.caption.copyWith(
                 color: captionColor ?? t.muted,
-                fontSize: 11,
                 height: 1.2,
               ),
             ),

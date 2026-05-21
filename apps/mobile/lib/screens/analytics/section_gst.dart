@@ -229,15 +229,15 @@ class _VendorBlockingRow extends StatelessWidget {
             children: [
               Text(v.vendorName,
                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
               Text(v.reason == 'no_gstin' ? 'No GSTIN' : 'Not in 2B',
-                  style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted2)),
             ],
           ),
         ),
         Text(formatINR(v.itcAtRisk, compact: true),
             style: RunqText.tabular(
-                size: 12.5, w: FontWeight.w600, color: statusInk(context, StatusTone.warn))),
+                size: 14, w: FontWeight.w600, color: statusInk(context, StatusTone.warn))),
       ],
     );
   }

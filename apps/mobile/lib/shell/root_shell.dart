@@ -263,8 +263,6 @@ class _NavItem extends StatelessWidget {
               tab.label,
               style: RunqText.micro.copyWith(
                 color: color,
-                fontSize: 10,
-                letterSpacing: 0.04 * 10,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w600,
               ),
             ),

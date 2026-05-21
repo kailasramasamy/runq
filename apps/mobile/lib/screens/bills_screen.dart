@@ -277,7 +277,7 @@ class _Header extends StatelessWidget {
               ],
               Expanded(
                 child: Text('Bills',
-                    style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
+                    style: RunqText.h1.copyWith(color: t.ink)),
               ),
               const SizedBox(width: 12),
               _IconChip(
@@ -388,9 +388,6 @@ class _StatCard extends StatelessWidget {
                   label,
                   style: RunqText.micro.copyWith(
                     color: accent,
-                    fontSize: 10.5,
-                    letterSpacing: 0.05 * 10,
-                    fontWeight: FontWeight.w700,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -455,10 +452,8 @@ class _VendorFilterChip extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 220),
                 child: Text(
                   selected ? name! : 'All vendors',
-                  style: RunqText.bodyStrong.copyWith(
+                  style: RunqText.caption.copyWith(
                     color: selected ? t.brand : t.ink,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -578,7 +573,7 @@ class _InlineSearchState extends State<_InlineSearch> {
               controller: _ctrl,
               focusNode: _focus,
               onChanged: widget.onChanged,
-              style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
+              style: RunqText.body.copyWith(color: t.ink),
               decoration: InputDecoration(
                 hintText: 'Search bills, vendors',
                 hintStyle: RunqText.body.copyWith(color: t.muted2),
@@ -622,7 +617,7 @@ class _ScanButton extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Scan',
-                style: RunqText.bodyStrong.copyWith(color: t.surface, fontSize: 14),
+                style: RunqText.bodyStrong.copyWith(color: t.surface),
               ),
             ],
           ),
@@ -698,7 +693,6 @@ class _TabPill extends StatelessWidget {
                 label,
                 style: RunqText.bodyStrong.copyWith(
                   color: fg,
-                  fontSize: 13,
                   fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
@@ -712,9 +706,8 @@ class _TabPill extends StatelessWidget {
                   ),
                   child: Text(
                     '$badge',
-                    style: TextStyle(
+                    style: RunqText.label.copyWith(
                       color: badgeFg,
-                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -775,7 +768,7 @@ class BillRow extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(formatINR(bill.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
+        Text(formatINR(bill.totalAmount), style: RunqText.tabular(size: 16, w: FontWeight.w700)),
       ],
     );
     final tap = () => context.push('/bills/${bill.id}');
@@ -915,7 +908,7 @@ class BillRow extends ConsumerWidget {
         content: Text(
           'Record ${formatINR(amount)} for ${bill.invoiceNumber} as paid by you. '
           'Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced.',
-          style: RunqText.body.copyWith(fontSize: 14),
+          style: RunqText.body,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
@@ -956,7 +949,7 @@ class _MatchChip extends StatelessWidget {
         Icon(matched ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 12, color: color),
         const SizedBox(width: 3),
         Text(matched ? '3WM' : 'Match needed',
-            style: RunqText.caption.copyWith(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+            style: RunqText.label.copyWith(color: color)),
       ],
     );
   }

@@ -291,9 +291,8 @@ class _SummaryCell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(stat.label.toUpperCase(),
-                  style: RunqText.caption.copyWith(
-                    fontSize: 10.5, color: t.muted, letterSpacing: 0.5,
-                    fontWeight: FontWeight.w700,
+                  style: RunqText.micro.copyWith(
+                    color: t.muted, letterSpacing: 0.5,
                   )),
               const SizedBox(height: 4),
               Text(stat.value,
@@ -360,9 +359,9 @@ class _FilterChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(label,
-              style: RunqText.bodyStrong.copyWith(
+              style: RunqText.caption.copyWith(
+                fontWeight: FontWeight.w600,
                 color: active ? Colors.white : t.ink,
-                fontSize: 12.5,
               )),
         ),
       ),
@@ -457,7 +456,7 @@ class _PoRow extends StatelessWidget {
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 2),
                           Text(_subtitle(),
-                              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                              style: RunqText.caption.copyWith(color: t.muted),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                         ],
                       ),
@@ -553,8 +552,7 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(status.toUpperCase(),
-          style: RunqText.caption.copyWith(
-            fontSize: 10,
+          style: RunqText.micro.copyWith(
             color: fg,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
@@ -586,7 +584,6 @@ class _InvoiceChip extends StatelessWidget {
             const SizedBox(width: 4),
             Text(number,
                 style: RunqText.caption.copyWith(
-                  fontSize: 11,
                   color: RunqColors.indigo,
                   fontWeight: FontWeight.w700,
                 )),

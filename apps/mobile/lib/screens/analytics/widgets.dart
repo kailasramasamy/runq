@@ -75,11 +75,11 @@ class _Header extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(title,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(subtitle!,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+                    style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ],
           ),
@@ -101,7 +101,7 @@ class _DrillFooter extends StatelessWidget {
       children: [
         Text(label,
             style: RunqText.caption.copyWith(
-                color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+                color: color, fontWeight: FontWeight.w600)),
         Icon(Icons.arrow_forward_rounded, size: 14, color: color),
       ],
     );
@@ -159,7 +159,7 @@ class _ErrorBlock extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           child: Text("Couldn't load",
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+              style: RunqText.caption.copyWith(color: t.muted)),
         ),
       ],
     );
@@ -196,7 +196,7 @@ class StatusPill extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
       child: Text(text,
           style: RunqText.caption.copyWith(
-              color: ink, fontWeight: FontWeight.w600, fontSize: 11)),
+              color: ink, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -247,11 +247,11 @@ class StatRow extends StatelessWidget {
           Expanded(
             child: Text(label,
                 style: RunqText.caption.copyWith(
-                    color: emphasize ? t.ink : t.muted, fontSize: 12.5)),
+                    color: emphasize ? t.ink : t.muted)),
           ),
           Text(value,
               style: RunqText.tabular(
-                  size: 12.5,
+                  size: 14,
                   w: emphasize ? FontWeight.w700 : FontWeight.w500,
                   color: valueColor ?? t.ink)),
         ],

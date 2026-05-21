@@ -151,11 +151,11 @@ class _GstAuthSheetState extends State<_GstAuthSheet> {
             ),
             const SizedBox(height: 16),
             Text('GSTN sign-in',
-                style: RunqText.h2.copyWith(color: t.ink, fontSize: 18)),
+                style: RunqText.h3.copyWith(color: t.ink)),
             const SizedBox(height: 4),
             Text(
               widget.gstin,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: t.muted),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -181,7 +181,7 @@ class _GstAuthSheetState extends State<_GstAuthSheet> {
             if (_info != null)
               Text(_info!,
                   style: RunqText.caption
-                      .copyWith(color: t.muted, fontSize: 12)),
+                      .copyWith(color: t.muted)),
             const SizedBox(height: 20),
             Row(
               children: [
@@ -202,8 +202,8 @@ class _GstAuthSheetState extends State<_GstAuthSheet> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text('Resend',
-                            style: RunqText.bodyStrong
-                                .copyWith(color: t.ink, fontSize: 13)),
+                            style: RunqText.body
+                                .copyWith(color: t.ink)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -227,7 +227,7 @@ class _GstAuthSheetState extends State<_GstAuthSheet> {
                           )
                         : Text('Verify & continue',
                             style: RunqText.bodyStrong
-                                .copyWith(color: Colors.white, fontSize: 14)),
+                                .copyWith(color: Colors.white)),
                   ),
                 ),
               ],
@@ -239,7 +239,7 @@ class _GstAuthSheetState extends State<_GstAuthSheet> {
                 child: Text(
                   'Stuck? Force logout & retry',
                   style: RunqText.caption
-                      .copyWith(color: t.muted2, fontSize: 12),
+                      .copyWith(color: t.muted2),
                 ),
               ),
             ),
@@ -321,11 +321,11 @@ Future<String?> askForEvc(BuildContext context) {
               ),
               const SizedBox(height: 16),
               Text('Enter EVC',
-                  style: RunqText.h2.copyWith(color: t.ink, fontSize: 18)),
+                  style: RunqText.h3.copyWith(color: t.ink)),
               const SizedBox(height: 4),
               Text(
                 'GSTN will SMS the Electronic Verification Code to the authorized signatory.',
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                style: RunqText.caption.copyWith(color: t.muted),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -368,7 +368,7 @@ Future<String?> askForEvc(BuildContext context) {
                   ),
                   child: Text('File return',
                       style: RunqText.bodyStrong
-                          .copyWith(color: Colors.white, fontSize: 14)),
+                          .copyWith(color: Colors.white)),
                 ),
               ),
             ],

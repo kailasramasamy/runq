@@ -171,9 +171,8 @@ class _StatTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
-            style: RunqText.caption.copyWith(
-              fontSize: 10.5, color: t.muted, letterSpacing: 0.5,
-              fontWeight: FontWeight.w700,
+            style: RunqText.micro.copyWith(
+              color: t.muted, letterSpacing: 0.5,
             )),
         const SizedBox(height: 4),
         Text(value, style: RunqText.tabular(size: 16, w: FontWeight.w700, color: color)),
@@ -213,7 +212,6 @@ class _GroupCard extends StatelessWidget {
                       child: Text(
                         group.title,
                         style: RunqText.bodyStrong.copyWith(
-                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: t.ink,
                         ),
@@ -224,7 +222,6 @@ class _GroupCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text('· ${group.count}',
                         style: RunqText.caption.copyWith(
-                          fontSize: 11.5,
                           color: t.muted,
                           fontWeight: FontWeight.w700,
                         )),
@@ -244,7 +241,7 @@ class _GroupCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
             child: Text(
               group.caption,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5),
+              style: RunqText.caption.copyWith(color: t.muted),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -305,7 +302,7 @@ class _ItemRow extends StatelessWidget {
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(item.title,
-                              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13.5),
+                              style: RunqText.bodyStrong.copyWith(color: t.ink),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                       ],
@@ -316,9 +313,9 @@ class _ItemRow extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(item.subtitle,
-                            style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                            style: RunqText.caption.copyWith(color: t.muted)),
                         Text('· ${_relativeDate(item.date)}',
-                            style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                            style: RunqText.caption.copyWith(color: t.muted)),
                         if (needsReview)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -326,11 +323,9 @@ class _ItemRow extends StatelessWidget {
                               color: const Color(0x33F59E0B),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text('Needs review',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFFB45309),
-                                  fontWeight: FontWeight.w700,
+                            child: Text('Needs review',
+                                style: RunqText.micro.copyWith(
+                                  color: const Color(0xFFB45309),
                                 )),
                           ),
                       ],
@@ -341,7 +336,7 @@ class _ItemRow extends StatelessWidget {
               const SizedBox(width: 8),
               if (item.amount != null)
                 Text(formatINR(item.amount!),
-                    style: RunqText.tabular(size: 13.5, w: FontWeight.w700, color: t.ink)),
+                    style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
               const SizedBox(width: 6),
               Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
             ],

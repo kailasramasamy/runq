@@ -317,7 +317,6 @@ class _IdentityHero extends StatelessWidget {
                       Text(
                         displayName,
                         style: RunqText.h3.copyWith(
-                          fontSize: 18,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.01 * 18,
                           color: t.ink,
@@ -328,7 +327,7 @@ class _IdentityHero extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           secondary,
-                          style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                          style: RunqText.caption.copyWith(color: t.muted),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -417,7 +416,7 @@ class _Stat extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+            style: RunqText.caption.copyWith(color: t.muted),
             textAlign: TextAlign.center,
             maxLines: 1, overflow: TextOverflow.ellipsis,
           ),
@@ -440,11 +439,10 @@ class _Pill extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(
         label,
-        style: RunqText.caption.copyWith(
+        style: (uppercase ? RunqText.micro : RunqText.caption).copyWith(
           color: fg,
-          fontSize: uppercase ? 10 : 11,
           fontWeight: uppercase ? FontWeight.w700 : FontWeight.w500,
-          letterSpacing: uppercase ? 0.04 * 10 : 0,
+          letterSpacing: uppercase ? null : 0,
         ),
       ),
     );
@@ -467,7 +465,7 @@ class _EmailPill extends StatelessWidget {
         ),
         child: Text(
           email,
-          style: const TextStyle(color: Color(0xFF605A52), fontSize: 11, fontWeight: FontWeight.w500),
+          style: RunqText.caption.copyWith(color: const Color(0xFF605A52), fontWeight: FontWeight.w500),
           maxLines: 1, overflow: TextOverflow.ellipsis,
         ),
       ),
@@ -510,12 +508,7 @@ class _Group extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
             child: Text(
               title.toUpperCase(),
-              style: TextStyle(
-                color: t.muted2,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.06 * 11,
-              ),
+              style: RunqText.label.copyWith(color: t.muted2),
             ),
           ),
           Container(
@@ -580,11 +573,7 @@ class _Row3 extends StatelessWidget {
             Expanded(
               child: Text(
                 spec.label,
-                style: RunqText.body.copyWith(
-                  color: t.ink,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: RunqText.body.copyWith(color: t.ink),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -593,11 +582,7 @@ class _Row3 extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 130),
                 child: Text(
                   spec.value!,
-                  style: TextStyle(
-                    color: t.muted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: RunqText.caption.copyWith(color: t.muted),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
                 ),
@@ -636,18 +621,14 @@ class _SignOutButton extends StatelessWidget {
           ],
         ),
         alignment: Alignment.center,
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.logout_rounded, size: 17, color: Color(0xFFB91C1C)),
-            SizedBox(width: 8),
+            const Icon(Icons.logout_rounded, size: 17, color: Color(0xFFB91C1C)),
+            const SizedBox(width: 8),
             Text(
               'Sign out',
-              style: TextStyle(
-                color: Color(0xFFB91C1C),
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: RunqText.bodyStrong.copyWith(color: const Color(0xFFB91C1C)),
             ),
           ],
         ),
@@ -676,7 +657,7 @@ class _Footer extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Version $kAppVersionLabel',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF9C9489)),
+              style: RunqText.caption.copyWith(color: const Color(0xFF9C9489)),
             ),
           ],
         ),

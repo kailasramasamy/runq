@@ -110,7 +110,7 @@ class _Option extends StatelessWidget {
                 children: [
                   Text(label, style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),

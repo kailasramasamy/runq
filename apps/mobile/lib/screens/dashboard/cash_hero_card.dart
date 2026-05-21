@@ -111,7 +111,6 @@ class _HeroBody extends StatelessWidget {
                 'CASH POSITION',
                 style: RunqText.label.copyWith(
                   color: Colors.white.withValues(alpha: 0.65),
-                  fontSize: 11,
                 ),
               ),
             ),
@@ -122,7 +121,7 @@ class _HeroBody extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           loaded ? formatINR(cashPosition) : '—',
-          style: RunqText.display.copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+          style: RunqText.tabular(size: 32, w: FontWeight.w700, color: Colors.white).copyWith(height: 1.05),
         ),
         const SizedBox(height: 6),
         if (hasTrend) _TrendChip(delta: weeklyDelta),
@@ -147,8 +146,6 @@ class _AccountsPill extends StatelessWidget {
         '$count ${count == 1 ? 'account' : 'accounts'}',
         style: RunqText.caption.copyWith(
           color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -173,7 +170,7 @@ class _TrendChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           '${positive ? '+' : '−'}${formatINR(delta.abs())} this week',
-          style: RunqText.caption.copyWith(color: tint, fontSize: 13, fontWeight: FontWeight.w500),
+          style: RunqText.caption.copyWith(color: tint),
         ),
       ],
     );
@@ -205,9 +202,9 @@ class _SparkSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('14 days ago',
-                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55), fontSize: 11)),
+                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55))),
                 Text('today',
-                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55), fontSize: 11)),
+                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55))),
               ],
             ),
           ),
@@ -253,12 +250,12 @@ class _MiniStat extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label,
-              style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
+              style: RunqText.label.copyWith(color: Colors.white.withValues(alpha: 0.7))),
           const SizedBox(height: 4),
           Text(value, style: RunqText.tabular(size: 18, w: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 2),
           Text(caption,
-              style: RunqText.caption.copyWith(color: captionColor, fontSize: 11),
+              style: RunqText.caption.copyWith(color: captionColor),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],

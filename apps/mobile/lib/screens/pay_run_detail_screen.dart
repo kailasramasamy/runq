@@ -147,14 +147,13 @@ class _SummaryCard extends StatelessWidget {
             'TOTAL',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             formatINR(run.totalAmount),
             style: RunqText.display
-                .copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+                .copyWith(color: Colors.white, height: 1.05),
           ),
           const SizedBox(height: 14),
           Row(
@@ -206,7 +205,6 @@ class _MiniStat extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 10,
               )),
           const SizedBox(height: 2),
           Text(value,
@@ -241,7 +239,7 @@ class _SelectAllRow extends ConsumerWidget {
       child: Row(
         children: [
           Text('Vendors',
-              style: RunqText.label.copyWith(color: t.muted2, fontSize: 11)),
+              style: RunqText.label.copyWith(color: t.muted2)),
           const Spacer(),
           if (canSelect)
             TextButton(
@@ -259,7 +257,6 @@ class _SelectAllRow extends ConsumerWidget {
                 style: RunqText.caption.copyWith(
                   color: t.brand,
                   fontWeight: FontWeight.w600,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -344,7 +341,7 @@ class _LineRow extends StatelessWidget {
                 if (line.reference != null && line.reference!.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(line.reference!,
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: t.muted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                 ],
@@ -352,7 +349,7 @@ class _LineRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(line.errorMessage!,
                       style: RunqText.caption
-                          .copyWith(color: RunqColors.redInk, fontSize: 11),
+                          .copyWith(color: RunqColors.redInk),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                 ],
@@ -361,7 +358,7 @@ class _LineRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(formatINR(line.amount, compact: true),
-              style: RunqText.tabular(size: 15, w: FontWeight.w700, color: t.ink)),
+              style: RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)),
         ],
       ),
     );
@@ -469,7 +466,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                               ? 'Select lines to approve'
                               : 'Approve ${selected.length} ${selected.length == 1 ? 'line' : 'lines'}',
                           style: RunqText.bodyStrong
-                              .copyWith(color: Colors.white, fontSize: 15),
+                              .copyWith(color: Colors.white),
                         ),
                 )
               : FilledButton(
@@ -490,7 +487,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                       : Text(
                           'Release ${formatINR(run.approvedAmount, compact: true)}',
                           style: RunqText.bodyStrong
-                              .copyWith(color: Colors.white, fontSize: 15),
+                              .copyWith(color: Colors.white),
                         ),
                 ),
         ),

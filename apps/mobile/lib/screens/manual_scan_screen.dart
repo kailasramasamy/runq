@@ -149,13 +149,13 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'Capture each page of the bill',
-              style: RunqText.h3.copyWith(color: t.ink, fontSize: 18),
+              style: RunqText.h3.copyWith(color: t.ink),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
               'Use Retake in the camera if a shot is blurry or crooked. Tap Add page for the next page.',
-              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 13),
+              style: RunqText.caption.copyWith(color: t.muted2),
               textAlign: TextAlign.center,
             ),
           ],
@@ -209,7 +209,7 @@ class _PageGrid extends StatelessWidget {
                   ),
                   child: Text(
                     'Page ${i + 1}',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    style: RunqText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

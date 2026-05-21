@@ -230,7 +230,7 @@ class _Header extends StatelessWidget {
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (template.customerName != null && template.customerName!.isNotEmpty)
                   Text(template.customerName!,
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                      style: RunqText.caption.copyWith(color: t.muted),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
@@ -259,7 +259,7 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 12),
           child,
         ],
@@ -332,7 +332,7 @@ class _ItemRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           '${formatINR(landingPrice)} per unit · ${(item.taxRate ?? 0).toStringAsFixed(0)}% GST',
-          style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+          style: RunqText.caption.copyWith(color: t.muted),
         ),
         const SizedBox(height: 8),
         Row(

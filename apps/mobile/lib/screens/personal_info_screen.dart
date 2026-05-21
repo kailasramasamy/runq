@@ -51,7 +51,7 @@ class PersonalInfoScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       'Account changes are owner-only and currently managed from the runQ web dashboard. Reach out to support if anything here is wrong.',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12, height: 1.4),
+                      style: RunqText.caption.copyWith(color: t.muted, height: 1.4),
                     ),
                   ),
                 ],
@@ -82,13 +82,13 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: RunqText.body.copyWith(color: t.muted, fontSize: 14)),
+            child: Text(label, style: RunqText.body.copyWith(color: t.muted)),
           ),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),
             child: Text(
               value,
-              style: RunqText.body.copyWith(color: t.ink, fontSize: 14, fontWeight: FontWeight.w500),
+              style: RunqText.body.copyWith(color: t.ink),
               maxLines: 2, overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
             ),

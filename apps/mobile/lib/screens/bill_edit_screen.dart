@@ -49,17 +49,17 @@ class _BillEditScreenState extends ConsumerState<BillEditScreen> {
           children: [
             Text(
               'Another bill from this vendor already matches these details.',
-              style: RunqText.body.copyWith(fontSize: 14),
+              style: RunqText.body,
             ),
             const SizedBox(height: 10),
             Text(
               'Bill #${m.invoiceNumber} · ${m.invoiceDate} · ${formatINR(m.totalAmount)}',
-              style: RunqText.bodyStrong.copyWith(fontSize: 13),
+              style: RunqText.bodyStrong,
             ),
             const SizedBox(height: 4),
             Text(
               m.reasonLabel,
-              style: RunqText.caption.copyWith(color: RunqColors.amberInk, fontSize: 12),
+              style: RunqText.caption.copyWith(color: RunqColors.amberInk),
             ),
           ],
         ),
@@ -359,7 +359,7 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: RunqText.label.copyWith(fontSize: 11)),
+          Text(title, style: RunqText.label),
           const SizedBox(height: 8),
           ...children,
         ],
@@ -382,7 +382,7 @@ class _ItemsSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('LINE ITEMS (${state.items.length})', style: RunqText.label.copyWith(fontSize: 11)),
+              Text('LINE ITEMS (${state.items.length})', style: RunqText.label),
               const Spacer(),
               TextButton.icon(
                 onPressed: () {
@@ -452,7 +452,7 @@ class _ItemEditor extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Item ${index + 1}', style: RunqText.label.copyWith(fontSize: 10)),
+              Text('Item ${index + 1}', style: RunqText.micro),
               const Spacer(),
               if (onRemove != null)
                 IconButton(
@@ -503,7 +503,7 @@ class _TotalsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TOTALS', style: RunqText.label.copyWith(fontSize: 11)),
+          Text('TOTALS', style: RunqText.label),
           const SizedBox(height: 8),
           _Input(controller: state.subtotal, label: 'Subtotal ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onChange),
           _Input(controller: state.taxAmount, label: 'Tax ₹', keyboard: const TextInputType.numberWithOptions(decimal: true), onChange: onChange),
@@ -512,7 +512,7 @@ class _TotalsSection extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Subtotal + Tax (${formatINR(subtotal + tax)}) ≠ Total (${formatINR(total)})',
-              style: RunqText.caption.copyWith(color: RunqColors.amberInk, fontSize: 11),
+              style: RunqText.caption.copyWith(color: RunqColors.amberInk),
             ),
           ],
         ],
@@ -545,8 +545,8 @@ class _Input extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text(label.toUpperCase(), style: RunqText.label.copyWith(fontSize: 10)),
-            if (required) const Text(' *', style: TextStyle(color: RunqColors.redInk, fontSize: 10)),
+            Text(label.toUpperCase(), style: RunqText.micro),
+            if (required) Text(' *', style: RunqText.micro.copyWith(color: RunqColors.redInk)),
           ]),
           const SizedBox(height: 2),
           TextField(
@@ -560,7 +560,6 @@ class _Input extends StatelessWidget {
                 : null,
             onChanged: (_) => onChange?.call(),
             style: RunqText.body.copyWith(
-              fontSize: 14,
               fontFamily: mono ? 'monospace' : null,
             ),
             decoration: InputDecoration(
@@ -606,17 +605,17 @@ class _IssuesBanner extends StatelessWidget {
           Row(children: [
             Icon(Icons.error_outline_rounded, size: 16, color: ink),
             const SizedBox(width: 8),
-            Text('Fix before saving:', style: RunqText.bodyStrong.copyWith(color: ink, fontSize: 13)),
+            Text('Fix before saving:', style: RunqText.bodyStrong.copyWith(color: ink)),
           ]),
           const SizedBox(height: 6),
           ...issues.take(6).map((msg) => Padding(
                 padding: const EdgeInsets.only(left: 24, top: 2),
-                child: Text('• $msg', style: RunqText.caption.copyWith(color: ink, fontSize: 12)),
+                child: Text('• $msg', style: RunqText.caption.copyWith(color: ink)),
               )),
           if (issues.length > 6)
             Padding(
               padding: const EdgeInsets.only(left: 24, top: 2),
-              child: Text('… and ${issues.length - 6} more', style: RunqText.caption.copyWith(color: ink, fontSize: 12)),
+              child: Text('… and ${issues.length - 6} more', style: RunqText.caption.copyWith(color: ink)),
             ),
         ],
       ),

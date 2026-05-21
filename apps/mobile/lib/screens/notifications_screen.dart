@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../api/notifications_repo.dart';
+import '../router.dart' show resolveNotificationTarget;
+import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../screens/hr/widgets/hr_colors.dart';
 import '../widgets/runq_snack.dart';
@@ -65,11 +67,11 @@ class NotificationsScreen extends ConsumerWidget {
                       const SizedBox(height: 12),
                       Text('No notifications yet',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: t.ink)),
+                          style: RunqText.bodyStrong.copyWith(color: t.ink)),
                       const SizedBox(height: 4),
                       Text('You\'ll see HR updates here — new goals, leave approvals, payslips.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: t.muted)),
+                          style: RunqText.body.copyWith(color: t.muted)),
                     ]),
                   ),
                 ],
@@ -99,7 +101,7 @@ class NotificationsScreen extends ConsumerWidget {
     final target = n.targetUrl;
     if (target == null || target.isEmpty || target.startsWith('http')) return;
     if (!context.mounted) return;
-    GoRouter.of(context).push(target);
+    GoRouter.of(context).push(resolveNotificationTarget(target));
   }
 }
 
@@ -115,11 +117,18 @@ class _NotificationCard extends StatelessWidget {
       };
 
   IconData _icon() => switch (notif.source) {
-        'hr_performance' => Icons.flag_outlined,
-        'hr_leave' => Icons.beach_access_outlined,
-        'hr_payroll' => Icons.payments_outlined,
-        'hr_helpdesk' => Icons.support_agent,
-        _ => Icons.notifications_outlined,
+        'hr_performance'   => Icons.flag_outlined,
+        'hr_leave'         => Icons.beach_access_outlined,
+        'hr_payroll'       => Icons.payments_outlined,
+        'hr_helpdesk'      => Icons.support_agent,
+        'hr_expense'       => Icons.receipt_long_outlined,
+        'hr_loan'          => Icons.account_balance_outlined,
+        'hr_tax'           => Icons.request_quote_outlined,
+        'hr_attendance'    => Icons.fingerprint,
+        'hr_announcement'  => Icons.campaign_outlined,
+        'hr_onboarding'    => Icons.how_to_reg_outlined,
+        'hr_lifecycle'     => Icons.exit_to_app,
+        _                  => Icons.notifications_outlined,
       };
 
   @override
@@ -152,9 +161,8 @@ class _NotificationCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(
-                    child: Text(notif.title, style: TextStyle(
+                    child: Text(notif.title, style: RunqText.bodyStrong.copyWith(
                       fontWeight: notif.unread ? FontWeight.w700 : FontWeight.w600,
-                      fontSize: 14,
                       color: t.ink,
                     )),
                   ),
@@ -169,10 +177,10 @@ class _NotificationCard extends StatelessWidget {
                 ]),
                 if (notif.body != null && notif.body!.isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Text(notif.body!, style: TextStyle(fontSize: 12.5, color: t.muted, height: 1.35)),
+                  Text(notif.body!, style: RunqText.body.copyWith(color: t.muted, height: 1.35)),
                 ],
                 const SizedBox(height: 5),
-                Text(_relativeTime(notif.createdAt), style: TextStyle(fontSize: 11, color: t.muted)),
+                Text(_relativeTime(notif.createdAt), style: RunqText.caption.copyWith(color: t.muted)),
               ]),
             ),
           ]),

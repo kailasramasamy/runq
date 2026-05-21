@@ -165,14 +165,13 @@ class _ForecastHero extends StatelessWidget {
             'TODAY',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             formatINR(forecast.currentBalance),
             style: RunqText.display
-                .copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+                .copyWith(color: Colors.white, height: 1.05),
           ),
           const SizedBox(height: 16),
           Row(
@@ -229,7 +228,6 @@ class _HeroStat extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 11,
               )),
           const SizedBox(height: 4),
           Text(value,
@@ -237,7 +235,7 @@ class _HeroStat extends StatelessWidget {
                   size: 18, w: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 2),
           Text(caption,
-              style: RunqText.caption.copyWith(color: accent, fontSize: 11),
+              style: RunqText.caption.copyWith(color: accent),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -306,9 +304,8 @@ class _HorizonPill extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: RunqText.bodyStrong.copyWith(
+            style: RunqText.body.copyWith(
               color: active ? Colors.white : t.ink,
-              fontSize: 13,
             ),
           ),
         ),
@@ -360,10 +357,8 @@ class _ForecastChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Projected balance',
-              style: RunqText.caption.copyWith(
+              style: RunqText.label.copyWith(
                 color: t.muted2,
-                fontSize: 11,
-                letterSpacing: 0.04 * 11,
               )),
           const SizedBox(height: 12),
           SizedBox(
@@ -394,10 +389,7 @@ class _ForecastChart extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 6),
                         child: Text(
                           formatINR(v, compact: true),
-                          style: RunqText.caption.copyWith(
-                            color: t.muted2,
-                            fontSize: 10,
-                          ),
+                          style: RunqText.tabular(size: 10, w: FontWeight.w500, color: t.muted2),
                         ),
                       ),
                     ),
@@ -412,15 +404,13 @@ class _ForecastChart extends StatelessWidget {
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text('today',
-                                style: RunqText.caption.copyWith(
-                                    color: t.muted2, fontSize: 10)),
+                                style: RunqText.micro.copyWith(color: t.muted2)),
                           );
                         }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text('+${v.toInt()}d',
-                              style: RunqText.caption.copyWith(
-                                  color: t.muted2, fontSize: 10)),
+                              style: RunqText.micro.copyWith(color: t.muted2)),
                         );
                       },
                     ),
@@ -434,7 +424,6 @@ class _ForecastChart extends StatelessWidget {
                               '${s.x.toInt() == 0 ? 'today' : '+${s.x.toInt()}d'}\n${formatINR(s.y)}',
                               RunqText.caption.copyWith(
                                 color: Colors.white,
-                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ))
@@ -532,11 +521,11 @@ class _BreakdownRow extends StatelessWidget {
             children: [
               Text(label,
                   style: emphasize
-                      ? RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)
+                      ? RunqText.h4.copyWith(color: t.ink)
                       : RunqText.bodyStrong.copyWith(color: t.ink)),
               const SizedBox(height: 2),
               Text(description,
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ),

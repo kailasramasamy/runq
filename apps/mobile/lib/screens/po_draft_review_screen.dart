@@ -207,7 +207,7 @@ class _BodyState extends ConsumerState<_Body> {
                   child: Text(
                     'Tip: tap any "Tap to map" line to pick the matching item from your masters. '
                     'We\'ll remember it for the next PO from this customer.',
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5, height: 1.4),
+                    style: RunqText.caption.copyWith(color: t.muted, height: 1.4),
                   ),
                 ),
             ],
@@ -246,8 +246,8 @@ class _Header extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('REVIEW PO',
-                      style: RunqText.caption.copyWith(
-                        fontSize: 10, color: t.muted, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+                      style: RunqText.micro.copyWith(
+                        color: t.muted, letterSpacing: 1.2)),
                   const SizedBox(height: 2),
                   Text(poNumber,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -343,7 +343,6 @@ class _StatusStrip extends StatelessWidget {
           Expanded(
             child: Text(message,
                 style: RunqText.caption.copyWith(
-                  fontSize: 12,
                   color: ready ? color : t.ink,
                   fontWeight: FontWeight.w600,
                 )),
@@ -397,7 +396,6 @@ class _CustomerCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(hasMatch ? 'Reassign' : 'Pick customer',
                             style: RunqText.caption.copyWith(
-                              fontSize: 11,
                               color: RunqColors.indigo,
                               fontWeight: FontWeight.w600,
                             )),
@@ -407,8 +405,7 @@ class _CustomerCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(displayName,
-                  style: RunqText.h3.copyWith(
-                    fontSize: 16,
+                  style: RunqText.h4.copyWith(
                     color: hasMatch ? t.ink : t.muted,
                     fontStyle: hasMatch ? FontStyle.normal : FontStyle.italic,
                   )),
@@ -433,7 +430,7 @@ class _CustomerCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'On PO: ${detail.buyerNameRaw}',
-                          style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+                          style: RunqText.caption.copyWith(color: t.muted),
                           maxLines: 2, overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -485,7 +482,7 @@ class _Warning extends StatelessWidget {
           Icon(icon, size: 16, color: const Color(0xFFB45309)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: RunqText.caption.copyWith(fontSize: 12)),
+            child: Text(text, style: RunqText.caption),
           ),
         ],
       ),
@@ -511,10 +508,8 @@ class _GstChip extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(3)),
       child: Text(
         label,
-        style: RunqText.caption.copyWith(
-          fontSize: 10,
+        style: RunqText.micro.copyWith(
           color: fg,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -550,10 +545,8 @@ class _LinesCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text('$unresolved to fix',
-                      style: RunqText.caption.copyWith(
-                        fontSize: 10,
+                      style: RunqText.micro.copyWith(
                         color: const Color(0xFFB45309),
-                        fontWeight: FontWeight.w700,
                       )),
                 ),
             ],
@@ -628,7 +621,7 @@ class _LineRow extends StatelessWidget {
                       children: [
                         Text(
                           '$qty${line.displayUom != null ? ' ${line.displayUom}' : ''} × ${rate > 0 ? formatINR(rate) : 'no rate'}',
-                          style: RunqText.caption.copyWith(fontSize: 11, color: t.muted),
+                          style: RunqText.caption.copyWith(color: t.muted),
                         ),
                         if (line.customerSku != null && line.customerSku!.isNotEmpty)
                           Container(
@@ -638,10 +631,8 @@ class _LineRow extends StatelessWidget {
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: Text(line.customerSku!,
-                                style: RunqText.caption.copyWith(
-                                  fontSize: 10,
+                                style: RunqText.micro.copyWith(
                                   color: t.muted,
-                                  fontWeight: FontWeight.w600,
                                 )),
                           ),
                         if (line.effectiveGstRate != null) _GstChip(rate: line.effectiveGstRate),
@@ -655,7 +646,6 @@ class _LineRow extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text('Tap to map to a product',
                               style: RunqText.caption.copyWith(
-                                fontSize: 11,
                                 color: const Color(0xFFB45309),
                                 fontWeight: FontWeight.w700,
                               )),
@@ -748,8 +738,8 @@ class _LinePair extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final style = strong
-        ? RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink)
-        : RunqText.caption.copyWith(fontSize: 12, color: t.muted);
+        ? RunqText.bodyStrong.copyWith(color: t.ink)
+        : RunqText.caption.copyWith(color: t.muted);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -764,7 +754,7 @@ class _LinePair extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 1),
                     child: Text(hint!,
-                        style: RunqText.caption.copyWith(fontSize: 10, color: t.muted2)),
+                        style: RunqText.micro.copyWith(color: t.muted2)),
                   ),
               ],
             ),
@@ -818,7 +808,7 @@ class _Footer extends StatelessWidget {
                     approvedInvoiceNumber != null
                         ? 'Invoice $approvedInvoiceNumber created from this PO.'
                         : 'Invoice already created from this PO.',
-                    style: RunqText.caption.copyWith(fontSize: 11, color: t.ink),
+                    style: RunqText.caption.copyWith(color: t.ink),
                   ),
                 ),
               ],
@@ -849,7 +839,7 @@ class _Footer extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '$unresolved product${unresolved == 1 ? '' : 's'} need to be mapped. Tap each line to fix.',
-                      style: RunqText.caption.copyWith(fontSize: 11, color: t.ink),
+                      style: RunqText.caption.copyWith(color: t.ink),
                     ),
                   ),
                 ],

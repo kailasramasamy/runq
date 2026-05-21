@@ -52,7 +52,7 @@ class _SalesMtdCard extends StatelessWidget {
               Row(children: [
                 Text('Last month ${formatINR(d.prevAmount, compact: true)}',
                     style: RunqText.caption
-                        .copyWith(color: RT(context).muted, fontSize: 12)),
+                        .copyWith(color: RT(context).muted)),
                 const SizedBox(width: 10),
                 _DeltaChip(deltaPct: delta, down: down),
               ]),
@@ -86,7 +86,7 @@ class _DeltaChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text('${deltaPct >= 0 ? '+' : ''}${deltaPct.toStringAsFixed(1)}%',
               style: RunqText.caption.copyWith(
-                  color: ink, fontWeight: FontWeight.w700, fontSize: 11.5)),
+                  color: ink, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -188,7 +188,7 @@ class _VendorRow extends StatelessWidget {
           Expanded(
             child: Text(name,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                style: RunqText.bodyStrong.copyWith(color: t.ink)),
           ),
           Text(formatINR(amount, compact: true),
               style: RunqText.tabular(size: 13, w: FontWeight.w600, color: t.ink2)),

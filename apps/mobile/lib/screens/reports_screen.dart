@@ -212,9 +212,8 @@ class _SegmentItem extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: RunqText.bodyStrong.copyWith(
+            style: RunqText.body.copyWith(
               color: active ? t.ink : t.muted,
-              fontSize: 13,
             ),
           ),
         ),
@@ -252,9 +251,8 @@ class _Pill extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: RunqText.bodyStrong.copyWith(
+            style: RunqText.body.copyWith(
               color: active ? Colors.white : t.ink,
-              fontSize: 13,
             ),
           ),
         ),
@@ -375,7 +373,6 @@ class _PnlHero extends StatelessWidget {
             'NET PROFIT · ${periodLabel.toUpperCase()}',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
@@ -386,11 +383,11 @@ class _PnlHero extends StatelessWidget {
               if (!positive)
                 Text('−',
                     style: RunqText.display.copyWith(
-                        color: Colors.white, fontSize: 32, height: 1.05)),
+                        color: Colors.white, height: 1.05)),
               Text(
                 formatINR(netProfit.abs()),
                 style: RunqText.display.copyWith(
-                    color: Colors.white, fontSize: 32, height: 1.05),
+                    color: Colors.white, height: 1.05),
               ),
             ],
           ),
@@ -411,10 +408,8 @@ class _PnlHero extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${deltaPositive ? '+' : '−'}${formatINR(delta.abs(), compact: true)} vs prev period',
-                  style: RunqText.caption.copyWith(
+                  style: RunqText.body.copyWith(
                     color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -452,7 +447,7 @@ class _PnlRow extends StatelessWidget {
             style: emphasize
                 ? RunqText.bodyStrong
                     .copyWith(color: t.ink, fontSize: large ? 16 : 14)
-                : RunqText.body.copyWith(color: t.muted, fontSize: 14),
+                : RunqText.body.copyWith(color: t.muted),
           ),
         ),
         Text(
@@ -598,11 +593,11 @@ class _AnalyticsHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: RunqText.label.copyWith(color: muted, fontSize: 11)),
+              style: RunqText.label.copyWith(color: muted)),
           const SizedBox(height: 8),
           Text(
             formatINR(total),
-            style: RunqText.display.copyWith(color: ink, fontSize: 32, height: 1.05),
+            style: RunqText.display.copyWith(color: ink, height: 1.05),
           ),
         ],
       ),
@@ -662,8 +657,7 @@ class _MonthBars extends StatelessWidget {
                   getTitlesWidget: (v, _) => Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: Text(formatINR(v, compact: true),
-                        style: RunqText.caption.copyWith(
-                            color: t.muted2, fontSize: 10)),
+                        style: RunqText.tabular(size: 10, w: FontWeight.w500, color: t.muted2)),
                   ),
                 ),
               ),
@@ -681,8 +675,7 @@ class _MonthBars extends StatelessWidget {
                     return Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(short,
-                          style: RunqText.caption
-                              .copyWith(color: t.muted2, fontSize: 10)),
+                          style: RunqText.micro.copyWith(color: t.muted2)),
                     );
                   },
                 ),
@@ -695,7 +688,6 @@ class _MonthBars extends StatelessWidget {
                   '${months[group.x].month}\n${formatINR(rod.toY)}',
                   RunqText.caption.copyWith(
                     color: Colors.white,
-                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -752,7 +744,7 @@ class _CategoryRow extends StatelessWidget {
             Expanded(
               child: Text(
                 item.label,
-                style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13),
+                style: RunqText.body.copyWith(color: t.ink),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -788,7 +780,7 @@ class _CategoryRow extends StatelessWidget {
               width: 44,
               child: Text(
                 '${item.percentage.toStringAsFixed(item.percentage < 10 ? 1 : 0)}%',
-                style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                style: RunqText.tabular(size: 11, w: FontWeight.w500, color: t.muted2),
                 textAlign: TextAlign.right,
               ),
             ),

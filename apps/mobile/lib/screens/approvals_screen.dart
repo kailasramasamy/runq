@@ -177,10 +177,10 @@ class _ApprovalCard extends StatelessWidget {
                       Flexible(
                         child: Text(_refLabel(),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: RunqText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w600)),
+                            style: RunqText.bodyStrong),
                       ),
                       const Spacer(),
-                      Text(ago, style: RunqText.caption.copyWith(fontSize: 11, color: RT(context).muted2)),
+                      Text(ago, style: RunqText.caption.copyWith(color: RT(context).muted2)),
                     ],
                   ),
                   const SizedBox(height: 10),

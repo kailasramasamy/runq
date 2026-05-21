@@ -153,14 +153,13 @@ class _QueueHero extends StatelessWidget {
             'TOTAL PAYABLE',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             formatINR(summary.totalPayable),
             style: RunqText.display.copyWith(
-                color: Colors.white, fontSize: 32, height: 1.05),
+                color: Colors.white, height: 1.05),
           ),
           const SizedBox(height: 14),
           Row(
@@ -215,7 +214,6 @@ class _Stat extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 11,
               )),
           const SizedBox(height: 4),
           Text(value,
@@ -223,7 +221,7 @@ class _Stat extends StatelessWidget {
                   size: 18, w: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 2),
           Text(caption,
-              style: RunqText.caption.copyWith(color: accent, fontSize: 11),
+              style: RunqText.caption.copyWith(color: accent),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -322,7 +320,7 @@ class _ScheduleSectionState extends ConsumerState<_ScheduleSection> {
                         overdueCount == 0
                             ? 'Caught up. Nothing to schedule.'
                             : 'bundles overdue bills into a pay run',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                        style: RunqText.caption.copyWith(color: t.muted),
                       ),
                     ],
                   ),

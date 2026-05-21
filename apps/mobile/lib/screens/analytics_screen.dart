@@ -105,12 +105,12 @@ class _Section extends StatelessWidget {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(title,
-                      style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                      style: RunqText.h4.copyWith(color: t.ink)),
                   if (subtitle != null) ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(subtitle!,
-                          style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11.5)),
+                          style: RunqText.caption.copyWith(color: t.muted2)),
                     ),
                   ],
                 ],

@@ -5,6 +5,7 @@ import '../providers/app_module_provider.dart';
 import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
+import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../widgets/gradient_avatar.dart';
 import '../widgets/section_head.dart';
@@ -159,15 +160,11 @@ class _Header extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(dateLabel,
-              style: TextStyle(color: t.muted, fontSize: 13)),
+              style: RunqText.bodyStrong.copyWith(color: t.muted)),
           const SizedBox(height: 2),
           Text(
             '${_greeting()}, ${_firstName(user?.name, user?.email)} 👋',
-            style: TextStyle(
-              color: t.ink,
-              fontSize: 22, fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-            ),
+            style: RunqText.h2.copyWith(color: t.ink, letterSpacing: -0.5),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

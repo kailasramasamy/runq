@@ -224,8 +224,7 @@ class _CustomerTile extends StatelessWidget {
                             ),
                             child: Text(
                               'CURRENT',
-                              style: RunqText.caption.copyWith(
-                                fontSize: 9,
+                              style: RunqText.micro.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.6,

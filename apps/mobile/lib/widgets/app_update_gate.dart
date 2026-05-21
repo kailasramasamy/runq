@@ -137,7 +137,7 @@ class _UpdateDialog extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'You have ${check.runningVersion}. Latest is ${check.config.currentVersion}.',
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+            style: RunqText.caption.copyWith(color: t.muted),
           ),
         ],
       ),

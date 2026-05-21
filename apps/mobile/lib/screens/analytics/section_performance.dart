@@ -56,7 +56,7 @@ class _RevExpCard extends StatelessWidget {
                 Text(
                   'Net ${formatINR(d.totalRevenue - d.totalExpense, compact: true)}',
                   style: RunqText.tabular(
-                      size: 12.5, w: FontWeight.w700, color: RT(context).ink),
+                      size: 13, w: FontWeight.w700, color: RT(context).ink),
                 ),
               ],
             ),
@@ -118,7 +118,7 @@ class _RevExpBars extends StatelessWidget {
             reservedSize: 40,
             interval: maxY / 3,
             getTitlesWidget: (v, _) => Text(formatINR(v, compact: true, currency: false),
-                style: RunqText.caption.copyWith(color: t.muted2, fontSize: 10)),
+                style: RunqText.micro.copyWith(color: t.muted2)),
           ),
         ),
         bottomTitles: AxisTitles(
@@ -134,7 +134,7 @@ class _RevExpBars extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(short,
-                    style: RunqText.caption.copyWith(color: t.muted2, fontSize: 10)),
+                    style: RunqText.micro.copyWith(color: t.muted2)),
               );
             },
           ),
@@ -149,7 +149,7 @@ class _RevExpBars extends StatelessWidget {
             return BarTooltipItem(
               '${m.month}\n$lab ${formatINR(rod.toY)}',
               RunqText.caption.copyWith(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  color: Colors.white, fontWeight: FontWeight.w600),
             );
           },
         ),
@@ -239,7 +239,7 @@ class _DsoLine extends StatelessWidget {
             reservedSize: 28,
             interval: yMax / 3,
             getTitlesWidget: (v, _) => Text('${v.toStringAsFixed(0)}d',
-                style: RunqText.caption.copyWith(color: t.muted2, fontSize: 10)),
+                style: RunqText.micro.copyWith(color: t.muted2)),
           ),
         ),
         bottomTitles: AxisTitles(
@@ -254,7 +254,7 @@ class _DsoLine extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(short,
-                    style: RunqText.caption.copyWith(color: t.muted2, fontSize: 10)),
+                    style: RunqText.micro.copyWith(color: t.muted2)),
               );
             },
           ),
@@ -287,7 +287,7 @@ class _DsoLine extends StatelessWidget {
             return LineTooltipItem(
               '${p.month}\n${s.y.toStringAsFixed(0)} days',
               RunqText.caption.copyWith(
-                  color: Colors.white, fontWeight: FontWeight.w600, fontSize: 11),
+                  color: Colors.white, fontWeight: FontWeight.w600),
             );
           }).toList(),
         ),
@@ -345,7 +345,7 @@ class _CategoryRow extends StatelessWidget {
           Expanded(
             child: Text(name,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+                style: RunqText.bodyStrong.copyWith(color: t.ink)),
           ),
           Text(formatINR(amount, compact: true),
               style: RunqText.tabular(size: 13, w: FontWeight.w600, color: t.ink2)),
@@ -387,7 +387,7 @@ class _LegendDot extends StatelessWidget {
       )),
       const SizedBox(width: 6),
       Text(label,
-          style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12)),
+          style: RunqText.caption.copyWith(color: RT(context).muted)),
     ]);
   }
 }
@@ -412,7 +412,7 @@ class _StatBlock extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(label.toUpperCase(),
-                style: RunqText.label.copyWith(color: t.muted, fontSize: 10)),
+                style: RunqText.micro.copyWith(color: t.muted)),
             const SizedBox(height: 4),
             Text(value,
                 style: RunqText.tabular(

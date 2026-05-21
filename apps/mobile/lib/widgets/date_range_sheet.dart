@@ -111,7 +111,7 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
             ),
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 12),
-              child: Text(_label(_from, _to), style: RunqText.caption.copyWith(color: t.muted, fontSize: 13)),
+              child: Text(_label(_from, _to), style: RunqText.caption.copyWith(color: t.muted)),
             ),
             Flexible(
               child: SingleChildScrollView(
@@ -207,7 +207,7 @@ class _PresetTile extends StatelessWidget {
             Icon(preset.isCustom ? Icons.date_range_rounded : Icons.event_outlined,
                 size: 18, color: t.muted),
             const SizedBox(width: 12),
-            Expanded(child: Text(preset.label, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14))),
+            Expanded(child: Text(preset.label, style: RunqText.bodyStrong.copyWith(color: t.ink))),
             if (active)
               const Icon(Icons.check_rounded, color: RunqColors.indigo, size: 20),
           ],

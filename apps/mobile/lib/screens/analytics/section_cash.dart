@@ -91,21 +91,19 @@ class _ForecastWindow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(label.toUpperCase(),
-                    style: RunqText.label
-                        .copyWith(color: t.muted, fontSize: 10)),
+                    style: RunqText.micro.copyWith(color: t.muted)),
                 const SizedBox(height: 6),
                 Row(children: [
                   Text('+${formatINR(win.inflow, compact: true)}',
                       style: RunqText.caption.copyWith(
-                          color: statusInk(context, StatusTone.ok), fontSize: 11.5)),
+                          color: statusInk(context, StatusTone.ok))),
                   const SizedBox(width: 8),
                   Text('−${formatINR(win.outflow, compact: true)}',
                       style: RunqText.caption
-                          .copyWith(color: statusInk(context, StatusTone.neg), fontSize: 11.5)),
+                          .copyWith(color: statusInk(context, StatusTone.neg))),
                   const SizedBox(width: 8),
                   Text('${win.receivableCount} in · ${win.payableCount} out',
-                      style: RunqText.caption
-                          .copyWith(color: t.muted2, fontSize: 11)),
+                      style: RunqText.caption.copyWith(color: t.muted2)),
                 ]),
               ],
             ),
@@ -205,7 +203,7 @@ class _RunwayCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label.toUpperCase(),
-              style: RunqText.label.copyWith(color: t.muted, fontSize: 10)),
+              style: RunqText.micro.copyWith(color: t.muted)),
           const SizedBox(height: 6),
           Text(value,
               style: RunqText.tabular(
@@ -216,7 +214,7 @@ class _RunwayCard extends StatelessWidget {
           Text(sub,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+              style: RunqText.caption.copyWith(color: t.muted2)),
         ],
       ),
     );

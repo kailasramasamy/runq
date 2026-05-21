@@ -105,7 +105,7 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
           children: [
             Text(
               widget.attachment.fileName,
-              style: RunqText.bodyStrong.copyWith(fontSize: 14),
+              style: RunqText.bodyStrong,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -114,7 +114,7 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
               _isPdf && _pages > 0
                   ? 'Page ${_currentPage + 1} of $_pages · ${widget.attachment.prettySize}'
                   : widget.attachment.prettySize,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+              style: RunqText.caption.copyWith(color: t.muted),
             ),
           ],
         ),
@@ -155,7 +155,7 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
               Text(
                 _error ?? 'Unknown error',
                 textAlign: TextAlign.center,
-                style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
+                style: RunqText.caption.copyWith(color: RT(context).muted),
               ),
             ],
           ),
@@ -207,7 +207,7 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
             Text(
               'Tap the share icon above to open in another app.',
               textAlign: TextAlign.center,
-              style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: RT(context).muted),
             ),
           ],
         ),

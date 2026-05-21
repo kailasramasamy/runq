@@ -161,8 +161,8 @@ class _Header extends StatelessWidget {
                             strokeWidth: 2, color: Colors.white),
                       )
                     : Text('Generate',
-                        style: RunqText.bodyStrong
-                            .copyWith(color: Colors.white, fontSize: 13)),
+                        style: RunqText.body
+                            .copyWith(color: Colors.white)),
               ),
             ),
           ),
@@ -226,9 +226,8 @@ class _Pill extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: RunqText.bodyStrong.copyWith(
+            style: RunqText.body.copyWith(
               color: active ? Colors.white : t.ink,
-              fontSize: 13,
             ),
           ),
         ),
@@ -257,13 +256,13 @@ class _Row extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('$type · ${ret.periodLabel}',
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   const SizedBox(height: 2),
                   Text(
                     ret.arn != null && ret.arn!.isNotEmpty
                         ? 'ARN ${ret.arn}'
                         : ret.gstin,
-                    style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                    style: RunqText.caption.copyWith(color: t.muted2),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -308,8 +307,7 @@ Future<String?> _pickGenerateType(BuildContext context) async {
               child: Row(
                 children: [
                   Text('Generate draft',
-                      style: RunqText.bodyStrong
-                          .copyWith(color: t.ink, fontSize: 15)),
+                      style: RunqText.h4.copyWith(color: t.ink)),
                 ],
               ),
             ),
@@ -377,7 +375,7 @@ class _GenerateTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(subtitle,
                       style: RunqText.caption
-                          .copyWith(color: t.muted, fontSize: 12)),
+                          .copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -419,13 +417,13 @@ Future<String?> _pickPeriod(BuildContext context) async {
           ),
           const SizedBox(height: 16),
           Text('Select period',
-              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+              style: RunqText.h4.copyWith(color: t.ink)),
           const SizedBox(height: 8),
           for (final o in options)
             ListTile(
               dense: true,
               title: Text(o.label,
-                  style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                  style: RunqText.body.copyWith(color: t.ink)),
               onTap: () => Navigator.of(context).pop(o.value),
             ),
           const SizedBox(height: 8),

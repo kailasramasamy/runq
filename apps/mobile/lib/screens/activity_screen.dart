@@ -204,7 +204,7 @@ class _Row extends StatelessWidget {
                       Expanded(
                         child: Text(
                           spec.title,
-                          style: RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink),
+                          style: RunqText.bodyStrong.copyWith(color: t.ink),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -218,7 +218,7 @@ class _Row extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(spec.subtitle(_relTime(entry.createdAt)),
-                      style: RunqText.caption.copyWith(fontSize: 11, color: t.muted2),
+                      style: RunqText.caption.copyWith(color: t.muted2),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),

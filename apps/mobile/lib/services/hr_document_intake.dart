@@ -334,7 +334,7 @@ class _KindSheetState extends State<_KindSheet> {
                 child: Row(
                   children: [
                     Text('What kind of document?',
-                        style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                        style: RunqText.h4.copyWith(color: t.ink)),
                   ],
                 ),
               ),
@@ -342,7 +342,7 @@ class _KindSheetState extends State<_KindSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: TextField(
                   onChanged: (v) => setState(() => _q = v),
-                  style: TextStyle(color: t.ink, fontSize: 14),
+                  style: RunqText.body.copyWith(color: t.ink),
                   decoration: InputDecoration(
                     hintText: 'Search document types',
                     hintStyle: TextStyle(color: t.muted),
@@ -376,7 +376,7 @@ class _KindSheetState extends State<_KindSheet> {
                         child: Icon(_kindIcon(k), size: 16, color: HrColors.brand(context)),
                       ),
                       title: Text(k.label,
-                          style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                          style: RunqText.body.copyWith(color: t.ink)),
                       onTap: () => Navigator.of(context).pop(k),
                     );
                   },
@@ -502,7 +502,7 @@ class _ExpirySheetState extends State<_ExpirySheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('When does this ${widget.kind.label.toLowerCase()} expire?',
-                    style: RunqText.h3.copyWith(color: t.ink, fontSize: 16)),
+                    style: RunqText.h4.copyWith(color: t.ink)),
                 const SizedBox(height: 4),
                 Text(
                   'We\'ll show a warning on the dashboard 90 days before. Skip if it doesn\'t expire.',

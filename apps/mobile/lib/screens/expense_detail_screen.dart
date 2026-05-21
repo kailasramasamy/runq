@@ -184,7 +184,7 @@ class _Header extends StatelessWidget {
             (claim.description != null && claim.description!.isNotEmpty)
                 ? claim.description!
                 : 'Expense claim',
-            style: RunqText.h3.copyWith(color: t.ink, fontSize: 18),
+            style: RunqText.h3.copyWith(color: t.ink),
           ),
           if (claim.claimantName != null) ...[
             const SizedBox(height: 2),
@@ -217,8 +217,7 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(status.toUpperCase(),
-          style: RunqText.caption.copyWith(
-            fontSize: 10,
+          style: RunqText.micro.copyWith(
             color: fg,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
@@ -246,8 +245,7 @@ class _SectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title.toUpperCase(),
-              style: RunqText.caption.copyWith(
-                fontSize: 10.5,
+              style: RunqText.micro.copyWith(
                 color: t.muted,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.6,
@@ -280,7 +278,7 @@ class _ItemRow extends StatelessWidget {
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
               Text('${item.category} · ${dateFmt(item.expenseDate)}',
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ),

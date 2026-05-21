@@ -121,7 +121,6 @@ class _MoneyHero extends ConsumerWidget {
                       'CASH POSITION',
                       style: RunqText.label.copyWith(
                         color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 11,
                       ),
                     ),
                     const Spacer(),
@@ -136,8 +135,6 @@ class _MoneyHero extends ConsumerWidget {
                           '$accountCount ${accountCount == 1 ? 'account' : 'accounts'}',
                           style: RunqText.caption.copyWith(
                             color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -147,7 +144,7 @@ class _MoneyHero extends ConsumerWidget {
                 Text(
                   loaded ? formatINR(cash) : '—',
                   style: RunqText.display
-                      .copyWith(color: Colors.white, fontSize: 32, height: 1.05),
+                      .copyWith(color: Colors.white, height: 1.05),
                 ),
                 const SizedBox(height: 6),
                 if (trend.hasValue)
@@ -164,10 +161,8 @@ class _MoneyHero extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text(
                         '${delta >= 0 ? '+' : '−'}${formatINR(delta.abs())} this week',
-                        style: RunqText.caption.copyWith(
+                        style: RunqText.body.copyWith(
                           color: Colors.white.withValues(alpha: 0.78),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],

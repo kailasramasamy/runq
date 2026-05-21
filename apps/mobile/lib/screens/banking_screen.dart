@@ -287,11 +287,11 @@ class _BankingHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Banking', style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
+                Text('Banking', style: RunqText.h1.copyWith(color: t.ink)),
                 const SizedBox(height: 4),
                 Text(
                   countLabel,
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 13),
+                  style: RunqText.caption.copyWith(color: t.muted),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -429,10 +429,8 @@ class _AccountCard extends StatelessWidget {
                       ),
                       child: Text(
                         '$matchCount to match',
-                        style: RunqText.caption.copyWith(
+                        style: RunqText.label.copyWith(
                           color: RunqColors.amberInk,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -441,7 +439,7 @@ class _AccountCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 bankName,
-                style: RunqText.body.copyWith(color: t.muted, fontSize: 13),
+                style: RunqText.body.copyWith(color: t.muted),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
@@ -453,7 +451,7 @@ class _AccountCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${account.masked} · ${_typeLabel(account.accountType)}',
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                style: RunqText.caption.copyWith(color: t.muted),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -497,7 +495,7 @@ class _SyncedTillChip extends ConsumerWidget {
       children: [
         Icon(Icons.cloud_done_outlined, size: 14, color: t.muted),
         const SizedBox(width: 6),
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11.5)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
       ],
     );
   }
@@ -564,15 +562,15 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_running ? 'Categorising…' : 'Auto-categorize transactions',
-                      style: RunqText.bodyStrong.copyWith(color: bannerInk, fontSize: 13)),
+                      style: RunqText.bodyStrong.copyWith(color: bannerInk)),
                   const SizedBox(height: 2),
                   Text('Apply rules + AI suggestions to unreconciled rows',
-                      style: RunqText.caption.copyWith(color: bannerInk, fontSize: 11)),
+                      style: RunqText.caption.copyWith(color: bannerInk)),
                 ],
               ),
             ),
             Text('Run →',
-                style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600, fontSize: 12)),
+                style: RunqText.caption.copyWith(color: RT(context).brand, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -629,8 +627,8 @@ class _FilterPill extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: RunqText.bodyStrong.copyWith(
-              fontSize: 12,
+            style: RunqText.caption.copyWith(
+              fontWeight: FontWeight.w600,
               color: active ? Colors.white : t.muted,
             ),
           ),
@@ -689,8 +687,8 @@ class _PartyFilterChip extends StatelessWidget {
                       child: Text(
                         label,
                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: RunqText.bodyStrong.copyWith(
-                          fontSize: 12,
+                        style: RunqText.caption.copyWith(
+                          fontWeight: FontWeight.w600,
                           color: active ? RunqColors.indigo : (hasOptions ? t.ink : t.muted2),
                         ),
                       ),
@@ -782,7 +780,7 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
                 children: [
                   Expanded(
                     child: Text('Filter by party',
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
                   ),
                   if (widget.selected != null)
                     TextButton(
@@ -836,9 +834,9 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
                             color: t.muted,
                           ),
                           title: Text(p.name,
-                              style: RunqText.body.copyWith(color: t.ink, fontSize: 14)),
+                              style: RunqText.body.copyWith(color: t.ink)),
                           subtitle: Text(p.isVendor ? 'Vendor' : 'Customer',
-                              style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11)),
+                              style: RunqText.caption.copyWith(color: t.muted2)),
                           trailing: isSelected
                               ? Icon(Icons.check_rounded, size: 18, color: RunqColors.indigo)
                               : null,
@@ -908,7 +906,7 @@ class _TxnRow extends StatelessWidget {
               children: [
                 Text(
                   txn.narration ?? txn.reference ?? 'Transaction',
-                  style: RunqText.bodyStrong.copyWith(fontSize: 13, color: t.ink),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
@@ -956,7 +954,7 @@ class _ReconChip extends StatelessWidget {
         label: 'Suggested: ${txn.glAccountName}',
       );
     }
-    return Text('Uncategorised', style: RunqText.caption.copyWith(fontSize: 11, color: t.muted2));
+    return Text('Uncategorised', style: RunqText.caption.copyWith(color: t.muted2));
   }
 }
 
@@ -985,7 +983,7 @@ class _Pill extends StatelessWidget {
           Flexible(
             child: Text(label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: RunqText.caption.copyWith(color: ink, fontSize: 10, fontWeight: FontWeight.w600)),
+                style: RunqText.micro.copyWith(color: ink)),
           ),
         ],
       ),

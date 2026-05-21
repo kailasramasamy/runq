@@ -288,7 +288,7 @@ class _Header extends StatelessWidget {
               ],
               Expanded(
                 child: Text('Invoices',
-                    style: RunqText.h1.copyWith(color: t.ink, fontSize: 28)),
+                    style: RunqText.h1.copyWith(color: t.ink)),
               ),
               const SizedBox(width: 12),
               _IconChip(
@@ -398,9 +398,7 @@ class _StatCard extends StatelessWidget {
                   label,
                   style: RunqText.micro.copyWith(
                     color: accent,
-                    fontSize: 10.5,
                     letterSpacing: 0.05 * 10,
-                    fontWeight: FontWeight.w700,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -467,10 +465,8 @@ class _CustomerFilterChip extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 220),
                 child: Text(
                   selected ? name! : 'All customers',
-                  style: RunqText.bodyStrong.copyWith(
+                  style: RunqText.label.copyWith(
                     color: selected ? t.brand : t.ink,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -590,7 +586,7 @@ class _InlineSearchState extends State<_InlineSearch> {
               controller: _ctrl,
               focusNode: _focus,
               onChanged: widget.onChanged,
-              style: RunqText.body.copyWith(fontSize: 14, color: t.ink),
+              style: RunqText.body.copyWith(color: t.ink),
               decoration: InputDecoration(
                 hintText: 'Search invoices, customers',
                 hintStyle: RunqText.body.copyWith(color: t.muted2),
@@ -674,7 +670,6 @@ class _TabPill extends StatelessWidget {
                 label,
                 style: RunqText.bodyStrong.copyWith(
                   color: fg,
-                  fontSize: 13,
                   fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
@@ -688,11 +683,7 @@ class _TabPill extends StatelessWidget {
                   ),
                   child: Text(
                     '$badge',
-                    style: TextStyle(
-                      color: badgeFg,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: RunqText.tabular(size: 11, w: FontWeight.w700, color: badgeFg),
                   ),
                 ),
               ],
@@ -978,7 +969,7 @@ class _PartialPayBar extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text('${formatINR(paid)} of ${formatINR(total)} paid',
-            style: RunqText.caption.copyWith(fontSize: 11)),
+            style: RunqText.caption),
       ],
     );
   }

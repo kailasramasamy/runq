@@ -105,7 +105,7 @@ class _SupportInboxScreenState extends ConsumerState<SupportInboxScreen> {
         foregroundColor: Colors.white,
         onPressed: () => context.push('/profile/help?new=1'),
         icon: const Icon(Icons.add_comment_outlined, size: 18),
-        label: const Text('New conversation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        label: Text('New conversation', style: RunqText.bodyStrong),
       ),
     );
   }
@@ -174,22 +174,15 @@ class _MiniStat extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: RunqText.micro.copyWith(
               color: fg.withValues(alpha: 0.75),
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             value.toString(),
-            style: TextStyle(
-              color: fg,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              height: 1.0,
-            ),
+            style: RunqText.tabular(size: 18, w: FontWeight.w700, color: fg).copyWith(height: 1.0),
           ),
         ],
       ),
@@ -208,7 +201,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
       child: Text(
         label.toUpperCase(),
-        style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11, letterSpacing: 0.6, fontWeight: FontWeight.w600),
+        style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.6),
       ),
     );
   }
@@ -253,14 +246,14 @@ class _ConversationRow extends StatelessWidget {
                     children: [
                       Text(
                         conv.subject ?? conv.preview ?? 'Support conversation',
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                        style: RunqText.bodyStrong.copyWith(color: t.ink),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _timeAgo(conv.lastMessageAt),
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                        style: RunqText.caption.copyWith(color: t.muted),
                       ),
                     ],
                   ),
@@ -299,7 +292,7 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         cfg.$1,
-        style: TextStyle(color: cfg.$3, fontSize: 10, fontWeight: FontWeight.w600),
+        style: RunqText.micro.copyWith(color: cfg.$3, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -331,7 +324,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Start one by tapping below — ask anything about runQ.',
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: t.muted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

@@ -156,10 +156,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                       opacity: _taglineFade,
                       child: Text(
                         'Books, on autopilot.',
-                        style: RunqText.h3.copyWith(
+                        style: RunqText.h2.copyWith(
                           color: p.tagline,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
                           letterSpacing: -0.01 * 20,
                         ),
                       ),

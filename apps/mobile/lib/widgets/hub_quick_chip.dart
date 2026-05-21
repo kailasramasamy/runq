@@ -39,10 +39,7 @@ class HubQuickChip extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: RunqText.bodyStrong.copyWith(
-                  color: t.ink,
-                  fontSize: 13,
-                ),
+                style: RunqText.bodyStrong.copyWith(color: t.ink),
               ),
             ],
           ),

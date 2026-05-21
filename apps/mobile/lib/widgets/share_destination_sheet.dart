@@ -61,7 +61,7 @@ class _Sheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
                 'Bills and customer POs use different processing pipelines.',
-                style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                style: RunqText.caption.copyWith(color: t.muted),
               ),
             ),
             const SizedBox(height: 12),
@@ -132,9 +132,9 @@ class _Tile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: RunqText.bodyStrong.copyWith(fontSize: 15)),
+                      Text(title, style: RunqText.bodyStrong),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                      Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
                     ],
                   ),
                 ),

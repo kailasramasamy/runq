@@ -417,7 +417,7 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 13)),
+          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 12),
           child,
         ],
@@ -463,7 +463,7 @@ class _CustomerPickerRow extends StatelessWidget {
                   ),
                   if (has && customer!.gstin != null && customer!.gstin!.isNotEmpty)
                     Text(customer!.gstin!,
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                        style: RunqText.label.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -488,7 +488,7 @@ class _DateField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         InkWell(
           onTap: () async {
@@ -534,7 +534,7 @@ class _TextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
@@ -559,7 +559,7 @@ class _NumField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         TextFormField(
           initialValue: value,
@@ -669,7 +669,7 @@ class _LineCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Amount', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                    Text('Amount', style: RunqText.caption.copyWith(color: t.muted)),
                     const SizedBox(height: 4),
                     Text(formatINR(line.amount + line.taxAmount),
                         style: RunqText.bodyStrong.copyWith(color: t.ink)),
@@ -706,7 +706,7 @@ class _UomDisplay extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('UOM', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text('UOM', style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         Container(
           height: 44,
@@ -738,7 +738,7 @@ class _GstSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('GST', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text('GST', style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -987,7 +987,7 @@ class _LineSummaryRow extends StatelessWidget {
                     metaParts.join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ],
               ),
@@ -1080,7 +1080,7 @@ class _EditLineSheetState extends State<_EditLineSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text('Edit line item', style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)),
+              Text('Edit line item', style: RunqText.bodyStrong.copyWith(color: t.ink)),
               const SizedBox(height: 12),
               _ItemPickerRow(
                 label: _draft.description.isEmpty ? null : _draft.description,
@@ -1138,7 +1138,7 @@ class _EditLineSheetState extends State<_EditLineSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('Amount', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                        Text('Amount', style: RunqText.caption.copyWith(color: t.muted)),
                         const SizedBox(height: 4),
                         Text(formatINR(_draft.amount + _draft.taxAmount),
                             style: RunqText.bodyStrong.copyWith(color: t.ink)),
@@ -1189,7 +1189,7 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final style = bold
-        ? RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 15)
+        ? RunqText.bodyStrong.copyWith(color: t.ink)
         : RunqText.body.copyWith(color: t.muted);
     final valStyle = bold
         ? RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)

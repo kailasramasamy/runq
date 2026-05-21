@@ -87,7 +87,7 @@ class _Tile extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 qa.label,
-                style: RunqText.bodyStrong.copyWith(fontSize: 13, color: t.ink, height: 1.2),
+                style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.2),
                 maxLines: 1,
                 overflow: TextOverflow.visible,
               ),
@@ -159,12 +159,7 @@ class _Badge extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            height: 1.0,
-          ),
+          style: RunqText.tabular(size: 11, w: FontWeight.w700, color: Colors.white).copyWith(height: 1.0),
         ),
       ),
     );

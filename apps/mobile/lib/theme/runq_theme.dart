@@ -22,8 +22,8 @@ class RunqText {
     fontSize: 24, fontWeight: FontWeight.w700, height: 1.2,
     fontFeatures: const [FontFeature.tabularFigures()],
   );
-  static TextStyle body = GoogleFonts.publicSans(fontSize: 14, fontWeight: FontWeight.w500, height: 1.4);
-  static TextStyle bodyStrong = GoogleFonts.publicSans(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4);
+  static TextStyle body = GoogleFonts.publicSans(fontSize: 15, fontWeight: FontWeight.w500, height: 1.4);
+  static TextStyle bodyStrong = GoogleFonts.publicSans(fontSize: 15, fontWeight: FontWeight.w600, height: 1.4);
   static TextStyle caption = GoogleFonts.publicSans(fontSize: 12, fontWeight: FontWeight.w500, height: 1.35);
   static TextStyle label = GoogleFonts.publicSans(
     fontSize: 11, fontWeight: FontWeight.w600, height: 1.3,

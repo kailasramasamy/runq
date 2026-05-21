@@ -172,7 +172,7 @@ class _HeaderState extends State<_Header> {
         content: Text(
           'Permanently delete bill ${widget.bill.invoiceNumber}? '
           'The line items and any attached scanned document will be removed. This cannot be undone.',
-          style: RunqText.body.copyWith(fontSize: 14),
+          style: RunqText.body,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -289,7 +289,7 @@ class _OptionTile extends StatelessWidget {
                 children: [
                   Text(title, style: RunqText.bodyStrong.copyWith(color: titleColor)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
                 ],
               ),
             ),
@@ -464,12 +464,12 @@ class _HeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(bill.vendorName,
-                        style: RunqText.h3.copyWith(fontSize: 16),
+                        style: RunqText.h4,
                         maxLines: 2, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
                     Text(
                       'Issued ${_shortDate(bill.invoiceDate)}  ·  Due ${_date(bill.dueDate)}',
-                      style: RunqText.caption.copyWith(fontSize: 12, color: t.muted),
+                      style: RunqText.caption.copyWith(color: t.muted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -498,7 +498,7 @@ class _HeroCard extends StatelessWidget {
           // is self-evidently the bill total, especially with the SUMMARY
           // card right below.
           Text(formatINR(bill.totalAmount, paise: true),
-              style: RunqText.display.copyWith(fontSize: 30, color: t.ink, height: 1.0)),
+              style: RunqText.tabular(size: 30, w: FontWeight.w700, color: t.ink).copyWith(height: 1.0)),
           if (bill.balanceDue > 0 && bill.balanceDue != bill.totalAmount) ...[
             const SizedBox(height: 6),
             Text('${formatINR(bill.balanceDue, paise: true)} balance due',
@@ -523,7 +523,7 @@ class _MatchChip extends StatelessWidget {
         Icon(matched ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 12, color: color),
         const SizedBox(width: 3),
         Text(matched ? '3WM' : 'Match needed',
-            style: RunqText.caption.copyWith(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+            style: RunqText.label.copyWith(color: color)),
       ],
     );
   }
@@ -552,8 +552,7 @@ class _LineItemsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text('${items.length}',
-                    style: RunqText.caption.copyWith(
-                      fontSize: 10.5,
+                    style: RunqText.micro.copyWith(
                       color: RunqColors.indigo,
                       fontWeight: FontWeight.w800,
                     )),
@@ -591,12 +590,12 @@ class _ItemRow extends StatelessWidget {
             children: [
               Text(
                 item.itemName.isEmpty ? item.description : item.itemName,
-                style: RunqText.bodyStrong.copyWith(fontSize: 14, color: t.ink, height: 1.3),
+                style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.3),
               ),
               const SizedBox(height: 4),
               Text(
                 '${item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2)} × ${formatINR(item.unitPrice, paise: true)}',
-                style: RunqText.caption.copyWith(fontSize: 11.5, color: t.muted),
+                style: RunqText.caption.copyWith(color: t.muted),
               ),
             ],
           ),
@@ -680,7 +679,7 @@ class _GstBreakdownCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'No GST charged. Bill of supply — not eligible for input tax credit.',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                      style: RunqText.caption.copyWith(color: t.muted),
                     ),
                   ),
                 ],
@@ -702,8 +701,8 @@ class _LineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final labelStyle = strong
-        ? RunqText.bodyStrong.copyWith(fontSize: 15, color: t.ink)
-        : RunqText.body.copyWith(fontSize: 13, color: t.ink2);
+        ? RunqText.bodyStrong.copyWith(color: t.ink)
+        : RunqText.body.copyWith(color: t.ink2);
     final valueStyle = strong
         ? RunqText.tabular(size: 16, w: FontWeight.w800, color: t.ink)
         : RunqText.tabular(size: 13, w: FontWeight.w600, color: t.ink);
@@ -743,7 +742,7 @@ class _AttachmentsCardState extends ConsumerState<_AttachmentsCard> {
               if (list.isEmpty) {
                 return Text(
                   'No file attached. New scans automatically save the original.',
-                  style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
+                  style: RunqText.caption.copyWith(color: RT(context).muted),
                 );
               }
               return Column(
@@ -762,7 +761,7 @@ class _AttachmentsCardState extends ConsumerState<_AttachmentsCard> {
             ),
             error: (_, __) => Text(
               "Couldn't load attachments.",
-              style: RunqText.caption.copyWith(color: RunqColors.redInk, fontSize: 12),
+              style: RunqText.caption.copyWith(color: RunqColors.redInk),
             ),
           ),
         ],
@@ -816,9 +815,9 @@ class _AttachmentRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(attachment.fileName, style: RunqText.bodyStrong.copyWith(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(attachment.fileName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
-                    Text(attachment.prettySize, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                    Text(attachment.prettySize, style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -856,7 +855,7 @@ class _ActionsCardState extends State<_ActionsCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: Text(body, style: RunqText.body.copyWith(fontSize: 14)),
+        content: Text(body, style: RunqText.body),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
@@ -961,7 +960,7 @@ class _ActionsCardState extends State<_ActionsCard> {
           const SizedBox(height: 4),
           Text(
             blurb,
-            style: RunqText.caption.copyWith(color: RT(context).muted, fontSize: 12),
+            style: RunqText.caption.copyWith(color: RT(context).muted),
           ),
           const SizedBox(height: 12),
           SizedBox(height: 44, width: double.infinity, child: button),

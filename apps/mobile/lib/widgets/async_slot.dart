@@ -56,7 +56,7 @@ class _ErrorView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(_message(error),
               textAlign: TextAlign.center,
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+              style: RunqText.caption.copyWith(color: t.muted)),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
             FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),

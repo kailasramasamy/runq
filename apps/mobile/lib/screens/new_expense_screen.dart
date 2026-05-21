@@ -323,8 +323,7 @@ class _SectionCard extends StatelessWidget {
           Row(
             children: [
               Text(title.toUpperCase(),
-                  style: RunqText.caption.copyWith(
-                    fontSize: 10.5,
+                  style: RunqText.micro.copyWith(
                     color: t.muted,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
@@ -338,11 +337,7 @@ class _SectionCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text('$trailingCount',
-                      style: RunqText.caption.copyWith(
-                        fontSize: 10.5,
-                        color: t.muted,
-                        fontWeight: FontWeight.w700,
-                      )),
+                      style: RunqText.tabular(size: 10, w: FontWeight.w700, color: t.muted)),
                 ),
               ],
             ],
@@ -366,7 +361,7 @@ class _LabeledField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(height: 4),
         child,
       ],
@@ -437,7 +432,7 @@ class _EmptyItems extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Text('No items yet',
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+              style: RunqText.caption.copyWith(color: t.muted)),
         ),
         _AddItemButton(onTap: onAdd, primary: true),
       ],
@@ -476,7 +471,6 @@ class _AddItemButton extends StatelessWidget {
             Text('Add item',
                 style: RunqText.bodyStrong.copyWith(
                   color: RunqColors.indigo,
-                  fontSize: 13,
                 )),
           ],
         ),
@@ -523,12 +517,12 @@ class _ItemRow extends StatelessWidget {
                   children: [
                     Text(
                       item.description.isEmpty ? item.category : item.description,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text('${item.category} · ${_date(item.date)}',
-                        style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                        style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
               ),
@@ -734,13 +728,13 @@ class _ItemSheetState extends State<_ItemSheet> {
           ),
           const SizedBox(height: 14),
           Text(widget.existing == null ? 'Add expense item' : 'Edit item',
-              style: RunqText.h3.copyWith(color: t.ink, fontSize: 18)),
+              style: RunqText.h3.copyWith(color: t.ink)),
           const SizedBox(height: 14),
           // Category chips — faster than a dropdown for short list, lets the
           // user see all options at once.
           Align(
             alignment: Alignment.centerLeft,
-            child: Text('Category', style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+            child: Text('Category', style: RunqText.caption.copyWith(color: t.muted)),
           ),
           const SizedBox(height: 6),
           Wrap(
@@ -889,8 +883,7 @@ class _CategoryChip extends StatelessWidget {
             Icon(_categoryIcon(label), size: 13, color: selected ? tint : t.muted),
             const SizedBox(width: 6),
             Text(label,
-                style: RunqText.caption.copyWith(
-                  fontSize: 12,
+                style: RunqText.label.copyWith(
                   color: selected ? tint : t.ink,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 )),

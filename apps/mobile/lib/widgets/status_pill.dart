@@ -100,7 +100,7 @@ class StatusPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (warning) ...[
-            Text('!', style: RunqText.micro.copyWith(color: fg, fontSize: 11)),
+            Text('!', style: RunqText.micro.copyWith(color: fg)),
             const SizedBox(width: 3),
           ],
           Text(spec.label, style: RunqText.micro.copyWith(color: fg)),

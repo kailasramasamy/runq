@@ -85,7 +85,6 @@ class GstSection extends ConsumerWidget {
                 '${gst.targetLabel.toUpperCase()} · ${gst.periodLabel.toUpperCase()}',
                 style: RunqText.label.copyWith(
                   color: t.muted2,
-                  fontSize: 11,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -98,13 +97,13 @@ class GstSection extends ConsumerWidget {
           const SizedBox(height: 10),
           Text(
             headline,
-            style: RunqText.h2.copyWith(color: t.ink, fontSize: 20),
+            style: RunqText.h3.copyWith(color: t.ink),
           ),
           if (subParts.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               subParts.join(' · '),
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: t.muted),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -162,9 +161,8 @@ class _ReviewButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Text(
             failing ? 'Fix & review' : 'Review',
-            style: RunqText.bodyStrong.copyWith(
+            style: RunqText.body.copyWith(
               color: Colors.white,
-              fontSize: 13,
             ),
           ),
         ),

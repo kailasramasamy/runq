@@ -333,11 +333,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                         child: Center(
                           child: Text(
                             'runQ Finance v1',
-                            style: RunqText.caption.copyWith(
-                              color: p.subtleInk,
-                              fontSize: 11,
-                              letterSpacing: 0.04 * 11,
-                            ),
+                            style: RunqText.label.copyWith(color: p.subtleInk),
                           ),
                         ),
                       ),
@@ -441,12 +437,12 @@ class _LogoBlock extends StatelessWidget {
             children: [
               Text(
                 'Sign in to your workspace',
-                style: RunqText.bodyStrong.copyWith(color: palette.titleInk, fontSize: 17),
+                style: RunqText.h4.copyWith(color: palette.titleInk),
               ),
               const SizedBox(height: 4),
               Text(
                 'Finance & Accounting ERP',
-                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 13),
+                style: RunqText.body.copyWith(color: palette.subtitleInk),
               ),
             ],
           ),
@@ -476,7 +472,7 @@ class _SessionExpiredBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Your session has expired. Please sign in again.',
-              style: RunqText.caption.copyWith(color: palette.sessionText, fontSize: 12),
+              style: RunqText.caption.copyWith(color: palette.sessionText),
             ),
           ),
         ],
@@ -547,7 +543,7 @@ class _SignInCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       phone.text.trim(),
-                      style: RunqText.body.copyWith(color: palette.fieldText, fontSize: 14),
+                      style: RunqText.body.copyWith(color: palette.fieldText),
                     ),
                   ),
                   GestureDetector(
@@ -556,11 +552,7 @@ class _SignInCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
                       child: Text(
                         'Change',
-                        style: RunqText.caption.copyWith(
-                          color: palette.linkInk,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: RunqText.bodyStrong.copyWith(color: palette.linkInk),
                       ),
                     ),
                   ),
@@ -581,7 +573,7 @@ class _SignInCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 'Test mode: use 123456',
-                style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 11),
+                style: RunqText.caption.copyWith(color: palette.subtitleInk),
               ),
             ),
           ],
@@ -601,7 +593,7 @@ class _SignInCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       error!,
-                      style: RunqText.caption.copyWith(color: palette.errorText, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: palette.errorText),
                     ),
                   ),
                 ],
@@ -645,16 +637,12 @@ class _SignInCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text.rich(
                   TextSpan(
-                    style: RunqText.caption.copyWith(color: palette.subtitleInk, fontSize: 12),
+                    style: RunqText.caption.copyWith(color: palette.subtitleInk),
                     children: [
                       const TextSpan(text: 'New to runQ? '),
                       TextSpan(
                         text: 'Request access',
-                        style: RunqText.caption.copyWith(
-                          color: palette.linkInk,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: RunqText.bodyStrong.copyWith(color: palette.linkInk),
                       ),
                     ],
                   ),
@@ -706,11 +694,7 @@ class _ThemedField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: RunqText.caption.copyWith(
-            color: palette.labelInk,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+          style: RunqText.bodyStrong.copyWith(color: palette.labelInk),
         ),
         const SizedBox(height: 6),
         Container(
@@ -729,7 +713,7 @@ class _ThemedField extends StatelessWidget {
             // enough that the Sign-in button + signup link stay visible
             // above the keypad without manual scrolling.
             scrollPadding: const EdgeInsets.only(bottom: 140),
-            style: RunqText.body.copyWith(color: palette.fieldText, fontSize: 14),
+            style: RunqText.body.copyWith(color: palette.fieldText),
             cursorColor: palette.linkInk,
             decoration: InputDecoration(
               prefixIcon: Padding(
@@ -738,7 +722,7 @@ class _ThemedField extends StatelessWidget {
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
               hintText: hint,
-              hintStyle: RunqText.body.copyWith(color: palette.fieldHint, fontSize: 14),
+              hintStyle: RunqText.body.copyWith(color: palette.fieldHint),
               border: InputBorder.none,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

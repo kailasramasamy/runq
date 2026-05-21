@@ -157,14 +157,14 @@ class _SummaryCard extends StatelessWidget {
             'TOTAL TAX · ${ret.periodLabel.toUpperCase()}',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             formatINR(summary.totalTax),
-            style: RunqText.display.copyWith(
-                color: Colors.white, fontSize: 32, height: 1.05),
+            style: RunqText.tabular(
+                size: 32, w: FontWeight.w700, color: Colors.white)
+              .copyWith(height: 1.05),
           ),
           const SizedBox(height: 14),
           Row(
@@ -195,7 +195,6 @@ class _SummaryCard extends StatelessWidget {
               child: Text('ARN  ${ret.arn}',
                   style: RunqText.caption.copyWith(
                     color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 11,
                   )),
             ),
           ],
@@ -204,7 +203,6 @@ class _SummaryCard extends StatelessWidget {
             'GSTIN  ${ret.gstin}',
             style: RunqText.caption.copyWith(
               color: Colors.white.withValues(alpha: 0.55),
-              fontSize: 11,
             ),
           ),
         ],
@@ -232,7 +230,6 @@ class _MiniStat extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 11,
               )),
           const SizedBox(height: 2),
           Text(value,
@@ -271,12 +268,12 @@ class _ErrorsCard extends StatelessWidget {
                       children: [
                         Text(errors[i].message,
                             style: RunqText.body
-                                .copyWith(color: t.ink, fontSize: 13)),
+                                .copyWith(color: t.ink)),
                         if (errors[i].section != null) ...[
                           const SizedBox(height: 2),
                           Text('Section ${errors[i].section}',
                               style: RunqText.caption.copyWith(
-                                  color: t.muted2, fontSize: 11)),
+                                  color: t.muted2)),
                         ],
                       ],
                     ),
@@ -377,14 +374,14 @@ class _Gstr3bSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Outward supplies (3.1)',
-              style: RunqText.label.copyWith(color: t.muted2, fontSize: 11, letterSpacing: 0.5)),
+              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
           const SizedBox(height: 8),
           _KvRow(label: 'Taxable value', value: formatINR(outTaxable)),
           const SizedBox(height: 4),
           _KvRow(label: 'Total tax', value: formatINR(outTax)),
           const SizedBox(height: 16),
           Text('Net ITC (Table 4)',
-              style: RunqText.label.copyWith(color: t.muted2, fontSize: 11, letterSpacing: 0.5)),
+              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
           const SizedBox(height: 8),
           _KvRow(label: 'IGST', value: formatINR(_num(netItc['igst']))),
           const SizedBox(height: 4),
@@ -412,7 +409,7 @@ class _KvRow extends StatelessWidget {
       children: [
         Expanded(
           child: Text(label,
-              style: RunqText.body.copyWith(color: t.muted, fontSize: 13)),
+              style: RunqText.body.copyWith(color: t.muted)),
         ),
         Text(
           value,
@@ -459,13 +456,13 @@ class _SectionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(stat.label,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(
                   stat.count == 0
                       ? stat.detail
                       : '${stat.count} ${stat.count == 1 ? 'entry' : 'entries'} · ${stat.detail}',
-                  style: RunqText.caption.copyWith(color: t.muted2, fontSize: 11),
+                  style: RunqText.caption.copyWith(color: t.muted2),
                 ),
               ],
             ),
@@ -479,7 +476,7 @@ class _SectionRow extends StatelessWidget {
                   style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
               const SizedBox(height: 2),
               Text('+${formatINR(stat.tax, compact: true)} tax',
-                  style: RunqText.caption.copyWith(color: t.muted, fontSize: 11)),
+                  style: RunqText.caption.copyWith(color: t.muted)),
             ],
           ),
         ],
@@ -669,7 +666,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                   )
                 : Text(label,
                     style: RunqText.bodyStrong
-                        .copyWith(color: Colors.white, fontSize: 15)),
+                        .copyWith(color: Colors.white)),
           ),
         ),
       ),

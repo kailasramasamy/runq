@@ -50,7 +50,7 @@ class NotificationsSettingsScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       'Both channels are on by default. To pause a channel, reply STOP on WhatsApp or use the unsubscribe link in any email — fine-grained controls land in a future release.',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12, height: 1.4),
+                      style: RunqText.caption.copyWith(color: t.muted, height: 1.4),
                     ),
                   ),
                 ],
@@ -95,7 +95,7 @@ class _ChannelRow extends StatelessWidget {
               children: [
                 Text(label, style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+                Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
           ),
@@ -108,11 +108,8 @@ class _ChannelRow extends StatelessWidget {
             ),
             child: Text(
               'ON',
-              style: RunqText.caption.copyWith(
+              style: RunqText.micro.copyWith(
                 color: const Color(0xFF047857),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.04 * 10,
               ),
             ),
           ),

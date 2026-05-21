@@ -164,14 +164,13 @@ class _CollectionsHero extends StatelessWidget {
             'OVERDUE',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 11,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             formatINR(totalDue),
             style: RunqText.display.copyWith(
-                color: Colors.white, fontSize: 32, height: 1.05),
+                color: Colors.white, height: 1.05),
           ),
           const SizedBox(height: 14),
           Row(
@@ -228,7 +227,6 @@ class _HeroChip extends StatelessWidget {
           Text(label,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 11,
               )),
           const SizedBox(height: 4),
           Text(value,
@@ -238,7 +236,6 @@ class _HeroChip extends StatelessWidget {
           Text(caption,
               style: RunqText.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.78),
-                fontSize: 11,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
@@ -271,7 +268,7 @@ class _BucketBar extends StatelessWidget {
         children: [
           Text(
             'AGING BUCKETS',
-            style: RunqText.label.copyWith(color: RT(context).muted2, fontSize: 11),
+            style: RunqText.label.copyWith(color: RT(context).muted2),
           ),
           const SizedBox(height: 12),
           ClipRRect(
@@ -335,7 +332,7 @@ class _BucketLegend extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(label,
-            style: RunqText.caption.copyWith(color: t.muted, fontSize: 12)),
+            style: RunqText.caption.copyWith(color: t.muted)),
         const SizedBox(width: 4),
         Text(formatINR(amount, compact: true),
             style: RunqText.tabular(size: 12, w: FontWeight.w700, color: t.ink)),
@@ -387,17 +384,16 @@ class _CustomerRow extends StatelessWidget {
                       ),
                       child: Text(
                         '${worst}d overdue',
-                        style: RunqText.caption.copyWith(
+                        style: RunqText.label.copyWith(
                           color: _severityColor(worst),
                           fontWeight: FontWeight.w700,
-                          fontSize: 11,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       '${group.invoices.length} ${group.invoices.length == 1 ? 'invoice' : 'invoices'}',
-                      style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+                      style: RunqText.caption.copyWith(color: t.muted),
                     ),
                   ],
                 ),
@@ -648,7 +644,7 @@ class _ActionButton extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(caption!,
                             style: RunqText.caption
-                                .copyWith(color: t.muted, fontSize: 12)),
+                                .copyWith(color: t.muted)),
                       ],
                     ],
                   ),

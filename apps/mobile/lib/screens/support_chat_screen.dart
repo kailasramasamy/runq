@@ -333,7 +333,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
                 ),
                 child: Text(
                   'A team member has been notified and will reply within an hour. You can keep typing — your messages are saved.',
-                  style: RunqText.caption.copyWith(color: const Color(0xFF92400E), fontSize: 12),
+                  style: RunqText.caption.copyWith(color: const Color(0xFF92400E)),
                 ),
               ),
             Expanded(
@@ -360,7 +360,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
                       foregroundColor: const Color(0xFF047857),
                       side: const BorderSide(color: Color(0xFFA7F3D0)),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      textStyle: const TextStyle(fontSize: 12),
+                      textStyle: RunqText.caption,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
                   ),
@@ -377,7 +377,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
                 ),
                 child: Text(
                   'Marked as resolved. Type to re-open if you need more help.',
-                  style: RunqText.caption.copyWith(color: const Color(0xFF065F46), fontSize: 12),
+                  style: RunqText.caption.copyWith(color: const Color(0xFF065F46)),
                 ),
               ),
             if (_conversationStatus == 'closed')
@@ -391,7 +391,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
                 ),
                 child: Text(
                   'This conversation is closed. Start a new one to ask another question.',
-                  style: RunqText.caption.copyWith(color: const Color(0xFF52525B), fontSize: 12),
+                  style: RunqText.caption.copyWith(color: const Color(0xFF52525B)),
                 ),
               ),
             if (_conversationStatus != 'closed')
@@ -410,7 +410,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
                   },
                   child: Text(
                     'Or email $_supportEmail',
-                    style: RunqText.caption.copyWith(color: t.muted, fontSize: 11),
+                    style: RunqText.caption.copyWith(color: t.muted),
                   ),
                 ),
               ),
@@ -506,9 +506,9 @@ class _MessageBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: msg.content.isEmpty && msg.toolStatus != null
-                  ? Text(msg.toolStatus!, style: RunqText.caption.copyWith(color: fg.withValues(alpha: 0.7), fontStyle: FontStyle.italic, fontSize: 12))
+                  ? Text(msg.toolStatus!, style: RunqText.caption.copyWith(color: fg.withValues(alpha: 0.7), fontStyle: FontStyle.italic))
                   : isUser
-                      ? Text(msg.content + (msg.streaming ? ' ▍' : ''), style: RunqText.body.copyWith(color: fg, fontSize: 14, height: 1.4))
+                      ? Text(msg.content + (msg.streaming ? ' ▍' : ''), style: RunqText.body.copyWith(color: fg, height: 1.4))
                       : _MarkdownBody(text: msg.content + (msg.streaming ? ' ▍' : ''), color: fg),
             ),
           ),
@@ -541,7 +541,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Ask about features, troubleshooting, billing — anything.',
-              style: RunqText.caption.copyWith(color: t.muted, fontSize: 12),
+              style: RunqText.caption.copyWith(color: t.muted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -618,7 +618,7 @@ class _MarkdownBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final base = RunqText.body.copyWith(color: color, fontSize: 14, height: 1.4);
+    final base = RunqText.body.copyWith(color: color, height: 1.4);
     return MarkdownBody(
       data: text,
       shrinkWrap: true,
@@ -628,14 +628,13 @@ class _MarkdownBody extends StatelessWidget {
         strong: base.copyWith(fontWeight: FontWeight.w600),
         em: base.copyWith(fontStyle: FontStyle.italic),
         a: base.copyWith(color: RunqColors.indigo, decoration: TextDecoration.underline),
-        h1: base.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
-        h2: base.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
-        h3: base.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
-        h4: base.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+        h1: RunqText.h4.copyWith(color: color),
+        h2: RunqText.h4.copyWith(color: color),
+        h3: RunqText.bodyStrong.copyWith(color: color),
+        h4: RunqText.bodyStrong.copyWith(color: color),
         listBullet: base,
         code: base.copyWith(
           fontFamily: 'monospace',
-          fontSize: 12.5,
           backgroundColor: t.hairlineSoft,
         ),
         codeblockDecoration: BoxDecoration(
