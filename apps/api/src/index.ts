@@ -5,6 +5,7 @@ import { startReportScheduler, stopReportScheduler } from './scheduler/report-sc
 import { startGstScheduler, stopGstScheduler } from './scheduler/gst-scheduler';
 import { startLeaveAccrualScheduler, stopLeaveAccrualScheduler } from './scheduler/leave-accrual-scheduler';
 import { startPerformanceReminderScheduler, stopPerformanceReminderScheduler } from './scheduler/performance-reminder-scheduler';
+import { startHrReminderScheduler, stopHrReminderScheduler } from './scheduler/hr-reminder-scheduler';
 import { startAnalyticsScheduler, stopAnalyticsScheduler } from './modules/analytics/scheduler';
 
 async function main() {
@@ -17,6 +18,7 @@ async function main() {
     stopGstScheduler();
     stopLeaveAccrualScheduler();
     stopPerformanceReminderScheduler();
+    stopHrReminderScheduler();
     stopAnalyticsScheduler();
   });
 
@@ -27,6 +29,7 @@ async function main() {
     startGstScheduler(app.db, app.redis, app.log);
     startLeaveAccrualScheduler(app.db, app.redis, app.log);
     startPerformanceReminderScheduler(app.db, app.redis, app.log);
+    startHrReminderScheduler(app.db, app.redis, app.log);
     startAnalyticsScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, CheckCircle, XCircle, Ban, Calendar } from 'lucide-react';
 import {
   PageHeader, Button, Input, Textarea, Combobox,
@@ -31,6 +31,8 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
   // Reviewing (approve/reject) is for admins (`all`) and managers (`subset`);
   // a plain employee (`self`) can raise and cancel their own requests only.
   const canReview = meData?.data?.scopeKind === 'all' || meData?.data?.scopeKind === 'subset';
+  // Separation of duties — never offer to review your own request.
+  const myEmployeeId = meData?.data?.employee?.id;
   const [status, setStatus] = useState<'' | LeaveRequestStatus>(
     initialStatus && VALID_STATUSES.includes(initialStatus as LeaveRequestStatus)
       ? (initialStatus as LeaveRequestStatus)
@@ -167,7 +169,7 @@ export function LeaveRequestsPage({ initialStatus }: { initialStatus?: string } 
               <TableCell><Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge></TableCell>
               <TableCell align="right">
                 <div className="flex items-center justify-end gap-1">
-                  {canReview && r.status === 'pending' && (
+                  {canReview && r.status === 'pending' && r.employeeId !== myEmployeeId && (
                     <>
                       <Button
                         size="sm"
@@ -234,7 +236,13 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const { data: typeData } = useLeaveTypes();
 
-  const [employeeId, setEmployeeId] = useState('');
+  // Default the picker to the logged-in user — a manager applying for
+  // their own leave shouldn't have to search for their own name. They can
+  // still switch it to a report. (`isSelf` users skip the picker entirely.)
+  const [employeeId, setEmployeeId] = useState(me?.employee?.id ?? '');
+  useEffect(() => {
+    if (!employeeId && me?.employee?.id) setEmployeeId(me.employee.id);
+  }, [me?.employee?.id]);
   const [leaveTypeId, setLeaveTypeId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');

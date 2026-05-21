@@ -15,6 +15,7 @@ import {
 import { rbacHook } from '../../../hooks/rbac';
 import { NotFoundError, ConflictError, ForbiddenError } from '../../../utils/errors';
 import { resolveSelfEmployee } from './self-employee';
+import { HrNotifier } from '../hr-notifier';
 
 const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
@@ -25,6 +26,10 @@ const MANAGE = ['owner', 'accountant', 'hr'] as const;
 
 function num(n: number | undefined, dflt = '0') {
   return n === undefined ? dflt : n.toString();
+}
+
+function empName(firstName: string, lastName: string | null): string {
+  return [firstName, lastName].filter(Boolean).join(' ');
 }
 
 export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
@@ -64,6 +69,15 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
       ))
       .returning();
     if (!row) throw new NotFoundError('Draft tax declaration');
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    notifier.notifyHrAdmins({
+      source: 'hr_tax',
+      title: 'Tax declaration to review',
+      body: `${empName(emp.firstName, emp.lastName)} submitted their ${row.financialYear} Form 12BB.`,
+      targetUrl: '/hr/tax-declarations',
+    }, req.user!.userId).catch((e) => req.log.error(e));
+
     return { data: row };
   });
 
@@ -171,6 +185,26 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
       ))
       .returning();
     if (!row) throw new NotFoundError('Submitted declaration');
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    if (input.approved) {
+      notifier.notifyEmployee(row.employeeId, {
+        type: 'ok',
+        source: 'hr_tax',
+        title: 'Tax declaration approved',
+        body: `Your ${row.financialYear} tax declaration was approved.`,
+        targetUrl: '/hr/tax-declarations',
+      }).catch((e) => req.log.error(e));
+    } else {
+      notifier.notifyEmployee(row.employeeId, {
+        type: 'warn',
+        source: 'hr_tax',
+        title: 'Tax declaration rejected',
+        body: `Your ${row.financialYear} declaration was rejected. ${row.rejectionReason ?? ''}`.trimEnd(),
+        targetUrl: '/hr/tax-declarations',
+      }).catch((e) => req.log.error(e));
+    }
+
     return { data: row };
   });
 
@@ -312,6 +346,16 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
       })
       .where(eq(employeeLoans.id, id))
       .returning();
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    notifier.notifyEmployee(row.employeeId, {
+      type: 'ok',
+      source: 'hr_loan',
+      title: 'Loan approved',
+      body: `Your ${row.kind} loan of ₹${Number(row.principal).toLocaleString('en-IN')} is approved. EMI ₹${Number(row.emiAmount).toLocaleString('en-IN')}.`,
+      targetUrl: '/hr/loans',
+    }).catch((e) => req.log.error(e));
+
     return { data: row };
   });
 
@@ -338,6 +382,16 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
       })
       .where(eq(employeeLoans.id, id))
       .returning();
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    notifier.notifyEmployee(row.employeeId, {
+      type: 'warn',
+      source: 'hr_loan',
+      title: 'Loan request rejected',
+      body: `Your ${row.kind} loan request was rejected. ${row.rejectionReason ?? ''}`.trimEnd(),
+      targetUrl: '/hr/loans',
+    }).catch((e) => req.log.error(e));
+
     return { data: row };
   });
 
@@ -394,6 +448,15 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
         createdBy: req.user!.userId,
       })
       .returning();
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    notifier.notifyManagerOf(emp.id, {
+      source: 'hr_loan',
+      title: 'New loan request',
+      body: `${empName(emp.firstName, emp.lastName)} requested a ${loan.kind} loan of ₹${Number(loan.principal).toLocaleString('en-IN')}.`,
+      targetUrl: '/hr/loans',
+    }).catch((e) => req.log.error(e));
+
     return reply.status(201).send({ data: loan });
   });
 
@@ -508,6 +571,15 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
       })
       .where(eq(employeeLoans.id, id))
       .returning();
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    notifier.notifyHrAdmins({
+      source: 'hr_loan',
+      title: 'Loan needs HR approval',
+      body: `${empName(emp.firstName, emp.lastName)}'s ${loan.kind} loan (₹${Number(loan.principal).toLocaleString('en-IN')}) was approved by their manager.`,
+      targetUrl: '/hr/loans',
+    }, req.user!.userId).catch((e) => req.log.error(e));
+
     return { data: row };
   });
 

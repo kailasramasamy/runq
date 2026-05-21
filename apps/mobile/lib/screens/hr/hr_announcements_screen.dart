@@ -30,6 +30,19 @@ class _HrAnnouncementsScreenState extends ConsumerState<HrAnnouncementsScreen> {
   /// null = show all categories; otherwise filter to this one only.
   String? _filter;
 
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // new announcement — should show current data, not whatever a prior
+    // visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(hrAnnouncementsProvider);
+    });
+  }
+
   static const _filters = <(String?, String)>[
     (null, 'All'),
     ('policy', 'Policy'),

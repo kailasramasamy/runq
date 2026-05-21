@@ -26,11 +26,29 @@ import '../../widgets/runq_snack.dart';
 
 const _hrAccent = Color(0xFF0891B2);
 
-class HrOnboardingScreen extends ConsumerWidget {
+class HrOnboardingScreen extends ConsumerStatefulWidget {
   const HrOnboardingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HrOnboardingScreen> createState() => _HrOnboardingScreenState();
+}
+
+class _HrOnboardingScreenState extends ConsumerState<HrOnboardingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about an
+    // onboarding task — should show current data, not whatever a prior
+    // visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myOnboardingProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(myOnboardingProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Onboarding')),

@@ -4,11 +4,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../api/notifications_repo.dart';
-import '../router.dart' show resolveNotificationTarget;
+import '../router.dart' show openNotificationTarget;
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../screens/hr/widgets/hr_colors.dart';
@@ -101,7 +100,7 @@ class NotificationsScreen extends ConsumerWidget {
     final target = n.targetUrl;
     if (target == null || target.isEmpty || target.startsWith('http')) return;
     if (!context.mounted) return;
-    GoRouter.of(context).push(resolveNotificationTarget(target));
+    openNotificationTarget(context, target);
   }
 }
 

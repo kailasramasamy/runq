@@ -7,6 +7,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { AttendanceService } from './attendance.service';
 import { resolveHrAccessScope } from './access-scope';
+import { HrNotifier } from './hr-notifier';
 
 const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
@@ -59,6 +60,18 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
     const input = biometricImportSchema.parse(req.body);
     const svc = new AttendanceService(req.server.db, req.tenantId);
     const data = await svc.importBiometric(input, req.user!.userId);
+
+    if (data.errorCount > 0) {
+      const notifier = new HrNotifier(req.server.db, req.tenantId);
+      notifier.notifyUser(req.user!.userId, {
+        type: 'warn',
+        source: 'hr_attendance',
+        title: 'Attendance import had errors',
+        body: `${data.errorCount} of ${data.totalRecords} rows failed to import.`,
+        targetUrl: '/hr/attendance-punches',
+      }).catch((e) => req.log.error(e, 'biometric-import notify failed'));
+    }
+
     return reply.status(201).send({ data });
   });
 

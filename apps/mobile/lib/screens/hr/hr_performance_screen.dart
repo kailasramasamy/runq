@@ -14,11 +14,29 @@ import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 
-class HrPerformanceScreen extends ConsumerWidget {
+class HrPerformanceScreen extends ConsumerStatefulWidget {
   const HrPerformanceScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HrPerformanceScreen> createState() => _HrPerformanceScreenState();
+}
+
+class _HrPerformanceScreenState extends ConsumerState<HrPerformanceScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // performance review — should show current data, not whatever a prior
+    // visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myPerformanceProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
     final async = ref.watch(myPerformanceProvider);
     return Scaffold(

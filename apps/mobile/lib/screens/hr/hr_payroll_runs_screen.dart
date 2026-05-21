@@ -317,15 +317,34 @@ class _CreateRunSheetState extends State<_CreateRunSheet> {
 
 // ─── Detail ───────────────────────────────────────────────────────────────
 
-class HrPayrollRunDetailScreen extends ConsumerWidget {
+class HrPayrollRunDetailScreen extends ConsumerStatefulWidget {
   final String id;
   const HrPayrollRunDetailScreen({super.key, required this.id});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HrPayrollRunDetailScreen> createState() => _HrPayrollRunDetailScreenState();
+}
+
+class _HrPayrollRunDetailScreenState extends ConsumerState<HrPayrollRunDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // payroll approval — should show current data, not whatever a prior
+    // visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(hrPayrollRunProvider);
+      ref.invalidate(hrRunPayslipsProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
-    final runAsync = ref.watch(hrPayrollRunProvider(id));
-    final payslipsAsync = ref.watch(hrRunPayslipsProvider(id));
+    final runAsync = ref.watch(hrPayrollRunProvider(widget.id));
+    final payslipsAsync = ref.watch(hrRunPayslipsProvider(widget.id));
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -342,8 +361,8 @@ class HrPayrollRunDetailScreen extends ConsumerWidget {
                   child: RefreshIndicator(
                     color: HrColors.brand(context),
                     onRefresh: () async {
-                      ref.invalidate(hrPayrollRunProvider(id));
-                      ref.invalidate(hrRunPayslipsProvider(id));
+                      ref.invalidate(hrPayrollRunProvider(widget.id));
+                      ref.invalidate(hrRunPayslipsProvider(widget.id));
                       await Future<void>.delayed(const Duration(milliseconds: 250));
                     },
                     child: ListView(

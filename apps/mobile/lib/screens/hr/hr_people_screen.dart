@@ -18,6 +18,10 @@ import 'widgets/hr_widgets.dart';
 final _peopleSearchProvider = StateProvider<String>((_) => '');
 final _peopleStatusProvider = StateProvider<String?>((_) => null);
 
+/// Drops the viewer's own employee row — the directory lists colleagues.
+List<HrEmployee> _withoutSelf(List<HrEmployee> rows, String? meId) =>
+    meId == null ? rows : rows.where((e) => e.id != meId).toList();
+
 class HrPeopleScreen extends ConsumerWidget {
   const HrPeopleScreen({super.key});
 
@@ -31,6 +35,8 @@ class HrPeopleScreen extends ConsumerWidget {
     // Creating an employee row is an admin/HR-only action; managers and
     // employees see the directory but not the add button.
     final canAdd = ref.watch(appRoleProvider).canManageHrSetup;
+    // The directory lists colleagues — drop the viewer's own row.
+    final meId = ref.watch(hrMeProvider).asData?.value.employee?.id;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -44,6 +50,7 @@ class HrPeopleScreen extends ConsumerWidget {
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
@@ -70,38 +77,45 @@ class HrPeopleScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: _SearchField(
                     initial: search,
                     onChanged: (v) => ref.read(_peopleSearchProvider.notifier).state = v,
                   ),
                 ),
               ),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
               SliverToBoxAdapter(
                 child: _FilterChips(
                   active: status,
                   onChange: (s) => ref.read(_peopleStatusProvider.notifier).state = s,
                 ),
               ),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
               SliverToBoxAdapter(
                 child: pageAsync.when(
-                  data: (p) => _StatsRow(total: p.total, rows: p.data),
+                  data: (p) {
+                    final rows = _withoutSelf(p.data, meId);
+                    return _StatsRow(total: p.total - (p.data.length - rows.length), rows: rows);
+                  },
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
                 ),
               ),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                 sliver: pageAsync.when(
                   data: (p) {
-                    if (p.data.isEmpty) {
+                    final rows = _withoutSelf(p.data, meId);
+                    if (rows.isEmpty) {
                       return SliverToBoxAdapter(child: _Empty(label: search.isEmpty ? 'No employees yet' : 'No matches for "$search"'));
                     }
                     return SliverList.builder(
-                      itemCount: p.data.length,
+                      itemCount: rows.length,
                       itemBuilder: (_, i) => _EmployeeRow(
-                        employee: p.data[i],
-                        onTap: () => context.push('/hr/people/${p.data[i].id}'),
+                        employee: rows[i],
+                        onTap: () => context.push('/hr/people/${rows[i].id}'),
                       ),
                     );
                   },
@@ -137,6 +151,7 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Container(
+      height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: const Color(0x1F767680),
@@ -154,6 +169,7 @@ class _SearchField extends StatelessWidget {
               style: RunqText.body.copyWith(color: t.ink),
               decoration: InputDecoration(
                 isDense: true,
+                contentPadding: EdgeInsets.zero,
                 border: InputBorder.none,
                 hintText: 'Search name, code, email',
                 hintStyle: RunqText.body.copyWith(color: t.muted),
@@ -229,7 +245,7 @@ class _StatsRow extends StatelessWidget {
     final onLeave = rows.where((e) => e.status == 'on_leave').length;
     final depts = rows.map((e) => e.departmentId).whereType<String>().toSet().length;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Row(
         children: [
           Expanded(child: _Pill('Total', '$total', HrColors.teal)),

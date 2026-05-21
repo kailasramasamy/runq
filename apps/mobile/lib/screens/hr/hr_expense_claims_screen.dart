@@ -22,7 +22,6 @@ import 'package:go_router/go_router.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
 import '../../providers/app_role_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/hr_persona_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
@@ -37,9 +36,8 @@ import 'widgets/hr_widgets.dart';
 final _claimsFilterProvider = StateProvider<String?>((_) => null);
 
 /// Standalone screen for a manager's team expenses, pushed from the
-/// Home "Expenses" quick action. Mirrors HrTeamLeavesScreen — wraps
-/// the same body widget the Pay > Expenses sub-tab uses, just adds a
-/// back arrow + "Expenses" title.
+/// Home "Expenses" quick action. Wraps the same body widget the
+/// Pay > Expenses sub-tab uses, just adds a back arrow + "Expenses" title.
 class HrTeamExpensesScreen extends ConsumerWidget {
   const HrTeamExpensesScreen({super.key});
 
@@ -89,15 +87,14 @@ class HrExpenseClaimsBody extends ConsumerWidget {
     final claimsAsync = ref.watch(hrExpenseClaimsProvider(query));
     // Persona-scoped view. The same widget powers both Pay > Expenses
     // sub-tabs:
-    //   My View    → only claims the logged-in user filed
-    //   Manager    → claims filed by anyone *other* than the user
+    //   My View    → only claims about the logged-in user
+    //   Manager    → claims about anyone *other* than the user
     //                (review queue — managers can't approve their own)
-    // The server returns everything in the tenant; we filter client-side
-    // because expense_claims.claimant_id references users (not employees),
-    // so the HrAccessScope CTE doesn't apply directly.
+    // The server scopes the list to the caller's HrAccessScope; we split
+    // own vs team here by the claim's subject employee.
     final persona = ref.watch(hrPersonaProvider);
     final role = ref.watch(appRoleProvider);
-    final myUserId = ref.watch(authProvider).user?.id;
+    final myEmployeeId = ref.watch(hrMeProvider).asData?.value.employee?.id;
     final managerLens = role.canSeeManagerPersona && persona == HrPersona.manager;
 
     return Column(
@@ -117,11 +114,11 @@ class HrExpenseClaimsBody extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator(color: HrColors.teal)),
               error: (e, _) => Center(child: Text('$e', style: RunqText.body.copyWith(color: t.muted))),
               data: (allRows) {
-                final rows = myUserId == null
+                final rows = myEmployeeId == null
                     ? allRows
                     : allRows.where((c) => managerLens
-                        ? c.claimantId != myUserId   // team-only review queue
-                        : c.claimantId == myUserId   // own claims only
+                        ? c.employeeId != myEmployeeId   // team-only review queue
+                        : c.employeeId == myEmployeeId   // own claims only
                       ).toList();
                 if (rows.isEmpty) {
                   return ListView(

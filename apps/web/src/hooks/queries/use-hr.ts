@@ -675,6 +675,7 @@ export function useExpiringDocuments(daysAhead = 90) {
 export interface HrMe {
   employee: {
     id: string;
+    employeeCode: string;
     firstName: string;
     lastName: string | null;
     /// Department the employee belongs to. Used by the announcement

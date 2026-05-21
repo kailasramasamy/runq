@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, desc, inArray, sql } from 'drizzle-orm';
 import {
-  leaveRequests, leaveTypes, leaveBalances, employees, holidays, attendance,
+  leaveRequests, leaveTypes, leaveBalances, employees, holidays, attendance, users,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
@@ -152,14 +152,16 @@ export class LeaveRequestService {
     const req = await this.getById(id);
     if (req.status !== 'pending') throw new ConflictError('Request already reviewed');
 
-    // Self-approval guard. A manager (or anyone with a matched employee
-    // row) cannot approve or reject their own leave — that breaks the
-    // separation-of-duties auditors expect. Admin / HR scopes are
-    // {kind:'all'} with no selfEmployeeId, so they fall through.
-    if (this.scope.kind === 'subset' || this.scope.kind === 'self') {
-      if (this.scope.selfEmployeeId === req.employeeId) {
-        throw new ConflictError('You cannot review your own leave request');
-      }
+    // Self-approval guard. Nobody approves or rejects their own leave —
+    // separation of duties applies to HR / admins too, not just managers.
+    // Managers (subset/self) carry selfEmployeeId on the scope for free;
+    // org-wide (all) scopes resolve the reviewer's own employee row.
+    const reviewerEmployeeId =
+      this.scope.kind === 'subset' || this.scope.kind === 'self'
+        ? this.scope.selfEmployeeId
+        : await this.employeeIdForUser(reviewerId);
+    if (reviewerEmployeeId && reviewerEmployeeId === req.employeeId) {
+      throw new ConflictError('You cannot review your own leave request');
     }
 
     const status = input.approved ? 'approved' as const : 'rejected' as const;
@@ -287,6 +289,30 @@ export class LeaveRequestService {
       await balSvc.incrementUsed(req.employeeId, req.leaveTypeId, year, -Number(req.days));
     }
     return row;
+  }
+
+  /// Resolve a user id to its linked employee row — phone-match (last 10
+  /// digits, country-code tolerant) with email as fallback, mirroring
+  /// HrNotifier. Returns null when the account isn't tied to an employee
+  /// (e.g. a CA / admin login), in which case there's no self to guard.
+  private async employeeIdForUser(userId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: employees.id })
+      .from(employees)
+      .innerJoin(users, and(
+        eq(users.id, userId),
+        eq(users.tenantId, employees.tenantId),
+        sql`(
+          (coalesce(${users.phone}, '') <> ''
+            AND right(regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g'), 10)
+              = right(regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g'), 10))
+          OR (coalesce(${employees.email}, '') <> ''
+            AND lower(${users.email}) = lower(${employees.email}))
+        )`,
+      ))
+      .where(eq(employees.tenantId, this.tenantId))
+      .limit(1);
+    return row?.id ?? null;
   }
 
   private async markAttendanceForLeave(

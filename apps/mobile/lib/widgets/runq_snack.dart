@@ -52,6 +52,10 @@ void showRunqSnack(
       behavior: SnackBarBehavior.floating,
       margin: EdgeInsets.fromLTRB(8, 0, 8, bottomMargin),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      // SnackBar clips its content to `shape` by default (Clip.hardEdge),
+      // which cuts off the toast's drop shadow. Disable clipping so the
+      // shadow can render freely past the bar's bounds.
+      clipBehavior: Clip.none,
       content: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
         duration: const Duration(milliseconds: 280),
@@ -63,9 +67,9 @@ void showRunqSnack(
             child: child,
           ),
         ),
-        // Inset by 12px on each side so the drop shadow has room to render
-        // inside the SnackBar's clipping bounds. The outer SnackBar margin
-        // is already reduced to compensate so the toast width still matches.
+        // Inset on each side so the drop shadow has breathing room around
+        // the toast. The outer SnackBar margin is reduced to compensate so
+        // the toast width still matches.
         child: Container(
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

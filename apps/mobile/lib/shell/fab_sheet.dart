@@ -79,7 +79,7 @@ List<FabAction> hrFabActions() => [
         title: 'Apply for leave',
         sub: 'CL · EL · SL — quick request',
         tint: const Color(0xFF06B6D4),
-        onTap: (ctx) => ctx.push('/hr/pay?tab=leave'),
+        onTap: (ctx) => ctx.push('/hr/leaves'),
       ),
       FabAction(
         icon: Icons.receipt_outlined,

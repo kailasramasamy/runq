@@ -18,10 +18,61 @@ import '../../widgets/runq_snack.dart';
 final _money = NumberFormat('#,##,###');
 const _hrAccent = Color(0xFF0891B2);
 
-class HrLoansScreen extends ConsumerWidget {
-  const HrLoansScreen({super.key});
+/// HR loan cards use a teal tint (matching [_hrAccent]) rather than the
+/// app-wide indigo surface tint that plain [Card]s pick up.
+Color _cardTint(BuildContext context) {
+  final theme = Theme.of(context);
+  return Color.alphaBlend(
+    _hrAccent.withValues(alpha: theme.brightness == Brightness.dark ? 0.14 : 0.06),
+    theme.colorScheme.surface,
+  );
+}
+
+/// Section heading used to clearly separate the screen's two groups —
+/// 'Team requests' (a manager's pending approvals) and 'My loans'.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      child: Row(children: [
+        Icon(icon, size: 18, color: _hrAccent),
+        const SizedBox(width: 6),
+        Text(label, style: RunqText.bodyStrong.copyWith(color: _hrAccent)),
+      ]),
+    );
+  }
+}
+
+class HrLoansScreen extends ConsumerStatefulWidget {
+  const HrLoansScreen({super.key});
+
+  @override
+  ConsumerState<HrLoansScreen> createState() => _HrLoansScreenState();
+}
+
+class _HrLoansScreenState extends ConsumerState<HrLoansScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // loan approval or disbursement — should show current data, not whatever
+    // a prior visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myLoansProvider);
+      ref.invalidate(loanEligibilityProvider);
+      ref.invalidate(teamLoanRequestsProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final loansAsync = ref.watch(myLoansProvider);
     final eligAsync = ref.watch(loanEligibilityProvider);
     final teamAsync = ref.watch(teamLoanRequestsProvider);
@@ -69,7 +120,13 @@ class HrLoansScreen extends ConsumerWidget {
                       padding: EdgeInsets.all(40),
                       child: Center(child: Text('No loans yet')),
                     )
-                  : Column(children: rows.map((l) => _LoanCard(loan: l)).toList()),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _SectionHeader(icon: Icons.person_outline, label: 'My loans'),
+                        ...rows.map((l) => _LoanCard(loan: l)),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -165,22 +222,13 @@ class _TeamRequestsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.groups_2, size: 18, color: _hrAccent),
-          const SizedBox(width: 6),
-          Text(
-            'Team requests (${rows.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold, color: _hrAccent),
-          ),
-        ]),
-        const SizedBox(height: 6),
-        for (final r in rows) _TeamRequestCard(req: r),
-        const Divider(height: 32),
-      ]),
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _SectionHeader(icon: Icons.groups_2, label: 'Team requests (${rows.length})'),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+        child: Column(children: [for (final r in rows) _TeamRequestCard(req: r)]),
+      ),
+    ]);
   }
 }
 
@@ -192,6 +240,8 @@ class _TeamRequestCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
+      color: _cardTint(context),
+      surfaceTintColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -287,6 +337,8 @@ class _LoanCard extends ConsumerWidget {
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      color: _cardTint(context),
+      surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: _isPending

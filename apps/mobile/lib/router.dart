@@ -64,7 +64,7 @@ import 'screens/hr/hr_holidays_screen.dart';
 import 'screens/hr/hr_activity_screen.dart';
 import 'screens/hr/hr_leave_types_screen.dart';
 import 'screens/hr/hr_directory_screen.dart';
-import 'screens/hr/hr_team_leaves_screen.dart';
+import 'screens/hr/hr_leave_screen.dart';
 import 'screens/hr/hr_announcements_screen.dart';
 import 'screens/hr/hr_employee_form_screen.dart';
 import 'screens/hr/hr_expense_claims_screen.dart';
@@ -86,6 +86,45 @@ import 'services/po_intake.dart';
 
 final rootKey = GlobalKey<NavigatorState>();
 final shellKey = GlobalKey<NavigatorState>();
+
+/// Maps web-style HR notification paths that have no direct mobile route to
+/// the closest available screen. Paths that already match a registered route
+/// pass through unchanged. Shared by the in-app notifications list and the
+/// FCM push-tap handler so a deep link resolves the same way either way.
+String resolveNotificationTarget(String path) {
+  final uri = Uri.parse(path);
+  const aliases = <String, String>{
+    '/hr/leave-requests':     '/hr/leaves',           // HrLeaveScreen
+    '/hr/expense-claims':     '/hr/pay?tab=expenses', // list folded into Pay's Expenses sub-tab
+    '/hr/attendance-punches': '/hr/check-in',         // HrCheckInScreen
+    '/hr/fnf':                '/hr/more',             // no FnF screen yet
+    '/hr/tds-challans':       '/hr/more',             // no TDS screen yet
+  };
+  final resolved = aliases[uri.path] ?? uri.path;
+  if (!uri.hasQuery) return resolved;
+  // An alias may already carry its own query (e.g. ?tab=expenses); merge
+  // rather than appending a second '?'.
+  return resolved.contains('?')
+      ? '$resolved&${uri.query}'
+      : '$resolved?${uri.query}';
+}
+
+/// Routes a notification tap — FCM push or in-app list — to its target screen.
+/// When that screen is already on top, the target is *replaced* rather than
+/// pushed: repeated taps on same-target notifications (e.g. several expense
+/// decisions) must not stack identical screens, but the tap still has to land
+/// on fresh content — replace re-runs the screen's initState so its lists
+/// refetch instead of showing whatever a prior visit left cached.
+void openNotificationTarget(BuildContext context, String targetUrl) {
+  final resolved = resolveNotificationTarget(targetUrl);
+  final router = GoRouter.of(context);
+  final current = router.routerDelegate.currentConfiguration.uri.toString();
+  if (current == resolved) {
+    router.replace(resolved);
+  } else {
+    router.push(resolved);
+  }
+}
 
 final routerProvider = Provider<GoRouter>((ref) => _buildRouter(ref));
 
@@ -266,7 +305,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/hr/leaves',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const HrTeamLeavesScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(const HrLeaveScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/hr/team-expenses',

@@ -6,6 +6,7 @@ import { hrAnnouncements, users, employees, departments } from '@runq/db';
 import { rbacHook } from '../../hooks/rbac';
 import { AppError, NotFoundError } from '../../utils/errors';
 import { getStorageProvider } from '../../utils/storage';
+import { HrNotifier } from './hr-notifier';
 
 // Anyone in the HR module can read announcements.
 const READ_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
@@ -195,6 +196,21 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
           expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
         })
         .returning();
+
+      new HrNotifier(req.server.db, req.tenantId)
+        .notifyAudience(
+          { departmentId: dept ?? null, audience },
+          {
+            type: body.pinned ? 'warn' : 'info',
+            source: 'hr_announcement',
+            title: `📢 ${body.title}`,
+            body: body.body.slice(0, 140),
+            targetUrl: '/hr/announcements',
+          },
+          req.user!.userId,
+        )
+        .catch((e) => req.log.error(e, 'Announcement notification failed'));
+
       return reply.status(201).send({ data: row });
     },
   );

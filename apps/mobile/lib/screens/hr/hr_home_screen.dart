@@ -366,14 +366,14 @@ class _EmployeeBodyState extends ConsumerState<_EmployeeBody> {
             items: [
               _QA(Icons.fingerprint_outlined, 'Check in', const Color(0xFF0EA5E9),
                   () => context.push('/hr/check-in')),
-              _QA(Icons.event_available_outlined, 'Apply Leave', const Color(0xFF06B6D4),
-                  () => context.push('/hr/pay?tab=leave')),
+              _QA(Icons.event_available_outlined, 'Leaves', const Color(0xFF06B6D4),
+                  () => context.push('/hr/leaves')),
               _QA(Icons.description_outlined, 'My Payslip', const Color(0xFF7C3AED),
                   () => context.push('/hr/pay')),
               _QA(Icons.receipt_outlined, 'Expenses', const Color(0xFFD97706),
                   () => context.push('/hr/pay?tab=expenses')),
-              _QA(Icons.account_balance_wallet_outlined, 'Leave Balance', const Color(0xFF16A34A),
-                  () => context.push('/hr/pay?tab=leave')),
+              _QA(Icons.receipt_long_outlined, 'My Claims', const Color(0xFF16A34A),
+                  () => context.push('/hr/pay?tab=expenses')),
               _QA(Icons.help_outline, 'Helpdesk', const Color(0xFFEC4899),
                   () => context.push('/hr/helpdesk')),
             ],
@@ -387,7 +387,7 @@ class _EmployeeBodyState extends ConsumerState<_EmployeeBody> {
                   const SizedBox(height: 32),
                   _SectionHeader(
                     title: 'Leave balance',
-                    onTapAll: () => context.push('/hr/pay?tab=leave'),
+                    onTapAll: () => context.push('/hr/leaves'),
                   ),
                   const SizedBox(height: 8),
                   // Take 5 not 4: the 4-cap was silently hiding EL (the
@@ -1140,7 +1140,7 @@ class _PendingBanner extends StatelessWidget {
         accent: accent,
         ink: t.ink,
         muted: t.muted,
-        onTap: () => GoRouter.of(context).push('/hr/pay?tab=approvals'),
+        onTap: () => GoRouter.of(context).push('/hr/leaves'),
       ));
     }
     if (expenseCount > 0) {

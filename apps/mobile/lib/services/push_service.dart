@@ -2,10 +2,9 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../firebase_options.dart';
-import '../router.dart' show rootKey;
+import '../router.dart' show rootKey, openNotificationTarget;
 
 /// Background isolate handler. The OS renders the tray notification from the
 /// message's `notification` block on its own — nothing to do here, but FCM
@@ -35,6 +34,10 @@ class PushService {
   String? _registeredToken;
   StreamSubscription<String>? _refreshSub;
   bool _tapWired = false;
+  // Last notification-tap we routed. FlutterFire delivers the opening tap
+  // to BOTH getInitialMessage() and the onMessageOpenedApp stream, so the
+  // same tap would otherwise push its target screen twice.
+  String? _lastTapMessageId;
 
   /// Run after a successful login (or session restore). Requests permission,
   /// fetches the FCM token, registers it with the API, and wires tap routing.
@@ -85,9 +88,17 @@ class PushService {
   }
 
   void _handleTap(RemoteMessage message) {
+    // Drop the duplicate delivery of the opening tap (see _lastTapMessageId)
+    // so the target screen isn't stacked twice.
+    final id = message.messageId;
+    if (id != null && id == _lastTapMessageId) return;
+    _lastTapMessageId = id;
+
     final target = message.data['targetUrl'];
     if (target is! String || target.isEmpty) return;
     final ctx = rootKey.currentContext;
-    if (ctx != null) ctx.go(target);
+    // Pushes (not go) so the current screen stays underneath, but skips the
+    // push when the target is already on top — see openNotificationTarget.
+    if (ctx != null) openNotificationTarget(ctx, target);
   }
 }

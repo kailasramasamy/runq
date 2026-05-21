@@ -25,10 +25,29 @@ String _formatInr(num v) => _inrFmt.format(v.round());
 
 // ─── List screen ──────────────────────────────────────────────────────────
 
-class HrTaxDeclarationScreen extends ConsumerWidget {
+class HrTaxDeclarationScreen extends ConsumerStatefulWidget {
   const HrTaxDeclarationScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HrTaxDeclarationScreen> createState() => _HrTaxDeclarationScreenState();
+}
+
+class _HrTaxDeclarationScreenState extends ConsumerState<HrTaxDeclarationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // tax declaration review — should show current data, not whatever a
+    // prior visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myTaxDeclarationsProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(myTaxDeclarationsProvider);
     final t = RT(context);
     return Scaffold(

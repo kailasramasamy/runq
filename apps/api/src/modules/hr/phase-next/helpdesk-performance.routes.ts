@@ -7,6 +7,7 @@ import {
   employees, users, departments, designations,
 } from '@runq/db';
 import { NotificationsService } from '../../dashboard/notifications.service';
+import { HrNotifier } from '../hr-notifier';
 import { GoalGeneratorCache, type GeneratedGoal } from '../performance/goal-generator';
 import {
   uuidParamSchema,
@@ -49,6 +50,100 @@ async function nextTicketNumber(db: import('@runq/db').Db, tenantId: string): Pr
   return `HRT-${String(seq).padStart(6, '0')}`;
 }
 
+/** Notify the other party when a human comment is posted on a ticket. Fire-and-forget. */
+async function fireCommentNotification(
+  req: { server: { db: import('@runq/db').Db }; tenantId: string },
+  ticket: { employeeId: string; ticketNumber: string; subject: string },
+  authorRole: string,
+  actorUserId: string,
+): Promise<void> {
+  const notifier = new HrNotifier(req.server.db, req.tenantId);
+  const notice = {
+    source: 'hr_helpdesk' as const,
+    title: 'New reply on your ticket',
+    body: `${ticket.ticketNumber}: ${ticket.subject}.`,
+    targetUrl: '/hr/helpdesk',
+  };
+  if (authorRole === 'viewer') {
+    // Employee commented — notify HR admins (exclude the actor).
+    await notifier.notifyHrAdmins(notice, actorUserId);
+  } else {
+    // HR/agent commented — notify the employee who raised the ticket.
+    await notifier.notifyEmployee(ticket.employeeId, notice);
+  }
+}
+
+/** Notify manager when an employee submits their self-review. Fire-and-forget. */
+async function notifySelfReviewSubmitted(
+  req: { server: { db: import('@runq/db').Db }; tenantId: string },
+  review: { managerUserId: string | null; cycleId: string; employeeId: string },
+  emp: { firstName: string; lastName?: string | null },
+): Promise<void> {
+  if (!review.managerUserId) return;
+  const [cycle] = await req.server.db
+    .select({ name: performanceCycles.name })
+    .from(performanceCycles)
+    .where(eq(performanceCycles.id, review.cycleId))
+    .limit(1);
+  const cycleName = cycle?.name ?? 'performance';
+  const empName = [emp.firstName, emp.lastName].filter(Boolean).join(' ');
+  await new HrNotifier(req.server.db, req.tenantId).notifyUser(review.managerUserId, {
+    source: 'hr_performance',
+    title: 'Self-review submitted',
+    body: `${empName} submitted their self-review for ${cycleName}.`,
+    targetUrl: '/hr/performance',
+  });
+}
+
+/** Notify employee when their manager submits the review. Fire-and-forget. */
+async function notifyManagerReviewSubmitted(
+  req: { server: { db: import('@runq/db').Db }; tenantId: string },
+  review: { employeeId: string; cycleId: string },
+): Promise<void> {
+  const [cycle] = await req.server.db
+    .select({ name: performanceCycles.name })
+    .from(performanceCycles)
+    .where(eq(performanceCycles.id, review.cycleId))
+    .limit(1);
+  const cycleName = cycle?.name ?? 'performance';
+  await new HrNotifier(req.server.db, req.tenantId).notifyEmployee(review.employeeId, {
+    source: 'hr_performance',
+    title: 'Manager review submitted',
+    body: `Your manager submitted your ${cycleName} review.`,
+    targetUrl: '/hr/performance',
+  });
+}
+
+/** Fire assignedTo / resolved notifications after a ticket PUT. Fire-and-forget. */
+async function fireTicketUpdateNotifications(
+  req: { server: { db: import('@runq/db').Db }; tenantId: string; log: { error: (...args: unknown[]) => void } },
+  row: typeof import('@runq/db').hrTickets.$inferSelect,
+  prev: { assignedTo: string | null; employeeId: string; ticketNumber: string; subject: string },
+): Promise<void> {
+  const notifier = new HrNotifier(req.server.db, req.tenantId);
+  const assignedToChanged =
+    row.assignedTo != null && row.assignedTo !== prev.assignedTo;
+
+  if (assignedToChanged) {
+    await notifier.notifyUser(row.assignedTo!, {
+      source: 'hr_helpdesk',
+      title: 'Ticket assigned to you',
+      body: `${prev.ticketNumber}: ${prev.subject}.`,
+      targetUrl: '/hr/helpdesk',
+    });
+  }
+
+  if (row.status === 'resolved') {
+    await notifier.notifyEmployee(prev.employeeId, {
+      type: 'ok',
+      source: 'hr_helpdesk',
+      title: 'Ticket resolved',
+      body: `Your ticket ${prev.ticketNumber} has been marked resolved.`,
+      targetUrl: '/hr/helpdesk',
+    });
+  }
+}
+
 export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
   // ====================== HELPDESK ======================
   // Employee creates a ticket for self.
@@ -78,6 +173,19 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
       tenantId: req.tenantId,
       ticketId: row.id,
     });
+
+    // Notify HR admins about the new ticket (exclude the actor).
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyHrAdmins(
+        {
+          source: 'hr_helpdesk',
+          title: 'New HR ticket',
+          body: `${row.ticketNumber}: ${row.subject} (${row.category}, ${row.priority}).`,
+          targetUrl: '/hr/helpdesk',
+        },
+        req.user!.userId,
+      )
+      .catch((e) => req.log.error(e, 'helpdesk: ticket-created notify failed'));
 
     return reply.status(201).send({ data: row });
   });
@@ -165,6 +273,15 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
   app.put('/tickets/:id', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = updateTicketSchema.parse(req.body);
+
+    // Pre-fetch so we can detect assignedTo changes and know employeeId.
+    const [prev] = await req.server.db
+      .select({ assignedTo: hrTickets.assignedTo, employeeId: hrTickets.employeeId, ticketNumber: hrTickets.ticketNumber, subject: hrTickets.subject })
+      .from(hrTickets)
+      .where(and(eq(hrTickets.id, id), eq(hrTickets.tenantId, req.tenantId)))
+      .limit(1);
+    if (!prev) throw new NotFoundError('Ticket');
+
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (input.status !== undefined) {
       patch.status = input.status;
@@ -183,6 +300,11 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
     if (input.status !== undefined) {
       publishHelpdeskEvent({ type: 'status_changed', ticketId: id, tenantId: req.tenantId, status: row.status });
     }
+
+    fireTicketUpdateNotifications(req, row, prev).catch((e) =>
+      req.log.error(e, 'helpdesk: ticket-update notify failed'),
+    );
+
     return { data: row };
   });
 
@@ -217,7 +339,46 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    // Skip notification for agent drafts (isAgentDraft guard on insert).
+    // Human comments: notify the other party.
+    if (!row.isAgentDraft) {
+      fireCommentNotification(req, t, req.user!.role, req.user!.userId).catch((e) =>
+        req.log.error(e, 'helpdesk: comment notify failed'),
+      );
+    }
+
     return reply.status(201).send({ data: row });
+  });
+
+  app.post('/tickets/:id/escalate', { preHandler: [rbacHook([...WRITE])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const [t] = await req.server.db
+      .select({ ticketNumber: hrTickets.ticketNumber, subject: hrTickets.subject, agentEscalatedAt: hrTickets.agentEscalatedAt })
+      .from(hrTickets)
+      .where(and(eq(hrTickets.id, id), eq(hrTickets.tenantId, req.tenantId)))
+      .limit(1);
+    if (!t) throw new NotFoundError('Ticket');
+    const [row] = await req.server.db
+      .update(hrTickets)
+      .set({ status: 'waiting_human', agentEscalatedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(hrTickets.id, id), eq(hrTickets.tenantId, req.tenantId)))
+      .returning();
+    publishHelpdeskEvent({ type: 'status_changed', ticketId: id, tenantId: req.tenantId, status: 'waiting_human' });
+
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyHrAdmins(
+        {
+          type: 'warn',
+          source: 'hr_helpdesk',
+          title: 'Ticket escalated',
+          body: `${t.ticketNumber}: ${t.subject} needs a human response.`,
+          targetUrl: '/hr/helpdesk',
+        },
+        req.user!.userId,
+      )
+      .catch((e) => req.log.error(e, 'helpdesk: escalate notify failed'));
+
+    return reply.send({ data: row });
   });
 
   // ---- Helpdesk AI Agent drafts ----
@@ -796,6 +957,14 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
       })
       .where(eq(performanceReviews.id, id))
       .returning();
+
+    // Notify the manager that the employee submitted their self-review.
+    if (row.managerUserId) {
+      notifySelfReviewSubmitted(req, row, emp).catch((e) =>
+        req.log.error(e, 'performance: self-submit notify failed'),
+      );
+    }
+
     return { data: row };
   });
 
@@ -814,6 +983,12 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
       .where(and(eq(performanceReviews.id, id), eq(performanceReviews.tenantId, req.tenantId)))
       .returning();
     if (!row) throw new NotFoundError('Review');
+
+    // Notify the employee that their manager submitted the review.
+    notifyManagerReviewSubmitted(req, row).catch((e) =>
+      req.log.error(e, 'performance: manager-submit notify failed'),
+    );
+
     return { data: row };
   });
 

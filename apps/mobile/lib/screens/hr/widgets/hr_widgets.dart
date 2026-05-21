@@ -1531,3 +1531,73 @@ String hrGreeting(DateTime now) {
 /// Convenience: `Future.delayed` that respects mount state — lets a screen
 /// wait between animation stages without scattering null-checks.
 Future<void> sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
+
+/// Segmented sub-tab control — a pill rides over the selected segment.
+/// Shared by the Pay and Leave screens so the two read identically.
+class HrSubTabs extends StatelessWidget {
+  final List<String> labels;
+  final int active;
+  final ValueChanged<int> onChange;
+  const HrSubTabs({super.key, required this.labels, required this.active, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Trough uses a theme-aware soft hairline (a fixed grey looked muddy
+    // on white, washed out on dark). Active pill rides on surface with a
+    // thin hairline border + drop shadow so it reads as a tactile layer.
+    final troughBg = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: troughBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: List.generate(labels.length, (i) {
+          final sel = i == active;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChange(i),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: sel ? t.surface : Colors.transparent,
+                  borderRadius: BorderRadius.circular(9),
+                  border: sel ? Border.all(color: t.hairline, width: 0.5) : null,
+                  boxShadow: sel
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.08),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: RunqText.body.copyWith(
+                      color: sel ? t.ink : t.muted,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      letterSpacing: sel ? 0.1 : 0.0,
+                    ),
+                    child: Text(labels[i]),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}

@@ -32,9 +32,14 @@ class _HrDirectoryScreenState extends ConsumerState<HrDirectoryScreen> {
   @override
   void initState() {
     super.initState();
-    // Autofocus on first frame so the keyboard pops without an extra tap.
+    // After the first frame: autofocus so the keyboard pops without an
+    // extra tap, and refresh data so a notification tap shows current
+    // rows, not a prior visit's cache. Both deferred — requestFocus and
+    // ref.invalidate touch inherited widgets, illegal during initState.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focus.requestFocus();
+      if (!mounted) return;
+      _focus.requestFocus();
+      ref.invalidate(hrDirectoryProvider);
     });
   }
 

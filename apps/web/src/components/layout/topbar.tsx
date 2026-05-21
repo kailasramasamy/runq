@@ -6,9 +6,11 @@ import {
   LifeBuoy as LifeBuoyIcon, UserCircle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { resolveNotificationTarget } from '../../lib/notification-target';
 import { useTheme } from '../../providers/theme-provider';
 import { useAuth, canManageHrModule, canAccessFinanceModule } from '../../providers/auth-provider';
 import { useCompanySettings } from '../../hooks/queries/use-settings';
+import { useHrMe } from '../../hooks/queries/use-hr';
 import {
   useNotifications, useMarkAllNotificationsRead,
   useCurrentFy, useUpdateCurrentFy,
@@ -238,7 +240,7 @@ function Notifications() {
                   onClick={() => {
                     if (n.targetUrl) {
                       setOpen(false);
-                      navigate({ to: n.targetUrl as '/' });
+                      navigate({ to: resolveNotificationTarget(n.targetUrl) as '/' });
                     }
                   }}
                   className={cn(
@@ -282,7 +284,16 @@ function ProfileMenu() {
   useClickOutside(ref, () => setOpen(false), open);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const initials = (user?.name ?? user?.email ?? 'U').slice(0, 2).toUpperCase();
+  // `users.name` can carry an employee code for accounts seeded from HR; the
+  // employee record is the source of truth for a person's display name.
+  const { data: meResp } = useHrMe();
+  const employee = meResp?.data?.employee ?? null;
+  const displayName = employee
+    ? [employee.firstName, employee.lastName].filter(Boolean).join(' ')
+    : (user?.name ?? 'You');
+  const initials = (
+    displayName.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2) || 'U'
+  ).toUpperCase();
 
   function go(to: '/profile' | '/settings' | '/settings/client-invites') {
     setOpen(false);
@@ -299,7 +310,7 @@ function ProfileMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold"
         style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
-        title={user?.name ?? user?.email ?? 'Account'}
+        title={displayName || user?.email || 'Account'}
       >
         {initials}
       </button>
@@ -310,8 +321,13 @@ function ProfileMenu() {
         >
           <div className="border-b px-3 py-2.5" style={{ borderColor: 'var(--border-soft)' }}>
             <div className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>
-              {user?.name ?? 'You'}
+              {displayName}
             </div>
+            {employee?.employeeCode && (
+              <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+                {employee.employeeCode}
+              </div>
+            )}
             <div className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>
               {user?.email ?? ''}
             </div>

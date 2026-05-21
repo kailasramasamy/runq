@@ -154,11 +154,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                     const SizedBox(height: 28),
                     FadeTransition(
                       opacity: _taglineFade,
-                      child: Text(
-                        'Books, on autopilot.',
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(text: 'Run your business,\n'),
+                            TextSpan(
+                              text: 'end to end',
+                              style: RunqText.h2.copyWith(
+                                color: p.dot,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
                         style: RunqText.h2.copyWith(
                           color: p.tagline,
-                          letterSpacing: -0.01 * 20,
+                          letterSpacing: -0.2,
+                          height: 1.2,
                         ),
                       ),
                     ),

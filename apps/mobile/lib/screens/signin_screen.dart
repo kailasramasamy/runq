@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../providers/app_module_provider.dart';
 import '../providers/app_role_provider.dart';
@@ -249,6 +248,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
       context.go(landing);
     } on ApiException catch (e) {
       if (!mounted) return;
+      // Wipe a wrong code so the boxes reset cleanly for the retry.
+      if (e.statusCode == 401) _otp.clear();
       setState(() => _error = e.statusCode == 401
           ? 'Invalid OTP. Try again.'
           : e.statusCode == 404
@@ -276,6 +277,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
       ),
       child: Scaffold(
         backgroundColor: p.bg,
+        // Keep the body full-height when the keyboard opens so the gradient
+        // spans the whole screen seamlessly behind the keypad instead of
+        // being squeezed above it. The scroll view below absorbs the
+        // keyboard inset itself via viewInsets.bottom padding.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             Positioned.fill(child: _BackgroundGradient(palette: p)),
@@ -327,16 +333,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
-                      FadeTransition(
-                        opacity: _cardFade,
-                        child: Center(
-                          child: Text(
-                            'runQ Finance v1',
-                            style: RunqText.label.copyWith(color: p.subtleInk),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -441,7 +438,7 @@ class _LogoBlock extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Finance & Accounting ERP',
+                'Run your business, end to end',
                 style: RunqText.body.copyWith(color: palette.subtitleInk),
               ),
             ],
@@ -526,8 +523,13 @@ class _SignInCard extends StatelessWidget {
               hint: '98765 43210',
               icon: Icons.phone_iphone_rounded,
               keyboardType: TextInputType.phone,
+              leadingText: '+91',
               autofillHints: const [AutofillHints.telephoneNumber],
               textInputAction: TextInputAction.done,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
               onSubmitted: (_) => onRequestOtp(),
             )
           else ...[
@@ -542,7 +544,7 @@ class _SignInCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      phone.text.trim(),
+                      '+91 ${phone.text.trim()}',
                       style: RunqText.body.copyWith(color: palette.fieldText),
                     ),
                   ),
@@ -559,18 +561,14 @@ class _SignInCard extends StatelessWidget {
                 ],
               ),
             ),
-            _ThemedField(
+            _OtpInput(
               palette: palette,
-              label: 'One-time password',
               controller: otp,
-              hint: '••••••',
-              icon: Icons.lock_outline_rounded,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onVerifyOtp(),
+              loading: loading,
+              onCompleted: onVerifyOtp,
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Test mode: use 123456',
                 style: RunqText.caption.copyWith(color: palette.subtitleInk),
@@ -629,39 +627,8 @@ class _SignInCard extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(height: 14),
-          Center(
-            child: GestureDetector(
-              onTap: () => _openContactPage(context),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text.rich(
-                  TextSpan(
-                    style: RunqText.caption.copyWith(color: palette.subtitleInk),
-                    children: [
-                      const TextSpan(text: 'New to runQ? '),
-                      TextSpan(
-                        text: 'Request access',
-                        style: RunqText.bodyStrong.copyWith(color: palette.linkInk),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
-    );
-  }
-}
-
-Future<void> _openContactPage(BuildContext context) async {
-  final uri = Uri.parse('https://www.runq.in/contact');
-  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-  if (!ok && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Visit www.runq.in/contact to get in touch.')),
     );
   }
 }
@@ -675,6 +642,8 @@ class _ThemedField extends StatelessWidget {
   final List<String>? autofillHints;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final String? leadingText;
+  final List<TextInputFormatter>? inputFormatters;
   const _ThemedField({
     required this.palette,
     required this.label,
@@ -685,6 +654,8 @@ class _ThemedField extends StatelessWidget {
     this.autofillHints,
     this.textInputAction,
     this.onSubmitted,
+    this.leadingText,
+    this.inputFormatters,
   });
 
   @override
@@ -708,17 +679,32 @@ class _ThemedField extends StatelessWidget {
             keyboardType: keyboardType,
             autofillHints: autofillHints,
             textInputAction: textInputAction,
+            inputFormatters: inputFormatters,
             onSubmitted: onSubmitted,
             // Default is 20px — too tight here. Pushes the focused field up
-            // enough that the Sign-in button + signup link stay visible
-            // above the keypad without manual scrolling.
+            // enough that the Sign-in button stays visible above the keypad
+            // without manual scrolling.
             scrollPadding: const EdgeInsets.only(bottom: 140),
             style: RunqText.body.copyWith(color: palette.fieldText),
             cursorColor: palette.linkInk,
             decoration: InputDecoration(
               prefixIcon: Padding(
                 padding: const EdgeInsets.only(left: 12, right: 8),
-                child: Icon(icon, size: 18, color: palette.iconMuted),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: palette.iconMuted),
+                    if (leadingText != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        leadingText!,
+                        style: RunqText.body.copyWith(color: palette.fieldText),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(width: 1, height: 18, color: palette.fieldBorder),
+                    ],
+                  ],
+                ),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
               hintText: hint,
@@ -728,6 +714,129 @@ class _ThemedField extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// Segmented 6-digit code entry. A single transparent TextField (sharing the
+// parent's controller) captures keystrokes and SMS autofill, while six boxes
+// render the digits and track the caret position. Fires onCompleted the
+// moment the sixth digit lands so there's no extra tap to verify.
+class _OtpInput extends StatefulWidget {
+  final _Palette palette;
+  final TextEditingController controller;
+  final bool loading;
+  final VoidCallback onCompleted;
+  const _OtpInput({
+    required this.palette,
+    required this.controller,
+    required this.loading,
+    required this.onCompleted,
+  });
+
+  @override
+  State<_OtpInput> createState() => _OtpInputState();
+}
+
+class _OtpInputState extends State<_OtpInput> {
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_refresh);
+    _focus.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_refresh);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.palette;
+    final text = widget.controller.text;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'One-time code',
+          style: RunqText.bodyStrong.copyWith(color: p.labelInk),
+        ),
+        const SizedBox(height: 6),
+        Stack(
+          children: [
+            Row(
+              children: List.generate(6, (i) {
+                final filled = i < text.length;
+                final active =
+                    _focus.hasFocus && i == text.length && !widget.loading;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: i == 5 ? 0 : 8),
+                    child: Container(
+                      height: 52,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: p.fieldBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: active ? p.linkInk : p.fieldBorder,
+                          width: active ? 1.5 : 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        filled ? text[i] : '',
+                        style: RunqText.h4.copyWith(color: p.fieldText),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            // Invisible field on top of the boxes: it owns the keyboard,
+            // a tap anywhere on the row focuses it. readOnly (not disabled)
+            // while loading so focus survives a failed auto-submit.
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0,
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focus,
+                  autofocus: true,
+                  readOnly: widget.loading,
+                  showCursor: false,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  scrollPadding: const EdgeInsets.only(bottom: 140),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  decoration: const InputDecoration(
+                    counterText: '',
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (v) {
+                    if (v.length == 6 && !widget.loading) {
+                      FocusScope.of(context).unfocus();
+                      widget.onCompleted();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

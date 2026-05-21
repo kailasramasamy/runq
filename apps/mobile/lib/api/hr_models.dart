@@ -778,6 +778,9 @@ class HrExpenseClaimItem {
 
 class HrExpenseClaim {
   final String id, claimNumber, claimantId, claimantName;
+  /// Subject employee of the claim. Empty when the claimant has no
+  /// employee record. Drives the own/team split on the Expenses tab.
+  final String employeeId;
   final DateTime claimDate;
   final String? description;
   final double totalAmount;
@@ -792,6 +795,7 @@ class HrExpenseClaim {
     required this.claimNumber,
     required this.claimantId,
     required this.claimantName,
+    required this.employeeId,
     required this.claimDate,
     this.description,
     required this.totalAmount,
@@ -807,6 +811,7 @@ class HrExpenseClaim {
         claimNumber: _strOr(j['claimNumber'], ''),
         claimantId: _strOr(j['claimantId'], ''),
         claimantName: _strOr(j['claimantName'], '—'),
+        employeeId: _strOr(j['employeeId'], ''),
         claimDate: _dt(j['claimDate']) ?? DateTime.now(),
         description: _str(j['description']),
         totalAmount: _num(j['totalAmount']),

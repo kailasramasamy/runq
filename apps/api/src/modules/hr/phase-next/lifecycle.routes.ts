@@ -20,6 +20,7 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../../hooks/rbac';
 import { NotFoundError, ConflictError, ForbiddenError, AppError } from '../../../utils/errors';
+import { HrNotifier } from '../hr-notifier';
 import { resolveSelfEmployee } from './self-employee';
 import { AttachmentService } from '../../common/attachment.service';
 import { extractAndSaveResumeProfile } from '../resume-profile.service';
@@ -101,6 +102,16 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
         status: 'draft',
       })
       .returning();
+
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyEmployee(row.employeeId, {
+        source: 'hr_lifecycle',
+        title: 'Final settlement started',
+        body: 'Your full & final settlement is being processed.',
+        targetUrl: '/hr/fnf',
+      })
+      .catch((e) => req.log.error(e, 'FnF created notification failed'));
+
     return reply.status(201).send({ data: row });
   });
 
@@ -169,6 +180,17 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
       .update(employees)
       .set({ status: 'terminated', exitDate: row.lastWorkingDate, updatedAt: new Date() })
       .where(and(eq(employees.id, row.employeeId), eq(employees.tenantId, req.tenantId)));
+
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyEmployee(row.employeeId, {
+        type: 'ok',
+        source: 'hr_lifecycle',
+        title: 'Final settlement approved',
+        body: `Your full & final settlement of ₹${row.netPayable} was approved.`,
+        targetUrl: '/hr/fnf',
+      })
+      .catch((e) => req.log.error(e, 'FnF approved notification failed'));
+
     return { data: row };
   });
 
@@ -184,6 +206,17 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
       ))
       .returning();
     if (!row) throw new NotFoundError('Approved FNF');
+
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyEmployee(row.employeeId, {
+        type: 'ok',
+        source: 'hr_lifecycle',
+        title: 'Final settlement paid',
+        body: `Your full & final settlement of ₹${row.netPayable} has been paid.`,
+        targetUrl: '/hr/fnf',
+      })
+      .catch((e) => req.log.error(e, 'FnF paid notification failed'));
+
     return { data: row };
   });
 
@@ -361,6 +394,7 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
       })
       .returning();
 
+    let itemCount = 0;
     if (templateId) {
       const tmplItems = await req.server.db
         .select()
@@ -379,8 +413,19 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
             instructions: t.instructions,
           })),
         );
+        itemCount = tmplItems.length;
       }
     }
+
+    new HrNotifier(req.server.db, req.tenantId)
+      .notifyEmployee(input.employeeId, {
+        source: 'hr_onboarding',
+        title: 'Welcome aboard',
+        body: `Your onboarding checklist is ready — ${itemCount} items to complete.`,
+        targetUrl: '/hr/onboarding',
+      })
+      .catch((e) => req.log.error(e, 'Onboarding started notification failed'));
+
     return reply.status(201).send({ data: wf });
   });
 
@@ -418,6 +463,24 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
           .update(employees)
           .set({ status: 'active', updatedAt: new Date() })
           .where(and(eq(employees.id, wf.employeeId), eq(employees.tenantId, req.tenantId)));
+
+        const [emp] = await req.server.db
+          .select({ firstName: employees.firstName, lastName: employees.lastName })
+          .from(employees)
+          .where(eq(employees.id, wf.employeeId))
+          .limit(1);
+        const empName = emp
+          ? [emp.firstName, emp.lastName].filter(Boolean).join(' ')
+          : 'Employee';
+        new HrNotifier(req.server.db, req.tenantId)
+          .notifyHrAdmins({
+            type: 'ok',
+            source: 'hr_onboarding',
+            title: 'Onboarding complete',
+            body: `${empName} finished their onboarding checklist.`,
+            targetUrl: '/hr/onboarding',
+          })
+          .catch((e) => req.log.error(e, 'Onboarding completed notification failed'));
       }
     }
     return { data: row };
@@ -533,6 +596,24 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
         .update(employees)
         .set({ status: 'active', updatedAt: new Date() })
         .where(and(eq(employees.id, emp.id), eq(employees.tenantId, req.tenantId)));
+
+      const [empRow] = await req.server.db
+        .select({ firstName: employees.firstName, lastName: employees.lastName })
+        .from(employees)
+        .where(eq(employees.id, emp.id))
+        .limit(1);
+      const empName = empRow
+        ? [empRow.firstName, empRow.lastName].filter(Boolean).join(' ')
+        : 'Employee';
+      new HrNotifier(req.server.db, req.tenantId)
+        .notifyHrAdmins({
+          type: 'ok',
+          source: 'hr_onboarding',
+          title: 'Onboarding complete',
+          body: `${empName} finished their onboarding checklist.`,
+          targetUrl: '/hr/onboarding',
+        })
+        .catch((e) => req.log.error(e, 'Onboarding completed notification failed'));
     }
 
     // A resume upload also feeds the AI-extracted profile block. Best-effort

@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
 import '../../providers/hr_providers.dart';
@@ -38,7 +39,11 @@ class HrTeamLeavesScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
+                    // Fall back to HR home when there's nothing to pop —
+                    // e.g. landed here cold from a push-notification tap.
+                    onPressed: () => Navigator.of(context).canPop()
+                        ? Navigator.of(context).pop()
+                        : context.go('/hr/home'),
                     icon: Icon(Icons.arrow_back_rounded, color: t.ink),
                   ),
                   const SizedBox(width: 4),
@@ -65,6 +70,9 @@ class HrTeamLeavesBody extends ConsumerWidget {
     final t = RT(context);
     final pendingAsync = ref.watch(hrPendingLeaveRequestsProvider);
     final reviewedAsync = ref.watch(hrReviewedLeaveRequestsProvider);
+    // Separation of duties — a manager can't review their own request, so
+    // it's kept out of the team queue (it still shows on their Pay screen).
+    final myEmployeeId = ref.watch(hrMeProvider).asData?.value.employee?.id;
     return RefreshIndicator(
       color: HrColors.brand(context),
       onRefresh: () async {
@@ -75,7 +83,10 @@ class HrTeamLeavesBody extends ConsumerWidget {
       child: pendingAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e', style: RunqText.body.copyWith(color: t.muted))),
-        data: (pending) {
+        data: (pendingAll) {
+          final pending = myEmployeeId == null
+              ? pendingAll
+              : pendingAll.where((r) => r.employeeId != myEmployeeId).toList();
           final reviewed = reviewedAsync.asData?.value ?? const <HrLeaveRequest>[];
           final history = [...reviewed]..sort((a, b) {
             int ts(HrLeaveRequest r) =>

@@ -24,6 +24,20 @@ class _HrRegularizationsScreenState extends ConsumerState<HrRegularizationsScree
   int _tab = 0; // 0 = mine, 1 = pending (manager only)
 
   @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about a
+    // regularization decision — should show current data, not whatever a
+    // prior visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myRegularizationsProvider);
+      ref.invalidate(pendingRegularizationsProvider);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final canApprove = ref.watch(appRoleProvider).canSeeManagerPersona;

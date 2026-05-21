@@ -1,8 +1,9 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { expenseClaims, expenseClaimItems, users, employees } from '@runq/db';
+import { expenseClaims, expenseClaimItems, users } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
 import { applyHrScope, type HrAccessScope } from './access-scope';
+import { HrNotifier } from './hr-notifier';
 
 type ClaimRow = typeof expenseClaims.$inferSelect;
 type ItemRow = typeof expenseClaimItems.$inferSelect;
@@ -26,19 +27,15 @@ export class ExpenseClaimService {
       conditions.push(eq(expenseClaims.claimantId, filters.claimantId));
     }
 
-    // Scope: a viewer sees only their own claims, a manager their team's.
-    // Claims are keyed by claimant user; left-join to the matching employee
-    // (email match, same as /hr/me) so applyHrScope can filter on emp id.
-    // A claimant with no employee row falls out of any non-`all` scope.
+    // Scope: a viewer sees only claims about themselves, a manager their
+    // team's. The claim's `employeeId` is the subject of the claim — scope
+    // on it directly. A claim with no `employeeId` (claimant has no employee
+    // record) falls out of any non-`all` scope.
     const rows = await this.db
       .select({ claim: expenseClaims, claimantName: users.name })
       .from(expenseClaims)
       .innerJoin(users, eq(expenseClaims.claimantId, users.id))
-      .leftJoin(employees, and(
-        eq(employees.tenantId, this.tenantId),
-        sql`lower(${employees.email}) = lower(${users.email})`,
-      ))
-      .where(applyHrScope(this.scope, employees.id, and(...conditions)))
+      .where(applyHrScope(this.scope, expenseClaims.employeeId, and(...conditions)))
       .orderBy(desc(expenseClaims.createdAt));
 
     return rows.map((r) => ({ ...this.toClaim(r.claim), claimantName: r.claimantName }));
@@ -109,7 +106,9 @@ export class ExpenseClaimService {
       .update(expenseClaims)
       .set({ status: 'submitted', updatedAt: new Date() })
       .where(and(eq(expenseClaims.id, id), eq(expenseClaims.tenantId, this.tenantId)));
-    return this.getById(id);
+    const result = await this.getById(id);
+    this.fireSubmitted(claim).catch(() => undefined);
+    return result;
   }
 
   async approve(id: string, userId: string, approved: boolean, rejectionReason?: string | null) {
@@ -124,25 +123,15 @@ export class ExpenseClaimService {
       throw new ForbiddenError('You cannot approve or reject your own expense claim');
     }
 
-    // Scope guard. Managers (kind: 'subset') can only act on claims
-    // filed by employees in their reporting subtree. Resolve the
-    // claim's claimant → employee via the same email-match pattern
-    // /hr/me uses, then check the resulting employee.id is in scope.
+    // Scope guard. Managers (kind: 'subset') can only act on claims whose
+    // subject employee is in their reporting subtree. The claim carries
+    // `employeeId` directly — check it against the resolved scope.
     if (this.scope.kind === 'subset' || this.scope.kind === 'self') {
-      const [emp] = await this.db
-        .select({ id: employees.id })
-        .from(users)
-        .innerJoin(
-          employees,
-          and(
-            eq(employees.tenantId, this.tenantId),
-            sql`lower(${employees.email}) = lower(${users.email})`,
-          ),
-        )
-        .where(eq(users.id, claim.claimantId))
-        .limit(1);
-      const inScope = emp != null
-        && (this.scope.kind === 'subset' ? this.scope.ids.has(emp.id) : this.scope.selfEmployeeId === emp.id);
+      const empId = claim.employeeId;
+      const inScope = empId != null
+        && (this.scope.kind === 'subset'
+            ? this.scope.ids.has(empId)
+            : this.scope.selfEmployeeId === empId);
       if (!inScope) {
         throw new ForbiddenError('This claim is outside your approval scope');
       }
@@ -156,7 +145,13 @@ export class ExpenseClaimService {
       .update(expenseClaims)
       .set(updates)
       .where(and(eq(expenseClaims.id, id), eq(expenseClaims.tenantId, this.tenantId)));
-    return this.getById(id);
+    const result = await this.getById(id);
+    if (approved) {
+      this.fireApproved(claim).catch(() => undefined);
+    } else {
+      this.fireRejected(claim, rejectionReason ?? null).catch(() => undefined);
+    }
+    return result;
   }
 
   async markReimbursed(id: string) {
@@ -168,7 +163,9 @@ export class ExpenseClaimService {
       .update(expenseClaims)
       .set({ status: 'reimbursed', reimbursedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(expenseClaims.id, id), eq(expenseClaims.tenantId, this.tenantId)));
-    return this.getById(id);
+    const result = await this.getById(id);
+    this.fireReimbursed(claim).catch(() => undefined);
+    return result;
   }
 
   /**
@@ -245,6 +242,82 @@ export class ExpenseClaimService {
     });
   }
 
+  // ---- Notification helpers (fire-and-forget, never throw) ----
+
+  private async resolveClaimantName(claimantId: string): Promise<string> {
+    const [u] = await this.db
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, claimantId))
+      .limit(1);
+    return u?.name ?? 'An employee';
+  }
+
+  private async fireSubmitted(claim: ClaimRow): Promise<void> {
+    const notifier = new HrNotifier(this.db, this.tenantId);
+    const claimantName = await this.resolveClaimantName(claim.claimantId);
+    const notice = {
+      source: 'hr_expense' as const,
+      title: 'New expense claim',
+      body: `${claimantName} submitted a claim for ₹${claim.totalAmount}.`,
+      targetUrl: `/hr/expense-claims/${claim.id}`,
+    };
+    if (claim.employeeId) {
+      await notifier.notifyManagerOf(claim.employeeId, notice);
+    } else {
+      await notifier.notifyHrAdmins(notice);
+    }
+  }
+
+  private async fireApproved(claim: ClaimRow): Promise<void> {
+    const notifier = new HrNotifier(this.db, this.tenantId);
+    const notice = {
+      type: 'ok' as const,
+      source: 'hr_expense' as const,
+      title: 'Expense claim approved',
+      body: `Your claim ${claim.claimNumber} for ₹${claim.totalAmount} was approved.`,
+      targetUrl: `/hr/expense-claims/${claim.id}`,
+    };
+    if (claim.employeeId) {
+      await notifier.notifyEmployee(claim.employeeId, notice);
+    } else {
+      await notifier.notifyUser(claim.claimantId, notice);
+    }
+  }
+
+  private async fireRejected(claim: ClaimRow, rejectionReason: string | null): Promise<void> {
+    const notifier = new HrNotifier(this.db, this.tenantId);
+    const reason = rejectionReason ? ` ${rejectionReason}` : '';
+    const notice = {
+      type: 'warn' as const,
+      source: 'hr_expense' as const,
+      title: 'Expense claim rejected',
+      body: `Your claim ${claim.claimNumber} was rejected.${reason}`,
+      targetUrl: `/hr/expense-claims/${claim.id}`,
+    };
+    if (claim.employeeId) {
+      await notifier.notifyEmployee(claim.employeeId, notice);
+    } else {
+      await notifier.notifyUser(claim.claimantId, notice);
+    }
+  }
+
+  private async fireReimbursed(claim: ClaimRow): Promise<void> {
+    const notifier = new HrNotifier(this.db, this.tenantId);
+    const notice = {
+      type: 'ok' as const,
+      source: 'hr_expense' as const,
+      title: 'Expense reimbursed',
+      body: `₹${claim.totalAmount} for claim ${claim.claimNumber} has been reimbursed.`,
+      targetUrl: `/hr/expense-claims/${claim.id}`,
+    };
+    if (claim.employeeId) {
+      await notifier.notifyEmployee(claim.employeeId, notice);
+    } else {
+      await notifier.notifyUser(claim.claimantId, notice);
+    }
+  }
+
   private async requireClaim(id: string): Promise<ClaimRow> {
     const [row] = await this.db
       .select()
@@ -270,6 +343,7 @@ export class ExpenseClaimService {
       tenantId: row.tenantId,
       claimNumber: row.claimNumber,
       claimantId: row.claimantId,
+      employeeId: row.employeeId,
       claimDate: row.claimDate,
       description: row.description,
       totalAmount: row.totalAmount,

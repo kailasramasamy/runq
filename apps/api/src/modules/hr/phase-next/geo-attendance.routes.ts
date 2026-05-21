@@ -17,6 +17,7 @@ import { AppError, NotFoundError, ConflictError, ForbiddenError } from '../../..
 import { getStorageProvider } from '../../../utils/storage';
 import { resolveSelfEmployee } from './self-employee';
 import { resolveHrAccessScope } from '../access-scope';
+import { HrNotifier } from '../hr-notifier';
 
 const SELFIE_MIMES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'] as const;
 const SELFIE_MAX_BYTES = 6 * 1024 * 1024;
@@ -311,6 +312,16 @@ export const geoAttendanceRoutes: FastifyPluginAsync = async (app) => {
         ...input,
       })
       .returning();
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    const empName = `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}`;
+    notifier.notifyManagerOf(emp.id, {
+      source: 'hr_attendance',
+      title: 'Attendance regularisation',
+      body: `${empName} requested a correction for ${row.date}.`,
+      targetUrl: '/hr/regularizations',
+    }).catch((e) => req.log.error(e, 'regularization-submitted notify failed'));
+
     return reply.status(201).send({ data: row });
   });
 
@@ -451,6 +462,27 @@ export const geoAttendanceRoutes: FastifyPluginAsync = async (app) => {
           .where(eq(attendance.id, att.id));
       }
     }
+
+    const notifier = new HrNotifier(req.server.db, req.tenantId);
+    if (row.status === 'approved') {
+      notifier.notifyEmployee(existing.employeeId, {
+        type: 'ok',
+        source: 'hr_attendance',
+        title: 'Regularisation approved',
+        body: `Your attendance correction for ${existing.date} was approved.`,
+        targetUrl: '/hr/regularizations',
+      }).catch((e) => req.log.error(e, 'regularization-approved notify failed'));
+    } else {
+      const reason = row.rejectionReason ? ` ${row.rejectionReason}` : '';
+      notifier.notifyEmployee(existing.employeeId, {
+        type: 'warn',
+        source: 'hr_attendance',
+        title: 'Regularisation rejected',
+        body: `Your attendance correction for ${existing.date} was rejected.${reason}`,
+        targetUrl: '/hr/regularizations',
+      }).catch((e) => req.log.error(e, 'regularization-rejected notify failed'));
+    }
+
     return { data: row };
   });
 

@@ -79,7 +79,7 @@ class HrMoreScreen extends ConsumerWidget {
             items: [
               _QA(Icons.fingerprint_outlined, 'Check in', const Color(0xFF0EA5E9), () => context.push('/hr/check-in')),
               _QA(Icons.description_outlined, 'My Payslip', const Color(0xFF7C3AED), () => context.push('/hr/pay')),
-              _QA(Icons.event_available_outlined, 'Apply Leave', const Color(0xFF06B6D4), () => context.push('/hr/pay?tab=leave')),
+              _QA(Icons.event_available_outlined, 'Leaves', const Color(0xFF06B6D4), () => context.push('/hr/leaves')),
               _QA(Icons.receipt_outlined, 'My Claims', const Color(0xFFD97706), () => context.push('/hr/pay?tab=expenses')),
               _QA(Icons.groups_outlined, 'Team', const Color(0xFF16A34A), () => context.push('/hr/people')),
               _QA(Icons.help_outline, 'Helpdesk', const Color(0xFFEC4899), () => context.push('/hr/helpdesk')),

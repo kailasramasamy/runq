@@ -26,6 +26,19 @@ class _HrCheckInScreenState extends ConsumerState<HrCheckInScreen> {
   bool _busy = false;
   String? _selfiePath;
 
+  @override
+  void initState() {
+    super.initState();
+    // Opening the screen fresh — e.g. from a notification tap about an
+    // attendance punch — should show current data, not whatever a prior
+    // visit left cached. Deferred a frame: ref.invalidate reads an
+    // inherited widget, which is illegal during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(myPunchesProvider);
+    });
+  }
+
   Future<Position?> _getPosition() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
