@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { notifications } from '@runq/db';
 import type { Db } from '@runq/db';
+import { sendPushToUser } from '../../utils/push/push.service';
 
 export interface NotificationRow {
   id: string;
@@ -101,6 +102,16 @@ export class NotificationsService {
       title: input.title,
       body: input.body ?? null,
       targetUrl: input.targetUrl ?? null,
+    });
+
+    // Mirror the in-app notification to the user's mobile devices. Fire-and-
+    // forget: a push failure must not fail notification creation.
+    void sendPushToUser(this.db, this.tenantId, this.userId, {
+      title: input.title,
+      body: input.body,
+      targetUrl: input.targetUrl,
+    }).catch((err) => {
+      console.error('[push] sendPushToUser failed:', err);
     });
   }
 }

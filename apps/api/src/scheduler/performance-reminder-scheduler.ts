@@ -15,8 +15,9 @@ import type { Db } from '@runq/db';
 import type { Redis } from 'ioredis';
 import {
   performanceCycles, performanceGoals, performanceReviews,
-  employees, users, notifications,
+  employees, users,
 } from '@runq/db';
+import { NotificationsService } from '../modules/dashboard/notifications.service';
 
 interface Logger {
   info(msg: string, ...args: unknown[]): void;
@@ -113,9 +114,7 @@ export async function runPerformanceReminders(db: Db): Promise<number> {
         ))
         .limit(1);
       if (!u) continue;
-      await db.insert(notifications).values({
-        tenantId: cycle.tenantId,
-        userId: u.id,
+      await new NotificationsService(db, cycle.tenantId, u.id).create({
         type: 'warn',
         source: 'hr_performance',
         title: `Self-rating due ${deadlinePhrase}`,
@@ -147,9 +146,7 @@ export async function runPerformanceReminders(db: Db): Promise<number> {
         .where(eq(employees.id, r.employeeId))
         .limit(1);
       const empName = emp ? [emp.firstName, emp.lastName].filter(Boolean).join(' ') : 'an employee';
-      await db.insert(notifications).values({
-        tenantId: cycle.tenantId,
-        userId: r.managerUserId,
+      await new NotificationsService(db, cycle.tenantId, r.managerUserId).create({
         type: 'warn',
         source: 'hr_performance',
         title: `Review pending — closes ${deadlinePhrase}`,

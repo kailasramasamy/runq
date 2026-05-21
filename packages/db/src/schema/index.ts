@@ -31,6 +31,7 @@ export * from './webhook-events';
 export * from './audit-log';
 export * from './agent-events';
 export * from './notifications';
+export * from './device-tokens';
 export * from './analytics-snapshots';
 export * from './gl/accounts';
 export * from './gl/journal-entries';

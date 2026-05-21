@@ -20,6 +20,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   EMAIL_DEBUG: z.string().transform(v => v === 'true').default('false'),
+  // FCM service-account JSON (raw or base64). Unset = mobile push disabled.
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

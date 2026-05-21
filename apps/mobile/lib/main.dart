@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router.dart';
+import 'services/push_service.dart';
 import 'services/share_intake.dart';
 import 'theme/runq_theme.dart';
 import 'utils/app_info.dart';
@@ -11,6 +12,12 @@ import 'widgets/app_update_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadAppInfo();
+  try {
+    await initFirebaseMessaging();
+  } on Exception catch (e) {
+    // Push is non-critical — never block app launch on a Firebase misconfig.
+    debugPrint('FCM init failed: $e');
+  }
   runApp(const ProviderScope(child: RunqApp()));
 }
 

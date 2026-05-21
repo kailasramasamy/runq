@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
+import '../services/push_service.dart';
 
 const _tokenKey = 'runq-token';
 
@@ -61,6 +63,7 @@ class AuthController extends StateNotifier<AuthState> {
       final res = await apiClient.get('/auth/me');
       final user = _userFrom(res);
       state = AuthState(token: stored, user: user, isLoading: false);
+      unawaited(PushService.instance.onLogin());
     } on ApiException catch (e) {
       if (e.statusCode == 401) {
         await prefs.remove(_tokenKey);
@@ -114,9 +117,12 @@ class AuthController extends StateNotifier<AuthState> {
       isLoading: false,
       sessionExpired: false,
     );
+    unawaited(PushService.instance.onLogin());
   }
 
   Future<void> logout() async {
+    // Unregister the device first — the API call needs the still-valid token.
+    await PushService.instance.onLogout();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     apiClient.setToken(null);

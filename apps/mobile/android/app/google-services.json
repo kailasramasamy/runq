@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1296814909",
+    "project_id": "runq-63597",
+    "storage_bucket": "runq-63597.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1296814909:android:944df0d01b62854c5b6b54",
+        "android_client_info": {
+          "package_name": "com.quartex.runq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8k75SxjPuj8ba5GajJfulp5IxQTSKMgo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

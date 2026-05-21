@@ -13,9 +13,15 @@ import { WidgetService } from './widget.service';
 import { ScheduledReportService } from './scheduled-report.service';
 import { AgentFeedService } from './agent-feed.service';
 import { NotificationsService } from './notifications.service';
+import { registerDeviceToken, unregisterDeviceToken } from '../../utils/push/push.service';
 import { runReportNow } from '../../scheduler/report-scheduler';
 
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
+const deviceTokenSchema = z.object({
+  token: z.string().min(1).max(4096),
+  platform: z.enum(['android', 'ios']),
+});
+const removeDeviceTokenSchema = z.object({ token: z.string().min(1).max(4096) });
 const aiSummaryQuerySchema = z.object({ refresh: z.string().optional() });
 const aiChatBodySchema = z.object({ question: z.string().min(1).max(500) });
 const cashTrendQuerySchema = z.object({ days: z.coerce.number().int().min(2).max(90).optional() });
@@ -135,6 +141,33 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
       await svc.markRead(id);
+      return { success: true };
+    },
+  );
+
+  // FCM device-token registration for mobile push.
+  app.post(
+    '/device-token',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { token, platform } = deviceTokenSchema.parse(request.body);
+      await registerDeviceToken(
+        request.server.db,
+        request.tenantId,
+        request.user?.userId ?? '',
+        token,
+        platform,
+      );
+      return { success: true };
+    },
+  );
+
+  app.post(
+    '/device-token/remove',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const { token } = removeDeviceTokenSchema.parse(request.body);
+      await unregisterDeviceToken(request.server.db, token);
       return { success: true };
     },
   );

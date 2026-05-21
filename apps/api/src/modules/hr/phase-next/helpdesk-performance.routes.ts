@@ -5,8 +5,8 @@ import {
   hrTickets, hrTicketComments, tenants,
   performanceCycles, performanceGoals, performanceReviews,
   employees, users, departments, designations,
-  notifications,
 } from '@runq/db';
+import { NotificationsService } from '../../dashboard/notifications.service';
 import { GoalGeneratorCache, type GeneratedGoal } from '../performance/goal-generator';
 import {
   uuidParamSchema,
@@ -662,9 +662,7 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
         .from(performanceCycles)
         .where(eq(performanceCycles.id, cycleId))
         .limit(1);
-      await req.server.db.insert(notifications).values({
-        tenantId: req.tenantId,
-        userId: u.id,
+      await new NotificationsService(req.server.db, req.tenantId, u.id).create({
         type: 'info',
         source: 'hr_performance',
         title: `Your ${cycle?.name ?? 'performance'} goals are ready`,
@@ -852,9 +850,7 @@ export const helpdeskPerformanceRoutes: FastifyPluginAsync = async (app) => {
       ))
       .limit(1);
     if (u) {
-      await req.server.db.insert(notifications).values({
-        tenantId: req.tenantId,
-        userId: u.id,
+      await new NotificationsService(req.server.db, req.tenantId, u.id).create({
         type: 'info',
         source: 'hr_performance',
         title: `Your ${cycle?.name ?? 'performance'} review is ready`,
