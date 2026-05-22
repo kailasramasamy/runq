@@ -45,6 +45,10 @@ const carryForwardSchema = z.object({
   toYear: z.number().int().min(2000).max(2100),
 });
 
+const initializeBalancesSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+});
+
 const leaveTypesQuerySchema = z.object({
   // Mobile clients pass their own employee id to hide gender-gated
   // types they can't use. Omit on admin screens to see every type.
@@ -102,6 +106,14 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     const input = carryForwardSchema.parse(req.body);
     const svc = new LeaveBalanceService(req.server.db, req.tenantId);
     return { data: await svc.carryForward(input.fromYear, input.toYear) };
+  });
+
+  // Bulk-provision balances for every active employee — onboard an
+  // existing workforce, or open a new leave year. Idempotent.
+  app.post('/leave-balances/initialize', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { year } = initializeBalancesSchema.parse(req.body);
+    const svc = new LeaveBalanceService(req.server.db, req.tenantId);
+    return { data: await svc.provisionAll(year) };
   });
 
   // --- Leave requests ---

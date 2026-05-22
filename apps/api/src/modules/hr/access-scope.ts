@@ -8,7 +8,7 @@
 //                                  in any department where this user is
 //                                  the head_employee_id.
 //   - { kind: 'self', id }       — bare viewer who matched an employee row
-//                                  by email; can read their own data only.
+//                                  by email or phone; reads own data only.
 //   - { kind: 'none' }           — bare viewer with no employee row (e.g.
 //                                  a CA login). No HR rows visible.
 //
@@ -45,26 +45,37 @@ async function compute(req: FastifyRequest): Promise<HrAccessScope> {
   const role = req.activeRole;
   if (ORG_WIDE_ROLES.has(role)) return { kind: 'all' };
 
-  // Below this point the role is `viewer`. Try to match them to an
-  // employee row by email; if there's no match, they have no HR access.
+  // Below this point the role is `viewer`. Match them to an employee
+  // row; if there's no match, they have no HR access.
   const db = req.server.db;
   const tenantId = req.tenantId;
   const userId = req.user!.userId;
 
   const [userRow] = await db
-    .select({ email: users.email })
+    .select({ email: users.email, phone: users.phone })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (!userRow) return { kind: 'none' };
 
+  // Match the employee by email (web/email-login) OR by digit-normalised
+  // phone (mobile OTP-login). Mirrors /hr/me — a phone-only employee with
+  // no email must still resolve to a scope, otherwise every scoped HR
+  // query (leave balances, leave requests, …) silently returns nothing.
+  const phoneDigits = userRow.phone ?? '';
   const [emp] = await db
     .select({ id: employees.id })
     .from(employees)
     .where(
       and(
         eq(employees.tenantId, tenantId),
-        sql`lower(${employees.email}) = lower(${userRow.email})`,
+        sql`(
+          lower(${employees.email}) = lower(${userRow.email})
+          OR (
+            ${phoneDigits} <> ''
+            AND regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g') IN (${phoneDigits}, ${'91' + phoneDigits})
+          )
+        )`,
       ),
     )
     .limit(1);

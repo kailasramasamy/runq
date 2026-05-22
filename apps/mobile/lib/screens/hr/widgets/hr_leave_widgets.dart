@@ -51,27 +51,64 @@ class HrLeaveSubHeader extends StatelessWidget {
   }
 }
 
-/// Compact "CL · Casual Leave" chip — names come straight off the balance
-/// rows so tenant-custom leave types pick up the legend automatically.
+/// Per-leave-type colour. Each leave code maps to a colour family with
+/// dark-mode-safe [bg, ink] pairs — the same approach as [HrStatusBadge].
+/// Unknown / tenant-custom codes hash deterministically into the palette
+/// so they still get a stable, distinct colour.
+class _LeavePalette {
+  // [light bg, light ink, dark bg, dark ink]
+  static const _families = <List<Color>>[
+    [Color(0xFFDBEAFE), Color(0xFF1E3A8A), Color(0xFF1E3A8A), Color(0xFF93C5FD)], // blue
+    [Color(0xFFDCFCE7), Color(0xFF14532D), Color(0xFF14532D), Color(0xFF86EFAC)], // green
+    [Color(0xFFFEF3C7), Color(0xFF78350F), Color(0xFF78350F), Color(0xFFFCD34D)], // amber
+    [Color(0xFFFEE2E2), Color(0xFF7F1D1D), Color(0xFF7F1D1D), Color(0xFFFCA5A5)], // red
+    [Color(0xFFEDE9FE), Color(0xFF5B21B6), Color(0xFF4C1D95), Color(0xFFC4B5FD)], // purple
+    [Color(0xFFF1F5F9), Color(0xFF475569), Color(0xFF334155), Color(0xFFCBD5E1)], // slate
+  ];
+
+  // Sensible hues for the standard Indian leave codes.
+  static const _byCode = <String, int>{
+    'CL': 0, 'EL': 1, 'ML': 2, 'SL': 3, 'CO': 4, 'LOP': 5,
+  };
+
+  static List<Color> _family(String code) {
+    final known = _byCode[code.toUpperCase()];
+    if (known != null) return _families[known];
+    final h = code.toUpperCase().codeUnits.fold<int>(0, (a, b) => a + b);
+    return _families[h % _families.length];
+  }
+
+  /// (background, ink) for the given code under the active brightness.
+  static (Color, Color) resolve(String code, bool isDark) {
+    final f = _family(code);
+    return isDark ? (f[2], f[3]) : (f[0], f[1]);
+  }
+}
+
+/// Compact "CL · Casual Leave" chip — colour-coded per leave type so the
+/// legend visually ties back to its balance pill. Names come straight off
+/// the balance rows so tenant-custom leave types pick up the legend too.
 class HrLeaveLegendChip extends StatelessWidget {
   final String code, name;
-  final RunqTokens t;
-  const HrLeaveLegendChip({super.key, required this.code, required this.name, required this.t});
+  const HrLeaveLegendChip({super.key, required this.code, required this.name});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final (bg, ink) = _LeavePalette.resolve(code, isDark);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: t.hairlineSoft,
+        color: bg,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text.rich(
         TextSpan(
           children: [
-            TextSpan(text: code, style: RunqText.micro.copyWith(color: t.ink)),
+            TextSpan(text: code, style: RunqText.micro.copyWith(color: ink)),
             const TextSpan(text: '  '),
-            TextSpan(text: name, style: RunqText.caption.copyWith(color: t.muted)),
+            TextSpan(text: name,
+                style: RunqText.caption.copyWith(color: ink.withValues(alpha: 0.82))),
           ],
         ),
       ),
@@ -87,6 +124,7 @@ class HrLeaveBalancePills extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final shown = rows.take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -94,7 +132,7 @@ class HrLeaveBalancePills extends StatelessWidget {
         Row(
           children: [
             for (var i = 0; i < shown.length; i++) ...[
-              Expanded(child: _pill(shown[i], t)),
+              Expanded(child: _pill(shown[i], t, isDark)),
               if (i < shown.length - 1) const SizedBox(width: 8),
             ],
           ],
@@ -105,29 +143,34 @@ class HrLeaveBalancePills extends StatelessWidget {
           runSpacing: 6,
           children: [
             for (final b in shown)
-              HrLeaveLegendChip(code: b.typeCode, name: b.typeName, t: t),
+              HrLeaveLegendChip(code: b.typeCode, name: b.typeName),
           ],
         ),
       ],
     );
   }
 
-  Widget _pill(HrLeaveBalance b, RunqTokens t) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: t.hairline, width: 0.5),
-          boxShadow: RunqShadows.card,
-        ),
-        child: Column(
-          children: [
-            Text(_days(b.balance),
-                style: RunqText.tabular(size: 20, w: FontWeight.w700, color: t.ink)),
-            Text(b.typeCode, style: RunqText.label.copyWith(color: t.muted)),
-          ],
-        ),
-      );
+  // The balance number stays neutral for legibility; the type code picks
+  // up its leave-type colour so the pill reads against its legend chip.
+  Widget _pill(HrLeaveBalance b, RunqTokens t, bool isDark) {
+    final (_, ink) = _LeavePalette.resolve(b.typeCode, isDark);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.hairline, width: 0.5),
+        boxShadow: RunqShadows.card,
+      ),
+      child: Column(
+        children: [
+          Text(_days(b.balance),
+              style: RunqText.tabular(size: 20, w: FontWeight.w700, color: t.ink)),
+          Text(b.typeCode, style: RunqText.label.copyWith(color: ink)),
+        ],
+      ),
+    );
+  }
 }
 
 /// One of the logged-in user's own leave requests — pending rows expose

@@ -25,6 +25,10 @@ class HrMoreScreen extends ConsumerWidget {
     final t = RT(context);
     final me = ref.watch(hrMeProvider).asData?.value;
     final role = ref.watch(appRoleProvider);
+    // The profile card opens the user's own employee detail screen — but
+    // only when a linked employee record exists. OTP-only users with no
+    // such link get a static card (no chevron, no tap target).
+    final empId = me?.employee?.id;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -42,36 +46,43 @@ class HrMoreScreen extends ConsumerWidget {
         physics: const BouncingScrollPhysics(),
         children: [
           // Profile card
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: t.surface,
+          Material(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+            child: InkWell(
+              onTap: empId != null ? () => context.push('/hr/people/$empId') : null,
               borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-              border: Border.all(color: t.hairline, width: 0.5),
-              boxShadow: RunqShadows.card,
-            ),
-            child: Row(
-              children: [
-                HrAvatar(name: me?.displayName ?? '?', photoUrl: me?.employee?.photoUrl, employeeId: me?.employee?.id, size: 56, showOnlineDot: true, useGradient: true),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(me?.displayName ?? '—', style: RunqText.h3.copyWith(color: t.ink)),
-                      const SizedBox(height: 2),
-                      Text(
-                        [
-                          if (me?.systemRole != null) me!.systemRole,
-                          if (me?.employee?.employeeCode != null && me!.employee!.employeeCode.isNotEmpty) me.employee!.employeeCode,
-                        ].join(' · '),
-                        style: RunqText.caption.copyWith(color: t.muted),
-                      ),
-                    ],
-                  ),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+                  border: Border.all(color: t.hairline, width: 0.5),
+                  boxShadow: RunqShadows.card,
                 ),
-                Icon(Icons.chevron_right_rounded, color: t.muted),
-              ],
+                child: Row(
+                  children: [
+                    HrAvatar(name: me?.displayName ?? '?', photoUrl: me?.employee?.photoUrl, employeeId: me?.employee?.id, size: 56, showOnlineDot: true, useGradient: true),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(me?.displayName ?? '—', style: RunqText.h3.copyWith(color: t.ink)),
+                          const SizedBox(height: 2),
+                          Text(
+                            [
+                              if (me?.systemRole != null) me!.systemRole,
+                              if (me?.employee?.employeeCode != null && me!.employee!.employeeCode.isNotEmpty) me.employee!.employeeCode,
+                            ].join(' · '),
+                            style: RunqText.caption.copyWith(color: t.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (empId != null) Icon(Icons.chevron_right_rounded, color: t.muted),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -82,6 +93,7 @@ class HrMoreScreen extends ConsumerWidget {
               _QA(Icons.event_available_outlined, 'Leaves', const Color(0xFF06B6D4), () => context.push('/hr/leaves')),
               _QA(Icons.receipt_outlined, 'My Claims', const Color(0xFFD97706), () => context.push('/hr/pay?tab=expenses')),
               _QA(Icons.groups_outlined, 'Team', const Color(0xFF16A34A), () => context.push('/hr/people')),
+              _QA(Icons.account_tree_outlined, 'Org chart', const Color(0xFF0D9488), () => context.push('/hr/org-chart')),
               _QA(Icons.help_outline, 'Helpdesk', const Color(0xFFEC4899), () => context.push('/hr/helpdesk')),
             ],
           ),

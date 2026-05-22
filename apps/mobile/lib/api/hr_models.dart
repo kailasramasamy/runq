@@ -304,6 +304,40 @@ class HrEmployeeListPage {
   }
 }
 
+// ─── /hr/directory/:id ─────────────────────────────────────────────────────
+
+/// A colleague's *work profile* — what /hr/directory/:id returns. Unscoped:
+/// collaboration-safe identity, the reporting line, and the resume profile.
+/// Salary / bank / statutory fields are never present (the server omits
+/// them), so [employee] and [manager] simply carry nulls for those.
+class HrWorkProfile {
+  final HrEmployee employee;
+  final HrEmployee? manager;
+  final List<HrEmployee> directReports;
+  final HrResumeProfile? resume;
+
+  const HrWorkProfile({
+    required this.employee,
+    this.manager,
+    this.directReports = const [],
+    this.resume,
+  });
+
+  factory HrWorkProfile.fromJson(Map<String, dynamic> j) {
+    final mgr = j['manager'];
+    final resume = j['resume'];
+    return HrWorkProfile(
+      employee: HrEmployee.fromJson(j),
+      manager: mgr is Map<String, dynamic> ? HrEmployee.fromJson(mgr) : null,
+      directReports: (j['directReports'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HrEmployee.fromJson)
+          .toList(),
+      resume: resume is Map<String, dynamic> ? HrResumeProfile.fromJson(resume) : null,
+    );
+  }
+}
+
 // ─── /hr/attendance ────────────────────────────────────────────────────────
 
 class HrAttendanceRow {

@@ -235,3 +235,104 @@ input[type="number"] {
 .dark .recharts-cartesian-grid-vertical line {
   stroke: rgba(255, 255, 255, 0.18) !important;
 }
+
+/* ─── HR org chart — top-down tree connectors ───────────────────────────────
+   Classic boxes-and-lines layout drawn with pure CSS: nested <ul>/<li> with
+   pseudo-element connectors. No charting dependency. `.org-tree` is the root
+   ul; `.org-tree ul` selects nested uls only, so root nodes get no lines. */
+.org-tree-viewport { cursor: grab; }
+.org-tree-viewport:active { cursor: grabbing; }
+
+.org-tree,
+.org-tree ul {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.org-tree { gap: 28px; }                       /* space between separate trees */
+.org-tree ul { padding-top: 22px; position: relative; }
+.org-tree li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.org-tree ul li { padding: 22px 14px 0; }      /* non-root: room for connectors */
+
+/* Vertical drop from a parent down into its children's row. */
+.org-tree ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 22px;
+  border-left: 1.5px solid var(--border);
+}
+/* Sibling arms — horizontal bar plus the short drop into each child. */
+.org-tree ul li::before,
+.org-tree ul li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 22px;
+  border-top: 1.5px solid var(--border);
+}
+.org-tree ul li::before { right: 50%; }
+.org-tree ul li::after { left: 50%; border-left: 1.5px solid var(--border); }
+/* A lone child needs only the straight drop, no horizontal arms. */
+.org-tree ul li:only-child { padding-top: 0; }
+.org-tree ul li:only-child::before,
+.org-tree ul li:only-child::after { display: none; }
+/* Trim the outer arms and round the corners of the end siblings. */
+.org-tree ul li:first-child::before,
+.org-tree ul li:last-child::after { border-top: 0; }
+.org-tree ul li:last-child::before {
+  border-right: 1.5px solid var(--border);
+  border-radius: 0 6px 0 0;
+}
+.org-tree ul li:first-child::after { border-radius: 6px 0 0 0; }
+
+.org-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.org-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 212px;
+  padding: 9px 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+.org-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 3px 12px oklch(0 0 0 / 0.1);
+  transform: translateY(-1px);
+}
+/* Collapse toggle straddles the connector line just below the card. */
+.org-toggle {
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.org-toggle:hover { border-color: var(--accent); color: var(--accent-text); }

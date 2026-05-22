@@ -6,7 +6,7 @@ import {
 } from '@/components/ui';
 import { EmptyState, Avatar, SearchInput } from '@/components/ar/primitives';
 import {
-  useLeaveBalances, useEmployees, useCarryForwardLeave,
+  useLeaveBalances, useEmployees, useCarryForwardLeave, useInitializeLeaveBalances,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -19,6 +19,7 @@ export function LeaveBalancesPage() {
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const { data, isLoading } = useLeaveBalances({ year, employeeId: employeeId || undefined });
   const carryForward = useCarryForwardLeave();
+  const initialize = useInitializeLeaveBalances();
 
   const balances = data?.data ?? [];
   const q = search.trim().toLowerCase();
@@ -44,6 +45,14 @@ export function LeaveBalancesPage() {
     });
   }
 
+  function doInitialize() {
+    initialize.mutate({ year }, {
+      onSuccess: (r) =>
+        toast(`Created ${r.data.created} balances across ${r.data.employees} employees`, 'success'),
+      onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+    });
+  }
+
   return (
     <div>
       <PageHeader
@@ -52,9 +61,14 @@ export function LeaveBalancesPage() {
         title="Leave balances"
         description="Per-employee leave balances. Year-end carry-forward respects each type's cap."
         actions={!readOnly && (
-          <Button variant="outline" size="sm" onClick={doCarryForward} disabled={carryForward.isPending}>
-            <ArrowRight size={13} /> Carry forward {year} → {year + 1}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={doInitialize} disabled={initialize.isPending}>
+              <Scale size={13} /> Initialize {year} balances
+            </Button>
+            <Button variant="outline" size="sm" onClick={doCarryForward} disabled={carryForward.isPending}>
+              <ArrowRight size={13} /> Carry forward {year} → {year + 1}
+            </Button>
+          </div>
         )}
       />
 
@@ -101,7 +115,7 @@ export function LeaveBalancesPage() {
               <EmptyState
                 icon={<Scale size={18} />}
                 title="No leave balances"
-                description="Balances initialize automatically when leave is requested or approved."
+                description="New hires are provisioned automatically. Use “Initialize balances” to back-fill all active employees for this year."
               />
             </td></tr>
           ) : filtered.length === 0 ? (

@@ -64,6 +64,8 @@ import 'screens/hr/hr_holidays_screen.dart';
 import 'screens/hr/hr_activity_screen.dart';
 import 'screens/hr/hr_leave_types_screen.dart';
 import 'screens/hr/hr_directory_screen.dart';
+import 'screens/hr/hr_directory_profile_screen.dart';
+import 'screens/hr/hr_org_chart_screen.dart';
 import 'screens/hr/hr_leave_screen.dart';
 import 'screens/hr/hr_announcements_screen.dart';
 import 'screens/hr/hr_employee_form_screen.dart';
@@ -297,6 +299,19 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/hr/directory',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrDirectoryScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/directory/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrDirectoryProfileScreen(id: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/hr/org-chart',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrOrgChartScreen(), key: state.pageKey),
         ),
         // Manager-only review surfaces — pushed from the Home quick
         // actions. Bodies are the same widgets the Pay sub-tabs used

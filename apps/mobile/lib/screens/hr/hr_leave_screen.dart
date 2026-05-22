@@ -18,6 +18,7 @@ import '../../api/hr_repo.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../widgets/async_slot.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_leave_widgets.dart';
@@ -255,6 +256,12 @@ class _MyLeaveTab extends ConsumerWidget {
     final t = RT(context);
     final balances = ref.watch(hrMyLeaveBalancesProvider);
     final reqs = ref.watch(hrMyLeaveRequestsProvider);
+
+    // Nothing to show on either front — one combined empty state reads far
+    // better than stacking "No leave balances" over "No leave requests yet".
+    final bothEmpty = (balances.asData?.value.isEmpty ?? false) &&
+        (reqs.asData?.value.isEmpty ?? false);
+
     return RefreshIndicator(
       color: HrColors.brand(context),
       onRefresh: () async {
@@ -263,26 +270,40 @@ class _MyLeaveTab extends ConsumerWidget {
         await Future<void>.delayed(const Duration(milliseconds: 250));
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 140),
+        padding: EdgeInsets.fromLTRB(16, bothEmpty ? 72 : 20, 16, 140),
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        children: [
-          balances.when(
-            data: (rows) => rows.isEmpty
-                ? Text('No leave balances', style: RunqText.body.copyWith(color: t.muted))
-                : HrLeaveBalancePills(rows: rows),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          const SizedBox(height: 24),
-          reqs.when(
-            data: (rows) => _requests(rows, t),
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Text('$e', style: RunqText.body.copyWith(color: t.muted)),
-          ),
-        ],
+        children: bothEmpty
+            ? const [
+                EmptyState(
+                  icon: Icons.beach_access_rounded,
+                  title: 'No leave yet',
+                  subtitle: 'Leave balances and requests appear here. '
+                      'Tap Apply leave to request time off.',
+                ),
+              ]
+            : [
+                balances.when(
+                  // Fold an empty balances block away entirely — a lone
+                  // "No leave balances" label above a request list just
+                  // looks like a rendering glitch.
+                  data: (rows) => rows.isEmpty
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: HrLeaveBalancePills(rows: rows),
+                        ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+                reqs.when(
+                  data: (rows) => _requests(rows, t),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => Text('$e', style: RunqText.body.copyWith(color: t.muted)),
+                ),
+              ],
       ),
     );
   }
@@ -292,10 +313,14 @@ class _MyLeaveTab extends ConsumerWidget {
   // first so the most recent action sits at the top of its section.
   Widget _requests(List<HrLeaveRequest> rows, RunqTokens t) {
     if (rows.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: Text('No leave requests yet',
-            style: RunqText.body.copyWith(color: t.muted))),
+      // Reached only when balances exist but no request has been filed —
+      // the both-empty case is handled by the combined state in build().
+      return const Padding(
+        padding: EdgeInsets.only(top: 16),
+        child: EmptyState(
+          icon: Icons.event_note_rounded,
+          title: 'No leave requests yet',
+        ),
       );
     }
     final now = DateTime.now();

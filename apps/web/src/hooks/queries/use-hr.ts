@@ -505,6 +505,15 @@ export function useCarryForwardLeave() {
   });
 }
 
+export function useInitializeLeaveBalances() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: { year: number }) =>
+      api.post<ApiSuccess<{ employees: number; created: number }>>(`/hr/leave-balances/initialize`, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'leave', 'balances'] }),
+  });
+}
+
 // ─── Leave requests ──────────────────────────────────────────────────────
 
 export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';

@@ -61,6 +61,21 @@ final hrEmployeeProvider =
   return _watchAuth(ref, () => hrRepo.employee(id));
 });
 
+/// A colleague's work profile — backs the directory detail screen. Unscoped
+/// like [hrDirectoryProvider]: safe fields, reporting line and resume only,
+/// never salary / bank / statutory data.
+final hrWorkProfileProvider =
+    FutureProvider.family<HrWorkProfile, String>((ref, id) async {
+  return _watchAuth(ref, () => hrRepo.directoryProfile(id));
+});
+
+/// Org-wide reporting hierarchy for the org-chart screen. Unlike
+/// [hrEmployeesProvider] this is unscoped and unpaginated — the whole
+/// company tree, which every employee is entitled to see.
+final hrOrgChartProvider = FutureProvider<List<HrEmployee>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.orgChart());
+});
+
 /// AI-extracted resume profile for an employee. Null when no resume has
 /// been uploaded yet. Invalidated by the detail screen after upload/edit.
 final hrResumeProfileProvider =

@@ -7,6 +7,7 @@ import type {
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { applyHrScope } from './access-scope';
+import { LeaveBalanceService } from './leave-balance.service';
 
 type EmployeeRow = typeof employees.$inferSelect;
 
@@ -115,6 +116,15 @@ export class EmployeeService {
       .insert(employees)
       .values({ tenantId: this.tenantId, ...this.normalize(input) } as any)
       .returning();
+
+    // Seed the new hire's leave balances for the current year so their
+    // Leave screen is populated immediately. Proration inside the
+    // service handles a mid-year join; with no leave types configured
+    // this is a no-op. Re-runnable via the HR "Initialize balances"
+    // action if leave types change later.
+    await new LeaveBalanceService(this.db, this.tenantId)
+      .provisionForEmployee(row.id, new Date().getFullYear());
+
     return row;
   }
 

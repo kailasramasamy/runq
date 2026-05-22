@@ -86,6 +86,23 @@ class HrRepo {
     return HrEmployeeListPage(data: const [], page: 1, limit: limit, total: 0, totalPages: 0);
   }
 
+  /// A single colleague's work profile — safe fields, reporting line and
+  /// resume. Unscoped like /hr/directory: any employee can open anyone.
+  Future<HrWorkProfile> directoryProfile(String id) async {
+    final res = await apiClient.get('/hr/directory/$id');
+    return HrWorkProfile.fromJson(_data(res));
+  }
+
+  // ── /hr/org-chart ────────────────────────────────────────────────────────
+  // Org-wide reporting hierarchy. Like /hr/directory it ignores HrAccessScope
+  // so every employee sees the whole company tree; returns only structural +
+  // safe identity fields. Single unpaginated payload — the chart needs the
+  // entire tree, and SME headcounts keep it small.
+  Future<List<HrEmployee>> orgChart() async {
+    final res = await apiClient.get('/hr/org-chart');
+    return _dataList(res).map(HrEmployee.fromJson).toList();
+  }
+
   /// Create / update mirror the server's create + update schemas. The
   /// payload is intentionally typed `Map<String, dynamic>` because the
   /// shape has 25+ optional fields — passing nulls is meaningful (clears

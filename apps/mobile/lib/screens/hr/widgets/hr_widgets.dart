@@ -24,13 +24,15 @@ import 'hr_colors.dart';
 // the original 7-color rainbow. Keeps long lists of employees feeling
 // cohesive rather than confetti, while still allowing each row to read
 // as its own person via the initials. Hash on the first char picks one
-// of the tonal slots so adjacent rows still differ subtly.
+// of the tonal slots so adjacent rows still differ subtly. Tiles sit at
+// the ~200 tint level — deep enough to stay legible on the warm-grey
+// list background instead of washing into it.
 const _kAvatarTonalLight = <List<Color>>[
-  [Color(0xFFCFFAFE), Color(0xFF0E7490)], // cyan
-  [Color(0xFFE0F2FE), Color(0xFF075985)], // sky
-  [Color(0xFFE0E7FF), Color(0xFF3730A3)], // soft indigo
-  [Color(0xFFE0F7F4), Color(0xFF115E59)], // teal
-  [Color(0xFFE2E8F0), Color(0xFF334155)], // slate
+  [Color(0xFFA5F3FC), Color(0xFF0E7490)], // cyan
+  [Color(0xFFBAE6FD), Color(0xFF075985)], // sky
+  [Color(0xFFC7D2FE), Color(0xFF3730A3)], // soft indigo
+  [Color(0xFF99F6E4), Color(0xFF115E59)], // teal
+  [Color(0xFFCBD5E1), Color(0xFF334155)], // slate
 ];
 
 const _kAvatarTonalDark = <List<Color>>[

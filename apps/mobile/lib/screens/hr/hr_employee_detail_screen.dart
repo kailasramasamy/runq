@@ -60,9 +60,16 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
   Widget build(BuildContext context) {
     final t = RT(context);
     final empAsync = ref.watch(hrEmployeeProvider(widget.id));
-    // Resume upload/edit is HR-admin only; managers see the tab read-only.
+    // Editing an employee's record — the … actions menu and resume
+    // upload/edit — is HR-admin only. Managers and employees view it
+    // read-only; an employee can't edit their own HR details.
     final role = ref.watch(appRoleProvider);
-    final canManageResume = role == AppRole.admin || role == AppRole.hr;
+    final canManage = role.canManageHrSetup;
+    // Self-view — the employee opened their own profile (the More → profile
+    // card routes here with their own employee id). They can't edit HR
+    // fields, but they may upload their own resume via the /me endpoints.
+    final me = ref.watch(hrMeProvider).asData?.value;
+    final isSelfView = me?.employee?.id == widget.id;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -88,11 +95,11 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                 // of fighting the FlexibleSpaceBar.
                 automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
-                  background: _Hero(emp: emp),
+                  background: _Hero(emp: emp, canManage: canManage),
                   collapseMode: CollapseMode.pin,
                 ),
                 bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(48),
+                  preferredSize: const Size.fromHeight(58),
                   child: Container(
                     color: t.bgWarm,
                     child: TabBar(
@@ -103,14 +110,15 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                       indicatorSize: TabBarIndicatorSize.label,
                       labelColor: HrColors.teal,
                       unselectedLabelColor: t.muted,
-                      labelStyle: RunqText.bodyStrong.copyWith(fontWeight: FontWeight.w700),
-                      unselectedLabelStyle: RunqText.body,
+                      labelStyle: RunqText.caption.copyWith(fontWeight: FontWeight.w700),
+                      unselectedLabelStyle: RunqText.caption,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       tabs: const [
-                        Tab(text: 'Info'),
-                        Tab(text: 'Leave'),
-                        Tab(text: 'Pay'),
-                        Tab(text: 'Docs'),
-                        Tab(text: 'Resume'),
+                        Tab(height: 54, icon: Icon(Icons.badge_outlined, size: 20), text: 'Info'),
+                        Tab(height: 54, icon: Icon(Icons.event_outlined, size: 20), text: 'Leave'),
+                        Tab(height: 54, icon: Icon(Icons.payments_outlined, size: 20), text: 'Pay'),
+                        Tab(height: 54, icon: Icon(Icons.folder_open_outlined, size: 20), text: 'Docs'),
+                        Tab(height: 54, icon: Icon(Icons.description_outlined, size: 20), text: 'Resume'),
                       ],
                     ),
                   ),
@@ -124,7 +132,14 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                 _LeaveTab(employeeId: emp.id),
                 _PayTab(emp: emp),
                 _DocsTab(employeeId: emp.id, employeeName: emp.displayName),
-                HrResumeTab(employeeId: emp.id, canManage: canManageResume),
+                HrResumeTab(
+                  employeeId: emp.id,
+                  canManage: canManage,
+                  // HR managing a record always uses the per-employee
+                  // endpoints (consistent with Edit); a plain employee
+                  // self-uploads through the /me path.
+                  selfService: isSelfView && !canManage,
+                ),
               ],
             ),
           );
@@ -138,7 +153,9 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
 
 class _Hero extends StatelessWidget {
   final HrEmployee emp;
-  const _Hero({required this.emp});
+  /// Whether the viewer (HR / admin) may open the … actions menu.
+  final bool canManage;
+  const _Hero({required this.emp, required this.canManage});
 
   @override
   Widget build(BuildContext context) {
@@ -160,10 +177,11 @@ class _Hero extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               ),
               const Spacer(),
-              IconButton(
-                onPressed: () => _showActionsSheet(context, emp),
-                icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
-              ),
+              if (canManage)
+                IconButton(
+                  onPressed: () => _showActionsSheet(context, emp),
+                  icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                ),
             ],
           ),
           const SizedBox(height: 4),
