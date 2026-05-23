@@ -10,6 +10,7 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../widgets/module_switcher.dart';
 import 'widgets/inv_colors.dart';
 
 class InventoryHomeScreen extends ConsumerWidget {
@@ -23,7 +24,11 @@ class InventoryHomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: AppBar(
-        title: Text('Inventory', style: RunqText.h3.copyWith(color: t.ink)),
+        title: const ModuleSwitcher(),
+        // Keep the switcher left-aligned; AppBar centres titles on iOS by
+        // default so the pill would look stranded in the middle.
+        centerTitle: false,
+        titleSpacing: 16,
         elevation: 0,
       ),
       body: RefreshIndicator(

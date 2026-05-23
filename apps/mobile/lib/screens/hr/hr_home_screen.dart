@@ -23,6 +23,7 @@ import 'widgets/hr_dashboard_sections.dart';
 import 'widgets/hr_feed_sections.dart';
 import 'widgets/hr_reward_strip.dart';
 import 'widgets/hr_widgets.dart';
+import '../../widgets/module_switcher.dart';
 
 class HrHomeScreen extends ConsumerStatefulWidget {
   const HrHomeScreen({super.key});
@@ -165,12 +166,7 @@ class _DarkHeader extends ConsumerWidget {
           Row(
             children: [
               if (canSwitchModule)
-                HrModulePill(
-                  moduleLabel: 'HR',
-                  targetLabel: 'Finance',
-                  onDarkSurface: false,
-                  onTap: onSwitchModule,
-                )
+                const ModuleSwitcher()
               else
                 Text('HR & Payroll',
                     style: RunqText.caption.copyWith(

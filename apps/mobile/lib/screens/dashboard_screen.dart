@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/app_module_provider.dart';
 import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../widgets/gradient_avatar.dart';
+import '../widgets/module_switcher.dart';
 import '../widgets/section_head.dart';
-import 'hr/widgets/hr_widgets.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
 import 'dashboard/spotlight_cards.dart';
@@ -130,19 +129,7 @@ class _Header extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (role.canSwitchModule)
-                HrModulePill(
-                  moduleLabel: 'Finance',
-                  targetLabel: 'HR',
-                  onDarkSurface: false,
-                  // Finance keeps its indigo identity on the pill — HR pill
-                  // uses its own teal default.
-                  accent: RunqColors.indigo,
-                  onTap: () async {
-                    await ref.read(appModuleProvider.notifier).setModule(AppModule.hr);
-                    if (context.mounted) context.go('/hr/home');
-                  },
-                ),
+              if (role.canSwitchModule) const ModuleSwitcher(),
               const Spacer(),
               _IconButton(
                 icon: Icons.search_rounded,
