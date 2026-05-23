@@ -46,9 +46,9 @@ class InventoryHomeScreen extends ConsumerWidget {
               error: (_, __) => Text('Failed to load', style: RunqText.body.copyWith(color: t.muted)),
               data: (k) => _KpiStrip(k: k),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 12),
             Text('Quick actions', style: RunqText.label.copyWith(color: t.muted)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -107,26 +107,35 @@ class _KpiStrip extends StatelessWidget {
   final InvKpis k;
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      // 2.4 aspect = ~150px wide × 62px tall on a 360-wide phone, so each
-      // card hugs its label + number without the previous wasteful white
-      // space. Two rows now total ~150px instead of ~250px.
-      childAspectRatio: 2.4,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
+    // Hand-laid 2x2 grid so each card is intrinsic-height (sized by its
+    // label + number) instead of forced to an aspect ratio. GridView.count
+    // was injecting empty space below the text inside each card.
+    Widget row(List<Widget> children) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: children[0]),
+          const SizedBox(width: 10),
+          Expanded(child: children[1]),
+        ],
+      ),
+    );
+    return Column(
       children: [
-        _KpiCard(label: 'Stock value', value: '₹${_compactINR(k.totalValue)}'),
-        _KpiCard(label: 'SKU rows', value: k.activeRows.toString()),
-        _KpiCard(
-          label: 'Low stock',
-          value: k.lowStockCount.toString(),
-          accent: k.lowStockCount > 0,
-          onTap: () => context.push('/inventory/reorder'),
-        ),
-        _KpiCard(label: 'Today receipts', value: k.todayGrns.toString()),
+        row([
+          _KpiCard(label: 'Stock value', value: '₹${_compactINR(k.totalValue)}'),
+          _KpiCard(label: 'SKU rows', value: k.activeRows.toString()),
+        ]),
+        const SizedBox(height: 10),
+        row([
+          _KpiCard(
+            label: 'Low stock',
+            value: k.lowStockCount.toString(),
+            accent: k.lowStockCount > 0,
+            onTap: () => context.push('/inventory/reorder'),
+          ),
+          _KpiCard(label: 'Today receipts', value: k.todayGrns.toString()),
+        ]),
       ],
     );
   }
@@ -150,9 +159,10 @@ class _KpiCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: RunqText.label.copyWith(color: t.muted)),
+          const SizedBox(height: 4),
           Text(
             value,
             style: RunqText.numberLg.copyWith(
