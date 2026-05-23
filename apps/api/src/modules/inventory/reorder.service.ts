@@ -55,6 +55,12 @@ export class ReorderService {
    * Reorder alerts: rows where on-hand for (item, warehouse) is at or below
    * the effective reorder level. The effective level prefers the per-
    * warehouse rule, then falls back to the item-level reorder_level.
+   *
+   * Only (item, warehouse) pairs that this warehouse actually deals with
+   * are considered — either it has an explicit per-warehouse rule, or it
+   * has at least one ledger movement for the item. Without this scoping,
+   * a 50-warehouse tenant would surface 50 alerts per item even for SKUs
+   * a warehouse has never carried.
    */
   async alerts() {
     const result = await this.db.execute(sql`
@@ -64,10 +70,21 @@ export class ReorderService {
         WHERE tenant_id = ${this.tenantId}
         GROUP BY item_id, warehouse_id
       ),
+      relevant AS (
+        -- Pairs where the warehouse has touched this item
+        SELECT DISTINCT item_id, warehouse_id
+        FROM stock_ledger
+        WHERE tenant_id = ${this.tenantId}
+        UNION
+        -- Plus any pair with an explicit per-warehouse rule
+        SELECT item_id, warehouse_id
+        FROM inventory_reorder_rules
+        WHERE tenant_id = ${this.tenantId}
+      ),
       effective AS (
         SELECT
-          i.id AS item_id,
-          w.id AS warehouse_id,
+          r.item_id,
+          r.warehouse_id,
           i.name AS item_name,
           i.sku AS item_sku,
           i.unit AS item_unit,
@@ -75,15 +92,14 @@ export class ReorderService {
           COALESCE(rr.reorder_level, i.reorder_level) AS reorder_level,
           COALESCE(rr.reorder_qty, i.reorder_qty) AS reorder_qty,
           rr.lead_time_days
-        FROM items i
-        CROSS JOIN warehouses w
+        FROM relevant r
+        INNER JOIN items i ON i.id = r.item_id
+        INNER JOIN warehouses w ON w.id = r.warehouse_id
         LEFT JOIN inventory_reorder_rules rr
-          ON rr.tenant_id = i.tenant_id
-         AND rr.item_id = i.id
-         AND rr.warehouse_id = w.id
-        WHERE i.tenant_id = ${this.tenantId}
-          AND w.tenant_id = ${this.tenantId}
-          AND i.is_active = TRUE
+          ON rr.tenant_id = ${this.tenantId}
+         AND rr.item_id = r.item_id
+         AND rr.warehouse_id = r.warehouse_id
+        WHERE i.is_active = TRUE
           AND w.is_active = TRUE
           AND COALESCE(rr.reorder_level, i.reorder_level) IS NOT NULL
       )
