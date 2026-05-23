@@ -574,7 +574,11 @@ class HrMusterTile extends StatelessWidget {
     final pair = (isDark ? _dark : _light)[kind]!;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      decoration: BoxDecoration(color: pair[0], borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: pair[0],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RT(context).hairline, width: 0.5),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

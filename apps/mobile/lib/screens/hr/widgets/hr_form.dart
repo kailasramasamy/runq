@@ -466,6 +466,9 @@ class HrSelectField<T> extends StatelessWidget {
   final List<T> options;
   final ValueChanged<T?> onChanged;
   final bool required;
+  /// When true, the picker sheet shows a search box that filters options
+  /// by their [display] text — use for long lists (employees, vendors).
+  final bool searchable;
   const HrSelectField({
     super.key,
     required this.label,
@@ -475,63 +478,20 @@ class HrSelectField<T> extends StatelessWidget {
     required this.onChanged,
     this.hint,
     this.required = false,
+    this.searchable = false,
   });
 
   Future<void> _open(BuildContext context) async {
-    final t = RT(context);
     final picked = await showModalBottomSheet<T>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetCtx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(sheetCtx).size.height * 0.65,
-        ),
-        decoration: BoxDecoration(
-          color: t.bgWarmer,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: t.hairline,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [Text(label, style: RunqText.h4.copyWith(color: t.ink))],
-              ),
-            ),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: options.length,
-                separatorBuilder: (_, __) =>
-                    Divider(height: 1, thickness: 0.5, color: t.hairlineSoft, indent: 14),
-                itemBuilder: (_, i) {
-                  final o = options[i];
-                  return ListTile(
-                    dense: true,
-                    title: Text(display(o),
-                        style: RunqText.body.copyWith(color: t.ink)),
-                    trailing: o == value
-                        ? Icon(Icons.check_rounded, color: HrColors.brand(sheetCtx), size: 18)
-                        : null,
-                    onTap: () => Navigator.of(sheetCtx).pop(o),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+      builder: (_) => _HrSelectSheet<T>(
+        label: label,
+        options: options,
+        display: display,
+        value: value,
+        searchable: searchable,
       ),
     );
     if (picked != null) onChanged(picked);
@@ -569,6 +529,142 @@ class HrSelectField<T> extends StatelessWidget {
             Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The picker sheet behind [HrSelectField]. Stateful so the optional
+/// search box can filter the option list live.
+class _HrSelectSheet<T> extends StatefulWidget {
+  final String label;
+  final List<T> options;
+  final String Function(T) display;
+  final T? value;
+  final bool searchable;
+  const _HrSelectSheet({
+    required this.label,
+    required this.options,
+    required this.display,
+    required this.value,
+    required this.searchable,
+  });
+
+  @override
+  State<_HrSelectSheet<T>> createState() => _HrSelectSheetState<T>();
+}
+
+class _HrSelectSheetState<T> extends State<_HrSelectSheet<T>> {
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<T> get _filtered {
+    if (_query.isEmpty) return widget.options;
+    final q = _query.toLowerCase();
+    return widget.options
+        .where((o) => widget.display(o).toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    final filtered = _filtered;
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.78,
+      ),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(0, 12, 0, 12 + inset),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [Text(widget.label, style: RunqText.h4.copyWith(color: t.ink))],
+            ),
+          ),
+          if (widget.searchable)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: t.hairline, width: 0.5),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search_rounded, size: 18, color: t.muted2),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        autofocus: true,
+                        style: RunqText.body.copyWith(color: t.ink),
+                        decoration: InputDecoration(
+                          hintText: 'Search…',
+                          hintStyle: RunqText.body.copyWith(color: t.muted2),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (v) => setState(() => _query = v.trim()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Flexible(
+            child: filtered.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Text('No matches',
+                        style: RunqText.body.copyWith(color: t.muted)),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) =>
+                        Divider(height: 1, thickness: 0.5, color: t.hairlineSoft, indent: 14),
+                    itemBuilder: (_, i) {
+                      final o = filtered[i];
+                      return ListTile(
+                        dense: true,
+                        title: Text(widget.display(o),
+                            style: RunqText.body.copyWith(color: t.ink)),
+                        trailing: o == widget.value
+                            ? Icon(Icons.check_rounded, color: HrColors.brand(context), size: 18)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(o),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

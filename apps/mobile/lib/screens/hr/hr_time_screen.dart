@@ -16,6 +16,7 @@ import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_form.dart';
+import 'widgets/hr_punch_card.dart';
 import 'widgets/hr_widgets.dart';
 
 class HrTimeScreen extends ConsumerWidget {
@@ -49,33 +50,6 @@ class _EmployeeTime extends ConsumerStatefulWidget {
 
 class _EmployeeTimeState extends ConsumerState<_EmployeeTime> {
   DateTime _selected = DateTime.now();
-  BiometricState _bio = BiometricState.idle;
-  String? _checkInTime;
-
-  Future<void> _checkIn() async {
-    final empId = ref.read(hrMeProvider).asData?.value.employee?.id;
-    if (empId == null) {
-      showRunqSnack(context, 'No employee record linked to your account', kind: SnackKind.error);
-      return;
-    }
-    setState(() => _bio = BiometricState.scanning);
-    final scan = sleep(1800);
-    final now = DateTime.now();
-    final hh = now.hour.toString().padLeft(2, '0');
-    final mm = now.minute.toString().padLeft(2, '0');
-    try {
-      await hrRepo.stampAttendance(employeeId: empId, date: now, checkIn: '$hh:$mm', source: 'biometric');
-      await scan;
-      if (!mounted) return;
-      _checkInTime = '$hh:$mm';
-      setState(() => _bio = BiometricState.success);
-      ref.invalidate(hrMyAttendanceThisWeekProvider);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _bio = BiometricState.idle);
-      showRunqSnack(context, 'Could not check in', kind: SnackKind.error);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,22 +94,7 @@ class _EmployeeTimeState extends ConsumerState<_EmployeeTime> {
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-            border: Border.all(color: t.hairline, width: 0.5),
-            boxShadow: RunqShadows.card,
-          ),
-          child: Center(
-            child: HrBiometricButton(
-              state: _bio,
-              onTap: _checkIn,
-              successCaption: _checkInTime == null ? null : '$_checkInTime · Office',
-            ),
-          ),
-        ),
+        const HrPunchCard(),
         const SizedBox(height: 14),
         Text('Recent', style: RunqText.bodyStrong.copyWith(color: t.ink)),
         const SizedBox(height: 6),
