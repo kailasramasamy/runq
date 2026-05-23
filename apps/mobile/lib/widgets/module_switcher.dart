@@ -1,6 +1,6 @@
-// Reusable module-switcher pill — shows the current module with a
-// chevron, opens a popup of the other modules on tap. Replaces the old
-// binary HrModulePill so we can host more than 2 modules.
+// Reusable module-switcher chip — shows the active module with a leading
+// brand badge + label + chevron. Opens a menu of the three modules with
+// label + one-line subtitle and a leading accent stripe on the active row.
 
 library;
 
@@ -16,16 +16,18 @@ class ModuleSwitcher extends ConsumerWidget {
     super.key,
     this.onDarkSurface = false,
     this.accent,
+    this.compact = false,
   });
 
-  /// True when the pill sits on a dark gradient header (HR home top-bar).
-  /// In dark-surface mode the ink/border use white-alpha; in light-surface
-  /// mode they use the `accent` (defaults to the active module's accent).
+  /// True when the chip sits on a dark gradient header.
   final bool onDarkSurface;
 
-  /// Override for the light-surface ink + border colour. If null, falls
-  /// back to the active module's brand colour.
+  /// Override the active-module brand colour (for surfaces that want a
+  /// fixed colour). Defaults to the active module's accent.
   final Color? accent;
+
+  /// Tighter padding for narrow surfaces (e.g. dense top-bars).
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,46 +35,73 @@ class ModuleSwitcher extends ConsumerWidget {
     final tone = accent ?? _accentFor(context, active);
     final ink = onDarkSurface ? Colors.white : tone;
     final bg = onDarkSurface
-        ? Colors.white.withValues(alpha: 0.14)
-        : tone.withValues(alpha: 0.10);
+        ? Colors.white.withValues(alpha: 0.12)
+        : tone.withValues(alpha: 0.08);
     final border = onDarkSurface
-        ? Colors.white.withValues(alpha: 0.22)
-        : tone.withValues(alpha: 0.22);
+        ? Colors.white.withValues(alpha: 0.20)
+        : tone.withValues(alpha: 0.20);
+    final padding = compact
+        ? const EdgeInsets.fromLTRB(8, 6, 6, 6)
+        : const EdgeInsets.fromLTRB(10, 8, 8, 8);
 
     return PopupMenuButton<AppModule>(
       tooltip: 'Switch module',
-      offset: const Offset(0, 38),
+      offset: const Offset(0, 46),
       position: PopupMenuPosition.under,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      // The Material 3 PopupMenu picks up surfaceContainerHighest by default
+      // which can look washed-out on bgWarm; lift it onto pure surface.
+      elevation: 12,
+      color: RT(context).surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      padding: EdgeInsets.zero,
       onSelected: (m) async {
         if (m == active) return;
         await ref.read(appModuleProvider.notifier).setModule(m);
         if (context.mounted) context.go(m.homeRoute);
       },
-      itemBuilder: (_) => AppModule.values
-          .map((m) => PopupMenuItem<AppModule>(
-                value: m,
-                child: _MenuRow(module: m, isActive: m == active),
-              ))
-          .toList(),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+      itemBuilder: (_) => [
+        for (final m in AppModule.values)
+          PopupMenuItem<AppModule>(
+            value: m,
+            padding: EdgeInsets.zero,
+            child: _MenuRow(
+              module: m,
+              isActive: m == active,
+              accent: _accentFor(context, m),
+            ),
+          ),
+      ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: padding,
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: border, width: 0.5),
+          border: Border.all(color: border, width: 0.6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(active.icon, size: 14, color: ink),
-            const SizedBox(width: 6),
+            // Leading badge — circular tinted dot with the module icon.
+            Container(
+              width: 22, height: 22,
+              decoration: BoxDecoration(
+                color: onDarkSurface
+                    ? Colors.white.withValues(alpha: 0.22)
+                    : tone.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(active.icon, size: 13, color: ink),
+            ),
+            const SizedBox(width: 8),
             Text(
               active.label,
-              style: RunqText.caption.copyWith(color: ink, fontWeight: FontWeight.w600),
+              style: RunqText.caption.copyWith(
+                color: ink, fontWeight: FontWeight.w600, height: 1,
+              ),
             ),
             const SizedBox(width: 2),
-            Icon(Icons.expand_more_rounded, size: 16, color: ink),
+            Icon(Icons.expand_more_rounded, size: 18, color: ink.withValues(alpha: 0.85)),
           ],
         ),
       ),
@@ -80,9 +109,6 @@ class ModuleSwitcher extends ConsumerWidget {
   }
 
   Color _accentFor(BuildContext context, AppModule m) {
-    // Match the in-module accent so the pill blends with whichever home
-    // it's sitting on. Kept self-contained so this widget doesn't have to
-    // import every module's colour file.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return switch (m) {
       AppModule.finance => isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5),
@@ -93,28 +119,65 @@ class ModuleSwitcher extends ConsumerWidget {
 }
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.module, required this.isActive});
+  const _MenuRow({required this.module, required this.isActive, required this.accent});
   final AppModule module;
   final bool isActive;
+  final Color accent;
+
+  String get _subtitle => switch (module) {
+        AppModule.finance => 'AR · AP · Banking · GST',
+        AppModule.hr => 'Employees · Attendance · Payroll',
+        AppModule.inventory => 'Stock · GRN · Dispatch · Reports',
+      };
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Row(
-      children: [
-        Icon(module.icon, size: 16, color: isActive ? t.ink : t.muted),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            module.label,
-            style: RunqText.body.copyWith(
-              color: isActive ? t.ink : t.muted,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+    return Container(
+      constraints: const BoxConstraints(minWidth: 240),
+      padding: const EdgeInsets.fromLTRB(0, 8, 14, 8),
+      decoration: BoxDecoration(
+        // Active row gets a tiny accent stripe down the left edge.
+        border: Border(left: BorderSide(
+          color: isActive ? accent : Colors.transparent,
+          width: 3,
+        )),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 9),
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isActive ? 0.18 : 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(module.icon, size: 17, color: accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  module.label,
+                  style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.15),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _subtitle,
+                  style: RunqText.caption.copyWith(color: t.muted, height: 1.2),
+                ),
+              ],
             ),
           ),
-        ),
-        if (isActive) Icon(Icons.check_rounded, size: 16, color: t.ink),
-      ],
+          if (isActive) ...[
+            const SizedBox(width: 8),
+            Icon(Icons.check_rounded, size: 18, color: accent),
+          ],
+        ],
+      ),
     );
   }
 }

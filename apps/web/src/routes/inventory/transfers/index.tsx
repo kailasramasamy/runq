@@ -1,16 +1,21 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Plus, MoveRight } from 'lucide-react';
+import { Plus, MoveRight, Plane, CheckCircle2, IndianRupee } from 'lucide-react';
 import {
   PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useTransferList } from '@/hooks/queries/use-inventory';
+import { KpiStrip, formatInrShort } from '../_widgets';
 
 export function TransferListPage() {
   const [status, setStatus] = useState<'' | 'draft' | 'in_transit' | 'received' | 'cancelled'>('');
   const { data, isLoading } = useTransferList({ status: status || undefined, limit: 100 });
   const rows = data?.data ?? [];
+
+  const inTransit = rows.filter((r) => r.status === 'in_transit');
+  const receivedCount = rows.filter((r) => r.status === 'received').length;
+  const inTransitValue = inTransit.reduce((s, r) => s + Number(r.totalValue), 0);
 
   return (
     <div>
@@ -24,6 +29,13 @@ export function TransferListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'In view', value: rows.length, icon: MoveRight, loading: isLoading },
+        { label: 'In transit', value: inTransit.length, icon: Plane, tone: inTransit.length > 0 ? 'warning' : 'muted', loading: isLoading },
+        { label: 'Received', value: receivedCount, icon: CheckCircle2, tone: 'success', loading: isLoading },
+        { label: 'In-transit value', value: formatInrShort(inTransitValue), icon: IndianRupee, loading: isLoading },
+      ]} />
 
       <div className="mb-4 min-w-[180px]">
         <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>

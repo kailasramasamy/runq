@@ -1,10 +1,11 @@
 import { Link } from '@tanstack/react-router';
-import { Plus, Warehouse } from 'lucide-react';
+import { Plus, Warehouse, CheckCircle2, Boxes, Store } from 'lucide-react';
 import {
   PageHeader, Button, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   Badge, TableSkeleton, EmptyState,
 } from '@/components/ui';
-import { useWarehouses } from '@/hooks/queries/use-inventory';
+import { useWarehouses, useWarehouseBreakdown } from '@/hooks/queries/use-inventory';
+import { KpiStrip, formatInrShort } from '../_widgets';
 
 const TYPE_LABELS: Record<string, string> = {
   main: 'Main', godown: 'Godown', shop: 'Shop', vehicle: 'Vehicle', virtual: 'Virtual',
@@ -12,6 +13,11 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function WarehouseListPage() {
   const { data, isLoading } = useWarehouses();
+  const { data: breakdown } = useWarehouseBreakdown();
+
+  const activeCount = (data ?? []).filter((w) => w.isActive).length;
+  const totalValue = (breakdown ?? []).reduce((s, w) => s + w.totalValue, 0);
+  const shopCount = (data ?? []).filter((w) => w.type === 'shop').length;
 
   return (
     <div>
@@ -26,6 +32,13 @@ export function WarehouseListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'Total locations', value: data?.length ?? 0, icon: Warehouse, loading: isLoading },
+        { label: 'Active', value: activeCount, icon: CheckCircle2, tone: 'success', loading: isLoading },
+        { label: 'Stock value', value: formatInrShort(totalValue), icon: Boxes, loading: !breakdown },
+        { label: 'Shop counters', value: shopCount, icon: Store, loading: isLoading },
+      ]} />
 
       {isLoading ? (
         <TableSkeleton rows={4} />

@@ -97,6 +97,46 @@ List<FabAction> hrFabActions() => [
       ),
     ];
 
+/// Action set surfaced when the user is in Inventory mode. Tuned for the
+/// godown floor — receive, dispatch, count, transfer.
+List<FabAction> inventoryFabActions() => [
+      FabAction(
+        icon: Icons.add_box_outlined,
+        title: 'Receive stock',
+        sub: 'Scan-to-receive GRN',
+        tint: const Color(0xFFD97706), // inventory amber
+        onTap: (ctx) => ctx.push('/inventory/grn'),
+      ),
+      FabAction(
+        icon: Icons.local_shipping_outlined,
+        title: 'Dispatch stock',
+        sub: 'Create + post a delivery',
+        tint: const Color(0xFFB45309),
+        onTap: (ctx) => ctx.push('/inventory/delivery'),
+      ),
+      FabAction(
+        icon: Icons.alt_route_outlined,
+        title: 'Transfer',
+        sub: 'Move stock between warehouses',
+        tint: const Color(0xFF7C3AED),
+        onTap: (ctx) => ctx.push('/inventory/transfers'),
+      ),
+      FabAction(
+        icon: Icons.tune_rounded,
+        title: 'Adjustment',
+        sub: 'Damage / found / write-off',
+        tint: RunqColors.amberInk,
+        onTap: (ctx) => ctx.push('/inventory/adjustments'),
+      ),
+      FabAction(
+        icon: Icons.checklist_outlined,
+        title: 'Stock take',
+        sub: 'Snapshot + scan-to-count',
+        tint: const Color(0xFF0891B2),
+        onTap: (ctx) => ctx.push('/inventory/stock-take'),
+      ),
+    ];
+
 class FabSheet extends StatelessWidget {
   final double progress;
   final VoidCallback onClose;

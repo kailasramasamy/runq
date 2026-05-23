@@ -1,16 +1,23 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Plus, ClipboardCheck } from 'lucide-react';
+import { Plus, ClipboardCheck, PlayCircle, CheckCircle2, Snowflake } from 'lucide-react';
 import {
   PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useStockTakeList } from '@/hooks/queries/use-inventory';
+import { KpiStrip } from '../_widgets';
 
 export function StockTakeListPage() {
   const [status, setStatus] = useState<'' | 'in_progress' | 'reviewed' | 'posted' | 'cancelled'>('');
   const { data, isLoading } = useStockTakeList({ status: status || undefined, limit: 100 });
   const rows = data?.data ?? [];
+
+  const inProgress = rows.filter((r) => r.status === 'in_progress');
+  const frozen = inProgress.filter((r) => r.frozen).length;
+  const postedThisMonth = rows.filter((r) =>
+    r.status === 'posted' && r.completedAt?.startsWith(new Date().toISOString().slice(0, 7))
+  ).length;
 
   return (
     <div>
@@ -24,6 +31,13 @@ export function StockTakeListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'In view', value: rows.length, icon: ClipboardCheck, loading: isLoading },
+        { label: 'In progress', value: inProgress.length, icon: PlayCircle, tone: inProgress.length > 0 ? 'warning' : 'muted', loading: isLoading },
+        { label: 'Frozen', value: frozen, icon: Snowflake, tone: frozen > 0 ? 'warning' : 'muted', loading: isLoading },
+        { label: 'Posted this month', value: postedThisMonth, icon: CheckCircle2, tone: 'success', loading: isLoading },
+      ]} />
 
       <div className="mb-4 min-w-[180px]">
         <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>

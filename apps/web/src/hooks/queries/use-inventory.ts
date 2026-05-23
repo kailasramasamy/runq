@@ -129,9 +129,54 @@ export interface DeliveryNoteDetail extends DeliveryNote { lines: DnLine[] }
 export interface InventoryKpis {
   totalValue: number;
   activeRows: number;
+  activeItems: number;
+  warehouseCount: number;
   lowStockCount: number;
+  expiringSoonCount: number;
+  deadStockCount: number;
   todayGrns: number;
   todayDeliveries: number;
+  monthInValue: number;
+  monthOutValue: number;
+  inTransitTransfers: number;
+}
+
+export interface RecentActivityRow {
+  id: string;
+  movementType: string;
+  sourceType: string;
+  sourceId: string;
+  qtyIn: number;
+  qtyOut: number;
+  movedAt: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  warehouseName: string;
+}
+
+export interface WarehouseBreakdownRow {
+  id: string;
+  name: string;
+  code: string;
+  totalValue: number;
+  itemCount: number;
+}
+
+export function useRecentActivity() {
+  return useQuery({
+    queryKey: ['inv', 'dashboard', 'recent'] as const,
+    queryFn: () =>
+      api.get<{ data: RecentActivityRow[] }>('/inventory/dashboard/recent-activity').then(get),
+  });
+}
+
+export function useWarehouseBreakdown() {
+  return useQuery({
+    queryKey: ['inv', 'dashboard', 'wh-breakdown'] as const,
+    queryFn: () =>
+      api.get<{ data: WarehouseBreakdownRow[] }>('/inventory/dashboard/warehouse-breakdown').then(get),
+  });
 }
 
 // ─── Keys ──────────────────────────────────────────────────────────────

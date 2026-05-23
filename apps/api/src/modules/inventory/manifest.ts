@@ -149,7 +149,11 @@ export const INVENTORY_CAPABILITIES: ReadonlyArray<InventoryCapability> = [
   {
     key: 'dashboard',
     title: 'Inventory dashboard',
-    api: [{ method: 'GET', path: '/dashboard' }],
+    api: [
+      { method: 'GET', path: '/dashboard' },
+      { method: 'GET', path: '/dashboard/recent-activity' },
+      { method: 'GET', path: '/dashboard/warehouse-breakdown' },
+    ],
     web: ['/inventory'],
     webFiles: ['index.tsx'],
     mobileFiles: ['inventory_home_screen.dart'],

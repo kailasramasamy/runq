@@ -391,4 +391,12 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
     return { data: await svc.kpis() };
   });
+  app.get('/dashboard/recent-activity', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const svc = new InventoryDashboardService(req.server.db, req.tenantId);
+    return { data: await svc.recentActivity(10) };
+  });
+  app.get('/dashboard/warehouse-breakdown', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const svc = new InventoryDashboardService(req.server.db, req.tenantId);
+    return { data: await svc.warehouseBreakdown() };
+  });
 };

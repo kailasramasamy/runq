@@ -1,16 +1,26 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Plus, Truck } from 'lucide-react';
+import { Plus, Truck, Calendar, FileText, IndianRupee } from 'lucide-react';
 import {
   PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useDnList } from '@/hooks/queries/use-inventory';
+import { KpiStrip, formatInrShort } from '../_widgets';
 
 export function DeliveryListPage() {
   const [status, setStatus] = useState<'' | 'draft' | 'dispatched' | 'cancelled'>('');
   const { data, isLoading } = useDnList({ status: status || undefined, limit: 100 });
   const rows = data?.data ?? [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 7);
+  const monthRows = rows.filter((r) => r.dispatchDate?.startsWith(monthStart));
+  const todayCount = rows.filter((r) => r.dispatchDate === today && r.status === 'dispatched').length;
+  const draftCount = rows.filter((r) => r.status === 'draft').length;
+  const monthCogs = monthRows
+    .filter((r) => r.status === 'dispatched')
+    .reduce((s, r) => s + Number(r.totalValue), 0);
 
   return (
     <div>
@@ -24,6 +34,13 @@ export function DeliveryListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'In view', value: rows.length, icon: Truck, loading: isLoading },
+        { label: 'Dispatched today', value: todayCount, icon: Calendar, tone: 'success', loading: isLoading },
+        { label: 'Drafts', value: draftCount, icon: FileText, tone: draftCount > 0 ? 'warning' : 'muted', loading: isLoading },
+        { label: 'MTD COGS', value: formatInrShort(monthCogs), icon: IndianRupee, loading: isLoading },
+      ]} />
 
       <div className="mb-4 flex items-end gap-3">
         <div className="min-w-[180px]">

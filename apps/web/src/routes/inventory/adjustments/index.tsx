@@ -1,11 +1,12 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Plus, SlidersHorizontal } from 'lucide-react';
+import { Plus, SlidersHorizontal, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import {
   PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useAdjustmentList } from '@/hooks/queries/use-inventory';
+import { KpiStrip, formatInrShort } from '../_widgets';
 
 const REASON_LABELS: Record<string, string> = {
   damage: 'Damage', expiry: 'Expiry', theft: 'Theft', found: 'Found',
@@ -16,6 +17,15 @@ export function AdjustmentListPage() {
   const [status, setStatus] = useState<'' | 'draft' | 'pending_approval' | 'posted' | 'cancelled'>('');
   const { data, isLoading } = useAdjustmentList({ status: status || undefined, limit: 100 });
   const rows = data?.data ?? [];
+
+  const monthStart = new Date().toISOString().slice(0, 7);
+  const monthPosted = rows.filter((r) => r.status === 'posted' && r.adjustmentDate?.startsWith(monthStart));
+  const monthNet = monthPosted.reduce((s, r) => s + Number(r.totalValueDelta), 0);
+  const monthWriteOff = monthPosted.filter((r) => Number(r.totalValueDelta) < 0)
+    .reduce((s, r) => s + Number(r.totalValueDelta), 0);
+  const monthGain = monthPosted.filter((r) => Number(r.totalValueDelta) > 0)
+    .reduce((s, r) => s + Number(r.totalValueDelta), 0);
+  const pendingApproval = rows.filter((r) => r.status === 'pending_approval').length;
 
   return (
     <div>
@@ -29,6 +39,13 @@ export function AdjustmentListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'MTD write-off', value: formatInrShort(Math.abs(monthWriteOff)), icon: TrendingDown, tone: 'danger', loading: isLoading },
+        { label: 'MTD found', value: formatInrShort(monthGain), icon: TrendingUp, tone: 'success', loading: isLoading },
+        { label: 'MTD net Δ', value: `${monthNet >= 0 ? '+' : '−'}${formatInrShort(Math.abs(monthNet))}`, icon: SlidersHorizontal, tone: monthNet < 0 ? 'danger' : monthNet > 0 ? 'success' : 'muted', loading: isLoading },
+        { label: 'Pending approval', value: pendingApproval, icon: Clock, tone: pendingApproval > 0 ? 'warning' : 'muted', loading: isLoading },
+      ]} />
 
       <div className="mb-4 min-w-[180px]">
         <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>

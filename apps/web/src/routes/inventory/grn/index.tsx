@@ -4,13 +4,26 @@ import {
   PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
-import { Plus, PackageCheck } from 'lucide-react';
+import { Plus, PackageCheck, Calendar, FileText, IndianRupee } from 'lucide-react';
 import { useGrnList } from '@/hooks/queries/use-inventory';
+import { KpiStrip, formatInrShort } from '../_widgets';
 
 export function GrnListPage() {
   const [status, setStatus] = useState<'' | 'draft' | 'posted' | 'cancelled'>('');
   const { data, isLoading } = useGrnList({ status: status || undefined, limit: 100 });
   const rows = data?.data ?? [];
+
+  // KPI inputs computed from the (filtered) page — these reflect what the
+  // user is looking at, not the whole tenant. Good enough for "see the
+  // shape of the list at a glance" without an extra round-trip.
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 7);
+  const monthRows = rows.filter((r) => r.receivedDate?.startsWith(monthStart));
+  const todayCount = rows.filter((r) => r.receivedDate === today && r.status === 'posted').length;
+  const draftCount = rows.filter((r) => r.status === 'draft').length;
+  const monthValue = monthRows
+    .filter((r) => r.status === 'posted')
+    .reduce((s, r) => s + Number(r.totalValue), 0);
 
   return (
     <div>
@@ -24,6 +37,13 @@ export function GrnListPage() {
           </Link>
         }
       />
+
+      <KpiStrip tiles={[
+        { label: 'In view', value: rows.length, icon: PackageCheck, loading: isLoading },
+        { label: 'Posted today', value: todayCount, icon: Calendar, tone: 'success', loading: isLoading },
+        { label: 'Drafts', value: draftCount, icon: FileText, tone: draftCount > 0 ? 'warning' : 'muted', loading: isLoading },
+        { label: 'MTD posted value', value: formatInrShort(monthValue), icon: IndianRupee, loading: isLoading },
+      ]} />
 
       <div className="mb-4 flex items-end gap-3">
         <div className="min-w-[180px]">

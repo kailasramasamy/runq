@@ -7,6 +7,8 @@ import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 import 'fab_sheet.dart';
 
+const _inventoryAmber = Color(0xFFD97706);
+
 class _Tab {
   final String path, label;
   final IconData icon, activeIcon;
@@ -34,6 +36,15 @@ const _hrTabs = <_Tab>[
   _Tab('/hr/time', 'Time', Icons.access_time_outlined, Icons.access_time_filled_rounded),
   _Tab('/hr/pay', 'Pay', Icons.payments_outlined, Icons.payments_rounded),
   _Tab('/hr/more', 'More', Icons.apps_outlined, Icons.apps_rounded),
+];
+
+// Inventory tabs cover the godown-floor day: see what's there, receive,
+// dispatch, drill into more (transfer / adjustment / stock take / reports).
+const _inventoryTabs = <_Tab>[
+  _Tab('/inventory', 'Home', Icons.home_outlined, Icons.home_rounded),
+  _Tab('/inventory/on-hand', 'Stock', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
+  _Tab('/inventory/grn', 'Receive', Icons.add_box_outlined, Icons.add_box_rounded),
+  _Tab('/inventory/delivery', 'Dispatch', Icons.local_shipping_outlined, Icons.local_shipping_rounded),
 ];
 
 class RootShell extends ConsumerStatefulWidget {
@@ -84,7 +95,11 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     // the splash lands on /home but prefs still say HR (e.g. an admin
     // who switched yesterday), reading prefs would show HR tabs over a
     // Finance screen. Reading the route avoids that drift.
-    final module = loc.startsWith('/hr') ? AppModule.hr : AppModule.finance;
+    final module = loc.startsWith('/inventory')
+        ? AppModule.inventory
+        : loc.startsWith('/hr')
+            ? AppModule.hr
+            : AppModule.finance;
     // Mirror the active route into the persisted module so the next cold
     // start lands the user in the same module they left. Done as a side
     // effect after build to avoid mutating provider state mid-build.
@@ -94,9 +109,17 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
         ref.read(appModuleProvider.notifier).setModule(module);
       });
     }
-    final tabs = module == AppModule.hr ? _hrTabs : _financeTabs;
+    final tabs = switch (module) {
+      AppModule.hr => _hrTabs,
+      AppModule.inventory => _inventoryTabs,
+      AppModule.finance => _financeTabs,
+    };
     final active = _activeIndex(tabs, loc);
-    final actions = module == AppModule.hr ? hrFabActions() : financeFabActions();
+    final actions = switch (module) {
+      AppModule.hr => hrFabActions(),
+      AppModule.inventory => inventoryFabActions(),
+      AppModule.finance => financeFabActions(),
+    };
 
     final bg = Theme.of(context).scaffoldBackgroundColor;
     final sysBottom = MediaQuery.of(context).padding.bottom;
@@ -153,12 +176,17 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
       bottomNavigationBar: _BottomNavPill(
         tabs: tabs,
         activeIndex: active,
-        // Brand colour for the active tab + centre FAB. HR uses teal so
-        // the bottom bar stays on-brand when the user is in HR mode.
-        accent: module == AppModule.hr ? const Color(0xFF0891B2) : RunqColors.indigo,
+        // Brand colour for the active tab + centre FAB. Each module
+        // keeps its own accent so the bottom bar stays on-brand.
+        accent: switch (module) {
+          AppModule.hr => const Color(0xFF0891B2),
+          AppModule.inventory => _inventoryAmber,
+          AppModule.finance => RunqColors.indigo,
+        },
         // HR module uses a Home-only shell: every non-Home destination is
         // pushed onto the root navigator (bot nav disappears, back arrow
-        // appears). Finance keeps the classic switch-between-tabs flow.
+        // appears). Finance + Inventory keep the classic switch-between-
+        // tabs flow.
         onTap: (i) {
           final target = tabs[i].path;
           if (module == AppModule.hr && i != 0) {

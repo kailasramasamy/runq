@@ -249,6 +249,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // any drill-down from Home reads as a focused workspace with
             // a back arrow — no chrome competing for attention.
             GoRoute(path: '/hr/home', pageBuilder: _fadePage((_) => const HrHomeScreen())),
+            // Inventory bot-nav tabs live inside the shell. Detail screens
+            // (item / grn / delivery / transfer / adjustment / stock-take
+            // detail) push onto the root navigator so they take the full
+            // viewport with a back arrow.
+            GoRoute(path: '/inventory', pageBuilder: _fadePage((_) => const InventoryHomeScreen())),
+            GoRoute(path: '/inventory/on-hand', pageBuilder: _fadePage((_) => const InventoryOnHandScreen())),
+            GoRoute(path: '/inventory/grn', pageBuilder: _fadePage((_) => const InventoryGrnScreen())),
+            GoRoute(path: '/inventory/delivery', pageBuilder: _fadePage((_) => const InventoryDeliveryScreen())),
           ],
         ),
         // HR drill-downs — pushed via the root navigator so the bot nav
@@ -260,31 +268,15 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrPeopleScreen(), key: state.pageKey),
         ),
-        // ─── Inventory ───────────────────────────────────────────────────
-        GoRoute(
-          path: '/inventory',
-          parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryHomeScreen(), key: state.pageKey),
-        ),
-        GoRoute(
-          path: '/inventory/on-hand',
-          parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryOnHandScreen(), key: state.pageKey),
-        ),
-        GoRoute(
-          path: '/inventory/grn',
-          parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
-        ),
+        // ─── Inventory drill-downs (full-screen, push onto root) ──────────
+        // The 4 tab destinations (/inventory, /on-hand, /grn, /delivery)
+        // live inside the ShellRoute above so the bot nav stays visible
+        // while the user pivots between them. Everything below is a
+        // drill-down with its own back arrow.
         GoRoute(
           path: '/inventory/grn/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
-        ),
-        GoRoute(
-          path: '/inventory/delivery',
-          parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryDeliveryScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/inventory/delivery/new',
