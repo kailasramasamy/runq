@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql, ilike, gte, lte, count } from 'drizzl
 import type { Db } from '@runq/db';
 import {
   inventoryGrns, inventoryGrnLines, items, warehouses, vendors,
+  inventorySerials,
 } from '@runq/db';
 import type {
   CreateGrnInput, UpdateGrnInput, GrnFilter, CancelGrnInput,
@@ -139,6 +140,7 @@ export class GrnService {
           landedCostPerUnit: String(l.landedCostPerUnit ?? 0),
           lineTotal: String(l.qty * (l.unitRate + (l.landedCostPerUnit ?? 0))),
           notes: l.notes ?? null,
+          serialNos: l.serialNos && l.serialNos.length > 0 ? l.serialNos : null,
         })),
       );
 
@@ -238,6 +240,30 @@ export class GrnService {
           postedBy: this.ctx.userId ?? null,
         });
         total += qty * unitCost;
+
+        // Serial capture — one row per scanned serial. Length-vs-qty
+        // mismatch is rejected here so the user sees the error at post
+        // time (cheaper than at scan time when correcting is harder).
+        const serials = line.serialNos as string[] | null;
+        if (serials && serials.length > 0) {
+          if (serials.length !== qty) {
+            throw new AppError(
+              400,
+              `Line for item ${line.itemId}: ${serials.length} serial(s) captured but qty is ${qty}`,
+            );
+          }
+          await tx.insert(inventorySerials).values(
+            serials.map((sn) => ({
+              tenantId: this.ctx.tenantId,
+              itemId: line.itemId,
+              serialNo: sn,
+              currentWarehouseId: grn.warehouseId,
+              currentStatus: 'in_stock' as const,
+              batchNo: line.batchNo ?? null,
+              grnId: grn.id,
+            })),
+          );
+        }
       }
 
       const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);

@@ -41,3 +41,12 @@ final invStockTakeListProvider = FutureProvider.autoDispose
     .family<List<InvStockTake>, String?>((ref, status) async {
   return inventoryRepo.stockTakeList(status: status);
 });
+
+final invStockTakeDetailProvider = FutureProvider.autoDispose
+    .family<InvStockTakeDetail, String>((ref, id) async {
+  return inventoryRepo.stockTakeGet(id);
+});
+
+final invReorderAlertsProvider = FutureProvider.autoDispose<List<InvReorderAlert>>((ref) async {
+  return inventoryRepo.reorderAlerts();
+});

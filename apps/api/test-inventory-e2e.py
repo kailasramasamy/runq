@@ -539,6 +539,57 @@ ser_list2 = req("GET", "/inventory/serials?status=in_stock", token=tok())
 serials_in_stock = [s for s in (ser_list2.get("data") or []) if s["serialNo"] == SERIAL_NO]
 check(len(serials_in_stock) == 1, f"Serial appears in in-stock list (got {len(serials_in_stock)})")
 
+# ═══════════════════════════════════════════════════════════════════════
+#  PHASE 4: GRN serial capture
+# ═══════════════════════════════════════════════════════════════════════
+
+section("GRN with serial capture")
+# Create a serial-tracked item.
+ITEM_SERIAL = ensure_item(f"Inv Serial Item {unique}", f"INV-S-{unique}")
+sql(f"UPDATE items SET track_serials = TRUE WHERE id = '{ITEM_SERIAL}'")
+
+# Post a GRN with 3 serials → expect 3 inventory_serials rows.
+grn_s = req("POST", "/inventory/grn", {
+    "warehouseId": WH_ID,
+    "receivedDate": time.strftime("%Y-%m-%d"),
+    "lines": [{
+        "itemId": ITEM_SERIAL,
+        "qty": 3,
+        "unitRate": 500,
+        "serialNos": [f"SN-A-{unique}", f"SN-B-{unique}", f"SN-C-{unique}"],
+    }],
+}, tok())
+check(grn_s.get("data", {}).get("grnNo", "").startswith("GRN-"), "Serial-tracked GRN created", grn_s)
+GRN_S_ID = grn_s["data"]["id"]
+posted_s = req("POST", f"/inventory/grn/{GRN_S_ID}/post", {}, tok())
+check(posted_s.get("data", {}).get("status") == "posted", "Serial-tracked GRN posted")
+
+# Three serial rows should exist, all in_stock at WH.
+serial_count = sql(f"SELECT COUNT(*) FROM inventory_serials WHERE grn_id = '{GRN_S_ID}'")
+check(serial_count == "3", f"3 serials inserted (got {serial_count})")
+in_stock = sql(f"SELECT COUNT(*) FROM inventory_serials WHERE grn_id = '{GRN_S_ID}' AND current_status = 'in_stock'")
+check(in_stock == "3", f"All serials in_stock at warehouse (got {in_stock})")
+
+# Mismatched serial count vs qty must be rejected at post time.
+grn_bad = req("POST", "/inventory/grn", {
+    "warehouseId": WH_ID,
+    "receivedDate": time.strftime("%Y-%m-%d"),
+    "lines": [{
+        "itemId": ITEM_SERIAL,
+        "qty": 2,
+        "unitRate": 500,
+        "serialNos": [f"SN-X-{unique}"],
+    }],
+}, tok())
+bad_post = req("POST", f"/inventory/grn/{grn_bad['data']['id']}/post", {}, tok())
+check(bad_post.get("statusCode") == 400,
+      "Serial count mismatch vs qty → 400", bad_post)
+
+# Lookup of one of the captured serials should resolve.
+ser_lookup = req("GET", f"/inventory/serials/SN-B-{unique}", token=tok())
+check(ser_lookup.get("data", {}).get("itemId") == ITEM_SERIAL,
+      "Captured serial resolves via lookup", ser_lookup)
+
 # ─── SUMMARY ───────────────────────────────────────────────────────────
 print(f"\n{'='*60}\n  RESULTS: {passed} passed, {failed} failed\n{'='*60}")
 sys.exit(0 if failed == 0 else 1)

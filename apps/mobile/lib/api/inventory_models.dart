@@ -87,9 +87,10 @@ class InvItem {
   final String? barcode;
   final bool trackBatches;
   final bool trackExpiry;
+  final bool trackSerials;
   const InvItem({
     required this.id, required this.name, this.sku, this.unit, this.barcode,
-    required this.trackBatches, required this.trackExpiry,
+    required this.trackBatches, required this.trackExpiry, required this.trackSerials,
   });
   factory InvItem.fromJson(Map<String, dynamic> j) => InvItem(
         id: j['id'] as String,
@@ -99,6 +100,7 @@ class InvItem {
         barcode: j['barcode'] as String?,
         trackBatches: j['trackBatches'] as bool? ?? false,
         trackExpiry: j['trackExpiry'] as bool? ?? false,
+        trackSerials: j['trackSerials'] as bool? ?? false,
       );
 }
 
@@ -108,9 +110,12 @@ class InvGrnLineInput {
   final String? expiryDate;
   final double qty;
   final double unitRate;
+  /// For trackSerials items: serial numbers (length must equal qty). When
+  /// non-empty, the API inserts each into inventory_serials on GRN post.
+  final List<String>? serialNos;
   const InvGrnLineInput({
     required this.itemId, this.batchNo, this.expiryDate,
-    required this.qty, required this.unitRate,
+    required this.qty, required this.unitRate, this.serialNos,
   });
   Map<String, dynamic> toJson() => {
         'itemId': itemId,
@@ -118,6 +123,7 @@ class InvGrnLineInput {
         if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
         'qty': qty,
         'unitRate': unitRate,
+        if (serialNos != null && serialNos!.isNotEmpty) 'serialNos': serialNos,
       };
 }
 
@@ -221,6 +227,128 @@ class InvStockTake {
         scope: (j['scope'] as String?) ?? 'full',
         status: (j['status'] as String?) ?? 'in_progress',
         startedAt: (j['startedAt'] as String?) ?? '',
+      );
+}
+
+class InvTransferLineInput {
+  final String itemId;
+  final String? batchNo;
+  final double qty;
+  const InvTransferLineInput({required this.itemId, this.batchNo, required this.qty});
+  Map<String, dynamic> toJson() => {
+        'itemId': itemId,
+        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+        'qty': qty,
+      };
+}
+
+class InvAdjustmentLineInput {
+  final String itemId;
+  final String? batchNo;
+  /// Signed: positive = found, negative = damage/expiry/theft/write-off.
+  final double qtyDelta;
+  const InvAdjustmentLineInput({required this.itemId, this.batchNo, required this.qtyDelta});
+  Map<String, dynamic> toJson() => {
+        'itemId': itemId,
+        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+        'qtyDelta': qtyDelta,
+      };
+}
+
+class InvCountLineInput {
+  final String itemId;
+  final String? batchNo;
+  final double countedQty;
+  const InvCountLineInput({required this.itemId, this.batchNo, required this.countedQty});
+  Map<String, dynamic> toJson() => {
+        'itemId': itemId,
+        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+        'countedQty': countedQty,
+      };
+}
+
+class InvStockTakeLine {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final String? batchNo;
+  final double systemQty;
+  final double? countedQty;
+  final double unitCost;
+  final double? variance;
+  const InvStockTakeLine({
+    required this.id, required this.itemId, required this.itemName,
+    this.itemSku, this.itemUnit, this.batchNo,
+    required this.systemQty, this.countedQty,
+    required this.unitCost, this.variance,
+  });
+  factory InvStockTakeLine.fromJson(Map<String, dynamic> j) => InvStockTakeLine(
+        id: j['id'] as String,
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        batchNo: j['batchNo'] as String?,
+        systemQty: double.tryParse(j['systemQty']?.toString() ?? '0') ?? 0,
+        countedQty: j['countedQty'] == null ? null : double.tryParse(j['countedQty'].toString()),
+        unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
+        variance: j['variance'] == null ? null : (j['variance'] as num).toDouble(),
+      );
+}
+
+class InvStockTakeDetail {
+  final String id;
+  final String stNo;
+  final String warehouseId;
+  final String warehouseName;
+  final String status;
+  final List<InvStockTakeLine> lines;
+  const InvStockTakeDetail({
+    required this.id, required this.stNo, required this.warehouseId,
+    required this.warehouseName, required this.status, required this.lines,
+  });
+  factory InvStockTakeDetail.fromJson(Map<String, dynamic> j) => InvStockTakeDetail(
+        id: j['id'] as String,
+        stNo: j['stNo'] as String,
+        warehouseId: j['warehouseId'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'in_progress',
+        lines: ((j['lines'] as List?) ?? const [])
+            .map((e) => InvStockTakeLine.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+      );
+}
+
+class InvReorderAlert {
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final String warehouseId;
+  final String warehouseName;
+  final double onHand;
+  final double reorderLevel;
+  final double reorderQty;
+  final double shortBy;
+  const InvReorderAlert({
+    required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
+    required this.warehouseId, required this.warehouseName,
+    required this.onHand, required this.reorderLevel, required this.reorderQty,
+    required this.shortBy,
+  });
+  factory InvReorderAlert.fromJson(Map<String, dynamic> j) => InvReorderAlert(
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        warehouseId: j['warehouseId'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
+        reorderLevel: (j['reorderLevel'] as num?)?.toDouble() ?? 0,
+        reorderQty: (j['reorderQty'] as num?)?.toDouble() ?? 0,
+        shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
       );
 }
 

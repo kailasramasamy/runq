@@ -1,11 +1,13 @@
-// Adjustment list — phase 2 mobile surface. Create + approve + post flows
-// arrive in a focused round once the godown-floor scan UX settles.
+// Adjustment list + scan-create + post sheet. Phase 4 godown-floor UX:
+// reason picker, scan item, signed qty (damage = negative, found = positive),
+// posts in one tap.
 
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/inventory_models.dart';
+import '../../api/inventory_repo.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -24,7 +26,15 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
     final rows = ref.watch(invAdjustmentListProvider(null));
     return Scaffold(
       backgroundColor: t.bgWarm,
-      appBar: AppBar(title: Text('Adjustments', style: RunqText.h3.copyWith(color: t.ink))),
+      appBar: AppBar(
+        title: Text('Adjustments', style: RunqText.h3.copyWith(color: t.ink)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _openSheet(context, ref),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         color: InvColors.brand(context),
         onRefresh: () async {
@@ -43,8 +53,12 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
                   Icon(Icons.tune, size: 48, color: t.muted2),
                   Center(child: Text('No adjustments yet', style: RunqText.bodyStrong.copyWith(color: t.muted))),
                   const SizedBox(height: 4),
-                  Center(child: Text('Record damage / found / revaluation from the web app.',
-                      style: RunqText.caption.copyWith(color: t.muted2), textAlign: TextAlign.center)),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _openSheet(context, ref),
+                      child: const Text('Record an adjustment'),
+                    ),
+                  ),
                 ],
               );
             }
@@ -59,6 +73,18 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _openSheet(BuildContext context, WidgetRef ref) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _NewAdjustmentSheet(),
+    );
+    if (created == true) {
+      ref.invalidate(invAdjustmentListProvider(null));
+      ref.invalidate(invKpisProvider);
+    }
   }
 }
 
@@ -110,6 +136,179 @@ class _AdjTile extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NewAdjustmentSheet extends ConsumerStatefulWidget {
+  const _NewAdjustmentSheet();
+  @override
+  ConsumerState<_NewAdjustmentSheet> createState() => _NewAdjustmentSheetState();
+}
+
+class _NewAdjustmentSheetState extends ConsumerState<_NewAdjustmentSheet> {
+  final _qtyCtrl = TextEditingController();
+  final _batchCtrl = TextEditingController();
+  final _barcodeCtrl = TextEditingController();
+  String? warehouseId;
+  String reason = 'damage';
+  InvItem? picked;
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    _qtyCtrl.dispose(); _batchCtrl.dispose(); _barcodeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _lookupBarcode() async {
+    final code = _barcodeCtrl.text.trim();
+    if (code.isEmpty) return;
+    final item = await inventoryRepo.findByBarcode(code);
+    if (!mounted) return;
+    if (item == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No item matched that barcode')),
+      );
+    } else {
+      setState(() => picked = item);
+    }
+  }
+
+  bool get _isOutbound =>
+      reason == 'damage' || reason == 'expiry' || reason == 'theft';
+
+  Future<void> _submit() async {
+    if (warehouseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick a warehouse')));
+      return;
+    }
+    if (picked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick or scan an item')));
+      return;
+    }
+    final qty = double.tryParse(_qtyCtrl.text) ?? 0;
+    if (qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Qty required')));
+      return;
+    }
+    // Sign the delta based on reason: damage/expiry/theft are removals.
+    final delta = _isOutbound ? -qty : qty;
+    setState(() => submitting = true);
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final a = await inventoryRepo.createAdjustment(
+        warehouseId: warehouseId!,
+        reason: reason,
+        adjustmentDate: today,
+        lines: [
+          InvAdjustmentLineInput(
+            itemId: picked!.id,
+            batchNo: _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim(),
+            qtyDelta: delta,
+          ),
+        ],
+      );
+      await inventoryRepo.postAdjustment(a.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${a.adjNo} posted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final whs = ref.watch(invWarehousesProvider);
+    final insets = MediaQuery.of(context).viewInsets;
+    return Padding(
+      padding: EdgeInsets.only(bottom: insets.bottom),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Record adjustment', style: RunqText.h3.copyWith(color: t.ink)),
+            const SizedBox(height: 4),
+            Text(
+              _isOutbound
+                  ? 'Reason removes stock. Qty entered as a positive number; we sign it.'
+                  : 'Reason adds stock to the warehouse.',
+              style: RunqText.caption.copyWith(color: t.muted),
+            ),
+            const SizedBox(height: 16),
+            whs.maybeWhen(
+              data: (list) => DropdownButtonFormField<String>(
+                initialValue: warehouseId,
+                decoration: const InputDecoration(labelText: 'Warehouse', border: OutlineInputBorder()),
+                items: list.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))).toList(),
+                onChanged: (v) => setState(() => warehouseId = v),
+              ),
+              orElse: () => const LinearProgressIndicator(),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: reason,
+              decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder()),
+              items: _reasonLabels.entries
+                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                  .toList(),
+              onChanged: (v) => setState(() => reason = v ?? 'damage'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _barcodeCtrl,
+              decoration: InputDecoration(
+                labelText: 'Barcode',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(icon: const Icon(Icons.qr_code_scanner), onPressed: _lookupBarcode),
+              ),
+              onSubmitted: (_) => _lookupBarcode(),
+            ),
+            if (picked != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(8)),
+                child: Text(picked!.name, style: RunqText.bodyStrong),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _qtyCtrl,
+              decoration: InputDecoration(
+                labelText: _isOutbound ? 'Qty to remove' : 'Qty to add',
+                border: const OutlineInputBorder(),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            if (picked?.trackBatches ?? false) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _batchCtrl,
+                decoration: const InputDecoration(labelText: 'Batch', border: OutlineInputBorder()),
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: submitting ? null : _submit,
+                child: Text(submitting ? 'Posting…' : 'Post adjustment'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

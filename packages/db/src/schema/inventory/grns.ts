@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex,
+  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex, jsonb,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from '../ap/vendors';
@@ -63,6 +63,10 @@ export const inventoryGrnLines = pgTable(
     landedCostPerUnit: decimal('landed_cost_per_unit', { precision: 18, scale: 4 }).notNull().default('0'),
     lineTotal: decimal('line_total', { precision: 18, scale: 2 }).notNull(),
     notes: text('notes'),
+    // For trackSerials items: array of serial numbers captured at scan
+    // time. Inserted into inventory_serials on GRN post. Length must
+    // equal qty (enforced at API validation layer).
+    serialNos: jsonb('serial_nos').$type<string[]>(),
   },
   (t) => [
     index('idx_inv_grn_lines_grn').on(t.grnId),

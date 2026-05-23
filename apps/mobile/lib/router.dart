@@ -61,6 +61,7 @@ import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/inventory/inventory_transfer_screen.dart';
 import 'screens/inventory/inventory_adjustment_screen.dart';
 import 'screens/inventory/inventory_stock_take_screen.dart';
+import 'screens/inventory/inventory_reorder_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
 import 'screens/hr/hr_employee_detail_screen.dart';
 import 'screens/hr/hr_time_screen.dart';
@@ -312,6 +313,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/inventory/stock-take',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryStockTakeScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/reorder',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryReorderScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/hr/time',

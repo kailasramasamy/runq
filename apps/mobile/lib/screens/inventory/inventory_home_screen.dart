@@ -96,7 +96,12 @@ class _KpiStrip extends StatelessWidget {
       children: [
         _KpiCard(label: 'Stock value', value: '₹${_compactINR(k.totalValue)}'),
         _KpiCard(label: 'SKU rows', value: k.activeRows.toString()),
-        _KpiCard(label: 'Low stock', value: k.lowStockCount.toString(), accent: k.lowStockCount > 0),
+        _KpiCard(
+          label: 'Low stock',
+          value: k.lowStockCount.toString(),
+          accent: k.lowStockCount > 0,
+          onTap: () => context.push('/inventory/reorder'),
+        ),
         _KpiCard(label: 'Today receipts', value: k.todayGrns.toString()),
       ],
     );
@@ -104,14 +109,15 @@ class _KpiStrip extends StatelessWidget {
 }
 
 class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, this.accent = false});
+  const _KpiCard({required this.label, required this.value, this.accent = false, this.onTap});
   final String label;
   final String value;
   final bool accent;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: t.surface,
@@ -130,6 +136,16 @@ class _KpiCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: card,
       ),
     );
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useNavigate, useSearch, useRouterState } from '@tanstack/react-router';
 import XLSX from 'xlsx-js-style';
 import { Plus, Download, Power, Sparkles, Trash2, Search, Calculator, Copy, TrendingUp, ChevronDown, FileSpreadsheet, FileText, Package } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
@@ -57,6 +57,12 @@ function statusVariant(active: boolean) {
 
 export function ItemsPage() {
   const navigate = useNavigate();
+  // Mirrors live under both /finance/masters/items (Finance module) and
+  // /inventory/items (Inventory module). The page uses the same component
+  // tree in both spots; we detect which root we're on so internal nav
+  // (edit / new / import / analysis) keeps the user in the same module.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const itemsBase = pathname.startsWith('/inventory') ? '/inventory/items' : '/finance/masters/items';
   // Search + page are URL-backed so navigating to edit and back preserves
   // the filtered list. The previous local-state implementation reset on
   // every route change.
@@ -64,11 +70,18 @@ export function ItemsPage() {
   const search = params.q ?? '';
   const page = params.page ?? 1;
 
+  // Wrap navigate in a loose-typed shim. The router's overloads are
+  // string-literal-driven, so a dynamic prefix breaks the inference for
+  // `search` / `params`. The call shapes themselves are already validated
+  // by the per-route validateSearch on both module roots.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nav = navigate as unknown as (opts: any) => void;
+
   function updateSearch(patch: { q?: string; page?: number }, resetPage = true) {
-    navigate({
-      to: '/finance/masters/items',
-      search: (prev) => {
-        const next = { ...(prev as typeof params), ...patch };
+    nav({
+      to: itemsBase,
+      search: (prev: typeof params) => {
+        const next = { ...prev, ...patch };
         if (resetPage) next.page = undefined;
         for (const k of Object.keys(next) as (keyof typeof next)[]) {
           if (next[k] === '' || next[k] === undefined) delete next[k];
@@ -120,10 +133,10 @@ export function ItemsPage() {
   );
 
   const openEdit = (id: string) =>
-    navigate({ to: '/finance/masters/items/$itemId/edit', params: { itemId: id } });
+    nav({ to: `${itemsBase}/$itemId/edit`, params: { itemId: id } });
   const openAnalysis = (id: string) =>
-    navigate({
-      to: '/finance/masters/items/$itemId/analysis',
+    nav({
+      to: `${itemsBase}/$itemId/analysis`,
       params: { itemId: id },
       search: { from: 'list' },
     });
@@ -195,13 +208,13 @@ export function ItemsPage() {
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" icon={<TrendingUp size={13} />} onClick={() => navigate({ to: '/finance/masters/items/profitability' })}>
+            <Button variant="outline" size="sm" icon={<TrendingUp size={13} />} onClick={() => nav({ to: `${itemsBase}/profitability` })}>
               Profitability
             </Button>
-            <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => navigate({ to: '/finance/masters/items/import' })}>
+            <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => nav({ to: `${itemsBase}/import` })}>
               Smart import
             </Button>
-            <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/masters/items/new' })}>
+            <Button size="sm" icon={<Plus size={13} />} onClick={() => nav({ to: `${itemsBase}/new` })}>
               New item
             </Button>
           </>
@@ -270,7 +283,7 @@ export function ItemsPage() {
                   title={search ? `No items match "${search}"` : 'No items yet'}
                   description={search ? 'Try a different search term.' : 'Add your first item to get started.'}
                   action={!search && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/masters/items/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => nav({ to: `${itemsBase}/new` })}>
                       New item
                     </Button>
                   )}
@@ -330,7 +343,7 @@ export function ItemsPage() {
                   <button
                     className="rounded p-1 hover:bg-[var(--surface-2)]"
                     style={{ color: 'var(--text-3)' }}
-                    onClick={() => navigate({ to: '/finance/masters/items/new', search: { duplicateOf: item.id } })}
+                    onClick={() => nav({ to: `${itemsBase}/new`, search: { duplicateOf: item.id } })}
                     title="Duplicate"
                   >
                     <Copy size={13} />

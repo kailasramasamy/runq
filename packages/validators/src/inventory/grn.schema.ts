@@ -12,6 +12,10 @@ export const grnLineInputSchema = z.object({
   uom: z.string().max(20).nullish(),
   unitRate: z.number().nonnegative(),
   landedCostPerUnit: z.number().nonnegative().optional(),
+  // For trackSerials items: one entry per unit. Length must equal qty when
+  // present. Inserted into inventory_serials on GRN post; uniqueness enforced
+  // by the (tenant_id, item_id, serial_no) unique index.
+  serialNos: z.array(z.string().min(1).max(80)).optional(),
   notes: z.string().max(500).nullish(),
 });
 

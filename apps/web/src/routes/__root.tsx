@@ -1952,13 +1952,55 @@ const invSerialsRoute = createRoute({
   path: '/serials',
   component: SerialListPage,
 });
-// Items menu mirror — same page as /finance/masters/items, reachable from
-// the Inventory sidebar. The redirect lives inside Inventory's path space
-// so the active-module detector keeps the amber accent.
+// Items menu mirror — reuses the existing items pages in place so the URL
+// stays under /inventory/ and the amber theme + sidebar group stay
+// active. ItemsPage is router-aware (it reads pathname and prefixes its
+// internal nav). Same components, mounted under both module roots.
 const invItemsRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/items',
-  component: () => <Navigate to="/finance/masters/items" />,
+  component: ItemsPage,
+});
+const invItemsImportRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/import',
+  component: ImportItemsPage,
+});
+const invItemsProfitabilityRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/profitability',
+  component: ItemProfitabilityPage,
+});
+const invItemsNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/new',
+  validateSearch: (search: Record<string, unknown>): { duplicateOf?: string } => ({
+    duplicateOf: typeof search.duplicateOf === 'string' ? search.duplicateOf : undefined,
+  }),
+  component: () => {
+    const { duplicateOf } = invItemsNewRoute.useSearch();
+    return <ItemEditPage duplicateOf={duplicateOf} />;
+  },
+});
+const invItemsEditRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/$itemId/edit',
+  component: () => {
+    const { itemId } = invItemsEditRoute.useParams();
+    return <ItemEditPage itemId={itemId} />;
+  },
+});
+const invItemsAnalysisRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/$itemId/analysis',
+  validateSearch: (search: Record<string, unknown>): { from?: 'list' | 'edit' } => ({
+    from: search.from === 'edit' ? 'edit' : search.from === 'list' ? 'list' : undefined,
+  }),
+  component: () => {
+    const { itemId } = invItemsAnalysisRoute.useParams();
+    const { from } = invItemsAnalysisRoute.useSearch();
+    return <ItemAnalysisPage itemId={itemId} from={from} />;
+  },
 });
 
 // ─── Agent Activity Route ────────────────────────────────────────────────────
@@ -2385,6 +2427,11 @@ export const routeTree = rootRoute.addChildren([
       invDeadStockRoute,
       invSerialsRoute,
       invItemsRoute,
+      invItemsImportRoute,
+      invItemsProfitabilityRoute,
+      invItemsNewRoute,
+      invItemsEditRoute,
+      invItemsAnalysisRoute,
     ]),
     hrRoute.addChildren([
       hrIndexRoute,

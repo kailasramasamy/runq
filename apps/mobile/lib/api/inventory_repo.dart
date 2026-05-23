@@ -129,6 +129,32 @@ class InventoryRepo {
     return _dataList(res).map(InvTransfer.fromJson).toList();
   }
 
+  Future<InvTransfer> createTransfer({
+    required String fromWarehouseId,
+    required String toWarehouseId,
+    String? vehicleNo,
+    required List<InvTransferLineInput> lines,
+  }) async {
+    final res = await apiClient.post('/inventory/transfers', {
+      'fromWarehouseId': fromWarehouseId,
+      'toWarehouseId': toWarehouseId,
+      if (vehicleNo != null && vehicleNo.isNotEmpty) 'vehicleNo': vehicleNo,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return InvTransfer.fromJson(_data(res));
+  }
+
+  Future<InvTransfer> dispatchTransfer(String id) async {
+    final res = await apiClient.post('/inventory/transfers/$id/dispatch', const {});
+    return InvTransfer.fromJson(_data(res));
+  }
+
+  Future<InvTransfer> receiveTransfer(String id) async {
+    // Default-receive uses dispatched qty per line.
+    final res = await apiClient.post('/inventory/transfers/$id/receive', const {});
+    return InvTransfer.fromJson(_data(res));
+  }
+
   // ── Adjustments ────────────────────────────────────────────────────────
 
   Future<List<InvAdjustment>> adjustmentList({String? status}) async {
@@ -138,6 +164,28 @@ class InventoryRepo {
     return _dataList(res).map(InvAdjustment.fromJson).toList();
   }
 
+  Future<InvAdjustment> createAdjustment({
+    required String warehouseId,
+    required String reason,
+    required String adjustmentDate,
+    String? notes,
+    required List<InvAdjustmentLineInput> lines,
+  }) async {
+    final res = await apiClient.post('/inventory/adjustments', {
+      'warehouseId': warehouseId,
+      'reason': reason,
+      'adjustmentDate': adjustmentDate,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return InvAdjustment.fromJson(_data(res));
+  }
+
+  Future<InvAdjustment> postAdjustment(String id) async {
+    final res = await apiClient.post('/inventory/adjustments/$id/post', const {});
+    return InvAdjustment.fromJson(_data(res));
+  }
+
   // ── Stock take ─────────────────────────────────────────────────────────
 
   Future<List<InvStockTake>> stockTakeList({String? status}) async {
@@ -145,6 +193,45 @@ class InventoryRepo {
     if (status != null && status.isNotEmpty) qp['status'] = status;
     final res = await apiClient.get('/inventory/stock-takes${_qs(qp)}');
     return _dataList(res).map(InvStockTake.fromJson).toList();
+  }
+
+  Future<InvStockTakeDetail> stockTakeGet(String id) async {
+    final res = await apiClient.get('/inventory/stock-takes/$id');
+    return InvStockTakeDetail.fromJson(_data(res));
+  }
+
+  Future<InvStockTake> startStockTake({
+    required String warehouseId,
+    String scope = 'full',
+    bool freeze = false,
+  }) async {
+    final res = await apiClient.post('/inventory/stock-takes', {
+      'warehouseId': warehouseId,
+      'scope': scope,
+      'freeze': freeze,
+    });
+    return InvStockTake.fromJson(_data(res));
+  }
+
+  Future<void> upsertCountLines(
+    String id,
+    List<InvCountLineInput> lines,
+  ) async {
+    await apiClient.post('/inventory/stock-takes/$id/lines', {
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+  }
+
+  Future<InvStockTake> postStockTake(String id) async {
+    final res = await apiClient.post('/inventory/stock-takes/$id/post', const {});
+    return InvStockTake.fromJson(_data(res));
+  }
+
+  // ── Reorder alerts ─────────────────────────────────────────────────────
+
+  Future<List<InvReorderAlert>> reorderAlerts() async {
+    final res = await apiClient.get('/inventory/stock/reorder-alerts');
+    return _dataList(res).map(InvReorderAlert.fromJson).toList();
   }
 
   String _qs(Map<String, String> qp) =>

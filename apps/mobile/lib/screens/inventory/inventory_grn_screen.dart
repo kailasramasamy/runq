@@ -142,14 +142,37 @@ class _NewGrnSheetState extends ConsumerState<_NewGrnSheet> {
   final _rateCtrl = TextEditingController();
   final _batchCtrl = TextEditingController();
   final _barcodeCtrl = TextEditingController();
+  final _serialCtrl = TextEditingController();
+  final _serialFocus = FocusNode();
   String? warehouseId;
   InvItem? pickedItem;
+  // Captured serials when picked item tracks serials. Each scan adds one;
+  // qty is bound to the length so the user can't over-receive.
+  final List<String> _serialNos = [];
   bool submitting = false;
 
   @override
   void dispose() {
-    _qtyCtrl.dispose(); _rateCtrl.dispose(); _batchCtrl.dispose(); _barcodeCtrl.dispose();
+    _qtyCtrl.dispose(); _rateCtrl.dispose(); _batchCtrl.dispose();
+    _barcodeCtrl.dispose(); _serialCtrl.dispose(); _serialFocus.dispose();
     super.dispose();
+  }
+
+  void _addSerial(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return;
+    if (_serialNos.contains(s)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Serial $s already scanned')),
+      );
+    } else {
+      setState(() {
+        _serialNos.add(s);
+        _qtyCtrl.text = _serialNos.length.toString();
+      });
+    }
+    _serialCtrl.clear();
+    _serialFocus.requestFocus();
   }
 
   Future<void> _lookupBarcode() async {
@@ -175,7 +198,10 @@ class _NewGrnSheetState extends ConsumerState<_NewGrnSheet> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick or scan an item')));
       return;
     }
-    final qty = double.tryParse(_qtyCtrl.text) ?? 0;
+    // Serial-bound qty: comes from scanned count, not the manual field.
+    final qty = pickedItem?.trackSerials == true
+        ? _serialNos.length.toDouble()
+        : (double.tryParse(_qtyCtrl.text) ?? 0);
     final rate = double.tryParse(_rateCtrl.text) ?? 0;
     if (qty <= 0 || rate < 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Qty and rate required')));
@@ -193,6 +219,7 @@ class _NewGrnSheetState extends ConsumerState<_NewGrnSheet> {
             batchNo: _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim(),
             qty: qty,
             unitRate: rate,
+            serialNos: _serialNos.isEmpty ? null : List<String>.from(_serialNos),
           ),
         ],
       );
@@ -266,12 +293,57 @@ class _NewGrnSheetState extends ConsumerState<_NewGrnSheet> {
                 ),
               ),
             ],
+            if (pickedItem?.trackSerials == true) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _serialCtrl,
+                focusNode: _serialFocus,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  labelText: 'Scan serial',
+                  helperText: '${_serialNos.length} captured — qty binds to scan count',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: () => _addSerial(_serialCtrl.text),
+                  ),
+                ),
+                onSubmitted: _addSerial,
+              ),
+              if (_serialNos.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: t.bgWarmer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Wrap(
+                    spacing: 6, runSpacing: 6,
+                    children: _serialNos.map((s) => Chip(
+                      label: Text(s, style: RunqText.caption),
+                      onDeleted: () => setState(() {
+                        _serialNos.remove(s);
+                        _qtyCtrl.text = _serialNos.length.toString();
+                      }),
+                      visualDensity: VisualDensity.compact,
+                    )).toList(),
+                  ),
+                ),
+              ],
+            ],
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
                 child: TextField(
                   controller: _qtyCtrl,
-                  decoration: const InputDecoration(labelText: 'Qty', border: OutlineInputBorder()),
+                  readOnly: pickedItem?.trackSerials == true,
+                  decoration: InputDecoration(
+                    labelText: 'Qty',
+                    helperText: pickedItem?.trackSerials == true ? 'Set by scan count' : null,
+                    border: const OutlineInputBorder(),
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
