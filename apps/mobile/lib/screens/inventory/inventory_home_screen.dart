@@ -46,7 +46,7 @@ class InventoryHomeScreen extends ConsumerWidget {
               error: (_, __) => Text('Failed to load', style: RunqText.body.copyWith(color: t.muted)),
               data: (k) => _KpiStrip(k: k),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 32),
             Text('Quick actions', style: RunqText.label.copyWith(color: t.muted)),
             const SizedBox(height: 8),
             GridView.count(
@@ -111,9 +111,12 @@ class _KpiStrip extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.7,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
+      // 2.4 aspect = ~150px wide × 62px tall on a 360-wide phone, so each
+      // card hugs its label + number without the previous wasteful white
+      // space. Two rows now total ~150px instead of ~250px.
+      childAspectRatio: 2.4,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
       children: [
         _KpiCard(label: 'Stock value', value: '₹${_compactINR(k.totalValue)}'),
         _KpiCard(label: 'SKU rows', value: k.activeRows.toString()),
@@ -139,7 +142,7 @@ class _KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final card = Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: t.surface,
         border: Border.all(color: t.hairline),
@@ -232,9 +235,9 @@ class _KpiSkeleton extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.7,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
+      childAspectRatio: 2.4,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
       children: List.generate(4, (_) => Container(
         decoration: BoxDecoration(
           color: t.bgWarmer,
