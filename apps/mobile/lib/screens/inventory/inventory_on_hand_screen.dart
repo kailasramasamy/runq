@@ -8,6 +8,7 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/warehouse_picker.dart';
 
 class InventoryOnHandScreen extends ConsumerStatefulWidget {
   const InventoryOnHandScreen({super.key});
@@ -22,7 +23,8 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final whs = ref.watch(invWarehousesProvider);
+    // The WarehousePicker reads the warehouse list itself; nothing else
+    // here needs the list, so we don't watch it at the screen level.
     final args = (warehouseId: warehouseId, lowOnly: lowOnly);
     final rows = ref.watch(invOnHandProvider(args));
 
@@ -36,12 +38,9 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: whs.maybeWhen(
-                    data: (list) => _WarehousePicker(
-                      list: list, value: warehouseId,
-                      onChange: (v) => setState(() => warehouseId = v),
-                    ),
-                    orElse: () => const SizedBox(),
+                  child: WarehousePicker(
+                    value: warehouseId,
+                    onChanged: (v) => setState(() => warehouseId = v),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -81,32 +80,6 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _WarehousePicker extends StatelessWidget {
-  const _WarehousePicker({required this.list, required this.value, required this.onChange});
-  final List<InvWarehouse> list;
-  final String? value;
-  final ValueChanged<String?> onChange;
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return DropdownButtonFormField<String?>(
-      initialValue: value,
-      isDense: true,
-      decoration: InputDecoration(
-        labelText: 'Warehouse',
-        labelStyle: RunqText.caption.copyWith(color: t.muted),
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      ),
-      items: [
-        const DropdownMenuItem(value: null, child: Text('All warehouses')),
-        ...list.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))),
-      ],
-      onChanged: onChange,
     );
   }
 }
