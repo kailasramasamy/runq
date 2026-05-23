@@ -46,7 +46,7 @@ class InventoryHomeScreen extends ConsumerWidget {
               error: (_, __) => Text('Failed to load', style: RunqText.body.copyWith(color: t.muted)),
               data: (k) => _KpiStrip(k: k),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 32),
             Text('Quick actions', style: RunqText.label.copyWith(color: t.muted)),
             const SizedBox(height: 6),
             GridView.count(
