@@ -10,6 +10,7 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/inv_colors.dart';
 
 class InventoryHomeScreen extends ConsumerWidget {
   const InventoryHomeScreen({super.key});
@@ -26,6 +27,7 @@ class InventoryHomeScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: RefreshIndicator(
+        color: InvColors.brand(context),
         onRefresh: () async {
           ref.invalidate(invKpisProvider);
           await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -124,7 +126,7 @@ class _KpiCard extends StatelessWidget {
           Text(
             value,
             style: RunqText.numberLg.copyWith(
-              color: accent ? Colors.orange.shade700 : t.ink,
+              color: accent ? InvColors.brand(context) : t.ink,
             ),
           ),
         ],
@@ -163,10 +165,10 @@ class _ActionTile extends StatelessWidget {
                 Container(
                   width: 38, height: 38,
                   decoration: BoxDecoration(
-                    color: t.bgWarmer,
+                    color: InvColors.amberSubtle,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, size: 20, color: t.ink),
+                  child: Icon(icon, size: 20, color: InvColors.brand(context)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

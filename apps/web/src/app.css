@@ -88,8 +88,10 @@ button:not(:disabled),
   --warn-soft: oklch(0.3 0.06 80);
 }
 
-/* HR & Payroll module runs a teal accent; Finance keeps indigo. Scoped to
-   the layout shell so the sidebar, topbar and every page inherit it. */
+/* Module accents. Scoped via data-module on <html> so the sidebar, topbar
+   and every page inherit them. Finance keeps indigo (default), HR is teal,
+   Inventory is amber — chosen for the "physical stock / warehouse floor"
+   association and to stay visually distinct from indigo + teal. */
 [data-module="hr"] {
   --accent: oklch(0.58 0.1 195);
   --accent-soft: oklch(0.95 0.03 195);
@@ -99,6 +101,17 @@ button:not(:disabled),
   --accent: oklch(0.74 0.11 195);
   --accent-soft: oklch(0.3 0.05 195);
   --accent-text: oklch(0.79 0.1 195);
+}
+
+[data-module="inventory"] {
+  --accent: oklch(0.72 0.16 60);
+  --accent-soft: oklch(0.96 0.05 60);
+  --accent-text: oklch(0.55 0.16 60);
+}
+.dark[data-module="inventory"] {
+  --accent: oklch(0.78 0.16 60);
+  --accent-soft: oklch(0.32 0.07 60);
+  --accent-text: oklch(0.82 0.14 60);
 }
 
 body {
