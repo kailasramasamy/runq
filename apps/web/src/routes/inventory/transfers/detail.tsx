@@ -7,7 +7,7 @@ import {
 import { useTransfer, useDispatchTransfer, useReceiveTransfer, useCancelTransfer } from '@/hooks/queries/use-inventory';
 
 export function TransferDetailPage() {
-  const { id } = useParams({ from: '/inventory/transfers/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const { toast } = useToast();
   const { data: t, isLoading } = useTransfer(id);
   const dispatch = useDispatchTransfer();

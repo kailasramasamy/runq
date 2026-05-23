@@ -14,7 +14,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 export function AdjustmentDetailPage() {
-  const { id } = useParams({ from: '/inventory/adjustments/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const { toast } = useToast();
   const { data: a, isLoading } = useAdjustment(id);
   const approve = useApproveAdjustment();

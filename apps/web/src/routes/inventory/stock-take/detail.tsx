@@ -9,7 +9,7 @@ import {
 } from '@/hooks/queries/use-inventory';
 
 export function StockTakeDetailPage() {
-  const { id } = useParams({ from: '/inventory/stock-take/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const { toast } = useToast();
   const { data: st, isLoading } = useStockTake(id);
   const updateLine = useUpdateCountLine();

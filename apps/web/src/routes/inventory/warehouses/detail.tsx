@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useWarehouse, useDeleteWarehouse, useOnHand } from '@/hooks/queries/use-inventory';
 
 export function WarehouseDetailPage() {
-  const { id } = useParams({ from: '/inventory/warehouses/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: wh, isLoading } = useWarehouse(id);

@@ -7,7 +7,7 @@ import {
 import { useDn, useDispatchDn, useCancelDn } from '@/hooks/queries/use-inventory';
 
 export function DeliveryNoteDetailPage() {
-  const { id } = useParams({ from: '/inventory/delivery/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const { toast } = useToast();
   const { data: dn, isLoading } = useDn(id);
   const dispatch = useDispatchDn();

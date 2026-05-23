@@ -7,7 +7,7 @@ import {
 import { useGrn, usePostGrn, useCancelGrn } from '@/hooks/queries/use-inventory';
 
 export function GrnDetailPage() {
-  const { id } = useParams({ from: '/inventory/grn/$id' as never }) as { id: string };
+  const { id } = useParams({ strict: false }) as { id: string };
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: grn, isLoading } = useGrn(id);
