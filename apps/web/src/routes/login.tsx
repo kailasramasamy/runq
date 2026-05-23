@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  LogIn, FileText, FileInput, Landmark, ShieldCheck,
+  LogIn, Wallet, Users, Boxes, BarChart3,
   Sparkles, Quote,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -15,24 +15,24 @@ interface FeatureRow {
 
 const FEATURES: FeatureRow[] = [
   {
-    Icon: FileText,
-    title: 'GST-compliant invoicing',
-    body: 'Create e-Invoices with IRN + e-Way bill, send via WhatsApp.',
+    Icon: Wallet,
+    title: 'Finance & accounting',
+    body: 'Invoices, bills, banking, and GST returns — daily ops to month-end.',
   },
   {
-    Icon: FileInput,
-    title: 'AI bill capture',
-    body: 'Snap a photo or forward an email. Vendor, GSTIN, lines auto-extracted.',
+    Icon: Users,
+    title: 'HR & payroll',
+    body: 'Attendance, leave, shifts, and payroll for factories and field teams.',
   },
   {
-    Icon: Landmark,
-    title: 'Bank reconciliation',
-    body: 'Connect once, AI matches statements to invoices and bills.',
+    Icon: Boxes,
+    title: 'Inventory & operations',
+    body: 'Stock, warehouses, and procurement wired into your books in real time.',
   },
   {
-    Icon: ShieldCheck,
-    title: 'GST returns end-to-end',
-    body: 'GSTR-1 / 3B / 2B prepared, validated, filed via GSP.',
+    Icon: BarChart3,
+    title: 'Insights that ship',
+    body: 'Owner and CA dashboards built on one source of truth, mobile-first.',
   },
 ];
 
@@ -77,20 +77,20 @@ export function LoginPage() {
               className="h-9 w-auto"
             />
             <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-              Finance & Accounting ERP
+              The ERP for Indian SMEs
             </span>
           </div>
 
           <h1 className="text-[40px] font-semibold leading-[1.05] tracking-tight text-zinc-900 sm:text-[52px]">
-            The finance OS
+            One ERP to run
             <br />
             <span className="font-display-italic bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-[44px] text-transparent sm:text-[58px]">
-              for Indian SMEs.
+              your whole business.
             </span>
           </h1>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-[15px]">
-            One product for invoices, bills, banking, and GST. Designed so you can run daily ops
-            without your CA — and so your CA can review, file, and close without emailing back-and-forth.
+            Finance, HR, inventory, and operations in a single product — built for how Indian SMEs
+            actually work, so every team and your CA stay on the same page.
           </p>
 
           <ul className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -114,18 +114,18 @@ export function LoginPage() {
             <Quote size={16} className="mt-0.5 flex-shrink-0 text-indigo-500" />
             <div>
               <p className="text-[13px] leading-relaxed text-zinc-700">
-                "We replaced Tally and three spreadsheets with runQ.
-                Month-end used to take a week — now it's a single afternoon."
+                "We replaced four tools with runQ — books, payroll, and stock all live in one place.
+                The team finally stopped chasing spreadsheets."
               </p>
               <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Founder · Mid-sized FMCG distributor
+                Founder · Mid-sized manufacturer
               </p>
             </div>
           </div>
 
           <p className="mt-8 inline-flex items-center gap-2 text-[12px] text-zinc-500">
             <Sparkles size={12} className="text-indigo-500" />
-            Trusted by manufacturers, distributors, services, and CAs across India.
+            Trusted by manufacturers, distributors, service businesses, and CAs across India.
           </p>
         </section>
 
@@ -189,7 +189,7 @@ export function LoginPage() {
             </div>
 
             <p className="mt-6 text-center text-xs text-zinc-400 lg:text-left">
-              runQ Finance v1
+              runQ ERP v1
             </p>
           </div>
         </section>
