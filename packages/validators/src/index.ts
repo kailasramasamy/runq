@@ -67,3 +67,4 @@ export * from './inventory/transfer.schema';
 export * from './inventory/adjustment.schema';
 export * from './inventory/stock-take.schema';
 export * from './inventory/reorder.schema';
+export * from './inventory/reports.schema';

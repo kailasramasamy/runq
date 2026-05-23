@@ -260,6 +260,67 @@ export const INVENTORY_CAPABILITIES: ReadonlyArray<InventoryCapability> = [
     mobileFiles: [],
     phase: 2,
   },
+
+  // ─── Phase 3: Reports ──────────────────────────────────────────────
+  {
+    key: 'report-stock-summary',
+    title: 'Stock summary report',
+    api: [{ method: 'GET', path: '/reports/stock-summary' }],
+    web: ['/inventory/reports/summary'],
+    webFiles: ['reports/summary.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
+  {
+    key: 'report-valuation',
+    title: 'Valuation report (as-of-date)',
+    api: [{ method: 'GET', path: '/reports/valuation' }],
+    web: ['/inventory/reports/valuation'],
+    webFiles: ['reports/valuation.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
+  {
+    key: 'report-ageing',
+    title: 'Stock ageing buckets',
+    api: [{ method: 'GET', path: '/reports/ageing' }],
+    web: ['/inventory/reports/ageing'],
+    webFiles: ['reports/ageing.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
+  {
+    key: 'report-movement',
+    title: 'Movement summary by period',
+    api: [{ method: 'GET', path: '/reports/movement' }],
+    web: ['/inventory/reports/movement'],
+    webFiles: ['reports/movement.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
+  {
+    key: 'report-dead-stock',
+    title: 'Dead stock — no movement in N days',
+    api: [{ method: 'GET', path: '/reports/dead-stock' }],
+    web: ['/inventory/reports/dead-stock'],
+    webFiles: ['reports/dead-stock.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
+
+  // ─── Phase 3: Serials (minimal lookup) ─────────────────────────────
+  {
+    key: 'serials-lookup',
+    title: 'Serial lookup + list',
+    api: [
+      { method: 'GET', path: '/serials' },
+      { method: 'GET', path: '/serials/:serialNo' },
+    ],
+    web: ['/inventory/serials'],
+    webFiles: ['serials/index.tsx'],
+    mobileFiles: [],
+    phase: 3,
+  },
 ];
 
 /** Flatten API rows for the parity script. */

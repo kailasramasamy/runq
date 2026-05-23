@@ -225,6 +225,12 @@ import { NewStockTakePage } from './inventory/stock-take/new';
 import { StockTakeDetailPage } from './inventory/stock-take/detail';
 import { ReorderReportPage } from './inventory/reports/reorder';
 import { ExpiryReportPage } from './inventory/reports/expiry';
+import { StockSummaryReportPage } from './inventory/reports/summary';
+import { ValuationReportPage } from './inventory/reports/valuation';
+import { AgeingReportPage } from './inventory/reports/ageing';
+import { MovementReportPage } from './inventory/reports/movement';
+import { DeadStockReportPage } from './inventory/reports/dead-stock';
+import { SerialListPage } from './inventory/serials/index';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -1916,6 +1922,36 @@ const invExpiryRoute = createRoute({
   path: '/reports/expiry',
   component: ExpiryReportPage,
 });
+const invSummaryRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/summary',
+  component: StockSummaryReportPage,
+});
+const invValuationRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/valuation',
+  component: ValuationReportPage,
+});
+const invAgeingRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/ageing',
+  component: AgeingReportPage,
+});
+const invMovementRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/movement',
+  component: MovementReportPage,
+});
+const invDeadStockRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/dead-stock',
+  component: DeadStockReportPage,
+});
+const invSerialsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/serials',
+  component: SerialListPage,
+});
 // Items menu mirror — same page as /finance/masters/items, reachable from
 // the Inventory sidebar. The redirect lives inside Inventory's path space
 // so the active-module detector keeps the amber accent.
@@ -2342,6 +2378,12 @@ export const routeTree = rootRoute.addChildren([
       invStockTakeDetailRoute,
       invReorderRoute,
       invExpiryRoute,
+      invSummaryRoute,
+      invValuationRoute,
+      invAgeingRoute,
+      invMovementRoute,
+      invDeadStockRoute,
+      invSerialsRoute,
       invItemsRoute,
     ]),
     hrRoute.addChildren([

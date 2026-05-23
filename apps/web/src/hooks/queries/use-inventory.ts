@@ -740,6 +740,162 @@ export function useExpiring(args: { withinDays: number; includeExpired?: boolean
   });
 }
 
+// ─── Reports (Phase 3) ─────────────────────────────────────────────────
+
+export interface StockSummaryRow {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  category: string | null;
+  totalQty: number;
+  totalValue: number;
+  warehouseCount: number;
+  batchCount: number;
+}
+
+export function useStockSummary(filter: { warehouseId?: string; category?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'summary', filter] as const,
+    queryFn: () =>
+      api.get<{ data: StockSummaryRow[] }>(`/inventory/reports/stock-summary${qs(filter)}`).then(get),
+  });
+}
+
+export interface ValuationRow {
+  itemId: string;
+  warehouseId: string;
+  batchNo: string;
+  qty: number;
+  value: number;
+  avgCost: number;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  category: string | null;
+  warehouseName: string;
+}
+
+export interface ValuationResult {
+  asOf: string;
+  total: number;
+  rows: ValuationRow[];
+}
+
+export function useValuation(filter: { asOf?: string; warehouseId?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'valuation', filter] as const,
+    queryFn: () =>
+      api.get<{ data: ValuationResult }>(`/inventory/reports/valuation${qs(filter)}`).then(get),
+  });
+}
+
+export interface AgeingRow {
+  itemId: string;
+  warehouseId: string;
+  batchNo: string;
+  qty: number;
+  value: number;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  warehouseName: string;
+  lastInboundDate: string | null;
+  ageDays: number | null;
+  bucket: string;
+}
+
+export interface AgeingResult {
+  rows: AgeingRow[];
+  totals: Record<string, { qty: number; value: number; count: number }>;
+  buckets: string[];
+}
+
+export function useAgeing(filter: { warehouseId?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'ageing', filter] as const,
+    queryFn: () =>
+      api.get<{ data: AgeingResult }>(`/inventory/reports/ageing${qs(filter)}`).then(get),
+  });
+}
+
+export interface MovementRow {
+  period: string;
+  qtyIn: number;
+  qtyOut: number;
+  valueIn: number;
+  valueOut: number;
+  movements: number;
+}
+
+export interface MovementResult {
+  from: string;
+  to: string;
+  groupBy: 'day' | 'week' | 'month';
+  rows: MovementRow[];
+}
+
+export function useMovementSummary(filter: {
+  from?: string; to?: string; warehouseId?: string; groupBy?: 'day' | 'week' | 'month';
+} = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'movement', filter] as const,
+    queryFn: () =>
+      api.get<{ data: MovementResult }>(`/inventory/reports/movement${qs(filter)}`).then(get),
+  });
+}
+
+export interface DeadStockRow {
+  itemId: string;
+  warehouseId: string;
+  batchNo: string;
+  qty: number;
+  value: number;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  warehouseName: string;
+  lastMovementDate: string | null;
+  daysSinceMovement: number | null;
+}
+
+export function useDeadStock(filter: { daysSinceMovement?: number; warehouseId?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'dead-stock', filter] as const,
+    queryFn: () =>
+      api.get<{ data: DeadStockRow[] }>(`/inventory/reports/dead-stock${qs(filter)}`).then(get),
+  });
+}
+
+// ─── Serials (Phase 3 minimal) ─────────────────────────────────────────
+
+export interface Serial {
+  id: string;
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  serialNo: string;
+  currentWarehouseId: string | null;
+  warehouseName: string | null;
+  currentStatus: 'in_stock' | 'sold' | 'returned' | 'scrapped' | 'in_transit';
+  batchNo: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function useSerialList(filter: {
+  itemId?: string; status?: string; warehouseId?: string;
+} = {}) {
+  return useQuery({
+    queryKey: ['inv', 'serials', filter] as const,
+    queryFn: () =>
+      api.get<{
+        data: Serial[]; page: number; limit: number; total: number; totalPages: number;
+      }>(`/inventory/serials${qs(filter)}`),
+  });
+}
+
 // ─── helpers ───────────────────────────────────────────────────────────
 
 function qs(filter: Record<string, unknown>) {

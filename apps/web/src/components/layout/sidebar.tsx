@@ -232,6 +232,11 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Reports',
     items: [
+      { key: 'inv-summary', label: 'Stock summary', icon: Layers, path: '/inventory/reports/summary' },
+      { key: 'inv-valuation', label: 'Valuation', icon: Wallet, path: '/inventory/reports/valuation' },
+      { key: 'inv-ageing', label: 'Ageing', icon: History, path: '/inventory/reports/ageing' },
+      { key: 'inv-movement', label: 'Movement', icon: BarChart3, path: '/inventory/reports/movement' },
+      { key: 'inv-dead-stock', label: 'Dead stock', icon: FileX, path: '/inventory/reports/dead-stock' },
       { key: 'inv-reorder', label: 'Reorder alerts', icon: AlarmClock, path: '/inventory/reports/reorder' },
       { key: 'inv-expiry', label: 'Batch expiry', icon: CalendarClock, path: '/inventory/reports/expiry' },
     ],
@@ -241,6 +246,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'inv-warehouses', label: 'Warehouses', icon: Warehouse, path: '/inventory/warehouses' },
       { key: 'inv-items', label: 'Items', icon: Package, path: '/inventory/items' },
+      { key: 'inv-serials', label: 'Serials', icon: ScrollText, path: '/inventory/serials' },
     ],
   },
 ];

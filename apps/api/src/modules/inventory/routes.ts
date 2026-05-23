@@ -13,6 +13,8 @@ import {
   startStockTakeSchema, upsertCountLinesSchema, updateCountLineSchema,
   recountStockTakeSchema, stockTakeFilterSchema,
   upsertReorderRuleSchema, expiryFilterSchema,
+  stockSummaryFilterSchema, valuationFilterSchema, ageingFilterSchema,
+  movementSummaryFilterSchema, deadStockFilterSchema, serialLookupFilterSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -25,6 +27,8 @@ import { TransferService } from './transfer.service';
 import { AdjustmentService } from './adjustment.service';
 import { StockTakeService } from './stock-take.service';
 import { ReorderService } from './reorder.service';
+import { ReportsService } from './reports.service';
+import { SerialService } from './serial.service';
 import { NotFoundError } from '../../utils/errors';
 
 const lineParamSchema = z.object({ id: z.string().uuid(), lineId: z.string().uuid() });
@@ -339,6 +343,48 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const svc = new ReorderService(req.server.db, req.tenantId);
     return { data: await svc.expiring(filter) };
   });
+
+  // ─── Reports (Phase 3) ───────────────────────────────────────────────
+  app.get('/reports/stock-summary', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = stockSummaryFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.stockSummary(filter) };
+  });
+  app.get('/reports/valuation', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = valuationFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.valuation(filter) };
+  });
+  app.get('/reports/ageing', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = ageingFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.ageing(filter) };
+  });
+  app.get('/reports/movement', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = movementSummaryFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.movementSummary(filter) };
+  });
+  app.get('/reports/dead-stock', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = deadStockFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.deadStock(filter) };
+  });
+
+  // ─── Serials (Phase 3) ───────────────────────────────────────────────
+  app.get('/serials', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = serialLookupFilterSchema.parse(req.query);
+    const svc = new SerialService(req.server.db, req.tenantId);
+    return await svc.list(filter);
+  });
+  app.get<{ Params: { serialNo: string } }>(
+    '/serials/:serialNo',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (req) => {
+      const svc = new SerialService(req.server.db, req.tenantId);
+      return { data: await svc.findBySerial(req.params.serialNo) };
+    },
+  );
 
   // ─── Dashboard ───────────────────────────────────────────────────────
   app.get('/dashboard', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {

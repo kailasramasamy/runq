@@ -462,6 +462,83 @@ near_exp = req("GET", "/inventory/stock/expiring?withinDays=30", token=tok())
 near_batches = [r["batchNo"] for r in (near_exp.get("data") or [])]
 check(fresh_batch not in near_batches, f"200-day batch correctly absent from 30-day window")
 
+# ═══════════════════════════════════════════════════════════════════════
+#  PHASE 3: reports + serials
+# ═══════════════════════════════════════════════════════════════════════
+
+section("Reports: stock summary")
+summ = req("GET", "/inventory/reports/stock-summary", token=tok())
+summ_rows = summ.get("data") or []
+check(len(summ_rows) > 0, f"Summary returned {len(summ_rows)} rows")
+check(all('itemId' in r and 'totalValue' in r for r in summ_rows), "All rows have itemId + totalValue")
+
+section("Reports: valuation (as-of today)")
+val = req("GET", "/inventory/reports/valuation", token=tok())
+val_data = val.get("data") or {}
+check("asOf" in val_data and "total" in val_data, "Valuation returns asOf + total")
+check(val_data.get("total", 0) >= 0, f"Total value non-negative (got {val_data.get('total')})")
+
+# As-of in the future should match today since we clamp ≤ today via the ledger.
+future_val = req("GET", f"/inventory/reports/valuation?asOf={(date.today()+timedelta(days=365)).isoformat()}", token=tok())
+check(future_val.get("data", {}).get("total") == val_data.get("total"),
+      "Future as-of returns same total (no future ledger rows)")
+
+# Far-past as-of should return 0 (before any GRN posted).
+old_val = req("GET", "/inventory/reports/valuation?asOf=2000-01-01", token=tok())
+check(old_val.get("data", {}).get("total") == 0,
+      f"Pre-history as-of returns total=0 (got {old_val.get('data', {}).get('total')})")
+
+section("Reports: ageing")
+age = req("GET", "/inventory/reports/ageing", token=tok())
+age_data = age.get("data") or {}
+check("buckets" in age_data and len(age_data["buckets"]) == 5, "Ageing returns 5 buckets")
+check("totals" in age_data and "0-30" in age_data["totals"], "Totals keyed by bucket")
+# Newly received fresh-batch stock should be in 0-30 days.
+total_recent = age_data.get("totals", {}).get("0-30", {}).get("count", 0)
+check(total_recent > 0, f"At least one line in 0-30 bucket (got {total_recent})")
+
+section("Reports: movement summary")
+mov = req("GET", "/inventory/reports/movement?groupBy=day", token=tok())
+mov_data = mov.get("data") or {}
+check("rows" in mov_data and len(mov_data["rows"]) > 0, f"Movement returned {len(mov_data.get('rows', []))} period(s)")
+total_qty_in = sum(r["qtyIn"] for r in mov_data.get("rows", []))
+check(total_qty_in > 0, f"At least some inbound recorded ({total_qty_in})")
+
+# groupBy=month should collapse rows.
+mov_month = req("GET", "/inventory/reports/movement?groupBy=month", token=tok())
+check(
+    len(mov_month.get("data", {}).get("rows", [])) <= len(mov_data.get("rows", [])),
+    "Monthly grouping has ≤ daily row count",
+)
+
+section("Reports: dead stock")
+dead = req("GET", "/inventory/reports/dead-stock?daysSinceMovement=30", token=tok())
+dead_rows = dead.get("data") or []
+check(isinstance(dead_rows, list), f"Dead-stock list returns ({len(dead_rows)} rows)")
+
+# Long horizon (3650 days) should return 0 — every batch we touched has moved recently.
+dead_far = req("GET", "/inventory/reports/dead-stock?daysSinceMovement=3650", token=tok())
+check(len(dead_far.get("data") or []) == 0, "3650-day horizon → no dead stock")
+
+section("Serials: empty lookup")
+ser_list = req("GET", "/inventory/serials", token=tok())
+check("data" in ser_list, "Serials list endpoint reachable")
+check(isinstance(ser_list.get("data"), list), "Returns a list (phase 4 will populate)")
+
+ser_miss = req("GET", "/inventory/serials/NO-SUCH-SERIAL", token=tok())
+check(ser_miss.get("statusCode") == 404, "Unknown serial → 404")
+
+# Insert one serial directly via SQL to verify list + lookup work end-to-end.
+SERIAL_NO = f"SN-{unique}"
+sql(f"INSERT INTO inventory_serials (tenant_id, item_id, serial_no, current_warehouse_id, current_status) "
+    f"VALUES ((SELECT tenant_id FROM users WHERE email='appreview@runq.in'), "
+    f"'{ITEM_BATCH}', '{SERIAL_NO}', '{WH_ID}', 'in_stock')")
+ser_found = req("GET", f"/inventory/serials/{SERIAL_NO}", token=tok())
+check(ser_found.get("data", {}).get("serialNo") == SERIAL_NO, "Lookup by serial returns the row")
+ser_list2 = req("GET", "/inventory/serials?status=in_stock", token=tok())
+serials_in_stock = [s for s in (ser_list2.get("data") or []) if s["serialNo"] == SERIAL_NO]
+check(len(serials_in_stock) == 1, f"Serial appears in in-stock list (got {len(serials_in_stock)})")
+
 # ─── SUMMARY ───────────────────────────────────────────────────────────
 print(f"\n{'='*60}\n  RESULTS: {passed} passed, {failed} failed\n{'='*60}")
 sys.exit(0 if failed == 0 else 1)
