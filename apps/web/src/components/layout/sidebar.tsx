@@ -224,12 +224,23 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'inv-grn', label: 'Receipts (GRN)', icon: PackageCheck, path: '/inventory/grn' },
       { key: 'inv-delivery', label: 'Dispatches', icon: Truck, path: '/inventory/delivery' },
+      { key: 'inv-transfers', label: 'Transfers', icon: MoveRight, path: '/inventory/transfers' },
+      { key: 'inv-adjustments', label: 'Adjustments', icon: Split, path: '/inventory/adjustments' },
+      { key: 'inv-stock-take', label: 'Stock take', icon: ClipboardCheck, path: '/inventory/stock-take' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { key: 'inv-reorder', label: 'Reorder alerts', icon: AlarmClock, path: '/inventory/reports/reorder' },
+      { key: 'inv-expiry', label: 'Batch expiry', icon: CalendarClock, path: '/inventory/reports/expiry' },
     ],
   },
   {
     label: 'Setup',
     items: [
       { key: 'inv-warehouses', label: 'Warehouses', icon: Warehouse, path: '/inventory/warehouses' },
+      { key: 'inv-items', label: 'Items', icon: Package, path: '/inventory/items' },
     ],
   },
 ];

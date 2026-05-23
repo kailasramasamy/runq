@@ -101,6 +101,75 @@ export class InventoryGlPoster {
     return je.id;
   }
 
+  /**
+   * Adjustment posting. `valueDelta` is signed against Inventory Asset:
+   *   positive → Inventory Asset Dr / Inventory Gain Cr (found, revaluation up)
+   *   negative → Inventory Write-off Dr / Inventory Asset Cr (damage, expiry,
+   *     theft, correction down, revaluation down)
+   *
+   * Caller computes the signed delta per the adjustment lines.
+   */
+  async postAdjustment(args: {
+    date: string;
+    adjustmentId: string;
+    adjNo: string;
+    reason: string;
+    valueDelta: number;
+  }): Promise<string | null> {
+    if (args.valueDelta === 0) return null;
+    const abs = Math.abs(args.valueDelta);
+    const isInbound = args.valueDelta > 0;
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Adjustment ${args.adjNo} (${args.reason})`,
+      sourceType: 'inventory_adjustment',
+      sourceId: args.adjustmentId,
+      lines: isInbound
+        ? [
+            { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: abs, credit: 0 },
+            { accountCode: INV_ACCOUNTS.GAIN, debit: 0, credit: abs },
+          ]
+        : [
+            { accountCode: INV_ACCOUNTS.WRITE_OFF, debit: abs, credit: 0 },
+            { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: 0, credit: abs },
+          ],
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
+  /**
+   * Stock-take posting — same accounts as adjustment, but the description
+   * carries the stock-take number so the trail-by-source view groups them.
+   */
+  async postStockTake(args: {
+    date: string;
+    stockTakeId: string;
+    stNo: string;
+    valueDelta: number;
+  }): Promise<string | null> {
+    if (args.valueDelta === 0) return null;
+    const abs = Math.abs(args.valueDelta);
+    const isInbound = args.valueDelta > 0;
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Stock take variance ${args.stNo}`,
+      sourceType: 'inventory_stock_take',
+      sourceId: args.stockTakeId,
+      lines: isInbound
+        ? [
+            { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: abs, credit: 0 },
+            { accountCode: INV_ACCOUNTS.GAIN, debit: 0, credit: abs },
+          ]
+        : [
+            { accountCode: INV_ACCOUNTS.WRITE_OFF, debit: abs, credit: 0 },
+            { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: 0, credit: abs },
+          ],
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
   /** Reversal of a dispatched DN. */
   async reverseDelivery(args: {
     date: string;

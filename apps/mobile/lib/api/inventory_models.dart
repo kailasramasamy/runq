@@ -157,6 +157,73 @@ class InvGrn {
       );
 }
 
+class InvTransfer {
+  final String id;
+  final String transferNo;
+  final String fromWarehouseName;
+  final String toWarehouseName;
+  final String status;
+  final double totalValue;
+  const InvTransfer({
+    required this.id, required this.transferNo,
+    required this.fromWarehouseName, required this.toWarehouseName,
+    required this.status, required this.totalValue,
+  });
+  factory InvTransfer.fromJson(Map<String, dynamic> j) => InvTransfer(
+        id: j['id'] as String,
+        transferNo: j['transferNo'] as String,
+        fromWarehouseName: (j['fromWarehouseName'] as String?) ?? '',
+        toWarehouseName: (j['toWarehouseName'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'draft',
+        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+      );
+}
+
+class InvAdjustment {
+  final String id;
+  final String adjNo;
+  final String warehouseName;
+  final String reason;
+  final String adjustmentDate;
+  final String status;
+  final double totalValueDelta;
+  const InvAdjustment({
+    required this.id, required this.adjNo, required this.warehouseName,
+    required this.reason, required this.adjustmentDate, required this.status,
+    required this.totalValueDelta,
+  });
+  factory InvAdjustment.fromJson(Map<String, dynamic> j) => InvAdjustment(
+        id: j['id'] as String,
+        adjNo: j['adjNo'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        reason: (j['reason'] as String?) ?? 'damage',
+        adjustmentDate: j['adjustmentDate'] as String,
+        status: (j['status'] as String?) ?? 'draft',
+        totalValueDelta: double.tryParse(j['totalValueDelta']?.toString() ?? '0') ?? 0,
+      );
+}
+
+class InvStockTake {
+  final String id;
+  final String stNo;
+  final String warehouseName;
+  final String scope;
+  final String status;
+  final String startedAt;
+  const InvStockTake({
+    required this.id, required this.stNo, required this.warehouseName,
+    required this.scope, required this.status, required this.startedAt,
+  });
+  factory InvStockTake.fromJson(Map<String, dynamic> j) => InvStockTake(
+        id: j['id'] as String,
+        stNo: j['stNo'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        scope: (j['scope'] as String?) ?? 'full',
+        status: (j['status'] as String?) ?? 'in_progress',
+        startedAt: (j['startedAt'] as String?) ?? '',
+      );
+}
+
 class InvDn {
   final String id;
   final String dnNo;

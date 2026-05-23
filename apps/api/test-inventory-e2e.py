@@ -290,6 +290,178 @@ check("totalValue" in data and "lowStockCount" in data, "Dashboard returns KPI s
 check(int(data.get("todayGrns", 0)) >= 2, f"todayGrns >= 2 (got {data.get('todayGrns')})")
 check(int(data.get("todayDeliveries", 0)) >= 2, f"todayDeliveries >= 2 (got {data.get('todayDeliveries')})")
 
+# ═══════════════════════════════════════════════════════════════════════
+#  PHASE 2: transfers, adjustments, stock-take, reorder rules, expiry
+# ═══════════════════════════════════════════════════════════════════════
+
+# A second warehouse for transfers.
+wh2_payload = {"code": f"INV-WH2-{unique}", "name": f"Inv Test WH2 {unique}", "type": "godown"}
+r = req("POST", "/inventory/warehouses", wh2_payload, tok())
+check(r.get("data", {}).get("id") is not None, "Second warehouse created", r)
+WH2_ID = r["data"]["id"]
+
+# ─── TRANSFER: dispatch + receive ──────────────────────────────────────
+section("Transfer: dispatch + receive")
+# Item B has B-001 (40 left after earlier flows) + B-002 (drained). Item A on-hand is 70.
+# Transfer 20 of Item A from WH → WH2.
+tr = req("POST", "/inventory/transfers", {
+    "fromWarehouseId": WH_ID, "toWarehouseId": WH2_ID,
+    "lines": [{"itemId": ITEM_NORMAL, "qty": 20}],
+}, tok())
+check(tr.get("data", {}).get("transferNo", "").startswith("TRF-"), "Transfer created", tr)
+TR_ID = tr["data"]["id"]
+
+# Same-warehouse transfer should be rejected at create.
+bad_tr = req("POST", "/inventory/transfers", {
+    "fromWarehouseId": WH_ID, "toWarehouseId": WH_ID,
+    "lines": [{"itemId": ITEM_NORMAL, "qty": 1}],
+}, tok())
+check(bad_tr.get("statusCode") == 400, "Same-warehouse transfer rejected", bad_tr)
+
+# Dispatch.
+disp = req("POST", f"/inventory/transfers/{TR_ID}/dispatch", {}, tok())
+check(disp.get("data", {}).get("status") == "in_transit", "Transfer in transit after dispatch", disp)
+
+# Stock should leave WH (70 → 50) and not yet land at WH2.
+qty_src = sql(f"SELECT qty FROM stock_on_hand WHERE item_id='{ITEM_NORMAL}' AND warehouse_id='{WH_ID}'")
+qty_dst = sql(f"SELECT qty FROM stock_on_hand WHERE item_id='{ITEM_NORMAL}' AND warehouse_id='{WH2_ID}'")
+check(float(qty_src or 0) == 50, f"Source on-hand = 50 (got {qty_src})")
+check(qty_dst is None or qty_dst == "" or float(qty_dst) == 0, f"Destination not yet credited (got {qty_dst!r})")
+
+# Short receipt: receive only 15 of 20.
+recv = req("POST", f"/inventory/transfers/{TR_ID}/receive", {
+    "lineReceipts": [{"lineId": sql(f"SELECT id FROM inventory_transfer_lines WHERE transfer_id='{TR_ID}' LIMIT 1"), "qtyReceived": 15}],
+}, tok())
+check(recv.get("data", {}).get("status") == "received", "Transfer received", recv)
+qty_dst2 = sql(f"SELECT qty FROM stock_on_hand WHERE item_id='{ITEM_NORMAL}' AND warehouse_id='{WH2_ID}'")
+check(float(qty_dst2 or 0) == 15, f"Destination on-hand = 15 (short receipt) (got {qty_dst2})")
+
+# Over-receipt on a fresh transfer should be rejected.
+tr2 = req("POST", "/inventory/transfers", {
+    "fromWarehouseId": WH_ID, "toWarehouseId": WH2_ID,
+    "lines": [{"itemId": ITEM_NORMAL, "qty": 5}],
+}, tok())
+req("POST", f"/inventory/transfers/{tr2['data']['id']}/dispatch", {}, tok())
+over = req("POST", f"/inventory/transfers/{tr2['data']['id']}/receive", {
+    "lineReceipts": [{"lineId": sql(f"SELECT id FROM inventory_transfer_lines WHERE transfer_id='{tr2['data']['id']}' LIMIT 1"), "qtyReceived": 999}],
+}, tok())
+check(over.get("statusCode") == 400, "Over-receipt rejected", over)
+
+# ─── ADJUSTMENT (damage) ───────────────────────────────────────────────
+section("Adjustment: post damage → Write-off JE")
+adj = req("POST", "/inventory/adjustments", {
+    "warehouseId": WH_ID,
+    "reason": "damage",
+    "adjustmentDate": time.strftime("%Y-%m-%d"),
+    "lines": [{"itemId": ITEM_NORMAL, "qtyDelta": -2}],
+}, tok())
+check(adj.get("data", {}).get("adjNo", "").startswith("ADJ-"), "Adjustment created (draft)", adj)
+ADJ_ID = adj["data"]["id"]
+
+posted = req("POST", f"/inventory/adjustments/{ADJ_ID}/post", {}, tok())
+check(posted.get("data", {}).get("status") == "posted", "Adjustment posted", posted)
+adj_je = sql(f"SELECT journal_entry_id FROM inventory_adjustments WHERE id='{ADJ_ID}'")
+check(adj_je and adj_je != '', f"JE attached ({adj_je[:8] if adj_je else '∅'}…)")
+
+# JE should debit Write-off (5104), credit Inventory Asset (1112).
+je_lines = sql(f"""
+  SELECT string_agg(a.code || ':' || ROUND(jl.debit::numeric, 2) || '/' || ROUND(jl.credit::numeric, 2), ',' ORDER BY a.code)
+  FROM journal_lines jl
+  INNER JOIN accounts a ON a.id = jl.account_id
+  WHERE jl.journal_entry_id = '{adj_je}'
+""")
+check('1112' in (je_lines or '') and '5104' in (je_lines or ''),
+      f"JE hits 1112 + 5104 (got {je_lines})")
+
+# Posted adjustment cannot be cancelled.
+canc_posted = req("POST", f"/inventory/adjustments/{ADJ_ID}/cancel", {"reason": "should fail"}, tok())
+check(canc_posted.get("statusCode") == 409, "Posted adjustment can't be cancelled", canc_posted)
+
+# Approval gate
+adj2 = req("POST", "/inventory/adjustments", {
+    "warehouseId": WH_ID, "reason": "found", "adjustmentDate": time.strftime("%Y-%m-%d"),
+    "requiresApproval": True,
+    "lines": [{"itemId": ITEM_NORMAL, "qtyDelta": 1, "unitCost": 50}],
+}, tok())
+ADJ2_ID = adj2["data"]["id"]
+no_approve_post = req("POST", f"/inventory/adjustments/{ADJ2_ID}/post", {}, tok())
+check(no_approve_post.get("statusCode") == 409, "Cannot post without approval first", no_approve_post)
+req("POST", f"/inventory/adjustments/{ADJ2_ID}/approve", {}, tok())
+ok_post = req("POST", f"/inventory/adjustments/{ADJ2_ID}/post", {}, tok())
+check(ok_post.get("data", {}).get("status") == "posted", "Post after approval succeeds", ok_post)
+
+# ─── STOCK TAKE ────────────────────────────────────────────────────────
+section("Stock take: snapshot → count → post variance")
+st = req("POST", "/inventory/stock-takes", {
+    "warehouseId": WH_ID, "scope": "full",
+}, tok())
+check(st.get("data", {}).get("stNo", "").startswith("ST-"), "Session started", st)
+ST_ID = st["data"]["id"]
+
+# Snapshot should have lines for current on-hand. Pick one.
+st_detail = req("GET", f"/inventory/stock-takes/{ST_ID}", token=tok())
+lines = st_detail["data"]["lines"]
+check(len(lines) > 0, f"Snapshot captured {len(lines)} line(s)")
+# Find item A and count it short by 3 — should book a write-off.
+target_line = next((l for l in lines if l["itemId"] == ITEM_NORMAL), None)
+check(target_line is not None, "Item A in snapshot")
+short_count = float(target_line["systemQty"]) - 3
+
+upsert = req("POST", f"/inventory/stock-takes/{ST_ID}/lines", {
+    "lines": [
+        {"itemId": ITEM_NORMAL, "countedQty": short_count},
+    ],
+}, tok())
+check(upsert.get("data", {}).get("upserted") == 1, "Count upserted")
+
+st_post = req("POST", f"/inventory/stock-takes/{ST_ID}/post", {}, tok())
+check(st_post.get("data", {}).get("status") == "posted", "Stock take posted", st_post)
+adj_link = sql(f"SELECT adjustment_id FROM inventory_stock_takes WHERE id='{ST_ID}'")
+check(adj_link and adj_link != '', f"Variance adjustment linked ({adj_link[:8] if adj_link else '∅'}…)")
+st_je = sql(f"SELECT journal_entry_id FROM inventory_adjustments WHERE id='{adj_link}'")
+check(st_je and st_je != '', f"Stock-take JE attached ({st_je[:8] if st_je else '∅'}…)")
+
+# ─── REORDER ALERTS ────────────────────────────────────────────────────
+section("Reorder alerts")
+alerts = req("GET", "/inventory/stock/reorder-alerts", token=tok())
+alert_items = [a["itemId"] for a in (alerts.get("data") or [])]
+check(ITEM_BATCH in alert_items, f"Item B surfaces in reorder alerts ({len(alert_items)} total)")
+
+# Add a per-warehouse override and confirm it appears.
+rule = req("POST", "/inventory/reorder-rules", {
+    "itemId": ITEM_NORMAL, "warehouseId": WH_ID,
+    "reorderLevel": 999999, "reorderQty": 100, "leadTimeDays": 7,
+}, tok())
+check(rule.get("data") is not None, "Reorder rule upserted")
+alerts2 = req("GET", "/inventory/stock/reorder-alerts", token=tok())
+in_alerts = any(a["itemId"] == ITEM_NORMAL and a["warehouseId"] == WH_ID for a in (alerts2.get("data") or []))
+check(in_alerts, "Per-warehouse rule overrides item default and surfaces item A")
+
+# ─── EXPIRY REPORT ─────────────────────────────────────────────────────
+section("Batch expiry report")
+# Seed a fresh batch with a known future expiry so the report has something
+# to surface (earlier batches were drained by Phase 1 dispatches).
+fresh_batch = f"EXP-TEST-{unique}"
+# Expiry 200 days out — fits inside the 365-day window cap.
+from datetime import date, timedelta
+fresh_expiry = (date.today() + timedelta(days=200)).isoformat()
+grn_exp = req("POST", "/inventory/grn", {
+    "warehouseId": WH_ID,
+    "receivedDate": time.strftime("%Y-%m-%d"),
+    "lines": [{"itemId": ITEM_BATCH, "batchNo": fresh_batch,
+               "expiryDate": fresh_expiry, "qty": 10, "unitRate": 80}],
+}, tok())
+req("POST", f"/inventory/grn/{grn_exp['data']['id']}/post", {}, tok())
+
+exp = req("GET", "/inventory/stock/expiring?withinDays=365", token=tok())
+exp_batches = [r["batchNo"] for r in (exp.get("data") or [])]
+check(fresh_batch in exp_batches, f"Fresh expiry-tracked batch listed in 365-day window ({len(exp_batches)} batches)")
+
+# 30-day window should not contain the 200-day-out batch.
+near_exp = req("GET", "/inventory/stock/expiring?withinDays=30", token=tok())
+near_batches = [r["batchNo"] for r in (near_exp.get("data") or [])]
+check(fresh_batch not in near_batches, f"200-day batch correctly absent from 30-day window")
+
 # ─── SUMMARY ───────────────────────────────────────────────────────────
 print(f"\n{'='*60}\n  RESULTS: {passed} passed, {failed} failed\n{'='*60}")
 sys.exit(0 if failed == 0 else 1)

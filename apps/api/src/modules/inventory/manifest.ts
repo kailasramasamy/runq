@@ -155,6 +155,111 @@ export const INVENTORY_CAPABILITIES: ReadonlyArray<InventoryCapability> = [
     mobileFiles: ['inventory_home_screen.dart'],
     phase: 1,
   },
+
+  // ─── Phase 2: Transfers ────────────────────────────────────────────
+  {
+    key: 'transfers',
+    title: 'Inter-warehouse transfers',
+    api: [
+      { method: 'GET', path: '/transfers' },
+      { method: 'POST', path: '/transfers' },
+      { method: 'GET', path: '/transfers/:id' },
+      { method: 'PUT', path: '/transfers/:id' },
+      { method: 'POST', path: '/transfers/:id/dispatch' },
+      { method: 'POST', path: '/transfers/:id/receive' },
+      { method: 'POST', path: '/transfers/:id/cancel' },
+    ],
+    web: [
+      '/inventory/transfers',
+      '/inventory/transfers/new',
+      '/inventory/transfers/$id',
+    ],
+    webFiles: [
+      'transfers/index.tsx',
+      'transfers/new.tsx',
+      'transfers/detail.tsx',
+    ],
+    mobileFiles: ['inventory_transfer_screen.dart'],
+    phase: 2,
+  },
+
+  // ─── Phase 2: Adjustments ──────────────────────────────────────────
+  {
+    key: 'adjustments',
+    title: 'Stock adjustments (damage / found / expiry / revaluation)',
+    api: [
+      { method: 'GET', path: '/adjustments' },
+      { method: 'POST', path: '/adjustments' },
+      { method: 'GET', path: '/adjustments/:id' },
+      { method: 'PUT', path: '/adjustments/:id' },
+      { method: 'POST', path: '/adjustments/:id/approve' },
+      { method: 'POST', path: '/adjustments/:id/post' },
+      { method: 'POST', path: '/adjustments/:id/cancel' },
+    ],
+    web: [
+      '/inventory/adjustments',
+      '/inventory/adjustments/new',
+      '/inventory/adjustments/$id',
+    ],
+    webFiles: [
+      'adjustments/index.tsx',
+      'adjustments/new.tsx',
+      'adjustments/detail.tsx',
+    ],
+    mobileFiles: ['inventory_adjustment_screen.dart'],
+    phase: 2,
+  },
+
+  // ─── Phase 2: Stock take ───────────────────────────────────────────
+  {
+    key: 'stock-take',
+    title: 'Stock take sessions',
+    api: [
+      { method: 'GET', path: '/stock-takes' },
+      { method: 'POST', path: '/stock-takes' },
+      { method: 'GET', path: '/stock-takes/:id' },
+      { method: 'POST', path: '/stock-takes/:id/lines' },
+      { method: 'PUT', path: '/stock-takes/:id/lines/:lineId' },
+      { method: 'POST', path: '/stock-takes/:id/recount' },
+      { method: 'POST', path: '/stock-takes/:id/post' },
+      { method: 'POST', path: '/stock-takes/:id/cancel' },
+    ],
+    web: [
+      '/inventory/stock-take',
+      '/inventory/stock-take/new',
+      '/inventory/stock-take/$id',
+    ],
+    webFiles: [
+      'stock-take/index.tsx',
+      'stock-take/new.tsx',
+      'stock-take/detail.tsx',
+    ],
+    mobileFiles: ['inventory_stock_take_screen.dart'],
+    phase: 2,
+  },
+
+  // ─── Phase 2: Reorder + expiry ─────────────────────────────────────
+  {
+    key: 'reorder-alerts',
+    title: 'Reorder alerts + rules + expiry',
+    api: [
+      { method: 'GET', path: '/reorder-rules' },
+      { method: 'POST', path: '/reorder-rules' },
+      { method: 'DELETE', path: '/reorder-rules/:itemId/:warehouseId' },
+      { method: 'GET', path: '/stock/reorder-alerts' },
+      { method: 'GET', path: '/stock/expiring' },
+    ],
+    web: [
+      '/inventory/reports/reorder',
+      '/inventory/reports/expiry',
+    ],
+    webFiles: [
+      'reports/reorder.tsx',
+      'reports/expiry.tsx',
+    ],
+    mobileFiles: [],
+    phase: 2,
+  },
 ];
 
 /** Flatten API rows for the parity script. */

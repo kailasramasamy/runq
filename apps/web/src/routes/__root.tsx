@@ -214,6 +214,17 @@ import { GrnDetailPage } from './inventory/grn/detail';
 import { DeliveryListPage } from './inventory/delivery/index';
 import { NewDeliveryNotePage } from './inventory/delivery/new';
 import { DeliveryNoteDetailPage } from './inventory/delivery/detail';
+import { TransferListPage } from './inventory/transfers/index';
+import { NewTransferPage } from './inventory/transfers/new';
+import { TransferDetailPage } from './inventory/transfers/detail';
+import { AdjustmentListPage } from './inventory/adjustments/index';
+import { NewAdjustmentPage } from './inventory/adjustments/new';
+import { AdjustmentDetailPage } from './inventory/adjustments/detail';
+import { StockTakeListPage } from './inventory/stock-take/index';
+import { NewStockTakePage } from './inventory/stock-take/new';
+import { StockTakeDetailPage } from './inventory/stock-take/detail';
+import { ReorderReportPage } from './inventory/reports/reorder';
+import { ExpiryReportPage } from './inventory/reports/expiry';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -1849,6 +1860,71 @@ const invDeliveryDetailRoute = createRoute({
   component: DeliveryNoteDetailPage,
 });
 
+// Phase 2 additions
+const invTransfersRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/transfers',
+  component: TransferListPage,
+});
+const invTransferNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/transfers/new',
+  component: NewTransferPage,
+});
+const invTransferDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/transfers/$id',
+  component: TransferDetailPage,
+});
+const invAdjustmentsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/adjustments',
+  component: AdjustmentListPage,
+});
+const invAdjustmentNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/adjustments/new',
+  component: NewAdjustmentPage,
+});
+const invAdjustmentDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/adjustments/$id',
+  component: AdjustmentDetailPage,
+});
+const invStockTakeRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/stock-take',
+  component: StockTakeListPage,
+});
+const invStockTakeNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/stock-take/new',
+  component: NewStockTakePage,
+});
+const invStockTakeDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/stock-take/$id',
+  component: StockTakeDetailPage,
+});
+const invReorderRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/reorder',
+  component: ReorderReportPage,
+});
+const invExpiryRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/expiry',
+  component: ExpiryReportPage,
+});
+// Items menu mirror — same page as /finance/masters/items, reachable from
+// the Inventory sidebar. The redirect lives inside Inventory's path space
+// so the active-module detector keeps the amber accent.
+const invItemsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items',
+  component: () => <Navigate to="/finance/masters/items" />,
+});
+
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
 const agentActivityRoute = createRoute({
@@ -2255,6 +2331,18 @@ export const routeTree = rootRoute.addChildren([
       invDeliveryRoute,
       invDeliveryNewRoute,
       invDeliveryDetailRoute,
+      invTransfersRoute,
+      invTransferNewRoute,
+      invTransferDetailRoute,
+      invAdjustmentsRoute,
+      invAdjustmentNewRoute,
+      invAdjustmentDetailRoute,
+      invStockTakeRoute,
+      invStockTakeNewRoute,
+      invStockTakeDetailRoute,
+      invReorderRoute,
+      invExpiryRoute,
+      invItemsRoute,
     ]),
     hrRoute.addChildren([
       hrIndexRoute,

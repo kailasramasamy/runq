@@ -63,3 +63,7 @@ export * from './inventory/warehouse.schema';
 export * from './inventory/grn.schema';
 export * from './inventory/delivery.schema';
 export * from './inventory/stock.schema';
+export * from './inventory/transfer.schema';
+export * from './inventory/adjustment.schema';
+export * from './inventory/stock-take.schema';
+export * from './inventory/reorder.schema';

@@ -70,7 +70,7 @@ export function GrnListPage() {
             {rows.map((g) => (
               <TableRow key={g.id}>
                 <TableCell className="font-mono">
-                  <Link to="/inventory/grn/$id" params={{ id: g.id }} className="text-primary-600 hover:underline">
+                  <Link to="/inventory/grn/$id" params={{ id: g.id }} className="hover:underline" style={{ color: 'var(--accent-text)' }}>
                     {g.grnNo}
                   </Link>
                 </TableCell>

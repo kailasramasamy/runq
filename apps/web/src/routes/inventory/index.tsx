@@ -86,9 +86,13 @@ function QuickActionCard({
   return (
     <Link
       to={to as never}
-      className="group flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-primary-300 hover:bg-primary-50/30 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
+      className="group flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
+      style={{ borderColor: 'var(--border-soft, oklch(0.92 0 0))' }}
     >
-      <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500/10 text-primary-600">
+      <span
+        className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg"
+        style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+      >
         <Icon size={18} />
       </span>
       <div>

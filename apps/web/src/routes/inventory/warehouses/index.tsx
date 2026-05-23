@@ -59,7 +59,8 @@ export function WarehouseListPage() {
                   <Link
                     to="/inventory/warehouses/$id"
                     params={{ id: w.id }}
-                    className="font-medium text-primary-600 hover:underline"
+                    className="font-medium hover:underline"
+                    style={{ color: 'var(--accent-text)' }}
                   >
                     {w.name}
                   </Link>

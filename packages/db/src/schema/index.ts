@@ -95,3 +95,7 @@ export * from './inventory/warehouses';
 export * from './inventory/stock-ledger';
 export * from './inventory/grns';
 export * from './inventory/delivery-notes';
+export * from './inventory/transfers';
+export * from './inventory/adjustments';
+export * from './inventory/stock-takes';
+export * from './inventory/reorder-rules';

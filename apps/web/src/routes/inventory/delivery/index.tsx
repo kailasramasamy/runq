@@ -70,7 +70,7 @@ export function DeliveryListPage() {
             {rows.map((d) => (
               <TableRow key={d.id}>
                 <TableCell className="font-mono">
-                  <Link to="/inventory/delivery/$id" params={{ id: d.id }} className="text-primary-600 hover:underline">
+                  <Link to="/inventory/delivery/$id" params={{ id: d.id }} className="hover:underline" style={{ color: 'var(--accent-text)' }}>
                     {d.dnNo}
                   </Link>
                 </TableCell>

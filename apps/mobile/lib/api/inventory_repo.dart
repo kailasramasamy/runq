@@ -120,6 +120,33 @@ class InventoryRepo {
     return InvDn.fromJson(_data(res));
   }
 
+  // ── Transfers ──────────────────────────────────────────────────────────
+
+  Future<List<InvTransfer>> transferList({String? status}) async {
+    final qp = <String, String>{'limit': '100'};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    final res = await apiClient.get('/inventory/transfers${_qs(qp)}');
+    return _dataList(res).map(InvTransfer.fromJson).toList();
+  }
+
+  // ── Adjustments ────────────────────────────────────────────────────────
+
+  Future<List<InvAdjustment>> adjustmentList({String? status}) async {
+    final qp = <String, String>{'limit': '100'};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    final res = await apiClient.get('/inventory/adjustments${_qs(qp)}');
+    return _dataList(res).map(InvAdjustment.fromJson).toList();
+  }
+
+  // ── Stock take ─────────────────────────────────────────────────────────
+
+  Future<List<InvStockTake>> stockTakeList({String? status}) async {
+    final qp = <String, String>{'limit': '100'};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    final res = await apiClient.get('/inventory/stock-takes${_qs(qp)}');
+    return _dataList(res).map(InvStockTake.fromJson).toList();
+  }
+
   String _qs(Map<String, String> qp) =>
       qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 }

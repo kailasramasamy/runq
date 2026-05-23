@@ -26,3 +26,18 @@ final invGrnListProvider = FutureProvider.autoDispose.family<List<InvGrn>, Strin
 final invDnListProvider = FutureProvider.autoDispose.family<List<InvDn>, String?>((ref, status) async {
   return inventoryRepo.dnList(status: status);
 });
+
+final invTransferListProvider = FutureProvider.autoDispose
+    .family<List<InvTransfer>, String?>((ref, status) async {
+  return inventoryRepo.transferList(status: status);
+});
+
+final invAdjustmentListProvider = FutureProvider.autoDispose
+    .family<List<InvAdjustment>, String?>((ref, status) async {
+  return inventoryRepo.adjustmentList(status: status);
+});
+
+final invStockTakeListProvider = FutureProvider.autoDispose
+    .family<List<InvStockTake>, String?>((ref, status) async {
+  return inventoryRepo.stockTakeList(status: status);
+});
