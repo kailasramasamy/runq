@@ -198,10 +198,40 @@ const VIEWER_HR_KEYS = new Set<string>([
   'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
 ]);
 
-type ModuleKey = 'finance' | 'hr';
+type ModuleKey = 'finance' | 'hr' | 'inventory';
 const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
   { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
+  { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
+];
+
+export const INVENTORY_NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'inv-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/inventory' },
+    ],
+  },
+  {
+    label: 'Stock',
+    items: [
+      { key: 'inv-on-hand', label: 'On hand', icon: Boxes, path: '/inventory/stock/on-hand' },
+      { key: 'inv-ledger', label: 'Stock ledger', icon: NotebookPen, path: '/inventory/stock/ledger' },
+    ],
+  },
+  {
+    label: 'Movement',
+    items: [
+      { key: 'inv-grn', label: 'Receipts (GRN)', icon: PackageCheck, path: '/inventory/grn' },
+      { key: 'inv-delivery', label: 'Dispatches', icon: Truck, path: '/inventory/delivery' },
+    ],
+  },
+  {
+    label: 'Setup',
+    items: [
+      { key: 'inv-warehouses', label: 'Warehouses', icon: Warehouse, path: '/inventory/warehouses' },
+    ],
+  },
 ];
 
 function ModuleSwitcher({
@@ -350,7 +380,7 @@ function NavItemRow({
 // /settings/* pages are shared across modules and carry no module info in
 // their path, so without this they'd always snap the sidebar back to Finance.
 // Module-scoped so the desktop and mobile sidebars share one memory.
-let lastActiveModule: 'hr' | 'finance' = 'finance';
+let lastActiveModule: ModuleKey = 'finance';
 
 function SidebarContent({
   onNavigate, collapsed = false, onToggleCollapse,
@@ -378,17 +408,23 @@ function SidebarContent({
 
   // Settings is a shared namespace — keep whichever module the user came from.
   const isSettings = currentPath === '/settings' || currentPath.startsWith('/settings/');
-  const activeModule: 'hr' | 'finance' = !financeAllowed
+  const isInventory = currentPath === '/inventory' || currentPath.startsWith('/inventory/');
+  const activeModule: ModuleKey = !financeAllowed
     ? 'hr'
     : isSettings
       ? lastActiveModule
-      : currentPath === '/hr' || currentPath.startsWith('/hr/')
-        ? 'hr'
-        : 'finance';
+      : isInventory
+        ? 'inventory'
+        : currentPath === '/hr' || currentPath.startsWith('/hr/')
+          ? 'hr'
+          : 'finance';
   if (!isSettings) lastActiveModule = activeModule;
   // The ⌘K shortcut palette is Finance-only.
   const showCommand = activeModule === 'finance';
-  let groups = activeModule === 'hr' ? HR_NAV_GROUPS : NAV_GROUPS;
+  let groups =
+    activeModule === 'hr' ? HR_NAV_GROUPS
+      : activeModule === 'inventory' ? INVENTORY_NAV_GROUPS
+      : NAV_GROUPS;
   // Non-admin HR users get the trimmed self-service menu.
   if (activeModule === 'hr' && !canManageHrModule(user?.role)) {
     groups = HR_NAV_GROUPS

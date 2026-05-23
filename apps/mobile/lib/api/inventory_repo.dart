@@ -1,0 +1,127 @@
+// Mobile-side repo for the Inventory module. Mirrors the route surface
+// in `apps/api/src/modules/inventory/*`.
+
+library;
+
+import 'api_client.dart';
+import 'inventory_models.dart';
+
+Map<String, dynamic> _data(dynamic res) {
+  if (res is Map && res['data'] is Map) return (res['data'] as Map).cast<String, dynamic>();
+  if (res is Map) return res.cast<String, dynamic>();
+  return {};
+}
+
+List<Map<String, dynamic>> _dataList(dynamic res) {
+  if (res is Map && res['data'] is List) return (res['data'] as List).cast<Map<String, dynamic>>();
+  if (res is List) return res.cast<Map<String, dynamic>>();
+  return [];
+}
+
+class InventoryRepo {
+  // ── Dashboard ──────────────────────────────────────────────────────────
+
+  Future<InvKpis> kpis() async {
+    final res = await apiClient.get('/inventory/dashboard');
+    return InvKpis.fromJson(_data(res));
+  }
+
+  // ── Warehouses ─────────────────────────────────────────────────────────
+
+  Future<List<InvWarehouse>> warehouses() async {
+    final res = await apiClient.get('/inventory/warehouses');
+    return _dataList(res).map(InvWarehouse.fromJson).toList();
+  }
+
+  // ── Stock ──────────────────────────────────────────────────────────────
+
+  Future<List<InvOnHandRow>> onHand({String? warehouseId, bool lowOnly = false}) async {
+    final qp = <String, String>{};
+    if (warehouseId != null && warehouseId.isNotEmpty) qp['warehouseId'] = warehouseId;
+    if (lowOnly) qp['lowOnly'] = 'true';
+    final res = await apiClient.get('/inventory/stock/on-hand${_qs(qp)}');
+    return _dataList(res).map(InvOnHandRow.fromJson).toList();
+  }
+
+  // ── Items / barcode lookup ─────────────────────────────────────────────
+
+  Future<InvItem?> findByBarcode(String code) async {
+    try {
+      final res = await apiClient.get('/inventory/items/barcode/${Uri.encodeComponent(code)}');
+      return InvItem.fromJson(_data(res));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── GRN ────────────────────────────────────────────────────────────────
+
+  Future<List<InvGrn>> grnList({String? status}) async {
+    final qp = <String, String>{};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    qp['limit'] = '100';
+    final res = await apiClient.get('/inventory/grn${_qs(qp)}');
+    return _dataList(res).map(InvGrn.fromJson).toList();
+  }
+
+  Future<InvGrn> createGrn({
+    required String warehouseId,
+    String? vendorId,
+    required String receivedDate,
+    String? vehicleNo,
+    String? notes,
+    required List<InvGrnLineInput> lines,
+  }) async {
+    final res = await apiClient.post('/inventory/grn', {
+      'warehouseId': warehouseId,
+      if (vendorId != null && vendorId.isNotEmpty) 'vendorId': vendorId,
+      'receivedDate': receivedDate,
+      if (vehicleNo != null && vehicleNo.isNotEmpty) 'vehicleNo': vehicleNo,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return InvGrn.fromJson(_data(res));
+  }
+
+  Future<InvGrn> postGrn(String id) async {
+    final res = await apiClient.post('/inventory/grn/$id/post', const {});
+    return InvGrn.fromJson(_data(res));
+  }
+
+  // ── Delivery ───────────────────────────────────────────────────────────
+
+  Future<List<InvDn>> dnList({String? status}) async {
+    final qp = <String, String>{};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    qp['limit'] = '100';
+    final res = await apiClient.get('/inventory/delivery-notes${_qs(qp)}');
+    return _dataList(res).map(InvDn.fromJson).toList();
+  }
+
+  Future<InvDn> createDn({
+    required String warehouseId,
+    String? customerId,
+    required String dispatchDate,
+    String? vehicleNo,
+    required List<InvDnLineInput> lines,
+  }) async {
+    final res = await apiClient.post('/inventory/delivery-notes', {
+      'warehouseId': warehouseId,
+      if (customerId != null && customerId.isNotEmpty) 'customerId': customerId,
+      'dispatchDate': dispatchDate,
+      if (vehicleNo != null && vehicleNo.isNotEmpty) 'vehicleNo': vehicleNo,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return InvDn.fromJson(_data(res));
+  }
+
+  Future<InvDn> dispatchDn(String id) async {
+    final res = await apiClient.post('/inventory/delivery-notes/$id/dispatch', const {});
+    return InvDn.fromJson(_data(res));
+  }
+
+  String _qs(Map<String, String> qp) =>
+      qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+}
+
+final inventoryRepo = InventoryRepo();

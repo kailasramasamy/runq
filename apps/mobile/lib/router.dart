@@ -53,6 +53,11 @@ import 'screens/search_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/hr/hr_home_screen.dart';
+import 'screens/inventory/inventory_home_screen.dart';
+import 'screens/inventory/inventory_on_hand_screen.dart';
+import 'screens/inventory/inventory_grn_screen.dart';
+import 'screens/inventory/inventory_delivery_screen.dart';
+import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
 import 'screens/hr/hr_employee_detail_screen.dart';
 import 'screens/hr/hr_time_screen.dart';
@@ -250,6 +255,45 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/hr/people',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrPeopleScreen(), key: state.pageKey),
+        ),
+        // ─── Inventory ───────────────────────────────────────────────────
+        GoRoute(
+          path: '/inventory',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryHomeScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/on-hand',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryOnHandScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/grn',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/grn/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/delivery',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryDeliveryScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/delivery/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryDeliveryScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/items/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryItemDetailScreen(itemId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/hr/time',

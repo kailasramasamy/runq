@@ -44,6 +44,21 @@ export const items = pgTable(
     // mirrored into cost_price so existing reads remain accurate.
     cogmBreakdown: jsonb('cogm_breakdown').$type<Array<{ label: string; amount: number; note?: string }>>(),
     isActive: boolean('is_active').notNull().default(true),
+    // ─── Inventory tracking (added by migration 0080) ──────────────────
+    // `trackInventory=false` makes the item behave like a pure service SKU
+    // — no ledger rows, no on-hand cache. Existing rows are backfilled to
+    // true for `product` and false for `service` in the migration.
+    trackInventory: boolean('track_inventory').notNull().default(true),
+    trackBatches: boolean('track_batches').notNull().default(false),
+    trackSerials: boolean('track_serials').notNull().default(false),
+    trackExpiry: boolean('track_expiry').notNull().default(false),
+    allowNegativeStock: boolean('allow_negative_stock').notNull().default(false),
+    reorderLevel: decimal('reorder_level', { precision: 18, scale: 3 }),
+    reorderQty: decimal('reorder_qty', { precision: 18, scale: 3 }),
+    defaultWarehouseId: uuid('default_warehouse_id'),
+    barcode: varchar('barcode', { length: 64 }),
+    weightKg: decimal('weight_kg', { precision: 10, scale: 3 }),
+    shelfLifeDays: decimal('shelf_life_days', { precision: 6, scale: 0 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -55,5 +70,8 @@ export const items = pgTable(
     index('idx_items_tenant_ean')
       .on(table.tenantId, table.ean)
       .where(sql`${table.ean} IS NOT NULL`),
+    uniqueIndex('uq_items_tenant_barcode')
+      .on(table.tenantId, table.barcode)
+      .where(sql`${table.barcode} IS NOT NULL`),
   ],
 );

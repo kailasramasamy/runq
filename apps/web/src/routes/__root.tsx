@@ -201,6 +201,19 @@ import { AdminFeatureFlagsPage } from './admin/feature-flags';
 import { AdminAppConfigPage } from './admin/app-config';
 import { AdminAnnouncementsPage } from './admin/announcements';
 import { AdminSettingsPage } from './admin/settings';
+// Inventory module
+import { InventoryDashboardPage } from './inventory/index';
+import { WarehouseListPage } from './inventory/warehouses/index';
+import { NewWarehousePage } from './inventory/warehouses/new';
+import { WarehouseDetailPage } from './inventory/warehouses/detail';
+import { OnHandPage } from './inventory/stock/on-hand';
+import { StockLedgerPage } from './inventory/stock/ledger';
+import { GrnListPage } from './inventory/grn/index';
+import { NewGrnPage } from './inventory/grn/new';
+import { GrnDetailPage } from './inventory/grn/detail';
+import { DeliveryListPage } from './inventory/delivery/index';
+import { NewDeliveryNotePage } from './inventory/delivery/new';
+import { DeliveryNoteDetailPage } from './inventory/delivery/detail';
 
 // ─── Root & Layout ──────────────────────────────────────────────────────────
 
@@ -257,7 +270,12 @@ function DashboardMain() {
 
 function DashboardLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const module = pathname === '/hr' || pathname.startsWith('/hr/') ? 'hr' : 'finance';
+  const module =
+    pathname === '/hr' || pathname.startsWith('/hr/')
+      ? 'hr'
+      : pathname === '/inventory' || pathname.startsWith('/inventory/')
+        ? 'inventory'
+        : 'finance';
   // Set on <html> rather than a layout div so portalled dropdowns and modals
   // (rendered outside the layout subtree) still inherit the module accent.
   useEffect(() => {
@@ -1754,6 +1772,83 @@ const hrRewardTypesRoute = createRoute({
   component: RewardTypesPage,
 });
 
+// ─── Inventory Module Routes ─────────────────────────────────────────────────
+//
+// Inventory is its own top-level module (mirrors /finance, /hr). All routes
+// nest under /inventory and the sidebar / module switcher picks them up via
+// the module dataset attribute set in DashboardLayout above.
+
+const inventoryRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/inventory',
+  component: () => <Outlet />,
+});
+
+const inventoryIndexRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/',
+  component: InventoryDashboardPage,
+});
+
+const invWarehousesRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/warehouses',
+  component: WarehouseListPage,
+});
+const invWarehouseNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/warehouses/new',
+  component: NewWarehousePage,
+});
+const invWarehouseDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/warehouses/$id',
+  component: WarehouseDetailPage,
+});
+
+const invStockOnHandRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/stock/on-hand',
+  component: OnHandPage,
+});
+const invStockLedgerRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/stock/ledger',
+  component: StockLedgerPage,
+});
+
+const invGrnRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/grn',
+  component: GrnListPage,
+});
+const invGrnNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/grn/new',
+  component: NewGrnPage,
+});
+const invGrnDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/grn/$id',
+  component: GrnDetailPage,
+});
+
+const invDeliveryRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/delivery',
+  component: DeliveryListPage,
+});
+const invDeliveryNewRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/delivery/new',
+  component: NewDeliveryNotePage,
+});
+const invDeliveryDetailRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/delivery/$id',
+  component: DeliveryNoteDetailPage,
+});
+
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
 const agentActivityRoute = createRoute({
@@ -2146,6 +2241,20 @@ export const routeTree = rootRoute.addChildren([
       settingsTallyImportRoute,
       settingsWebhooksRoute,
       settingsOpeningBalancesRoute,
+    ]),
+    inventoryRoute.addChildren([
+      inventoryIndexRoute,
+      invWarehousesRoute,
+      invWarehouseNewRoute,
+      invWarehouseDetailRoute,
+      invStockOnHandRoute,
+      invStockLedgerRoute,
+      invGrnRoute,
+      invGrnNewRoute,
+      invGrnDetailRoute,
+      invDeliveryRoute,
+      invDeliveryNewRoute,
+      invDeliveryDetailRoute,
     ]),
     hrRoute.addChildren([
       hrIndexRoute,

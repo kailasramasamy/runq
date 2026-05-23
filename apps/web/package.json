@@ -7,7 +7,8 @@
     "dev": "concurrently -k -n tsc,vite -c blue,green \"tsc -b --watch --preserveWatchOutput\" \"vite\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:inventory-parity": "tsx scripts/check-inventory-parity.ts"
   },
   "dependencies": {
     "@runq/types": "workspace:*",
