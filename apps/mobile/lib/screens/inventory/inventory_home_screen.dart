@@ -46,38 +46,54 @@ class InventoryHomeScreen extends ConsumerWidget {
               error: (_, __) => Text('Failed to load', style: RunqText.body.copyWith(color: t.muted)),
               data: (k) => _KpiStrip(k: k),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
             Text('Quick actions', style: RunqText.label.copyWith(color: t.muted)),
             const SizedBox(height: 8),
-            _ActionTile(
-              icon: Icons.add_box_outlined,
-              title: 'Receive stock',
-              subtitle: 'Create a GRN when stock arrives',
-              onTap: () => context.push('/inventory/grn/new'),
-            ),
-            _ActionTile(
-              icon: Icons.local_shipping_outlined,
-              title: 'Dispatch stock',
-              subtitle: 'Create a delivery note',
-              onTap: () => context.push('/inventory/delivery/new'),
-            ),
-            _ActionTile(
-              icon: Icons.inventory_2_outlined,
-              title: 'On-hand stock',
-              subtitle: 'See live qty by warehouse',
-              onTap: () => context.push('/inventory/on-hand'),
-            ),
-            _ActionTile(
-              icon: Icons.receipt_long_outlined,
-              title: 'Recent receipts',
-              subtitle: 'GRN history',
-              onTap: () => context.push('/inventory/grn'),
-            ),
-            _ActionTile(
-              icon: Icons.outbound_outlined,
-              title: 'Recent dispatches',
-              subtitle: 'Delivery note history',
-              onTap: () => context.push('/inventory/delivery'),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 1.55,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              children: [
+                _ActionTile(
+                  icon: Icons.add_box_outlined,
+                  title: 'Receive',
+                  subtitle: 'New GRN',
+                  onTap: () => context.push('/inventory/grn/new'),
+                ),
+                _ActionTile(
+                  icon: Icons.local_shipping_outlined,
+                  title: 'Dispatch',
+                  subtitle: 'New delivery',
+                  onTap: () => context.push('/inventory/delivery/new'),
+                ),
+                _ActionTile(
+                  icon: Icons.alt_route_outlined,
+                  title: 'Transfer',
+                  subtitle: 'Move between WHs',
+                  onTap: () => context.push('/inventory/transfers'),
+                ),
+                _ActionTile(
+                  icon: Icons.tune_rounded,
+                  title: 'Adjust',
+                  subtitle: 'Damage / found',
+                  onTap: () => context.push('/inventory/adjustments'),
+                ),
+                _ActionTile(
+                  icon: Icons.checklist_outlined,
+                  title: 'Stock take',
+                  subtitle: 'Count session',
+                  onTap: () => context.push('/inventory/stock-take'),
+                ),
+                _ActionTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'On hand',
+                  subtitle: 'Live stock',
+                  onTap: () => context.push('/inventory/on-hand'),
+                ),
+              ],
             ),
           ],
         ),
@@ -167,44 +183,39 @@ class _ActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: t.surface,
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              border: Border.all(color: t.hairlineSoft),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color: InvColors.amberSubtle,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, size: 20, color: InvColors.brand(context)),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: t.hairlineSoft),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: InvColors.amberSubtle,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: t.muted2),
-              ],
-            ),
+                child: Icon(icon, size: 19, color: InvColors.brand(context)),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
+                ],
+              ),
+            ],
           ),
         ),
       ),
