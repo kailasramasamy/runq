@@ -15,7 +15,6 @@ import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/hr_widgets.dart';
-import 'hr_leave_balance_adjust_sheet.dart';
 
 class HrMoreScreen extends ConsumerWidget {
   const HrMoreScreen({super.key});
@@ -108,6 +107,7 @@ class HrMoreScreen extends ConsumerWidget {
               _Row(Icons.contact_page_outlined, 'My resume', onTap: () => context.push('/hr/my-resume')),
               _Row(Icons.article_outlined, 'My letters', onTap: () => context.push('/hr/letters')),
               _Row(Icons.flag_circle_outlined, 'My performance', onTap: () => context.push('/hr/performance')),
+              _Row(Icons.star_outline_rounded, 'Rewards', onTap: () => context.push('/hr/rewards')),
             ],
           ),
           const SizedBox(height: 16),
@@ -118,12 +118,15 @@ class HrMoreScreen extends ConsumerWidget {
             _SettingsGroup(
               title: 'HR setup',
               rows: [
-                const _Row(Icons.apartment_outlined, 'Departments'),
-                const _Row(Icons.badge_outlined, 'Designations'),
+                _Row(Icons.apartment_outlined, 'Departments',
+                    onTap: () => context.push('/hr/departments')),
+                _Row(Icons.badge_outlined, 'Designations',
+                    onTap: () => context.push('/hr/designations')),
                 _Row(Icons.event_note_outlined, 'Leave types', onTap: () => context.push('/hr/leave-types')),
                 _Row(Icons.tune_outlined, 'Adjust leave balance',
-                    onTap: () => showAdjustLeaveBalanceSheet(context)),
-                const _Row(Icons.schedule_outlined, 'Shifts'),
+                    onTap: () => context.push('/hr/adjust-leave-balance')),
+                _Row(Icons.schedule_outlined, 'Shifts',
+                    onTap: () => context.push('/hr/shifts')),
                 _Row(Icons.flag_outlined, 'Holidays', onTap: () => context.push('/hr/holidays')),
               ],
             ),

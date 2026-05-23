@@ -99,6 +99,11 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '2111', name: 'Accrued Expenses', type: 'liability', parent: '2100' },
   { code: '2112', name: 'Provision for Income Tax', type: 'liability', parent: '2100' },
   { code: '2113', name: 'Other Current Liabilities', type: 'liability', parent: '2100' },
+  { code: '2114', name: 'Employee Rewards Payable', type: 'liability', parent: '2100' },
+  // Inventory: GR/IR Clearing sits between goods receipt (Dr Inventory)
+  // and bill posting (Cr AP). Net zero once both are posted — used to
+  // spot received-not-invoiced and invoiced-not-received gaps.
+  { code: '2115', name: 'GR/IR Clearing (Goods Received Not Invoiced)', type: 'liability', parent: '2100', system: true },
 
   // Long-Term Liabilities
   { code: '2200', name: 'Long-Term Liabilities', type: 'liability', parent: '2000' },
@@ -138,6 +143,8 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '4204', name: 'Profit on Sale of Assets', type: 'revenue', parent: '4200' },
   { code: '4205', name: 'Foreign Exchange Gain', type: 'revenue', parent: '4200' },
   { code: '4206', name: 'Miscellaneous Income', type: 'revenue', parent: '4200' },
+  // Inventory: stock-take "found" / over-count surfacing — counterpart to 5104
+  { code: '4207', name: 'Inventory Gain', type: 'revenue', parent: '4200', system: true },
 
   // ═══════════════════════════════════════════════════════════════════
   // EXPENSES (5xxx)
@@ -151,6 +158,8 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5003', name: 'Freight Inward', type: 'expense', parent: '5100' },
   { code: '5004', name: 'Manufacturing Expense', type: 'expense', parent: '5100' },
   { code: '5005', name: 'Packing & Forwarding', type: 'expense', parent: '5100' },
+  // Inventory write-off — damage, theft, expiry, stock-take shortage
+  { code: '5104', name: 'Inventory Write-off', type: 'expense', parent: '5100', system: true },
   { code: '5006', name: 'Purchase Returns', type: 'expense', parent: '5100' },
 
   // Employee Costs

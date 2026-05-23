@@ -167,6 +167,8 @@ import { Form24QPage } from './hr/form-24q';
 import { Form16Page } from './hr/form-16';
 import { TdsChallansPage } from './hr/tds-challans';
 import { ContractLabourPage } from './hr/contract-labour';
+import { RewardsPage } from './hr/rewards';
+import { RewardTypesPage } from './hr/reward-types';
 import { WebhooksPage } from './settings/webhooks';
 import { VendorPortalPage } from './vendor-portal/index';
 import {
@@ -1741,6 +1743,16 @@ const hrExpenseClaimsRoute = createRoute({
   path: '/expense-claims',
   component: ExpenseClaimsPage,
 });
+const hrRewardsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/rewards',
+  component: RewardsPage,
+});
+const hrRewardTypesRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/reward-types',
+  component: RewardTypesPage,
+});
 
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
@@ -2159,6 +2171,8 @@ export const routeTree = rootRoute.addChildren([
       hrForm16Route,
       hrContractLabourRoute,
       hrExpenseClaimsRoute,
+      hrRewardsRoute,
+      hrRewardTypesRoute,
       hrGeoFencesRoute,
       hrAttPunchesRoute,
       hrRegularizationsRoute,

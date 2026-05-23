@@ -557,25 +557,73 @@ class HrDashboard {
   }
 }
 
-// ─── /hr/departments + /hr/designations ───────────────────────────────────
+// ─── /hr/departments + /hr/designations + /hr/shifts ──────────────────────
 
 class HrDepartment {
   final String id, name;
+  final String? code;
+  final bool isActive;
   final int? employeeCount;
-  HrDepartment({required this.id, required this.name, this.employeeCount});
+  HrDepartment({
+    required this.id,
+    required this.name,
+    this.code,
+    this.isActive = true,
+    this.employeeCount,
+  });
   factory HrDepartment.fromJson(Map<String, dynamic> j) => HrDepartment(
         id: _strOr(j['id'], ''),
         name: _strOr(j['name'], ''),
+        code: _str(j['code']),
+        isActive: j['isActive'] == null ? true : _bool(j['isActive']),
         employeeCount: j['employeeCount'] == null ? null : _int(j['employeeCount']),
       );
 }
 
 class HrDesignation {
   final String id, name;
-  HrDesignation({required this.id, required this.name});
+  final int? level;
+  final bool isActive;
+  HrDesignation({
+    required this.id,
+    required this.name,
+    this.level,
+    this.isActive = true,
+  });
   factory HrDesignation.fromJson(Map<String, dynamic> j) => HrDesignation(
         id: _strOr(j['id'], ''),
         name: _strOr(j['name'], ''),
+        level: j['level'] == null ? null : _int(j['level']),
+        isActive: j['isActive'] == null ? true : _bool(j['isActive']),
+      );
+}
+
+class HrShift {
+  final String id, name, startTime, endTime;
+  final int breakMinutes;
+  final List<int> weeklyOffDays;
+  final bool isNightShift, isActive;
+  HrShift({
+    required this.id,
+    required this.name,
+    required this.startTime,
+    required this.endTime,
+    this.breakMinutes = 0,
+    this.weeklyOffDays = const [0],
+    this.isNightShift = false,
+    this.isActive = true,
+  });
+  factory HrShift.fromJson(Map<String, dynamic> j) => HrShift(
+        id: _strOr(j['id'], ''),
+        name: _strOr(j['name'], ''),
+        startTime: _strOr(j['startTime'], ''),
+        endTime: _strOr(j['endTime'], ''),
+        breakMinutes: j['breakMinutes'] == null ? 0 : _int(j['breakMinutes']),
+        weeklyOffDays: j['weeklyOffDays'] is List
+            ? (j['weeklyOffDays'] as List).map(_int).toList()
+            : const [0],
+        isNightShift: _bool(j['isNightShift']),
+        isActive: j['isActive'] == null ? true : _bool(j['isActive']),
       );
 }
 
@@ -1062,6 +1110,141 @@ class HrExpiringDoc {
     final today = DateTime.now();
     final t = DateTime(today.year, today.month, today.day);
     return expiryDate.difference(t).inDays;
+  }
+}
+
+// ─── /hr/reward-types + /hr/rewards ───────────────────────────────────────
+
+class HrRewardType {
+  final String id, name, code;
+  final String kind; // 'monetary' | 'recognition' | 'points'
+  final String? glAccountCode;
+  final int displayOrder;
+  final bool isActive;
+
+  HrRewardType({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.kind,
+    this.glAccountCode,
+    required this.displayOrder,
+    required this.isActive,
+  });
+
+  factory HrRewardType.fromJson(Map<String, dynamic> j) => HrRewardType(
+        id: _strOr(j['id'], ''),
+        name: _strOr(j['name'], ''),
+        code: _strOr(j['code'], ''),
+        kind: _strOr(j['kind'], 'monetary'),
+        glAccountCode: _str(j['glAccountCode']),
+        displayOrder: _int(j['displayOrder']),
+        isActive: j['isActive'] == null ? true : _bool(j['isActive']),
+      );
+
+  bool get isMonetary => kind == 'monetary';
+  bool get isPoints => kind == 'points';
+}
+
+// ─── /hr/rewards/points/balance ───────────────────────────────────────────
+
+class HrPointsBalance {
+  final int balance;
+  final int lifetime;
+  final int redeemed;
+
+  const HrPointsBalance({
+    required this.balance,
+    required this.lifetime,
+    required this.redeemed,
+  });
+
+  factory HrPointsBalance.fromJson(Map<String, dynamic> j) => HrPointsBalance(
+        balance: _int(j['balance']),
+        lifetime: _int(j['lifetime']),
+        redeemed: _int(j['redeemed']),
+      );
+}
+
+class HrReward {
+  final String id, rewardNumber, employeeId, rewardTypeId;
+  final String kind; // 'monetary' | 'recognition' | 'points'
+  final String amount;
+  final String title;
+  final String? citation;
+  final DateTime awardDate;
+  /// 'draft' | 'submitted' | 'approved' | 'rejected' | 'posted' | 'paid'
+  final String status;
+  final String initiatedBy;
+  final String? approvedBy, rejectionReason;
+  final DateTime? approvedAt;
+  final DateTime createdAt, updatedAt;
+  // Joined display fields
+  final String? employeeName, typeName, initiatorName;
+  /// Non-null when this row is a redemption (kind='monetary', self-initiated,
+  /// pointsUsed set). Fixed conversion: 1 point = ₹1.
+  final int? pointsUsed;
+
+  HrReward({
+    required this.id,
+    required this.rewardNumber,
+    required this.employeeId,
+    required this.rewardTypeId,
+    required this.kind,
+    required this.amount,
+    required this.title,
+    this.citation,
+    required this.awardDate,
+    required this.status,
+    required this.initiatedBy,
+    this.approvedBy,
+    this.approvedAt,
+    this.rejectionReason,
+    required this.createdAt,
+    required this.updatedAt,
+    this.employeeName,
+    this.typeName,
+    this.initiatorName,
+    this.pointsUsed,
+  });
+
+  factory HrReward.fromJson(Map<String, dynamic> j) => HrReward(
+        id: _strOr(j['id'], ''),
+        rewardNumber: _strOr(j['rewardNumber'], ''),
+        employeeId: _strOr(j['employeeId'], ''),
+        rewardTypeId: _strOr(j['rewardTypeId'], ''),
+        kind: _strOr(j['kind'], 'monetary'),
+        amount: _strOr(j['amount'], '0'),
+        title: _strOr(j['title'], ''),
+        citation: _str(j['citation']),
+        awardDate: _dt(j['awardDate']) ?? DateTime.now(),
+        status: _strOr(j['status'], 'draft'),
+        initiatedBy: _strOr(j['initiatedBy'], ''),
+        approvedBy: _str(j['approvedBy']),
+        approvedAt: _dt(j['approvedAt']),
+        rejectionReason: _str(j['rejectionReason']),
+        createdAt: _dt(j['createdAt']) ?? DateTime.now(),
+        updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),
+        employeeName: _str(j['employeeName']),
+        typeName: _str(j['typeName']),
+        initiatorName: _str(j['initiatorName']),
+        pointsUsed: j['pointsUsed'] == null ? null : _int(j['pointsUsed']),
+      );
+
+  bool get isMonetary => kind == 'monetary';
+  bool get isPoints => kind == 'points';
+  /// A monetary row that was initiated as a redemption by the employee.
+  bool get isRedemption => pointsUsed != null;
+  bool get canDelete => status == 'draft';
+  double get amountNum => double.tryParse(amount) ?? 0;
+
+  bool get isReceived =>
+      status == 'approved' || status == 'posted' || status == 'paid';
+
+  bool get isNewlyReceived {
+    final at = approvedAt;
+    if (!isReceived || at == null) return false;
+    return DateTime.now().difference(at).inDays < 7;
   }
 }
 

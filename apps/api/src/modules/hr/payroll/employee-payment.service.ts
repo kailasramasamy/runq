@@ -1,11 +1,11 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import {
-  employeePayments, payrollRuns, payslips, expenseClaims,
+  employeePayments, payrollRuns, payslips, expenseClaims, employeeRewards,
   bankAccounts, accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
-  RecordSalaryPaymentInput, RecordReimbursementPaymentInput,
+  RecordSalaryPaymentInput, RecordReimbursementPaymentInput, PayRewardInput,
 } from '@runq/validators';
 import { GLService } from '../../gl/gl.service';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
@@ -220,6 +220,76 @@ export class EmployeePaymentService {
           updatedAt: new Date(),
         })
         .where(eq(expenseClaims.id, claim.id));
+
+      return updated;
+    });
+  }
+
+  /**
+   * Disburse an approved + posted monetary reward. Atomic: creates the
+   * payment row (sourceType='employee_reward'), posts the settlement JE
+   * (Dr 2114 Employee Rewards Payable / Cr bank-GL), links the JE, and
+   * marks the reward 'paid'.
+   */
+  async recordRewardPayment(rewardId: string, input: PayRewardInput, userId: string) {
+    const [reward] = await this.db
+      .select()
+      .from(employeeRewards)
+      .where(and(
+        eq(employeeRewards.id, rewardId),
+        eq(employeeRewards.tenantId, this.tenantId),
+      ))
+      .limit(1);
+    if (!reward) throw new NotFoundError('Reward');
+    if (reward.status !== 'posted') {
+      throw new ConflictError('Reward must be posted to GL before recording payout');
+    }
+    const amount = r2(Number(reward.amount));
+    if (amount <= 0) throw new ConflictError('Reward has zero amount — nothing to pay');
+    const bankGlCode = await this.bankGlAccountCode(input.bankAccountId);
+
+    return this.db.transaction(async (tx) => {
+      const [payment] = await tx
+        .insert(employeePayments)
+        .values({
+          tenantId: this.tenantId,
+          sourceType: 'employee_reward',
+          employeeRewardId: reward.id,
+          employeeId: reward.employeeId,
+          paymentDate: input.paymentDate,
+          amount: String(amount),
+          bankAccountId: input.bankAccountId,
+          paymentMethod: input.paymentMethod ?? 'bank_transfer',
+          reference: input.reference ?? null,
+          status: 'paid',
+          notes: input.notes ?? null,
+          createdBy: userId,
+        })
+        .returning();
+
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      const je = await gl.createJournalEntry({
+        date: input.paymentDate,
+        description: `Reward payout — ${reward.rewardNumber}`,
+        sourceType: 'employee_payment',
+        sourceId: payment.id,
+        lines: [
+          { accountCode: '2114', debit: amount, description: 'Employee reward cleared' },
+          { accountCode: bankGlCode, credit: amount, description: `Reward payout ${reward.rewardNumber}` },
+        ],
+        createdBy: userId,
+      });
+
+      const [updated] = await tx
+        .update(employeePayments)
+        .set({ journalEntryId: je.id, updatedAt: new Date() })
+        .where(eq(employeePayments.id, payment.id))
+        .returning();
+
+      await tx
+        .update(employeeRewards)
+        .set({ status: 'paid', updatedAt: new Date() })
+        .where(eq(employeeRewards.id, reward.id));
 
       return updated;
     });

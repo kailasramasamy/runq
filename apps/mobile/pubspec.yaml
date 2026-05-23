@@ -52,6 +52,8 @@ dependencies:
   # Firebase Cloud Messaging — mobile push notifications.
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.5
+  # Confetti burst animation for the employee rewards celebratory view.
+  confetti: ^0.8.0
 
 dev_dependencies:
   flutter_test:

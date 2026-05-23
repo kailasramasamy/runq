@@ -63,6 +63,10 @@ import 'screens/hr/hr_my_resume_screen.dart';
 import 'screens/hr/hr_holidays_screen.dart';
 import 'screens/hr/hr_activity_screen.dart';
 import 'screens/hr/hr_leave_types_screen.dart';
+import 'screens/hr/hr_departments_screen.dart';
+import 'screens/hr/hr_designations_screen.dart';
+import 'screens/hr/hr_shifts_screen.dart';
+import 'screens/hr/hr_leave_balance_adjust_screen.dart';
 import 'screens/hr/hr_directory_screen.dart';
 import 'screens/hr/hr_directory_profile_screen.dart';
 import 'screens/hr/hr_org_chart_screen.dart';
@@ -81,6 +85,7 @@ import 'screens/hr/hr_onboarding_screen.dart';
 import 'screens/hr/hr_letters_screen.dart';
 import 'screens/hr/hr_helpdesk_screen.dart';
 import 'screens/hr/hr_performance_screen.dart';
+import 'screens/hr/hr_rewards_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
 import 'providers/app_role_provider.dart';
@@ -95,6 +100,21 @@ final shellKey = GlobalKey<NavigatorState>();
 /// FCM push-tap handler so a deep link resolves the same way either way.
 String resolveNotificationTarget(String path) {
   final uri = Uri.parse(path);
+  var basePath = uri.path;
+
+  // Notification deep links point at a single record (e.g. /hr/rewards/<id>),
+  // but mobile has no detail screen for these — only a list. Collapse such a
+  // "<base>/<id>" path to its list base. Bases that *do* have a mobile :id
+  // route (e.g. /hr/payroll-runs, /hr/people, /hr/payslips) are excluded on
+  // purpose so their detail deep links still resolve.
+  const detailBases = <String>['/hr/rewards', '/hr/expense-claims'];
+  for (final base in detailBases) {
+    if (basePath.startsWith('$base/')) {
+      basePath = base;
+      break;
+    }
+  }
+
   const aliases = <String, String>{
     '/hr/leave-requests':     '/hr/leaves',           // HrLeaveScreen
     '/hr/expense-claims':     '/hr/pay?tab=expenses', // list folded into Pay's Expenses sub-tab
@@ -102,7 +122,7 @@ String resolveNotificationTarget(String path) {
     '/hr/fnf':                '/hr/more',             // no FnF screen yet
     '/hr/tds-challans':       '/hr/more',             // no TDS screen yet
   };
-  final resolved = aliases[uri.path] ?? uri.path;
+  final resolved = aliases[basePath] ?? basePath;
   if (!uri.hasQuery) return resolved;
   // An alias may already carry its own query (e.g. ?tab=expenses); merge
   // rather than appending a second '?'.
@@ -296,6 +316,27 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const HrLeaveTypesScreen(), key: state.pageKey),
         ),
         GoRoute(
+          path: '/hr/departments',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrDepartmentsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/designations',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrDesignationsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/shifts',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const HrShiftsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/adjust-leave-balance',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrLeaveBalanceAdjustScreen(), key: state.pageKey),
+        ),
+        GoRoute(
           path: '/hr/directory',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrDirectoryScreen(), key: state.pageKey),
@@ -437,6 +478,8 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (c, s) => _slidePage(const HrHelpdeskScreen(), key: s.pageKey)),
         GoRoute(path: '/hr/performance', parentNavigatorKey: rootKey,
           pageBuilder: (c, s) => _slidePage(const HrPerformanceScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/rewards', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrRewardsScreen(), key: s.pageKey)),
         // Section-hub sub-screens. Existing list/detail screens live under
         // their hub's URL space. Old paths (/invoices, /bills, /banking) are
         // redirected to these by the alias map at the top of the router.

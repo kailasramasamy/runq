@@ -7,12 +7,14 @@ import { users } from '../user';
 import { employees } from './employees';
 import { payrollRuns } from './payroll';
 import { expenseClaims } from './expense-claims';
+import { employeeRewards } from './rewards';
 import { bankAccounts } from '../banking/bank-accounts';
 import { journalEntries } from '../gl/journal-entries';
 
 export const employeePaymentSourceEnum = pgEnum('employee_payment_source', [
-  'payroll_run',     // net pay disbursement against a run
-  'expense_claim',   // reimbursement of an approved expense claim
+  'payroll_run',      // net pay disbursement against a run
+  'expense_claim',    // reimbursement of an approved expense claim
+  'employee_reward',  // payout of an approved monetary reward / spot bonus
 ]);
 
 export const employeePaymentStatusEnum = pgEnum('employee_payment_status', [
@@ -27,10 +29,11 @@ export const employeePaymentMethodEnum = pgEnum('employee_payment_method', [
 /**
  * Money paid TO an employee — the payroll subledger's settlement primitive.
  *
- * Source is either a payroll run (net pay batch) or an approved expense claim
- * (reimbursement). On `paid`, the service posts a journal entry that debits
- * the source-specific payable (2110 Salary Payable for payroll, 2111 Employee
- * Reimbursements Payable for claims) and credits the bank's GL account,
+ * Source is a payroll run (net pay batch), an approved expense claim
+ * (reimbursement), or an approved monetary reward. On `paid`, the service
+ * posts a journal entry that debits the source-specific payable (2110 Salary
+ * Payable for payroll, 2111 Employee Reimbursements Payable for claims, 2114
+ * Employee Rewards Payable for rewards) and credits the bank's GL account,
  * clearing the liability and producing a bank-reconcilable line.
  *
  * Employees do NOT live in the `vendors` table — payroll has its own payee.
@@ -42,6 +45,7 @@ export const employeePayments = pgTable('employee_payments', {
   sourceType: employeePaymentSourceEnum('source_type').notNull(),
   payrollRunId: uuid('payroll_run_id').references(() => payrollRuns.id, { onDelete: 'set null' }),
   expenseClaimId: uuid('expense_claim_id').references(() => expenseClaims.id, { onDelete: 'set null' }),
+  employeeRewardId: uuid('employee_reward_id').references(() => employeeRewards.id, { onDelete: 'set null' }),
   /** Nullable for a whole-run batch; populated for per-employee or reimbursement payments. */
   employeeId: uuid('employee_id').references(() => employees.id, { onDelete: 'set null' }),
 
@@ -63,4 +67,5 @@ export const employeePayments = pgTable('employee_payments', {
   index('idx_ep_tenant_status').on(t.tenantId, t.status),
   index('idx_ep_tenant_run').on(t.tenantId, t.payrollRunId),
   index('idx_ep_tenant_claim').on(t.tenantId, t.expenseClaimId),
+  index('idx_ep_tenant_reward').on(t.tenantId, t.employeeRewardId),
 ]);

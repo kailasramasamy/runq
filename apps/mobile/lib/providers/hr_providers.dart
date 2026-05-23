@@ -263,6 +263,10 @@ final hrDesignationsProvider = FutureProvider<List<HrDesignation>>((ref) async {
   return _watchAuth(ref, () => hrRepo.designations());
 });
 
+final hrShiftsProvider = FutureProvider<List<HrShift>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.shifts());
+});
+
 /// Upcoming statutory compliance deadlines (TDS / Form 24Q / PT).
 /// Drives the manager-home "Statutory calendar" section.
 final hrStatutoryCalendarProvider =
@@ -508,4 +512,40 @@ final hrAnnouncementsProvider =
 final hrRecentActivityProvider =
     FutureProvider<List<HrActivityEvent>>((ref) async {
   return _watchAuth(ref, () => hrRepo.recentActivity());
+});
+
+// ─── Rewards ──────────────────────────────────────────────────────────────
+
+/// Active reward types — the picker for the initiate-reward form.
+final hrRewardTypesProvider = FutureProvider<List<HrRewardType>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.rewardTypes(activeOnly: true));
+});
+
+class HrRewardsQuery {
+  final String? status;
+  final String? employeeId;
+  const HrRewardsQuery({this.status, this.employeeId});
+
+  @override
+  bool operator ==(Object other) =>
+      other is HrRewardsQuery &&
+      other.status == status &&
+      other.employeeId == employeeId;
+
+  @override
+  int get hashCode => Object.hash(status, employeeId);
+}
+
+final hrRewardsProvider =
+    FutureProvider.family<List<HrReward>, HrRewardsQuery>((ref, q) async {
+  return _watchAuth(
+    ref,
+    () => hrRepo.rewards(status: q.status, employeeId: q.employeeId),
+  );
+});
+
+/// Current logged-in user's points balance. Invalidated after a redemption
+/// is submitted so the card reflects the new (pending) balance.
+final hrPointsBalanceProvider = FutureProvider<HrPointsBalance>((ref) async {
+  return _watchAuth(ref, () => hrRepo.pointsBalance());
 });

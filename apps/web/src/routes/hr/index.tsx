@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
   CalendarClock, ChevronRight, Bell, Calculator, Wallet, UserCheck, Landmark,
-  Building2, TrendingUp, CalendarDays, Activity, ArrowRight, LifeBuoy,
+  Building2, TrendingUp, CalendarDays, Activity, ArrowRight, LifeBuoy, Award,
 } from 'lucide-react';
 import { PageHeader, Badge } from '@/components/ui';
 import { StatTile } from '@/components/ar/primitives';
@@ -11,6 +11,7 @@ import {
   useHolidays, useHrDashboard, useHrMe,
 } from '@/hooks/queries/use-hr';
 import { usePayrollRuns } from '@/hooks/queries/use-hr-payroll';
+import { useRewards } from '@/hooks/queries/use-rewards';
 import { StatutoryCalendar } from '@/components/dashboard/statutory-calendar';
 import { PeopleContextSections } from '@/components/dashboard/hr-people-sections';
 import { AnnouncementsSection, RecentActivitySection } from '@/components/dashboard/hr-feed-sections';
@@ -158,6 +159,7 @@ function ManagerDashboard() {
   const { data: deptData } = useDepartments();
   const { data: musterData } = useDailyMuster(date);
   const { data: pendingLeaveData } = useLeaveRequests({ status: 'pending' });
+  const { data: pendingRewardData } = useRewards({ status: 'submitted' });
   const { data: payrollData } = usePayrollRuns();
   const { data: weekAttData } = useAttendance({ dateFrom: week[0], dateTo: week[week.length - 1] });
   const { data: holidayData } = useHolidays(year);
@@ -176,6 +178,7 @@ function ManagerDashboard() {
   const muster: MusterData = musterData?.data ?? { present: 0, absent: 0, half_day: 0, leave: 0, holiday: 0, week_off: 0 };
   const presentToday = muster.present + muster.half_day;
   const pendingLeaves = pendingLeaveData?.data?.length ?? 0;
+  const pendingRewards = pendingRewardData?.data?.length ?? 0;
 
   const runs = payrollData?.data ?? [];
   const lastRun = runs[0];
@@ -269,6 +272,33 @@ function ManagerDashboard() {
                 {pendingLeaves} leave request{pendingLeaves > 1 ? 's' : ''} awaiting approval
               </div>
               <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-3)' }}>Click to review pending requests</div>
+            </div>
+            <Badge variant="warning">Pending</Badge>
+          </div>
+          <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
+        </button>
+      )}
+
+      {/* Pending reward approval banner */}
+      {pendingRewards > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate({ to: '/hr/rewards' })}
+          className="mb-5 flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-opacity hover:opacity-90"
+          style={{
+            background: 'color-mix(in srgb, var(--warn) 9%, var(--surface))',
+            borderColor: 'color-mix(in srgb, var(--warn) 32%, var(--border))',
+          }}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ background: 'color-mix(in srgb, var(--warn) 18%, var(--surface))', color: 'var(--warn)' }}>
+            <Award size={14} />
+          </div>
+          <div className="flex flex-1 items-center gap-2">
+            <div>
+              <div className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>
+                {pendingRewards} reward{pendingRewards > 1 ? 's' : ''} awaiting approval
+              </div>
+              <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-3)' }}>Click to review submitted rewards</div>
             </div>
             <Badge variant="warning">Pending</Badge>
           </div>

@@ -16,7 +16,7 @@ import {
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
   Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
-  Megaphone, MapPin, UserPlus, LogOut, FileCheck2,
+  Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -103,6 +103,8 @@ export const HR_NAV_GROUPS: NavGroup[] = [
     label: 'Money',
     items: [
       { key: 'hr-expenses', label: 'Expense claims', icon: Wallet, path: '/hr/expense-claims' },
+      { key: 'hr-rewards', label: 'Rewards', icon: Award, path: '/hr/rewards' },
+      { key: 'hr-reward-types', label: 'Reward types', icon: Gift, path: '/hr/reward-types' },
     ],
   },
   {

@@ -21,6 +21,7 @@ export type HrNotificationSource =
   | 'hr_payroll'
   | 'hr_attendance'
   | 'hr_expense'
+  | 'hr_reward'
   | 'hr_loan'
   | 'hr_tax'
   | 'hr_helpdesk'

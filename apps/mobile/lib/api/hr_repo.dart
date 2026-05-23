@@ -210,16 +210,128 @@ class HrRepo {
     return HrResumeProfile.fromJson(_data(res));
   }
 
-  // ── Department + designation pickers ──────────────────────────────────
+  // ── Departments ───────────────────────────────────────────────────────
 
   Future<List<HrDepartment>> departments() async {
     final res = await apiClient.get('/hr/departments');
     return _dataList(res).map(HrDepartment.fromJson).toList();
   }
 
+  Future<HrDepartment> createDepartment({
+    required String name,
+    String? code,
+  }) async {
+    final res = await apiClient.post('/hr/departments', {
+      'name': name,
+      if (code != null && code.isNotEmpty) 'code': code,
+    });
+    return HrDepartment.fromJson(_data(res));
+  }
+
+  Future<HrDepartment> updateDepartment(
+    String id, {
+    required String name,
+    String? code,
+    required bool isActive,
+  }) async {
+    final res = await apiClient.put('/hr/departments/$id', {
+      'name': name,
+      'code': (code != null && code.isNotEmpty) ? code : null,
+      'isActive': isActive,
+    });
+    return HrDepartment.fromJson(_data(res));
+  }
+
+  Future<void> deleteDepartment(String id) async {
+    await apiClient.delete('/hr/departments/$id');
+  }
+
+  // ── Designations ──────────────────────────────────────────────────────
+
   Future<List<HrDesignation>> designations() async {
     final res = await apiClient.get('/hr/designations');
     return _dataList(res).map(HrDesignation.fromJson).toList();
+  }
+
+  Future<HrDesignation> createDesignation({
+    required String name,
+    int? level,
+  }) async {
+    final res = await apiClient.post('/hr/designations', {
+      'name': name,
+      if (level != null) 'level': level,
+    });
+    return HrDesignation.fromJson(_data(res));
+  }
+
+  Future<HrDesignation> updateDesignation(
+    String id, {
+    required String name,
+    int? level,
+    required bool isActive,
+  }) async {
+    final res = await apiClient.put('/hr/designations/$id', {
+      'name': name,
+      'level': level,
+      'isActive': isActive,
+    });
+    return HrDesignation.fromJson(_data(res));
+  }
+
+  Future<void> deleteDesignation(String id) async {
+    await apiClient.delete('/hr/designations/$id');
+  }
+
+  // ── Shifts ────────────────────────────────────────────────────────────
+
+  Future<List<HrShift>> shifts() async {
+    final res = await apiClient.get('/hr/shifts');
+    return _dataList(res).map(HrShift.fromJson).toList();
+  }
+
+  Future<HrShift> createShift({
+    required String name,
+    required String startTime,
+    required String endTime,
+    required int breakMinutes,
+    required List<int> weeklyOffDays,
+    required bool isNightShift,
+  }) async {
+    final res = await apiClient.post('/hr/shifts', {
+      'name': name,
+      'startTime': startTime,
+      'endTime': endTime,
+      'breakMinutes': breakMinutes,
+      'weeklyOffDays': weeklyOffDays,
+      'isNightShift': isNightShift,
+    });
+    return HrShift.fromJson(_data(res));
+  }
+
+  Future<HrShift> updateShift(
+    String id, {
+    required String name,
+    required String startTime,
+    required String endTime,
+    required int breakMinutes,
+    required List<int> weeklyOffDays,
+    required bool isNightShift,
+    required bool isActive,
+  }) async {
+    final res = await apiClient.put('/hr/shifts/$id', {
+      'name': name,
+      'startTime': startTime,
+      'endTime': endTime,
+      'breakMinutes': breakMinutes,
+      'weeklyOffDays': weeklyOffDays,
+      'isNightShift': isNightShift,
+      'isActive': isActive,
+    });
+    return HrShift.fromJson(_data(res));
+  }
+
+  Future<void> deleteShift(String id) async {
+    await apiClient.delete('/hr/shifts/$id');
   }
 
   String _guessImageMime(String path) {
@@ -784,6 +896,89 @@ class HrRepo {
   Future<HrPayrollRun> closePayrollRun(String id) async {
     final res = await apiClient.post('/hr/payroll-runs/$id/close');
     return HrPayrollRun.fromJson(_data(res));
+  }
+
+  // ── Reward types ────────────────────────────────────────────────────────
+
+  Future<List<HrRewardType>> rewardTypes({bool activeOnly = true}) async {
+    final qp = activeOnly ? '?activeOnly=true' : '';
+    final res = await apiClient.get('/hr/reward-types$qp');
+    return _dataList(res).map(HrRewardType.fromJson).toList();
+  }
+
+  // ── Rewards ─────────────────────────────────────────────────────────────
+
+  Future<List<HrReward>> rewards({String? status, String? employeeId}) async {
+    final qp = <String, String>{};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    if (employeeId != null && employeeId.isNotEmpty) qp['employeeId'] = employeeId;
+    final path = qp.isEmpty
+        ? '/hr/rewards'
+        : '/hr/rewards?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get(path);
+    return _dataList(res).map(HrReward.fromJson).toList();
+  }
+
+  Future<HrReward> reward(String id) async {
+    final res = await apiClient.get('/hr/rewards/$id');
+    return HrReward.fromJson(_data(res));
+  }
+
+  Future<HrReward> createReward({
+    required String employeeId,
+    required String rewardTypeId,
+    required double amount,
+    required String title,
+    String? citation,
+    required DateTime awardDate,
+  }) async {
+    final res = await apiClient.post('/hr/rewards', {
+      'employeeId': employeeId,
+      'rewardTypeId': rewardTypeId,
+      'amount': amount,
+      'title': title,
+      if (citation != null && citation.isNotEmpty) 'citation': citation,
+      'awardDate': _isoDate(awardDate),
+    });
+    return HrReward.fromJson(_data(res));
+  }
+
+  Future<HrReward> submitReward(String id) async {
+    final res = await apiClient.post('/hr/rewards/$id/submit');
+    return HrReward.fromJson(_data(res));
+  }
+
+  Future<void> deleteReward(String id) async {
+    await apiClient.delete('/hr/rewards/$id');
+  }
+
+  /// Current logged-in user's points balance. Returns zeros when the user
+  /// has no employee record (graceful — no 403 surfaced to caller).
+  Future<HrPointsBalance> pointsBalance() async {
+    final res = await apiClient.get('/hr/rewards/points/balance');
+    return HrPointsBalance.fromJson(_data(res));
+  }
+
+  /// Submit a redemption request. Requires pointsUsed ≥ 500.
+  /// Backend returns 400 if below minimum, 409 if insufficient balance,
+  /// 403 if no employee record exists for the user.
+  Future<HrReward> redeemPoints(int pointsUsed) async {
+    final res = await apiClient.post('/hr/rewards/redeem', {'pointsUsed': pointsUsed});
+    return HrReward.fromJson(_data(res));
+  }
+
+  /// AI-draft a citation from the reward title. Returns the suggested text.
+  Future<String> suggestRewardCitation({
+    required String title,
+    String? employeeName,
+    String? typeName,
+  }) async {
+    final res = await apiClient.post('/hr/rewards/suggest-citation', {
+      'title': title,
+      if (employeeName != null && employeeName.isNotEmpty) 'employeeName': employeeName,
+      if (typeName != null && typeName.isNotEmpty) 'typeName': typeName,
+    });
+    return _data(res)['citation'] as String? ?? '';
   }
 
   // ── Announcements ───────────────────────────────────────────────────────

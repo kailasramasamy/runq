@@ -21,6 +21,7 @@ import '../../theme/runq_tokens.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_dashboard_sections.dart';
 import 'widgets/hr_feed_sections.dart';
+import 'widgets/hr_reward_strip.dart';
 import 'widgets/hr_widgets.dart';
 
 class HrHomeScreen extends ConsumerStatefulWidget {
@@ -361,6 +362,8 @@ class _EmployeeBodyState extends ConsumerState<_EmployeeBody> {
             onCheckOut: _openCheckIn,
             hhmm: _hhmm,
           ),
+          const SizedBox(height: 12),
+          const HrRewardStrip(),
           const SizedBox(height: 12),
           _QuickActionsGrid(
             items: [

@@ -2,7 +2,9 @@ import { analyze, isAIEnabled } from '../../utils/ai/claude.service';
 import {
   DEPARTMENT_SUGGESTION_SYSTEM_PROMPT,
   DESIGNATION_SUGGESTION_SYSTEM_PROMPT,
+  REWARD_CITATION_SYSTEM_PROMPT,
   suggestionUserPrompt,
+  rewardCitationUserPrompt,
 } from '../../utils/ai/prompts/hr-suggestion';
 import { AppError } from '../../utils/errors';
 
@@ -50,6 +52,30 @@ export async function suggestDepartments(description: string): Promise<Departmen
       code: s.code ? String(s.code).trim().slice(0, 20) : null,
       rationale: typeof s.rationale === 'string' ? s.rationale.trim() : '',
     }));
+}
+
+/**
+ * Draft a one-sentence reward citation from the reward's title (and, when
+ * known, the recipient and reward type). Returns plain text — not JSON.
+ */
+export async function suggestRewardCitation(input: {
+  title: string;
+  employeeName?: string | null;
+  typeName?: string | null;
+}): Promise<string> {
+  if (!isAIEnabled()) throw AI_DISABLED;
+  const raw = await analyze(REWARD_CITATION_SYSTEM_PROMPT, rewardCitationUserPrompt(input), 256);
+  if (!raw) throw AI_DISABLED;
+
+  const citation = raw
+    .replace(/^["'`\s]+|["'`\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2000);
+  if (!citation) {
+    throw new AppError(502, 'AI returned an empty citation. Please try again.', 'BadGatewayError');
+  }
+  return citation;
 }
 
 export async function suggestDesignations(description: string): Promise<DesignationSuggestion[]> {
