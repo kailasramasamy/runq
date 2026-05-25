@@ -36,7 +36,7 @@ function getEntityLink(entityType: string, entityId: string): string | null {
     payment: `/ap/payments/${entityId}`,
     invoice: `/ar/invoices/${entityId}`,
     receipt: `/ar/receipts/${entityId}`,
-    journal_entry: `/gl/journal-entries`,
+    journal_entry: `/finance/gl/journal-entries/${entityId}`,
     purchase_requisition: `/ap/queue/${entityId}`,
   };
   return routes[entityType] ?? null;

@@ -46,7 +46,7 @@ function SourceLink({ sourceType, sourceId, jeId }: { sourceType: string | null;
   let link = getSourceLink(sourceType, sourceId);
   // For depreciation/bank_expense JEs without a direct source link, link to the JE detail
   if (!link && sourceType && jeId && ['depreciation', 'bank_expense'].includes(sourceType)) {
-    link = `/gl/journal-entries/${jeId}`;
+    link = `/finance/gl/journal-entries/${jeId}`;
   }
   const label = sourceType ? (SOURCE_LABELS[sourceType] ?? sourceType) : null;
   if (!label) return <span className="text-zinc-400">—</span>;
@@ -68,7 +68,7 @@ function EntryRow({ entry, onSelect }: { entry: JournalEntry; onSelect: (id: str
     <TableRow className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50" onClick={() => onSelect(entry.id)}>
       <TableCell className="font-mono text-sm">
         <Link
-          to={`/gl/journal-entries/${entry.id}` as '/'}
+          to={`/finance/gl/journal-entries/${entry.id}` as '/'}
           className="text-blue-600 hover:underline dark:text-blue-400"
           onClick={(e) => e.stopPropagation()}
         >

@@ -101,7 +101,7 @@ export function DepreciationRunPage() {
                 <div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">Journal Entry</p>
                   <Link
-                    to={`/gl/journal-entries/${runResult.journalEntryId}` as '/'}
+                    to={`/finance/gl/journal-entries/${runResult.journalEntryId}` as '/'}
                     className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     View JE <ExternalLink size={12} />
