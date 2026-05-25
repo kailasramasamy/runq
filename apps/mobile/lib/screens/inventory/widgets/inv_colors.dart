@@ -27,6 +27,13 @@ class InvColors {
   /// inline helper banners. Always layer over `t.surface`.
   static Color get amberSubtle => amber.withValues(alpha: 0.10);
 
+  /// Stronger amber wash for tinted KPI / summary cards — reads as the
+  /// inventory brand at a glance without losing text contrast.
+  static Color get amberTint => amber.withValues(alpha: 0.16);
+
+  /// Amber hairline for tinted cards — matches [amberTint].
+  static Color get amberHairline => amber.withValues(alpha: 0.32);
+
   /// Gradient anchors for hero cards (KPI strip, stock-value tiles).
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -46,4 +53,25 @@ class InvColors {
   /// contrast holds on dark surfaces.
   static Color brand(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? amberLight : amber;
+
+  // ── Status palette ──────────────────────────────────────────────────────
+  // Paired bg/fg tokens used by StatusPill, UrgencyPill, and inline status
+  // chips across the inventory module. Foreground colours are kept
+  // saturated for legibility on the 10%-tint backgrounds. Re-using these
+  // here (instead of leaning on RunqColors.greenBg / redBg etc) gives the
+  // inventory pills consistent contrast — Tally-style cards have a lot of
+  // small pills and we don't want each one mixing palettes.
+
+  static const success = Color(0xFF16A34A);
+  static Color get successBg => success.withValues(alpha: 0.10);
+
+  static const error = Color(0xFFDC2626);
+  static Color get errorBg => error.withValues(alpha: 0.10);
+
+  static const info = Color(0xFF2563EB);
+  static Color get infoBg => info.withValues(alpha: 0.10);
+
+  /// Pre-warning urgency for low-stock badges — sits between amber and red.
+  static const orangeAlert = Color(0xFFEA580C);
+  static Color get orangeAlertBg => orangeAlert.withValues(alpha: 0.10);
 }

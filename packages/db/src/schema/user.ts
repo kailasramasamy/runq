@@ -22,6 +22,12 @@ export const users = pgTable('users', {
   // Phone is mobile-app login material; web still uses email+password.
   // Globally unique when present (partial index, see mig 0088).
   phone: varchar('phone', { length: 20 }),
+  // Firebase Auth binding for the mobile app. `firebaseUid` is set after the
+  // phone-OTP + Google/Apple link in Phase 1; subsequent logins skip OTP. See
+  // mig 0109 for the partial-unique index (migration-only — drizzle-kit push
+  // chokes on WHERE clauses, per project_prod_setup.md).
+  firebaseUid: varchar('firebase_uid', { length: 128 }),
+  authProvider: varchar('auth_provider', { length: 20 }),
   role: userRoleEnum('role').notNull().default('viewer'),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   // Preferred language for AI-assistant replies. ISO 639-1.

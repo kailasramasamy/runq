@@ -43,10 +43,30 @@ export const updateItemAttributeSchemaInput = z.object({
 
 export type UpdateItemAttributeSchemaInput = z.infer<typeof updateItemAttributeSchemaInput>;
 
+// Axis-1 classification — required for products, must be NULL for services.
+// The service layer defaults missing values for products to 'trading_good'
+// so the existing item-create form keeps working until the UI ships.
+export const itemClassValues = [
+  'raw_material',
+  'packaging',
+  'finished_good',
+  'semi_finished',
+  'trading_good',
+  'consumable',
+  'spare_part',
+] as const;
+export const itemClassSchema = z.enum(itemClassValues);
+export type ItemClass = z.infer<typeof itemClassSchema>;
+
 export const createItemSchema = z.object({
   name: z.string().min(1).max(255),
   sku: z.string().max(50).nullish(),
   type: z.enum(['product', 'service']),
+  itemClass: itemClassSchema.nullish(),
+  // FK into the category tree (replaces category / subcategory strings).
+  // Either form is accepted on create — the service resolves strings to
+  // an id when both are present. Trigger keeps strings mirrored from id.
+  categoryId: z.string().uuid().nullish(),
   hsnSacCode: hsnSacCodeSchema.nullish(),
   unit: z.string().max(20).nullish(),
   // Pack size used by GSTR-1 HSN summary to normalize variant SKUs to a
@@ -87,6 +107,11 @@ export const updateItemSchema = createItemSchema.partial();
 export const itemFilterSchema = z.object({
   search: z.string().optional(),
   type: z.enum(['product', 'service']).optional(),
+  itemClass: itemClassSchema.optional(),
+  /** Operational bucket — server expands to the matching item_class set.
+   *  Mirrors stockOnHandFilterSchema.itemClassGroup. */
+  itemClassGroup: z.enum(['finished', 'inputs', 'trading', 'other', 'all']).optional(),
+  categoryId: z.string().uuid().optional(),
   category: z.string().optional(),
   subcategory: z.string().optional(),
 });
@@ -96,7 +121,15 @@ export const bulkCreateItemsSchema = z.object({
   mode: z.enum(['skip', 'overwrite']).default('skip'),
 });
 
+/** Bulk reclassify endpoint payload. Cap at 500 ids to keep the IN list
+ *  bounded and the response time predictable. */
+export const bulkUpdateItemClassSchema = z.object({
+  itemIds: z.array(z.string().uuid()).min(1).max(500),
+  itemClass: itemClassSchema,
+});
+
 export type CreateItemInput = z.infer<typeof createItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
 export type ItemFilterInput = z.infer<typeof itemFilterSchema>;
 export type BulkCreateItemsInput = z.infer<typeof bulkCreateItemsSchema>;
+export type BulkUpdateItemClassInput = z.infer<typeof bulkUpdateItemClassSchema>;

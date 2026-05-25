@@ -13,11 +13,15 @@ import {
 } from '@/components/ar/primitives';
 import { formatINR, formatINRShort } from '@/lib/utils';
 import { api } from '@/lib/api-client';
+import {
+  InvClassTabs, resolveDefaultClassGroup, type ItemClassGroup,
+} from '@/components/inventory/inv-class-tabs';
 import type { Item } from '@/hooks/queries/use-items';
 import type { ItemAttributeField, PaginatedResponse } from '@runq/types';
 import {
-  useItems, useToggleItem, useDeleteItem, useItemAttributeSchema,
+  useItems, useItemClassCounts, useBulkUpdateItemClass, useToggleItem, useDeleteItem, useItemAttributeSchema,
 } from '@/hooks/queries/use-items';
+import type { ItemClass } from '@/hooks/queries/use-items';
 
 const LIMIT = 25;
 
@@ -66,9 +70,23 @@ export function ItemsPage() {
   // Search + page are URL-backed so navigating to edit and back preserves
   // the filtered list. The previous local-state implementation reset on
   // every route change.
-  const params = useSearch({ strict: false }) as { q?: string; page?: number };
+  const params = useSearch({ strict: false }) as { q?: string; page?: number; classGroup?: string };
   const search = params.q ?? '';
   const page = params.page ?? 1;
+  // Server-side per-bucket counts — feeds the tab badges and lets the
+  // fall-through resolver land on the first non-empty bucket when the
+  // tenant's catalogue doesn't include the preferred default yet (e.g.
+  // a pre-classification tenant with only trading_good items shouldn't
+  // open this page on an empty Finished tab).
+  const classCounts = useItemClassCounts();
+  const counts = classCounts.data?.data;
+  const urlGroup =
+    params.classGroup === 'finished' || params.classGroup === 'inputs' ||
+    params.classGroup === 'trading' || params.classGroup === 'other' ||
+    params.classGroup === 'all'
+      ? params.classGroup
+      : null;
+  const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup('finished', counts);
 
   // Wrap navigate in a loose-typed shim. The router's overloads are
   // string-literal-driven, so a dynamic prefix breaks the inference for
@@ -77,7 +95,7 @@ export function ItemsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigate as unknown as (opts: any) => void;
 
-  function updateSearch(patch: { q?: string; page?: number }, resetPage = true) {
+  function updateSearch(patch: { q?: string; page?: number; classGroup?: string }, resetPage = true) {
     nav({
       to: itemsBase,
       search: (prev: typeof params) => {
@@ -98,14 +116,23 @@ export function ItemsPage() {
     page,
     limit: LIMIT,
     ...(search ? { search } : {}),
+    ...(classGroup !== 'all' ? { itemClassGroup: classGroup } : {}),
   });
   const { data: schemaRes } = useItemAttributeSchema();
   const toggle = useToggleItem();
   const remove = useDeleteItem();
+  const bulkReclassify = useBulkUpdateItemClass();
   const { toast } = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  // Multi-select for bulk reclassify. Set of item ids; reset when the
+  // page or filter changes so a stale selection from page 1 doesn't leak
+  // into page 2. Tracked as a Set so toggling stays O(1).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, classGroup, search]);
 
   // Close export dropdown on outside click
   useEffect(() => {
@@ -243,6 +270,14 @@ export function ItemsPage() {
         loading={remove.isPending}
       />
 
+      <div className="mb-3">
+        <InvClassTabs
+          selected={classGroup}
+          counts={counts}
+          onChange={(g) => updateSearch({ classGroup: g })}
+        />
+      </div>
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="w-72 max-w-full">
           <Input
@@ -256,9 +291,49 @@ export function ItemsPage() {
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} items</span>
       </div>
 
+      {selectedIds.size > 0 && (
+        <BulkReclassifyBar
+          count={selectedIds.size}
+          busy={bulkReclassify.isPending}
+          onClear={() => setSelectedIds(new Set())}
+          onApply={async (cls) => {
+            try {
+              await bulkReclassify.mutateAsync({
+                itemIds: Array.from(selectedIds),
+                itemClass: cls,
+              });
+              toast(`Reclassified ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}`, 'success');
+              setSelectedIds(new Set());
+            } catch {
+              toast('Bulk reclassify failed', 'error');
+            }
+          }}
+        />
+      )}
+
       <Table>
         <TableHeader>
           <tr>
+            <Th>
+              <input
+                type="checkbox"
+                aria-label="Select all on page"
+                checked={items.length > 0 && items.every((i) => selectedIds.has(i.id))}
+                ref={(el) => {
+                  if (!el) return;
+                  const selectedOnPage = items.filter((i) => selectedIds.has(i.id)).length;
+                  el.indeterminate = selectedOnPage > 0 && selectedOnPage < items.length;
+                }}
+                onChange={(e) => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) items.forEach((i) => next.add(i.id));
+                    else items.forEach((i) => next.delete(i.id));
+                    return next;
+                  });
+                }}
+              />
+            </Th>
             <Th>Name</Th>
             <Th>UOM</Th>
             <Th>EAN</Th>
@@ -274,10 +349,10 @@ export function ItemsPage() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton rows={6} cols={10} />
+            <TableSkeleton rows={6} cols={11} />
           ) : items.length === 0 ? (
             <tr>
-              <td colSpan={10}>
+              <td colSpan={11}>
                 <EmptyState
                   icon={<Package size={18} />}
                   title={search ? `No items match "${search}"` : 'No items yet'}
@@ -292,6 +367,21 @@ export function ItemsPage() {
             </tr>
           ) : items.map((item) => (
             <TableRow key={item.id} onClick={() => openEdit(item.id)}>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${item.name}`}
+                  checked={selectedIds.has(item.id)}
+                  onChange={(e) => {
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(item.id);
+                      else next.delete(item.id);
+                      return next;
+                    });
+                  }}
+                />
+              </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
                   <span className="font-medium" style={{ color: 'var(--text-1)' }}>{item.name}</span>
@@ -493,4 +583,55 @@ function exportItemsForCustomer(items: Item[]): void {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Items');
   XLSX.writeFile(wb, 'items-customer.xlsx');
+}
+
+// ─── Bulk reclassify action bar ─────────────────────────────────────────────
+//
+// Renders above the items table whenever one or more rows are selected.
+// Designed for the Phase-1 backfill cleanup — every existing product was
+// seeded as 'trading_good', so a dairy SME typically wants to multi-select
+// finished goods (butter, curd, ghee) and flip them to 'finished_good' in
+// one shot. The bar disappears when the selection is cleared.
+function BulkReclassifyBar({
+  count, busy, onApply, onClear,
+}: {
+  count: number;
+  busy: boolean;
+  onApply: (cls: ItemClass) => void;
+  onClear: () => void;
+}) {
+  const [cls, setCls] = useState<ItemClass | ''>('');
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/30">
+      <span className="text-sm font-medium text-amber-900 dark:text-amber-200">
+        {count} item{count === 1 ? '' : 's'} selected
+      </span>
+      <span className="text-xs text-amber-800/70 dark:text-amber-200/70">Set class to</span>
+      <select
+        value={cls}
+        onChange={(e) => setCls(e.target.value as ItemClass | '')}
+        className="rounded-md border border-amber-300 bg-white px-2 py-1 text-sm dark:border-amber-700 dark:bg-zinc-900"
+      >
+        <option value="">Pick class…</option>
+        <option value="finished_good">Finished good</option>
+        <option value="semi_finished">Semi-finished</option>
+        <option value="raw_material">Raw material</option>
+        <option value="packaging">Packaging</option>
+        <option value="trading_good">Trading good</option>
+        <option value="consumable">Consumable</option>
+        <option value="spare_part">Spare part</option>
+      </select>
+      <Button
+        size="sm"
+        disabled={!cls || busy}
+        loading={busy}
+        onClick={() => cls && onApply(cls)}
+      >
+        Apply
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onClear} disabled={busy}>
+        Clear
+      </Button>
+    </div>
+  );
 }

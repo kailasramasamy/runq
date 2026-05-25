@@ -1,19 +1,57 @@
-import { useState } from 'react';
-import { PackageX } from 'lucide-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { PackageX, Search } from 'lucide-react';
 import {
-  PageHeader, Combobox, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useDeadStock, useWarehouses } from '@/hooks/queries/use-inventory';
 
+const DAYS_OPTIONS = [
+  { value: '30', label: '30+ days' },
+  { value: '60', label: '60+ days' },
+  { value: '90', label: '90+ days' },
+  { value: '180', label: '180+ days' },
+  { value: '365', label: '365+ days' },
+];
+
+type Params = { warehouseId?: string; days?: string; q?: string };
+
 export function DeadStockReportPage() {
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const warehouseId = params.warehouseId ?? '';
+  const days = Number(params.days ?? 90);
+  const q = params.q ?? '';
+
+  function update(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/reports/dead-stock',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (!next[k]) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
   const { data: warehouses } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState('');
-  const [days, setDays] = useState(90);
   const { data, isLoading } = useDeadStock({
     warehouseId: warehouseId || undefined, daysSinceMovement: days,
   });
-  const rows = data ?? [];
+  const allRows = data ?? [];
+
+  const ql = q.toLowerCase();
+  const rows = ql
+    ? allRows.filter(
+        (r) =>
+          r.itemName.toLowerCase().includes(ql) ||
+          (r.itemSku ?? '').toLowerCase().includes(ql) ||
+          r.warehouseName.toLowerCase().includes(ql),
+      )
+    : allRows;
 
   const totalValue = rows.reduce((s, r) => s + r.value, 0);
 
@@ -31,28 +69,32 @@ export function DeadStockReportPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
+        <Input
+          placeholder="Search item, SKU, warehouse…"
+          icon={<Search size={13} />}
+          className="w-72 max-w-full"
+          value={q}
+          onChange={(e) => update({ q: e.target.value || undefined })}
+        />
         <div className="min-w-[180px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">No movement for</label>
-          <Select
+          <Combobox
             value={String(days)}
-            onChange={(e) => setDays(Number(e.target.value))}
-            options={[
-              { value: '30', label: '30+ days' },
-              { value: '60', label: '60+ days' },
-              { value: '90', label: '90+ days' },
-              { value: '180', label: '180+ days' },
-              { value: '365', label: '365+ days' },
-            ]}
+            onChange={(v) => update({ days: v || undefined })}
+            options={DAYS_OPTIONS}
           />
         </div>
         <div className="min-w-[220px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Warehouse</label>
-          <Combobox value={warehouseId} onChange={setWarehouseId} options={whOptions} />
+          <Combobox value={warehouseId} onChange={(v) => update({ warehouseId: v || undefined })} options={whOptions} />
         </div>
-        <div className="ml-auto text-sm">
-          Frozen value:&nbsp;
-          <span className="font-mono font-semibold">
-            ₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+        <div className="ml-auto flex items-center gap-4">
+          <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{rows.length} rows</span>
+          <span className="text-sm">
+            Frozen value:&nbsp;
+            <span className="font-mono font-semibold">
+              ₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </span>
           </span>
         </div>
       </div>

@@ -27,6 +27,7 @@ import { TransferService } from './transfer.service';
 import { AdjustmentService } from './adjustment.service';
 import { StockTakeService } from './stock-take.service';
 import { ReorderService } from './reorder.service';
+import { GrnExtractService } from './grn-extract.service';
 import { ReportsService } from './reports.service';
 import { SerialService } from './serial.service';
 import { NotFoundError } from '../../utils/errors';
@@ -124,6 +125,32 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const input = createGrnSchema.parse(req.body);
     const svc = new GrnService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
     return reply.status(201).send({ data: await svc.create(input) });
+  });
+
+  // AI invoice extract — feeds the mobile "Receive stock" screen. Reuses
+  // the AP invoice extractor (local heuristic + Claude vision fallback)
+  // and maps the parsed line items back onto the inventory catalog so
+  // the UI can pre-fill the GRN form. No DB writes — purely a preview.
+  const GRN_EXTRACT_MIMES: Record<string, boolean> = {
+    'application/pdf': true,
+    'image/png': true,
+    'image/jpeg': true,
+    'image/jpg': true,
+  };
+  const GRN_EXTRACT_MAX = 10 * 1024 * 1024;
+  app.post('/grn/extract', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {
+    const file = await req.file();
+    if (!file) return reply.status(400).send({ error: 'No file uploaded' });
+    const mime = file.mimetype.toLowerCase();
+    if (!GRN_EXTRACT_MIMES[mime]) {
+      return reply.status(400).send({ error: 'Unsupported file type. Upload PDF, PNG, or JPG.' });
+    }
+    const buffer = await file.toBuffer();
+    if (buffer.length > GRN_EXTRACT_MAX) {
+      return reply.status(400).send({ error: 'File too large. Maximum size is 10 MB.' });
+    }
+    const svc = new GrnExtractService(req.server.db, req.tenantId);
+    return { data: await svc.extract(buffer, mime, file.filename) };
   });
 
   app.get('/grn/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {

@@ -246,6 +246,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'inv-warehouses', label: 'Warehouses', icon: Warehouse, path: '/inventory/warehouses' },
       { key: 'inv-items', label: 'Items', icon: Package, path: '/inventory/items' },
+      { key: 'inv-categories', label: 'Categories', icon: Layers, path: '/inventory/categories' },
       { key: 'inv-serials', label: 'Serials', icon: ScrollText, path: '/inventory/serials' },
     ],
   },

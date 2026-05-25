@@ -102,6 +102,18 @@ export class ReorderService {
         WHERE i.is_active = TRUE
           AND w.is_active = TRUE
           AND COALESCE(rr.reorder_level, i.reorder_level) IS NOT NULL
+      ),
+      -- Preferred supplier per (item, warehouse): pick the vendor on the
+      -- most recent posted GRN that brought this item into this warehouse.
+      -- A second pass on inventory_grn_lines × inventory_grns × vendors.
+      last_supplier AS (
+        SELECT DISTINCT ON (gl.item_id, g.warehouse_id)
+          gl.item_id, g.warehouse_id, v.name AS supplier_name
+        FROM inventory_grn_lines gl
+        INNER JOIN inventory_grns g ON g.id = gl.grn_id
+        LEFT JOIN vendors v ON v.id = g.vendor_id
+        WHERE gl.tenant_id = ${this.tenantId} AND g.status = 'posted'
+        ORDER BY gl.item_id, g.warehouse_id, g.received_date DESC, g.created_at DESC
       )
       SELECT
         e.item_id, e.warehouse_id, e.item_name, e.item_sku, e.item_unit,
@@ -109,10 +121,13 @@ export class ReorderService {
         e.reorder_level::text AS reorder_level,
         e.reorder_qty::text AS reorder_qty,
         e.lead_time_days,
-        COALESCE(o.qty, 0)::text AS on_hand
+        COALESCE(o.qty, 0)::text AS on_hand,
+        ls.supplier_name
       FROM effective e
       LEFT JOIN on_hand o
         ON o.item_id = e.item_id AND o.warehouse_id = e.warehouse_id
+      LEFT JOIN last_supplier ls
+        ON ls.item_id = e.item_id AND ls.warehouse_id = e.warehouse_id
       WHERE COALESCE(o.qty, 0) <= e.reorder_level
       ORDER BY (COALESCE(o.qty, 0) / NULLIF(e.reorder_level, 0)) ASC, e.item_name ASC
     `);
@@ -121,19 +136,30 @@ export class ReorderService {
         item_id: string; warehouse_id: string; item_name: string; item_sku: string | null;
         item_unit: string | null; warehouse_name: string;
         reorder_level: string; reorder_qty: string; lead_time_days: number | null;
-        on_hand: string;
+        on_hand: string; supplier_name: string | null;
       }>;
     }).rows;
-    return rows.map((r) => ({
-      itemId: r.item_id, warehouseId: r.warehouse_id,
-      itemName: r.item_name, itemSku: r.item_sku, itemUnit: r.item_unit,
-      warehouseName: r.warehouse_name,
-      reorderLevel: Number(r.reorder_level),
-      reorderQty: Number(r.reorder_qty),
-      leadTimeDays: r.lead_time_days,
-      onHand: Number(r.on_hand),
-      shortBy: Math.max(0, Number(r.reorder_level) - Number(r.on_hand)),
-    }));
+    return rows.map((r) => {
+      const onHand = Number(r.on_hand);
+      const reorderLevel = Number(r.reorder_level);
+      // Urgency buckets — critical when on-hand is at or below half the
+      // reorder level (including zero), otherwise warning. Watch is a UI-
+      // only state for items still above reorder and isn't surfaced here.
+      const ratio = reorderLevel > 0 ? onHand / reorderLevel : 0;
+      const urgency: 'critical' | 'warning' = ratio <= 0.5 ? 'critical' : 'warning';
+      return {
+        itemId: r.item_id, warehouseId: r.warehouse_id,
+        itemName: r.item_name, itemSku: r.item_sku, itemUnit: r.item_unit,
+        warehouseName: r.warehouse_name,
+        reorderLevel,
+        reorderQty: Number(r.reorder_qty),
+        leadTimeDays: r.lead_time_days,
+        onHand,
+        shortBy: Math.max(0, reorderLevel - onHand),
+        urgency,
+        supplierName: r.supplier_name,
+      };
+    });
   }
 
   /**

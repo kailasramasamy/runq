@@ -1,19 +1,45 @@
-import { useState } from 'react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { BarChart3 } from 'lucide-react';
 import {
-  PageHeader, Combobox, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Card, CardContent,
 } from '@/components/ui';
 import { useMovementSummary, useWarehouses } from '@/hooks/queries/use-inventory';
 
+const GROUP_OPTIONS = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+];
+
+type GroupBy = 'day' | 'week' | 'month';
+type Params = { warehouseId?: string; from?: string; to?: string; groupBy?: GroupBy };
+
 export function MovementReportPage() {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const warehouseId = params.warehouseId ?? '';
+  const from = params.from ?? monthAgo;
+  const to = params.to ?? today;
+  const groupBy: GroupBy = params.groupBy ?? 'day';
+
+  function update(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/reports/movement',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (!next[k]) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
   const { data: warehouses } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState('');
-  const [from, setFrom] = useState(monthAgo);
-  const [to, setTo] = useState(today);
-  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
   const { data, isLoading } = useMovementSummary({
     warehouseId: warehouseId || undefined, from, to, groupBy,
   });
@@ -46,27 +72,23 @@ export function MovementReportPage() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="min-w-[160px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">From</label>
-          <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+          <Input type="date" value={from} max={to} onChange={(e) => update({ from: e.target.value || undefined })} />
         </div>
         <div className="min-w-[160px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">To</label>
-          <Input type="date" value={to} max={today} onChange={(e) => setTo(e.target.value)} />
+          <Input type="date" value={to} max={today} onChange={(e) => update({ to: e.target.value || undefined })} />
         </div>
         <div className="min-w-[140px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Group by</label>
-          <Select
+          <Combobox
             value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
-            options={[
-              { value: 'day', label: 'Day' },
-              { value: 'week', label: 'Week' },
-              { value: 'month', label: 'Month' },
-            ]}
+            onChange={(v) => update({ groupBy: (v as GroupBy) || undefined })}
+            options={GROUP_OPTIONS}
           />
         </div>
         <div className="min-w-[200px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Warehouse</label>
-          <Combobox value={warehouseId} onChange={setWarehouseId} options={whOptions} />
+          <Combobox value={warehouseId} onChange={(v) => update({ warehouseId: v || undefined })} options={whOptions} />
         </div>
       </div>
 

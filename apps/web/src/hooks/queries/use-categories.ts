@@ -14,6 +14,9 @@ export interface Category {
   name: string;
   parentId: string | null;
   parentName?: string | null;
+  defaultHsnSac: string | null;
+  defaultGstRate: number | null;
+  sortOrder: number;
   isActive: boolean;
   subcategories?: Category[];
   createdAt: string;
@@ -23,6 +26,9 @@ export interface Category {
 export interface CreateCategoryInput {
   name: string;
   parentId?: string | null;
+  defaultHsnSac?: string | null;
+  defaultGstRate?: number | null;
+  sortOrder?: number;
 }
 
 interface CategoryFilters {

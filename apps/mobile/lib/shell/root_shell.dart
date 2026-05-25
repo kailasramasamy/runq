@@ -38,13 +38,16 @@ const _hrTabs = <_Tab>[
   _Tab('/hr/more', 'More', Icons.apps_outlined, Icons.apps_rounded),
 ];
 
-// Inventory tabs cover the godown-floor day: see what's there, receive,
-// dispatch, drill into more (transfer / adjustment / stock take / reports).
+// Inventory tabs cover the godown-floor day at a glance: a dashboard
+// (Home), the live stock list (Stock), every transaction type behind one
+// hub (Moves), and reorder/low-stock alerts (Alerts). Receive + Dispatch
+// + Transfer + Adjustment + Stock Take all live under Moves now so the
+// nav doesn't have to grow to 8 tabs as the module fills out.
 const _inventoryTabs = <_Tab>[
   _Tab('/inventory', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab('/inventory/on-hand', 'Stock', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
-  _Tab('/inventory/grn', 'Receive', Icons.add_box_outlined, Icons.add_box_rounded),
-  _Tab('/inventory/delivery', 'Dispatch', Icons.local_shipping_outlined, Icons.local_shipping_rounded),
+  _Tab('/inventory/moves', 'Moves', Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
+  _Tab('/inventory/alerts', 'Alerts', Icons.notifications_none_rounded, Icons.notifications_rounded),
 ];
 
 class RootShell extends ConsumerStatefulWidget {
@@ -72,10 +75,21 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
   }
 
   int _activeIndex(List<_Tab> tabs, String location) {
+    // Pick the *longest* matching prefix, not the first. Inventory's Home
+    // path is `/inventory`, which is a prefix of every sibling tab — a plain
+    // first-match would always highlight Home. Also require a `/` boundary
+    // so `/inventory` doesn't bleed into a hypothetical `/inventoryX`.
+    var best = -1;
+    var bestLen = -1;
     for (var i = 0; i < tabs.length; i++) {
-      if (location.startsWith(tabs[i].path)) return i;
+      final p = tabs[i].path;
+      final matches = location == p || location.startsWith('$p/');
+      if (matches && p.length > bestLen) {
+        best = i;
+        bestLen = p.length;
+      }
     }
-    return 0;
+    return best == -1 ? 0 : best;
   }
 
   void _toggleSheet() {

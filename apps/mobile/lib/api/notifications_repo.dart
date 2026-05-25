@@ -66,3 +66,14 @@ final unreadCountProvider = Provider<int>((ref) {
   final async = ref.watch(notificationsProvider);
   return async.asData?.value.unread ?? 0;
 });
+
+/// Scoped unread count — keeps only notifications whose `source` starts with
+/// one of [prefixes]. Used by per-module bells (Inventory, HR) so each module
+/// shows its own count instead of the global mix.
+final scopedUnreadCountProvider = Provider.family<int, List<String>>((ref, prefixes) {
+  final async = ref.watch(notificationsProvider);
+  final items = async.asData?.value.items ?? const <RunqNotification>[];
+  return items
+      .where((n) => n.unread && prefixes.any((p) => n.source.startsWith(p)))
+      .length;
+});

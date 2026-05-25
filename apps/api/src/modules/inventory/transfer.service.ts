@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, count } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, count, sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
   inventoryTransfers, inventoryTransferLines, items, warehouses,
@@ -35,6 +35,11 @@ export class TransferService {
         .select({
           t: inventoryTransfers,
           fromName: fromWh.name,
+          // Per-row line count for the redesigned mobile transfer card.
+          lineCount: sql<number>`(
+            SELECT COUNT(*)::int FROM ${inventoryTransferLines}
+            WHERE ${inventoryTransferLines.transferId} = ${inventoryTransfers.id}
+          )`.as('line_count'),
         })
         .from(inventoryTransfers)
         .innerJoin(fromWh, eq(fromWh.id, inventoryTransfers.fromWarehouseId))
@@ -61,6 +66,7 @@ export class TransferService {
         ...r.t,
         fromWarehouseName: r.fromName,
         toWarehouseName: toMap.get(r.t.toWarehouseId) ?? '',
+        lineCount: Number(r.lineCount ?? 0),
       })),
       page: filter.page,
       limit: filter.limit,

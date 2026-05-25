@@ -2,6 +2,7 @@ export { Button, buttonVariants } from './button';
 export { Badge } from './badge';
 export { Card, CardHeader, CardContent, CardFooter } from './card';
 export { Input, Select, Textarea, DateInput } from './input';
+export type { InputProps } from './input';
 export { Table, TableHeader, TableBody, TableRow, TableCell, TableEmpty, Th } from './table';
 export { PageHeader, Breadcrumbs } from './page-header';
 export { DateRangeFilter } from './date-range-filter';

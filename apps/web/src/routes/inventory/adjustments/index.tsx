@@ -1,22 +1,62 @@
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
-import { Plus, SlidersHorizontal, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { Plus, SlidersHorizontal, TrendingUp, TrendingDown, Clock, Search } from 'lucide-react';
 import {
-  PageHeader, Button, Select, Table, TableHeader, TableBody, TableRow, TableCell, Th,
-  TableSkeleton, EmptyState, Badge,
+  PageHeader, Button, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  TableSkeleton, EmptyState, Badge, Combobox,
 } from '@/components/ui';
-import { useAdjustmentList } from '@/hooks/queries/use-inventory';
+import { useAdjustmentList, useWarehouses } from '@/hooks/queries/use-inventory';
 import { KpiStrip, formatInrShort } from '../_widgets';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending_approval', label: 'Pending approval' },
+  { value: 'posted', label: 'Posted' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
 
 const REASON_LABELS: Record<string, string> = {
   damage: 'Damage', expiry: 'Expiry', theft: 'Theft', found: 'Found',
   revaluation: 'Revaluation', correction: 'Correction', opening_balance: 'Opening',
 };
 
+type Params = { q?: string; status?: string; warehouse?: string };
+
 export function AdjustmentListPage() {
-  const [status, setStatus] = useState<'' | 'draft' | 'pending_approval' | 'posted' | 'cancelled'>('');
-  const { data, isLoading } = useAdjustmentList({ status: status || undefined, limit: 100 });
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const q = params.q ?? '';
+  const statusFilter = params.status ?? '';
+  const warehouseFilter = params.warehouse ?? '';
+
+  function updateSearch(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/adjustments',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (next[k] === '' || next[k] === undefined) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
+  const { data, isLoading } = useAdjustmentList({ status: statusFilter || undefined, limit: 100 });
+  const { data: warehouses = [] } = useWarehouses();
   const rows = data?.data ?? [];
+
+  const ql = q.toLowerCase();
+  const filtered = rows.filter((r) => {
+    if (warehouseFilter && r.warehouseId !== warehouseFilter) return false;
+    if (ql) {
+      const haystack = `${r.adjNo} ${r.warehouseName}`.toLowerCase();
+      if (!haystack.includes(ql)) return false;
+    }
+    return true;
+  });
 
   const monthStart = new Date().toISOString().slice(0, 7);
   const monthPosted = rows.filter((r) => r.status === 'posted' && r.adjustmentDate?.startsWith(monthStart));
@@ -26,6 +66,13 @@ export function AdjustmentListPage() {
   const monthGain = monthPosted.filter((r) => Number(r.totalValueDelta) > 0)
     .reduce((s, r) => s + Number(r.totalValueDelta), 0);
   const pendingApproval = rows.filter((r) => r.status === 'pending_approval').length;
+
+  const warehouseOptions = [
+    { value: '', label: 'All warehouses' },
+    ...warehouses.map((w) => ({ value: w.id, label: w.name })),
+  ];
+
+  const hasFilters = !!(q || statusFilter || warehouseFilter);
 
   return (
     <div>
@@ -47,28 +94,45 @@ export function AdjustmentListPage() {
         { label: 'Pending approval', value: pendingApproval, icon: Clock, tone: pendingApproval > 0 ? 'warning' : 'muted', loading: isLoading },
       ]} />
 
-      <div className="mb-4 min-w-[180px]">
-        <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>
-        <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as typeof status)}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'draft', label: 'Draft' },
-            { value: 'pending_approval', label: 'Pending approval' },
-            { value: 'posted', label: 'Posted' },
-            { value: 'cancelled', label: 'Cancelled' },
-          ]}
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative w-72 max-w-full">
+          <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <Input
+            placeholder="Search adjustment # or warehouse…"
+            value={q}
+            onChange={(e) => updateSearch({ q: e.target.value || undefined })}
+            className="pl-8 h-8 py-0 text-[12.5px]"
+          />
+        </div>
+        <div className="w-44">
+          <Combobox
+            options={STATUS_OPTIONS}
+            value={statusFilter}
+            onChange={(v) => updateSearch({ status: v || undefined })}
+            placeholder="All statuses"
+            inputClassName="h-8 py-0 text-[12.5px]"
+          />
+        </div>
+        <div className="w-52">
+          <Combobox
+            options={warehouseOptions}
+            value={warehouseFilter}
+            onChange={(v) => updateSearch({ warehouse: v || undefined })}
+            placeholder="All warehouses"
+            inputClassName="h-8 py-0 text-[12.5px]"
+          />
+        </div>
+        <div className="flex-1" />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{filtered.length} items</span>
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={6} cols={6} />
-      ) : rows.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={SlidersHorizontal}
-          title="No adjustments yet"
-          description="Record a stock adjustment when on-hand qty needs to be corrected."
+          title={hasFilters ? 'No results match your filters' : 'No adjustments yet'}
+          description={hasFilters ? 'Try adjusting your filters.' : 'Record a stock adjustment when on-hand qty needs to be corrected.'}
         />
       ) : (
         <Table>
@@ -83,7 +147,7 @@ export function AdjustmentListPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((a) => {
+            {filtered.map((a) => {
               const delta = Number(a.totalValueDelta);
               return (
                 <TableRow key={a.id}>

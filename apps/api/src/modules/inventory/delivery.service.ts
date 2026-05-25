@@ -33,7 +33,30 @@ export class DeliveryNoteService {
     const where = and(...conds)!;
     const [rows, [{ total }]] = await Promise.all([
       this.ctx.db
-        .select({ dn: deliveryNotes, customerName: customers.name, warehouseName: warehouses.name })
+        .select({
+          dn: deliveryNotes,
+          customerName: customers.name,
+          warehouseName: warehouses.name,
+          // Per-row line count for the redesigned mobile DN tile.
+          lineCount: sql<number>`(
+            SELECT COUNT(*)::int FROM ${deliveryNoteLines}
+            WHERE ${deliveryNoteLines.dnId} = ${deliveryNotes.id}
+          )`.as('line_count'),
+          // Preview total for rows whose snapshot total_value is 0 (drafts,
+          // or DNs cancelled before dispatch). Mirrors the fallback chain in
+          // get(): line unit_cost → item cost_price → item default_purchase_price.
+          previewTotal: sql<string>`COALESCE((
+            SELECT SUM(l.qty * COALESCE(
+              NULLIF(l.unit_cost::numeric, 0),
+              NULLIF(i.cost_price, 0),
+              NULLIF(i.default_purchase_price, 0),
+              0
+            ))
+            FROM ${deliveryNoteLines} l
+            JOIN ${items} i ON i.id = l.item_id
+            WHERE l.dn_id = ${deliveryNotes.id}
+          ), 0)`.as('preview_total'),
+        })
         .from(deliveryNotes)
         .leftJoin(customers, eq(customers.id, deliveryNotes.customerId))
         .innerJoin(warehouses, eq(warehouses.id, deliveryNotes.warehouseId))
@@ -45,7 +68,20 @@ export class DeliveryNoteService {
     ]);
 
     return {
-      data: rows.map((r) => ({ ...r.dn, customerName: r.customerName, warehouseName: r.warehouseName })),
+      data: rows.map((r) => {
+        // Snapshot totalValue is only set at dispatch — fall back to the
+        // line-based preview so drafts and pre-dispatch cancellations show
+        // the same total the detail screen does.
+        const snap = Number(r.dn.totalValue ?? 0);
+        const totalValue = snap > 0 ? r.dn.totalValue : String(r.previewTotal ?? 0);
+        return {
+          ...r.dn,
+          totalValue,
+          customerName: r.customerName,
+          warehouseName: r.warehouseName,
+          lineCount: Number(r.lineCount ?? 0),
+        };
+      }),
       page: filter.page,
       limit: filter.limit,
       total,
@@ -66,16 +102,80 @@ export class DeliveryNoteService {
       .select({
         line: deliveryNoteLines,
         itemName: items.name, itemSku: items.sku, trackBatches: items.trackBatches,
+        itemUnit: items.unit,
+        itemCostPrice: items.costPrice,
+        itemDefaultPurchasePrice: items.defaultPurchasePrice,
       })
       .from(deliveryNoteLines)
       .innerJoin(items, eq(items.id, deliveryNoteLines.itemId))
       .where(eq(deliveryNoteLines.dnId, id))
       .orderBy(asc(deliveryNoteLines.id));
+
+    // Per-line unit_cost is only snapshotted at dispatch time (from the
+    // moving-average on-hand cost). For drafts the column is still 0 — show
+    // a live preview using the current avg_cost so the UI isn't all zeros.
+    const enriched = await Promise.all(lines.map(async (l) => {
+      // Fall back to the item's canonical UOM if the line didn't snapshot one.
+      const uom = l.line.uom ?? l.itemUnit ?? null;
+      const base = {
+        ...l.line, uom,
+        itemName: l.itemName, itemSku: l.itemSku, trackBatches: l.trackBatches,
+      };
+      if (row.dn.status !== 'draft') return base;
+      // Cost preview fallback chain:
+      //   (1) exact batch on this warehouse  → moving-avg from stock_on_hand
+      //   (2) qty-weighted avg across batches in this warehouse
+      //   (3) item master cost_price        (purchase landed cost)
+      //   (4) item master default_purchase_price (last resort)
+      // We need *something* so drafts that haven't received stock yet still
+      // show a non-zero COGS preview.
+      let cost = 0;
+      const [exact] = await this.ctx.db
+        .select({ avgCost: stockOnHand.avgCost })
+        .from(stockOnHand)
+        .where(and(
+          eq(stockOnHand.tenantId, this.ctx.tenantId),
+          eq(stockOnHand.itemId, l.line.itemId),
+          eq(stockOnHand.warehouseId, row.dn.warehouseId),
+          eq(stockOnHand.batchNo, l.line.batchNo ?? ''),
+        ))
+        .limit(1);
+      cost = Number(exact?.avgCost ?? 0);
+      if (cost <= 0) {
+        const [wh] = await this.ctx.db
+          .select({
+            avg: sql<string>`
+              COALESCE(SUM(${stockOnHand.qty} * ${stockOnHand.avgCost})
+                       / NULLIF(SUM(${stockOnHand.qty}), 0), 0)
+            `.as('avg'),
+          })
+          .from(stockOnHand)
+          .where(and(
+            eq(stockOnHand.tenantId, this.ctx.tenantId),
+            eq(stockOnHand.itemId, l.line.itemId),
+            eq(stockOnHand.warehouseId, row.dn.warehouseId),
+          ));
+        cost = Number(wh?.avg ?? 0);
+      }
+      if (cost <= 0) cost = Number(l.itemCostPrice ?? 0);
+      if (cost <= 0) cost = Number(l.itemDefaultPurchasePrice ?? 0);
+      if (cost <= 0) return base;
+      const lineTotal = Number(l.line.qty) * cost;
+      return { ...base, unitCost: String(cost), lineTotal: String(lineTotal) };
+    }));
+
+    // Header totalValue is also snapshotted at dispatch — preview it from
+    // the enriched lines so the draft footer matches.
+    const totalValue = row.dn.status === 'draft'
+      ? String(enriched.reduce((s, l) => s + Number(l.lineTotal), 0))
+      : row.dn.totalValue;
+
     return {
       ...row.dn,
+      totalValue,
       customerName: row.customerName,
       warehouseName: row.warehouseName,
-      lines: lines.map((l) => ({ ...l.line, itemName: l.itemName, itemSku: l.itemSku, trackBatches: l.trackBatches })),
+      lines: enriched,
     };
   }
 
@@ -318,15 +418,17 @@ export class DeliveryNoteService {
   private async resolveLines(tx: Tx, warehouseId: string, lines: DnLineInput[]) {
     const resolved: DnLineInput[] = [];
     for (const line of lines) {
-      // Look up item config to know if batch tracking is on.
+      // Look up item config to know if batch tracking is on, and default the
+      // line's UOM to the item's canonical unit when the caller didn't send one.
       const [cfg] = await tx
-        .select({ trackBatches: items.trackBatches })
+        .select({ trackBatches: items.trackBatches, unit: items.unit })
         .from(items)
         .where(and(eq(items.tenantId, this.ctx.tenantId), eq(items.id, line.itemId)))
         .limit(1);
       if (!cfg) throw new AppError(400, `Item ${line.itemId} not found`);
-      if (!cfg.trackBatches || line.batchNo) {
-        resolved.push(line);
+      const withUom: DnLineInput = { ...line, uom: line.uom ?? cfg.unit ?? null };
+      if (!cfg.trackBatches || withUom.batchNo) {
+        resolved.push(withUom);
         continue;
       }
       // FEFO suggestion: pick the batch with the earliest expiry that has
@@ -352,7 +454,7 @@ export class DeliveryNoteService {
         LIMIT 1
       `);
       const row = (suggestion as unknown as { rows: Array<{ batch_no: string }> }).rows[0];
-      resolved.push({ ...line, batchNo: row?.batch_no ?? line.batchNo ?? '' });
+      resolved.push({ ...withUom, batchNo: row?.batch_no ?? withUom.batchNo ?? '' });
     }
     return resolved;
   }

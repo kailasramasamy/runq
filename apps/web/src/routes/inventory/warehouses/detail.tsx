@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { PageHeader, Card, CardContent, CardHeader, Button, Badge, useToast, ConfirmationDialog } from '@/components/ui';
 import { useState } from 'react';
 import { useWarehouse, useDeleteWarehouse, useOnHand } from '@/hooks/queries/use-inventory';
@@ -35,9 +35,14 @@ export function WarehouseDetailPage() {
         title={wh.name}
         description={`Code: ${wh.code} · ${wh.type}`}
         actions={
-          <Button variant="destructive" onClick={() => setConfirmDelete(true)} loading={del.isPending}>
-            Delete
-          </Button>
+          <div className="flex gap-2">
+            <Link to="/inventory/warehouses/$id/edit" params={{ id }}>
+              <Button variant="secondary">Edit</Button>
+            </Link>
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)} loading={del.isPending}>
+              Delete
+            </Button>
+          </div>
         }
       />
 

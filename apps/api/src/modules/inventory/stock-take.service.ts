@@ -29,7 +29,22 @@ export class StockTakeService {
     const where = and(...conds)!;
     const [rows, [{ total }]] = await Promise.all([
       this.ctx.db
-        .select({ st: inventoryStockTakes, warehouseName: warehouses.name })
+        .select({
+          st: inventoryStockTakes,
+          warehouseName: warehouses.name,
+          // Total snapshot lines + counted-so-far. Drives the progress
+          // bar on the redesigned session tile without having to fetch
+          // the full detail per row.
+          totalLines: sql<number>`(
+            SELECT COUNT(*)::int FROM ${inventoryStockTakeLines}
+            WHERE ${inventoryStockTakeLines.stockTakeId} = ${inventoryStockTakes.id}
+          )`.as('total_lines'),
+          countedLines: sql<number>`(
+            SELECT COUNT(*)::int FROM ${inventoryStockTakeLines}
+            WHERE ${inventoryStockTakeLines.stockTakeId} = ${inventoryStockTakes.id}
+              AND ${inventoryStockTakeLines.countedQty} IS NOT NULL
+          )`.as('counted_lines'),
+        })
         .from(inventoryStockTakes)
         .innerJoin(warehouses, eq(warehouses.id, inventoryStockTakes.warehouseId))
         .where(where)
@@ -39,7 +54,12 @@ export class StockTakeService {
       this.ctx.db.select({ total: count() }).from(inventoryStockTakes).where(where),
     ]);
     return {
-      data: rows.map((r) => ({ ...r.st, warehouseName: r.warehouseName })),
+      data: rows.map((r) => ({
+        ...r.st,
+        warehouseName: r.warehouseName,
+        totalLines: Number(r.totalLines ?? 0),
+        countedLines: Number(r.countedLines ?? 0),
+      })),
       page: filter.page, limit: filter.limit, total,
       totalPages: Math.ceil(total / filter.limit),
     };
@@ -95,7 +115,8 @@ export class StockTakeService {
         })
         .returning();
 
-      // Snapshot on-hand. For category scope we filter by items.category.
+      // Snapshot on-hand. For category scope we filter by the items.category_id
+      // FK directly — items no longer carries the denormalized category name.
       const snapshot = await tx.execute(sql`
         SELECT soh.item_id, soh.batch_no, soh.qty, soh.avg_cost
         FROM stock_on_hand soh
@@ -103,7 +124,7 @@ export class StockTakeService {
         WHERE soh.tenant_id = ${this.ctx.tenantId}
           AND soh.warehouse_id = ${input.warehouseId}
         ${input.scope === 'partial' && input.categoryId
-          ? sql`AND i.category = (SELECT name FROM categories WHERE id = ${input.categoryId})`
+          ? sql`AND i.category_id = ${input.categoryId}`
           : sql``}
       `);
       const rows = (snapshot as unknown as {

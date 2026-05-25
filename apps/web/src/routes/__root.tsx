@@ -206,6 +206,7 @@ import { InventoryDashboardPage } from './inventory/index';
 import { WarehouseListPage } from './inventory/warehouses/index';
 import { NewWarehousePage } from './inventory/warehouses/new';
 import { WarehouseDetailPage } from './inventory/warehouses/detail';
+import { EditWarehousePage } from './inventory/warehouses/edit';
 import { OnHandPage } from './inventory/stock/on-hand';
 import { StockLedgerPage } from './inventory/stock/ledger';
 import { GrnListPage } from './inventory/grn/index';
@@ -214,6 +215,7 @@ import { GrnDetailPage } from './inventory/grn/detail';
 import { DeliveryListPage } from './inventory/delivery/index';
 import { NewDeliveryNotePage } from './inventory/delivery/new';
 import { DeliveryNoteDetailPage } from './inventory/delivery/detail';
+import { EditDeliveryNotePage } from './inventory/delivery/edit';
 import { TransferListPage } from './inventory/transfers/index';
 import { NewTransferPage } from './inventory/transfers/new';
 import { TransferDetailPage } from './inventory/transfers/detail';
@@ -1822,6 +1824,11 @@ const invWarehouseDetailRoute = createRoute({
   path: '/warehouses/$id',
   component: WarehouseDetailPage,
 });
+const invWarehouseEditRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/warehouses/$id/edit',
+  component: EditWarehousePage,
+});
 
 const invStockOnHandRoute = createRoute({
   getParentRoute: () => inventoryRoute,
@@ -1864,6 +1871,11 @@ const invDeliveryDetailRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/delivery/$id',
   component: DeliveryNoteDetailPage,
+});
+const invDeliveryEditRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/delivery/$id/edit',
+  component: EditDeliveryNotePage,
 });
 
 // Phase 2 additions
@@ -2001,6 +2013,16 @@ const invItemsAnalysisRoute = createRoute({
     const { from } = invItemsAnalysisRoute.useSearch();
     return <ItemAnalysisPage itemId={itemId} from={from} />;
   },
+});
+
+// Categories mirror — same CategoriesPage mounted under /inventory so the
+// inventory sidebar can manage product categories without bouncing the
+// user back to /finance. CategoriesPage is module-agnostic (no internal
+// nav that would need module-prefix detection).
+const invCategoriesRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/categories',
+  component: CategoriesPage,
 });
 
 // ─── Agent Activity Route ────────────────────────────────────────────────────
@@ -2401,6 +2423,7 @@ export const routeTree = rootRoute.addChildren([
       invWarehousesRoute,
       invWarehouseNewRoute,
       invWarehouseDetailRoute,
+      invWarehouseEditRoute,
       invStockOnHandRoute,
       invStockLedgerRoute,
       invGrnRoute,
@@ -2409,6 +2432,7 @@ export const routeTree = rootRoute.addChildren([
       invDeliveryRoute,
       invDeliveryNewRoute,
       invDeliveryDetailRoute,
+      invDeliveryEditRoute,
       invTransfersRoute,
       invTransferNewRoute,
       invTransferDetailRoute,
@@ -2432,6 +2456,7 @@ export const routeTree = rootRoute.addChildren([
       invItemsNewRoute,
       invItemsEditRoute,
       invItemsAnalysisRoute,
+      invCategoriesRoute,
     ]),
     hrRoute.addChildren([
       hrIndexRoute,

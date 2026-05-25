@@ -10,7 +10,7 @@ import { authPlugin } from './plugins/auth';
 import { tenantContextPlugin } from './plugins/tenant-context';
 import { errorHandlerPlugin } from './plugins/error-handler';
 import { authRoutes } from './modules/auth/routes';
-import { phoneOtpRoutes } from './modules/auth/phone-otp.routes';
+import { socialAuthRoutes } from './modules/auth/social-auth.routes';
 import { apRoutes } from './modules/ap/routes';
 import { arRoutes } from './modules/ar/routes';
 import { invoicePrintRoutes } from './modules/ar/invoice-print.routes';
@@ -83,7 +83,7 @@ export async function buildApp() {
     // Stricter rate limit on auth: 10 attempts per minute
     await authScope.register(rateLimit, { max: 10, timeWindow: '1 minute' });
     await authScope.register(authRoutes);
-    await authScope.register(phoneOtpRoutes);
+    await authScope.register(socialAuthRoutes);
   }, { prefix: '/api/v1/auth' });
   await app.register(async (publicScope) => {
     await publicScope.register(rateLimit, { max: 5, timeWindow: '1 minute' });

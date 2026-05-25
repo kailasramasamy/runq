@@ -14,33 +14,49 @@ import '../screens/hr/widgets/hr_colors.dart';
 import '../widgets/runq_snack.dart';
 
 class NotificationsScreen extends ConsumerWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.scope});
+
+  /// Module scope. When set (e.g. `'inventory'`, `'hr'`), the screen only
+  /// shows notifications whose `source` starts with the matching prefix.
+  /// Null means the global inbox.
+  final String? scope;
+
+  static const Map<String, List<String>> _scopePrefixes = {
+    'inventory': ['inv_', 'inventory_'],
+    'hr': ['hr_'],
+    'finance': ['fin_', 'finance_'],
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final brand = HrColors.brand(context);
     final async = ref.watch(notificationsProvider);
+    final prefixes = scope == null ? const <String>[] : (_scopePrefixes[scope!] ?? const []);
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(_titleFor(scope)),
         actions: [
           async.maybeWhen(
-            data: (d) => d.items.where((n) => n.unread).isEmpty
-                ? const SizedBox.shrink()
-                : TextButton(
-                    style: TextButton.styleFrom(foregroundColor: brand),
-                    onPressed: () async {
-                      try {
-                        await notificationsRepo.markAllRead();
-                        ref.invalidate(notificationsProvider);
-                      } catch (e) {
-                        if (context.mounted) showRunqSnack(context, 'Failed: $e', kind: SnackKind.error);
-                      }
-                    },
-                    child: const Text('Mark all read'),
-                  ),
+            data: (d) {
+              final scoped = _applyScope(d.items, prefixes);
+              if (scoped.where((n) => n.unread).isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return TextButton(
+                style: TextButton.styleFrom(foregroundColor: brand),
+                onPressed: () async {
+                  try {
+                    await notificationsRepo.markAllRead();
+                    ref.invalidate(notificationsProvider);
+                  } catch (e) {
+                    if (context.mounted) showRunqSnack(context, 'Failed: $e', kind: SnackKind.error);
+                  }
+                },
+                child: const Text('Mark all read'),
+              );
+            },
             orElse: () => const SizedBox.shrink(),
           ),
         ],
@@ -55,7 +71,8 @@ class NotificationsScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e')),
           data: (d) {
-            if (d.items.isEmpty) {
+            final items = _applyScope(d.items, prefixes);
+            if (items.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
@@ -64,11 +81,11 @@ class NotificationsScreen extends ConsumerWidget {
                     child: Column(children: [
                       Icon(Icons.notifications_none, size: 56, color: t.muted),
                       const SizedBox(height: 12),
-                      Text('No notifications yet',
+                      Text('You\'re all caught up',
                           textAlign: TextAlign.center,
                           style: RunqText.bodyStrong.copyWith(color: t.ink)),
                       const SizedBox(height: 4),
-                      Text('You\'ll see HR updates here — new goals, leave approvals, payslips.',
+                      Text(_emptySubtitleFor(scope),
                           textAlign: TextAlign.center,
                           style: RunqText.body.copyWith(color: t.muted)),
                     ]),
@@ -78,16 +95,42 @@ class NotificationsScreen extends ConsumerWidget {
             }
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-              itemCount: d.items.length,
+              itemCount: items.length,
               itemBuilder: (_, i) => _NotificationCard(
-                notif: d.items[i],
-                onTap: () => _open(context, ref, d.items[i]),
+                notif: items[i],
+                onTap: () => _open(context, ref, items[i]),
               ),
             );
           },
         ),
       ),
     );
+  }
+
+  static String _titleFor(String? scope) => switch (scope) {
+        'inventory' => 'Inventory · Notifications',
+        'hr'        => 'HR · Notifications',
+        'finance'   => 'Finance · Notifications',
+        _           => 'Notifications',
+      };
+
+  static String _emptySubtitleFor(String? scope) => switch (scope) {
+        'inventory' =>
+          'Low-stock alerts, transfer dispatches, and GRN/DN updates will show up here.',
+        'hr'        =>
+          'You\'ll see HR updates here — new goals, leave approvals, payslips.',
+        'finance'   =>
+          'Bill approvals, payment runs, and ledger flags will show up here.',
+        _           =>
+          'Module updates across HR, Finance, and Inventory will show up here.',
+      };
+
+  static List<RunqNotification> _applyScope(
+      List<RunqNotification> items, List<String> prefixes) {
+    if (prefixes.isEmpty) return items;
+    return items
+        .where((n) => prefixes.any((p) => n.source.startsWith(p)))
+        .toList();
   }
 
   Future<void> _open(BuildContext context, WidgetRef ref, RunqNotification n) async {
@@ -116,18 +159,24 @@ class _NotificationCard extends StatelessWidget {
       };
 
   IconData _icon() => switch (notif.source) {
-        'hr_performance'   => Icons.flag_outlined,
-        'hr_leave'         => Icons.beach_access_outlined,
-        'hr_payroll'       => Icons.payments_outlined,
-        'hr_helpdesk'      => Icons.support_agent,
-        'hr_expense'       => Icons.receipt_long_outlined,
-        'hr_loan'          => Icons.account_balance_outlined,
-        'hr_tax'           => Icons.request_quote_outlined,
-        'hr_attendance'    => Icons.fingerprint,
-        'hr_announcement'  => Icons.campaign_outlined,
-        'hr_onboarding'    => Icons.how_to_reg_outlined,
-        'hr_lifecycle'     => Icons.exit_to_app,
-        _                  => Icons.notifications_outlined,
+        'hr_performance'    => Icons.flag_outlined,
+        'hr_leave'          => Icons.beach_access_outlined,
+        'hr_payroll'        => Icons.payments_outlined,
+        'hr_helpdesk'       => Icons.support_agent,
+        'hr_expense'        => Icons.receipt_long_outlined,
+        'hr_loan'           => Icons.account_balance_outlined,
+        'hr_tax'            => Icons.request_quote_outlined,
+        'hr_attendance'     => Icons.fingerprint,
+        'hr_announcement'   => Icons.campaign_outlined,
+        'hr_onboarding'     => Icons.how_to_reg_outlined,
+        'hr_lifecycle'      => Icons.exit_to_app,
+        'inv_low_stock'     => Icons.error_outline,
+        'inv_transfer'      => Icons.alt_route_outlined,
+        'inv_grn'           => Icons.inventory_2_outlined,
+        'inv_delivery'      => Icons.local_shipping_outlined,
+        'inv_adjustment'    => Icons.tune_rounded,
+        'inv_expiry'        => Icons.event_busy_outlined,
+        _                   => Icons.notifications_outlined,
       };
 
   @override

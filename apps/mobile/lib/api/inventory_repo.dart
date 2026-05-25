@@ -3,6 +3,8 @@
 
 library;
 
+import 'dart:io';
+
 import 'api_client.dart';
 import 'inventory_models.dart';
 
@@ -26,6 +28,13 @@ class InventoryRepo {
     return InvKpis.fromJson(_data(res));
   }
 
+  /// Last N stock-ledger movements with item + warehouse joins. Drives the
+  /// Home "Recent activity" card and the full-feed drill-down.
+  Future<List<InvActivity>> recentActivity() async {
+    final res = await apiClient.get('/inventory/dashboard/recent-activity');
+    return _dataList(res).map(InvActivity.fromJson).toList();
+  }
+
   // ── Warehouses ─────────────────────────────────────────────────────────
 
   Future<List<InvWarehouse>> warehouses() async {
@@ -35,15 +44,42 @@ class InventoryRepo {
 
   // ── Stock ──────────────────────────────────────────────────────────────
 
-  Future<List<InvOnHandRow>> onHand({String? warehouseId, bool lowOnly = false}) async {
+  Future<List<InvOnHandRow>> onHand({
+    String? warehouseId,
+    bool lowOnly = false,
+    String? itemClassGroup,
+  }) async {
     final qp = <String, String>{};
     if (warehouseId != null && warehouseId.isNotEmpty) qp['warehouseId'] = warehouseId;
     if (lowOnly) qp['lowOnly'] = 'true';
+    if (itemClassGroup != null && itemClassGroup != 'all') {
+      qp['itemClassGroup'] = itemClassGroup;
+    }
     final res = await apiClient.get('/inventory/stock/on-hand${_qs(qp)}');
     return _dataList(res).map(InvOnHandRow.fromJson).toList();
   }
 
   // ── Items / barcode lookup ─────────────────────────────────────────────
+
+  // Full item record from the masters module — name, sku, hsn, prices,
+  // gst, category, description, ean. Used by the mobile item-detail screen.
+  Future<InvItemDetail> itemDetail(String id) async {
+    final res = await apiClient.get('/masters/items/$id');
+    return InvItemDetail.fromJson(_data(res));
+  }
+
+  // Stock-on-hand breakdown for one item — one row per (warehouse, batch).
+  Future<List<InvItemStockRow>> itemStock(String id) async {
+    final res = await apiClient.get('/inventory/items/$id/stock');
+    // Service returns { item, onHand: [...] } — we already have the item
+    // from itemDetail, so peel out onHand.
+    final body = _data(res);
+    final onHand = (body['onHand'] as List?) ?? const [];
+    return onHand
+        .cast<Map<String, dynamic>>()
+        .map(InvItemStockRow.fromJson)
+        .toList();
+  }
 
   Future<InvItem?> findByBarcode(String code) async {
     try {
@@ -83,8 +119,47 @@ class InventoryRepo {
     return InvGrn.fromJson(_data(res));
   }
 
+  Future<InvGrnDetail> grnGet(String id) async {
+    final res = await apiClient.get('/inventory/grn/$id');
+    return InvGrnDetail.fromJson(_data(res));
+  }
+
+  /// Upload an invoice image / PDF and let the server's AI extractor
+  /// pre-fill GRN lines. The matcher binds each line to a catalog item
+  /// where it can; unmatched lines come back with `itemId: null` so the
+  /// UI can prompt the user to pick manually.
+  Future<InvGrnExtractResult> extractGrnInvoice(File file) async {
+    final mime = _mimeFromPath(file.path);
+    final res = await apiClient.upload(
+      '/inventory/grn/extract',
+      file,
+      fileField: 'file',
+      mimeType: mime,
+    );
+    return InvGrnExtractResult.fromJson(_data(res));
+  }
+
+  /// Catalog search for the "Map item" picker. Hits the masters list
+  /// endpoint with its existing per-word `search` param.
+  Future<List<InvItem>> searchItems(String query, {int limit = 25}) async {
+    final qp = <String, String>{
+      'limit': '$limit',
+      if (query.trim().isNotEmpty) 'search': query.trim(),
+    };
+    final res = await apiClient.get('/masters/items${_qs(qp)}');
+    return _dataList(res).map(InvItem.fromJson).toList();
+  }
+
   Future<InvGrn> postGrn(String id) async {
     final res = await apiClient.post('/inventory/grn/$id/post', const {});
+    return InvGrn.fromJson(_data(res));
+  }
+
+  Future<InvGrn> cancelGrn(String id, String reason) async {
+    final res = await apiClient.post(
+      '/inventory/grn/$id/cancel',
+      {'reason': reason},
+    );
     return InvGrn.fromJson(_data(res));
   }
 
@@ -115,8 +190,45 @@ class InventoryRepo {
     return InvDn.fromJson(_data(res));
   }
 
+  Future<InvDnDetail> dnGet(String id) async {
+    final res = await apiClient.get('/inventory/delivery-notes/$id');
+    return InvDnDetail.fromJson(_data(res));
+  }
+
+  Future<InvDn> updateDn({
+    required String id,
+    String? warehouseId,
+    String? customerId,
+    String? dispatchDate,
+    String? vehicleNo,
+    String? eWayBillNo,
+    String? notes,
+    required List<InvDnLineInput> lines,
+  }) async {
+    final body = <String, dynamic>{
+      if (warehouseId != null) 'warehouseId': warehouseId,
+      // customerId may be null to clear it; only send when caller wants to update
+      if (customerId != null) 'customerId': customerId.isEmpty ? null : customerId,
+      if (dispatchDate != null) 'dispatchDate': dispatchDate,
+      if (vehicleNo != null) 'vehicleNo': vehicleNo.isEmpty ? null : vehicleNo,
+      if (eWayBillNo != null) 'eWayBillNo': eWayBillNo.isEmpty ? null : eWayBillNo,
+      if (notes != null) 'notes': notes.isEmpty ? null : notes,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    };
+    final res = await apiClient.put('/inventory/delivery-notes/$id', body);
+    return InvDn.fromJson(_data(res));
+  }
+
   Future<InvDn> dispatchDn(String id) async {
     final res = await apiClient.post('/inventory/delivery-notes/$id/dispatch', const {});
+    return InvDn.fromJson(_data(res));
+  }
+
+  Future<InvDn> cancelDn(String id, String reason) async {
+    final res = await apiClient.post(
+      '/inventory/delivery-notes/$id/cancel',
+      {'reason': reason},
+    );
     return InvDn.fromJson(_data(res));
   }
 
@@ -127,6 +239,11 @@ class InventoryRepo {
     if (status != null && status.isNotEmpty) qp['status'] = status;
     final res = await apiClient.get('/inventory/transfers${_qs(qp)}');
     return _dataList(res).map(InvTransfer.fromJson).toList();
+  }
+
+  Future<InvTransferDetail> transferGet(String id) async {
+    final res = await apiClient.get('/inventory/transfers/$id');
+    return InvTransferDetail.fromJson(_data(res));
   }
 
   Future<InvTransfer> createTransfer({
@@ -179,6 +296,11 @@ class InventoryRepo {
       'lines': lines.map((l) => l.toJson()).toList(),
     });
     return InvAdjustment.fromJson(_data(res));
+  }
+
+  Future<InvAdjustmentDetail> adjustmentGet(String id) async {
+    final res = await apiClient.get('/inventory/adjustments/$id');
+    return InvAdjustmentDetail.fromJson(_data(res));
   }
 
   Future<InvAdjustment> postAdjustment(String id) async {
@@ -236,6 +358,17 @@ class InventoryRepo {
 
   String _qs(Map<String, String> qp) =>
       qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+
+  String _mimeFromPath(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf': return 'application/pdf';
+      case 'png': return 'image/png';
+      case 'jpg':
+      case 'jpeg': return 'image/jpeg';
+      default: return 'application/octet-stream';
+    }
+  }
 }
 
 final inventoryRepo = InventoryRepo();

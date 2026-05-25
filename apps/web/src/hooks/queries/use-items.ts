@@ -13,6 +13,8 @@ interface ItemFilters {
   type?: 'product' | 'service';
   status?: 'active' | 'inactive';
   search?: string;
+  /** Operational bucket — server expands to the matching item_class set. */
+  itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'all';
   page?: number;
   limit?: number;
   [key: string]: unknown;
@@ -24,11 +26,26 @@ export interface CogmComponent {
   note?: string;
 }
 
+/**
+ * Axis-1 classification (migration 0110). Required on products, NULL on
+ * services. Kept in sync by hand with @runq/types ItemClass.
+ */
+export type ItemClass =
+  | 'raw_material'
+  | 'packaging'
+  | 'finished_good'
+  | 'semi_finished'
+  | 'trading_good'
+  | 'consumable'
+  | 'spare_part';
+
 export interface Item {
   id: string;
   name: string;
   sku: string | null;
   type: 'product' | 'service';
+  itemClass: ItemClass | null;
+  categoryId: string | null;
   hsnSacCode: string | null;
   unit: string | null;
   packSizeValue: number | null;
@@ -62,11 +79,42 @@ export function useItem(id: string | undefined) {
   });
 }
 
+/** Bulk reclassify a set of items to a single item_class. Invalidates the
+ *  items list + class-counts cache on success so the table reshuffles
+ *  into the right bucket and the tab badges update immediately. */
+export function useBulkUpdateItemClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { itemIds: string[]; itemClass: ItemClass }) =>
+      api.post<ApiSuccess<{ updated: number }>>('/masters/items/bulk-class', input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ITEM_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['items', 'class-counts'] });
+    },
+  });
+}
+
+/** Per-bucket counts for the class-group tab strip on the items list.
+ *  Cheap aggregate — fetched once and reused while filters change. */
+export function useItemClassCounts() {
+  return useQuery({
+    queryKey: ['items', 'class-counts'] as const,
+    queryFn: () =>
+      api.get<ApiSuccess<Record<'finished' | 'inputs' | 'trading' | 'other', number>>>(
+        '/masters/items/class-counts',
+      ),
+    staleTime: 60_000,
+  });
+}
+
 export function useItems(filters?: ItemFilters) {
   const params = new URLSearchParams();
   if (filters?.type) params.set('type', filters.type);
   if (filters?.status) params.set('status', filters.status);
   if (filters?.search) params.set('search', filters.search);
+  if (filters?.itemClassGroup && filters.itemClassGroup !== 'all') {
+    params.set('itemClassGroup', filters.itemClassGroup);
+  }
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();
@@ -81,6 +129,8 @@ export interface CreateItemInput {
   name: string;
   sku?: string | null;
   type: 'product' | 'service';
+  itemClass?: ItemClass | null;
+  categoryId?: string | null;
   hsnSacCode?: string | null;
   unit?: string | null;
   defaultSellingPrice?: number | null;

@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
   stockOnHand, stockLedger, items, warehouses,
 } from '@runq/db';
 import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
+import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 
 export class StockQueryService {
@@ -16,6 +17,13 @@ export class StockQueryService {
     ];
     if (filter.warehouseId) conds.push(eq(stockOnHand.warehouseId, filter.warehouseId));
     if (filter.itemId) conds.push(eq(stockOnHand.itemId, filter.itemId));
+    // Axis-1 grouping: tab strips on the mobile/web on-hand screens pass
+    // a bucket like 'finished' or 'inputs'; we expand to the underlying
+    // item_class values. 'all' falls through and applies no filter.
+    if (filter.itemClassGroup && filter.itemClassGroup !== 'all') {
+      const classes = ITEM_CLASS_GROUP_MEMBERS[filter.itemClassGroup];
+      if (classes.length > 0) conds.push(inArray(items.itemClass, [...classes]));
+    }
 
     const rows = await this.db
       .select({
@@ -29,6 +37,7 @@ export class StockQueryService {
         itemName: items.name,
         itemSku: items.sku,
         itemUnit: items.unit,
+        itemClass: items.itemClass,
         reorderLevel: items.reorderLevel,
         warehouseName: warehouses.name,
       })

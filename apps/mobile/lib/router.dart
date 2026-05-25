@@ -55,13 +55,19 @@ import 'screens/splash_screen.dart';
 import 'screens/hr/hr_home_screen.dart';
 import 'screens/inventory/inventory_home_screen.dart';
 import 'screens/inventory/inventory_on_hand_screen.dart';
+import 'screens/inventory/inventory_moves_screen.dart';
 import 'screens/inventory/inventory_grn_screen.dart';
+import 'screens/inventory/inventory_grn_new_screen.dart';
+import 'screens/inventory/inventory_grn_detail_screen.dart';
+import 'screens/inventory/inventory_delivery_detail_screen.dart';
+import 'screens/inventory/inventory_delivery_edit_screen.dart';
 import 'screens/inventory/inventory_delivery_screen.dart';
 import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/inventory/inventory_transfer_screen.dart';
 import 'screens/inventory/inventory_adjustment_screen.dart';
 import 'screens/inventory/inventory_stock_take_screen.dart';
 import 'screens/inventory/inventory_reorder_screen.dart';
+import 'screens/inventory/inventory_activity_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
 import 'screens/hr/hr_employee_detail_screen.dart';
 import 'screens/hr/hr_time_screen.dart';
@@ -255,8 +261,13 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // viewport with a back arrow.
             GoRoute(path: '/inventory', pageBuilder: _fadePage((_) => const InventoryHomeScreen())),
             GoRoute(path: '/inventory/on-hand', pageBuilder: _fadePage((_) => const InventoryOnHandScreen())),
-            GoRoute(path: '/inventory/grn', pageBuilder: _fadePage((_) => const InventoryGrnScreen())),
-            GoRoute(path: '/inventory/delivery', pageBuilder: _fadePage((_) => const InventoryDeliveryScreen())),
+            // Moves hub replaces the old Receive + Dispatch tabs — fans out
+            // to every transaction type via tile navigation. Kept inside
+            // the shell so the bot nav stays visible while pivoting.
+            GoRoute(path: '/inventory/moves', pageBuilder: _fadePage((_) => const InventoryMovesScreen())),
+            // Alerts tab — reuses the existing reorder screen for now;
+            // expanding to include expiry + dead-stock in a later pass.
+            GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryReorderScreen())),
           ],
         ),
         // HR drill-downs — pushed via the root navigator so the bot nav
@@ -273,15 +284,52 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         // live inside the ShellRoute above so the bot nav stays visible
         // while the user pivots between them. Everything below is a
         // drill-down with its own back arrow.
+        // GRN + DN are reached from the Moves hub (not the bot nav) under
+        // the redesign, so they live as full-screen drill-downs with a
+        // back arrow — same treatment as Transfers / Adjustments.
+        GoRoute(
+          path: '/inventory/grn',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/delivery',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryDeliveryScreen(), key: state.pageKey),
+        ),
         GoRoute(
           path: '/inventory/grn/new',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(const InventoryGrnNewScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/grn/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryGrnDetailScreen(grnId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/inventory/delivery/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryDeliveryScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/delivery/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryDeliveryDetailScreen(dnId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/inventory/delivery/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryDeliveryEditScreen(dnId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/inventory/items/:id',
@@ -310,6 +358,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/inventory/reorder',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryReorderScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/activity',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryActivityScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/hr/time',
@@ -353,7 +406,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/notifications',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const NotificationsScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(
+            NotificationsScreen(scope: state.uri.queryParameters['scope']),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/hr/holidays',

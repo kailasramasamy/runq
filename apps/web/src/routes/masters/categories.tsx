@@ -3,12 +3,25 @@ import { Plus, X, Pencil, Trash2, Power, ChevronRight, ChevronDown } from 'lucid
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, useToast, ConfirmationDialog,
 } from '@/components/ui';
+import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
 import {
   useCategoryTree, useCreateCategory, useUpdateCategory, useToggleCategory, useDeleteCategory,
   type Category,
 } from '@/hooks/queries/use-categories';
 
+/** Parse a free-text number input back to number | null. Empty → null so
+ *  the API clears the column rather than storing 0. */
+function parseNum(v: string): number | null {
+  if (v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 // ─── Inline Add/Edit Form ───────────────────────────────────────────────────
+//
+// Carries the full defaults set (name + HSN + GST + sort) so a tenant can
+// set them in one go. HSN and GST cascade down to items at create time —
+// items left blank inherit from their leaf category, with parent fallback.
 
 function CategoryForm({ category, parentId, onClose }: {
   category?: Category;
@@ -21,16 +34,29 @@ function CategoryForm({ category, parentId, onClose }: {
   const isEdit = !!category;
 
   const [name, setName] = useState(category?.name ?? '');
+  const [defaultHsnSac, setDefaultHsnSac] = useState(category?.defaultHsnSac ?? '');
+  const [defaultGstRate, setDefaultGstRate] = useState(
+    category?.defaultGstRate != null ? String(category.defaultGstRate) : '',
+  );
+  const [sortOrder, setSortOrder] = useState(
+    category?.sortOrder != null ? String(category.sortOrder) : '0',
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    const payload = {
+      name,
+      defaultHsnSac: defaultHsnSac || null,
+      defaultGstRate: parseNum(defaultGstRate),
+      sortOrder: Number(sortOrder) || 0,
+    };
     try {
       if (isEdit) {
-        await update.mutateAsync({ id: category.id, data: { name } });
+        await update.mutateAsync({ id: category.id, data: payload });
         toast('Category updated', 'success');
       } else {
-        await create.mutateAsync({ name, parentId: parentId ?? null });
+        await create.mutateAsync({ ...payload, parentId: parentId ?? null });
         toast('Category created', 'success');
       }
       onClose();
@@ -40,21 +66,65 @@ function CategoryForm({ category, parentId, onClose }: {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <Input
-        label={isEdit ? 'Rename' : parentId ? 'New Subcategory' : 'New Category'}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-        placeholder={parentId ? 'Subcategory name' : 'Category name'}
-        autoFocus
-      />
-      <Button type="submit" size="sm" loading={create.isPending || update.isPending}>
-        {isEdit ? 'Save' : 'Add'}
-      </Button>
-      <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-        <X size={14} />
-      </Button>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <Input
+            label={isEdit ? 'Name' : parentId ? 'Subcategory name' : 'Category name'}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder={parentId ? 'e.g. Butter' : 'e.g. Milk & Dairy'}
+            autoFocus
+          />
+        </div>
+        <Input
+          label="Sort order"
+          type="number"
+          min={0}
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          placeholder="0"
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <HsnSacCombobox
+            label="Default HSN/SAC (optional)"
+            value={defaultHsnSac}
+            type="hsn"
+            onChange={(code, rate) => {
+              setDefaultHsnSac(code);
+              // Auto-fill GST from HSN when the user hasn't set one yet —
+              // matches the item form's behavior. Leaves an explicit GST
+              // override untouched.
+              if (rate != null && defaultGstRate === '') setDefaultGstRate(String(rate));
+            }}
+          />
+        </div>
+        <Input
+          label="Default GST %"
+          type="number"
+          step="0.01"
+          min={0}
+          max={100}
+          value={defaultGstRate}
+          onChange={(e) => setDefaultGstRate(e.target.value)}
+          placeholder="e.g. 5"
+        />
+      </div>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Items created under this category inherit HSN &amp; GST when left blank.
+        Leaf nodes override parent defaults; otherwise the parent's values cascade.
+      </p>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" loading={create.isPending || update.isPending}>
+          {isEdit ? 'Save' : 'Add'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <X size={14} /> Cancel
+        </Button>
+      </div>
     </form>
   );
 }
@@ -112,6 +182,18 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
         <span className={`flex-1 text-sm ${depth === 0 ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-400'}`}>
           {category.name}
         </span>
+
+        {/* Defaults at a glance — only shown when set so unused nodes stay clean */}
+        {category.defaultHsnSac && (
+          <span className="hidden rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-zinc-600 sm:inline dark:bg-zinc-800 dark:text-zinc-300">
+            HSN {category.defaultHsnSac}
+          </span>
+        )}
+        {category.defaultGstRate != null && (
+          <span className="hidden rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 sm:inline dark:bg-zinc-800 dark:text-zinc-300">
+            GST {category.defaultGstRate}%
+          </span>
+        )}
 
         {/* Subcategory count */}
         {hasChildren && (

@@ -82,6 +82,25 @@ export class InventoryDashboardService {
       in_transit AS (
         SELECT COUNT(*)::int AS cnt FROM inventory_transfers
         WHERE tenant_id = ${this.tenantId} AND status = 'in_transit'
+      ),
+      -- Total receipt value posted today. Used on the mobile redesign's
+      -- Home + Moves hub "Today In" tile alongside the count above.
+      today_grns_value AS (
+        SELECT COALESCE(SUM(total_value), 0) AS v FROM inventory_grns
+        WHERE tenant_id = ${this.tenantId}
+          AND received_date = ${today} AND status = 'posted'
+      ),
+      -- Total dispatched value posted today (DN status 'dispatched').
+      today_dns_value AS (
+        SELECT COALESCE(SUM(total_value), 0) AS v FROM delivery_notes
+        WHERE tenant_id = ${this.tenantId}
+          AND dispatch_date = ${today} AND status = 'dispatched'
+      ),
+      -- Adjustments awaiting approval. Drives the "Pending" badge on the
+      -- Moves hub and the warning chip on Home.
+      pending_adj AS (
+        SELECT COUNT(*)::int AS cnt FROM inventory_adjustments
+        WHERE tenant_id = ${this.tenantId} AND status = 'pending_approval'
       )
       SELECT
         COALESCE((SELECT total_value FROM on_hand), 0)::text AS total_value,
@@ -95,7 +114,10 @@ export class InventoryDashboardService {
         (SELECT cnt FROM today_dns) AS today_dns,
         (SELECT v FROM month_in)::text AS month_in_value,
         (SELECT v FROM month_out)::text AS month_out_value,
-        (SELECT cnt FROM in_transit) AS in_transit_transfers
+        (SELECT cnt FROM in_transit) AS in_transit_transfers,
+        (SELECT v FROM today_grns_value)::text AS today_grns_value,
+        (SELECT v FROM today_dns_value)::text AS today_dns_value,
+        (SELECT cnt FROM pending_adj) AS pending_adj
     `);
     const row = (result as unknown as {
       rows: Array<{
@@ -103,6 +125,7 @@ export class InventoryDashboardService {
         warehouse_count: number; low_stock: number; expiring_soon: number;
         dead_stock: number; today_grns: number; today_dns: number;
         month_in_value: string; month_out_value: string; in_transit_transfers: number;
+        today_grns_value: string; today_dns_value: string; pending_adj: number;
       }>;
     }).rows[0]!;
     return {
@@ -118,6 +141,9 @@ export class InventoryDashboardService {
       monthInValue: Number(row.month_in_value ?? 0),
       monthOutValue: Number(row.month_out_value ?? 0),
       inTransitTransfers: row.in_transit_transfers ?? 0,
+      todayGrnsValue: Number(row.today_grns_value ?? 0),
+      todayDnsValue: Number(row.today_dns_value ?? 0),
+      pendingAdjustments: row.pending_adj ?? 0,
     };
   }
 

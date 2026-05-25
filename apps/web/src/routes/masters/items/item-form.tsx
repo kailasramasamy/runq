@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Calculator, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Select, Textarea, Combobox, useToast } from '@/components/ui';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
-import type { ItemAttributeField } from '@runq/types';
+import type { ItemAttributeField, ItemClass } from '@runq/types';
 import {
   useCreateItem,
   useUpdateItem,
@@ -83,6 +83,11 @@ export function ItemForm({
   const [sku, setSku] = useState(isDuplicate ? '' : source?.sku ?? '');
   const [ean, setEan] = useState(isDuplicate ? '' : source?.ean ?? '');
   const [type, setType] = useState<'product' | 'service'>(source?.type ?? defaultItemType);
+  // Axis-1 classification. Required for products; backend will default to
+  // 'trading_good' if left empty, but the dropdown makes the choice explicit.
+  const [itemClass, setItemClass] = useState<ItemClass | ''>(
+    source?.itemClass ?? '',
+  );
   const [hsnSacCode, setHsnSacCode] = useState(source?.hsnSacCode ?? '');
   const [unit, setUnit] = useState(source?.unit ?? '');
   const [gstRate, setGstRate] = useState(source?.gstRate?.toString() ?? '');
@@ -173,6 +178,21 @@ export function ItemForm({
       margin: num(margin),
       // Industry-specific catalogue attributes persisted to items.attributes.
       attributes: normalizeAttributesForSubmit(attributes, attributeSchema),
+      itemClass: type === 'product' ? (itemClass || null) : null,
+      // Resolve the two visible comboboxes back to a category_id. Leaf
+      // (subcategory) wins; otherwise fall back to the root category. The
+      // backend trigger keeps the legacy string columns in sync, so we
+      // don't need to send them — but include them as a belt for legacy
+      // listing screens that still read items.category directly.
+      categoryId: (() => {
+        const root = categoryTree.find((c) => c.name === category);
+        if (!root) return null;
+        if (subcategory) {
+          const leaf = root.subcategories?.find((s) => s.name === subcategory);
+          if (leaf) return leaf.id;
+        }
+        return root.id;
+      })(),
       category: category || null,
       subcategory: subcategory || null,
       description: description || null,
@@ -211,6 +231,23 @@ export function ItemForm({
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Type" value={type} onChange={(e) => setType(e.target.value as 'product' | 'service')} options={[{ value: 'product', label: 'Product' }, { value: 'service', label: 'Service' }]} />
+          {type === 'product' && (
+            <Select
+              label="Item class"
+              value={itemClass}
+              onChange={(e) => setItemClass(e.target.value as ItemClass | '')}
+              options={[
+                { value: '', label: 'Trading good (default)' },
+                { value: 'raw_material', label: 'Raw material' },
+                { value: 'packaging', label: 'Packaging' },
+                { value: 'finished_good', label: 'Finished good' },
+                { value: 'semi_finished', label: 'Semi-finished' },
+                { value: 'trading_good', label: 'Trading good' },
+                { value: 'consumable', label: 'Consumable' },
+                { value: 'spare_part', label: 'Spare part' },
+              ]}
+            />
+          )}
           <HsnSacCombobox
             label="HSN/SAC Code"
             value={hsnSacCode}

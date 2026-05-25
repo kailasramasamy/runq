@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, forwardRef } from 'react';
+import { type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, forwardRef } from 'react';
 
 const baseInputClasses =
   'block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 transition-colors duration-150 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:disabled:bg-zinc-800 dark:[color-scheme:dark]';
@@ -32,21 +32,36 @@ function FieldWrapper({
   );
 }
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: React.ReactNode;
   error?: string;
   helper?: string;
+  icon?: ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helper, required, className, ...props }, ref) => (
+  ({ label, error, helper, required, className, icon, ...props }, ref) => (
     <FieldWrapper label={label} error={error} helper={helper} required={required}>
-      <input
-        ref={ref}
-        required={required}
-        className={cn(baseInputClasses, error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500', className)}
-        {...props}
-      />
+      {icon ? (
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-zinc-400">
+            {icon}
+          </span>
+          <input
+            ref={ref}
+            required={required}
+            className={cn(baseInputClasses, 'pl-8', error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500', className)}
+            {...props}
+          />
+        </div>
+      ) : (
+        <input
+          ref={ref}
+          required={required}
+          className={cn(baseInputClasses, error && 'border-red-500 focus:ring-red-500/20 dark:border-red-500', className)}
+          {...props}
+        />
+      )}
     </FieldWrapper>
   ),
 );
@@ -99,7 +114,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 Textarea.displayName = 'Textarea';
 
 export const DateInput = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helper, required, className, ...props }, ref) => (
+  ({ label, error, helper, required, className, icon: _icon, ...props }, ref) => (
     <FieldWrapper label={label} error={error} helper={helper} required={required}>
       <input
         ref={ref}

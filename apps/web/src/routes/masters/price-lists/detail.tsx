@@ -174,6 +174,8 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       name: row.itemName ?? '—',
       sku: row.itemSku ?? null,
       type: 'product',
+      itemClass: null,
+      categoryId: null,
       hsnSacCode: row.itemHsnSacCode ?? null,
       unit: row.itemUnit ?? null,
       packSizeValue: null,

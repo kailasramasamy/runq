@@ -1,379 +1,403 @@
-// GRN flow — list + scan-to-receive. For phase 1 we ship the list and a
-// minimal "new GRN" sheet that wraps the API directly. Barcode scan is
-// available via the IconButton in the AppBar of the new-GRN sheet; on a
-// successful scan the matched item is prefilled and the cursor jumps to
-// qty.
+// Receipts (GRN) list — 3-col stats strip, search bar, status filter
+// pills, list of GRN tiles with a footer row showing line count + PO
+// ref + total value. Tap a tile to drill into the GRN detail screen.
+// The `+` button on the appbar pushes the full-screen "New GRN" flow
+// (AI invoice scan + manual entry; replaced the old bottom-sheet modal).
 
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../widgets/runq_snack.dart';
+import '../../widgets/swipe_action.dart';
+import 'widgets/inv_colors.dart';
+import 'widgets/inv_primitives.dart';
 
-class InventoryGrnScreen extends ConsumerWidget {
+class InventoryGrnScreen extends ConsumerStatefulWidget {
   const InventoryGrnScreen({super.key});
+  @override
+  ConsumerState<InventoryGrnScreen> createState() => _InventoryGrnScreenState();
+}
+
+class _InventoryGrnScreenState extends ConsumerState<InventoryGrnScreen> {
+  String _search = '';
+  /// `null` = All, otherwise a GRN status enum value.
+  String? _statusFilter;
+  final _searchCtrl = TextEditingController();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<InvGrn> _applyFilters(List<InvGrn> all) {
+    var out = all;
+    if (_statusFilter != null) {
+      out = out.where((g) => g.status == _statusFilter).toList();
+    }
+    final q = _search.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      out = out.where((g) =>
+        g.grnNo.toLowerCase().contains(q) ||
+        (g.vendorName?.toLowerCase().contains(q) ?? false) ||
+        g.warehouseName.toLowerCase().contains(q) ||
+        (g.poNumber?.toLowerCase().contains(q) ?? false),
+      ).toList();
+    }
+    return out;
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(invGrnListProvider(null));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  /// Push the full-screen "New GRN" flow. It invalidates the GRN list
+  /// + KPI providers itself on successful post, so we just navigate.
+  void _openNewGrn() => context.push('/inventory/grn/new');
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
     final rows = ref.watch(invGrnListProvider(null));
 
     return Scaffold(
       backgroundColor: t.bgWarm,
-      appBar: AppBar(
-        title: Text('Receipts', style: RunqText.h3.copyWith(color: t.ink)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _openNewGrnSheet(context, ref),
-          ),
-        ],
+      appBar: InvPlainAppBar(
+        title: 'Receipts (GRN)',
+        onBack: () => context.pop(),
+        trailing: _AddButton(onTap: _openNewGrn),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(invGrnListProvider(null));
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-        },
+        color: InvColors.brand(context),
+        onRefresh: _refresh,
         child: rows.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e', style: RunqText.body.copyWith(color: t.muted))),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Failed to load: $e',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  textAlign: TextAlign.center),
+            ),
+          ),
           data: (list) {
-            if (list.isEmpty) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  const SizedBox(height: 80),
-                  Icon(Icons.add_box_outlined, size: 48, color: t.muted2),
-                  Center(child: Text('No GRNs yet', style: RunqText.bodyStrong.copyWith(color: t.muted))),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => _openNewGrnSheet(context, ref),
-                      child: const Text('Create the first GRN'),
+            final filtered = _applyFilters(list);
+            return CustomScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(child: _StatsStrip(all: list)),
+                SliverToBoxAdapter(child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: InvSearchBar(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _search = v),
+                    hint: 'GRN number, vendor, PO ref…',
+                  ),
+                )),
+                SliverToBoxAdapter(child: _StatusPills(
+                  selected: _statusFilter,
+                  onSelect: (s) => setState(() => _statusFilter = s),
+                )),
+                if (filtered.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: InvEmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: list.isEmpty ? 'No GRNs yet' : 'No matches',
+                      subtitle: list.isEmpty
+                          ? 'Receive your first delivery to get started'
+                          : 'Try a different search or filter',
+                      actionLabel: '+ New GRN',
+                      onAction: _openNewGrn,
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+                    sliver: SliverList.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) => _GrnTile(grn: filtered[i]),
                     ),
                   ),
-                ],
-              );
-            }
-            return ListView.separated(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _GrnTile(grn: list[i]),
+              ],
             );
           },
         ),
       ),
     );
   }
-
-  void _openNewGrnSheet(BuildContext context, WidgetRef ref) async {
-    final created = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _NewGrnSheet(),
-    );
-    if (created == true) {
-      ref.invalidate(invGrnListProvider(null));
-      ref.invalidate(invKpisProvider);
-    }
-  }
 }
 
-class _GrnTile extends StatelessWidget {
-  const _GrnTile({required this.grn});
-  final InvGrn grn;
+// ── App-bar `+` button (amber square 32×32, radius 8) ─────────────────────
+
+class _AddButton extends StatelessWidget {
+  const _AddButton({required this.onTap});
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final t = RT(context);
-    final statusColor = switch (grn.status) {
-      'posted' => Colors.green.shade700,
-      'cancelled' => Colors.red.shade700,
-      _ => t.muted,
-    };
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border.all(color: t.hairlineSoft),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(grn.grnNo, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                Text('${grn.receivedDate} · ${grn.warehouseName}',
-                    style: RunqText.caption.copyWith(color: t.muted)),
-                if (grn.vendorName != null) Text(grn.vendorName!, style: RunqText.caption.copyWith(color: t.muted)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₹${grn.totalValue.toStringAsFixed(2)}',
-                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              const SizedBox(height: 2),
-              Text(grn.status.toUpperCase(),
-                  style: RunqText.micro.copyWith(color: statusColor)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NewGrnSheet extends ConsumerStatefulWidget {
-  const _NewGrnSheet();
-  @override
-  ConsumerState<_NewGrnSheet> createState() => _NewGrnSheetState();
-}
-
-class _NewGrnSheetState extends ConsumerState<_NewGrnSheet> {
-  final _qtyCtrl = TextEditingController();
-  final _rateCtrl = TextEditingController();
-  final _batchCtrl = TextEditingController();
-  final _barcodeCtrl = TextEditingController();
-  final _serialCtrl = TextEditingController();
-  final _serialFocus = FocusNode();
-  String? warehouseId;
-  InvItem? pickedItem;
-  // Captured serials when picked item tracks serials. Each scan adds one;
-  // qty is bound to the length so the user can't over-receive.
-  final List<String> _serialNos = [];
-  bool submitting = false;
-
-  @override
-  void dispose() {
-    _qtyCtrl.dispose(); _rateCtrl.dispose(); _batchCtrl.dispose();
-    _barcodeCtrl.dispose(); _serialCtrl.dispose(); _serialFocus.dispose();
-    super.dispose();
-  }
-
-  void _addSerial(String raw) {
-    final s = raw.trim();
-    if (s.isEmpty) return;
-    if (_serialNos.contains(s)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Serial $s already scanned')),
-      );
-    } else {
-      setState(() {
-        _serialNos.add(s);
-        _qtyCtrl.text = _serialNos.length.toString();
-      });
-    }
-    _serialCtrl.clear();
-    _serialFocus.requestFocus();
-  }
-
-  Future<void> _lookupBarcode() async {
-    final code = _barcodeCtrl.text.trim();
-    if (code.isEmpty) return;
-    final item = await inventoryRepo.findByBarcode(code);
-    if (!mounted) return;
-    if (item == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No item matched that barcode')),
-      );
-    } else {
-      setState(() => pickedItem = item);
-    }
-  }
-
-  Future<void> _submit() async {
-    if (warehouseId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick a warehouse')));
-      return;
-    }
-    if (pickedItem == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick or scan an item')));
-      return;
-    }
-    // Serial-bound qty: comes from scanned count, not the manual field.
-    final qty = pickedItem?.trackSerials == true
-        ? _serialNos.length.toDouble()
-        : (double.tryParse(_qtyCtrl.text) ?? 0);
-    final rate = double.tryParse(_rateCtrl.text) ?? 0;
-    if (qty <= 0 || rate < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Qty and rate required')));
-      return;
-    }
-    setState(() => submitting = true);
-    try {
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      final grn = await inventoryRepo.createGrn(
-        warehouseId: warehouseId!,
-        receivedDate: today,
-        lines: [
-          InvGrnLineInput(
-            itemId: pickedItem!.id,
-            batchNo: _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim(),
-            qty: qty,
-            unitRate: rate,
-            serialNos: _serialNos.isEmpty ? null : List<String>.from(_serialNos),
-          ),
-        ],
-      );
-      await inventoryRepo.postGrn(grn.id);
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('GRN ${grn.grnNo} posted')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
-    } finally {
-      if (mounted) setState(() => submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final whs = ref.watch(invWarehousesProvider);
-    final insets = MediaQuery.of(context).viewInsets;
-
     return Padding(
-      padding: EdgeInsets.only(bottom: insets.bottom),
-      child: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: InvColors.brand(context),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: const SizedBox(
+            width: 32,
+            height: 32,
+            child: Icon(Icons.add, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Stats strip ───────────────────────────────────────────────────────────
+
+class _StatsStrip extends StatelessWidget {
+  const _StatsStrip({required this.all});
+  final List<InvGrn> all;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    var todayN = 0;
+    var monthN = 0;
+    var todayValue = 0.0;
+    final thisMonth = today.substring(0, 7);
+    for (final g in all) {
+      if (g.receivedDate == today) {
+        todayN++;
+        if (g.status == 'posted') todayValue += g.totalValue;
+      }
+      if (g.receivedDate.startsWith(thisMonth)) monthN++;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      // IntrinsicHeight bounds the row's height to its tallest child — slivers
+      // pass infinite height, so without this `stretch` blows up to h=Infinity.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Receive stock', style: RunqText.h3.copyWith(color: t.ink)),
-            const SizedBox(height: 16),
-            whs.maybeWhen(
-              data: (list) => DropdownButtonFormField<String>(
-                initialValue: warehouseId,
-                decoration: const InputDecoration(labelText: 'Warehouse', border: OutlineInputBorder()),
-                items: list.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))).toList(),
-                onChanged: (v) => setState(() => warehouseId = v),
-              ),
-              orElse: () => const LinearProgressIndicator(),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _barcodeCtrl,
-              decoration: InputDecoration(
-                labelText: 'Barcode (scan or type)',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: _lookupBarcode,
-                ),
-              ),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _lookupBarcode(),
-            ),
-            if (pickedItem != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: t.bgWarmer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(pickedItem!.name, style: RunqText.bodyStrong)),
-                    if (pickedItem!.sku != null) Text(pickedItem!.sku!, style: RunqText.caption.copyWith(color: t.muted)),
-                  ],
-                ),
-              ),
-            ],
-            if (pickedItem?.trackSerials == true) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _serialCtrl,
-                focusNode: _serialFocus,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: InputDecoration(
-                  labelText: 'Scan serial',
-                  helperText: '${_serialNos.length} captured — qty binds to scan count',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.qr_code_scanner),
-                    onPressed: () => _addSerial(_serialCtrl.text),
-                  ),
-                ),
-                onSubmitted: _addSerial,
-              ),
-              if (_serialNos.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: t.bgWarmer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Wrap(
-                    spacing: 6, runSpacing: 6,
-                    children: _serialNos.map((s) => Chip(
-                      label: Text(s, style: RunqText.caption),
-                      onDeleted: () => setState(() {
-                        _serialNos.remove(s);
-                        _qtyCtrl.text = _serialNos.length.toString();
-                      }),
-                      visualDensity: VisualDensity.compact,
-                    )).toList(),
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _qtyCtrl,
-                  readOnly: pickedItem?.trackSerials == true,
-                  decoration: InputDecoration(
-                    labelText: 'Qty',
-                    helperText: pickedItem?.trackSerials == true ? 'Set by scan count' : null,
-                    border: const OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _rateCtrl,
-                  decoration: const InputDecoration(labelText: 'Unit rate', border: OutlineInputBorder()),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-            ]),
-            if (pickedItem?.trackBatches ?? false) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _batchCtrl,
-                decoration: const InputDecoration(labelText: 'Batch no.', border: OutlineInputBorder()),
-              ),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: submitting ? null : _submit,
-                child: Text(submitting ? 'Posting…' : 'Receive + post'),
-              ),
-            ),
+            Expanded(child: InvKpiCard(label: 'Today', value: '$todayN', sub: 'receipts')),
+            const SizedBox(width: 8),
+            Expanded(child: InvKpiCard(label: 'This Month', value: '$monthN', sub: 'total')),
+            const SizedBox(width: 8),
+            Expanded(child: InvKpiCard(
+              label: 'Today Val.',
+              value: compactINR(todayValue),
+              sub: 'received',
+            )),
           ],
         ),
       ),
     );
   }
 }
+
+// ── Status filter pills ───────────────────────────────────────────────────
+
+class _StatusPills extends StatelessWidget {
+  const _StatusPills({required this.selected, required this.onSelect});
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+  static const _opts = <(String?, String)>[
+    (null, 'All'),
+    ('posted', 'Posted'),
+    ('draft', 'Draft'),
+    ('cancelled', 'Cancelled'),
+  ];
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+        children: [
+          for (var i = 0; i < _opts.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            InvFilterPill(
+              label: _opts[i].$2,
+              active: selected == _opts[i].$1,
+              onTap: () => onSelect(_opts[i].$1),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── GRN tile (per handoff) ────────────────────────────────────────────────
+
+class _GrnTile extends ConsumerWidget {
+  const _GrnTile({required this.grn});
+  final InvGrn grn;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meta = <InvDocMeta>[
+      InvDocMeta(Icons.calendar_today_outlined, prettyShortDate(grn.receivedDate)),
+      InvDocMeta(Icons.warehouse_outlined, grn.warehouseName),
+      if ((grn.poNumber ?? '').isNotEmpty)
+        InvDocMeta(Icons.receipt_long_outlined, grn.poNumber!),
+    ];
+    final tile = InvDocListTile(
+      leadingIcon: Icons.inventory_2_outlined,
+      title: grn.grnNo,
+      subtitle: grn.vendorName,
+      statusPill: InvStatusPill(status: grn.status),
+      meta: meta,
+      valueLabel: '${grn.lineCount} ${grn.lineCount == 1 ? 'line' : 'lines'}',
+      valueText: indianINR(grn.totalValue),
+      onTap: () => context.push('/inventory/grn/${grn.id}'),
+    );
+
+    final actions = _buildActions(context, ref);
+    if (actions.isEmpty) return tile;
+    return Slidable(
+      groupTag: 'inv-grn',
+      key: ValueKey('grn-${grn.id}'),
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: actions.length == 1 ? 0.28 : 0.52,
+        children: actions,
+      ),
+      child: tile,
+    );
+  }
+
+  /// Swipe actions per status. We only expose destructive paths where the
+  /// server permits a clean reversal: draft GRNs can be edited or hard-
+  /// discarded (no ledger impact); posted GRNs offer a reason-prompted
+  /// cancel that reverses stock + JE; cancelled rows have no actions.
+  List<Widget> _buildActions(BuildContext context, WidgetRef ref) {
+    switch (grn.status) {
+      case 'draft':
+        return [
+          SwipeAction(
+            icon: Icons.edit_outlined,
+            label: 'Edit',
+            color: RunqColors.indigo,
+            onTap: () async => context.push('/inventory/grn/${grn.id}'),
+          ),
+          SwipeAction(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: RunqColors.redInk,
+            onTap: () => _delete(context, ref),
+          ),
+        ];
+      case 'posted':
+        return [
+          SwipeAction(
+            icon: Icons.cancel_outlined,
+            label: 'Cancel',
+            color: RunqColors.redInk,
+            onTap: () => _cancelPosted(context, ref),
+          ),
+        ];
+      default:
+        return const [];
+    }
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(invGrnListProvider(null));
+    ref.invalidate(invGrnDetailProvider(grn.id));
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Delete draft GRN?'),
+        content: Text('${grn.grnNo} will be discarded. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Keep')),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, true),
+            style: TextButton.styleFrom(foregroundColor: RunqColors.redInk),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await inventoryRepo.cancelGrn(grn.id, 'Draft discarded from list');
+      await _refresh(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Deleted ${grn.grnNo}', kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't delete: $e", kind: SnackKind.error);
+    }
+  }
+
+  Future<void> _cancelPosted(BuildContext context, WidgetRef ref) async {
+    final ctrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Cancel GRN?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${grn.grnNo} will be reversed (stock + journal).'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 500,
+              decoration: const InputDecoration(
+                labelText: 'Reason',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Back')),
+          TextButton(
+            onPressed: () {
+              final r = ctrl.text.trim();
+              if (r.isEmpty) return;
+              Navigator.pop(dctx, r);
+            },
+            style: TextButton.styleFrom(foregroundColor: RunqColors.redInk),
+            child: const Text('Cancel GRN'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || reason.isEmpty) return;
+    try {
+      await inventoryRepo.cancelGrn(grn.id, reason);
+      await _refresh(ref);
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Cancelled ${grn.grnNo}', kind: SnackKind.success);
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't cancel: $e", kind: SnackKind.error);
+    }
+  }
+}
+

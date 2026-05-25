@@ -49,6 +49,11 @@ export function DeliveryNoteDetailPage() {
         actions={
           <div className="flex gap-2">
             {dn.status === 'draft' && (
+              <Link to="/inventory/delivery/$id/edit" params={{ id }}>
+                <Button variant="secondary">Edit</Button>
+              </Link>
+            )}
+            {dn.status === 'draft' && (
               <Button variant="primary" onClick={() => setConfirmDispatch(true)}>Dispatch</Button>
             )}
             {dn.status !== 'cancelled' && (
@@ -66,6 +71,7 @@ export function DeliveryNoteDetailPage() {
             <TableHeader>
               <TableRow>
                 <Th>Item</Th>
+                <Th>UOM</Th>
                 <Th>Batch</Th>
                 <Th className="text-right">Qty</Th>
                 <Th className="text-right">Unit cost</Th>
@@ -76,9 +82,10 @@ export function DeliveryNoteDetailPage() {
               {dn.lines.map((l) => (
                 <TableRow key={l.id}>
                   <TableCell className="font-medium">{l.itemName}</TableCell>
+                  <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">{l.uom ?? '—'}</TableCell>
                   <TableCell className="font-mono text-xs">{l.batchNo ?? '—'}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {Number(l.qty).toLocaleString('en-IN', { maximumFractionDigits: 3 })} {l.uom ?? ''}
+                    {Number(l.qty).toLocaleString('en-IN', { maximumFractionDigits: 3 })}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     ₹{Number(l.unitCost).toLocaleString('en-IN', { maximumFractionDigits: 2 })}

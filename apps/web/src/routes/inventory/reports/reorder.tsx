@@ -1,13 +1,55 @@
-import { AlertTriangle } from 'lucide-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { AlertTriangle, Search } from 'lucide-react';
 import {
-  PageHeader, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
-import { useReorderAlerts } from '@/hooks/queries/use-inventory';
+import { useReorderAlerts, useWarehouses } from '@/hooks/queries/use-inventory';
+
+type Params = { warehouseId?: string; q?: string };
 
 export function ReorderReportPage() {
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const warehouseId = params.warehouseId ?? '';
+  const q = params.q ?? '';
+
+  function update(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/reports/reorder',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (!next[k]) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
+  const { data: warehouses } = useWarehouses();
   const { data, isLoading } = useReorderAlerts();
-  const rows = data ?? [];
+  const allRows = data ?? [];
+
+  const ql = q.toLowerCase();
+  const whFilter = warehouseId;
+  const rows = allRows.filter((r) => {
+    if (whFilter && r.warehouseId !== whFilter) return false;
+    if (ql) {
+      return (
+        r.itemName.toLowerCase().includes(ql) ||
+        (r.itemSku ?? '').toLowerCase().includes(ql) ||
+        r.warehouseName.toLowerCase().includes(ql)
+      );
+    }
+    return true;
+  });
+
+  const whOptions = [
+    { value: '', label: 'All warehouses' },
+    ...(warehouses ?? []).map((w) => ({ value: w.id, label: w.name })),
+  ];
 
   return (
     <div>
@@ -16,6 +58,23 @@ export function ReorderReportPage() {
         description="Items at or below the effective reorder level (per-warehouse rule or item default)."
         fullWidth
       />
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <Input
+          placeholder="Search item, SKU, warehouse…"
+          icon={<Search size={13} />}
+          className="w-72 max-w-full"
+          value={q}
+          onChange={(e) => update({ q: e.target.value || undefined })}
+        />
+        <div className="min-w-[220px]">
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Warehouse</label>
+          <Combobox value={warehouseId} onChange={(v) => update({ warehouseId: v || undefined })} options={whOptions} />
+        </div>
+        <span className="num ml-auto text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {rows.length} rows
+        </span>
+      </div>
 
       {isLoading ? (
         <TableSkeleton rows={6} cols={6} />

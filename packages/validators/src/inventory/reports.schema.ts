@@ -4,6 +4,10 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'
 
 export const stockSummaryFilterSchema = z.object({
   warehouseId: z.string().uuid().optional(),
+  /** Filter by category tree node (FK). The legacy `category` string param
+   *  is still accepted for backwards-compatible URLs, but the report
+   *  resolves it to a categoryId server-side. */
+  categoryId: z.string().uuid().optional(),
   category: z.string().max(60).optional(),
 });
 

@@ -1,17 +1,25 @@
-// Inventory home — KPI strip + quick actions. Kept deliberately calm so
-// the godown floor can scan it in one glance.
+// Inventory Home — godown-floor dashboard. Matches the Finance / HR home
+// chrome: light scaffold, module switcher pinned top-left, a bell on the
+// right, then a hero card holding stock-value KPIs, the Low / In / Out
+// strip, and the warehouse pill. Body keeps the 2-col mini-stat row, 2x3
+// quick actions grid, and a 5-row Recent activity card with a "See all"
+// deep-link.
 
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../api/inventory_models.dart';
+import '../../api/notifications_repo.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
 import 'widgets/inv_colors.dart';
+import 'widgets/inv_primitives.dart';
 
 class InventoryHomeScreen extends ConsumerWidget {
   const InventoryHomeScreen({super.key});
@@ -23,75 +31,305 @@ class InventoryHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: t.bgWarm,
-      appBar: AppBar(
-        title: const ModuleSwitcher(),
-        // Keep the switcher left-aligned; AppBar centres titles on iOS by
-        // default so the pill would look stranded in the middle.
-        centerTitle: false,
-        titleSpacing: 16,
-        elevation: 0,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: InvColors.brand(context),
+          onRefresh: () async {
+            ref.invalidate(invKpisProvider);
+            ref.invalidate(invRecentActivityProvider);
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+          },
+          child: kpisAsync.when(
+            loading: () => const _HomeSkeleton(),
+            error: (e, _) => _HomeError(error: '$e'),
+            data: (k) => _HomeBody(k: k),
+          ),
+        ),
       ),
-      body: RefreshIndicator(
-        color: InvColors.brand(context),
-        onRefresh: () async {
-          ref.invalidate(invKpisProvider);
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-        },
-        child: ListView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          children: [
-            kpisAsync.when(
-              loading: () => const _KpiSkeleton(),
-              error: (_, __) => Text('Failed to load', style: RunqText.body.copyWith(color: t.muted)),
-              data: (k) => _KpiStrip(k: k),
-            ),
-            const SizedBox(height: 32),
-            Text('Quick actions', style: RunqText.label.copyWith(color: t.muted)),
-            const SizedBox(height: 6),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 1.55,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
+    );
+  }
+}
+
+class _HomeBody extends StatelessWidget {
+  const _HomeBody({required this.k});
+  final InvKpis k;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      slivers: [
+        const SliverToBoxAdapter(child: _TopBar()),
+        const SliverToBoxAdapter(child: _Greeting()),
+        SliverToBoxAdapter(child: _HeroCard(k: k)),
+        // 2-col mini-stat strip — In Transit (info) + Pending Adj (amber).
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
               children: [
-                _ActionTile(
-                  icon: Icons.add_box_outlined,
-                  title: 'Receive',
-                  subtitle: 'New GRN',
-                  onTap: () => context.push('/inventory/grn/new'),
+                Expanded(
+                  child: InvMiniStat(
+                    icon: Icons.alt_route_outlined,
+                    iconColor: InvColors.info,
+                    value: k.inTransitTransfers.toString(),
+                    label: 'In Transit',
+                    onTap: () => context.push('/inventory/transfers'),
+                  ),
                 ),
-                _ActionTile(
-                  icon: Icons.local_shipping_outlined,
-                  title: 'Dispatch',
-                  subtitle: 'New delivery',
-                  onTap: () => context.push('/inventory/delivery/new'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InvMiniStat(
+                    icon: Icons.tune_rounded,
+                    iconColor: InvColors.amberDeep,
+                    value: k.pendingAdjustments.toString(),
+                    label: 'Pending Adj.',
+                    onTap: () => context.push('/inventory/adjustments'),
+                  ),
                 ),
-                _ActionTile(
-                  icon: Icons.alt_route_outlined,
-                  title: 'Transfer',
-                  subtitle: 'Move between WHs',
-                  onTap: () => context.push('/inventory/transfers'),
+              ],
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: InvSectionHeader(title: 'Quick Actions')),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _QuickActions(k: k),
+          ),
+        ),
+        const SliverToBoxAdapter(child: _RecentActivityCard()),
+        // Trailing space so the bot-nav pill doesn't crop the last row.
+        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+      ],
+    );
+  }
+}
+
+// ── Top bar (switcher + bell) ─────────────────────────────────────────────
+
+/// Light-surface top bar — module switcher on the left, notification bell
+/// on the right. Mirrors the HR home chrome so the three modules share one
+/// visual rhythm.
+class _TopBar extends ConsumerWidget {
+  const _TopBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(scopedUnreadCountProvider(const ['inv_', 'inventory_']));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+      child: Row(
+        children: [
+          const ModuleSwitcher(),
+          const Spacer(),
+          _BellButton(
+            unread: unread,
+            onTap: () => context.push('/notifications?scope=inventory'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Greeting (date + "Good morning, <name> 👋") ──────────────────────────
+//
+// Mirrors HR home so all three modules share one greeting rhythm. Pulls
+// the display name from authProvider; falls back to 'there' before the
+// session restore finishes.
+class _Greeting extends ConsumerWidget {
+  const _Greeting();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final user = ref.watch(authProvider).user;
+    final firstName = _firstName(user?.name) ?? 'there';
+    final today = DateTime.now();
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const weekdays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    final dateLabel =
+        '${weekdays[today.weekday - 1]}, ${today.day} ${months[today.month - 1]}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(dateLabel, style: RunqText.body.copyWith(color: t.muted)),
+          const SizedBox(height: 2),
+          Text(
+            '${_greeting(today)}, $firstName 👋',
+            style: RunqText.h2.copyWith(
+              color: t.ink,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String? _firstName(String? name) {
+    if (name == null) return null;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    return trimmed.split(RegExp(r'\s+')).first;
+  }
+
+  static String _greeting(DateTime now) {
+    final h = now.hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+}
+
+class _BellButton extends StatelessWidget {
+  const _BellButton({required this.unread, required this.onTap});
+  final int unread;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Icon(Icons.notifications_outlined, color: t.ink, size: 24),
+              if (unread > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: unread > 9 ? 4 : 0, vertical: 0,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 16, minHeight: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade600,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: t.bgWarm, width: 1.5),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unread > 99 ? '99+' : '$unread',
+                      style: RunqText.micro.copyWith(
+                        color: Colors.white, height: 1,
+                      ),
+                    ),
+                  ),
                 ),
-                _ActionTile(
-                  icon: Icons.tune_rounded,
-                  title: 'Adjust',
-                  subtitle: 'Damage / found',
-                  onTap: () => context.push('/inventory/adjustments'),
-                ),
-                _ActionTile(
-                  icon: Icons.checklist_outlined,
-                  title: 'Stock take',
-                  subtitle: 'Count session',
-                  onTap: () => context.push('/inventory/stock-take'),
-                ),
-                _ActionTile(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'On hand',
-                  subtitle: 'Live stock',
-                  onTap: () => context.push('/inventory/on-hand'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Hero card (Stock value + Active SKUs + warehouse pill) ───────────────
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({required this.k});
+  final InvKpis k;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          gradient: InvColors.heroGradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: InvColors.amberDeep.withValues(alpha: 0.25),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: InvHeroKpi(
+                      label: 'Stock Value',
+                      value: compactINR(k.totalValue),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: InvHeroKpi(
+                      label: 'Active SKUs',
+                      value: _commaInt(k.activeRows),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _HeroMiniKpi(
+                      label: 'Low Stock',
+                      value: k.lowStockCount.toString(),
+                      sub: 'items',
+                      alert: k.lowStockCount > 0,
+                      onTap: () => context.push('/inventory/alerts'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HeroMiniKpi(
+                      label: 'Today In',
+                      value: k.todayGrns.toString(),
+                      sub: compactINR(k.todayGrnsValue),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HeroMiniKpi(
+                      label: 'Today Out',
+                      value: k.todayDeliveries.toString(),
+                      sub: compactINR(k.todayDnsValue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _WarehousePill()),
+                Text(
+                  _todayLabel(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xCCFFFFFF),
+                  ),
                 ),
               ],
             ),
@@ -100,133 +338,142 @@ class InventoryHomeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  static String _commaInt(int n) => n.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]},',
+      );
+
+  static String _todayLabel() {
+    final d = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
 }
 
-class _KpiStrip extends StatelessWidget {
-  const _KpiStrip({required this.k});
-  final InvKpis k;
+class _WarehousePill extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
-    // Hand-laid 2x2 grid so each card is intrinsic-height (sized by its
-    // label + number) instead of forced to an aspect ratio. GridView.count
-    // was injecting empty space below the text inside each card.
-    Widget row(List<Widget> children) => IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: children[0]),
-          const SizedBox(width: 10),
-          Expanded(child: children[1]),
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final whAsync = ref.watch(invWarehousesProvider);
+    final label = whAsync.maybeWhen(
+      data: (rows) {
+        if (rows.isEmpty) return 'All warehouses';
+        final def = rows.firstWhere(
+          (w) => w.isDefault,
+          orElse: () => rows.first,
+        );
+        return def.name;
+      },
+      orElse: () => 'All warehouses',
     );
-    return Column(
-      children: [
-        row([
-          _KpiCard(label: 'Stock value', value: '₹${_compactINR(k.totalValue)}'),
-          _KpiCard(label: 'SKU rows', value: k.activeRows.toString()),
-        ]),
-        const SizedBox(height: 10),
-        row([
-          _KpiCard(
-            label: 'Low stock',
-            value: k.lowStockCount.toString(),
-            accent: k.lowStockCount > 0,
-            onTap: () => context.push('/inventory/reorder'),
-          ),
-          _KpiCard(label: 'Today receipts', value: k.todayGrns.toString()),
-        ]),
-      ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.warehouse_outlined, size: 13, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, this.accent = false, this.onTap});
+// Compact tinted KPI used inside the hero card. Translucent fill so it
+// reads as part of the gradient; alert variant tints red for low-stock.
+class _HeroMiniKpi extends StatelessWidget {
+  const _HeroMiniKpi({
+    required this.label,
+    required this.value,
+    required this.sub,
+    this.alert = false,
+    this.onTap,
+  });
   final String label;
   final String value;
-  final bool accent;
+  final String sub;
+  final bool alert;
   final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    final t = RT(context);
-    final card = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border.all(color: t.hairline),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: RunqText.label.copyWith(color: t.muted)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: RunqText.numberLg.copyWith(
-              color: accent ? InvColors.brand(context) : t.ink,
-            ),
-          ),
-        ],
-      ),
-    );
-    if (onTap == null) return card;
+    final bg = alert
+        ? const Color(0xFFEF4444).withValues(alpha: 0.38)
+        : Colors.black.withValues(alpha: 0.28);
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: card,
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon, required this.title, required this.subtitle, required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Material(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            border: Border.all(color: t.hairlineSoft),
-            borderRadius: BorderRadius.circular(12),
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: InvColors.amberSubtle,
-                  borderRadius: BorderRadius.circular(10),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                  color: Colors.white.withValues(alpha: 0.78),
                 ),
-                child: Icon(icon, size: 19, color: InvColors.brand(context)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: RunqText.caption.copyWith(color: t.muted)),
-                ],
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: Colors.white.withValues(alpha: 0.65),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -236,31 +483,230 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-class _KpiSkeleton extends StatelessWidget {
-  const _KpiSkeleton();
+// ── Quick actions grid (2x3) ──────────────────────────────────────────────
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.k});
+  final InvKpis k;
   @override
   Widget build(BuildContext context) {
-    final t = RT(context);
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.4,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      children: List.generate(4, (_) => Container(
-        decoration: BoxDecoration(
-          color: t.bgWarmer,
-          borderRadius: BorderRadius.circular(14),
+    final tiles = <Widget>[
+      InvActionTile(
+        icon: Icons.inventory_2_outlined,
+        title: 'Receive',
+        subtitle: 'New GRN',
+        onTap: () => context.push('/inventory/grn'),
+      ),
+      InvActionTile(
+        icon: Icons.local_shipping_outlined,
+        title: 'Dispatch',
+        subtitle: 'New delivery',
+        onTap: () => context.push('/inventory/delivery'),
+      ),
+      InvActionTile(
+        icon: Icons.alt_route_outlined,
+        title: 'Transfer',
+        subtitle: 'Move between WHs',
+        onTap: () => context.push('/inventory/transfers'),
+      ),
+      InvActionTile(
+        icon: Icons.tune_rounded,
+        title: 'Adjust',
+        subtitle: 'Damage / found',
+        onTap: () => context.push('/inventory/adjustments'),
+      ),
+      InvActionTile(
+        icon: Icons.checklist_outlined,
+        title: 'Stock Take',
+        subtitle: 'Count session',
+        onTap: () => context.push('/inventory/stock-take'),
+      ),
+      InvActionTile(
+        icon: Icons.visibility_outlined,
+        title: 'On Hand',
+        subtitle: 'Live stock',
+        badge: k.lowStockCount > 0 ? '${k.lowStockCount}' : null,
+        onTap: () => context.push('/inventory/on-hand'),
+      ),
+    ];
+    final rows = <Widget>[];
+    for (var i = 0; i < tiles.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: 12));
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: tiles[i]),
+              const SizedBox(width: 12),
+              Expanded(child: tiles[i + 1]),
+            ],
+          ),
         ),
-      )),
+      );
+    }
+    return Column(children: rows);
+  }
+}
+
+// ── Recent activity (5 rows + See all) ────────────────────────────────────
+
+class _RecentActivityCard extends ConsumerWidget {
+  const _RecentActivityCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(invRecentActivityProvider);
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InvSectionHeader(
+          title: 'Recent Activity',
+          action: 'See all →',
+          onAction: () => context.push('/inventory/activity'),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: async.when(
+            loading: () => Container(
+              height: 96,
+              decoration: BoxDecoration(
+                color: t.surface,
+                border: Border.all(color: t.hairline),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            error: (_, __) => InvCard(
+              child: Text('Could not load activity',
+                  style: RunqText.caption.copyWith(color: t.muted)),
+            ),
+            data: (rows) {
+              if (rows.isEmpty) {
+                return InvCard(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No movements yet — receive or dispatch stock to see entries here.',
+                      style: RunqText.caption.copyWith(color: t.muted),
+                    ),
+                  ),
+                );
+              }
+              final top = rows.take(5).toList();
+              return InvCard(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < top.length; i++) ...[
+                      _activityRow(context, top[i]),
+                      if (i < top.length - 1)
+                        Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
-String _compactINR(double v) {
-  if (v >= 10000000) return '${(v / 10000000).toStringAsFixed(2)} Cr';
-  if (v >= 100000) return '${(v / 100000).toStringAsFixed(2)} L';
-  if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)} K';
-  return v.toStringAsFixed(0);
+/// Shared mapper from `InvActivity` → `InvActivityRow` so both Home and the
+/// full-feed screen render identical chrome.
+Widget _activityRow(BuildContext context, InvActivity a) {
+  return InvActivityRow(
+    type: a.iconKey,
+    refLabel: a.itemName,
+    description: _activityDescription(a),
+    amount: _signedQty(a),
+    time: _relativeTime(a.movedAt),
+  );
+}
+
+String _activityDescription(InvActivity a) {
+  final src = _sourceLabel(a.movementType);
+  return '$src · ${a.warehouseName}';
+}
+
+String _sourceLabel(String movementType) {
+  switch (movementType) {
+    case 'grn':           return 'GRN';
+    case 'dn':            return 'Delivery';
+    case 'transfer_in':   return 'Transfer in';
+    case 'transfer_out':  return 'Transfer out';
+    case 'adjustment':    return 'Adjustment';
+    case 'stock_take':    return 'Stock take';
+    default:              return movementType;
+  }
+}
+
+String _signedQty(InvActivity a) {
+  final q = a.signedQty;
+  final unit = a.itemUnit == null || a.itemUnit!.isEmpty ? '' : ' ${a.itemUnit}';
+  final mag = q.abs();
+  final str = mag == mag.roundToDouble() ? mag.toStringAsFixed(0)
+                                         : mag.toStringAsFixed(2);
+  if (q > 0) return '+$str$unit';
+  if (q < 0) return '-$str$unit';
+  return str + unit;
+}
+
+String _relativeTime(DateTime when) {
+  final diff = DateTime.now().difference(when);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+  if (diff.inHours < 24)   return '${diff.inHours}h';
+  if (diff.inDays < 7)     return '${diff.inDays}d';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return '${when.day} ${months[when.month - 1]}';
+}
+
+// ── Loading + error states ───────────────────────────────────────────────
+
+class _HomeSkeleton extends StatelessWidget {
+  const _HomeSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    Widget block(double h) => Container(
+          height: h,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: t.bgWarmer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+        );
+    return ListView(
+      padding: const EdgeInsets.only(top: 64),
+      children: [
+        block(56),
+        block(140),
+        block(80),
+        block(56),
+        block(180),
+      ],
+    );
+  }
+}
+
+class _HomeError extends StatelessWidget {
+  const _HomeError({required this.error});
+  final String error;
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'Failed to load inventory: $error',
+          style: RunqText.caption.copyWith(color: t.muted),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 }

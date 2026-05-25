@@ -21,31 +21,46 @@ export class ReportsService {
     const whCond = filter.warehouseId
       ? sql`AND soh.warehouse_id = ${filter.warehouseId}`
       : sql``;
-    const catCond = filter.category
-      ? sql`AND i.category = ${filter.category}`
-      : sql``;
+    // Two filter shapes: explicit categoryId (UUID), or the legacy
+    // category-name string resolved via a scalar subquery on categories.
+    // Items no longer carries the denormalized name (migration 0113).
+    const catCond = filter.categoryId
+      ? sql`AND i.category_id = ${filter.categoryId}`
+      : filter.category
+        ? sql`AND i.category_id = (
+            SELECT id FROM categories
+            WHERE tenant_id = ${this.tenantId} AND parent_id IS NULL AND name = ${filter.category}
+            LIMIT 1
+          )`
+        : sql``;
+    // Category display string comes off the joined tree — leaf rows show
+    // parent.name; root rows show their own name. Mirrors the toItem()
+    // derivation in masters/item.service.ts.
     const result = await this.db.execute(sql`
       SELECT
         i.id AS item_id,
         i.name AS item_name,
         i.sku AS item_sku,
         i.unit AS item_unit,
-        i.category AS category,
+        i.item_class AS item_class,
+        COALESCE(p.name, c.name) AS category,
         SUM(soh.qty)::text AS total_qty,
         SUM(soh.value)::text AS total_value,
         COUNT(DISTINCT soh.warehouse_id)::int AS wh_count,
         COUNT(DISTINCT NULLIF(soh.batch_no, ''))::int AS batch_count
       FROM stock_on_hand soh
       INNER JOIN items i ON i.id = soh.item_id
+      LEFT JOIN categories c ON c.id = i.category_id
+      LEFT JOIN categories p ON p.id = c.parent_id
       WHERE soh.tenant_id = ${this.tenantId}
         AND soh.qty <> 0
         ${whCond}
         ${catCond}
-      GROUP BY i.id, i.name, i.sku, i.unit, i.category
+      GROUP BY i.id, i.name, i.sku, i.unit, i.item_class, COALESCE(p.name, c.name)
       ORDER BY SUM(soh.value) DESC NULLS LAST, i.name ASC
     `) as unknown as QueryResult<{
       item_id: string; item_name: string; item_sku: string | null;
-      item_unit: string | null; category: string | null;
+      item_unit: string | null; item_class: string | null; category: string | null;
       total_qty: string; total_value: string;
       wh_count: number; batch_count: number;
     }>;
@@ -54,6 +69,7 @@ export class ReportsService {
       itemName: r.item_name,
       itemSku: r.item_sku,
       itemUnit: r.item_unit,
+      itemClass: r.item_class,
       category: r.category,
       totalQty: Number(r.total_qty ?? 0),
       totalValue: Number(r.total_value ?? 0),
@@ -89,10 +105,13 @@ export class ReportsService {
         l.running_qty::text AS qty,
         l.running_value::text AS value,
         l.unit_cost::text AS avg_cost,
-        i.name AS item_name, i.sku AS item_sku, i.unit AS item_unit, i.category AS category,
+        i.name AS item_name, i.sku AS item_sku, i.unit AS item_unit,
+        COALESCE(p.name, c.name) AS category,
         w.name AS warehouse_name
       FROM latest l
       INNER JOIN items i ON i.id = l.item_id
+      LEFT JOIN categories c ON c.id = i.category_id
+      LEFT JOIN categories p ON p.id = c.parent_id
       INNER JOIN warehouses w ON w.id = l.warehouse_id
       WHERE l.running_qty > 0
       ORDER BY l.running_value DESC NULLS LAST, i.name ASC

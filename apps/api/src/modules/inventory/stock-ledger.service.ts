@@ -85,6 +85,7 @@ export class StockLedgerService {
         trackInventory: items.trackInventory,
         trackBatches: items.trackBatches,
         allowNegativeStock: items.allowNegativeStock,
+        costPrice: items.costPrice,
       })
       .from(items)
       .where(and(eq(items.id, input.itemId), eq(items.tenantId, this.tenantId)))
@@ -105,7 +106,17 @@ export class StockLedgerService {
 
     // 3. Compute new qty + WA cost.
     const isInbound = input.qtyDelta > 0;
-    const incomingCost = input.unitCost ?? 0;
+    // For inbound moves, fall back to the existing WA cost when the caller
+    // omits unit cost — otherwise a zero-cost inbound silently dilutes the
+    // pool. GRN/DN supply real landed costs; mobile adjustment_in does not,
+    // so we trust the pool's current cost first, then the item master, then 0.
+    const itemCostPrice = Number(item.costPrice ?? 0);
+    const providedCost = input.unitCost ?? 0;
+    const incomingCost = isInbound && providedCost <= 0
+      ? (current.qty > 0 && current.avgCost > 0
+          ? current.avgCost
+          : (itemCostPrice > 0 ? itemCostPrice : 0))
+      : providedCost;
 
     const newQty = current.qty + input.qtyDelta;
     if (newQty < 0 && !item.allowNegativeStock) {

@@ -1,5 +1,12 @@
 import { eq, and, ilike, sql } from 'drizzle-orm';
-import { priceLists, priceListItems, items, customers, vendors } from '@runq/db';
+import { alias } from 'drizzle-orm/pg-core';
+import { priceLists, priceListItems, items, categories, customers, vendors } from '@runq/db';
+
+// Aliases used for the join chain items → leaf category → parent category.
+// Mirrors item.service.ts so the derived category / subcategory strings
+// stay consistent across the two endpoints that surface them.
+const plCatLeaf = alias(categories, 'pl_cat_leaf');
+const plCatParent = alias(categories, 'pl_cat_parent');
 import type { Db } from '@runq/db';
 import type { PriceList, PriceListItem } from '@runq/types';
 import type { CreatePriceListInput, UpdatePriceListInput, PriceListFilterInput } from '@runq/validators';
@@ -85,6 +92,9 @@ export class PriceListService {
 
     if (!row) throw new NotFoundError('Price List');
 
+    // Category/subcategory strings come off the joined category tree —
+    // items no longer carries them. Order by parent name → leaf name →
+    // item name so the export reads top-down by category hierarchy.
     const lineItems = await this.db
       .select({
         pli: priceListItems,
@@ -97,13 +107,20 @@ export class PriceListService {
         itemBasicPrice: items.basicPrice,
         itemUnit: items.unit,
         itemHsnSacCode: items.hsnSacCode,
-        itemCategory: items.category,
-        itemSubcategory: items.subcategory,
+        catLeafName: plCatLeaf.name,
+        catLeafParentId: plCatLeaf.parentId,
+        catParentName: plCatParent.name,
       })
       .from(priceListItems)
       .leftJoin(items, eq(priceListItems.itemId, items.id))
+      .leftJoin(plCatLeaf, eq(plCatLeaf.id, items.categoryId))
+      .leftJoin(plCatParent, eq(plCatParent.id, plCatLeaf.parentId))
       .where(eq(priceListItems.priceListId, id))
-      .orderBy(items.category, items.subcategory, items.name);
+      .orderBy(
+        sql`COALESCE(${plCatParent.name}, ${plCatLeaf.name})`,
+        sql`CASE WHEN ${plCatLeaf.parentId} IS NULL THEN NULL ELSE ${plCatLeaf.name} END`,
+        items.name,
+      );
 
     return {
       ...this.toPriceList(row.pl),
@@ -117,8 +134,8 @@ export class PriceListService {
         basicPrice: li.itemBasicPrice != null ? toNumber(li.itemBasicPrice) : null,
         unit: li.itemUnit ?? null,
         hsnSacCode: li.itemHsnSacCode ?? null,
-        category: li.itemCategory ?? null,
-        subcategory: li.itemSubcategory ?? null,
+        category: li.catLeafParentId === null ? li.catLeafName : li.catParentName,
+        subcategory: li.catLeafParentId === null ? null : li.catLeafName,
       })),
     };
   }

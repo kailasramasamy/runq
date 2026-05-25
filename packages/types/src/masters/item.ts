@@ -23,12 +23,27 @@ export interface ItemAttributeField {
 
 export type ItemAttributeSchema = ItemAttributeField[];
 
+/**
+ * Axis-1 classification (introduced in migration 0110). Required for
+ * products, NULL for services. Drives default tracking flags at create
+ * time and — in a future phase — GL account routing.
+ */
+export type ItemClass =
+  | 'raw_material'
+  | 'packaging'
+  | 'finished_good'
+  | 'semi_finished'
+  | 'trading_good'
+  | 'consumable'
+  | 'spare_part';
+
 export interface Item {
   id: string;
   tenantId: string;
   name: string;
   sku: string | null;
   type: 'product' | 'service';
+  itemClass: ItemClass | null;
   hsnSacCode: string | null;
   unit: string | null;
   packSizeValue: number | null;
@@ -38,6 +53,10 @@ export interface Item {
   gstRate: number | null;
   mrp: number | null;
   costPrice: number | null;
+  /** FK into the category tree. Authoritative — `category` / `subcategory`
+   *  strings are kept in sync by a DB trigger and will be dropped once
+   *  every client reads via `categoryId`. */
+  categoryId: string | null;
   category: string | null;
   subcategory: string | null;
   description: string | null;

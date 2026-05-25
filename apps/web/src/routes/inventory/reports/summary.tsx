@@ -1,16 +1,61 @@
-import { useState } from 'react';
-import { Boxes } from 'lucide-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { Boxes, Search } from 'lucide-react';
 import {
-  PageHeader, Combobox, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState,
 } from '@/components/ui';
 import { useStockSummary, useWarehouses } from '@/hooks/queries/use-inventory';
+import {
+  InvClassTabs, classGroupForItemClass, resolveDefaultClassGroup, type ItemClassGroup,
+} from '@/components/inventory/inv-class-tabs';
+
+type Params = { warehouseId?: string; q?: string; classGroup?: string };
+
+function parseGroup(v: string | undefined): ItemClassGroup | null {
+  return v === 'finished' || v === 'inputs' || v === 'trading' || v === 'other' || v === 'all'
+    ? v
+    : null;
+}
 
 export function StockSummaryReportPage() {
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const warehouseId = params.warehouseId ?? '';
+  const q = params.q ?? '';
+  const urlGroup = parseGroup(params.classGroup);
+
+  function update(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/reports/summary',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (!next[k]) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
   const { data: warehouses } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState('');
   const { data, isLoading } = useStockSummary({ warehouseId: warehouseId || undefined });
-  const rows = data ?? [];
+  const allRows = data ?? [];
+
+  // Per-bucket counts feed the tab strip + drive fall-through to the first
+  // non-empty bucket when the user hasn't pinned one in the URL.
+  const counts: Partial<Record<Exclude<ItemClassGroup, 'all'>, number>> = {};
+  for (const r of allRows) {
+    const g = classGroupForItemClass(r.itemClass) as Exclude<ItemClassGroup, 'all'>;
+    counts[g] = (counts[g] ?? 0) + 1;
+  }
+  const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup('finished', counts);
+
+  const ql = q.toLowerCase();
+  const rows = allRows.filter((r) => {
+    if (classGroup !== 'all' && classGroupForItemClass(r.itemClass) !== classGroup) return false;
+    return !ql || r.itemName.toLowerCase().includes(ql) || (r.itemSku ?? '').toLowerCase().includes(ql);
+  });
 
   const totalValue = rows.reduce((s, r) => s + r.totalValue, 0);
 
@@ -27,15 +72,33 @@ export function StockSummaryReportPage() {
         fullWidth
       />
 
+      <div className="mb-3">
+        <InvClassTabs
+          selected={classGroup}
+          counts={counts}
+          onChange={(g) => update({ classGroup: g })}
+        />
+      </div>
+
       <div className="mb-4 flex flex-wrap items-end gap-3">
+        <Input
+          placeholder="Search item or SKU…"
+          icon={<Search size={13} />}
+          className="w-72 max-w-full"
+          value={q}
+          onChange={(e) => update({ q: e.target.value || undefined })}
+        />
         <div className="min-w-[220px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Warehouse</label>
-          <Combobox value={warehouseId} onChange={setWarehouseId} options={whOptions} />
+          <Combobox value={warehouseId} onChange={(v) => update({ warehouseId: v || undefined })} options={whOptions} />
         </div>
-        <div className="ml-auto text-sm">
-          Total value:&nbsp;
-          <span className="font-mono font-semibold">
-            ₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+        <div className="ml-auto flex items-center gap-4">
+          <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{rows.length} rows</span>
+          <span className="text-sm">
+            Total value:&nbsp;
+            <span className="font-mono font-semibold">
+              ₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </span>
           </span>
         </div>
       </div>

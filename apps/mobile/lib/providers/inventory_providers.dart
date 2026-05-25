@@ -10,21 +10,40 @@ final invKpisProvider = FutureProvider.autoDispose<InvKpis>((ref) async {
   return inventoryRepo.kpis();
 });
 
+final invRecentActivityProvider =
+    FutureProvider.autoDispose<List<InvActivity>>((ref) async {
+  return inventoryRepo.recentActivity();
+});
+
 final invWarehousesProvider = FutureProvider.autoDispose<List<InvWarehouse>>((ref) async {
   return inventoryRepo.warehouses();
 });
 
 final invOnHandProvider = FutureProvider.autoDispose
-    .family<List<InvOnHandRow>, ({String? warehouseId, bool lowOnly})>((ref, args) async {
-  return inventoryRepo.onHand(warehouseId: args.warehouseId, lowOnly: args.lowOnly);
+    .family<List<InvOnHandRow>, ({String? warehouseId, bool lowOnly, String? itemClassGroup})>((ref, args) async {
+  return inventoryRepo.onHand(
+    warehouseId: args.warehouseId,
+    lowOnly: args.lowOnly,
+    itemClassGroup: args.itemClassGroup,
+  );
 });
 
 final invGrnListProvider = FutureProvider.autoDispose.family<List<InvGrn>, String?>((ref, status) async {
   return inventoryRepo.grnList(status: status);
 });
 
+final invGrnDetailProvider = FutureProvider.autoDispose
+    .family<InvGrnDetail, String>((ref, id) async {
+  return inventoryRepo.grnGet(id);
+});
+
 final invDnListProvider = FutureProvider.autoDispose.family<List<InvDn>, String?>((ref, status) async {
   return inventoryRepo.dnList(status: status);
+});
+
+final invDnDetailProvider = FutureProvider.autoDispose
+    .family<InvDnDetail, String>((ref, id) async {
+  return inventoryRepo.dnGet(id);
 });
 
 final invTransferListProvider = FutureProvider.autoDispose
@@ -49,4 +68,17 @@ final invStockTakeDetailProvider = FutureProvider.autoDispose
 
 final invReorderAlertsProvider = FutureProvider.autoDispose<List<InvReorderAlert>>((ref) async {
   return inventoryRepo.reorderAlerts();
+});
+
+// Item detail screen — masters record + stock-by-warehouse. Two providers
+// kept separate so the warehouse breakdown can refresh on its own when a
+// movement is posted, without re-pulling the masters record.
+final invItemDetailProvider = FutureProvider.autoDispose
+    .family<InvItemDetail, String>((ref, id) async {
+  return inventoryRepo.itemDetail(id);
+});
+
+final invItemStockProvider = FutureProvider.autoDispose
+    .family<List<InvItemStockRow>, String>((ref, id) async {
+  return inventoryRepo.itemStock(id);
 });

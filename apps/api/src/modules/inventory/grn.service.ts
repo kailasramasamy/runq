@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql, ilike, gte, lte, count } from 'drizzl
 import type { Db } from '@runq/db';
 import {
   inventoryGrns, inventoryGrnLines, items, warehouses, vendors,
-  inventorySerials,
+  inventorySerials, purchaseOrders,
 } from '@runq/db';
 import type {
   CreateGrnInput, UpdateGrnInput, GrnFilter, CancelGrnInput,
@@ -39,10 +39,28 @@ export class GrnService {
           grn: inventoryGrns,
           vendorName: vendors.name,
           warehouseName: warehouses.name,
+          poNumber: purchaseOrders.poNumber,
+          // Per-row line count for the redesigned mobile tile. Correlated
+          // subquery keeps the join-set small — joining grn_lines directly
+          // would multiply rows and force a GROUP BY.
+          lineCount: sql<number>`(
+            SELECT COUNT(*)::int FROM ${inventoryGrnLines}
+            WHERE ${inventoryGrnLines.grnId} = ${inventoryGrns.id}
+          )`.as('line_count'),
+          // Preview total for rows whose snapshot total_value is 0 — keeps
+          // the list in sync with the detail screen for legacy / partially-
+          // populated drafts. SUM(line_total) is the same value `create`
+          // already snapshots into the header.
+          previewTotal: sql<string>`COALESCE((
+            SELECT SUM(${inventoryGrnLines.lineTotal})
+            FROM ${inventoryGrnLines}
+            WHERE ${inventoryGrnLines.grnId} = ${inventoryGrns.id}
+          ), 0)`.as('preview_total'),
         })
         .from(inventoryGrns)
         .leftJoin(vendors, eq(vendors.id, inventoryGrns.vendorId))
         .innerJoin(warehouses, eq(warehouses.id, inventoryGrns.warehouseId))
+        .leftJoin(purchaseOrders, eq(purchaseOrders.id, inventoryGrns.poId))
         .where(where)
         .orderBy(desc(inventoryGrns.createdAt))
         .limit(filter.limit)
@@ -54,11 +72,18 @@ export class GrnService {
     ]);
 
     return {
-      data: rows.map((r) => ({
-        ...r.grn,
-        vendorName: r.vendorName,
-        warehouseName: r.warehouseName,
-      })),
+      data: rows.map((r) => {
+        const snap = Number(r.grn.totalValue ?? 0);
+        const totalValue = snap > 0 ? r.grn.totalValue : String(r.previewTotal ?? 0);
+        return {
+          ...r.grn,
+          totalValue,
+          vendorName: r.vendorName,
+          warehouseName: r.warehouseName,
+          poNumber: r.poNumber,
+          lineCount: Number(r.lineCount ?? 0),
+        };
+      }),
       page: filter.page,
       limit: filter.limit,
       total,

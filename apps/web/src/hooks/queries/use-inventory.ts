@@ -23,6 +23,9 @@ export interface OnHandRow {
   itemName: string;
   itemSku: string | null;
   itemUnit: string | null;
+  /** item_class enum value. Drives the bucket-tab strip on the on-hand
+   *  page (Finished / Inputs / Trading / Other). */
+  itemClass: string | null;
   warehouseId: string;
   warehouseName: string;
   batchNo: string;
@@ -382,6 +385,18 @@ export function useCreateDn() {
     mutationFn: (body: CreateDnBody) =>
       api.post<{ data: DeliveryNote }>('/inventory/delivery-notes', body).then(get),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['inv', 'dn'] }),
+  });
+}
+
+export function useUpdateDn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; body: Partial<CreateDnBody> }) =>
+      api.put<{ data: DeliveryNote }>(`/inventory/delivery-notes/${v.id}`, v.body).then(get),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['inv', 'dn'] });
+      qc.invalidateQueries({ queryKey: INV_KEYS.dn(v.id) });
+    },
   });
 }
 
@@ -792,6 +807,8 @@ export interface StockSummaryRow {
   itemName: string;
   itemSku: string | null;
   itemUnit: string | null;
+  /** item_class enum value — drives the bucket-tab segregation. */
+  itemClass: string | null;
   category: string | null;
   totalQty: number;
   totalValue: number;

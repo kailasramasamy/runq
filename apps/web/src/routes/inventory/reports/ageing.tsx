@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { History } from 'lucide-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { History, Search } from 'lucide-react';
 import {
-  PageHeader, Combobox, Table, TableHeader, TableBody, TableRow, TableCell, Th,
+  PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Card, CardContent, Badge,
 } from '@/components/ui';
 import { useAgeing, useWarehouses } from '@/hooks/queries/use-inventory';
@@ -14,9 +14,29 @@ const BUCKET_TONES: Record<string, 'default' | 'success' | 'info' | 'warning' | 
   '180+': 'danger',
 };
 
+type Params = { warehouseId?: string; q?: string };
+
 export function AgeingReportPage() {
+  const navigate = useNavigate();
+  const params = useSearch({ strict: false }) as Params;
+  const warehouseId = params.warehouseId ?? '';
+  const q = params.q ?? '';
+
+  function update(patch: Partial<Params>) {
+    navigate({
+      to: '/inventory/reports/ageing',
+      search: (prev) => {
+        const next = { ...(prev as Params), ...patch };
+        for (const k of Object.keys(next) as (keyof Params)[]) {
+          if (!next[k]) delete next[k];
+        }
+        return next;
+      },
+      replace: true,
+    });
+  }
+
   const { data: warehouses } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState('');
   const { data, isLoading } = useAgeing({ warehouseId: warehouseId || undefined });
 
   const whOptions = [
@@ -26,7 +46,16 @@ export function AgeingReportPage() {
 
   const buckets = data?.buckets ?? [];
   const totals = data?.totals ?? {};
-  const rows = data?.rows ?? [];
+  const allRows = data?.rows ?? [];
+  const ql = q.toLowerCase();
+  const rows = ql
+    ? allRows.filter(
+        (r) =>
+          r.itemName.toLowerCase().includes(ql) ||
+          (r.itemSku ?? '').toLowerCase().includes(ql) ||
+          r.warehouseName.toLowerCase().includes(ql),
+      )
+    : allRows;
 
   return (
     <div>
@@ -37,13 +66,23 @@ export function AgeingReportPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
+        <Input
+          placeholder="Search item, SKU, warehouse…"
+          icon={<Search size={13} />}
+          className="w-72 max-w-full"
+          value={q}
+          onChange={(e) => update({ q: e.target.value || undefined })}
+        />
         <div className="min-w-[220px]">
           <label className="mb-1 block text-xs font-medium text-zinc-500">Warehouse</label>
-          <Combobox value={warehouseId} onChange={setWarehouseId} options={whOptions} />
+          <Combobox value={warehouseId} onChange={(v) => update({ warehouseId: v || undefined })} options={whOptions} />
         </div>
+        <span className="num ml-auto text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {rows.length} rows
+        </span>
       </div>
 
-      {!isLoading && rows.length > 0 && (
+      {!isLoading && allRows.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
           {buckets.map((b) => {
             const t = totals[b] ?? { qty: 0, value: 0, count: 0 };

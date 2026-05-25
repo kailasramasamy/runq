@@ -4,6 +4,26 @@ import { sql } from 'drizzle-orm';
 
 export const itemTypeEnum = pgEnum('item_type', ['product', 'service']);
 
+/**
+ * Item class — axis-1 classification for inventoried items. Drives:
+ *   • default values for trackBatches / trackExpiry at item creation
+ *     (see item.service.ts → applyClassDefaults),
+ *   • future GL account routing (consumables → expense, spares → R&M),
+ *   • reporting rollups by item purpose.
+ *
+ * Required when `type='product'`, must be NULL when `type='service'` —
+ * enforced by chk_items_item_class_present (migration 0110).
+ */
+export const itemClassEnum = pgEnum('item_class', [
+  'raw_material',
+  'packaging',
+  'finished_good',
+  'semi_finished',
+  'trading_good',
+  'consumable',
+  'spare_part',
+]);
+
 export const items = pgTable(
   'items',
   {
@@ -14,6 +34,14 @@ export const items = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     sku: varchar('sku', { length: 50 }),
     type: itemTypeEnum('type').notNull(),
+    // Axis-1 classification (required for products, NULL for services).
+    // See chk_items_item_class_present + idx_items_tenant_class.
+    itemClass: itemClassEnum('item_class'),
+    // Axis-2 classification — FK into the category tree (migration 0111).
+    // While `category` / `subcategory` strings are still around, a BEFORE
+    // trigger mirrors category_id → strings, so legacy reads keep working
+    // until Phase 3 drops the strings.
+    categoryId: uuid('category_id'),
     hsnSacCode: varchar('hsn_sac_code', { length: 8 }),
     unit: varchar('unit', { length: 20 }),
     // Pack size used by GSTR-1 HSN summary to normalize variant SKUs
@@ -26,8 +54,6 @@ export const items = pgTable(
     gstRate: decimal('gst_rate', { precision: 5, scale: 2 }),
     mrp: decimal('mrp', { precision: 15, scale: 2 }),
     costPrice: decimal('cost_price', { precision: 15, scale: 2 }),
-    category: varchar('category', { length: 50 }),
-    subcategory: varchar('subcategory', { length: 50 }),
     description: text('description'),
     // Universal extended attributes (supplier catalogue ingestion).
     ean: varchar('ean', { length: 20 }),

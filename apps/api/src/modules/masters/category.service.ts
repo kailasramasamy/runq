@@ -4,6 +4,7 @@ import type { Db } from '@runq/db';
 import type { Category } from '@runq/types';
 import type { CreateCategoryInput, UpdateCategoryInput, CategoryFilterInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+import { toNumber } from '../../utils/decimal';
 
 export class CategoryService {
   constructor(
@@ -25,7 +26,7 @@ export class CategoryService {
       .select()
       .from(categories)
       .where(baseWhere)
-      .orderBy(categories.name);
+      .orderBy(categories.sortOrder, categories.name);
 
     return rows.map((r) => this.toCategory(r));
   }
@@ -35,7 +36,7 @@ export class CategoryService {
       .select()
       .from(categories)
       .where(eq(categories.tenantId, this.tenantId))
-      .orderBy(categories.name);
+      .orderBy(categories.sortOrder, categories.name);
 
     const map = new Map<string, Category>();
     const roots: Category[] = [];
@@ -74,6 +75,9 @@ export class CategoryService {
         tenantId: this.tenantId,
         name: input.name,
         parentId: input.parentId ?? null,
+        defaultHsnSac: input.defaultHsnSac ?? null,
+        defaultGstRate: input.defaultGstRate?.toString() ?? null,
+        sortOrder: input.sortOrder ?? 0,
       })
       .returning();
 
@@ -84,6 +88,11 @@ export class CategoryService {
     const set: Record<string, unknown> = { updatedAt: new Date() };
     if (input.name !== undefined) set.name = input.name;
     if (input.parentId !== undefined) set.parentId = input.parentId ?? null;
+    if (input.defaultHsnSac !== undefined) set.defaultHsnSac = input.defaultHsnSac ?? null;
+    if (input.defaultGstRate !== undefined) {
+      set.defaultGstRate = input.defaultGstRate?.toString() ?? null;
+    }
+    if (input.sortOrder !== undefined) set.sortOrder = input.sortOrder;
 
     const [row] = await this.db
       .update(categories)
@@ -122,6 +131,9 @@ export class CategoryService {
       tenantId: row.tenantId,
       name: row.name,
       parentId: row.parentId,
+      defaultHsnSac: row.defaultHsnSac,
+      defaultGstRate: row.defaultGstRate ? toNumber(row.defaultGstRate) : null,
+      sortOrder: row.sortOrder,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

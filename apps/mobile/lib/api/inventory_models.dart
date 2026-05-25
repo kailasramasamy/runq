@@ -9,12 +9,25 @@ class InvKpis {
   final int lowStockCount;
   final int todayGrns;
   final int todayDeliveries;
+  /// Total value of receipts posted today — drives the "Today In" mini-card
+  /// on the redesigned Home + Moves hub. 0 when no GRN has been posted yet.
+  final double todayGrnsValue;
+  /// Total value dispatched today (posted DNs).
+  final double todayDnsValue;
+  /// Transfers currently in_transit (between dispatch and receive).
+  final int inTransitTransfers;
+  /// Stock adjustments waiting on approval. Drives the Moves hub badge.
+  final int pendingAdjustments;
   const InvKpis({
     required this.totalValue,
     required this.activeRows,
     required this.lowStockCount,
     required this.todayGrns,
     required this.todayDeliveries,
+    this.todayGrnsValue = 0,
+    this.todayDnsValue = 0,
+    this.inTransitTransfers = 0,
+    this.pendingAdjustments = 0,
   });
   factory InvKpis.fromJson(Map<String, dynamic> j) => InvKpis(
         totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
@@ -22,6 +35,10 @@ class InvKpis {
         lowStockCount: (j['lowStockCount'] as num?)?.toInt() ?? 0,
         todayGrns: (j['todayGrns'] as num?)?.toInt() ?? 0,
         todayDeliveries: (j['todayDeliveries'] as num?)?.toInt() ?? 0,
+        todayGrnsValue: (j['todayGrnsValue'] as num?)?.toDouble() ?? 0,
+        todayDnsValue: (j['todayDnsValue'] as num?)?.toDouble() ?? 0,
+        inTransitTransfers: (j['inTransitTransfers'] as num?)?.toInt() ?? 0,
+        pendingAdjustments: (j['pendingAdjustments'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -51,6 +68,10 @@ class InvOnHandRow {
   final String itemName;
   final String? itemSku;
   final String? itemUnit;
+  /// Axis-1 item_class (raw_material / packaging / finished_good /
+  /// semi_finished / trading_good / consumable / spare_part). Null for
+  /// service items, which never appear here. Drives the bucket-tabs UI.
+  final String? itemClass;
   final String warehouseId;
   final String warehouseName;
   final String batchNo;
@@ -58,10 +79,16 @@ class InvOnHandRow {
   final double avgCost;
   final double value;
   final double? reorderLevel;
+  /// ISO timestamp of the latest stock ledger movement that touched this
+  /// (item, warehouse, batch). Used by the redesigned stock-on-hand list to
+  /// show a "Last moved 22 May" hint and to flag dead stock.
+  final String? lastMovementAt;
   const InvOnHandRow({
     required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
+    this.itemClass,
     required this.warehouseId, required this.warehouseName, required this.batchNo,
     required this.qty, required this.avgCost, required this.value, this.reorderLevel,
+    this.lastMovementAt,
   });
   bool get isLow => reorderLevel != null && qty <= (reorderLevel ?? 0);
   factory InvOnHandRow.fromJson(Map<String, dynamic> j) => InvOnHandRow(
@@ -69,6 +96,7 @@ class InvOnHandRow {
         itemName: j['itemName'] as String,
         itemSku: j['itemSku'] as String?,
         itemUnit: j['itemUnit'] as String?,
+        itemClass: j['itemClass'] as String?,
         warehouseId: j['warehouseId'] as String,
         warehouseName: j['warehouseName'] as String,
         batchNo: (j['batchNo'] as String?) ?? '',
@@ -76,6 +104,7 @@ class InvOnHandRow {
         avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
         value: (j['value'] as num?)?.toDouble() ?? 0,
         reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+        lastMovementAt: j['lastMovementAt'] as String?,
       );
 }
 
@@ -85,11 +114,15 @@ class InvItem {
   final String? sku;
   final String? unit;
   final String? barcode;
+  /// item_class enum value (raw_material / packaging / finished_good / …)
+  /// — null for service items. Drives the picker tab-strip bucketing.
+  final String? itemClass;
   final bool trackBatches;
   final bool trackExpiry;
   final bool trackSerials;
   const InvItem({
     required this.id, required this.name, this.sku, this.unit, this.barcode,
+    this.itemClass,
     required this.trackBatches, required this.trackExpiry, required this.trackSerials,
   });
   factory InvItem.fromJson(Map<String, dynamic> j) => InvItem(
@@ -98,6 +131,7 @@ class InvItem {
         sku: j['sku'] as String?,
         unit: j['unit'] as String?,
         barcode: j['barcode'] as String?,
+        itemClass: j['itemClass'] as String?,
         trackBatches: j['trackBatches'] as bool? ?? false,
         trackExpiry: j['trackExpiry'] as bool? ?? false,
         trackSerials: j['trackSerials'] as bool? ?? false,
@@ -127,6 +161,61 @@ class InvGrnLineInput {
       };
 }
 
+/// Single line returned by `POST /inventory/grn/extract`. `itemId` is null
+/// when the AI's read of `rawName` didn't match any catalog row — the UI
+/// then renders a "Map item" affordance and the user picks manually.
+class InvGrnExtractedLine {
+  final String? itemId;
+  final String itemName;
+  final String rawName;
+  final String? itemSku;
+  final String? itemUnit;
+  final double qty;
+  final double unitRate;
+  /// 'sku' | 'name' | 'fuzzy' | null. Used by the UI to badge how
+  /// confident the catalog match is (fuzzy gets a "verify" hint).
+  final String? matchType;
+  const InvGrnExtractedLine({
+    required this.itemId, required this.itemName, required this.rawName,
+    required this.itemSku, required this.itemUnit,
+    required this.qty, required this.unitRate, required this.matchType,
+  });
+  factory InvGrnExtractedLine.fromJson(Map<String, dynamic> j) => InvGrnExtractedLine(
+        itemId: j['itemId'] as String?,
+        itemName: j['itemName'] as String? ?? '',
+        rawName: j['rawName'] as String? ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        unitRate: (j['unitRate'] as num?)?.toDouble() ?? 0,
+        matchType: j['matchType'] as String?,
+      );
+}
+
+class InvGrnExtractResult {
+  final String? vendorName;
+  final String? invoiceNumber;
+  final String? invoiceDate;
+  final double totalAmount;
+  final double confidence;
+  final List<InvGrnExtractedLine> lines;
+  const InvGrnExtractResult({
+    required this.vendorName, required this.invoiceNumber, required this.invoiceDate,
+    required this.totalAmount, required this.confidence, required this.lines,
+  });
+  factory InvGrnExtractResult.fromJson(Map<String, dynamic> j) => InvGrnExtractResult(
+        vendorName: j['vendorName'] as String?,
+        invoiceNumber: j['invoiceNumber'] as String?,
+        invoiceDate: j['invoiceDate'] as String?,
+        totalAmount: (j['totalAmount'] as num?)?.toDouble() ?? 0,
+        confidence: (j['confidence'] as num?)?.toDouble() ?? 0,
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvGrnExtractedLine.fromJson)
+            .toList(),
+      );
+}
+
 class InvDnLineInput {
   final String itemId;
   final String? batchNo;
@@ -147,10 +236,16 @@ class InvGrn {
   final String receivedDate;
   final String status;
   final double totalValue;
+  /// Number of lines on this GRN. Drives the "Lines" cell on the redesigned
+  /// mobile tile. Defaults to 0 for legacy responses that don't carry it.
+  final int lineCount;
+  /// Linked purchase-order number (when the GRN was created against a PO).
+  /// Null when the GRN was created stand-alone.
+  final String? poNumber;
   const InvGrn({
     required this.id, required this.grnNo, required this.warehouseName,
     this.vendorName, required this.receivedDate, required this.status,
-    required this.totalValue,
+    required this.totalValue, this.lineCount = 0, this.poNumber,
   });
   factory InvGrn.fromJson(Map<String, dynamic> j) => InvGrn(
         id: j['id'] as String,
@@ -160,6 +255,8 @@ class InvGrn {
         receivedDate: j['receivedDate'] as String,
         status: (j['status'] as String?) ?? 'draft',
         totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+        poNumber: j['poNumber'] as String?,
       );
 }
 
@@ -170,10 +267,13 @@ class InvTransfer {
   final String toWarehouseName;
   final String status;
   final double totalValue;
+  final int lineCount;
+  final String? transferDate;
   const InvTransfer({
     required this.id, required this.transferNo,
     required this.fromWarehouseName, required this.toWarehouseName,
     required this.status, required this.totalValue,
+    this.lineCount = 0, this.transferDate,
   });
   factory InvTransfer.fromJson(Map<String, dynamic> j) => InvTransfer(
         id: j['id'] as String,
@@ -182,6 +282,11 @@ class InvTransfer {
         toWarehouseName: (j['toWarehouseName'] as String?) ?? '',
         status: (j['status'] as String?) ?? 'draft',
         totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+        // Transfer rows expose createdAt (no dedicated transferDate column).
+        // Use it as the display date so the redesigned tile has a "23 May"
+        // hint without a backend change.
+        transferDate: (j['createdAt'] ?? j['transferDate']) as String?,
       );
 }
 
@@ -209,6 +314,69 @@ class InvAdjustment {
       );
 }
 
+/// One line returned by `GET /inventory/adjustments/:id`. Joins item
+/// name/sku from masters so the detail sheet renders without an extra
+/// fetch. `qtyDelta` is signed — negative for outbound reasons.
+class InvAdjustmentDetailLine {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? batchNo;
+  final double qtyDelta;
+  final bool trackBatches;
+  const InvAdjustmentDetailLine({
+    required this.id, required this.itemId, required this.itemName,
+    this.itemSku, this.batchNo, required this.qtyDelta, this.trackBatches = false,
+  });
+  factory InvAdjustmentDetailLine.fromJson(Map<String, dynamic> j) =>
+      InvAdjustmentDetailLine(
+        id: j['id'] as String,
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        batchNo: j['batchNo'] as String?,
+        qtyDelta: double.tryParse(j['qtyDelta']?.toString() ?? '0') ?? 0,
+        trackBatches: j['trackBatches'] as bool? ?? false,
+      );
+}
+
+class InvAdjustmentDetail {
+  final String id;
+  final String adjNo;
+  final String warehouseName;
+  final String reason;
+  final String adjustmentDate;
+  final String status;
+  final double totalValueDelta;
+  final String? notes;
+  final String? createdAt;
+  final List<InvAdjustmentDetailLine> lines;
+  const InvAdjustmentDetail({
+    required this.id, required this.adjNo, required this.warehouseName,
+    required this.reason, required this.adjustmentDate, required this.status,
+    required this.totalValueDelta, this.notes, this.createdAt,
+    required this.lines,
+  });
+  factory InvAdjustmentDetail.fromJson(Map<String, dynamic> j) =>
+      InvAdjustmentDetail(
+        id: j['id'] as String,
+        adjNo: j['adjNo'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        reason: (j['reason'] as String?) ?? 'damage',
+        adjustmentDate: (j['adjustmentDate'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'draft',
+        totalValueDelta:
+            double.tryParse(j['totalValueDelta']?.toString() ?? '0') ?? 0,
+        notes: j['notes'] as String?,
+        createdAt: j['createdAt'] as String?,
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvAdjustmentDetailLine.fromJson)
+            .toList(),
+      );
+}
+
 class InvStockTake {
   final String id;
   final String stNo;
@@ -216,9 +384,16 @@ class InvStockTake {
   final String scope;
   final String status;
   final String startedAt;
+  /// Total lines snapshotted at session start. Drives the progress bar on
+  /// the redesigned session tile (denominator). 0 when the backend hasn't
+  /// finished snapshotting yet or the field isn't returned.
+  final int totalLines;
+  /// Lines with a recorded count so far. Numerator for the progress bar.
+  final int countedLines;
   const InvStockTake({
     required this.id, required this.stNo, required this.warehouseName,
     required this.scope, required this.status, required this.startedAt,
+    this.totalLines = 0, this.countedLines = 0,
   });
   factory InvStockTake.fromJson(Map<String, dynamic> j) => InvStockTake(
         id: j['id'] as String,
@@ -227,6 +402,67 @@ class InvStockTake {
         scope: (j['scope'] as String?) ?? 'full',
         status: (j['status'] as String?) ?? 'in_progress',
         startedAt: (j['startedAt'] as String?) ?? '',
+        totalLines: (j['totalLines'] as num?)?.toInt() ?? 0,
+        countedLines: (j['countedLines'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// One line returned by `GET /inventory/transfers/:id`. Joins item
+/// name/sku from the masters table so the detail sheet can render each
+/// row without an extra fetch.
+class InvTransferDetailLine {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? batchNo;
+  final double qty;
+  final bool trackBatches;
+  const InvTransferDetailLine({
+    required this.id, required this.itemId, required this.itemName,
+    this.itemSku, this.batchNo, required this.qty, this.trackBatches = false,
+  });
+  factory InvTransferDetailLine.fromJson(Map<String, dynamic> j) =>
+      InvTransferDetailLine(
+        id: j['id'] as String,
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        batchNo: j['batchNo'] as String?,
+        qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
+        trackBatches: j['trackBatches'] as bool? ?? false,
+      );
+}
+
+class InvTransferDetail {
+  final String id;
+  final String transferNo;
+  final String fromWarehouseName;
+  final String toWarehouseName;
+  final String status;
+  final String? vehicleNo;
+  final String? notes;
+  final String? createdAt;
+  final List<InvTransferDetailLine> lines;
+  const InvTransferDetail({
+    required this.id, required this.transferNo,
+    required this.fromWarehouseName, required this.toWarehouseName,
+    required this.status, this.vehicleNo, this.notes, this.createdAt,
+    required this.lines,
+  });
+  factory InvTransferDetail.fromJson(Map<String, dynamic> j) => InvTransferDetail(
+        id: j['id'] as String,
+        transferNo: j['transferNo'] as String,
+        fromWarehouseName: (j['fromWarehouseName'] as String?) ?? '',
+        toWarehouseName: (j['toWarehouseName'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'draft',
+        vehicleNo: j['vehicleNo'] as String?,
+        notes: j['notes'] as String?,
+        createdAt: j['createdAt'] as String?,
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvTransferDetailLine.fromJson)
+            .toList(),
       );
 }
 
@@ -332,11 +568,23 @@ class InvReorderAlert {
   final double reorderLevel;
   final double reorderQty;
   final double shortBy;
+  /// 'critical' | 'warning' | 'watch'. Server returns critical/warning;
+  /// watch is reserved for UI-only states (items above reorder).
+  final String urgency;
+  /// Preferred supplier — derived server-side from the most recent posted
+  /// GRN that brought this item into this warehouse. Null when the item
+  /// has never been received here (e.g. via opening balance only).
+  final String? supplierName;
+  /// Lead time in days from the per-warehouse reorder rule. Null when no
+  /// rule exists (we still surface the alert via item-level reorder_level
+  /// but without a lead-time hint).
+  final int? leadTimeDays;
   const InvReorderAlert({
     required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
     required this.warehouseId, required this.warehouseName,
     required this.onHand, required this.reorderLevel, required this.reorderQty,
     required this.shortBy,
+    this.urgency = 'warning', this.supplierName, this.leadTimeDays,
   });
   factory InvReorderAlert.fromJson(Map<String, dynamic> j) => InvReorderAlert(
         itemId: j['itemId'] as String,
@@ -349,6 +597,9 @@ class InvReorderAlert {
         reorderLevel: (j['reorderLevel'] as num?)?.toDouble() ?? 0,
         reorderQty: (j['reorderQty'] as num?)?.toDouble() ?? 0,
         shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
+        urgency: (j['urgency'] as String?) ?? 'warning',
+        supplierName: j['supplierName'] as String?,
+        leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
       );
 }
 
@@ -360,10 +611,11 @@ class InvDn {
   final String dispatchDate;
   final String status;
   final double totalValue;
+  final int lineCount;
   const InvDn({
     required this.id, required this.dnNo, required this.warehouseName,
     this.customerName, required this.dispatchDate, required this.status,
-    required this.totalValue,
+    required this.totalValue, this.lineCount = 0,
   });
   factory InvDn.fromJson(Map<String, dynamic> j) => InvDn(
         id: j['id'] as String,
@@ -373,5 +625,286 @@ class InvDn {
         dispatchDate: j['dispatchDate'] as String,
         status: (j['status'] as String?) ?? 'draft',
         totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+      );
+}
+
+// ── DN detail (svc.get → header + lines) ─────────────────────────────────
+
+class InvDnLine {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final bool trackBatches;
+  final String? batchNo;
+  final double qty;
+  final String? uom;
+  final double unitCost;
+  final double lineTotal;
+  const InvDnLine({
+    required this.id, required this.itemId, required this.itemName, this.itemSku,
+    required this.trackBatches, this.batchNo, required this.qty, this.uom,
+    required this.unitCost, required this.lineTotal,
+  });
+  factory InvDnLine.fromJson(Map<String, dynamic> j) => InvDnLine(
+        id: j['id'] as String,
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        trackBatches: j['trackBatches'] as bool? ?? false,
+        batchNo: j['batchNo'] as String?,
+        qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
+        uom: j['uom'] as String?,
+        unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
+        lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
+      );
+}
+
+class InvDnDetail {
+  final String id;
+  final String dnNo;
+  final String warehouseId;
+  final String warehouseName;
+  final String? customerId;
+  final String? customerName;
+  final String dispatchDate;
+  final String? vehicleNo;
+  final String? lrNo;
+  final String? eWayBillNo;
+  final String? notes;
+  final String status;
+  final double totalValue;
+  final List<InvDnLine> lines;
+  const InvDnDetail({
+    required this.id, required this.dnNo, required this.warehouseId,
+    required this.warehouseName, this.customerId, this.customerName,
+    required this.dispatchDate, this.vehicleNo, this.lrNo, this.eWayBillNo,
+    this.notes, required this.status, required this.totalValue, required this.lines,
+  });
+  factory InvDnDetail.fromJson(Map<String, dynamic> j) => InvDnDetail(
+        id: j['id'] as String,
+        dnNo: j['dnNo'] as String,
+        warehouseId: j['warehouseId'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        customerId: j['customerId'] as String?,
+        customerName: j['customerName'] as String?,
+        dispatchDate: j['dispatchDate'] as String,
+        vehicleNo: j['vehicleNo'] as String?,
+        lrNo: j['lrNo'] as String?,
+        eWayBillNo: j['eWayBillNo'] as String?,
+        notes: j['notes'] as String?,
+        status: (j['status'] as String?) ?? 'draft',
+        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvDnLine.fromJson)
+            .toList(),
+      );
+}
+
+// ── Item detail (masters /items/:id) ──────────────────────────────────────
+//
+// Richer view of an item than InvItem — adds pricing, HSN, GST, category,
+// description and EAN so the mobile item-detail screen can render a full
+// product card.
+class InvItemDetail {
+  final String id;
+  final String name;
+  final String? sku;
+  final String? unit;
+  final String? type; // 'product' | 'service'
+  final String? hsnSacCode;
+  final String? category;
+  final String? subcategory;
+  final String? description;
+  final String? ean;
+  final double? mrp;
+  final double? defaultSellingPrice;
+  final double? defaultPurchasePrice;
+  final double? gstRate;
+  final bool isActive;
+  const InvItemDetail({
+    required this.id, required this.name, this.sku, this.unit, this.type,
+    this.hsnSacCode, this.category, this.subcategory, this.description, this.ean,
+    this.mrp, this.defaultSellingPrice, this.defaultPurchasePrice, this.gstRate,
+    required this.isActive,
+  });
+  factory InvItemDetail.fromJson(Map<String, dynamic> j) => InvItemDetail(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        sku: j['sku'] as String?,
+        unit: j['unit'] as String?,
+        type: j['type'] as String?,
+        hsnSacCode: j['hsnSacCode'] as String?,
+        category: j['category'] as String?,
+        subcategory: j['subcategory'] as String?,
+        description: j['description'] as String?,
+        ean: j['ean'] as String?,
+        mrp: (j['mrp'] as num?)?.toDouble(),
+        defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
+        defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
+        gstRate: (j['gstRate'] as num?)?.toDouble(),
+        isActive: j['isActive'] as bool? ?? true,
+      );
+}
+
+// One stock-on-hand row from /inventory/items/:id/stock — per warehouse +
+// batch. Lighter than InvOnHandRow because the item context is implicit.
+class InvItemStockRow {
+  final String warehouseId;
+  final String warehouseName;
+  final String batchNo;
+  final double qty;
+  final double avgCost;
+  final double value;
+  final String? lastMovementAt;
+  const InvItemStockRow({
+    required this.warehouseId, required this.warehouseName, required this.batchNo,
+    required this.qty, required this.avgCost, required this.value, this.lastMovementAt,
+  });
+  factory InvItemStockRow.fromJson(Map<String, dynamic> j) => InvItemStockRow(
+        warehouseId: j['warehouseId'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        batchNo: (j['batchNo'] as String?) ?? '',
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
+        value: (j['value'] as num?)?.toDouble() ?? 0,
+        lastMovementAt: j['lastMovementAt'] as String?,
+      );
+}
+
+// ── GRN detail (svc.get → header + lines) ─────────────────────────────────
+
+class InvGrnLine {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? batchNo;
+  final String? expiryDate;
+  final double qty;
+  final String? uom;
+  final double unitRate;
+  final double landedCostPerUnit;
+  final double lineTotal;
+  final String? notes;
+  final List<String> serialNos;
+  const InvGrnLine({
+    required this.id, required this.itemId, required this.itemName, this.itemSku,
+    this.batchNo, this.expiryDate, required this.qty, this.uom,
+    required this.unitRate, required this.landedCostPerUnit,
+    required this.lineTotal, this.notes, required this.serialNos,
+  });
+  factory InvGrnLine.fromJson(Map<String, dynamic> j) => InvGrnLine(
+        id: j['id'] as String,
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        batchNo: j['batchNo'] as String?,
+        expiryDate: j['expiryDate'] as String?,
+        qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
+        uom: j['uom'] as String?,
+        unitRate: double.tryParse(j['unitRate']?.toString() ?? '0') ?? 0,
+        landedCostPerUnit:
+            double.tryParse(j['landedCostPerUnit']?.toString() ?? '0') ?? 0,
+        lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
+        notes: j['notes'] as String?,
+        serialNos: ((j['serialNos'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+}
+
+class InvGrnDetail {
+  final String id;
+  final String grnNo;
+  final String warehouseName;
+  final String? vendorName;
+  final String receivedDate;
+  final String? vehicleNo;
+  final String? lrNo;
+  final String? notes;
+  final String status;
+  final double totalValue;
+  final List<InvGrnLine> lines;
+  const InvGrnDetail({
+    required this.id, required this.grnNo, required this.warehouseName,
+    this.vendorName, required this.receivedDate, this.vehicleNo, this.lrNo,
+    this.notes, required this.status, required this.totalValue, required this.lines,
+  });
+  factory InvGrnDetail.fromJson(Map<String, dynamic> j) => InvGrnDetail(
+        id: j['id'] as String,
+        grnNo: j['grnNo'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        vendorName: j['vendorName'] as String?,
+        receivedDate: j['receivedDate'] as String,
+        vehicleNo: j['vehicleNo'] as String?,
+        lrNo: j['lrNo'] as String?,
+        notes: j['notes'] as String?,
+        status: (j['status'] as String?) ?? 'draft',
+        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvGrnLine.fromJson)
+            .toList(),
+      );
+}
+
+// ── Recent activity (dashboard feed) ──────────────────────────────────────
+//
+// One row from /inventory/dashboard/recent-activity — a slice of the stock
+// ledger with item + warehouse joins. Drives the Home recent-activity card
+// and the dedicated full-feed screen.
+class InvActivity {
+  final String id;
+  /// Ledger movement bucket — `grn` | `dn` | `transfer_in` | `transfer_out`
+  /// | `adjustment` | `stock_take`. Mapped to icon + colour by
+  /// [InvActivityIcon] in `inv_primitives.dart`.
+  final String movementType;
+  final String sourceType;
+  final String sourceId;
+  final double qtyIn;
+  final double qtyOut;
+  final DateTime movedAt;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final String warehouseName;
+  const InvActivity({
+    required this.id,
+    required this.movementType,
+    required this.sourceType,
+    required this.sourceId,
+    required this.qtyIn,
+    required this.qtyOut,
+    required this.movedAt,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
+    required this.warehouseName,
+  });
+  /// Collapse direction-split movement types to the icon bucket
+  /// `InvActivityIcon` knows about. transfer_in/out both map to `transfer`.
+  String get iconKey {
+    if (movementType.startsWith('transfer')) return 'transfer';
+    return movementType;
+  }
+  /// Signed qty — positive for inflows, negative for outflows. Used to
+  /// render the right-edge "+5 / -3" amount on each row.
+  double get signedQty => qtyIn - qtyOut;
+  factory InvActivity.fromJson(Map<String, dynamic> j) => InvActivity(
+        id: j['id'] as String,
+        movementType: (j['movementType'] as String?) ?? '',
+        sourceType: (j['sourceType'] as String?) ?? '',
+        sourceId: (j['sourceId'] as String?) ?? '',
+        qtyIn: (j['qtyIn'] as num?)?.toDouble() ?? 0,
+        qtyOut: (j['qtyOut'] as num?)?.toDouble() ?? 0,
+        movedAt: DateTime.tryParse(j['movedAt']?.toString() ?? '')?.toLocal()
+            ?? DateTime.now(),
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
       );
 }

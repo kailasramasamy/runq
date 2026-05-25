@@ -6,6 +6,7 @@ import {
   paginationSchema,
   uuidParamSchema,
   bulkCreateItemsSchema,
+  bulkUpdateItemClassSchema,
   updateItemAttributeSchemaInput,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
@@ -26,6 +27,32 @@ export const itemRoutes: FastifyPluginAsync = async (app) => {
       const filters = itemFilterSchema.parse(request.query);
       const service = new ItemService(request.server.db, request.tenantId);
       return service.list({ page: pagination.page, limit: pagination.limit, filters });
+    },
+  );
+
+  // Per-bucket item counts for the class-group tab strip. Cheap aggregate
+  // (one row per item_class). Tabs use this to render counts and to
+  // fall-through to the first non-empty bucket when the user's preferred
+  // default has no items yet.
+  // Bulk reclassify — POST (not PUT) so a tenant can issue from the items
+  // list toolbar without thinking about idempotency. Capped at 500 ids by
+  // the validator.
+  app.post(
+    '/bulk-class',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { itemIds, itemClass } = bulkUpdateItemClassSchema.parse(request.body);
+      const service = new ItemService(request.server.db, request.tenantId);
+      return { data: await service.bulkUpdateClass(itemIds, itemClass) };
+    },
+  );
+
+  app.get(
+    '/class-counts',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new ItemService(request.server.db, request.tenantId);
+      return { data: await service.classGroupCounts() };
     },
   );
 

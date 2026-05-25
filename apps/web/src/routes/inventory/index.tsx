@@ -27,12 +27,19 @@ export function InventoryDashboardPage() {
       />
 
       {/* ── Hero stat row ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <HeroStat
           icon={Boxes}
           label="Stock value"
           value={formatInrShort(k?.totalValue ?? 0)}
-          sub={k ? `${k.activeItems} SKUs, ${k.activeRows} rows` : ' '}
+          sub={k ? `${k.activeRows} stock rows` : ' '}
+          loading={isLoading}
+        />
+        <HeroStat
+          icon={PackagePlus}
+          label="SKUs"
+          value={String(k?.activeItems ?? 0)}
+          sub="Active items"
           loading={isLoading}
         />
         <HeroStat
@@ -114,9 +121,19 @@ export function InventoryDashboardPage() {
 
         {/* Recent activity */}
         <div className="lg:col-span-2">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-            Recent movements
-          </h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+              Recent movements
+            </h2>
+            {recent && recent.length > 0 && (
+              <Link
+                to="/inventory/stock/ledger"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                View all
+              </Link>
+            )}
+          </div>
           <Card>
             <CardContent className="!p-0">
               {!recent ? (
@@ -131,7 +148,7 @@ export function InventoryDashboardPage() {
                 />
               ) : (
                 <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {recent.map((r) => (
+                  {recent.slice(0, 6).map((r) => (
                     <li key={r.id} className="flex items-center gap-3 p-3">
                       <MovementBadge type={r.movementType} />
                       <div className="min-w-0 flex-1">
