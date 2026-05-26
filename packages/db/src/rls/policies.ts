@@ -37,7 +37,9 @@ export const RLS_TABLES = [
 
   // AP
   'vendors',
-  'vendor_bill_item_aliases',
+  // vendor_bill_item_aliases dropped by migration 0116 — data folded into
+  // vendor_catalog_items (which is itself not yet a table on main). The
+  // defensive filter in apply-rls.ts silently skips missing tables now.
   'vendor_contracts',
   'vendor_ratings',
   'purchase_orders',
