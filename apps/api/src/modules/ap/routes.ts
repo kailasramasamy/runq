@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { vendorRoutes } from './vendor.routes';
+import { vendorCatalogRoutes } from './vendor-catalog.routes';
 import { debitNoteRoutes } from './debit-note.routes';
 import { paymentRoutes } from './payment.routes';
 import { purchaseInvoiceRoutes } from './purchase-invoice.routes';
@@ -10,6 +11,10 @@ import { neftExportRoutes } from './neft-export.routes';
 export const apRoutes: FastifyPluginAsync = async (app) => {
   // Vendor routes
   await app.register(vendorRoutes, { prefix: '/vendors' });
+
+  // Vendor catalog (AP Pattern-B). Mounted on the same `/vendors` prefix so
+  // paths become /vendors/:vendorId/catalog[/...].
+  await app.register(vendorCatalogRoutes, { prefix: '/vendors' });
 
   // Debit note routes
   await app.register(debitNoteRoutes, { prefix: '/debit-notes' });

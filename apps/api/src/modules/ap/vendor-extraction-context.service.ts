@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { vendors, vendorBillItemAliases, extractionCorrections } from '@runq/db';
+import { vendors, vendorCatalogItems, extractionCorrections } from '@runq/db';
 import type { Db } from '@runq/db';
 
 export interface VendorExtractionContext {
@@ -80,16 +80,24 @@ export async function buildVendorContext(
     .limit(1);
   if (!vendor) return null;
 
+  // AP Pattern-B (migration 0116): top-N hints for the AI extractor now
+  // come from `vendor_catalog_items` (active rows only). Same data shape;
+  // catalog rows include both manually-curated entries and historical
+  // backfill from the retired `vendor_bill_item_aliases` table.
   const aliases = await db
     .select({
-      description: vendorBillItemAliases.rawDescription,
-      hsn: vendorBillItemAliases.suggestedHsnSac,
-      taxRate: vendorBillItemAliases.suggestedTaxRate,
-      useCount: vendorBillItemAliases.useCount,
+      description: vendorCatalogItems.description,
+      hsn: vendorCatalogItems.hsnSacCode,
+      taxRate: vendorCatalogItems.defaultTaxRate,
+      useCount: vendorCatalogItems.useCount,
     })
-    .from(vendorBillItemAliases)
-    .where(and(eq(vendorBillItemAliases.tenantId, tenantId), eq(vendorBillItemAliases.vendorId, vendorId)))
-    .orderBy(desc(vendorBillItemAliases.useCount), desc(vendorBillItemAliases.lastUsedAt))
+    .from(vendorCatalogItems)
+    .where(and(
+      eq(vendorCatalogItems.tenantId, tenantId),
+      eq(vendorCatalogItems.vendorId, vendorId),
+      eq(vendorCatalogItems.isActive, true),
+    ))
+    .orderBy(desc(vendorCatalogItems.useCount), desc(vendorCatalogItems.lastUsedAt))
     .limit(10);
 
   const corrections = await db

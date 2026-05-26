@@ -4,7 +4,6 @@ import type { Db } from '@runq/db';
 import { ExtractService, type ExtractionResult } from './extract.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { recordExtractionCorrection } from '../common/extraction-corrections.service';
-import { recordItemAliasesFromBill } from './vendor-item-aliases.service';
 
 interface ScanImportResult {
   extraction: ExtractionResult;
@@ -45,6 +44,20 @@ interface ExtractedInvoice {
   totalAmount: number;
   tdsSection: string | null;
   confidence: number;
+  // AP Pattern-B (spec §3) — optional carry-through from review UI.
+  warehouseId?: string | null;
+  goodsReceived?: boolean;
+  itemsReceived?: Array<{
+    inventoryItemId: string;
+    qty: number;
+    unitCost: number;
+    warehouseId?: string | null;
+    batchNo?: string | null;
+    mfgDate?: string | null;
+    expiryDate?: string | null;
+    serialNos?: string[] | null;
+    notes?: string | null;
+  }>;
 }
 
 export class ScanImportService {
@@ -102,6 +115,12 @@ export class ScanImportService {
       totalAmount: extracted.totalAmount,
       reverseCharge: false,
       tdsSection: extracted.tdsSection ?? undefined,
+      // AP Pattern-B carry-through. When the review UI ticked "goods
+      // received" and added items-received rows, the bill-create
+      // transaction inline-creates an inventory GRN + writes stock.
+      warehouseId: extracted.warehouseId ?? undefined,
+      goodsReceived: extracted.goodsReceived,
+      itemsReceived: extracted.itemsReceived,
     });
 
     // Capture the user's diff for analytics + future template/alias mining.
@@ -123,10 +142,10 @@ export class ScanImportService {
       createdBy: createdBy ?? null,
     });
 
-    // Mine per-vendor item aliases from the saved line items. Next time
-    // this vendor sends an invoice with the same item description, we
-    // pre-fill the user-confirmed HSN/tax instead of relying on AI alone.
-    await recordItemAliasesFromBill(this.db, this.tenantId, vendorId, extracted.items);
+    // AP Pattern-B (spec §4.1): catalog growth is now suggest-only. The
+    // legacy silent-learn from every bill line is replaced by the daily
+    // suggestions surface (`/vendors/:id/catalog/suggestions`) so the
+    // user explicitly promotes frequent uncatalogued lines.
 
     return {
       extraction: extraction ?? { confidence: extracted.confidence, extracted, vendorMatch: null },

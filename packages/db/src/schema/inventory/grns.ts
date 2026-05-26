@@ -3,11 +3,23 @@ import {
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from '../ap/vendors';
+import { purchaseInvoices } from '../ap/purchase-invoices';
 import { items } from '../masters/items';
 import { warehouses } from './warehouses';
 
 export const inventoryGrnStatusEnum = pgEnum('inventory_grn_status', [
   'draft', 'posted', 'cancelled',
+]);
+
+/**
+ * AP Pattern-B (migration 0114): discriminates GRN origin so the
+ * CHECK constraint can enforce po_id / bill_id consistency.
+ *   - 'po'     → linked to a PO; po_id required, bill_id null
+ *   - 'bill'   → inline-created from a bill; bill_id required, po_id null
+ *   - 'direct' → standalone (opening stock, milk memo, etc.); both null
+ */
+export const inventoryGrnSourceEnum = pgEnum('inventory_grn_source', [
+  'po', 'bill', 'direct',
 ]);
 
 /**
@@ -24,8 +36,12 @@ export const inventoryGrns = pgTable(
     grnNo: varchar('grn_no', { length: 40 }).notNull(),
     warehouseId: uuid('warehouse_id').notNull().references(() => warehouses.id),
     vendorId: uuid('vendor_id').references(() => vendors.id),
-    billId: uuid('bill_id'),
+    // AP Pattern-B: bill linkage now has a real FK (migration 0114).
+    billId: uuid('bill_id').references(() => purchaseInvoices.id),
     poId: uuid('po_id'),
+    // AP Pattern-B: discriminator + CHECK enforce that exactly one of
+    // (po_id, bill_id) matches `source`. Existing rows backfilled by 0114.
+    source: inventoryGrnSourceEnum('source').notNull().default('direct'),
     receivedDate: date('received_date').notNull(),
     vehicleNo: varchar('vehicle_no', { length: 30 }),
     lrNo: varchar('lr_no', { length: 40 }),

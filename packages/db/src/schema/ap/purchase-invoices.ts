@@ -6,6 +6,7 @@ import { purchaseOrders, purchaseOrderItems } from './purchase-orders';
 import { goodsReceiptNotes } from './grns';
 import { users } from '../user';
 import { billSyncSources } from '../integrations/bill-sync-sources';
+import { warehouses } from '../inventory/warehouses';
 
 export const purchaseInvoiceStatusEnum = pgEnum('purchase_invoice_status', ['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled']);
 export const matchStatusEnum = pgEnum('match_status', ['unmatched', 'matched', 'mismatch']);
@@ -45,6 +46,17 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   sourceId: uuid('source_id').references(() => billSyncSources.id),
   externalId: varchar('external_id', { length: 255 }),
   externalVersion: integer('external_version').notNull().default(0),
+  // ─── AP Pattern-B (migration 0114) ────────────────────────────────────
+  // Default warehouse for the items-received sub-form on this bill.
+  warehouseId: uuid('warehouse_id').references(() => warehouses.id),
+  // "☑ Goods received with this invoice" toggle. When true, the post
+  // service inline-creates an inventory_grns row (source='bill') and
+  // writes the linked id below.
+  goodsReceived: boolean('goods_received').notNull().default(false),
+  // FK enforced at DB level by migration 0114 (pi_linked_inventory_grn_fk).
+  // Drizzle .references() is intentionally omitted here to avoid a
+  // circular import with inventory/grns.ts which references this table.
+  linkedInventoryGrnId: uuid('linked_inventory_grn_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

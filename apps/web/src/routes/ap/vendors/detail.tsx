@@ -12,6 +12,7 @@ import { formatINR } from '@/lib/utils';
 import type { Vendor } from '@runq/types';
 import type { CreateVendorInput } from '@runq/validators';
 import { VendorForm } from '@/components/forms/vendor-form';
+import { VendorCatalogSection } from '@/components/forms/vendor-catalog-section';
 import {
   PageHeader, Badge, Button, StatusBadge, DetailCard, DetailRow,
   Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState, formatDate,
@@ -230,6 +231,12 @@ export function VendorDetailPage({ vendorId }: Props) {
             </TableBody>
           </Table>
         )}
+      </div>
+
+      {/* AP Pattern-B: vendor catalog admin. Drives suggestions on bill
+          + PO line entry. See docs/ap-pattern-b-spec.md §4. */}
+      <div className="mt-6">
+        <VendorCatalogSection vendorId={vendorId} />
       </div>
 
       <EditVendorModal vendor={vendor} open={showEdit} onClose={() => setShowEdit(false)} />

@@ -1,6 +1,13 @@
 import { eq, and, sql, gte, lte, desc, isNull, ilike, inArray } from 'drizzle-orm';
-import { purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments, paymentAllocations, bankAccounts, accounts } from '@runq/db';
+import {
+  purchaseInvoices, purchaseInvoiceItems, vendors, tenants, payments,
+  paymentAllocations, bankAccounts, accounts,
+  inventoryGrns, inventoryGrnLines, inventorySerials, items as itemsTable,
+} from '@runq/db';
 import { GLService } from '../gl/gl.service';
+import { StockLedgerService } from '../inventory/stock-ledger.service';
+import { nextDocNo } from '../inventory/sequence';
+import { VendorCatalogService } from './vendor-catalog.service';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
@@ -172,6 +179,9 @@ export class PurchaseInvoiceService {
           reverseCharge: input.reverseCharge ?? false,
           tdsSection: input.tdsSection ?? null,
           tdsAmount: String(tdsTotal),
+          // ─── AP Pattern-B fields ──────────────────────────────────────
+          warehouseId: input.warehouseId ?? null,
+          goodsReceived: input.goodsReceived ?? false,
         })
         .returning();
 
@@ -207,6 +217,43 @@ export class PurchaseInvoiceService {
           }),
         )
         .returning();
+
+      // ─── AP Pattern-B: inline GRN + stock_ledger writes ───────────────
+      // When goodsReceived + items-received sub-form non-empty, create a
+      // posted GRN (source='bill') in the same transaction so stock and
+      // bill are atomic. The JE itself is posted by the route handler
+      // *after* this transaction returns (matching existing service
+      // contract for scan-import / bill-import callers that leave the
+      // bill in draft without a JE).
+      let linkedGrnId: string | null = null;
+      if (input.goodsReceived && input.itemsReceived && input.itemsReceived.length > 0) {
+        const updatedInvoice = await this.createInlineGrnFromBill(
+          tx as unknown as Db,
+          invoice!.id,
+          input.itemsReceived,
+          input.warehouseId ?? null,
+          input.invoiceDate,
+          input.vendorId,
+        );
+        linkedGrnId = updatedInvoice.linkedInventoryGrnId ?? null;
+        // Mutate the in-memory invoice so the returned object reflects it.
+        invoice!.linkedInventoryGrnId = linkedGrnId;
+      }
+
+      // AP Pattern-B (Step 7 follow-up): catalog wiring on bill save.
+      //   - For each line that matches an existing active catalog entry:
+      //     bump use_count and (silently when ≤5%) update default rate.
+      //   - For each line with saveToCatalog=true and no match yet:
+      //     upsert a fresh catalog row carrying HSN/tax forward.
+      // Done inside the bill-create transaction so a catalog write can
+      // never outlive a rolled-back bill.
+      await this.syncCatalogFromBillLines(
+        tx as unknown as Db,
+        input.vendorId,
+        invoice!.id,
+        input.items,
+        userId,
+      );
 
       const [vendorRow] = await tx
         .select({ name: vendors.name })
@@ -474,6 +521,235 @@ export class PurchaseInvoiceService {
       }
     }
     return Math.round(total * 100) / 100;
+  }
+
+  /**
+   * AP Pattern-B inline GRN. Spec: `docs/ap-pattern-b-spec.md` §3.4 + §5.
+   *
+   * Called inside `create()`'s transaction when the bill has goods-received
+   * line(s). Inserts a posted `inventory_grns` row (source='bill'),
+   * inserts grn lines, writes stock_ledger movements, captures serials,
+   * and sets `purchase_invoices.linked_inventory_grn_id`.
+   *
+   * Does NOT post a JE — the bill's own JE (posted by the route handler
+   * after this transaction returns) handles debits into the appropriate
+   * inventory accounts via `gl.postPurchaseInvoice` with the linked GRN
+   * id. We deliberately skip the standard `InventoryGlPoster.postGrn`
+   * Dr Inventory / Cr GRNI flow because the bill is the financial event
+   * — there's no temporal gap that requires a GRNI clearing account.
+   */
+  private async createInlineGrnFromBill(
+    tx: Db,
+    billId: string,
+    received: NonNullable<CreatePurchaseInvoiceInput['itemsReceived']>,
+    billLevelWarehouseId: string | null,
+    receivedDate: string,
+    vendorId: string,
+  ): Promise<{ linkedInventoryGrnId: string }> {
+    // Per-line warehouse falls back to bill-level. At least one must be set.
+    const resolveWarehouse = (lineWarehouseId: string | null | undefined): string => {
+      const id = lineWarehouseId ?? billLevelWarehouseId;
+      if (!id) throw new ConflictError('Warehouse is required when goods are received');
+      return id;
+    };
+
+    // Sanity check: warehouses must agree per GRN (one GRN = one warehouse).
+    // If lines specify different warehouses, the current design rejects —
+    // future PP work can split into N GRNs.
+    const firstWh = resolveWarehouse(received[0]!.warehouseId);
+    for (const line of received) {
+      if (resolveWarehouse(line.warehouseId) !== firstWh) {
+        throw new ConflictError(
+          'Multi-warehouse goods-received not supported in v1; split into separate bills.',
+        );
+      }
+    }
+
+    // Validate items belong to tenant and pull tracking flags for serial /
+    // batch enforcement.
+    const itemIds = received.map((l) => l.inventoryItemId);
+    const itemRows = await tx
+      .select({
+        id: itemsTable.id,
+        trackBatches: itemsTable.trackBatches,
+        trackSerials: itemsTable.trackSerials,
+        trackExpiry: itemsTable.trackExpiry,
+        trackInventory: itemsTable.trackInventory,
+      })
+      .from(itemsTable)
+      .where(and(
+        inArray(itemsTable.id, itemIds),
+        eq(itemsTable.tenantId, this.tenantId),
+      ));
+    const itemMap = new Map(itemRows.map((r) => [r.id, r] as const));
+    for (const line of received) {
+      const item = itemMap.get(line.inventoryItemId);
+      if (!item) throw new NotFoundError(`Item ${line.inventoryItemId}`);
+      if (!item.trackInventory) {
+        throw new ConflictError(
+          `Item ${line.inventoryItemId} is not stock-tracked — remove from goods-received.`,
+        );
+      }
+      if (item.trackBatches && !line.batchNo) {
+        throw new ConflictError(`Item ${line.inventoryItemId} requires a batch number.`);
+      }
+      if (item.trackExpiry && !line.expiryDate) {
+        throw new ConflictError(`Item ${line.inventoryItemId} requires an expiry date.`);
+      }
+      if (item.trackSerials) {
+        const serials = line.serialNos ?? [];
+        if (serials.length !== line.qty) {
+          throw new ConflictError(
+            `Item ${line.inventoryItemId}: ${serials.length} serial(s) supplied for qty ${line.qty}.`,
+          );
+        }
+      }
+    }
+
+    const grnNo = await nextDocNo(tx, this.tenantId, 'GRN');
+    const totalValue = received.reduce((s, l) => s + l.qty * l.unitCost, 0);
+
+    const [grn] = await tx
+      .insert(inventoryGrns)
+      .values({
+        tenantId: this.tenantId,
+        grnNo,
+        warehouseId: firstWh,
+        vendorId,
+        billId,
+        source: 'bill',
+        receivedDate,
+        status: 'posted',
+        postedAt: new Date(),
+        totalValue: String(totalValue),
+      })
+      .returning();
+
+    const insertedLines = await tx
+      .insert(inventoryGrnLines)
+      .values(received.map((l) => ({
+        tenantId: this.tenantId,
+        grnId: grn!.id,
+        itemId: l.inventoryItemId,
+        batchNo: l.batchNo ?? null,
+        mfgDate: l.mfgDate ?? null,
+        expiryDate: l.expiryDate ?? null,
+        qty: String(l.qty),
+        unitRate: String(l.unitCost),
+        landedCostPerUnit: '0',
+        lineTotal: String(l.qty * l.unitCost),
+        notes: l.notes ?? null,
+        serialNos: l.serialNos && l.serialNos.length > 0 ? l.serialNos : null,
+      })))
+      .returning();
+
+    // Stock ledger movements — one per line. Records on-hand changes
+    // atomically with the GRN row.
+    const ledger = new StockLedgerService(this.tenantId);
+    const receivedDateObj = new Date(receivedDate);
+    for (let i = 0; i < received.length; i++) {
+      const line = received[i]!;
+      const inserted = insertedLines[i]!;
+      await ledger.recordMovement(tx, {
+        itemId: line.inventoryItemId,
+        warehouseId: firstWh,
+        batchNo: line.batchNo ?? null,
+        movementType: 'grn',
+        sourceType: 'inventory_grn',
+        sourceId: grn!.id,
+        sourceLineId: inserted.id,
+        qtyDelta: line.qty,
+        unitCost: line.unitCost,
+        movedAt: receivedDateObj,
+        postedBy: null,
+      });
+
+      // Serial capture, mirroring GrnService.post(). Length validation
+      // already happened above so we can insert directly.
+      const serials = line.serialNos ?? [];
+      if (serials.length > 0) {
+        await tx.insert(inventorySerials).values(
+          serials.map((sn) => ({
+            tenantId: this.tenantId,
+            itemId: line.inventoryItemId,
+            serialNo: sn,
+            currentWarehouseId: firstWh,
+            currentStatus: 'in_stock' as const,
+            batchNo: line.batchNo ?? null,
+            grnId: grn!.id,
+          })),
+        );
+      }
+    }
+
+    await tx
+      .update(purchaseInvoices)
+      .set({ linkedInventoryGrnId: grn!.id, updatedAt: new Date() })
+      .where(eq(purchaseInvoices.id, billId));
+
+    return { linkedInventoryGrnId: grn!.id };
+  }
+
+  /**
+   * AP Pattern-B (spec §4.1, Step 7 follow-up): grow + refresh the
+   * vendor catalog on bill save.
+   *
+   * Two-pass per line:
+   *   1. resolve(description) → if active catalog match: bump useCount,
+   *      then applyRateChange (silent ≤5%, no-op >5%) so curated rates
+   *      drift toward reality without ever silently breaking >5% jumps.
+   *   2. else if line.saveToCatalog === true: upsertFromDocLine (creates
+   *      a fresh row carrying HSN/tax/UOM forward, or reactivates an
+   *      inactive row matching the same vendor + description).
+   *
+   * Per spec §4.1 catalog growth is suggest-only — first-time entries
+   * require the explicit per-line toggle. Match-bumps are NOT silent
+   * growth; they refresh stats on already-curated rows.
+   */
+  private async syncCatalogFromBillLines(
+    tx: Db,
+    vendorId: string,
+    billId: string,
+    lines: CreatePurchaseInvoiceInput['items'],
+    userId?: string,
+  ): Promise<void> {
+    if (lines.length === 0) return;
+    const catalog = new VendorCatalogService(tx, this.tenantId);
+    const descriptions = Array.from(new Set(
+      lines.map((l) => l.itemName).filter((s): s is string => !!s && s.trim().length > 0),
+    ));
+    const matches = descriptions.length > 0
+      ? await catalog.resolve(vendorId, descriptions)
+      : [];
+    const byDesc = new Map(matches.map((m) => [m.description, m.catalogItem] as const));
+
+    for (const line of lines) {
+      if (!line.itemName) continue;
+      const existing = byDesc.get(line.itemName);
+      if (existing) {
+        // Existing entry: bump usage + silent rate drift (≤5%).
+        await catalog.recordUse(existing.id);
+        if (line.unitPrice != null && Number.isFinite(line.unitPrice) && line.unitPrice > 0) {
+          await catalog.applyRateChange({
+            catalogItemId: existing.id,
+            newRate: line.unitPrice,
+            sourceDocType: 'bill',
+            sourceDocId: billId,
+            changedBy: userId,
+          });
+        }
+      } else if (line.saveToCatalog) {
+        // Fresh entry: user opted in via the per-line toggle.
+        await catalog.upsertFromDocLine(vendorId, {
+          description: line.itemName,
+          rate: line.unitPrice ?? null,
+          hsnSacCode: line.hsnSacCode ?? null,
+          taxRate: line.taxRate ?? null,
+          taxCategory: line.taxCategory ?? null,
+          inventoryItemId: null,
+        });
+      }
+    }
   }
 
   async update(id: string, input: UpdatePurchaseInvoiceInput): Promise<PurchaseInvoiceWithDetails> {
@@ -808,6 +1084,9 @@ export class PurchaseInvoiceService {
       sourceId: row.sourceId ?? null,
       externalId: row.externalId ?? null,
       externalVersion: row.externalVersion,
+      warehouseId: row.warehouseId ?? null,
+      goodsReceived: row.goodsReceived,
+      linkedInventoryGrnId: row.linkedInventoryGrnId ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

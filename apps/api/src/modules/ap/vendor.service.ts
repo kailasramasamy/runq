@@ -72,13 +72,61 @@ export class VendorService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
+
+    // AP Pattern-B (spec §4.1): batch-compute pending catalog suggestions
+    // for the listed page. One query for all vendors on this page, not N.
+    const pendingByVendor = await this.fetchPendingCatalogCounts(rows.map((v) => v.id));
+
     const data: VendorWithOutstanding[] = rows.map((v) => ({
       ...this.toVendor(v),
       outstandingAmount: 0,
       overdueAmount: 0,
+      pendingCatalogCount: pendingByVendor.get(v.id) ?? 0,
     }));
 
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
+  }
+
+  /**
+   * Per-vendor count of bill-line descriptions that have appeared at
+   * least 3 times in the last 60 days but are not in the active vendor
+   * catalog. Bulk-keyed by vendor id so the list endpoint runs a single
+   * additional query, not N. Returns Map for O(1) lookup on caller side.
+   *
+   * Spec: docs/ap-pattern-b-spec.md §4.1.
+   */
+  private async fetchPendingCatalogCounts(vendorIds: string[]): Promise<Map<string, number>> {
+    if (vendorIds.length === 0) return new Map();
+    const sinceIso = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+      .toISOString().split('T')[0];
+    const result = await this.db.execute<{ vendor_id: string; pending_count: number }>(sql`
+      WITH normalised_lines AS (
+        SELECT
+          pi.vendor_id,
+          lower(regexp_replace(trim(pii.item_name), '\s+', ' ', 'g')) AS normalized_description,
+          COUNT(*) AS occurrences
+        FROM purchase_invoice_items pii
+        JOIN purchase_invoices pi ON pi.id = pii.invoice_id
+        WHERE pi.tenant_id = ${this.tenantId}
+          AND pi.vendor_id = ANY(${vendorIds}::uuid[])
+          AND pi.invoice_date >= ${sinceIso}::date
+        GROUP BY pi.vendor_id, normalized_description
+        HAVING COUNT(*) >= 3
+      )
+      SELECT
+        nl.vendor_id,
+        COUNT(*)::int AS pending_count
+      FROM normalised_lines nl
+      WHERE NOT EXISTS (
+        SELECT 1 FROM vendor_catalog_items vci
+        WHERE vci.tenant_id = ${this.tenantId}
+          AND vci.vendor_id = nl.vendor_id
+          AND vci.is_active = true
+          AND vci.normalized_description = nl.normalized_description
+      )
+      GROUP BY nl.vendor_id
+    `);
+    return new Map(result.rows.map((r) => [r.vendor_id, Number(r.pending_count)] as const));
   }
 
   async listDistinctTags(): Promise<string[]> {
@@ -101,7 +149,13 @@ export class VendorService {
 
     if (!row) throw new NotFoundError('Vendor');
 
-    return { ...this.toVendor(row), outstandingAmount: 0, overdueAmount: 0 };
+    const pendingByVendor = await this.fetchPendingCatalogCounts([row.id]);
+    return {
+      ...this.toVendor(row),
+      outstandingAmount: 0,
+      overdueAmount: 0,
+      pendingCatalogCount: pendingByVendor.get(row.id) ?? 0,
+    };
   }
 
   async create(input: CreateVendorInput): Promise<Vendor> {

@@ -736,6 +736,10 @@ class BillWithDetails extends Bill {
   final List<BillItem> items;
   final double cgst, sgst, igst, cess;
   final bool isInterState;
+  // ─── AP Pattern-B (spec §3) ─────────────────────────────────────────────
+  final String? warehouseId;
+  final bool goodsReceived;
+  final String? linkedInventoryGrnId;
   BillWithDetails({
     required super.id,
     required super.invoiceNumber,
@@ -757,6 +761,9 @@ class BillWithDetails extends Bill {
     required this.igst,
     required this.cess,
     required this.isInterState,
+    this.warehouseId,
+    this.goodsReceived = false,
+    this.linkedInventoryGrnId,
   });
 
   factory BillWithDetails.fromJson(Map<String, dynamic> j) {
@@ -786,6 +793,9 @@ class BillWithDetails extends Bill {
       igst: _num(j['igstAmount']),
       cess: _num(j['cessAmount']),
       isInterState: _bool(j['isInterState']),
+      warehouseId: j['warehouseId'] as String?,
+      goodsReceived: _bool(j['goodsReceived']),
+      linkedInventoryGrnId: j['linkedInventoryGrnId'] as String?,
     );
   }
 }

@@ -32,6 +32,11 @@ function billToInitialData(bill: PurchaseInvoiceWithDetails): Partial<CreatePurc
       tdsSection: item.tdsSection ?? undefined,
       tdsRate: item.tdsRate ?? undefined,
     })),
+    // AP Pattern-B: surface bill-level metadata. itemsReceived is
+    // deliberately NOT pre-populated — the linked GRN is immutable in
+    // v1; if the user wants to amend received goods, cancel + recreate.
+    warehouseId: bill.warehouseId ?? undefined,
+    goodsReceived: bill.goodsReceived,
   };
 }
 

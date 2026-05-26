@@ -39,7 +39,7 @@ Underneath all of it: **Finance, HR, Fixed Assets, Compliance**.
 |---|---|---|---|---|
 | 1 | Finance (AR/AP/Banking/GST) | ✅ Done | — | Phase 1–3 complete |
 | 2 | HR & Payroll | ✅ Done | — | Indian SME factory focus |
-| 3 | Inventory (batch+expiry+FEFO, mobile-scan) | 🔨 WIP | P0 | Plan: `docs/inventory-plan.md` |
+| 3 | Inventory (batch+expiry+FEFO, mobile-scan) | ✅ Done | — | Shipped 2026-05-25; API+web+mobile parity. Plan: `docs/inventory-plan.md`. Dairy deltas tracked separately in §6. |
 | 4 | **Purchase & Procurement** (PR→RFQ→PO→3-way match) | ❌ TBD | **P0** | Upstream of GRN; gates payment discipline |
 | 5 | **Manufacturing / Production (BOM)** | ❌ TBD | **P0** | Non-negotiable for dairy costing & traceability |
 | 6 | **Sales & Distribution** (SO, routes, van load, dispatch) | ❌ TBD | **P0** | Daily 2x dispatch pain |
@@ -246,6 +246,7 @@ Plan the next ~6 months as **3 epochs**:
 
 | Module | Phase | Owner | Target start | Target ship | Status |
 |---|---|---|---|---|---|
+| Inventory (generic MVP) | — | — | — | 2026-05-25 | ✅ Done — API + web + mobile parity, see `inventory-plan.md` |
 | Inventory dairy deltas | A | — | Jun 2026 | Jun 2026 | Not started |
 | Purchase & Procurement | MVP | — | Jun 2026 | Jul 2026 | Not started |
 | Manufacturing (BOM) | A | — | Jul 2026 | Jul 2026 | Not started |

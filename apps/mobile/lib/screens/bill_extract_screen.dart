@@ -14,6 +14,7 @@ import '../utils/format_inr.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/sparkle.dart';
+import '../widgets/goods_received_section.dart';
 
 enum _Step { extracting, review, error }
 
@@ -304,7 +305,7 @@ class _EditableItem {
       };
 }
 
-class _EditableBill {
+class _EditableBill implements GoodsReceivedState {
   final TextEditingController vendorName;
   final TextEditingController vendorGstin;
   final TextEditingController vendorPan;
@@ -319,6 +320,13 @@ class _EditableBill {
   final TextEditingController tdsSection;
   final List<_EditableItem> items;
   final double confidence;
+  // ─── AP Pattern-B state (GoodsReceivedState contract) ────────────────
+  @override
+  String? warehouseId;
+  @override
+  bool goodsReceived = false;
+  @override
+  final List<ReceivedRow> receivedItems = [];
 
   _EditableBill.fromExtracted(ExtractedBill e)
       : vendorName = TextEditingController(text: e.vendorName),
@@ -405,6 +413,13 @@ class _EditableBill {
         'tdsSection': _orNull(tdsSection.text),
         'confidence': confidence,
         'items': items.map((i) => i.toJson()).toList(),
+        // ─── AP Pattern-B carry-through ──────────────────────────────────
+        // Server schema accepts these as optional; sent only when the user
+        // has ticked goods-received and added at least one item row.
+        if (warehouseId != null) 'warehouseId': warehouseId,
+        'goodsReceived': goodsReceived,
+        if (goodsReceived && receivedItems.isNotEmpty)
+          'itemsReceived': receivedItems.map((r) => r.toJson()).toList(),
       };
 
   void dispose() {
@@ -422,6 +437,9 @@ class _EditableBill {
     tdsSection.dispose();
     for (final it in items) {
       it.dispose();
+    }
+    for (final r in receivedItems) {
+      r.dispose();
     }
   }
 }
@@ -557,11 +575,24 @@ class _Review extends StatelessWidget {
                 ],
                 if (hasErrors) _IssuesBanner(issues: issues),
                 if (hasErrors) const SizedBox(height: 12),
+                // (Reorder note: _VendorSection always first; goods-received
+                // slots in after items so totals + GR live next to each other.)
                 _VendorSection(edited: edited, onChange: onChange),
                 const SizedBox(height: 12),
                 _InvoiceSection(edited: edited, onChange: onChange),
                 const SizedBox(height: 12),
                 _ItemsSection(edited: edited, onChange: onChange),
+                const SizedBox(height: 12),
+                // AP Pattern-B: opt-in goods-received sub-form. Default-off
+                // keeps the existing AI-scan flow snappy; users with tracked
+                // inventory tap once to record what physically arrived.
+                GoodsReceivedSection(
+                  state: edited,
+                  onChange: onChange,
+                  defaultUnitCostHint: () => edited.items
+                      .map((it) => double.tryParse(it.unitPrice.text) ?? 0)
+                      .firstWhere((v) => v > 0, orElse: () => 0),
+                ),
                 const SizedBox(height: 12),
                 _TotalsSection(edited: edited, onChange: onChange),
                 const SizedBox(height: 80),

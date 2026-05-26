@@ -325,6 +325,9 @@ ${ledgers.join('\n')}
         tdsSection: purchaseInvoices.tdsSection, tdsAmount: purchaseInvoices.tdsAmount,
         sourceId: purchaseInvoices.sourceId, externalId: purchaseInvoices.externalId,
         externalVersion: purchaseInvoices.externalVersion,
+        warehouseId: purchaseInvoices.warehouseId,
+        goodsReceived: purchaseInvoices.goodsReceived,
+        linkedInventoryGrnId: purchaseInvoices.linkedInventoryGrnId,
         createdAt: purchaseInvoices.createdAt, updatedAt: purchaseInvoices.updatedAt,
         vendorName: vendors.name,
       })

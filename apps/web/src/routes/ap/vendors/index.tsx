@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Upload, Download, Building2, Search, ChevronRight, Trash2, MoreHorizontal } from 'lucide-react';
+import { Plus, Upload, Download, Building2, Search, ChevronRight, Trash2, MoreHorizontal, Lightbulb } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv-export';
 import { useVendors, useDeleteVendor } from '@/hooks/queries/use-vendors';
 import {
@@ -192,7 +192,26 @@ export function VendorListPage() {
                 <div className="flex items-center gap-2.5">
                   <Avatar name={v.name} size={28} />
                   <div className="min-w-0">
-                    <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{v.name}</div>
+                    <div className="flex items-center gap-1.5 truncate font-medium" style={{ color: 'var(--text-1)' }}>
+                      <span className="truncate">{v.name}</span>
+                      {/* AP Pattern-B (spec §4.1): nudges the user to
+                          promote frequent bill lines into the vendor
+                          catalog. Hover = full count. */}
+                      {v.pendingCatalogCount > 0 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
+                          style={{
+                            background: 'var(--amber-soft, rgba(245, 158, 11, 0.1))',
+                            color: 'var(--amber-text, #b45309)',
+                          }}
+                          title={`${v.pendingCatalogCount} frequent line${v.pendingCatalogCount === 1 ? '' : 's'} not in catalog yet`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Lightbulb size={9.5} />
+                          {v.pendingCatalogCount}
+                        </span>
+                      )}
+                    </div>
                     {v.gstin && (
                       <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{v.gstin}</div>
                     )}

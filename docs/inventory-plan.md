@@ -1,5 +1,7 @@
 # Inventory Module — Implementation Plan
 
+> **Status (2026-05-25): ✅ Shipped.** All phases live across API + web + mobile — items, warehouses, GRN, delivery notes, transfers, adjustments, stock-take, on-hand, reorder, serials, reports, dashboard. Item classes, category tree, and mobile polish (KPI cards, searchable warehouse picker, class-group tabs) landed in the final pass. Dairy-specific deltas tracked separately in `dairy-sme-plan.md` §6.
+
 > **Build mandate:** ship a clean, fully working Inventory module across API + web + mobile in one pass. The bottleneck on past modules (HR took ~1 week of post-build refinement) was **API ↔ web ↔ app drift** and **missing edge cases**. This spec is written to eliminate both. Every feature listed below MUST exist on all three surfaces before the module is called done. No surface ships partial.
 
 ---

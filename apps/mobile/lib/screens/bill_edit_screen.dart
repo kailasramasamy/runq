@@ -11,6 +11,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
+import '../widgets/goods_received_section.dart';
 
 /// Full editor for a draft bill. Lets the user fix anything that survived
 /// AI extraction or post-save state — invoice number, dates, line items
@@ -121,6 +122,15 @@ class _BillEditScreenState extends ConsumerState<BillEditScreen> {
         totalAmount: double.tryParse(s.totalAmount.text) ?? 0,
         notes: s.notes.text.trim().isEmpty ? null : s.notes.text.trim(),
         tdsSection: s.tdsSection.text.trim().isEmpty ? null : s.tdsSection.text.trim(),
+        // AP Pattern-B fields. itemsReceived is only sent when there are
+        // rows AND goodsReceived is on. Server `update()` doesn't process
+        // itemsReceived yet (only `create()` does) — the linked GRN is
+        // immutable in v1 — but warehouseId + goodsReceived flags update.
+        warehouseId: s.warehouseId,
+        goodsReceived: s.goodsReceived,
+        itemsReceived: s.goodsReceived && s.receivedItems.isNotEmpty
+            ? s.receivedItems.map((r) => r.toJson()).toList()
+            : null,
       );
       if (!mounted) return;
       ref.invalidate(billDetailProvider(widget.billId));
@@ -202,6 +212,14 @@ class _BillEditScreenState extends ConsumerState<BillEditScreen> {
                       const SizedBox(height: 12),
                       _ItemsSection(state: s, onChange: () => setState(() {})),
                       const SizedBox(height: 12),
+                      GoodsReceivedSection(
+                        state: s,
+                        onChange: () => setState(() {}),
+                        defaultUnitCostHint: () => s.items
+                            .map((it) => double.tryParse(it.unitPrice.text) ?? 0)
+                            .firstWhere((v) => v > 0, orElse: () => 0),
+                      ),
+                      const SizedBox(height: 12),
                       _TotalsSection(state: s, onChange: () => setState(() {})),
                       const SizedBox(height: 12),
                       _Section(
@@ -271,7 +289,7 @@ class _EditableItem {
       };
 }
 
-class _EditState {
+class _EditState implements GoodsReceivedState {
   final TextEditingController invoiceNumber;
   final TextEditingController invoiceDate;
   final TextEditingController dueDate;
@@ -281,11 +299,21 @@ class _EditState {
   final TextEditingController tdsSection;
   final TextEditingController notes;
   final List<_EditableItem> items;
+  // ─── AP Pattern-B state (GoodsReceivedState contract) ────────────────
+  @override
+  String? warehouseId;
+  @override
+  bool goodsReceived;
+  @override
+  final List<ReceivedRow> receivedItems;
 
   _EditState.fromBill(BillWithDetails b)
       : invoiceNumber = TextEditingController(text: b.invoiceNumber),
         invoiceDate = TextEditingController(text: b.invoiceDate.toIso8601String().substring(0, 10)),
         dueDate = TextEditingController(text: b.dueDate.toIso8601String().substring(0, 10)),
+        warehouseId = b.warehouseId,
+        goodsReceived = b.goodsReceived,
+        receivedItems = [],
         subtotal = TextEditingController(text: b.subtotal.toString()),
         taxAmount = TextEditingController(text: b.taxAmount.toString()),
         totalAmount = TextEditingController(text: b.totalAmount.toString()),
@@ -342,10 +370,11 @@ class _EditState {
     for (final it in items) {
       it.dispose();
     }
+    for (final r in receivedItems) {
+      r.dispose();
+    }
   }
 }
-
-// ─── Widgets ───────────────────────────────────────────────────────────
 
 class _Section extends StatelessWidget {
   final String title;

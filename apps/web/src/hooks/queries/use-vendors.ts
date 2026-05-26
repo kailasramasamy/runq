@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { Vendor } from '@runq/types';
+import type { Vendor, VendorWithOutstanding } from '@runq/types';
 import type { PaginatedResponse, ApiSuccess } from '@runq/types';
 import type { CreateVendorInput, UpdateVendorInput, SyncVendorsInput } from '@runq/validators';
 
@@ -41,7 +41,8 @@ export function useVendors(filters?: VendorFilters) {
 
   return useQuery({
     queryKey: VENDOR_KEYS.list(filters),
-    queryFn: () => api.get<PaginatedResponse<Vendor>>(`/ap/vendors${qs ? `?${qs}` : ''}`),
+    // VendorWithOutstanding includes pendingCatalogCount per AP Pattern-B §4.1.
+    queryFn: () => api.get<PaginatedResponse<VendorWithOutstanding>>(`/ap/vendors${qs ? `?${qs}` : ''}`),
   });
 }
 

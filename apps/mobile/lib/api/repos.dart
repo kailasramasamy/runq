@@ -357,6 +357,13 @@ class BillsRepo {
     String? notes,
     bool? reverseCharge,
     String? tdsSection,
+    // AP Pattern-B — see docs/ap-pattern-b-spec.md §3.
+    // NOTE: server `update()` currently doesn't process itemsReceived
+    // (only `create()` does). Sending warehouseId / goodsReceived updates
+    // the bill row fields; the linked GRN is immutable in v1.
+    String? warehouseId,
+    bool? goodsReceived,
+    List<Map<String, dynamic>>? itemsReceived,
   }) async {
     final body = <String, dynamic>{};
     if (invoiceNumber != null) body['invoiceNumber'] = invoiceNumber;
@@ -369,6 +376,9 @@ class BillsRepo {
     if (notes != null) body['notes'] = notes;
     if (reverseCharge != null) body['reverseCharge'] = reverseCharge;
     if (tdsSection != null) body['tdsSection'] = tdsSection;
+    if (warehouseId != null) body['warehouseId'] = warehouseId;
+    if (goodsReceived != null) body['goodsReceived'] = goodsReceived;
+    if (itemsReceived != null) body['itemsReceived'] = itemsReceived;
     final res = await apiClient.put('/ap/purchase-invoices/$id', body);
     return BillWithDetails.fromJson(_data(res));
   }

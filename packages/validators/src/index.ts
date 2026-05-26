@@ -6,6 +6,7 @@ export * from './auth/login.schema';
 export * from './auth/social-auth.schema';
 export * from './ap/vendor.schema';
 export * from './ap/purchase-invoice.schema';
+export * from './ap/vendor-catalog.schema';
 export * from './ap/bill-import.schema';
 export * from './ap/payment.schema';
 export * from './ap/debit-note.schema';

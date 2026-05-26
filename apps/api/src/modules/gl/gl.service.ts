@@ -1,5 +1,13 @@
 import { eq, and, sql, lte, sum, inArray, desc } from 'drizzle-orm';
-import { accounts, journalEntries, journalLines, journalSequences } from '@runq/db';
+import {
+  accounts,
+  journalEntries,
+  journalLines,
+  journalSequences,
+  inventoryGrns,
+  inventoryGrnLines,
+  items,
+} from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Account, JournalEntry, JournalEntryWithLines, TrialBalanceRow } from '@runq/types';
 import type { CreateAccountInput, UpdateAccountInput, CreateJournalEntryInput, JournalEntryFilter } from '@runq/validators';
@@ -8,6 +16,10 @@ import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 import { enforceLockDate } from '../../utils/lock-date';
+import {
+  inventoryAccountFor,
+  DEFAULT_EXPENSE_ACCOUNT_CODE,
+} from './inventory-accounts';
 
 export interface JournalEntryListResult {
   data: JournalEntry[];
@@ -295,19 +307,123 @@ export class GLService {
   }
 
   async postPurchaseInvoice(invoice: {
-    totalAmount: number; date: string; id: string; vendorName: string; expenseAccountCode?: string;
+    totalAmount: number; date: string; id: string; vendorName: string;
+    invoiceNumber?: string; expenseAccountCode?: string;
+    /**
+     * AP Pattern-B: when set, the bill has goods-received items recorded
+     * against this inventory GRN. The JE splits debits per item-class
+     * inventory account, with the residual going to expense. Caller MUST
+     * have already inserted the GRN + its lines in the same transaction.
+     */
+     linkedInventoryGrnId?: string | null;
   }): Promise<void> {
     if (await this.isAlreadyPosted('purchase_invoice', invoice.id)) return;
-    await this.createJournalEntry({
+
+    const descPrefix = invoice.invoiceNumber
+      ? `${invoice.vendorName} — ${invoice.invoiceNumber}`
+      : invoice.vendorName;
+
+    // No GRN linked → legacy flat behaviour. Zero regression for service
+    // bills, bills synced from ops modules without item linkage, etc.
+    if (!invoice.linkedInventoryGrnId) {
+      await this.createJournalEntry({
+        date: invoice.date,
+        description: `Purchase invoice from ${invoice.vendorName}`,
+        sourceType: 'purchase_invoice',
+        sourceId: invoice.id,
+        lines: [
+          {
+            accountCode: invoice.expenseAccountCode ?? DEFAULT_EXPENSE_ACCOUNT_CODE,
+            debit: invoice.totalAmount,
+            description: `${descPrefix} — purchase`,
+          },
+          {
+            accountCode: '2101',
+            credit: invoice.totalAmount,
+            description: `${descPrefix} — payable`,
+          },
+        ],
+      });
+      return;
+    }
+
+    // GRN linked → per-line routing. Sum GRN line value per item class.
+    const grnRows = await this.db
+      .select({
+        amount: sql<string>`COALESCE(${inventoryGrnLines.qty}::numeric * (${inventoryGrnLines.unitRate}::numeric + ${inventoryGrnLines.landedCostPerUnit}::numeric), 0)`,
+        itemClass: items.itemClass,
+      })
+      .from(inventoryGrnLines)
+      .innerJoin(items, eq(items.id, inventoryGrnLines.itemId))
+      .where(and(
+        eq(inventoryGrnLines.tenantId, this.tenantId),
+        eq(inventoryGrnLines.grnId, invoice.linkedInventoryGrnId),
+      ));
+
+    const inventoryDebits = new Map<string, number>();
+    let grnTotal = 0;
+    for (const row of grnRows) {
+      const amt = Number(row.amount);
+      const acc = inventoryAccountFor(row.itemClass);
+      inventoryDebits.set(acc, (inventoryDebits.get(acc) ?? 0) + amt);
+      grnTotal += amt;
+    }
+
+    // Expense residual covers tax, freight, rounding, anything on the
+    // bill not captured by goods-received lines. Negative residual is
+    // impossible by construction (UI caps received qty/value at bill
+    // total) so a tiny negative implies floating-point drift — clamp.
+    const expenseDebit = Math.max(0, Math.round((invoice.totalAmount - grnTotal) * 100) / 100);
+
+    const lines: CreateJournalEntryInput['lines'] = [];
+    for (const [acc, amt] of inventoryDebits) {
+      lines.push({
+        accountCode: acc,
+        debit: Math.round(amt * 100) / 100,
+        description: `${descPrefix} — inventory`,
+      });
+    }
+    if (expenseDebit > 0) {
+      lines.push({
+        accountCode: invoice.expenseAccountCode ?? DEFAULT_EXPENSE_ACCOUNT_CODE,
+        debit: expenseDebit,
+        description: `${descPrefix} — expense / freight`,
+      });
+    }
+    lines.push({
+      accountCode: '2101',
+      credit: invoice.totalAmount,
+      description: `${descPrefix} — payable`,
+    });
+
+    const entry = await this.createJournalEntry({
       date: invoice.date,
       description: `Purchase invoice from ${invoice.vendorName}`,
       sourceType: 'purchase_invoice',
       sourceId: invoice.id,
-      lines: [
-        { accountCode: invoice.expenseAccountCode ?? '5002', debit: invoice.totalAmount },
-        { accountCode: '2101', credit: invoice.totalAmount },
-      ],
+      lines,
     });
+
+    // AP Pattern-B (Step 7 follow-up): backlink the inline-from-bill GRN
+    // to this bill's JE. Lets inventory drill-throughs land on the
+    // unified bill JE instead of NULL. Skipped when no GRN is linked.
+    await this.db
+      .update(inventoryGrns)
+      .set({ journalEntryId: entry.id })
+      .where(and(
+        eq(inventoryGrns.id, invoice.linkedInventoryGrnId),
+        eq(inventoryGrns.tenantId, this.tenantId),
+      ));
+
+    // Backlink stock_ledger movements to the JE too — same pattern as
+    // GrnService.post() does for direct GRNs. Lets trial-balance and
+    // ledger-by-JE reports walk back from a JE line to the qty change.
+    await this.db.execute(sql`
+      UPDATE stock_ledger SET journal_entry_id = ${entry.id}
+      WHERE tenant_id = ${this.tenantId}
+        AND source_type = 'inventory_grn'
+        AND source_id = ${invoice.linkedInventoryGrnId}
+    `);
   }
 
   /**

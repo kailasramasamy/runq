@@ -52,6 +52,22 @@ interface ExtractedInvoice {
   totalAmount: number;
   tdsSection: string | null;
   confidence: number;
+  // ─── AP Pattern-B (spec §3) — optional carry-through from the review UI.
+  // Extractor itself never fills these; the mobile/web review screens add
+  // them when the user ticks "goods received" and picks items into stock.
+  warehouseId?: string | null;
+  goodsReceived?: boolean;
+  itemsReceived?: Array<{
+    inventoryItemId: string;
+    qty: number;
+    unitCost: number;
+    warehouseId?: string | null;
+    batchNo?: string | null;
+    mfgDate?: string | null;
+    expiryDate?: string | null;
+    serialNos?: string[] | null;
+    notes?: string | null;
+  }>;
 }
 
 interface VendorMatch {

@@ -21,6 +21,30 @@ const invoiceItemSchema = z.object({
   // TDS fields
   tdsSection: z.string().max(20).nullish(),
   tdsRate: z.number().min(0).max(100).nullish(),
+  // AP Pattern-B: "Save to vendor catalog" toggle. Off by default for
+  // first bill from a vendor, recommended ON for repeat lines. Server
+  // upserts into vendor_catalog_items on bill save.
+  saveToCatalog: z.boolean().optional(),
+});
+
+/**
+ * AP Pattern-B (spec §3.3): a single row in the "Items received into stock"
+ * sub-form on the bill review screen. Independent of bill lines — a bill
+ * may have 10 financial lines and only 2 items-received rows.
+ */
+const itemsReceivedLineSchema = z.object({
+  inventoryItemId: z.string().uuid(),
+  qty: z.number().positive('Received qty must be positive'),
+  unitCost: z.number().nonnegative('Unit cost cannot be negative'),
+  // Per-line warehouse override; falls back to bill-level warehouseId.
+  warehouseId: z.string().uuid().nullish(),
+  // Only set for batch-tracked items; server validates against item flags.
+  batchNo: z.string().max(60).nullish(),
+  mfgDate: z.string().date().nullish(),
+  expiryDate: z.string().date().nullish(),
+  // Only set for serial-tracked items; server validates length === qty.
+  serialNos: z.array(z.string().min(1)).nullish(),
+  notes: z.string().nullish(),
 });
 
 export const createPurchaseInvoiceSchema = z.object({
@@ -41,6 +65,17 @@ export const createPurchaseInvoiceSchema = z.object({
   // Apply any open advance to suppliers from this vendor against this bill
   // (FIFO, up to bill total). Default true — set false to keep advance for a later bill.
   applyAdvance: z.boolean().optional(),
+  // ─── AP Pattern-B (spec §3) ───────────────────────────────────────────
+  // Default warehouse for the items-received sub-form. Required if any
+  // itemsReceived line omits its own warehouseId.
+  warehouseId: z.string().uuid().nullish(),
+  // "☑ Goods received with this invoice" toggle. When true + itemsReceived
+  // is non-empty, the bill-post service inline-creates an inventory GRN.
+  // Optional (defaults to false in the service) so existing callers that
+  // construct CreatePurchaseInvoiceInput inline don't need updates.
+  goodsReceived: z.boolean().optional(),
+  // Items physically received into stock. Independent of bill lines.
+  itemsReceived: z.array(itemsReceivedLineSchema).optional(),
 });
 
 export const updatePurchaseInvoiceSchema = createPurchaseInvoiceSchema.partial();

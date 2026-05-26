@@ -143,6 +143,22 @@ export const extractRoutes: FastifyPluginAsync = async (app) => {
     totalAmount: z.number().positive(),
     tdsSection: z.string().nullable().default(null),
     confidence: z.number(),
+    // ─── AP Pattern-B (spec §3) carry-through ───────────────────────────
+    // Optional on the wire; the AI extractor never populates these. Only
+    // the review UI adds them when the user opts in to "goods received".
+    warehouseId: z.string().uuid().nullable().optional(),
+    goodsReceived: z.boolean().optional(),
+    itemsReceived: z.array(z.object({
+      inventoryItemId: z.string().uuid(),
+      qty: z.number().positive(),
+      unitCost: z.number().nonnegative(),
+      warehouseId: z.string().uuid().nullish(),
+      batchNo: z.string().max(60).nullish(),
+      mfgDate: z.string().date().nullish(),
+      expiryDate: z.string().date().nullish(),
+      serialNos: z.array(z.string().min(1)).nullish(),
+      notes: z.string().nullish(),
+    })).optional(),
   });
 
   const commitSchema = z.object({

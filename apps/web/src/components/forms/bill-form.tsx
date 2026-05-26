@@ -4,6 +4,7 @@ import { createPurchaseInvoiceSchema } from '@runq/validators';
 import type { CreatePurchaseInvoiceInput } from '@runq/validators';
 import { useVendors } from '../../hooks/queries/use-vendors';
 import { useItems } from '../../hooks/queries/use-items';
+import { useWarehouses } from '../../hooks/queries/use-inventory';
 import { useVendorAdvanceBalance } from '../../hooks/queries/use-purchase-invoices';
 import { formatINR } from '../../lib/utils';
 import { api } from '../../lib/api-client';
@@ -59,6 +60,28 @@ const EMPTY_LINE: LineItem = {
   tdsSection: '', tdsRate: '0',
 };
 
+/**
+ * AP Pattern-B (spec §3.3): a single row in the "Items received into stock"
+ * sub-form. Independent of bill lines — a bill may have 10 financial lines
+ * and the user can pick only 2 items into the sub-form. All values are
+ * strings here for input control; coerced on submit.
+ */
+interface ReceivedItem {
+  inventoryItemId: string;
+  qty: string;
+  unitCost: string;
+  batchNo: string;
+  mfgDate: string;
+  expiryDate: string;
+  serialNos: string;   // newline-separated; parsed on submit
+  notes: string;
+}
+
+const EMPTY_RECEIVED: ReceivedItem = {
+  inventoryItemId: '', qty: '', unitCost: '', batchNo: '',
+  mfgDate: '', expiryDate: '', serialNos: '', notes: '',
+};
+
 const TAX_RATE_OPTIONS = [
   { value: '0', label: '0%' },
   { value: '5', label: '5%' },
@@ -95,6 +118,12 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
   const { data: itemsData } = useItems({ limit: 100 });
   const allItems = itemsData?.data?.filter((i) => i.isActive) ?? [];
   const itemOptions = allItems.map((i) => ({ value: i.id, label: `${i.name}${i.sku ? ` (${i.sku})` : ''}` }));
+  // AP Pattern-B: warehouses for the items-received sub-form.
+  const { data: warehouses = [] } = useWarehouses();
+  const warehouseOptions = [
+    { value: '', label: 'Select warehouse…' },
+    ...warehouses.map((w) => ({ value: w.id, label: w.name })),
+  ];
 
   const [vendorId, setVendorId] = useState('');
   const [applyAdvance, setApplyAdvance] = useState(true);
@@ -109,6 +138,10 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
+  // ─── AP Pattern-B (spec §3) state ────────────────────────────────────
+  const [warehouseId, setWarehouseId] = useState('');
+  const [goodsReceived, setGoodsReceived] = useState(false);
+  const [receivedItems, setReceivedItems] = useState<ReceivedItem[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -118,6 +151,20 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
     if (initialData.invoiceDate) setInvoiceDate(initialData.invoiceDate);
     if (initialData.dueDate) setDueDate(initialData.dueDate);
     if (initialData.notes) setNotes(initialData.notes);
+    if (initialData.warehouseId) setWarehouseId(initialData.warehouseId);
+    if (initialData.goodsReceived !== undefined) setGoodsReceived(!!initialData.goodsReceived);
+    if (initialData.itemsReceived?.length) {
+      setReceivedItems(initialData.itemsReceived.map((r) => ({
+        inventoryItemId: r.inventoryItemId,
+        qty: String(r.qty ?? ''),
+        unitCost: String(r.unitCost ?? ''),
+        batchNo: r.batchNo ?? '',
+        mfgDate: r.mfgDate ?? '',
+        expiryDate: r.expiryDate ?? '',
+        serialNos: r.serialNos?.join('\n') ?? '',
+        notes: r.notes ?? '',
+      })));
+    }
     if (initialData.items?.length) {
       setLines(initialData.items.map((item) => ({
         itemId: '',
@@ -193,8 +240,54 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
     setLines((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // ─── Items-received sub-form helpers ─────────────────────────────────
+  function addReceivedRow() {
+    // Default unit cost from the first bill line that has both qty and
+    // price; lets users one-tap-add a row when the bill is single-line.
+    const firstPriced = lines.find((l) => parseFloat(l.unitPrice) > 0);
+    setReceivedItems((prev) => [...prev, {
+      ...EMPTY_RECEIVED,
+      unitCost: firstPriced?.unitPrice ?? '',
+    }]);
+  }
+  function updateReceivedRow(idx: number, field: keyof ReceivedItem, val: string) {
+    setReceivedItems((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: val } : r)));
+  }
+  function removeReceivedRow(idx: number) {
+    setReceivedItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function toggleGoodsReceived(next: boolean) {
+    setGoodsReceived(next);
+    // Default a single empty row in the sub-form so the user sees the
+    // structure as soon as they toggle on.
+    if (next && receivedItems.length === 0) addReceivedRow();
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // AP Pattern-B: serialise the items-received sub-form. Only include
+    // rows with both an item and qty so blank trailing rows are ignored.
+    const itemsReceivedPayload = goodsReceived
+      ? receivedItems
+        .filter((r) => r.inventoryItemId && parseFloat(r.qty) > 0)
+        .map((r) => {
+          const serials = r.serialNos
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          return {
+            inventoryItemId: r.inventoryItemId,
+            qty: parseFloat(r.qty),
+            unitCost: parseFloat(r.unitCost) || 0,
+            batchNo: r.batchNo || null,
+            mfgDate: r.mfgDate || null,
+            expiryDate: r.expiryDate || null,
+            serialNos: serials.length > 0 ? serials : null,
+            notes: r.notes || null,
+          };
+        })
+      : undefined;
+
     const payload = {
       vendorId,
       invoiceNumber,
@@ -217,6 +310,10 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
         tdsSection: l.tdsSection || null,
         tdsRate: parseFloat(l.tdsRate) || null,
       })),
+      // AP Pattern-B fields
+      warehouseId: warehouseId || null,
+      goodsReceived,
+      itemsReceived: itemsReceivedPayload,
     };
     const parsed = createPurchaseInvoiceSchema.safeParse(payload);
     if (!parsed.success) {
@@ -446,6 +543,129 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
             Add Row
           </Button>
         </CardFooter>
+      </Card>
+
+      {/* ─── AP Pattern-B: Items received into stock ─────────────────────
+          Optional sub-form. When toggled on + populated, the bill-post
+          inline-creates an inventory GRN (source='bill') and routes the
+          JE per item class. Service-only bills (no goods received) stay
+          on the current flat JE → zero regression. */}
+      <Card className="overflow-visible">
+        <CardHeader title="Items received into stock" />
+        <CardContent>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={goodsReceived}
+              onChange={(e) => toggleGoodsReceived(e.target.checked)}
+              className="mt-0.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                Record goods received against this bill
+              </span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                Only for tracked inventory items (raw materials, packaging, etc.).
+                Adds stock movements and routes the JE through Inventory accounts.
+              </span>
+            </span>
+          </label>
+
+          {goodsReceived && (
+            <div className="mt-4 space-y-4">
+              <div className="max-w-md">
+                <Combobox
+                  label="Default warehouse"
+                  required
+                  options={warehouseOptions}
+                  value={warehouseId}
+                  onChange={setWarehouseId}
+                  placeholder="Pick warehouse…"
+                  error={errors.warehouseId}
+                />
+              </div>
+
+              <Table noOverflow>
+                <TableHeader>
+                  <tr>
+                    <Th className="w-[26%]">Item</Th>
+                    <Th align="right" className="w-[10%]">Qty</Th>
+                    <Th align="right" className="w-[12%]">Unit cost</Th>
+                    <Th className="w-[14%]">Batch (if tracked)</Th>
+                    <Th className="w-[12%]">Expiry (if tracked)</Th>
+                    <Th className="w-[20%]">Serials (if tracked)</Th>
+                    <Th className="w-[6%]" />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {receivedItems.map((row, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <Combobox
+                          options={itemOptions}
+                          value={row.inventoryItemId}
+                          onChange={(v) => updateReceivedRow(idx, 'inventoryItemId', v)}
+                          placeholder="Search item…"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Input
+                          type="number" min="0" step="0.001"
+                          value={row.qty}
+                          onChange={(e) => updateReceivedRow(idx, 'qty', e.target.value)}
+                          placeholder="0" className="text-right"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={row.unitCost}
+                          onChange={(e) => updateReceivedRow(idx, 'unitCost', e.target.value)}
+                          placeholder="0.00" className="text-right"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={row.batchNo}
+                          onChange={(e) => updateReceivedRow(idx, 'batchNo', e.target.value)}
+                          placeholder="—"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <DateInput
+                          value={row.expiryDate}
+                          onChange={(e) => updateReceivedRow(idx, 'expiryDate', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Textarea
+                          value={row.serialNos}
+                          onChange={(e) => updateReceivedRow(idx, 'serialNos', e.target.value)}
+                          placeholder="One per line"
+                          rows={1}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                          onClick={() => removeReceivedRow(idx)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <Button type="button" variant="ghost" size="sm" onClick={addReceivedRow}>
+                <Plus size={14} />
+                Add item to stock
+              </Button>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Card>

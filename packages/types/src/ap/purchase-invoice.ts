@@ -39,6 +39,10 @@ export interface PurchaseInvoice {
   sourceId: string | null;
   externalId: string | null;
   externalVersion: number;
+  // ─── AP Pattern-B (spec §3) ───────────────────────────────────────────
+  warehouseId: string | null;
+  goodsReceived: boolean;
+  linkedInventoryGrnId: string | null;
   createdAt: string;
   updatedAt: string;
 }
