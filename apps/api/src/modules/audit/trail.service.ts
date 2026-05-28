@@ -75,36 +75,22 @@ export class TrailService {
       const [v] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, txn.vendorId)).limit(1);
       if (v) chain.push({ type: 'vendor', id: txn.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/ap/vendors/${txn.vendorId}` });
     }
+    // Reconciliation matches → payment or receipt. Fetched up-front so the
+    // customer-invoice section knows whether a real receipt is linked and can
+    // skip speculative candidate invoices when it is.
+    const matches = await this.db.select().from(reconciliationMatches)
+      .where(and(eq(reconciliationMatches.bankTransactionId, id), eq(reconciliationMatches.tenantId, this.tenantId)));
+    const hasReceiptMatch = matches.some((m) => m.receiptId !== null);
+
     if (txn.customerId) {
       const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, txn.customerId)).limit(1);
       if (c) chain.push({ type: 'customer', id: txn.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${txn.customerId}` });
 
-      // Find related invoices: exact match first, then unpaid from this customer
-      const exactMatch = await this.db.select({
-        id: salesInvoices.id, num: salesInvoices.invoiceNumber,
-        amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
-        date: salesInvoices.invoiceDate, status: salesInvoices.status,
-      })
-        .from(salesInvoices)
-        .where(and(
-          eq(salesInvoices.tenantId, this.tenantId),
-          eq(salesInvoices.customerId, txn.customerId),
-          sql`ABS(${salesInvoices.totalAmount}::numeric - ${toNumber(txn.amount)}) < 0.01`,
-          sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
-        ))
-        .limit(1);
-
-      if (exactMatch.length > 0) {
-        for (const inv of exactMatch) {
-          chain.push({
-            type: 'sales_invoice', id: inv.id, label: `${inv.num} (exact match)`,
-            summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due' : 'Paid'}`,
-            date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
-          });
-        }
-      } else if (txn.type === 'credit') {
-        // No exact match — show unpaid invoices from this customer
-        const unpaidInvoices = await this.db.select({
+      // Only show candidate invoices when no receipt is linked yet. Once a
+      // receipt exists, the real allocations are surfaced via receiptChain
+      // below — anything else would just confuse the user.
+      if (!hasReceiptMatch) {
+        const exactMatch = await this.db.select({
           id: salesInvoices.id, num: salesInvoices.invoiceNumber,
           amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
           date: salesInvoices.invoiceDate, status: salesInvoices.status,
@@ -113,23 +99,44 @@ export class TrailService {
           .where(and(
             eq(salesInvoices.tenantId, this.tenantId),
             eq(salesInvoices.customerId, txn.customerId),
-            sql`${salesInvoices.balanceDue}::numeric > 0`,
+            sql`ABS(${salesInvoices.totalAmount}::numeric - ${toNumber(txn.amount)}) < 0.01`,
+            sql`ABS(${salesInvoices.invoiceDate}::date - ${txn.transactionDate}::date) <= 30`,
           ))
-          .limit(5);
+          .limit(1);
 
-        for (const inv of unpaidInvoices) {
-          chain.push({
-            type: 'sales_invoice', id: inv.id, label: `${inv.num} (unpaid)`,
-            summary: `₹${toNumber(inv.bal).toLocaleString('en-IN')} due of ₹${toNumber(inv.amt).toLocaleString('en-IN')}`,
-            date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
-          });
+        if (exactMatch.length > 0) {
+          for (const inv of exactMatch) {
+            chain.push({
+              type: 'sales_invoice', id: inv.id, label: `${inv.num} (candidate — exact amount)`,
+              summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due' : 'Paid'}`,
+              date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+            });
+          }
+        } else if (txn.type === 'credit') {
+          const unpaidInvoices = await this.db.select({
+            id: salesInvoices.id, num: salesInvoices.invoiceNumber,
+            amt: salesInvoices.totalAmount, bal: salesInvoices.balanceDue,
+            date: salesInvoices.invoiceDate, status: salesInvoices.status,
+          })
+            .from(salesInvoices)
+            .where(and(
+              eq(salesInvoices.tenantId, this.tenantId),
+              eq(salesInvoices.customerId, txn.customerId),
+              sql`${salesInvoices.balanceDue}::numeric > 0`,
+            ))
+            .orderBy(salesInvoices.invoiceDate)
+            .limit(5);
+
+          for (const inv of unpaidInvoices) {
+            chain.push({
+              type: 'sales_invoice', id: inv.id, label: `${inv.num} (candidate — not yet allocated)`,
+              summary: `₹${toNumber(inv.bal).toLocaleString('en-IN')} due of ₹${toNumber(inv.amt).toLocaleString('en-IN')}`,
+              date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+            });
+          }
         }
       }
     }
-
-    // Reconciliation matches → payment or receipt
-    const matches = await this.db.select().from(reconciliationMatches)
-      .where(and(eq(reconciliationMatches.bankTransactionId, id), eq(reconciliationMatches.tenantId, this.tenantId)));
 
     const relatedPaymentIds: string[] = [];
     const relatedBillIds: string[] = [];
@@ -454,11 +461,39 @@ export class TrailService {
     const [rec] = await this.db.select().from(paymentReceipts).where(eq(paymentReceipts.id, receiptId)).limit(1);
     if (!rec) return [];
     const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, rec.customerId)).limit(1);
-    return [{
+
+    const nodes: TrailNode[] = [{
       type: 'receipt', id: receiptId, label: `Receipt from ${c?.name ?? 'Unknown'}`,
       summary: formatINR(toNumber(rec.amount)), date: rec.receiptDate, status: null,
       url: `/ar/receipts/${receiptId}`,
     }];
+
+    // Surface the invoices this receipt was actually allocated against so the
+    // audit trail shows real linkage rather than a bare receipt node.
+    const allocRows = await this.db
+      .select({
+        invoiceId: receiptAllocations.invoiceId,
+        allocAmount: receiptAllocations.amount,
+        num: salesInvoices.invoiceNumber,
+        amt: salesInvoices.totalAmount,
+        bal: salesInvoices.balanceDue,
+        date: salesInvoices.invoiceDate,
+        status: salesInvoices.status,
+      })
+      .from(receiptAllocations)
+      .innerJoin(salesInvoices, eq(receiptAllocations.invoiceId, salesInvoices.id))
+      .where(and(
+        eq(receiptAllocations.receiptId, receiptId),
+        eq(receiptAllocations.tenantId, this.tenantId),
+      ));
+    for (const a of allocRows) {
+      nodes.push({
+        type: 'sales_invoice', id: a.invoiceId, label: a.num,
+        summary: `${formatINR(toNumber(a.allocAmount))} allocated · ₹${toNumber(a.bal).toLocaleString('en-IN')} due of ₹${toNumber(a.amt).toLocaleString('en-IN')}`,
+        date: a.date, status: a.status, url: `/ar/invoices/${a.invoiceId}`,
+      });
+    }
+    return nodes;
   }
 
   private async bankTxnFromPayment(paymentId: string): Promise<TrailNode[]> {

@@ -312,6 +312,58 @@ export class AutoReceiptService {
       await tx.update(bankTransactions)
         .set({ customerId, glAccountId: arGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
+
+      // If the existing receipt is on-account (no allocations yet), run FIFO
+      // waterfall now so the BB Daily case — one NEFT covering several small
+      // invoices — leaves the customer's ledger clean. GL was already posted
+      // when the receipt was created; allocations only attribute it.
+      const [existingAlloc] = await tx.select({ id: receiptAllocations.id })
+        .from(receiptAllocations)
+        .where(and(
+          eq(receiptAllocations.tenantId, this.tenantId),
+          eq(receiptAllocations.receiptId, receiptId),
+        )).limit(1);
+      if (existingAlloc) return;
+
+      const [rec] = await tx.select({ amount: paymentReceipts.amount })
+        .from(paymentReceipts)
+        .where(eq(paymentReceipts.id, receiptId)).limit(1);
+      if (!rec) return;
+
+      const openInvoices = await tx
+        .select({ id: salesInvoices.id, balanceDue: salesInvoices.balanceDue })
+        .from(salesInvoices)
+        .where(and(
+          eq(salesInvoices.tenantId, this.tenantId),
+          eq(salesInvoices.customerId, customerId),
+          sql`${salesInvoices.balanceDue}::numeric > 0`,
+          sql`${salesInvoices.status} NOT IN ('cancelled', 'draft')`,
+        ))
+        .orderBy(salesInvoices.invoiceDate);
+
+      let remaining = parseFloat(rec.amount);
+      for (const inv of openInvoices) {
+        if (remaining <= 0.01) break;
+        const balance = parseFloat(inv.balanceDue);
+        const allocAmount = Math.min(remaining, balance);
+        const newBalance = balance - allocAmount;
+        const newStatus: 'paid' | 'partially_paid' = newBalance <= 0.01 ? 'paid' : 'partially_paid';
+
+        await tx.insert(receiptAllocations).values({
+          tenantId: this.tenantId,
+          receiptId,
+          invoiceId: inv.id,
+          amount: String(Math.round(allocAmount * 100) / 100),
+        });
+        await tx.update(salesInvoices).set({
+          amountReceived: sql`${salesInvoices.amountReceived}::numeric + ${allocAmount}`,
+          balanceDue: String(Math.max(0, Math.round(newBalance * 100) / 100)),
+          status: newStatus,
+          updatedAt: new Date(),
+        }).where(eq(salesInvoices.id, inv.id));
+
+        remaining -= allocAmount;
+      }
     });
   }
 }
