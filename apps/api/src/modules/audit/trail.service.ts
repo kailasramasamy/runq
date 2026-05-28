@@ -73,7 +73,7 @@ export class TrailService {
     // Vendor or Customer
     if (txn.vendorId) {
       const [v] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, txn.vendorId)).limit(1);
-      if (v) chain.push({ type: 'vendor', id: txn.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/ap/vendors/${txn.vendorId}` });
+      if (v) chain.push({ type: 'vendor', id: txn.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/finance/ap/vendors/${txn.vendorId}` });
     }
     // Reconciliation matches → payment or receipt. Fetched up-front so the
     // customer-invoice section knows whether a real receipt is linked and can
@@ -84,7 +84,7 @@ export class TrailService {
 
     if (txn.customerId) {
       const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, txn.customerId)).limit(1);
-      if (c) chain.push({ type: 'customer', id: txn.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${txn.customerId}` });
+      if (c) chain.push({ type: 'customer', id: txn.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/finance/ar/customers/${txn.customerId}` });
 
       // Only show candidate invoices when no receipt is linked yet. Once a
       // receipt exists, the real allocations are surfaced via receiptChain
@@ -109,7 +109,7 @@ export class TrailService {
             chain.push({
               type: 'sales_invoice', id: inv.id, label: `${inv.num} (candidate — exact amount)`,
               summary: `₹${toNumber(inv.amt).toLocaleString('en-IN')} — ${toNumber(inv.bal) > 0 ? 'Balance due' : 'Paid'}`,
-              date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+              date: inv.date, status: inv.status, url: `/finance/ar/invoices/${inv.id}`,
             });
           }
         } else if (txn.type === 'credit') {
@@ -131,7 +131,7 @@ export class TrailService {
             chain.push({
               type: 'sales_invoice', id: inv.id, label: `${inv.num} (candidate — not yet allocated)`,
               summary: `₹${toNumber(inv.bal).toLocaleString('en-IN')} due of ₹${toNumber(inv.amt).toLocaleString('en-IN')}`,
-              date: inv.date, status: inv.status, url: `/ar/invoices/${inv.id}`,
+              date: inv.date, status: inv.status, url: `/finance/ar/invoices/${inv.id}`,
             });
           }
         }
@@ -217,7 +217,7 @@ export class TrailService {
     const gaps: string[] = [];
 
     // Vendor
-    if (v) chain.push({ type: 'vendor', id: bill.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/ap/vendors/${bill.vendorId}` });
+    if (v) chain.push({ type: 'vendor', id: bill.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/finance/ap/vendors/${bill.vendorId}` });
 
     // Payments
     const allocs = await this.db.select().from(paymentAllocations)
@@ -255,12 +255,12 @@ export class TrailService {
     const root: TrailNode = {
       type: 'sales_invoice', id, label: inv.invoiceNumber,
       summary: `${formatINR(toNumber(inv.totalAmount))} to ${c?.name ?? 'Unknown'}`,
-      date: inv.invoiceDate, status: inv.status, url: `/ar/invoices/${id}`,
+      date: inv.invoiceDate, status: inv.status, url: `/finance/ar/invoices/${id}`,
     };
     const chain: TrailNode[] = [];
     const gaps: string[] = [];
 
-    if (c) chain.push({ type: 'customer', id: inv.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${inv.customerId}` });
+    if (c) chain.push({ type: 'customer', id: inv.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/finance/ar/customers/${inv.customerId}` });
 
     // Receipts
     const allocs = await this.db.select().from(receiptAllocations)
@@ -292,12 +292,12 @@ export class TrailService {
     const root: TrailNode = {
       type: 'payment', id, label: `Payment to ${v?.name ?? 'Unknown'}`,
       summary: formatINR(toNumber(pay.amount)), date: pay.paymentDate, status: pay.status,
-      url: `/ap/payments/${id}`,
+      url: `/finance/ap/payments/${id}`,
     };
     const chain: TrailNode[] = [];
     const gaps: string[] = [];
 
-    if (v) chain.push({ type: 'vendor', id: pay.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/ap/vendors/${pay.vendorId}` });
+    if (v) chain.push({ type: 'vendor', id: pay.vendorId, label: v.name, summary: 'Vendor', date: null, status: null, url: `/finance/ap/vendors/${pay.vendorId}` });
 
     // Bill allocations
     const allocs = await this.db.select().from(paymentAllocations)
@@ -334,12 +334,12 @@ export class TrailService {
     const root: TrailNode = {
       type: 'receipt', id, label: `Receipt from ${c?.name ?? 'Unknown'}`,
       summary: formatINR(toNumber(rec.amount)), date: rec.receiptDate, status: null,
-      url: `/ar/receipts/${id}`,
+      url: `/finance/ar/receipts/${id}`,
     };
     const chain: TrailNode[] = [];
     const gaps: string[] = [];
 
-    if (c) chain.push({ type: 'customer', id: rec.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/ar/customers/${rec.customerId}` });
+    if (c) chain.push({ type: 'customer', id: rec.customerId, label: c.name, summary: 'Customer', date: null, status: null, url: `/finance/ar/customers/${rec.customerId}` });
 
     // Invoice allocations
     const allocs = await this.db.select().from(receiptAllocations)
@@ -350,7 +350,7 @@ export class TrailService {
         chain.push({
           type: 'sales_invoice', id: a.invoiceId, label: inv.invoiceNumber,
           summary: formatINR(toNumber(inv.totalAmount)), date: inv.invoiceDate,
-          status: inv.status, url: `/ar/invoices/${a.invoiceId}`,
+          status: inv.status, url: `/finance/ar/invoices/${a.invoiceId}`,
         });
       }
     }
@@ -384,7 +384,7 @@ export class TrailService {
     const root: TrailNode = {
       type: 'journal_entry', id, label: je.entryNumber,
       summary: lineSummary, date: je.date, status: je.status,
-      url: `/gl/journal-entries/${id}`,
+      url: `/finance/gl/journal-entries/${id}`,
     };
     const chain: TrailNode[] = [];
     const gaps: string[] = [];
@@ -400,7 +400,7 @@ export class TrailService {
         chain.push({
           type: 'fixed_asset', id: row.assetId, label: `${row.assetCode} — ${row.assetName}`,
           summary: `Depreciation ${formatINR(toNumber(row.amount))}`,
-          date: je.date, status: 'active', url: `/fa/assets/${row.assetId}`,
+          date: je.date, status: 'active', url: `/finance/fa/assets/${row.assetId}`,
         });
       }
     } else if (je.sourceType === 'bank_expense' && je.sourceId) {
@@ -411,15 +411,15 @@ export class TrailService {
       if (je.sourceType === 'opening_balance_ar') {
         // sourceId is a customer ID
         const [c] = await this.db.select({ name: customers.name }).from(customers).where(eq(customers.id, je.sourceId)).limit(1);
-        if (c) chain.push({ type: 'customer', id: je.sourceId, label: c.name, summary: 'Customer (Opening Balance)', date: null, status: null, url: `/ar/customers/${je.sourceId}` });
+        if (c) chain.push({ type: 'customer', id: je.sourceId, label: c.name, summary: 'Customer (Opening Balance)', date: null, status: null, url: `/finance/ar/customers/${je.sourceId}` });
         // Find the OB invoice
         const [obInv] = await this.db.select({ id: salesInvoices.id, num: salesInvoices.invoiceNumber, amt: salesInvoices.totalAmount, date: salesInvoices.invoiceDate, status: salesInvoices.status })
           .from(salesInvoices).where(and(eq(salesInvoices.customerId, je.sourceId), eq(salesInvoices.tenantId, this.tenantId), sql`${salesInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
-        if (obInv) chain.push({ type: 'sales_invoice', id: obInv.id, label: obInv.num, summary: `₹${toNumber(obInv.amt).toLocaleString('en-IN')}`, date: obInv.date, status: obInv.status, url: `/ar/invoices/${obInv.id}` });
+        if (obInv) chain.push({ type: 'sales_invoice', id: obInv.id, label: obInv.num, summary: `₹${toNumber(obInv.amt).toLocaleString('en-IN')}`, date: obInv.date, status: obInv.status, url: `/finance/ar/invoices/${obInv.id}` });
       } else if (je.sourceType === 'opening_balance_ap') {
         // sourceId is a vendor ID
         const [v] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, je.sourceId)).limit(1);
-        if (v) chain.push({ type: 'vendor', id: je.sourceId, label: v.name, summary: 'Vendor (Opening Balance)', date: null, status: null, url: `/ap/vendors/${je.sourceId}` });
+        if (v) chain.push({ type: 'vendor', id: je.sourceId, label: v.name, summary: 'Vendor (Opening Balance)', date: null, status: null, url: `/finance/ap/vendors/${je.sourceId}` });
         // Find the OB bill
         const [obBill] = await this.db.select().from(purchaseInvoices).where(and(eq(purchaseInvoices.vendorId, je.sourceId), eq(purchaseInvoices.tenantId, this.tenantId), sql`${purchaseInvoices.invoiceNumber} LIKE 'OB-%'`)).limit(1);
         if (obBill) { const [vn] = await this.db.select({ name: vendors.name }).from(vendors).where(eq(vendors.id, obBill.vendorId)).limit(1); chain.push(this.billNode(obBill, vn?.name ?? 'Unknown')); }
@@ -453,7 +453,7 @@ export class TrailService {
     return [{
       type: 'payment', id: paymentId, label: `Payment to ${v?.name ?? 'Unknown'}`,
       summary: formatINR(toNumber(pay.amount)), date: pay.paymentDate, status: pay.status,
-      url: `/ap/payments/${paymentId}`,
+      url: `/finance/ap/payments/${paymentId}`,
     }];
   }
 
@@ -465,7 +465,7 @@ export class TrailService {
     const nodes: TrailNode[] = [{
       type: 'receipt', id: receiptId, label: `Receipt from ${c?.name ?? 'Unknown'}`,
       summary: formatINR(toNumber(rec.amount)), date: rec.receiptDate, status: null,
-      url: `/ar/receipts/${receiptId}`,
+      url: `/finance/ar/receipts/${receiptId}`,
     }];
 
     // Surface the invoices this receipt was actually allocated against so the
@@ -490,7 +490,7 @@ export class TrailService {
       nodes.push({
         type: 'sales_invoice', id: a.invoiceId, label: a.num,
         summary: `${formatINR(toNumber(a.allocAmount))} allocated · ₹${toNumber(a.bal).toLocaleString('en-IN')} due of ₹${toNumber(a.amt).toLocaleString('en-IN')}`,
-        date: a.date, status: a.status, url: `/ar/invoices/${a.invoiceId}`,
+        date: a.date, status: a.status, url: `/finance/ar/invoices/${a.invoiceId}`,
       });
     }
     return nodes;
@@ -523,7 +523,7 @@ export class TrailService {
     return jes.map((je) => ({
       type: 'journal_entry' as const, id: je.id, label: je.entryNumber,
       summary: `${formatINR(toNumber(je.totalDebit))} — ${je.description}`,
-      date: je.date, status: je.status, url: `/gl/journal-entries/${je.id}`,
+      date: je.date, status: je.status, url: `/finance/gl/journal-entries/${je.id}`,
     }));
   }
 
@@ -534,7 +534,7 @@ export class TrailService {
       label: txn.narration?.slice(0, 60) ?? 'Bank Transaction',
       summary: `${formatINR(amt)} · ${txn.type === 'credit' ? 'Credit' : 'Debit'}`,
       date: txn.transactionDate, status: txn.reconStatus,
-      url: `/banking/transactions`,
+      url: `/finance/banking/transactions`,
     };
   }
 
@@ -542,7 +542,7 @@ export class TrailService {
     return {
       type: 'purchase_invoice', id: bill.id, label: bill.invoiceNumber,
       summary: `${formatINR(toNumber(bill.totalAmount))} from ${vendorName}`,
-      date: bill.invoiceDate, status: bill.status, url: `/ap/bills/${bill.id}`,
+      date: bill.invoiceDate, status: bill.status, url: `/finance/ap/bills/${bill.id}`,
     };
   }
 
