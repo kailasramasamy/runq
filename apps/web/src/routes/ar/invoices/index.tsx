@@ -148,12 +148,19 @@ export function InvoiceListPage() {
       if (search) exportParams.set('search', search);
       if (dateFrom) exportParams.set('dateFrom', dateFrom);
       if (dateTo) exportParams.set('dateTo', dateTo);
-      exportParams.set('limit', '10000');
-      const qs = exportParams.toString();
-      const res = await api.get<PaginatedResponse<SalesInvoiceWithDetails>>(
-        `/ar/invoices${qs ? `?${qs}` : ''}`,
-      );
-      const all = res.data;
+      exportParams.set('limit', '500');
+      const all: SalesInvoiceWithDetails[] = [];
+      let page = 1;
+      while (true) {
+        exportParams.set('page', String(page));
+        const res = await api.get<PaginatedResponse<SalesInvoiceWithDetails>>(
+          `/ar/invoices?${exportParams.toString()}`,
+        );
+        all.push(...res.data);
+        const totalPages = res.meta?.totalPages ?? 1;
+        if (page >= totalPages) break;
+        page += 1;
+      }
       downloadCSV(
         'invoices.csv',
         ['Invoice #', 'Nickname', 'Customer', 'Date', 'Due Date', 'PO #', 'Amount', 'Received', 'Balance', 'Status'],
