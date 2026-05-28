@@ -345,7 +345,7 @@ function PortalLinkCard({ customerId, nickname }: { customerId: string; nickname
   const [copied, setCopied] = useState(false);
 
   function buildUrl(slug: string) {
-    return `${window.location.origin}${import.meta.env.BASE_URL}portal/s/${slug}`;
+    return `${window.location.origin}/portal/s/${slug}`;
   }
 
   const generateToken = useMutation({
