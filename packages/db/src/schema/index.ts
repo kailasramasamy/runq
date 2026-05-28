@@ -13,6 +13,7 @@ export * from './ap/payments';
 export * from './ap/payment-runs';
 export * from './ap/debit-notes';
 export * from './ap/vendor-catalog-items';
+export * from './purchase/purchase-orders';
 export * from './ar/customers';
 export * from './ar/invoices';
 export * from './ar/receipts';

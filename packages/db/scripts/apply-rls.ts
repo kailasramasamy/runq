@@ -46,12 +46,13 @@ async function createRole(client: Client): Promise<void> {
 }
 
 /**
- * Existence-filtered table list. Earlier versions of `RLS_TABLES` have
+ * Existence-filtered table list. Earlier versions of the policy list have
  * referenced tables that were later dropped (e.g. `vendor_bill_item_aliases`
  * was retired by migration 0116). The grant/policy loops would crash on
  * the first missing table and abort the whole transaction, taking the API
  * boot with it. Filter to actually-present tables up front so a stale
- * entry degrades to a one-time warning instead of an outage.
+ * entry in `RLS_TABLES` degrades to a one-time warning instead of an
+ * outage.
  */
 async function existingRlsTables(client: Client): Promise<string[]> {
   if (RLS_TABLES.length === 0) return [];
@@ -97,8 +98,8 @@ async function applyRLS(client: Client, tables: string[]): Promise<void> {
   }
 
   // generateRLSSQL() emits ALTER TABLE ... ENABLE RLS and CREATE POLICY
-  // for every table in RLS_TABLES. Strip out blocks for absent tables so
-  // a stale entry doesn't blow up the whole apply.
+  // for every table in RLS_TABLES. We filter the SQL output to only the
+  // statements for tables that exist.
   const sql = generateRLSSQL();
   const filtered = filterRlsSqlToPresentTables(sql, tables);
   await client.query(filtered);
@@ -172,7 +173,7 @@ async function main(): Promise<void> {
 
     // Resolve which tables actually exist before issuing GRANTs / policy
     // statements. Stale entries in RLS_TABLES (from dropped tables) used
-    // to crash prod boot — see migration 0116.
+    // to crash prod boot — see commit history for migration 0116.
     const presentTables = await existingRlsTables(client);
 
     console.log('\n[2/4] Granting permissions...');

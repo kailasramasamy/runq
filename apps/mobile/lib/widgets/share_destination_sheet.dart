@@ -13,6 +13,11 @@ enum ShareDestination {
   /// inbox; line items DO get matched against items master (catalogue of
   /// products we sell).
   customerPo,
+
+  /// Vendor invoice that's already tied to a known open PO of ours.
+  /// Routes to a "pick an open PO" picker, then into the scan-receive
+  /// flow so we post a combined GRN + Bill in one shot.
+  receiveAgainstPo,
 }
 
 /// Bottom sheet shown when the user shares a file from another app
@@ -78,6 +83,13 @@ class _Sheet extends StatelessWidget {
               title: 'Customer PO',
               subtitle: 'Purchase order from a customer — generates a sales invoice',
               onTap: () => Navigator.pop(context, ShareDestination.customerPo),
+            ),
+            _Tile(
+              icon: Icons.local_shipping_outlined,
+              tint: const Color(0xFF7C3AED),
+              title: 'Receive against PO',
+              subtitle: "Vendor's invoice for an open PO — posts GRN + bill",
+              onTap: () => Navigator.pop(context, ShareDestination.receiveAgainstPo),
             ),
             const SizedBox(height: 4),
             TextButton(

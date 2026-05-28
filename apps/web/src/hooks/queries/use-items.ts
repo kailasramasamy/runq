@@ -66,6 +66,13 @@ export interface Item {
   // Industry-specific attributes keyed by the tenant's attribute schema.
   attributes: Record<string, unknown> | null;
   cogmBreakdown: CogmComponent[] | null;
+  // Tracking flags surfaced on the item form so dairy/FMCG can be set up
+  // correctly. Persisted by the server; nullish when an older API hasn't
+  // started returning them yet.
+  trackInventory?: boolean;
+  trackBatches?: boolean;
+  trackExpiry?: boolean;
+  trackSerials?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -1,11 +1,14 @@
 export * from './tenant';
 export * from './auth';
 export * from './ap/vendor';
-export * from './ap/purchase-order';
+// Legacy ap/purchase-order (WMS-integration shape) is no longer re-exported
+// — superseded by ./purchase/po below. Direct path import still works for
+// any consumer that needs the legacy shape.
 export * from './ap/purchase-invoice';
 export * from './ap/payment';
 export * from './ap/debit-note';
 export * from './ap/three-way-match';
+export * from './purchase/po';
 export * from './ar/customer';
 export * from './ar/invoice';
 export * from './ar/invoice-import';

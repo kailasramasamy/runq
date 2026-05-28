@@ -109,8 +109,12 @@ class _VendorPickerScreenState extends State<VendorPickerScreen> {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Scaffold(
-      backgroundColor: t.bgWarmer,
+      backgroundColor: t.surface,
       appBar: AppBar(
+        backgroundColor: t.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         title: const Text('Pick vendor'),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),

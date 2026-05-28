@@ -91,7 +91,8 @@ button:not(:disabled),
 /* Module accents. Scoped via data-module on <html> so the sidebar, topbar
    and every page inherit them. Finance keeps indigo (default), HR is teal,
    Inventory is amber — chosen for the "physical stock / warehouse floor"
-   association and to stay visually distinct from indigo + teal. */
+   association and to stay visually distinct from indigo + teal. Purchase
+   is violet — mirrors mobile PurColors (#7C3AED, Tailwind violet-600). */
 [data-module="hr"] {
   --accent: oklch(0.58 0.1 195);
   --accent-soft: oklch(0.95 0.03 195);
@@ -112,6 +113,17 @@ button:not(:disabled),
   --accent: oklch(0.78 0.16 60);
   --accent-soft: oklch(0.32 0.07 60);
   --accent-text: oklch(0.82 0.14 60);
+}
+
+[data-module="purchase"] {
+  --accent: oklch(0.55 0.22 293);
+  --accent-soft: oklch(0.96 0.03 293);
+  --accent-text: oklch(0.46 0.2 293);
+}
+.dark[data-module="purchase"] {
+  --accent: oklch(0.72 0.18 293);
+  --accent-soft: oklch(0.3 0.07 293);
+  --accent-text: oklch(0.8 0.15 293);
 }
 
 body {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { ArrowLeft, Calculator, Copy } from 'lucide-react';
 import {
   PageHeader,
@@ -36,9 +36,17 @@ export function ItemEditPage({
   // Prefer browser-history back so the list's URL-backed search/page filter
   // is preserved when returning from edit. Fall back to the bare list when
   // edit was opened directly (e.g. from a deep link).
+  // List path is module-prefix aware so deep-linking into /purchase/items/new
+  // (no browser history) doesn't bounce the user to Finance after save.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const listPath = pathname.startsWith('/inventory')
+    ? '/inventory/items'
+    : pathname.startsWith('/purchase')
+      ? '/purchase/items'
+      : '/finance/masters/items';
   const goBack = () => {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/finance/masters/items' });
+    else navigate({ to: listPath });
   };
 
   async function handleDelete() {

@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql, ilike, gte, lte, count } from 'drizzl
 import type { Db } from '@runq/db';
 import {
   inventoryGrns, inventoryGrnLines, items, warehouses, vendors,
-  inventorySerials, purchaseOrders,
+  inventorySerials, purchaseOrders, vendorCatalogItems,
 } from '@runq/db';
 import type {
   CreateGrnInput, UpdateGrnInput, GrnFilter, CancelGrnInput,
@@ -105,15 +105,22 @@ export class GrnService {
       .limit(1);
     if (!row) throw new NotFoundError('GRN');
 
+    // PP catalog-receive: a GRN line points to either items master (stocked
+    // direct receipts + bill-inline) or vendor_catalog_items (PO receives of
+    // catalog-only consumables). LEFT-join both and COALESCE the display name
+    // so the detail page renders something useful either way.
     const lines = await this.ctx.db
       .select({
         line: inventoryGrnLines,
         itemName: items.name,
         itemSku: items.sku,
         trackBatches: items.trackBatches,
+        catalogDescription: vendorCatalogItems.description,
+        catalogHsn: vendorCatalogItems.hsnSacCode,
       })
       .from(inventoryGrnLines)
-      .innerJoin(items, eq(items.id, inventoryGrnLines.itemId))
+      .leftJoin(items, eq(items.id, inventoryGrnLines.itemId))
+      .leftJoin(vendorCatalogItems, eq(vendorCatalogItems.id, inventoryGrnLines.catalogItemId))
       .where(eq(inventoryGrnLines.grnId, id))
       .orderBy(asc(inventoryGrnLines.id));
 
@@ -121,7 +128,12 @@ export class GrnService {
       ...row.grn,
       vendorName: row.vendorName,
       warehouseName: row.warehouseName,
-      lines: lines.map((l) => ({ ...l.line, itemName: l.itemName, itemSku: l.itemSku, trackBatches: l.trackBatches })),
+      lines: lines.map((l) => ({
+        ...l.line,
+        itemName: l.itemName ?? l.catalogDescription ?? '—',
+        itemSku: l.itemSku ?? l.catalogHsn ?? null,
+        trackBatches: l.trackBatches ?? false,
+      })),
     };
   }
 
@@ -251,6 +263,12 @@ export class GrnService {
       for (const line of lines) {
         const qty = Number(line.qty);
         const unitCost = Number(line.unitRate) + Number(line.landedCostPerUnit);
+        // Legacy GRN post path always writes item_id (CHECK constraint
+        // ensures exactly one of item_id/catalog_item_id is set). Catalog-
+        // only PO receives bypass this method via ReceiveService.
+        if (!line.itemId) {
+          throw new AppError(400, 'Cannot post a GRN line without an inventory item');
+        }
         await ledger.recordMovement(tx, {
           itemId: line.itemId,
           warehouseId: grn.warehouseId,
@@ -280,7 +298,7 @@ export class GrnService {
           await tx.insert(inventorySerials).values(
             serials.map((sn) => ({
               tenantId: this.ctx.tenantId,
-              itemId: line.itemId,
+              itemId: line.itemId!,
               serialNo: sn,
               currentWarehouseId: grn.warehouseId,
               currentStatus: 'in_stock' as const,
@@ -353,6 +371,12 @@ export class GrnService {
       for (const line of lines) {
         const qty = Number(line.qty);
         const cost = Number(line.unitRate) + Number(line.landedCostPerUnit);
+        // Catalog-only lines never touched stock; skip the reversal movement
+        // for them. The single GRN-level JE reversal still flips both Dr legs.
+        if (!line.itemId) {
+          total += qty * cost;
+          continue;
+        }
         await ledger.recordMovement(tx, {
           itemId: line.itemId,
           warehouseId: grn.warehouseId,

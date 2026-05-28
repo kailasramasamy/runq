@@ -66,7 +66,16 @@ export function ItemsPage() {
   // tree in both spots; we detect which root we're on so internal nav
   // (edit / new / import / analysis) keeps the user in the same module.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const itemsBase = pathname.startsWith('/inventory') ? '/inventory/items' : '/finance/masters/items';
+  const itemsBase = pathname.startsWith('/inventory')
+    ? '/inventory/items'
+    : pathname.startsWith('/purchase')
+      ? '/purchase/items'
+      : '/finance/masters/items';
+  // Default tab varies by module so each ops surface lands on what's relevant:
+  // Purchase users care about inputs (raw material, packaging); finance/sales
+  // users default to finished. Explicit ?classGroup in the URL still wins.
+  const moduleDefaultClassGroup: ItemClassGroup = pathname.startsWith('/purchase')
+    ? 'inputs' : 'finished';
   // Search + page are URL-backed so navigating to edit and back preserves
   // the filtered list. The previous local-state implementation reset on
   // every route change.
@@ -86,7 +95,7 @@ export function ItemsPage() {
     params.classGroup === 'all'
       ? params.classGroup
       : null;
-  const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup('finished', counts);
+  const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup(moduleDefaultClassGroup, counts);
 
   // Wrap navigate in a loose-typed shim. The router's overloads are
   // string-literal-driven, so a dynamic prefix breaks the inference for

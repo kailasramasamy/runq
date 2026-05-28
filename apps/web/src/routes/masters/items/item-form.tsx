@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calculator, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Select, Textarea, Combobox, useToast } from '@/components/ui';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
@@ -112,6 +112,45 @@ export function ItemForm({
   const setAttribute = (key: string, value: unknown) =>
     setAttributes((prev) => ({ ...prev, [key]: value }));
 
+  // Tracking flags — class-driven defaults so dairy/FMCG raw materials land
+  // with batch + expiry tracking pre-checked. User can override per item.
+  // Mirrors apps/api/src/modules/masters/item.service.ts CLASS_TRACKING_DEFAULTS.
+  const trackingDefaultsFor = (cls: ItemClass | ''): {
+    trackInventory: boolean; trackBatches: boolean; trackExpiry: boolean; trackSerials: boolean;
+  } => {
+    if (!cls) return { trackInventory: true, trackBatches: false, trackExpiry: false, trackSerials: false };
+    const batchesExpiry = ['raw_material', 'finished_good', 'semi_finished'].includes(cls);
+    return { trackInventory: true, trackBatches: batchesExpiry, trackExpiry: batchesExpiry, trackSerials: false };
+  };
+  const initialTracking = source
+    ? {
+        trackInventory: source.trackInventory ?? true,
+        trackBatches: source.trackBatches ?? false,
+        trackExpiry: source.trackExpiry ?? false,
+        trackSerials: source.trackSerials ?? false,
+      }
+    : trackingDefaultsFor('');
+  const [trackInventory, setTrackInventory] = useState(initialTracking.trackInventory);
+  const [trackBatches, setTrackBatches] = useState(initialTracking.trackBatches);
+  const [trackExpiry, setTrackExpiry] = useState(initialTracking.trackExpiry);
+  const [trackSerials, setTrackSerials] = useState(initialTracking.trackSerials);
+  // Track whether the user has manually toggled any flag — if so, class
+  // changes stop overwriting their choices. Without this, picking "Raw
+  // material" and then unchecking Expiry would silently re-check on the
+  // next unrelated field edit triggering a re-render.
+  const [trackingTouched, setTrackingTouched] = useState(isEdit);
+
+  // Re-apply defaults when the class changes, unless the user has already
+  // touched the checkboxes manually.
+  useEffect(() => {
+    if (trackingTouched) return;
+    const d = trackingDefaultsFor(itemClass);
+    setTrackInventory(d.trackInventory);
+    setTrackBatches(d.trackBatches);
+    setTrackExpiry(d.trackExpiry);
+    setTrackSerials(d.trackSerials);
+  }, [itemClass, trackingTouched]);
+
   // Classification
   const [category, setCategory] = useState(source?.category ?? '');
   const [subcategory, setSubcategory] = useState(source?.subcategory ?? '');
@@ -196,6 +235,11 @@ export function ItemForm({
       category: category || null,
       subcategory: subcategory || null,
       description: description || null,
+      // Tracking flags. Services skip them — items table CHECK / queries
+      // don't read them for type='service'.
+      ...(type === 'product'
+        ? { trackInventory, trackBatches, trackExpiry, trackSerials }
+        : {}),
       // Carry the source's COGM breakdown into the new item when duplicating,
       // so variants inherit the cost build-up. NEVER include in the edit
       // payload — the form doesn't manage breakdowns, so sending undefined
@@ -361,6 +405,46 @@ export function ItemForm({
                 onChange={(v) => setAttribute(field.key, v)}
               />
             ))}
+          </div>
+        </fieldset>
+      )}
+
+      {/* Tracking — only meaningful for products. Defaults are derived from
+          the item class above so dairy raw-material lands with batch + expiry
+          pre-checked; user can override per item. */}
+      {type === 'product' && (
+        <fieldset className="space-y-3">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Tracking
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <TrackingCheckbox
+              label="Track inventory"
+              hint="Off for items that don't enter the warehouse (services, virtual SKUs)."
+              checked={trackInventory}
+              onChange={(v) => { setTrackingTouched(true); setTrackInventory(v); }}
+            />
+            <TrackingCheckbox
+              label="Track batches"
+              hint="Each receipt gets a batch number (driver for FEFO on dairy, FMCG)."
+              checked={trackBatches}
+              onChange={(v) => { setTrackingTouched(true); setTrackBatches(v); }}
+              disabled={!trackInventory}
+            />
+            <TrackingCheckbox
+              label="Track expiry"
+              hint="Capture expiry per batch — needed for perishables."
+              checked={trackExpiry}
+              onChange={(v) => { setTrackingTouched(true); setTrackExpiry(v); }}
+              disabled={!trackInventory}
+            />
+            <TrackingCheckbox
+              label="Track serials"
+              hint="Per-unit serial numbers — appliances, electronics, high-value spares."
+              checked={trackSerials}
+              onChange={(v) => { setTrackingTouched(true); setTrackSerials(v); }}
+              disabled={!trackInventory}
+            />
           </div>
         </fieldset>
       )}
@@ -580,4 +664,27 @@ function normalizeAttributesForSubmit(
     out[field.key] = v;
   }
   return Object.keys(out).length > 0 ? out : null;
+}
+
+function TrackingCheckbox({
+  label, hint, checked, onChange, disabled,
+}: {
+  label: string; hint: string; checked: boolean; disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className={`flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 p-2.5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700 ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="flex flex-col gap-0.5">
+        <span className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100">{label}</span>
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</span>
+      </span>
+    </label>
+  );
 }

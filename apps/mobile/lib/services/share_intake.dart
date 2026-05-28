@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../router.dart';
+import '../widgets/open_po_picker_sheet.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/share_destination_sheet.dart';
 import 'po_intake.dart';
@@ -87,6 +88,16 @@ class _ShareIntakeHostState extends State<ShareIntakeHost> {
           break;
         case ShareDestination.customerPo:
           openPoProcessing(ctx, file, source: 'share_sheet');
+          break;
+        case ShareDestination.receiveAgainstPo:
+          // Compress images the same way the bill flow does — the scan
+          // endpoint accepts both PDF and JPEG, so this just keeps
+          // uploads small.
+          final prepared = await _prepareForBill(ctx, file);
+          if (!ctx.mounted || prepared == null) return;
+          final poId = await showOpenPoPickerSheet(ctx);
+          if (poId == null || !ctx.mounted) return;
+          ctx.push('/purchase/pos/$poId/scan-receive', extra: prepared);
           break;
       }
     });

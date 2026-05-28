@@ -1087,6 +1087,10 @@ export class PurchaseInvoiceService {
       warehouseId: row.warehouseId ?? null,
       goodsReceived: row.goodsReceived,
       linkedInventoryGrnId: row.linkedInventoryGrnId ?? null,
+      matchedPoId: row.matchedPoId ?? null,
+      matchOverrideReason: row.matchOverrideReason ?? null,
+      matchOverrideBy: row.matchOverrideBy ?? null,
+      matchCommittedAt: row.matchCommittedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

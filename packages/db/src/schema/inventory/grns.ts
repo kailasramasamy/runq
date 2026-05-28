@@ -1,9 +1,11 @@
 import {
-  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex, jsonb,
+  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex, jsonb, boolean,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from '../ap/vendors';
 import { purchaseInvoices } from '../ap/purchase-invoices';
+import { vendorCatalogItems } from '../ap/vendor-catalog-items';
+import { purchaseOrdersV2, purchaseOrderLinesV2 } from '../purchase/purchase-orders';
 import { items } from '../masters/items';
 import { warehouses } from './warehouses';
 
@@ -20,6 +22,9 @@ export const inventoryGrnStatusEnum = pgEnum('inventory_grn_status', [
  */
 export const inventoryGrnSourceEnum = pgEnum('inventory_grn_source', [
   'po', 'bill', 'direct',
+  // PP Phase 5: scan-vendor-invoice-on-receive. po_id AND bill_id both set,
+  // single combined Dr Inventory / Cr AP-Vendor JE (no GRNI gap).
+  'po_with_bill',
 ]);
 
 /**
@@ -38,7 +43,8 @@ export const inventoryGrns = pgTable(
     vendorId: uuid('vendor_id').references(() => vendors.id),
     // AP Pattern-B: bill linkage now has a real FK (migration 0114).
     billId: uuid('bill_id').references(() => purchaseInvoices.id),
-    poId: uuid('po_id'),
+    // PP Phase 2: FK to purchase_orders_v2 (migration 0118).
+    poId: uuid('po_id').references(() => purchaseOrdersV2.id),
     // AP Pattern-B: discriminator + CHECK enforce that exactly one of
     // (po_id, bill_id) matches `source`. Existing rows backfilled by 0114.
     source: inventoryGrnSourceEnum('source').notNull().default('direct'),
@@ -69,7 +75,12 @@ export const inventoryGrnLines = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
     grnId: uuid('grn_id').notNull().references(() => inventoryGrns.id, { onDelete: 'cascade' }),
-    itemId: uuid('item_id').notNull().references(() => items.id),
+    // PP catalog-receive (migration 0120): exactly one of (item_id, catalog_item_id)
+    // is set, enforced by inv_grn_lines_item_or_catalog CHECK. Direct receipts
+    // + bill-inline GRNs write item_id; PO receives write catalog_item_id and
+    // only populate item_id when the catalog row has an inventory bridge.
+    itemId: uuid('item_id').references(() => items.id),
+    catalogItemId: uuid('catalog_item_id').references(() => vendorCatalogItems.id),
     batchNo: varchar('batch_no', { length: 60 }),
     mfgDate: date('mfg_date'),
     expiryDate: date('expiry_date'),
@@ -83,9 +94,20 @@ export const inventoryGrnLines = pgTable(
     // time. Inserted into inventory_serials on GRN post. Length must
     // equal qty (enforced at API validation layer).
     serialNos: jsonb('serial_nos').$type<string[]>(),
+    // PP Phase 2 (migration 0118): when receiving against a PO, this links
+    // the GRN line back to the specific PO line it fulfils. Drives the
+    // qty_received counter + PO status auto-transition.
+    poLineId: uuid('po_line_id').references(() => purchaseOrderLinesV2.id),
+    // PP Phase 5: variance snapshot from scan-on-receive. po_unit_rate and
+    // po_qty_ordered are captured at receive time (NULL for non-PO GRNs and
+    // off-PO lines). is_off_po flags vendor lines with no matching PO line.
+    isOffPo: boolean('is_off_po').notNull().default(false),
+    poUnitRate: decimal('po_unit_rate', { precision: 18, scale: 2 }),
+    poQtyOrdered: decimal('po_qty_ordered', { precision: 18, scale: 3 }),
   },
   (t) => [
     index('idx_inv_grn_lines_grn').on(t.grnId),
     index('idx_inv_grn_lines_item').on(t.tenantId, t.itemId),
+    index('idx_inv_grn_lines_catalog').on(t.tenantId, t.catalogItemId),
   ],
 );

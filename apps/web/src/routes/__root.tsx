@@ -28,6 +28,14 @@ import { ImportVendorsPage } from './ap/vendors/import';
 import { DebitNoteListPage } from './ap/debit-notes/index';
 import { NewDebitNotePage } from './ap/debit-notes/new';
 import { DebitNoteDetailPage } from './ap/debit-notes/detail';
+import { PurchaseOrderListPage } from './purchase/pos/index';
+import { NewPurchaseOrderPage } from './purchase/pos/new';
+import { PurchaseOrderDetailPage } from './purchase/pos/detail';
+import { EditPurchaseOrderPage } from './purchase/pos/edit';
+import { ReceiveAgainstPoPage } from './purchase/pos/receive';
+import { DirectReceiptListPage } from './purchase/direct/index';
+import { NewDirectReceiptPage } from './purchase/direct/new';
+import { PurchaseDashboardPage } from './purchase/index';
 import { BillListPage } from './ap/bills/index';
 import { NewBillPage } from './ap/bills/new';
 import { BillDetailPage } from './ap/bills/detail';
@@ -294,7 +302,9 @@ function DashboardLayout() {
       ? 'hr'
       : pathname === '/inventory' || pathname.startsWith('/inventory/')
         ? 'inventory'
-        : 'finance';
+        : pathname === '/purchase' || pathname.startsWith('/purchase/')
+          ? 'purchase'
+          : 'finance';
   // Set on <html> rather than a layout div so portalled dropdowns and modals
   // (rendered outside the layout subtree) still inherit the module accent.
   useEffect(() => {
@@ -568,6 +578,139 @@ const debitNoteDetailRoute = createRoute({
   component: () => {
     const { debitNoteId } = debitNoteDetailRoute.useParams();
     return <DebitNoteDetailPage debitNoteId={debitNoteId} />;
+  },
+});
+
+// ─── Purchase & Procurement Routes ───────────────────────────────────────────
+// PP Phase 1 — PO core only. Receive, match, direct-receipt, PR, reports,
+// and home dashboard land in later phases. See docs/purchase-procurement-plan.md.
+
+// Hoisted to dashboardLayoutRoute so /purchase is a top-level module
+// (mirrors /finance, /hr, /inventory) and the module switcher can land
+// on it directly. Same role gating as Finance — procurement users are
+// the owner/accountant/client_owner set.
+const purchaseRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/purchase',
+  component: FinanceModuleGuard,
+});
+
+const purchaseIndexRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/',
+  component: PurchaseDashboardPage,
+});
+
+const purchaseOrderListRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/pos',
+  component: PurchaseOrderListPage,
+});
+
+const purchaseOrderNewRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/pos/new',
+  component: NewPurchaseOrderPage,
+});
+
+const purchaseOrderDetailRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/pos/$poId',
+  component: () => {
+    const { poId } = purchaseOrderDetailRoute.useParams();
+    return <PurchaseOrderDetailPage poId={poId} />;
+  },
+});
+
+const purchaseOrderEditRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/pos/$poId/edit',
+  component: () => {
+    const { poId } = purchaseOrderEditRoute.useParams();
+    return <EditPurchaseOrderPage poId={poId} />;
+  },
+});
+
+// PP Phase 2 — receive flow
+const purchaseOrderReceiveRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/pos/$poId/receive',
+  component: () => {
+    const { poId } = purchaseOrderReceiveRoute.useParams();
+    return <ReceiveAgainstPoPage poId={poId} />;
+  },
+});
+
+// PP Phase 4 — Direct Receipt (memo qty entry, no JE)
+const directReceiptListRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/direct',
+  component: DirectReceiptListPage,
+});
+
+const directReceiptNewRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/direct/new',
+  component: NewDirectReceiptPage,
+});
+
+// Items master mirror — Purchase users live in raw-materials / packaging
+// (catalog growth happens here as they receive stock). Same ItemsPage as
+// finance + inventory, just mounted with a /purchase prefix so the active
+// module + sidebar stay correct. The page defaults to the Inputs tab when
+// rendered under /purchase.
+const purchaseItemsRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/items',
+  component: ItemsPage,
+});
+const purchaseItemsNewRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/items/new',
+  validateSearch: (search: Record<string, unknown>): { duplicateOf?: string } => ({
+    duplicateOf: typeof search.duplicateOf === 'string' ? search.duplicateOf : undefined,
+  }),
+  component: () => {
+    const { duplicateOf } = purchaseItemsNewRoute.useSearch();
+    return <ItemEditPage duplicateOf={duplicateOf} />;
+  },
+});
+const purchaseItemsEditRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/items/$itemId/edit',
+  component: () => {
+    const { itemId } = purchaseItemsEditRoute.useParams();
+    return <ItemEditPage itemId={itemId} />;
+  },
+});
+
+// Purchase-scoped vendor pages reuse AP components but keep the user inside
+// the Purchase module. Navigation inside those components is prefix-aware
+// (see apps/web/src/lib/vendor-nav.ts).
+const purchaseVendorListRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/vendors',
+  component: VendorListPage,
+});
+
+const purchaseVendorNewRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/vendors/new',
+  component: NewVendorPage,
+});
+
+const purchaseVendorImportRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/vendors/import',
+  component: ImportVendorsPage,
+});
+
+const purchaseVendorDetailRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/vendors/$vendorId',
+  component: () => {
+    const { vendorId } = purchaseVendorDetailRoute.useParams();
+    return <VendorDetailPage vendorId={vendorId} />;
   },
 });
 
@@ -2417,6 +2560,23 @@ export const routeTree = rootRoute.addChildren([
       settingsTallyImportRoute,
       settingsWebhooksRoute,
       settingsOpeningBalancesRoute,
+    ]),
+    purchaseRoute.addChildren([
+      purchaseIndexRoute,
+      purchaseOrderListRoute,
+      purchaseOrderNewRoute,
+      purchaseOrderDetailRoute,
+      purchaseOrderEditRoute,
+      purchaseOrderReceiveRoute,
+      directReceiptListRoute,
+      directReceiptNewRoute,
+      purchaseItemsRoute,
+      purchaseItemsNewRoute,
+      purchaseItemsEditRoute,
+      purchaseVendorListRoute,
+      purchaseVendorNewRoute,
+      purchaseVendorImportRoute,
+      purchaseVendorDetailRoute,
     ]),
     inventoryRoute.addChildren([
       inventoryIndexRoute,
