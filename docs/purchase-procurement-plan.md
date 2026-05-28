@@ -591,7 +591,14 @@ The module is **not** done until all of these pass.
 - Source `'direct'` discriminator wiring complete.
 - Validate that ops module's milk sync can switch to this path (instead of inventory-adjustment).
 
-### Phase 5 — PR + reports + polish (Week 5–6)
+### Phase 5 — PR + reports + polish (Week 5–6) — **SKIPPED for v1 (2026-05-28)**
+
+> Status: Deferred indefinitely. The PP module ships at end-of-Phase-4 plus the
+> scan-receive sub-feature (which landed on `feat/pp-phase-1`). See
+> `docs/purchase-procurement-tracker.md` → "Phase 5+ — skipped for v1" for the full
+> breakdown of what's skipped and what already shipped from this bucket.
+
+Originally scoped:
 - PR schema + API + screens (behind `tenant_features.pr_enabled` flag; off by default for Vrindavan v1).
 - Reports: open PO ageing, PO-vs-actual, vendor SLA, GRN-without-bill, catalog rate trends.
 - PP dashboard endpoint + home screen KPIs.

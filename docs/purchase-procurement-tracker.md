@@ -1,7 +1,9 @@
 # Purchase & Procurement — Build Tracker
 
 Live progress for the PP module. Plan: `docs/purchase-procurement-plan.md`.
-Branch: `feat/pp-phase-1`. Started 2026-05-26.
+Branch: `feat/pp-phase-1` (merged to `main` 2026-05-28 via `f7ff442`). Started 2026-05-26.
+
+**Status:** Phases 1–4 + the Phase-5 scan-receive sub-feature shipped. **The rest of Phase 5 (PR module, reports, dashboard endpoint, polish bucket) is skipped for v1** — see the "Phase 5+ skipped" section at the bottom. Phase 6 remains deferred per the original plan.
 
 Hard prereq: AP Pattern-B foundation — **shipped to main** (commit `28682e1`).
 
@@ -155,9 +157,47 @@ Memo path for "qty in without bill". Vrindavan: daily milk arrivals while Milk P
 - **Bulk / CSV import** — Phase 5 polish.
 - **Forward-compat to Milk Procurement** — `inventory_grns.milk_procurement_id` adds in that module; direct rows stay as `source='direct'`.
 
-## Phase 5+ (out of scope for this branch, links forward)
+## Phase 5+ — skipped for v1 (2026-05-28)
 
-Per plan §12: PR + reports + polish (Week 5–6).
+Decision: ship the PP module at end-of-Phase-4 + the scan-receive sub-feature (which already
+landed on the `feat/pp-phase-1` branch as part of the AI invoice → GRN + Bill + JE flow).
+The remainder of Phase 5 is parked and will be picked up only when there is a concrete user
+ask.
+
+### Skipped from Phase 5 (per plan §12)
+
+- **PR module** — `purchase_requisitions` + `purchase_requisition_items` schema, API, web +
+  mobile screens. Was always behind `tenant_features.pr_enabled` and off by default for
+  Vrindavan v1, so skipping costs nothing for the current ICP.
+- **Reports** — open-PO ageing, PO-vs-actual, vendor SLA, GRN-without-bill, catalog rate
+  trends. The data is all in place; build when a tenant asks for the view.
+- **PP dashboard endpoint + home-screen KPIs** — the mobile home currently aggregates via
+  `purchaseOrderListProvider` per status bucket, which is good enough at SME write volume.
+  Promote to a single endpoint when the screen feels slow.
+- **Polish bucket carried forward from earlier phases:**
+  - Barcode scan for batch capture on Receive (Phase 2 deferred).
+  - Multi-warehouse split receipt (Phase 2 deferred — currently one WH per GRN).
+  - GRN edit / cancel from PO detail (Phase 2 deferred).
+  - Tenant-wide match tolerance setting, auto-close PO, line-level deltas in match preview
+    (Phase 3 deferred).
+  - CSV bulk import for Direct Receipt (Phase 4 deferred).
+  - PO email send to vendor (Phase 1 deferred — no email harness yet; the WhatsApp share
+    button on web + mobile is the de-facto vendor send path for now).
+  - Proper PO PDF template wired into the API endpoint (Phase 1's `/pdf` returns 501; the
+    Puppeteer one-off used to generate `~/Downloads/PO-2026-0002.pdf` is not yet wired in).
+  - Tenant-configurable PO number prefix (`PO-{TENANT_PREFIX}-NNNN`).
+  - Offline-tolerant Receive flow for flaky godown wifi (plan §7.1).
+  - 2–3 spacing-tuning commits on the PP home, same cadence Inventory had.
+
+### Phase 6 — still deferred (unchanged from plan §12)
+
+RFQ, multi-level PR approval chains, landed cost, vendor portal, contract management.
+
+### What did ship from "Phase 5" anyway
+
+- **Scan vendor invoice → GRN + Bill + JE** (`scan-receive` flow, mobile + web). Plus the
+  Indian-numeral-aware AI extraction prompt and the share-intake "Receive against PO"
+  destination.
 
 ## Notes
 
