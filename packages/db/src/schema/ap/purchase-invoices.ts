@@ -57,6 +57,13 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   // Drizzle .references() is intentionally omitted here to avoid a
   // circular import with inventory/grns.ts which references this table.
   linkedInventoryGrnId: uuid('linked_inventory_grn_id'),
+  // ─── PP Phase 3 — 3-way match (migration 0119) ────────────────────────
+  // FK enforced at DB by pi_matched_po_v2_fk. No Drizzle .references()
+  // here for the same circular-import reason as linkedInventoryGrnId.
+  matchedPoId: uuid('matched_po_id'),
+  matchOverrideReason: text('match_override_reason'),
+  matchOverrideBy: uuid('match_override_by').references(() => users.id),
+  matchCommittedAt: timestamp('match_committed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

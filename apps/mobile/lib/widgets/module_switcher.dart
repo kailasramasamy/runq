@@ -74,6 +74,7 @@ class _ModuleSwitcherState extends ConsumerState<ModuleSwitcher>
       AppModule.finance => isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5),
       AppModule.hr => isDark ? const Color(0xFF67E8F9) : const Color(0xFF0891B2),
       AppModule.inventory => isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+      AppModule.purchase => isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED),
     };
   }
 
@@ -246,6 +247,7 @@ class _MenuRow extends StatelessWidget {
         AppModule.finance => 'AR · AP · Banking · GST',
         AppModule.hr => 'Employees · Attendance · Payroll',
         AppModule.inventory => 'Stock · GRN · Dispatch · Reports',
+        AppModule.purchase => 'POs · Receive · 3-way Match · Direct',
       };
 
   @override

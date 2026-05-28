@@ -13,6 +13,7 @@ import {
   Badge,
   DropZone,
 } from '@/components/ui';
+import { useVendorBase } from '@/lib/vendor-nav';
 
 interface PreviewRow {
   name: string;
@@ -57,6 +58,7 @@ Gopal Sharma,9876543210,,,,,SBIN0001234,SBI,,Mathura,Uttar Pradesh,281001,raw_ma
 
 export function ImportVendorsPage() {
   const navigate = useNavigate();
+  const base = useVendorBase();
   const { toast } = useToast();
   const [step, setStep] = useState<Step>(1);
   const [csvData, setCsvData] = useState('');
@@ -211,7 +213,7 @@ export function ImportVendorsPage() {
             )}
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={() => navigate({ to: '/finance/ap/vendors' })}>View Vendors</Button>
+            <Button onClick={() => navigate({ to: base as any })}>View Vendors</Button>
           </CardFooter>
         </Card>
       )}

@@ -137,6 +137,33 @@ List<FabAction> inventoryFabActions() => [
       ),
     ];
 
+/// Action set for the Purchase & Procurement module. Mirrors the day's
+/// primary flows: place an order, receive against one, log a memo
+/// receipt (e.g. daily milk arrival).
+List<FabAction> purchaseFabActions() => [
+      FabAction(
+        icon: Icons.shopping_cart_outlined,
+        title: 'New PO',
+        sub: 'Commit to a vendor',
+        tint: const Color(0xFF7C3AED), // purchase violet
+        onTap: (ctx) => ctx.push('/purchase/pos/new'),
+      ),
+      FabAction(
+        icon: Icons.local_shipping_outlined,
+        title: 'Receive against PO',
+        sub: 'Mark goods received from an open PO',
+        tint: const Color(0xFF6D28D9),
+        onTap: (ctx) => ctx.push('/purchase/pos'),
+      ),
+      FabAction(
+        icon: Icons.add_box_outlined,
+        title: 'Direct receipt',
+        sub: 'Memo qty (milk-style; no bill yet)',
+        tint: const Color(0xFF5B21B6),
+        onTap: (ctx) => ctx.push('/purchase/direct'),
+      ),
+    ];
+
 class FabSheet extends StatelessWidget {
   final double progress;
   final VoidCallback onClose;

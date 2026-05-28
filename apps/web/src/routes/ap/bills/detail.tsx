@@ -19,6 +19,7 @@ import type { PurchaseInvoiceWithDetails } from '@runq/types';
 import { ConfirmationDialog } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
 import { DocumentTrail } from '@/components/audit/document-trail';
+import { BillMatchPanel } from '@/components/forms/bill-match-panel';
 import {
   AutoFixSidekick, ActivityTimeline, useDerivedGaps, useDerivedActivity,
 } from './detail-rail';
@@ -148,6 +149,10 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
               onDismiss={(id) => setDismissed((s) => new Set([...s, id]))}
               onFixAll={fixAll}
             />
+            {/* PP Phase 3: surfaces open POs for this vendor + lets the
+                user match (or override). Quietly self-hides when no
+                relevant POs exist + the bill isn't already matched. */}
+            <BillMatchPanel billId={invoice.id} />
             <DocumentTrailCard invoice={invoice} />
           </div>
         </div>

@@ -45,12 +45,40 @@ async function createRole(client: Client): Promise<void> {
   console.log('  Created runq_app role');
 }
 
-async function grantPermissions(client: Client): Promise<void> {
+/**
+ * Existence-filtered table list. Earlier versions of the policy list have
+ * referenced tables that were later dropped (e.g. `vendor_bill_item_aliases`
+ * was retired by migration 0116). The grant/policy loops would crash on
+ * the first missing table and abort the whole transaction, taking the API
+ * boot with it. Filter to actually-present tables up front so a stale
+ * entry in `RLS_TABLES` degrades to a one-time warning instead of an
+ * outage.
+ */
+async function existingRlsTables(client: Client): Promise<string[]> {
+  if (RLS_TABLES.length === 0) return [];
+  const { rows } = await client.query<{ table_name: string }>(
+    `SELECT table_name
+       FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = ANY($1::text[])`,
+    [RLS_TABLES],
+  );
+  const present = new Set(rows.map((r) => r.table_name));
+  const missing = RLS_TABLES.filter((t) => !present.has(t));
+  if (missing.length > 0) {
+    console.warn(
+      `  WARN: ${missing.length} table(s) in RLS_TABLES not present — skipping: ${missing.join(', ')}`,
+    );
+  }
+  return RLS_TABLES.filter((t) => present.has(t));
+}
+
+async function grantPermissions(client: Client, tables: string[]): Promise<void> {
   // Schema usage
   await client.query(`GRANT USAGE ON SCHEMA public TO runq_app`);
 
   // Table-level grants
-  for (const table of RLS_TABLES) {
+  for (const table of tables) {
     await client.query(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${table} TO runq_app`,
     );
@@ -58,22 +86,44 @@ async function grantPermissions(client: Client): Promise<void> {
   // tenants table: read-only for runq_app
   await client.query(`GRANT SELECT ON TABLE tenants TO runq_app`);
 
-  console.log(`  Granted permissions on ${RLS_TABLES.length + 1} tables`);
+  console.log(`  Granted permissions on ${tables.length + 1} tables`);
 }
 
-async function applyRLS(client: Client): Promise<void> {
+async function applyRLS(client: Client, tables: string[]): Promise<void> {
   // Drop existing policies then recreate — makes the script idempotent
-  for (const table of RLS_TABLES) {
+  for (const table of tables) {
     await client.query(`
       DROP POLICY IF EXISTS tenant_isolation_${table} ON ${table}
     `);
   }
 
   // generateRLSSQL() emits ALTER TABLE ... ENABLE RLS and CREATE POLICY
+  // for every table in RLS_TABLES. We filter the SQL output to only the
+  // statements for tables that exist.
   const sql = generateRLSSQL();
-  await client.query(sql);
+  const filtered = filterRlsSqlToPresentTables(sql, tables);
+  await client.query(filtered);
 
-  console.log(`  Applied RLS policies to ${RLS_TABLES.length} tables`);
+  console.log(`  Applied RLS policies to ${tables.length} tables`);
+}
+
+/**
+ * `generateRLSSQL()` is offline (no DB access) and emits statements for
+ * every table in `RLS_TABLES`. When a table was dropped post-list-update,
+ * we strip out its ALTER/CREATE POLICY block. Identifier matching is
+ * line-based + regex-safe because `generateRLSSQL` uses a known template.
+ */
+function filterRlsSqlToPresentTables(sql: string, present: string[]): string {
+  const presentSet = new Set(present);
+  const stmts = sql.split(/;\s*\n/);
+  return stmts
+    .filter((stmt) => {
+      const m = stmt.match(/ALTER TABLE\s+(\w+)|ON\s+(\w+)/);
+      if (!m) return true;
+      const table = (m[1] ?? m[2])!;
+      return presentSet.has(table) || !RLS_TABLES.includes(table);
+    })
+    .join(';\n');
 }
 
 async function smokeTest(client: Client): Promise<void> {
@@ -121,11 +171,16 @@ async function main(): Promise<void> {
     console.log('\n[1/4] Creating runq_app role...');
     await createRole(client);
 
+    // Resolve which tables actually exist before issuing GRANTs / policy
+    // statements. Stale entries in RLS_TABLES (from dropped tables) used
+    // to crash prod boot — see commit history for migration 0116.
+    const presentTables = await existingRlsTables(client);
+
     console.log('\n[2/4] Granting permissions...');
-    await grantPermissions(client);
+    await grantPermissions(client, presentTables);
 
     console.log('\n[3/4] Enabling RLS and creating policies...');
-    await applyRLS(client);
+    await applyRLS(client, presentTables);
 
     await client.query('COMMIT');
 

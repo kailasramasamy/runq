@@ -21,6 +21,10 @@ export const vendors = pgTable('vendors', {
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   earlyPaymentDiscountPercent: decimal('early_payment_discount_percent', { precision: 5, scale: 2 }),
   earlyPaymentDiscountDays: integer('early_payment_discount_days'),
+  // PP Phase 3 (migration 0119): per-vendor 3-way-match tolerance %.
+  // NULL → tenant default (2% hard-coded in code; per-tenant override is
+  // a Phase 5 polish).
+  matchTolerancePct: decimal('match_tolerance_pct', { precision: 5, scale: 2 }),
   wmsVendorId: varchar('wms_vendor_id', { length: 100 }),
   category: varchar('category', { length: 50 }),
   expenseAccountCode: varchar('expense_account_code', { length: 20 }),

@@ -70,6 +70,13 @@ export interface Item {
   // { size: 'M', color: 'Red', fabric: 'Cotton' } for apparel).
   attributes: Record<string, unknown> | null;
   cogmBreakdown: CogmComponent[] | null;
+  // Tracking flags. Surfaced on the item form; column-level booleans are
+  // the source of truth. Class-driven defaults are applied at create time
+  // when the caller omits them.
+  trackInventory: boolean;
+  trackBatches: boolean;
+  trackExpiry: boolean;
+  trackSerials: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

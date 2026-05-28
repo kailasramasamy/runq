@@ -58,6 +58,61 @@ export class InventoryGlPoster {
     return je.id;
   }
 
+  /**
+   * GRN post for a PO receive that mixes stock-tracked catalog lines and
+   * pure-expense catalog lines (e.g. consumables, packaging not in stock).
+   * Single JE keeps the GRN ↔ JE 1:1 link intact; bill-match later clears
+   * GRNI in one shot regardless of the Dr split.
+   *
+   *   Dr Inventory  (sum of catalog rows with inventory_item_id wired)
+   *   Dr Expense    (sum of catalog rows that are catalog-only)
+   *   Cr GRNI       (total)
+   *
+   * When either side is zero the corresponding Dr line is omitted.
+   */
+  async postPoReceive(args: {
+    date: string;
+    grnId: string;
+    grnNo: string;
+    inventoryValue: number;
+    expenseValue: number;
+    expenseAccountCode: string;
+  }): Promise<string> {
+    const total = args.inventoryValue + args.expenseValue;
+    const lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+    if (args.inventoryValue > 0) {
+      lines.push({
+        accountCode: INV_ACCOUNTS.INVENTORY_ASSET,
+        debit: args.inventoryValue,
+        credit: 0,
+        description: 'Stock received',
+      });
+    }
+    if (args.expenseValue > 0) {
+      lines.push({
+        accountCode: args.expenseAccountCode,
+        debit: args.expenseValue,
+        credit: 0,
+        description: 'Consumables received',
+      });
+    }
+    lines.push({
+      accountCode: INV_ACCOUNTS.GR_IR_CLEARING,
+      debit: 0,
+      credit: total,
+      description: 'Awaiting vendor bill',
+    });
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Goods receipt ${args.grnNo}`,
+      sourceType: 'inventory_grn',
+      sourceId: args.grnId,
+      lines,
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
   /** Reversal of a posted GRN — flips the original entry. */
   async reverseGrn(args: {
     date: string;

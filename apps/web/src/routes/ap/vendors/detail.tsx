@@ -18,6 +18,7 @@ import {
   Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState, formatDate,
 } from '@/components/ar/primitives';
 import { ConfirmationDialog, Modal, useToast } from '@/components/ui';
+import { useVendorBase } from '@/lib/vendor-nav';
 
 interface Props { vendorId: string }
 
@@ -33,13 +34,14 @@ export function VendorDetailPage({ vendorId }: Props) {
   const { data: billsData } = usePurchaseInvoices({ vendorId }, 1, 6);
   const bills = billsData?.data ?? [];
 
+  const base = useVendorBase();
   function goBack() {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/finance/ap/vendors' });
+    else navigate({ to: base as any });
   }
   function handleDeleteConfirm() {
     deleteMutation.mutate(vendorId, {
-      onSuccess: () => navigate({ to: '/finance/ap/vendors' }),
+      onSuccess: () => navigate({ to: base as any }),
     });
   }
 

@@ -226,6 +226,12 @@ export class ItemService {
     const categoryId = await this.resolveCategoryIdForCreate(input);
     const catDefaults = await this.loadCategoryDefaults(categoryId);
 
+    // Order matters: class defaults supply tracking when the caller omits
+    // them, but explicit input.track* values must win. Spread class defaults
+    // AFTER ...input, then re-apply nullish-coalesce so an explicit `false`
+    // from the form (e.g. unchecking Expiry on a perishable raw_material)
+    // overrides the default `true`.
+    const classFields = resolveItemClassForCreate(input);
     const values = {
       ...input,
       tenantId: this.tenantId,
@@ -241,7 +247,12 @@ export class ItemService {
       basicPrice: input.basicPrice?.toString() ?? null,
       gstValue: input.gstValue?.toString() ?? null,
       ...resolvePackSizeForCreate(input),
-      ...resolveItemClassForCreate(input),
+      itemClass: classFields.itemClass,
+      // Tracking precedence: explicit input → class default → DB default.
+      trackInventory: input.trackInventory,
+      trackBatches: input.trackBatches ?? classFields.trackBatches,
+      trackExpiry:   input.trackExpiry   ?? classFields.trackExpiry,
+      trackSerials:  input.trackSerials,
     };
 
     const [row] = await this.db.insert(items).values(values).returning({ id: items.id });
@@ -695,6 +706,10 @@ export class ItemService {
       gstValue: row.gstValue ? toNumber(row.gstValue) : null,
       attributes: row.attributes ?? null,
       cogmBreakdown: row.cogmBreakdown ?? null,
+      trackInventory: row.trackInventory,
+      trackBatches: row.trackBatches,
+      trackExpiry: row.trackExpiry,
+      trackSerials: row.trackSerials,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

@@ -17,6 +17,15 @@ import 'screens/quick_invoice_templates_screen.dart';
 import 'dart:io';
 import 'screens/bills_screen.dart';
 import 'screens/bill_extract_screen.dart';
+import 'screens/purchase/po_list_screen.dart';
+import 'screens/purchase/po_detail_screen.dart';
+import 'screens/purchase/po_create_screen.dart';
+import 'screens/purchase/po_receive_screen.dart';
+import 'screens/purchase/po_scan_receive_screen.dart';
+import 'screens/purchase/direct_receipt_screen.dart';
+import 'screens/purchase/purchase_home_screen.dart';
+import 'screens/purchase/po_match_screen.dart';
+import 'screens/purchase/po_edit_screen.dart';
 import 'screens/banking_screen.dart';
 import 'screens/sales_hub_screen.dart';
 import 'screens/purchases_hub_screen.dart';
@@ -268,6 +277,13 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // Alerts tab — reuses the existing reorder screen for now;
             // expanding to include expiry + dead-stock in a later pass.
             GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryReorderScreen())),
+            // Purchase & Procurement bot-nav tabs. Detail / form screens
+            // (PO create, edit, receive) push onto the root navigator so
+            // they take the full viewport — same pattern as inventory.
+            GoRoute(path: '/purchase', pageBuilder: _fadePage((_) => const PurchaseHomeScreen())),
+            GoRoute(path: '/purchase/pos', pageBuilder: _fadePage((_) => const PurchaseOrderListScreen())),
+            GoRoute(path: '/purchase/direct', pageBuilder: _fadePage((_) => const DirectReceiptScreen())),
+            GoRoute(path: '/purchase/match', pageBuilder: _fadePage((_) => const PoMatchScreen())),
           ],
         ),
         // HR drill-downs — pushed via the root navigator so the bot nav
@@ -630,6 +646,56 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(PayRunDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        // ─── PP detail / form screens (full-screen via rootKey) ─────────
+        // The tab routes (Home, PO list, Direct receipts, Match) live
+        // inside the ShellRoute above so the bot nav stays visible.
+        GoRoute(
+          path: '/purchase/pos/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const PurchaseOrderCreateScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchase/pos/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            PurchaseOrderDetailScreen(poId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/purchase/pos/:id/receive',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            PurchaseOrderReceiveScreen(poId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/purchase/pos/:id/scan-receive',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            // Share-intake passes a pre-picked file via `extra` so the
+            // scan kicks off without making the user re-pick.
+            final extra = state.extra;
+            final initialFile = extra is File ? extra : null;
+            return _slidePage(
+              PoScanReceiveScreen(
+                poId: state.pathParameters['id']!,
+                initialFile: initialFile,
+              ),
+              key: state.pageKey,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/purchase/pos/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            PurchaseOrderEditScreen(poId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/money/banking',

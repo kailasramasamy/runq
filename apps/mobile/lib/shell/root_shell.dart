@@ -8,6 +8,7 @@ import '../theme/runq_theme.dart';
 import 'fab_sheet.dart';
 
 const _inventoryAmber = Color(0xFFD97706);
+const _purchaseViolet = Color(0xFF7C3AED);
 
 class _Tab {
   final String path, label;
@@ -48,6 +49,18 @@ const _inventoryTabs = <_Tab>[
   _Tab('/inventory/on-hand', 'Stock', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
   _Tab('/inventory/moves', 'Moves', Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
   _Tab('/inventory/alerts', 'Alerts', Icons.notifications_none_rounded, Icons.notifications_rounded),
+];
+
+// Purchase & Procurement module tabs. Home is the dashboard with KPIs +
+// quick actions; Orders is the PO list (the spine of the module);
+// Receipts is the direct-receipt list (mobile-first daily ops, e.g.
+// milk arrival); Match is the bills-awaiting-PO-match list (Phase-5
+// stub for now; Phase 3 match commits happen from AP bill detail).
+const _purchaseTabs = <_Tab>[
+  _Tab('/purchase', 'Home', Icons.home_outlined, Icons.home_rounded),
+  _Tab('/purchase/pos', 'POs', Icons.shopping_cart_outlined, Icons.shopping_cart_rounded),
+  _Tab('/purchase/direct', 'Receipts', Icons.local_shipping_outlined, Icons.local_shipping_rounded),
+  _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
 
 class RootShell extends ConsumerStatefulWidget {
@@ -109,11 +122,13 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     // the splash lands on /home but prefs still say HR (e.g. an admin
     // who switched yesterday), reading prefs would show HR tabs over a
     // Finance screen. Reading the route avoids that drift.
-    final module = loc.startsWith('/inventory')
-        ? AppModule.inventory
-        : loc.startsWith('/hr')
-            ? AppModule.hr
-            : AppModule.finance;
+    final module = loc.startsWith('/purchase')
+        ? AppModule.purchase
+        : loc.startsWith('/inventory')
+            ? AppModule.inventory
+            : loc.startsWith('/hr')
+                ? AppModule.hr
+                : AppModule.finance;
     // Mirror the active route into the persisted module so the next cold
     // start lands the user in the same module they left. Done as a side
     // effect after build to avoid mutating provider state mid-build.
@@ -126,12 +141,14 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     final tabs = switch (module) {
       AppModule.hr => _hrTabs,
       AppModule.inventory => _inventoryTabs,
+      AppModule.purchase => _purchaseTabs,
       AppModule.finance => _financeTabs,
     };
     final active = _activeIndex(tabs, loc);
     final actions = switch (module) {
       AppModule.hr => hrFabActions(),
       AppModule.inventory => inventoryFabActions(),
+      AppModule.purchase => purchaseFabActions(),
       AppModule.finance => financeFabActions(),
     };
 
@@ -195,6 +212,7 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
         accent: switch (module) {
           AppModule.hr => const Color(0xFF0891B2),
           AppModule.inventory => _inventoryAmber,
+          AppModule.purchase => _purchaseViolet,
           AppModule.finance => RunqColors.indigo,
         },
         // HR module uses a Home-only shell: every non-Home destination is

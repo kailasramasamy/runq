@@ -7,6 +7,7 @@ import {
   inventoryGrns,
   inventoryGrnLines,
   items,
+  purchaseInvoices,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Account, JournalEntry, JournalEntryWithLines, TrialBalanceRow } from '@runq/types';
@@ -20,6 +21,17 @@ import {
   inventoryAccountFor,
   DEFAULT_EXPENSE_ACCOUNT_CODE,
 } from './inventory-accounts';
+
+/**
+ * GR/IR (Goods Received / Invoice Received) clearing account. Same as
+ * `INV_ACCOUNTS.GR_IR_CLEARING` in `inventory/gl-poster.ts`. The
+ * inventory poster credits this on GRN post (Dr Inventory / Cr GR/IR);
+ * PP Phase 3 debits this on matched-bill post (Dr GR/IR / Cr AP).
+ *
+ * Hard-coded to `2115` for v1 — matches the inventory poster's choice.
+ * Per-tenant override (and a CoA seed if missing) is a Phase 5 polish.
+ */
+const GRNI_CLEARING_ACCOUNT_CODE = '2115';
 
 export interface JournalEntryListResult {
   data: JournalEntry[];
@@ -316,12 +328,77 @@ export class GLService {
      * have already inserted the GRN + its lines in the same transaction.
      */
      linkedInventoryGrnId?: string | null;
+    /**
+     * PP Phase 3: when set, the bill has been matched to a PO whose
+     * GRN(s) already posted Dr Inventory / Cr GRNI. The bill's JE then
+     * clears GRNI instead of touching Inventory again — Dr GRNI / Cr AP.
+     * Mutually exclusive with the linkedInventoryGrnId split path: a
+     * single bill is either inline-GRN (no PO) OR PO-matched.
+     */
+     matchedPoId?: string | null;
   }): Promise<void> {
     if (await this.isAlreadyPosted('purchase_invoice', invoice.id)) return;
 
     const descPrefix = invoice.invoiceNumber
       ? `${invoice.vendorName} — ${invoice.invoiceNumber}`
       : invoice.vendorName;
+
+    // PP Phase 3: matched-to-PO path takes precedence. Clears the GRNI
+    // that the PO-receive flow accrued (ex-tax) and books input GST on
+    // the same JE — GST credit follows the bill, not the GRN, so this is
+    // the first time the ITC accounts are touched for the goods value.
+    //
+    //   Dr GRNI          = subtotal (clears what GRN credited)
+    //   Dr Input CGST    = cgst       (intra-state)
+    //   Dr Input SGST    = sgst       (intra-state)
+    //   Dr Input IGST    = igst       (inter-state)
+    //   Cr Vendor AP     = totalAmount
+    //
+    // Inventory was already debited at GRN post time — don't double-count.
+    if (invoice.matchedPoId) {
+      const [taxRow] = await this.db
+        .select({
+          subtotal: purchaseInvoices.subtotal,
+          cgstAmount: purchaseInvoices.cgstAmount,
+          sgstAmount: purchaseInvoices.sgstAmount,
+          igstAmount: purchaseInvoices.igstAmount,
+        })
+        .from(purchaseInvoices)
+        .where(eq(purchaseInvoices.id, invoice.id))
+        .limit(1);
+      // For invoices created without a tax breakdown (legacy / synced
+      // bills with only totalAmount), fall back to the old single-line
+      // behaviour so we don't post an unbalanced JE.
+      const subtotal = taxRow ? Number(taxRow.subtotal) : invoice.totalAmount;
+      const cgst = taxRow ? Number(taxRow.cgstAmount) : 0;
+      const sgst = taxRow ? Number(taxRow.sgstAmount) : 0;
+      const igst = taxRow ? Number(taxRow.igstAmount) : 0;
+
+      const lines: CreateJournalEntryInput['lines'] = [
+        {
+          accountCode: GRNI_CLEARING_ACCOUNT_CODE,
+          debit: subtotal,
+          description: `${descPrefix} — clear GRNI (matched PO)`,
+        },
+      ];
+      if (cgst > 0) lines.push({ accountCode: '1105', debit: cgst, description: `${descPrefix} — Input CGST` });
+      if (sgst > 0) lines.push({ accountCode: '1106', debit: sgst, description: `${descPrefix} — Input SGST` });
+      if (igst > 0) lines.push({ accountCode: '1107', debit: igst, description: `${descPrefix} — Input IGST` });
+      lines.push({
+        accountCode: '2101',
+        credit: invoice.totalAmount,
+        description: `${descPrefix} — payable`,
+      });
+
+      await this.createJournalEntry({
+        date: invoice.date,
+        description: `Purchase invoice from ${invoice.vendorName}`,
+        sourceType: 'purchase_invoice',
+        sourceId: invoice.id,
+        lines,
+      });
+      return;
+    }
 
     // No GRN linked → legacy flat behaviour. Zero regression for service
     // bills, bills synced from ops modules without item linkage, etc.

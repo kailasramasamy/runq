@@ -10,6 +10,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
+import '../widgets/bill_match_panel.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
@@ -72,6 +73,10 @@ class BillDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 14),
                     ],
                     _GstBreakdownCard(bill: bill),
+                    const SizedBox(height: 14),
+                    // PP Phase 3: 3-way match panel. Self-hides when no
+                    // open POs for this vendor + bill isn't already matched.
+                    BillMatchPanel(billId: id, onMatched: onMutated),
                     const SizedBox(height: 14),
                     _AttachmentsCard(billId: id),
                     if (_hasPrimaryCta(bill)) ...[

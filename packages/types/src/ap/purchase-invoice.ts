@@ -43,6 +43,11 @@ export interface PurchaseInvoice {
   warehouseId: string | null;
   goodsReceived: boolean;
   linkedInventoryGrnId: string | null;
+  // ─── PP Phase 3 (3-way match) ─────────────────────────────────────────
+  matchedPoId: string | null;
+  matchOverrideReason: string | null;
+  matchOverrideBy: string | null;
+  matchCommittedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -37,7 +37,10 @@ export const RLS_TABLES = [
 
   // AP
   'vendors',
-  'vendor_bill_item_aliases',
+  // vendor_bill_item_aliases dropped by migration 0116 — data folded into
+  // vendor_catalog_items. RLS policy automatically gone with the table.
+  'vendor_catalog_items',
+  'vendor_catalog_item_price_history',
   'vendor_contracts',
   'vendor_ratings',
   'purchase_orders',
@@ -48,6 +51,11 @@ export const RLS_TABLES = [
   'grn_items',
   'purchase_invoices',
   'purchase_invoice_items',
+
+  // Purchase & Procurement (Phase 1 — new `_v2` tables; legacy ap
+  // purchase_orders / purchase_order_items above stay for back-compat).
+  'purchase_orders_v2',
+  'purchase_order_lines_v2',
   'payments',
   'payment_allocations',
   'payment_schedules',

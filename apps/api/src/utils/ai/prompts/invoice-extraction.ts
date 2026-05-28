@@ -103,9 +103,23 @@ CRITICAL — fuel station / petrol pump invoices:
 - The actual invoice amount is usually a small 3–6 digit number labelled "Total", "Amount", "Net Payable", "Bill Amount", or printed near the bottom.
 - If a number is larger than ₹10,00,000 on a fuel/retail receipt, it is almost certainly a meter reading — ignore it.
 
+CRITICAL — Indian numeral grouping (lakh / crore):
+- Indian invoices group digits as lakh-thousand-hundred, not Western thousand-thousand-thousand. The grouping is "##,##,###" (NOT "###,###,###"). So "₹42,80,000.00" is forty-two lakh eighty thousand = 4280000 (six digits before the decimal), NOT 42800000 (seven digits).
+- To read any Indian-grouped amount: strip ALL commas, then read the remaining digits and decimal point exactly as they appear. Do NOT add, remove, or shift zeros.
+  Worked examples (memorise these):
+    "₹42,80,000.00"     → 4280000.00      (4.28 lakh × 10 = 42.8 lakh)
+    "₹7,70,400.00"      → 770400.00
+    "₹50,50,400.00"     → 5050400.00
+    "₹1,00,000.00"      → 100000.00       (one lakh)
+    "₹1,25,00,000.00"   → 12500000.00     (one crore twenty-five lakh)
+    "₹4,280,000.00"     → 4280000.00      (Western grouping, same number)
+- If you find yourself outputting a number with one more zero than the printed digits before the decimal, you mis-parsed an Indian grouping — recount and correct.
+- These rules apply identically to subtotal, taxAmount, totalAmount, item amount, and unitPrice.
+
 Sanity check before returning:
 - taxAmount must be ≤ 35% of totalAmount. If your candidate taxAmount fails this, set taxAmount to null and lower confidence.
-- subtotal + taxAmount should approximately equal totalAmount (within ₹2). If not, prefer the printed totalAmount and set the others to null.`;
+- subtotal + taxAmount should approximately equal totalAmount (within ₹2). If not, prefer the printed totalAmount and set the others to null.
+- Verify: the count of digits before the decimal point in subtotal / taxAmount / totalAmount must match the count of digits printed before the decimal on the invoice (commas excluded). If it doesn't, you've added or dropped a zero — re-extract.`;
 
 export const INVOICE_EXTRACTION_USER_PROMPT =
   'Extract all fields from this vendor invoice. Return only the JSON object.';

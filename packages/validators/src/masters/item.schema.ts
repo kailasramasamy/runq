@@ -100,6 +100,13 @@ export const createItemSchema = z.object({
     )
     .max(50)
     .nullish(),
+  // Tracking flags — driven by item nature, not module. Surfaced on the
+  // item form so dairy / FMCG / perishables can be set up correctly at
+  // creation time. DB defaults stay in place when omitted.
+  trackInventory: z.boolean().optional(),
+  trackBatches: z.boolean().optional(),
+  trackExpiry: z.boolean().optional(),
+  trackSerials: z.boolean().optional(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

@@ -10,6 +10,7 @@ import {
 } from '@/components/ar/primitives';
 import { ConfirmationDialog } from '@/components/ui';
 import { useIsReadOnly } from '@/providers/auth-provider';
+import { useVendorBase } from '@/lib/vendor-nav';
 
 const LIMIT = 25;
 
@@ -31,6 +32,7 @@ function formatCategory(cat: string | null): string {
 export function VendorListPage() {
   const readOnly = useIsReadOnly();
   const navigate = useNavigate();
+  const base = useVendorBase();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [tag, setTag] = useState('');
@@ -56,7 +58,7 @@ export function VendorListPage() {
   const categoryCount = new Set(vendors.map((v) => v.category).filter(Boolean)).size;
 
   function handleView(id: string) {
-    navigate({ to: '/finance/ap/vendors/$vendorId', params: { vendorId: id } });
+    navigate({ to: `${base}/$vendorId` as any, params: { vendorId: id } as any });
   }
   function handleDeleteConfirm() {
     if (!deleteId) return;
@@ -91,10 +93,10 @@ export function VendorListPage() {
             </Button>
             {!readOnly && (
               <>
-                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/import' })}>
+                <Button variant="outline" size="sm" icon={<Upload size={13} />} onClick={() => navigate({ to: `${base}/import` as any })}>
                   Import vendors
                 </Button>
-                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/new' })}>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: `${base}/new` as any })}>
                   New vendor
                 </Button>
               </>
@@ -179,7 +181,7 @@ export function VendorListPage() {
                   title={search ? 'No vendors match your search' : 'No vendors yet'}
                   description={search ? 'Try a different search term.' : 'Add your first vendor to get started.'}
                   action={!search && (
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: '/finance/ap/vendors/new' })}>
+                    <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate({ to: `${base}/new` as any })}>
                       New vendor
                     </Button>
                   )}

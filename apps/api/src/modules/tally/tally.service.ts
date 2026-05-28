@@ -328,6 +328,10 @@ ${ledgers.join('\n')}
         warehouseId: purchaseInvoices.warehouseId,
         goodsReceived: purchaseInvoices.goodsReceived,
         linkedInventoryGrnId: purchaseInvoices.linkedInventoryGrnId,
+        matchedPoId: purchaseInvoices.matchedPoId,
+        matchOverrideReason: purchaseInvoices.matchOverrideReason,
+        matchOverrideBy: purchaseInvoices.matchOverrideBy,
+        matchCommittedAt: purchaseInvoices.matchCommittedAt,
         createdAt: purchaseInvoices.createdAt, updatedAt: purchaseInvoices.updatedAt,
         vendorName: vendors.name,
       })

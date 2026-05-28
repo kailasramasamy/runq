@@ -12,7 +12,7 @@ import {
   GitBranch, Layers, UserCog, Plug, Settings,
   Zap, LifeBuoy, Command, Bell, Mail,
   PanelLeftClose, PanelLeftOpen, Menu, X,
-  ArrowDownToLine, ArrowUpFromLine, HandCoins,
+  ArrowDownToLine, ArrowUpFromLine, HandCoins, ShoppingCart,
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
   Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
@@ -198,11 +198,12 @@ const VIEWER_HR_KEYS = new Set<string>([
   'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
 ]);
 
-type ModuleKey = 'finance' | 'hr' | 'inventory';
+type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase';
 const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
   { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
+  { key: 'purchase', label: 'Purchase', path: '/purchase', icon: ShoppingCart, description: 'POs, receipts, 3-way match' },
 ];
 
 export const INVENTORY_NAV_GROUPS: NavGroup[] = [
@@ -248,6 +249,29 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
       { key: 'inv-items', label: 'Items', icon: Package, path: '/inventory/items' },
       { key: 'inv-categories', label: 'Categories', icon: Layers, path: '/inventory/categories' },
       { key: 'inv-serials', label: 'Serials', icon: ScrollText, path: '/inventory/serials' },
+    ],
+  },
+];
+
+export const PURCHASE_NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'pur-dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/purchase' },
+      { key: 'pur-orders', label: 'Purchase orders', icon: ShoppingCart, path: '/purchase/pos' },
+    ],
+  },
+  {
+    label: 'Receipts',
+    items: [
+      { key: 'pur-direct', label: 'Direct receipts', icon: PackageCheck, path: '/purchase/direct' },
+    ],
+  },
+  {
+    label: 'Setup',
+    items: [
+      { key: 'pur-items', label: 'Items', icon: Package, path: '/purchase/items' },
+      { key: 'pur-vendors', label: 'Vendors', icon: Building2, path: '/purchase/vendors' },
     ],
   },
 ];
@@ -427,21 +451,25 @@ function SidebarContent({
   // Settings is a shared namespace — keep whichever module the user came from.
   const isSettings = currentPath === '/settings' || currentPath.startsWith('/settings/');
   const isInventory = currentPath === '/inventory' || currentPath.startsWith('/inventory/');
+  const isPurchase = currentPath === '/purchase' || currentPath.startsWith('/purchase/');
   const activeModule: ModuleKey = !financeAllowed
     ? 'hr'
     : isSettings
       ? lastActiveModule
       : isInventory
         ? 'inventory'
-        : currentPath === '/hr' || currentPath.startsWith('/hr/')
-          ? 'hr'
-          : 'finance';
+        : isPurchase
+          ? 'purchase'
+          : currentPath === '/hr' || currentPath.startsWith('/hr/')
+            ? 'hr'
+            : 'finance';
   if (!isSettings) lastActiveModule = activeModule;
   // The ⌘K shortcut palette is Finance-only.
   const showCommand = activeModule === 'finance';
   let groups =
     activeModule === 'hr' ? HR_NAV_GROUPS
       : activeModule === 'inventory' ? INVENTORY_NAV_GROUPS
+      : activeModule === 'purchase' ? PURCHASE_NAV_GROUPS
       : NAV_GROUPS;
   // Non-admin HR users get the trimmed self-service menu.
   if (activeModule === 'hr' && !canManageHrModule(user?.role)) {

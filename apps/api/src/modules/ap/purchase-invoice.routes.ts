@@ -139,11 +139,11 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
         id: invoice.id,
         vendorName: invoice.vendorName,
         invoiceNumber: invoice.invoiceNumber,
-        // AP Pattern-B: when the bill has goods-received lines, the
-        // service has already inserted the inventory_grns row and
-        // populated this column. The JE poster reads it and produces a
-        // per-item-class debit split instead of the flat Dr 5002 / Cr 2101.
+        // AP Pattern-B: inline-GRN path (bill carried its own
+        // goods-received rows) → Dr Inventory split / Cr AP.
         linkedInventoryGrnId: invoice.linkedInventoryGrnId,
+        // PP Phase 3: matched-to-PO path → Dr GR/IR clearing / Cr AP.
+        matchedPoId: invoice.matchedPoId,
       });
 
       let advanceApplied = 0;
