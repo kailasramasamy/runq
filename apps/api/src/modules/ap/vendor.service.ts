@@ -108,7 +108,7 @@ export class VendorService {
         FROM purchase_invoice_items pii
         JOIN purchase_invoices pi ON pi.id = pii.invoice_id
         WHERE pi.tenant_id = ${this.tenantId}
-          AND pi.vendor_id = ANY(${vendorIds}::uuid[])
+          AND pi.vendor_id IN (${sql.join(vendorIds.map((id) => sql`${id}::uuid`), sql`, `)})
           AND pi.invoice_date >= ${sinceIso}::date
         GROUP BY pi.vendor_id, normalized_description
         HAVING COUNT(*) >= 3
