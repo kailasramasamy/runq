@@ -282,7 +282,18 @@ const portalRoute = createRoute({
   component: PortalPage,
 });
 
+// Canonical share URL — `/portal/<slug>`. Mirrors a customer's mental model
+// ("their portal lives at runq.in/portal/<name>"), no extra `/s/` segment.
 const portalSlugRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/portal/$slug',
+  component: PortalPage,
+});
+
+// Legacy alias kept for backward compatibility — any share link that went
+// out before the rename (e.g. `/portal/s/4amfresh`) still resolves. Drop
+// when there are no more old links circulating.
+const portalSlugLegacyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/portal/s/$slug',
   component: PortalPage,
@@ -2520,6 +2531,7 @@ export const routeTree = rootRoute.addChildren([
   loginRoute,
   portalRoute,
   portalSlugRoute,
+  portalSlugLegacyRoute,
   caPortalRoute,
   vendorPortalRoute,
   adminLayoutRoute.addChildren([

@@ -100,8 +100,14 @@ function formatDate(iso: string): string {
 }
 
 function getPortalContext(): PortalCtx | null {
-  const match = window.location.pathname.match(/\/portal\/s\/([a-z0-9-]+)/i);
-  if (match) return { mode: 'slug', slug: match[1]! };
+  // Match both the canonical `/portal/<slug>` and the legacy `/portal/s/<slug>`
+  // path shapes. Token mode uses the `?token=` query string and never collides
+  // with these paths.
+  const path = window.location.pathname;
+  const slugMatch =
+    path.match(/^\/portal\/s\/([a-z0-9-]+)\/?$/i) ??
+    path.match(/^\/portal\/([a-z0-9-]+)\/?$/i);
+  if (slugMatch) return { mode: 'slug', slug: slugMatch[1]! };
   const token = new URLSearchParams(window.location.search).get('token');
   if (token) return { mode: 'token', token };
   return null;

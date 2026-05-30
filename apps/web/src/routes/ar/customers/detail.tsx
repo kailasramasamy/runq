@@ -418,7 +418,10 @@ function PortalLinkCard({ customerId, nickname }: { customerId: string; nickname
   const [copied, setCopied] = useState(false);
 
   function buildUrl(slug: string) {
-    return `${window.location.origin}/portal/s/${slug}`;
+    // Canonical share URL — `/portal/<slug>`. The legacy `/portal/s/<slug>`
+    // shape still routes to the same page so any link sent before the
+    // rename keeps working.
+    return `${window.location.origin}/portal/${slug}`;
   }
 
   const generateToken = useMutation({
