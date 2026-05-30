@@ -523,19 +523,22 @@ function StickyHeader({
   totalDue: number;
 }) {
   return (
-    <div className="border-b border-zinc-200 bg-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-base font-bold text-zinc-900 sm:text-lg">{companyName}</h1>
-          <p className="truncate text-xs text-zinc-500 sm:text-sm">for {customerName}</p>
+    <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-white">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3.5 sm:py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700" />
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold tracking-tight text-zinc-900 sm:text-lg">{companyName}</h1>
+            <p className="truncate text-xs text-zinc-600 sm:text-sm">for {customerName}</p>
+          </div>
         </div>
         {totalDue > 0 ? (
-          <div className="text-right">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400 sm:text-xs">Total Due</p>
-            <p className="text-base font-semibold tabular-nums text-red-600 sm:text-lg">{formatINR(totalDue)}</p>
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600/80 sm:text-xs">Total Due</p>
+            <p className="text-base font-bold tabular-nums text-red-600 sm:text-lg">{formatINR(totalDue)}</p>
           </div>
         ) : (
-          <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+          <div className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
             All clear ✓
           </div>
         )}
@@ -553,19 +556,18 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   ];
   return (
     <div className="border-b border-zinc-200 bg-white">
-      <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4">
+      <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 py-2">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`relative whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors ${
-              active === t.id ? 'text-indigo-600' : 'text-zinc-500 hover:text-zinc-700'
+            className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition-all ${
+              active === t.id
+                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800'
             }`}
           >
             {t.label}
-            {active === t.id && (
-              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-indigo-600" />
-            )}
           </button>
         ))}
       </div>
@@ -1072,8 +1074,11 @@ function InvoiceCard({
             )}
           </div>
           <p className="mt-1 text-xs text-zinc-500">
-            Issued {formatDate(inv.invoiceDate)} · Due{' '}
-            <span className={isOverdue ? 'font-medium text-red-600' : ''}>{formatDate(inv.dueDate)}</span>
+            <span>Issued {formatDate(inv.invoiceDate)}</span>
+            <span className="hidden sm:inline"> · </span>
+            <span className="block sm:inline">
+              Due <span className={isOverdue ? 'font-medium text-red-600' : ''}>{formatDate(inv.dueDate)}</span>
+            </span>
           </p>
         </div>
         <div className="text-right">
