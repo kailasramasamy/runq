@@ -57,7 +57,10 @@ export function CustomerDetailPage({ customerId }: Props) {
     enabled: !!customer,
     retry: false,
   });
-  const { data: invoicesData } = useInvoices({ customerId, limit: 6 });
+  // Pull all invoices so we can compute aging buckets accurately. The
+  // Recent-invoices section below still shows just the first 6 via slice().
+  // 500 is comfortably above the per-customer count we see in production.
+  const { data: invoicesData } = useInvoices({ customerId, limit: 500 });
   const { data: receiptsData } = useReceipts({ customerId }, 1);
 
   function goBack() {
@@ -91,10 +94,32 @@ export function CustomerDetailPage({ customerId }: Props) {
   const invoices = invoicesData?.data ?? [];
   const receipts = (receiptsData?.data ?? []).slice(0, 6);
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
-  const openCount = invoices.filter((i) => ['sent', 'partially_paid'].includes(i.status)).length;
+  const openCount = invoices.filter((i) => ['sent', 'partially_paid', 'overdue'].includes(i.status)).length;
   const outstanding = customer.outstandingAmount ?? 0;
   const draftBalance = customer.draftAmount ?? 0;
   const draftCount = invoices.filter((i) => i.status === 'draft').length;
+
+  // Aging buckets: open invoices grouped by days past due. Used to fill the
+  // empty space below the outstanding-balance actions and surface what
+  // really needs attention vs. just "open".
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const aging = invoices
+    .filter((i) => ['sent', 'partially_paid', 'overdue'].includes(i.status))
+    .reduce(
+      (acc, inv) => {
+        const balance = Number(inv.balanceDue ?? 0);
+        if (balance <= 0) return acc;
+        const due = inv.dueDate;
+        // days past due — negative means not yet due.
+        const daysOverdue = Math.floor((Date.parse(todayISO) - Date.parse(due)) / 86400000);
+        if (daysOverdue <= 0) acc.current += balance;
+        else if (daysOverdue <= 30) acc.d1_30 += balance;
+        else if (daysOverdue <= 60) acc.d31_60 += balance;
+        else acc.d60plus += balance;
+        return acc;
+      },
+      { current: 0, d1_30: 0, d31_60: 0, d60plus: 0 },
+    );
 
   return (
     <div>
@@ -183,6 +208,20 @@ export function CustomerDetailPage({ customerId }: Props) {
               </Button>
               <Button variant="outline" size="sm" icon={<Bell size={13} />}>Send reminder</Button>
             </div>
+
+            {outstanding > 0 && (
+              <div className="mt-5">
+                <div className="text-[10.5px] font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>
+                  Aging
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <AgingBucket label="Current"  amount={aging.current} tone="ok" />
+                  <AgingBucket label="1–30 d"   amount={aging.d1_30}   tone="warn" />
+                  <AgingBucket label="31–60 d"  amount={aging.d31_60}  tone="warn" />
+                  <AgingBucket label="60+ d"    amount={aging.d60plus} tone="bad" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <PortalLinkCard customerId={customerId} nickname={customer.nickname} />
@@ -336,6 +375,40 @@ export function CustomerDetailPage({ customerId }: Props) {
         confirmLabel="Delete Customer"
         loading={deleteMutation.isPending}
       />
+    </div>
+  );
+}
+
+/**
+ * Single aging-bucket tile in the outstanding-balance card. Tones cue urgency:
+ *   - `ok` for amounts within terms, kept low-contrast
+ *   - `warn` for 1–60 day overdue
+ *   - `bad` for 60+ day overdue
+ * Zero-amount buckets render dimmed so the eye snaps to where money actually sits.
+ */
+function AgingBucket({
+  label, amount, tone,
+}: { label: string; amount: number; tone: 'ok' | 'warn' | 'bad' }) {
+  const isZero = amount <= 0;
+  const amountColor = isZero
+    ? 'var(--text-3)'
+    : tone === 'bad'
+      ? 'var(--neg)'
+      : tone === 'warn'
+        ? '#b45309'
+        : 'var(--text-1)';
+  return (
+    <div
+      className="rounded-md border px-2.5 py-2"
+      style={{
+        background: isZero ? 'var(--surface-2)' : 'var(--surface)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      <div className="text-[10.5px]" style={{ color: 'var(--text-3)' }}>{label}</div>
+      <div className="num mt-0.5 text-[13px] font-semibold tabular-nums" style={{ color: amountColor }}>
+        {isZero ? '—' : formatINR(amount)}
+      </div>
     </div>
   );
 }
