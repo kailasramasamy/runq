@@ -16,4 +16,8 @@ apps/api/uploads/
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 docs/.obsidian/workspace.json
+docs/.obsidian/graph.json
 *.tsbuildinfo
+
+# Flutter build output
+apps/mobile/android/build/

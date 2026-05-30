@@ -10,6 +10,10 @@ export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
   'grn', 'delivery', 'transfer_in', 'transfer_out',
   'adjustment_in', 'adjustment_out', 'opening', 'reversal',
   'stock_take_in', 'stock_take_out',
+  // Manufacturing Phase 2:
+  //   production_out — WO consumption (RM / packing → WIP)
+  //   production_in  — WO output     (WIP → FG)
+  'production_out', 'production_in',
 ]);
 
 /**

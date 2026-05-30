@@ -110,6 +110,16 @@ import 'screens/hr/hr_letters_screen.dart';
 import 'screens/hr/hr_helpdesk_screen.dart';
 import 'screens/hr/hr_performance_screen.dart';
 import 'screens/hr/hr_rewards_screen.dart';
+import 'screens/manufacturing/manufacturing_home_screen.dart';
+import 'screens/manufacturing/bom_list_screen.dart';
+import 'screens/manufacturing/bom_detail_screen.dart';
+import 'screens/manufacturing/bom_create_screen.dart';
+import 'screens/manufacturing/wo_list_screen.dart';
+import 'screens/manufacturing/wo_detail_screen.dart';
+import 'screens/manufacturing/wo_create_screen.dart';
+import 'screens/manufacturing/wo_run_screen.dart';
+import 'screens/manufacturing/reports/wo_summary_screen.dart';
+import 'screens/manufacturing/reports/yield_trend_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
 import 'providers/app_role_provider.dart';
@@ -194,7 +204,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           '/home', '/sales', '/purchases', '/money',
           '/invoices', '/bills', '/banking',
           '/approvals', '/agent', '/po', '/profile',
-          '/hr',
+          '/hr', '/manufacturing',
         };
         final isProtected = protected.any(loc.startsWith);
         if (auth.sessionExpired && loc != '/signin' && loc != '/splash') {
@@ -221,7 +231,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           '/banking', '/invoices', '/bills', '/expenses',
           '/po', '/po-inbox', '/po-drafts',
           '/agent', '/approvals', '/inbox',
-          '/quick-invoice',
+          '/quick-invoice', '/manufacturing',
         };
         final inFinanceRoot = financeRoots.any(loc.startsWith);
         if (inFinanceRoot && !role.canAccessFinance) {
@@ -284,6 +294,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             GoRoute(path: '/purchase/pos', pageBuilder: _fadePage((_) => const PurchaseOrderListScreen())),
             GoRoute(path: '/purchase/direct', pageBuilder: _fadePage((_) => const DirectReceiptScreen())),
             GoRoute(path: '/purchase/match', pageBuilder: _fadePage((_) => const PoMatchScreen())),
+            // Manufacturing bot-nav tab (home). Detail / form screens push
+            // onto root navigator so they take the full viewport.
+            GoRoute(path: '/manufacturing', pageBuilder: _fadePage((_) => const ManufacturingHomeScreen())),
+            GoRoute(path: '/manufacturing/boms', pageBuilder: _fadePage((_) => const BomListScreen())),
+            GoRoute(path: '/manufacturing/wos', pageBuilder: (_, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: WoListScreen(
+                initialStatus: state.uri.queryParameters['status'],
+                initialScheduledFrom: state.uri.queryParameters['scheduledFrom'],
+                initialScheduledTo: state.uri.queryParameters['scheduledTo'],
+              ),
+              transitionDuration: const Duration(milliseconds: 180),
+              transitionsBuilder: (_, anim, __, c) => FadeTransition(opacity: anim, child: c),
+            )),
           ],
         ),
         // HR drill-downs — pushed via the root navigator so the bot nav
@@ -646,6 +670,74 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(PayRunDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        // ─── Manufacturing detail / form screens (full-screen via rootKey) ──
+        GoRoute(
+          path: '/manufacturing/boms/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const BomCreateScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/manufacturing/boms/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            BomDetailScreen(bomId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/boms/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            BomEditScreen(bomId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/wos/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const WoCreateScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/manufacturing/wos/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            WoDetailScreen(woId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/wos/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            WoEditScreen(woId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/wos/:id/run',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            WoRunScreen(woId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        // ─── Manufacturing Phase 3 report screens ────────────────────────
+        GoRoute(
+          path: '/manufacturing/reports/wo-summary',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            WoSummaryScreen(
+              initialStatus: state.uri.queryParameters['status'],
+            ),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/reports/yield-trend',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const YieldTrendScreen(), key: state.pageKey),
         ),
         // ─── PP detail / form screens (full-screen via rootKey) ─────────
         // The tab routes (Home, PO list, Direct receipts, Match) live

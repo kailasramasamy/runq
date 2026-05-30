@@ -1,0 +1,359 @@
+import { and, eq, desc, sql, ilike, or } from 'drizzle-orm';
+import { boms, bomLines, workOrders } from '@runq/db';
+import type { Db } from '@runq/db';
+import { applyPagination, calcTotalPages } from '@runq/db';
+import { items } from '@runq/db';
+import type { BomListRow, BomWithLines, BomLine } from '@runq/types';
+import type { PaginationMeta } from '@runq/types';
+import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
+import { NotFoundError } from '../../utils/errors';
+
+export interface BomListResult {
+  data: BomListRow[];
+  meta: PaginationMeta;
+}
+
+export class BomService {
+  constructor(
+    private readonly db: Db,
+    private readonly tenantId: string,
+  ) {}
+
+  async list(
+    filters: BomFilter,
+    pagination: { page: number; limit: number },
+  ): Promise<BomListResult> {
+    const { page, limit } = pagination;
+    const { offset } = applyPagination(page, limit);
+    const where = this.buildWhere(filters);
+
+    const [rows, countResult] = await Promise.all([
+      this.db
+        .select({
+          bom: boms,
+          outputItemName: items.name,
+          lineCount: sql<number>`(SELECT count(*)::int FROM ${bomLines} WHERE ${bomLines.bomId} = ${boms.id})`,
+        })
+        .from(boms)
+        .innerJoin(items, eq(items.id, boms.outputItemId))
+        .where(where)
+        .orderBy(desc(boms.createdAt))
+        .limit(limit)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(boms)
+        .where(where),
+    ]);
+
+    const total = countResult[0]?.count ?? 0;
+    return {
+      data: rows.map((r) => ({
+        ...this.toBom(r.bom),
+        outputItemName: r.outputItemName,
+        lineCount: r.lineCount,
+      })),
+      meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
+    };
+  }
+
+  async getById(id: string): Promise<BomWithLines> {
+    const [row] = await this.db
+      .select({ bom: boms, outputItemName: items.name })
+      .from(boms)
+      .innerJoin(items, eq(items.id, boms.outputItemId))
+      .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('Bom');
+
+    const lines = await this.db
+      .select({ line: bomLines, inputItemName: items.name })
+      .from(bomLines)
+      .innerJoin(items, eq(items.id, bomLines.inputItemId))
+      .where(eq(bomLines.bomId, id))
+      .orderBy(bomLines.lineNo);
+
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workOrders)
+      .where(and(eq(workOrders.tenantId, this.tenantId), eq(workOrders.bomId, id)));
+
+    return {
+      ...this.toBom(row.bom),
+      outputItemName: row.outputItemName,
+      lines: lines.map((l) => this.toLine(l.line, l.inputItemName)),
+      linkedWoCount: count ?? 0,
+    };
+  }
+
+  async create(input: CreateBomInput, userId?: string): Promise<BomWithLines> {
+    const result = await this.db.transaction(async (tx) => {
+      // Enforce one-active-per-output: deactivate any existing active BOM
+      await tx
+        .update(boms)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(boms.tenantId, this.tenantId),
+            eq(boms.outputItemId, input.outputItemId),
+            eq(boms.isActive, true),
+          ),
+        );
+
+      const [bom] = await tx
+        .insert(boms)
+        .values({
+          tenantId: this.tenantId,
+          bomCode: input.bomCode,
+          name: input.name,
+          outputItemId: input.outputItemId,
+          outputQty: String(input.outputQty),
+          outputUom: input.outputUom,
+          version: 1,
+          isActive: true,
+          effectiveFrom: input.effectiveFrom ?? null,
+          notes: input.notes ?? null,
+          createdBy: userId ?? null,
+        })
+        .returning();
+
+      await tx.insert(bomLines).values(
+        input.lines.map((l, i) => ({
+          tenantId: this.tenantId,
+          bomId: bom!.id,
+          lineNo: i + 1,
+          inputItemId: l.inputItemId,
+          qtyPerOutput: String(l.qtyPerOutput),
+          inputUom: l.inputUom,
+          scrapPct: String(l.scrapPct),
+          isOptional: l.isOptional,
+          notes: l.notes ?? null,
+        })),
+      );
+
+      return bom!;
+    });
+
+    return this.getById(result.id);
+  }
+
+  async update(id: string, input: UpdateBomInput, userId?: string): Promise<BomWithLines> {
+    const existing = await this.getById(id);
+
+    // Check if any WOs reference this BOM
+    const [woRef] = await this.db
+      .select({ id: workOrders.id })
+      .from(workOrders)
+      .where(and(eq(workOrders.tenantId, this.tenantId), eq(workOrders.bomId, id)))
+      .limit(1);
+
+    if (!woRef) {
+      // Edit in place
+      return this.updateInPlace(id, input);
+    }
+
+    // WOs exist — create a new version row
+    return this.db.transaction(async (tx) => {
+      await tx
+        .update(boms)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
+
+      const [newBom] = await tx
+        .insert(boms)
+        .values({
+          tenantId: this.tenantId,
+          bomCode: existing.bomCode,
+          name: input.name ?? existing.name,
+          outputItemId: existing.outputItemId,
+          outputQty: String(input.outputQty ?? existing.outputQty),
+          outputUom: input.outputUom ?? existing.outputUom,
+          version: existing.version + 1,
+          isActive: true,
+          effectiveFrom: input.effectiveFrom !== undefined ? (input.effectiveFrom ?? null) : existing.effectiveFrom,
+          notes: input.notes !== undefined ? (input.notes ?? null) : existing.notes,
+          createdBy: userId ?? null,
+        })
+        .returning();
+
+      const linesToInsert = input.lines ?? existing.lines;
+      await tx.insert(bomLines).values(
+        linesToInsert.map((l, i) => ({
+          tenantId: this.tenantId,
+          bomId: newBom!.id,
+          lineNo: i + 1,
+          inputItemId: l.inputItemId,
+          qtyPerOutput: String(l.qtyPerOutput),
+          inputUom: l.inputUom,
+          scrapPct: String(l.scrapPct ?? 0),
+          isOptional: l.isOptional ?? false,
+          notes: l.notes ?? null,
+        })),
+      );
+
+      return newBom!.id;
+    }).then((newId) => this.getById(newId));
+  }
+
+  async clone(id: string, newBomCode: string, userId?: string): Promise<BomWithLines> {
+    const source = await this.getById(id);
+
+    const result = await this.db.transaction(async (tx) => {
+      const [newBom] = await tx
+        .insert(boms)
+        .values({
+          tenantId: this.tenantId,
+          bomCode: newBomCode,
+          name: source.name,
+          outputItemId: source.outputItemId,
+          outputQty: String(source.outputQty),
+          outputUom: source.outputUom,
+          version: 1,
+          isActive: false,
+          effectiveFrom: source.effectiveFrom ?? null,
+          notes: source.notes ?? null,
+          createdBy: userId ?? null,
+        })
+        .returning();
+
+      await tx.insert(bomLines).values(
+        source.lines.map((l) => ({
+          tenantId: this.tenantId,
+          bomId: newBom!.id,
+          lineNo: l.lineNo,
+          inputItemId: l.inputItemId,
+          qtyPerOutput: String(l.qtyPerOutput),
+          inputUom: l.inputUom,
+          scrapPct: String(l.scrapPct),
+          isOptional: l.isOptional,
+          notes: l.notes ?? null,
+        })),
+      );
+
+      return newBom!;
+    });
+
+    return this.getById(result.id);
+  }
+
+  async activate(id: string): Promise<BomWithLines> {
+    const bom = await this.getById(id);
+
+    await this.db.transaction(async (tx) => {
+      // Deactivate any other active BOM for the same output item
+      await tx
+        .update(boms)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(boms.tenantId, this.tenantId),
+            eq(boms.outputItemId, bom.outputItemId),
+            eq(boms.isActive, true),
+          ),
+        );
+
+      await tx
+        .update(boms)
+        .set({ isActive: true, updatedAt: new Date() })
+        .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
+    });
+
+    return this.getById(id);
+  }
+
+  async deactivate(id: string): Promise<BomWithLines> {
+    await this.db
+      .update(boms)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
+
+    return this.getById(id);
+  }
+
+  // ─── Internals ──────────────────────────────────────────────────────────
+
+  private async updateInPlace(id: string, input: UpdateBomInput): Promise<BomWithLines> {
+    await this.db.transaction(async (tx) => {
+      const patch: Partial<typeof boms.$inferInsert> = { updatedAt: new Date() };
+      if (input.name !== undefined) patch.name = input.name;
+      if (input.outputQty !== undefined) patch.outputQty = String(input.outputQty);
+      if (input.outputUom !== undefined) patch.outputUom = input.outputUom;
+      if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom ?? null;
+      if (input.notes !== undefined) patch.notes = input.notes ?? null;
+
+      await tx.update(boms).set(patch)
+        .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
+
+      if (input.lines) {
+        await tx.delete(bomLines).where(eq(bomLines.bomId, id));
+        await tx.insert(bomLines).values(
+          input.lines.map((l, i) => ({
+            tenantId: this.tenantId,
+            bomId: id,
+            lineNo: i + 1,
+            inputItemId: l.inputItemId,
+            qtyPerOutput: String(l.qtyPerOutput),
+            inputUom: l.inputUom,
+            scrapPct: String(l.scrapPct ?? 0),
+            isOptional: l.isOptional ?? false,
+            notes: l.notes ?? null,
+          })),
+        );
+      }
+    });
+
+    return this.getById(id);
+  }
+
+  private buildWhere(filters: BomFilter) {
+    return and(
+      eq(boms.tenantId, this.tenantId),
+      filters.outputItemId ? eq(boms.outputItemId, filters.outputItemId) : undefined,
+      filters.isActive !== undefined ? eq(boms.isActive, filters.isActive) : undefined,
+      filters.search
+        ? or(
+            ilike(boms.name, `%${filters.search}%`),
+            ilike(boms.bomCode, `%${filters.search}%`),
+          )
+        : undefined,
+    );
+  }
+
+  private toBom(row: typeof boms.$inferSelect) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      bomCode: row.bomCode,
+      name: row.name,
+      outputItemId: row.outputItemId,
+      outputQty: Number(row.outputQty),
+      outputUom: row.outputUom,
+      version: row.version,
+      isActive: row.isActive,
+      effectiveFrom: row.effectiveFrom ?? null,
+      notes: row.notes ?? null,
+      createdBy: row.createdBy ?? null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private toLine(
+    row: typeof bomLines.$inferSelect,
+    inputItemName: string,
+  ): BomLine {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      bomId: row.bomId,
+      lineNo: row.lineNo,
+      inputItemId: row.inputItemId,
+      inputItemName,
+      qtyPerOutput: Number(row.qtyPerOutput),
+      inputUom: row.inputUom,
+      scrapPct: Number(row.scrapPct),
+      isOptional: row.isOptional,
+      notes: row.notes ?? null,
+    };
+  }
+}

@@ -164,6 +164,23 @@ List<FabAction> purchaseFabActions() => [
       ),
     ];
 
+List<FabAction> manufacturingFabActions() => [
+      FabAction(
+        icon: Icons.add_chart_outlined,
+        title: 'New BOM',
+        sub: 'Define an input recipe',
+        tint: const Color(0xFFE11D48), // manufacturing rose
+        onTap: (ctx) => ctx.push('/manufacturing/boms/new'),
+      ),
+      FabAction(
+        icon: Icons.playlist_add_rounded,
+        title: 'New Work Order',
+        sub: 'Schedule a production run',
+        tint: const Color(0xFFBE123C),
+        onTap: (ctx) => ctx.push('/manufacturing/wos/new'),
+      ),
+    ];
+
 class FabSheet extends StatelessWidget {
   final double progress;
   final VoidCallback onClose;

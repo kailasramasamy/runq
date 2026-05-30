@@ -126,6 +126,19 @@ button:not(:disabled),
   --accent-text: oklch(0.8 0.15 293);
 }
 
+/* Manufacturing — rose (#E11D48 / Tailwind rose-600). Mirrors mobile MfgColors.
+   Reads as production/heat/output; distinct from indigo / teal / amber / violet. */
+[data-module="manufacturing"] {
+  --accent: oklch(0.59 0.22 13);
+  --accent-soft: oklch(0.96 0.03 13);
+  --accent-text: oklch(0.49 0.2 13);
+}
+.dark[data-module="manufacturing"] {
+  --accent: oklch(0.74 0.17 13);
+  --accent-soft: oklch(0.3 0.07 13);
+  --accent-text: oklch(0.82 0.13 13);
+}
+
 body {
   font-family: var(--font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";

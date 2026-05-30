@@ -13,6 +13,7 @@ import { authRoutes } from './modules/auth/routes';
 import { socialAuthRoutes } from './modules/auth/social-auth.routes';
 import { apRoutes } from './modules/ap/routes';
 import { purchaseRoutes } from './modules/purchase/routes';
+import { manufacturingRoutes } from './modules/manufacturing/routes';
 import { arRoutes } from './modules/ar/routes';
 import { invoicePrintRoutes } from './modules/ar/invoice-print.routes';
 import { billPrintRoutes } from './modules/ap/bill-print.routes';
@@ -107,6 +108,7 @@ export async function buildApp() {
 
     await scope.register(apRoutes, { prefix: '/api/v1/ap' });
     await scope.register(purchaseRoutes, { prefix: '/api/v1/purchase' });
+    await scope.register(manufacturingRoutes, { prefix: '/api/v1/manufacturing' });
     await scope.register(arRoutes, { prefix: '/api/v1/ar' });
     await scope.register(bankingRoutes, { prefix: '/api/v1/banking' });
     await scope.register(pgReconRoutes, { prefix: '/api/v1/pg-recon' });

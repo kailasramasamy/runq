@@ -160,6 +160,9 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5005', name: 'Packing & Forwarding', type: 'expense', parent: '5100' },
   // Inventory write-off — damage, theft, expiry, stock-take shortage
   { code: '5104', name: 'Inventory Write-off', type: 'expense', parent: '5100', system: true },
+  // Manufacturing yield variance — single leaf for both gain (Cr) and loss (Dr).
+  // Posted by Work Order close when actual output ≠ planned output.
+  { code: '5105', name: 'Production Yield Variance', type: 'expense', parent: '5100', system: true },
   { code: '5006', name: 'Purchase Returns', type: 'expense', parent: '5100' },
 
   // Employee Costs

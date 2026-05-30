@@ -75,6 +75,7 @@ class _ModuleSwitcherState extends ConsumerState<ModuleSwitcher>
       AppModule.hr => isDark ? const Color(0xFF67E8F9) : const Color(0xFF0891B2),
       AppModule.inventory => isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
       AppModule.purchase => isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED),
+      AppModule.manufacturing => isDark ? const Color(0xFFFDA4AF) : const Color(0xFFE11D48),
     };
   }
 
@@ -248,6 +249,7 @@ class _MenuRow extends StatelessWidget {
         AppModule.hr => 'Employees · Attendance · Payroll',
         AppModule.inventory => 'Stock · GRN · Dispatch · Reports',
         AppModule.purchase => 'POs · Receive · 3-way Match · Direct',
+        AppModule.manufacturing => 'BOMs · Work Orders · Costing',
       };
 
   @override

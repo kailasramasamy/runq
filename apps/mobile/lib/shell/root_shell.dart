@@ -63,6 +63,14 @@ const _purchaseTabs = <_Tab>[
   _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
 
+// Manufacturing module tabs. Home is the dashboard; BOMs is the recipe
+// list; WOs is the work order list.
+const _manufacturingTabs = <_Tab>[
+  _Tab('/manufacturing', 'Home', Icons.home_outlined, Icons.home_rounded),
+  _Tab('/manufacturing/boms', 'BOMs', Icons.add_chart_outlined, Icons.add_chart_rounded),
+  _Tab('/manufacturing/wos', 'WOs', Icons.precision_manufacturing_outlined, Icons.precision_manufacturing_rounded),
+];
+
 class RootShell extends ConsumerStatefulWidget {
   final GoRouterState state;
   final Widget child;
@@ -122,13 +130,15 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     // the splash lands on /home but prefs still say HR (e.g. an admin
     // who switched yesterday), reading prefs would show HR tabs over a
     // Finance screen. Reading the route avoids that drift.
-    final module = loc.startsWith('/purchase')
-        ? AppModule.purchase
-        : loc.startsWith('/inventory')
-            ? AppModule.inventory
-            : loc.startsWith('/hr')
-                ? AppModule.hr
-                : AppModule.finance;
+    final module = loc.startsWith('/manufacturing')
+        ? AppModule.manufacturing
+        : loc.startsWith('/purchase')
+            ? AppModule.purchase
+            : loc.startsWith('/inventory')
+                ? AppModule.inventory
+                : loc.startsWith('/hr')
+                    ? AppModule.hr
+                    : AppModule.finance;
     // Mirror the active route into the persisted module so the next cold
     // start lands the user in the same module they left. Done as a side
     // effect after build to avoid mutating provider state mid-build.
@@ -142,6 +152,7 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
       AppModule.hr => _hrTabs,
       AppModule.inventory => _inventoryTabs,
       AppModule.purchase => _purchaseTabs,
+      AppModule.manufacturing => _manufacturingTabs,
       AppModule.finance => _financeTabs,
     };
     final active = _activeIndex(tabs, loc);
@@ -149,6 +160,7 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
       AppModule.hr => hrFabActions(),
       AppModule.inventory => inventoryFabActions(),
       AppModule.purchase => purchaseFabActions(),
+      AppModule.manufacturing => manufacturingFabActions(),
       AppModule.finance => financeFabActions(),
     };
 
@@ -213,6 +225,7 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
           AppModule.hr => const Color(0xFF0891B2),
           AppModule.inventory => _inventoryAmber,
           AppModule.purchase => _purchaseViolet,
+          AppModule.manufacturing => const Color(0xFFE11D48),
           AppModule.finance => RunqColors.indigo,
         },
         // HR module uses a Home-only shell: every non-Home destination is

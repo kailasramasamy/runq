@@ -25,7 +25,8 @@ type Tx = any;
 export type StockMovementType =
   | 'grn' | 'delivery' | 'transfer_in' | 'transfer_out'
   | 'adjustment_in' | 'adjustment_out' | 'opening' | 'reversal'
-  | 'stock_take_in' | 'stock_take_out';
+  | 'stock_take_in' | 'stock_take_out'
+  | 'production_out' | 'production_in';
 
 export interface MovementInput {
   itemId: string;

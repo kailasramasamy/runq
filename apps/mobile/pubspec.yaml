@@ -54,6 +54,12 @@ dependencies:
   firebase_messaging: ^15.1.5
   # Confetti burst animation for the employee rewards celebratory view.
   confetti: ^0.8.0
+  # Manufacturing Phase 2.5 — offline queue for the WO Run view.
+  # Hive backs the persistent FIFO; connectivity_plus drives the
+  # online/offline transition; uuid generates client idempotency keys.
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^6.1.0
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

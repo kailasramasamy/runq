@@ -1,0 +1,68 @@
+/**
+ * Manufacturing — Work Order domain types.
+ * Spec: docs/manufacturing-plan.md §4.3.
+ */
+
+export type WorkOrderStatus =
+  | 'draft'
+  | 'in_progress'
+  | 'completed'
+  | 'closed'
+  | 'cancelled';
+
+export type QcStatus = 'pending' | 'passed' | 'failed' | 'conditional';
+
+export interface WorkOrder {
+  id: string;
+  tenantId: string;
+  woNumber: string;
+  bomId: string;
+  bomVersion: number;
+  plannedQty: number;
+  warehouseId: string;
+  shift: string | null;
+  scheduledFor: string;
+  status: WorkOrderStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  closedAt: string | null;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
+  outputQty: number;
+  consumedValue: number;
+  outputValue: number;
+  yieldVariance: number;
+  qcStatus: QcStatus | null;
+  jeId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkOrderExpectedLine {
+  bomLineId: string;
+  inputItemId: string;
+  inputItemName: string;
+  qtyPerOutput: number;
+  inputUom: string;
+  scrapPct: number;
+  expectedQty: number;
+  isOptional: boolean;
+}
+
+export interface WorkOrderWithDetail extends WorkOrder {
+  bomCode: string;
+  bomName: string;
+  outputItemId: string;
+  outputItemName: string;
+  outputUom: string;
+  warehouseName: string;
+  expected: WorkOrderExpectedLine[];
+}
+
+export interface WorkOrderListRow extends WorkOrder {
+  bomCode: string;
+  bomName: string;
+  outputItemName: string;
+  warehouseName: string;
+}

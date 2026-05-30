@@ -5,6 +5,7 @@ import 'providers/theme_mode_provider.dart';
 import 'router.dart';
 import 'services/push_service.dart';
 import 'services/share_intake.dart';
+import 'services/wo_run_queue.dart';
 import 'theme/runq_theme.dart';
 import 'utils/app_info.dart';
 import 'widgets/app_update_gate.dart';
@@ -17,6 +18,13 @@ void main() async {
   } on Exception catch (e) {
     // Push is non-critical — never block app launch on a Firebase misconfig.
     debugPrint('FCM init failed: $e');
+  }
+  try {
+    // Manufacturing WO Run offline queue — see services/wo_run_queue.dart.
+    // Init is fire-and-forget for app launch; the queue is no-op until ready.
+    await WoRunQueue.instance.init();
+  } on Exception catch (e) {
+    debugPrint('WoRunQueue init failed: $e');
   }
   runApp(const ProviderScope(child: RunqApp()));
 }

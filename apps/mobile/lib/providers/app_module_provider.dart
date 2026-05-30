@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AppModule { finance, hr, inventory, purchase }
+enum AppModule { finance, hr, inventory, purchase, manufacturing }
 
 extension AppModuleX on AppModule {
   String get label => switch (this) {
@@ -19,6 +19,7 @@ extension AppModuleX on AppModule {
         AppModule.hr => 'HR',
         AppModule.inventory => 'Inventory',
         AppModule.purchase => 'Purchase',
+        AppModule.manufacturing => 'Manufacturing',
       };
 
   /// Home route to land on when switching into this module.
@@ -27,6 +28,7 @@ extension AppModuleX on AppModule {
         AppModule.hr => '/hr/home',
         AppModule.inventory => '/inventory',
         AppModule.purchase => '/purchase',
+        AppModule.manufacturing => '/manufacturing',
       };
 
   /// Pref-store key (kept stable so existing users don't reset).
@@ -35,6 +37,7 @@ extension AppModuleX on AppModule {
         AppModule.hr => 'hr',
         AppModule.inventory => 'inventory',
         AppModule.purchase => 'purchase',
+        AppModule.manufacturing => 'manufacturing',
       };
 
   IconData get icon => switch (this) {
@@ -42,6 +45,7 @@ extension AppModuleX on AppModule {
         AppModule.hr => Icons.groups_2_outlined,
         AppModule.inventory => Icons.inventory_2_outlined,
         AppModule.purchase => Icons.shopping_cart_outlined,
+        AppModule.manufacturing => Icons.factory_outlined,
       };
 }
 
@@ -61,6 +65,8 @@ class AppModuleNotifier extends StateNotifier<AppModule> {
       state = AppModule.inventory;
     } else if (raw == 'purchase') {
       state = AppModule.purchase;
+    } else if (raw == 'manufacturing') {
+      state = AppModule.manufacturing;
     }
   }
 
