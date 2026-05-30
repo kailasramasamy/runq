@@ -17,14 +17,28 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 let isRedirecting = false;
+
+/**
+ * Public unauthenticated routes that own their own session model.
+ * Visitors landing on these must never be redirected to /login by the
+ * global auth provider — portals use slug-based / token-based sessions.
+ */
+function isPublicRoute(pathname: string): boolean {
+  return pathname.startsWith('/portal/') || pathname.startsWith('/vendor-portal/');
+}
+
 function redirectToLoginExpired() {
   if (isRedirecting) return;
   if (window.location.pathname.endsWith('/login')) return;
+  if (isPublicRoute(window.location.pathname)) return;
   isRedirecting = true;
   localStorage.removeItem('runq-token');
   localStorage.removeItem(ACTIVE_TENANT_KEY);
-  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-  window.location.replace(`${base}/login?session=expired`);
+  // App routes live at the document root. Don't prefix with
+  // import.meta.env.BASE_URL — that's the asset base (`/app-assets/` in
+  // prod) and using it for app navigation produces `/app-assets/login`,
+  // which 404s.
+  window.location.replace(`/login?session=expired`);
 }
 
 // Send an unauthenticated visitor (no token at all) to the login page.
@@ -33,9 +47,9 @@ function redirectToLoginExpired() {
 function redirectToLogin(): boolean {
   if (isRedirecting) return true;
   if (window.location.pathname.endsWith('/login')) return false;
+  if (isPublicRoute(window.location.pathname)) return false;
   isRedirecting = true;
-  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-  window.location.replace(`${base}/login`);
+  window.location.replace(`/login`);
   return true;
 }
 
