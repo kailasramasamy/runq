@@ -187,6 +187,29 @@ export function useDeleteInvoice() {
 }
 
 /**
+ * Void a sent/paid/overdue invoice — issues an auto-CN mirroring the
+ * invoice's items + tax, then marks the invoice cancelled. Used when an
+ * already-filed invoice must be reversed (CN flows through the next
+ * GSTR-1 as a CDN entry). The customer's receipt allocations are
+ * untouched — the over-collection becomes a customer credit balance.
+ */
+export function useVoidInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason, issueDate }: { id: string; reason: string; issueDate?: string }) =>
+      api.post<ApiSuccess<{ invoice: SalesInvoice; creditNoteId: string }>>(
+        `/ar/invoices/${id}/void`,
+        { reason, ...(issueDate && { issueDate }) },
+      ),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['invoices', 'detail', id] });
+      qc.invalidateQueries({ queryKey: ['credit-notes'] });
+    },
+  });
+}
+
+/**
  * Hard delete — physically removes the invoice row from the DB.
  * Distinct from useDeleteInvoice (which is the soft-cancel "Discard").
  * Backend restricts this to draft + cancelled statuses and refuses if

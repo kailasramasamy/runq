@@ -1,24 +1,24 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp, pgEnum, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, text, timestamp, boolean, unique, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from './customers';
 import { salesInvoices, taxCategoryEnum } from './invoices';
+import { debitNoteStatusEnum } from '../ap/debit-notes';
 
-export const creditNoteStatusEnum = pgEnum('credit_note_status', ['draft', 'issued', 'adjusted', 'cancelled']);
-
-export const creditNotes = pgTable('credit_notes', {
+// Customer-side debit notes (raised on customers who underpaid, or to correct
+// under-billing on an invoice already in a filed GSTR-1). Mirrors creditNotes
+// structure so the GSTR-1 generator treats both uniformly in the CDN section.
+//
+// Reuses debit_note_status enum from the vendor-side debit_notes table.
+export const customerDebitNotes = pgTable('customer_debit_notes', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-  creditNoteNumber: varchar('credit_note_number', { length: 50 }).notNull(),
+  debitNoteNumber: varchar('debit_note_number', { length: 50 }).notNull(),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
-  // Optional FK — kept for backward compatibility. amends_invoice_number is
-  // the source of truth for GSTR-1 amendments, since invoices can be voided
-  // or renumbered while the CN's historical reference must remain stable.
   invoiceId: uuid('invoice_id').references(() => salesInvoices.id),
   issueDate: date('issue_date').notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   reason: text('reason').notNull(),
-  status: creditNoteStatusEnum('status').notNull().default('draft'),
-  // GST tax breakdown — rolled up from credit_note_items on issue.
+  status: debitNoteStatusEnum('status').notNull().default('draft'),
   taxableValue: decimal('taxable_value', { precision: 15, scale: 2 }).notNull().default('0'),
   cgstAmount: decimal('cgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   sgstAmount: decimal('sgst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
@@ -28,19 +28,21 @@ export const creditNotes = pgTable('credit_notes', {
   placeOfSupplyCode: varchar('place_of_supply_code', { length: 2 }),
   isInterState: boolean('is_inter_state'),
   reverseCharge: boolean('reverse_charge').notNull().default(false),
-  // Amendment metadata — captures the original invoice's identity so GSTR-1
-  // Table 9B can emit the right reference even if the original invoice was
-  // later edited/renumbered.
   amendsInvoiceNumber: varchar('amends_invoice_number', { length: 50 }),
   amendsInvoiceDate: date('amends_invoice_date'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  unique().on(t.tenantId, t.debitNoteNumber),
+  index('idx_cdn_tenant_customer').on(t.tenantId, t.customerId),
+  index('idx_cdn_tenant_issue').on(t.tenantId, t.issueDate),
+  index('idx_cdn_invoice').on(t.invoiceId),
+]);
 
-export const creditNoteItems = pgTable('credit_note_items', {
+export const customerDebitNoteItems = pgTable('customer_debit_note_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
-  creditNoteId: uuid('credit_note_id').notNull().references(() => creditNotes.id, { onDelete: 'cascade' }),
+  customerDebitNoteId: uuid('customer_debit_note_id').notNull().references(() => customerDebitNotes.id, { onDelete: 'cascade' }),
   itemId: uuid('item_id'),
   description: varchar('description', { length: 500 }).notNull(),
   uom: varchar('uom', { length: 20 }),
@@ -63,5 +65,5 @@ export const creditNoteItems = pgTable('credit_note_items', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index('idx_cni_credit_note_id').on(t.creditNoteId),
+  index('idx_cdni_dn_id').on(t.customerDebitNoteId),
 ]);

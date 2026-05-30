@@ -1,28 +1,27 @@
 import { eq, and, sql } from 'drizzle-orm';
-import { creditNotes, creditNoteItems, customers, salesInvoices } from '@runq/db';
+import { customerDebitNotes, customerDebitNoteItems, customers, salesInvoices } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { CreditNote, CreditNoteItem } from '@runq/types';
+import type { CustomerDebitNote, CustomerDebitNoteItem, PaginationMeta } from '@runq/types';
 import type {
-  CreateCreditNoteInput,
-  UpdateCreditNoteInput,
-  CreditNoteFilter,
+  CreateCustomerDebitNoteInput,
+  UpdateCustomerDebitNoteInput,
+  CustomerDebitNoteFilter,
   CreditNoteItemInput,
 } from '@runq/validators';
-import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
-import { decimalAdd, decimalSubtract, decimalLte, toNumber } from '../../utils/decimal';
+import { decimalAdd, toNumber } from '../../utils/decimal';
 import { AuditService } from '../../utils/audit';
 import { GLService } from '../gl/gl.service';
 
-export interface CreditNoteListParams {
+export interface CustomerDebitNoteListParams {
   page: number;
   limit: number;
-  filters: CreditNoteFilter;
+  filters: CustomerDebitNoteFilter;
 }
 
-export interface CreditNoteListResult {
-  data: (CreditNote & { customerName: string })[];
+export interface CustomerDebitNoteListResult {
+  data: (CustomerDebitNote & { customerName: string })[];
   meta: PaginationMeta;
 }
 
@@ -35,7 +34,7 @@ interface TaxRollup {
   total: number;
 }
 
-export class CreditNoteService {
+export class CustomerDebitNoteService {
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
@@ -45,64 +44,60 @@ export class CreditNoteService {
     return new AuditService(this.db, this.tenantId);
   }
 
-  async list(params: CreditNoteListParams): Promise<CreditNoteListResult> {
+  async list(params: CustomerDebitNoteListParams): Promise<CustomerDebitNoteListResult> {
     const { page, limit, filters } = params;
     const { offset } = applyPagination(page, limit);
 
     const baseWhere = and(
-      eq(creditNotes.tenantId, this.tenantId),
-      filters.customerId ? eq(creditNotes.customerId, filters.customerId) : undefined,
-      filters.invoiceId ? eq(creditNotes.invoiceId, filters.invoiceId) : undefined,
-      filters.status ? eq(creditNotes.status, filters.status) : undefined,
+      eq(customerDebitNotes.tenantId, this.tenantId),
+      filters.customerId ? eq(customerDebitNotes.customerId, filters.customerId) : undefined,
+      filters.invoiceId ? eq(customerDebitNotes.invoiceId, filters.invoiceId) : undefined,
+      filters.status ? eq(customerDebitNotes.status, filters.status) : undefined,
     );
 
     const [rows, countResult] = await Promise.all([
       this.db
-        .select({ creditNote: creditNotes, customerName: customers.name })
-        .from(creditNotes)
-        .innerJoin(customers, eq(creditNotes.customerId, customers.id))
+        .select({ note: customerDebitNotes, customerName: customers.name })
+        .from(customerDebitNotes)
+        .innerJoin(customers, eq(customerDebitNotes.customerId, customers.id))
         .where(baseWhere)
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(creditNotes).where(baseWhere),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(customerDebitNotes).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...this.toCreditNote(r.creditNote), customerName: r.customerName }));
+    const data = rows.map((r) => ({ ...this.toNote(r.note), customerName: r.customerName }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 
-  async getById(id: string): Promise<CreditNote & { customerName: string }> {
+  async getById(id: string): Promise<CustomerDebitNote & { customerName: string }> {
     const [row] = await this.db
-      .select({ creditNote: creditNotes, customerName: customers.name })
-      .from(creditNotes)
-      .innerJoin(customers, eq(creditNotes.customerId, customers.id))
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
+      .select({ note: customerDebitNotes, customerName: customers.name })
+      .from(customerDebitNotes)
+      .innerJoin(customers, eq(customerDebitNotes.customerId, customers.id))
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!row) throw new NotFoundError('Credit note');
+    if (!row) throw new NotFoundError('Customer debit note');
 
     const itemRows = await this.db
       .select()
-      .from(creditNoteItems)
-      .where(eq(creditNoteItems.creditNoteId, id));
+      .from(customerDebitNoteItems)
+      .where(eq(customerDebitNoteItems.customerDebitNoteId, id));
 
     return {
-      ...this.toCreditNote(row.creditNote),
+      ...this.toNote(row.note),
       customerName: row.customerName,
       items: itemRows.map((i) => this.toItem(i)),
     };
   }
 
-  async create(input: CreateCreditNoteInput): Promise<CreditNote> {
-    if (input.invoiceId) {
-      await this.validateInvoiceExists(input.invoiceId);
-    }
+  async create(input: CreateCustomerDebitNoteInput): Promise<CustomerDebitNote> {
+    if (input.invoiceId) await this.validateInvoiceExists(input.invoiceId);
 
-    const creditNoteNumber = await this.generateNumber();
+    const debitNoteNumber = await this.generateNumber();
     const rollup = this.rollupTax(input.items);
-
-    // Resolve amendment metadata from invoice if not supplied.
     const { amendsNumber, amendsDate } = await this.resolveAmendsMeta(
       input.invoiceId ?? null,
       input.amendsInvoiceNumber ?? null,
@@ -110,10 +105,10 @@ export class CreditNoteService {
     );
 
     const [row] = await this.db
-      .insert(creditNotes)
+      .insert(customerDebitNotes)
       .values({
         tenantId: this.tenantId,
-        creditNoteNumber,
+        debitNoteNumber,
         customerId: input.customerId,
         invoiceId: input.invoiceId ?? null,
         issueDate: input.issueDate,
@@ -134,24 +129,21 @@ export class CreditNoteService {
       })
       .returning();
 
-    if (!row) throw new ConflictError('Failed to create credit note');
+    if (!row) throw new ConflictError('Failed to create customer debit note');
 
     await this.insertItems(row.id, input.items);
-    return this.toCreditNote(row);
+    return this.toNote(row);
   }
 
-  async update(id: string, input: UpdateCreditNoteInput): Promise<CreditNote> {
+  async update(id: string, input: UpdateCustomerDebitNoteInput): Promise<CustomerDebitNote> {
     const existing = await this.findRaw(id);
     if (existing.status !== 'draft') {
-      throw new ConflictError('Only draft credit notes can be updated');
+      throw new ConflictError('Only draft customer debit notes can be updated');
     }
 
-    if (input.invoiceId) {
-      await this.validateInvoiceExists(input.invoiceId);
-    }
+    if (input.invoiceId) await this.validateInvoiceExists(input.invoiceId);
 
-    // If items supplied, replace + re-rollup.
-    let rollupSet: Partial<typeof creditNotes.$inferInsert> = {};
+    let rollupSet: Partial<typeof customerDebitNotes.$inferInsert> = {};
     if (input.items) {
       const rollup = this.rollupTax(input.items);
       rollupSet = {
@@ -162,12 +154,12 @@ export class CreditNoteService {
         igstAmount: rollup.igstAmount.toFixed(2),
         cessAmount: rollup.cessAmount.toFixed(2),
       };
-      await this.db.delete(creditNoteItems).where(eq(creditNoteItems.creditNoteId, id));
+      await this.db.delete(customerDebitNoteItems).where(eq(customerDebitNoteItems.customerDebitNoteId, id));
       await this.insertItems(id, input.items);
     }
 
     const [row] = await this.db
-      .update(creditNotes)
+      .update(customerDebitNotes)
       .set({
         ...(input.customerId !== undefined && { customerId: input.customerId }),
         ...(input.invoiceId !== undefined && { invoiceId: input.invoiceId ?? null }),
@@ -182,26 +174,26 @@ export class CreditNoteService {
         ...rollupSet,
         updatedAt: new Date(),
       })
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)))
       .returning();
 
-    if (!row) throw new NotFoundError('Credit note');
-    return this.toCreditNote(row);
+    if (!row) throw new NotFoundError('Customer debit note');
+    return this.toNote(row);
   }
 
-  async issue(id: string): Promise<CreditNote> {
+  async issue(id: string): Promise<CustomerDebitNote> {
     const existing = await this.findRaw(id);
     if (existing.status !== 'draft') {
-      throw new ConflictError('Only draft credit notes can be issued');
+      throw new ConflictError('Only draft customer debit notes can be issued');
     }
 
     const [row] = await this.db
-      .update(creditNotes)
+      .update(customerDebitNotes)
       .set({ status: 'issued', updatedAt: new Date() })
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)))
       .returning();
 
-    if (!row) throw new NotFoundError('Credit note');
+    if (!row) throw new NotFoundError('Customer debit note');
 
     const [customerRow] = await this.db
       .select({ name: customers.name })
@@ -210,7 +202,7 @@ export class CreditNoteService {
       .limit(1);
 
     const gl = new GLService(this.db, this.tenantId);
-    await gl.postCreditNote({
+    await gl.postCustomerDebitNote({
       amount: toNumber(existing.amount),
       date: existing.issueDate,
       id,
@@ -222,96 +214,55 @@ export class CreditNoteService {
       cessAmount: toNumber(existing.cessAmount),
     });
 
-    return this.toCreditNote(row);
-  }
-
-  async apply(id: string): Promise<CreditNote> {
-    const existing = await this.findRaw(id);
-    if (existing.status !== 'issued') {
-      throw new ConflictError('Only issued credit notes can be applied');
-    }
-
-    if (existing.invoiceId) {
-      await this.applyToInvoiceId(id, existing.invoiceId);
-    } else {
-      // Standalone CN — JE already posted at issue time reduced customer AR.
-      // Mark adjusted; surplus visible via customer ledger.
-      await this.db
-        .update(creditNotes)
-        .set({ status: 'adjusted', updatedAt: new Date() })
-        .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)));
-    }
-
-    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
-    return this.getById(id);
-  }
-
-  async applyToInvoice(id: string, invoiceId: string): Promise<CreditNote> {
-    const existing = await this.findRaw(id);
-    if (existing.status !== 'issued') {
-      throw new ConflictError('Only issued credit notes can be applied');
-    }
-
-    await this.applyToInvoiceId(id, invoiceId);
-    await this.audit().log({ action: 'applied', entityType: 'credit_note', entityId: id });
-    return this.getById(id);
+    return this.toNote(row);
   }
 
   /**
-   * Apply a CN against an invoice. Behaviour:
-   *  - Invoice with balance > 0: reduce balanceDue (clamped to 0), bump
-   *    amountReceived by the smaller of (CN amount, invoice balance).
-   *  - Invoice fully paid: no invoice mutation. CN JE already reduced
-   *    customer AR; the full amount becomes a customer credit/advance.
-   *
-   * Either way, CN status → 'adjusted'. Surplus (CN amount > invoice balance)
-   * is intentionally NOT capped — the GL JE reflects the true reduction.
+   * Customer DN is "applied" when associated with an invoice — increases that
+   * invoice's totalAmount + balanceDue by the DN amount. If no invoice linked,
+   * the DN sits on the customer ledger as an additional receivable.
    */
-  private async applyToInvoiceId(id: string, invoiceId: string): Promise<void> {
-    const [invoice] = await this.db
-      .select()
-      .from(salesInvoices)
-      .where(and(eq(salesInvoices.id, invoiceId), eq(salesInvoices.tenantId, this.tenantId)))
-      .limit(1);
-
-    if (!invoice) throw new NotFoundError('Sales invoice');
-
-    const creditNote = await this.findRaw(id);
-    const cnAmount = toNumber(creditNote.amount);
-    const invBalance = toNumber(invoice.balanceDue);
-
-    if (invBalance > 0) {
-      const applied = Math.min(cnAmount, invBalance);
-      const newBalance = decimalSubtract(invoice.balanceDue, applied.toString());
-      const newReceived = decimalAdd(invoice.amountReceived, applied.toString());
-      const newStatus = decimalLte(newBalance, '0') ? 'paid' : invoice.status;
-
-      await this.db
-        .update(salesInvoices)
-        .set({ balanceDue: newBalance, amountReceived: newReceived, status: newStatus, updatedAt: new Date() })
-        .where(and(eq(salesInvoices.id, invoiceId), eq(salesInvoices.tenantId, this.tenantId)));
+  async apply(id: string): Promise<CustomerDebitNote> {
+    const existing = await this.findRaw(id);
+    if (existing.status !== 'issued') {
+      throw new ConflictError('Only issued customer debit notes can be applied');
     }
-    // else: invoice fully paid — no mutation; CN sits as customer credit.
+
+    if (existing.invoiceId) {
+      const [invoice] = await this.db
+        .select()
+        .from(salesInvoices)
+        .where(and(eq(salesInvoices.id, existing.invoiceId), eq(salesInvoices.tenantId, this.tenantId)))
+        .limit(1);
+      if (invoice) {
+        const newBalance = decimalAdd(invoice.balanceDue, existing.amount);
+        const newTotal   = decimalAdd(invoice.totalAmount, existing.amount);
+        await this.db
+          .update(salesInvoices)
+          .set({ balanceDue: newBalance, totalAmount: newTotal, updatedAt: new Date() })
+          .where(and(eq(salesInvoices.id, existing.invoiceId), eq(salesInvoices.tenantId, this.tenantId)));
+      }
+    }
 
     await this.db
-      .update(creditNotes)
-      .set({ status: 'adjusted', invoiceId, updatedAt: new Date() })
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)));
+      .update(customerDebitNotes)
+      .set({ status: 'adjusted', updatedAt: new Date() })
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)));
+
+    await this.audit().log({ action: 'applied', entityType: 'customer_debit_note', entityId: id });
+    return this.toNote(await this.findRaw(id));
   }
 
   async cancel(id: string): Promise<void> {
     const existing = await this.findRaw(id);
     if (existing.status !== 'draft') {
-      throw new ConflictError('Only draft credit notes can be cancelled');
+      throw new ConflictError('Only draft customer debit notes can be cancelled');
     }
 
-    const [row] = await this.db
-      .update(creditNotes)
+    await this.db
+      .update(customerDebitNotes)
       .set({ status: 'cancelled', updatedAt: new Date() })
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
-      .returning({ id: creditNotes.id });
-
-    if (!row) throw new NotFoundError('Credit note');
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)));
   }
 
   // ─── helpers ──────────────────────────────────────────────────────────
@@ -326,18 +277,17 @@ export class CreditNoteService {
       r.cessAmount   += it.cessAmount;
     }
     r.total = r.taxableValue + r.cgstAmount + r.sgstAmount + r.igstAmount + r.cessAmount;
-    // Round to 2dp to avoid floating-point drift.
     for (const k of ['taxableValue','cgstAmount','sgstAmount','igstAmount','cessAmount','total'] as const) {
       r[k] = Math.round(r[k] * 100) / 100;
     }
     return r;
   }
 
-  private async insertItems(creditNoteId: string, items: CreditNoteItemInput[]): Promise<void> {
+  private async insertItems(noteId: string, items: CreditNoteItemInput[]): Promise<void> {
     if (items.length === 0) return;
-    await this.db.insert(creditNoteItems).values(items.map((it) => ({
+    await this.db.insert(customerDebitNoteItems).values(items.map((it) => ({
       tenantId: this.tenantId,
-      creditNoteId,
+      customerDebitNoteId: noteId,
       itemId: it.itemId ?? null,
       description: it.description,
       uom: it.uom ?? null,
@@ -376,14 +326,14 @@ export class CreditNoteService {
     return { amendsNumber: fallbackNumber, amendsDate: fallbackDate };
   }
 
-  private async findRaw(id: string): Promise<typeof creditNotes.$inferSelect> {
+  private async findRaw(id: string): Promise<typeof customerDebitNotes.$inferSelect> {
     const [row] = await this.db
       .select()
-      .from(creditNotes)
-      .where(and(eq(creditNotes.id, id), eq(creditNotes.tenantId, this.tenantId)))
+      .from(customerDebitNotes)
+      .where(and(eq(customerDebitNotes.id, id), eq(customerDebitNotes.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!row) throw new NotFoundError('Credit note');
+    if (!row) throw new NotFoundError('Customer debit note');
     return row;
   }
 
@@ -400,18 +350,18 @@ export class CreditNoteService {
   private async generateNumber(): Promise<string> {
     const [result] = await this.db
       .select({ count: sql<number>`count(*)::int` })
-      .from(creditNotes)
-      .where(eq(creditNotes.tenantId, this.tenantId));
+      .from(customerDebitNotes)
+      .where(eq(customerDebitNotes.tenantId, this.tenantId));
 
     const seq = ((result?.count ?? 0) + 1).toString().padStart(4, '0');
-    return `CN-${seq}`;
+    return `CDN-${seq}`;
   }
 
-  private toCreditNote(row: typeof creditNotes.$inferSelect): CreditNote {
+  private toNote(row: typeof customerDebitNotes.$inferSelect): CustomerDebitNote {
     return {
       id: row.id,
       tenantId: row.tenantId,
-      creditNoteNumber: row.creditNoteNumber,
+      debitNoteNumber: row.debitNoteNumber,
       customerId: row.customerId,
       invoiceId: row.invoiceId ?? null,
       issueDate: row.issueDate,
@@ -434,10 +384,10 @@ export class CreditNoteService {
     };
   }
 
-  private toItem(row: typeof creditNoteItems.$inferSelect): CreditNoteItem {
+  private toItem(row: typeof customerDebitNoteItems.$inferSelect): CustomerDebitNoteItem {
     return {
       id: row.id,
-      creditNoteId: row.creditNoteId,
+      customerDebitNoteId: row.customerDebitNoteId,
       itemId: row.itemId,
       description: row.description,
       uom: row.uom,

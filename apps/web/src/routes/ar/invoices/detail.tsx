@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
   useInvoice, useSendInvoice, useMarkPaid, useMarkPaidFromWallet,
-  useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice,
+  useInvoiceReceipts, useDeleteInvoice, useHardDeleteInvoice, useVoidInvoice,
 } from '@/hooks/queries/use-invoices';
 import { useCustomer } from '@/hooks/queries/use-customers';
 import type { InvoiceReceipt } from '@/hooks/queries/use-invoices';
@@ -62,6 +62,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const markPaidFromWalletMutation = useMarkPaidFromWallet();
   const deleteMutation = useDeleteInvoice();
   const hardDeleteMutation = useHardDeleteInvoice();
+  const voidMutation = useVoidInvoice();
 
   const [upiCopied, setUpiCopied] = useState(false);
   const [showMarkPaid, setShowMarkPaid] = useState(false);
@@ -218,6 +219,29 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               onEdit={() => navigate({ to: '/finance/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
               onDiscard={() => setShowDiscard(true)}
               onDelete={() => setShowDelete(true)}
+              onVoid={() => {
+                // Minimal flow for v1 — a proper confirmation modal is a
+                // follow-up. Void is owner-only and infrequent, so a native
+                // prompt is acceptable for now.
+                const reason = window.prompt(
+                  `Void invoice ${invoice.invoiceNumber}? This issues a credit note for the full amount (₹${invoice.totalAmount.toLocaleString('en-IN')}) and marks the invoice cancelled. Reason:`,
+                );
+                if (!reason || !reason.trim()) return;
+                voidMutation.mutate(
+                  { id: invoice.id, reason: reason.trim() },
+                  {
+                    onSuccess: (res) => {
+                      toast(
+                        `Voided. Credit note ${res.data.creditNoteId.slice(0, 8)}… issued.`,
+                        'success',
+                      );
+                    },
+                    onError: (err) => {
+                      toast(`Void failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error');
+                    },
+                  },
+                );
+              }}
             />
             <Button variant="outline" size="sm" icon={<MoreHorizontal size={13} />} />
           </>
@@ -762,7 +786,7 @@ function TotalRow({ label, value }: { label: string; value: number }) {
 }
 
 function InvoiceActionButtons({
-  invoice, sending, walletPending, onSend, onMarkPaid, onPaidFromWallet, onEdit, onDiscard, onDelete,
+  invoice, sending, walletPending, onSend, onMarkPaid, onPaidFromWallet, onEdit, onDiscard, onDelete, onVoid,
 }: {
   invoice: { status: string; invoiceNumber: string; amountReceived: number };
   sending: boolean;
@@ -773,6 +797,7 @@ function InvoiceActionButtons({
   onEdit: () => void;
   onDiscard: () => void;
   onDelete: () => void;
+  onVoid: () => void;
 }) {
   // Sent / overdue invoices that haven't collected a payment can still be
   // amended or deleted — this is the "customer revised the PO" workflow.
@@ -809,6 +834,7 @@ function InvoiceActionButtons({
           </>
         )}
         <Button variant="outline" size="sm" icon={<FileMinus size={13} />}>Credit note</Button>
+        <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={onVoid}>Void</Button>
       </>
     );
   }
@@ -823,6 +849,16 @@ function InvoiceActionButtons({
           </>
         )}
         <Button variant="outline" size="sm" icon={<FileMinus size={13} />}>Credit note</Button>
+        <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={onVoid}>Void</Button>
+      </>
+    );
+  }
+  // Paid invoices can still be voided (issues full-value CN, customer becomes credit balance).
+  if (invoice.status === 'paid') {
+    return (
+      <>
+        <Button variant="outline" size="sm" icon={<FileMinus size={13} />}>Credit note</Button>
+        <Button variant="outline" size="sm" icon={<Trash2 size={13} />} onClick={onVoid}>Void</Button>
       </>
     );
   }

@@ -67,6 +67,9 @@ import { ReceiptDetailPage } from './ar/receipts/detail';
 import { CreditNoteListPage } from './ar/credit-notes/index';
 import { NewCreditNotePage } from './ar/credit-notes/new';
 import { CreditNoteDetailPage } from './ar/credit-notes/detail';
+import { CustomerDebitNoteListPage } from './ar/customer-debit-notes/index';
+import { NewCustomerDebitNotePage } from './ar/customer-debit-notes/new';
+import { CustomerDebitNoteDetailPage } from './ar/customer-debit-notes/detail';
 import { PaymentClaimListPage } from './ar/payment-claims/index';
 import { PoInboxPage } from './ar/po-inbox/index';
 import { PoDraftReviewPage } from './ar/po-inbox/detail';
@@ -209,6 +212,21 @@ import { AdminFeatureFlagsPage } from './admin/feature-flags';
 import { AdminAppConfigPage } from './admin/app-config';
 import { AdminAnnouncementsPage } from './admin/announcements';
 import { AdminSettingsPage } from './admin/settings';
+// Manufacturing module
+import { ManufacturingHomePage } from './manufacturing/index';
+import { BomListPage } from './manufacturing/boms/index';
+import { NewBomPage } from './manufacturing/boms/new';
+import { EditBomPage } from './manufacturing/boms/edit';
+import { BomDetailPage } from './manufacturing/boms/detail';
+import { WorkOrderListPage } from './manufacturing/wos/index';
+import { NewWorkOrderPage } from './manufacturing/wos/new';
+import { EditWorkOrderPage } from './manufacturing/wos/edit';
+import { WorkOrderDetailPage } from './manufacturing/wos/detail';
+import { WorkOrderRunPage } from './manufacturing/wos/run';
+import { WoSummaryReportPage } from './manufacturing/reports/wo-summary';
+import { YieldTrendReportPage } from './manufacturing/reports/yield-trend';
+import { BomUsageReportPage } from './manufacturing/reports/bom-usage';
+import { WoPendingCloseReportPage } from './manufacturing/reports/wo-pending-close';
 // Inventory module
 import { InventoryDashboardPage } from './inventory/index';
 import { WarehouseListPage } from './inventory/warehouses/index';
@@ -304,7 +322,9 @@ function DashboardLayout() {
         ? 'inventory'
         : pathname === '/purchase' || pathname.startsWith('/purchase/')
           ? 'purchase'
-          : 'finance';
+          : pathname === '/manufacturing' || pathname.startsWith('/manufacturing/')
+            ? 'manufacturing'
+            : 'finance';
   // Set on <html> rather than a layout div so portalled dropdowns and modals
   // (rendered outside the layout subtree) still inherit the module accent.
   useEffect(() => {
@@ -854,6 +874,27 @@ const creditNoteDetailRoute = createRoute({
   component: () => {
     const { creditNoteId } = creditNoteDetailRoute.useParams();
     return <CreditNoteDetailPage creditNoteId={creditNoteId} />;
+  },
+});
+
+const customerDebitNotesRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/customer-debit-notes',
+  component: CustomerDebitNoteListPage,
+});
+
+const customerDebitNoteNewRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/customer-debit-notes/new',
+  component: NewCustomerDebitNotePage,
+});
+
+const customerDebitNoteDetailRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/customer-debit-notes/$customerDebitNoteId',
+  component: () => {
+    const { customerDebitNoteId } = customerDebitNoteDetailRoute.useParams();
+    return <CustomerDebitNoteDetailPage customerDebitNoteId={customerDebitNoteId} />;
   },
 });
 
@@ -2168,6 +2209,119 @@ const invCategoriesRoute = createRoute({
   component: CategoriesPage,
 });
 
+// ─── Manufacturing Module Routes ─────────────────────────────────────────────
+//
+// Manufacturing is a top-level module (mirrors /finance, /hr, /inventory).
+// All routes nest under /manufacturing. Uses FinanceModuleGuard for role gating
+// (owner / accountant / production roles).
+
+const manufacturingRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/manufacturing',
+  component: FinanceModuleGuard,
+});
+
+const manufacturingIndexRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/',
+  component: ManufacturingHomePage,
+});
+
+const mfgBomListRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/boms',
+  component: BomListPage,
+});
+
+const mfgBomNewRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/boms/new',
+  component: NewBomPage,
+});
+
+const mfgBomDetailRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/boms/$bomId',
+  component: () => {
+    const { bomId } = mfgBomDetailRoute.useParams();
+    return <BomDetailPage bomId={bomId} />;
+  },
+});
+
+const mfgBomEditRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/boms/$bomId/edit',
+  component: () => {
+    const { bomId } = mfgBomEditRoute.useParams();
+    return <EditBomPage bomId={bomId} />;
+  },
+});
+
+const mfgWoListRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/wos',
+  component: WorkOrderListPage,
+});
+
+const mfgWoNewRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/wos/new',
+  component: NewWorkOrderPage,
+});
+
+const mfgWoDetailRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/wos/$woId',
+  component: () => {
+    const { woId } = mfgWoDetailRoute.useParams();
+    return <WorkOrderDetailPage woId={woId} />;
+  },
+});
+
+const mfgWoEditRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/wos/$woId/edit',
+  component: () => {
+    const { woId } = mfgWoEditRoute.useParams();
+    return <EditWorkOrderPage woId={woId} />;
+  },
+});
+
+const mfgWoRunRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/wos/$woId/run',
+  component: () => {
+    const { woId } = mfgWoRunRoute.useParams();
+    return <WorkOrderRunPage woId={woId} />;
+  },
+});
+
+// ─── Manufacturing Report Routes ─────────────────────────────────────────────
+
+const mfgReportWoSummaryRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reports/wo-summary',
+  component: WoSummaryReportPage,
+});
+
+const mfgReportYieldTrendRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reports/yield-trend',
+  component: YieldTrendReportPage,
+});
+
+const mfgReportBomUsageRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reports/bom-usage',
+  component: BomUsageReportPage,
+});
+
+const mfgReportWoPendingCloseRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reports/wo-pending-close',
+  component: WoPendingCloseReportPage,
+});
+
 // ─── Agent Activity Route ────────────────────────────────────────────────────
 
 const agentActivityRoute = createRoute({
@@ -2438,6 +2592,9 @@ export const routeTree = rootRoute.addChildren([
         creditNotesRoute,
         creditNoteNewRoute,
         creditNoteDetailRoute,
+        customerDebitNotesRoute,
+        customerDebitNoteNewRoute,
+        customerDebitNoteDetailRoute,
         poInboxRoute,
         poInboxDetailRoute,
         dunningRoute,
@@ -2577,6 +2734,22 @@ export const routeTree = rootRoute.addChildren([
       purchaseVendorNewRoute,
       purchaseVendorImportRoute,
       purchaseVendorDetailRoute,
+    ]),
+    manufacturingRoute.addChildren([
+      manufacturingIndexRoute,
+      mfgBomListRoute,
+      mfgBomNewRoute,
+      mfgBomDetailRoute,
+      mfgBomEditRoute,
+      mfgWoListRoute,
+      mfgWoNewRoute,
+      mfgWoDetailRoute,
+      mfgWoEditRoute,
+      mfgWoRunRoute,
+      mfgReportWoSummaryRoute,
+      mfgReportYieldTrendRoute,
+      mfgReportBomUsageRoute,
+      mfgReportWoPendingCloseRoute,
     ]),
     inventoryRoute.addChildren([
       inventoryIndexRoute,

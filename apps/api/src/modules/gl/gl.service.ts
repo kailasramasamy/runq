@@ -563,17 +563,98 @@ export class GLService {
     });
   }
 
-  async postCreditNote(note: { amount: number; date: string; id: string; customerName: string }): Promise<void> {
+  /**
+   * Sales credit note posting (output GST reversal).
+   *
+   *   Dr Sales Revenue (4001)         = taxableValue
+   *   Dr Output CGST   (2103)         = cgstAmount
+   *   Dr Output SGST   (2105)         = sgstAmount
+   *   Dr Output IGST   (2106)         = igstAmount
+   *   Cr Accounts Receivable (1103)   = total
+   *
+   * Legacy callers that pass only `amount` (no tax split) fall back to the
+   * old single-line behaviour so existing CNs continue to post a balanced JE.
+   */
+  async postCreditNote(note: {
+    amount: number;
+    date: string;
+    id: string;
+    customerName: string;
+    taxableValue?: number;
+    cgstAmount?: number;
+    sgstAmount?: number;
+    igstAmount?: number;
+    cessAmount?: number;
+  }): Promise<void> {
     if (await this.isAlreadyPosted('credit_note', note.id)) return;
+
+    const cgst = note.cgstAmount ?? 0;
+    const sgst = note.sgstAmount ?? 0;
+    const igst = note.igstAmount ?? 0;
+    const cess = note.cessAmount ?? 0;
+    const taxable = note.taxableValue ?? (note.amount - cgst - sgst - igst - cess);
+
+    const hasTaxSplit = cgst > 0 || sgst > 0 || igst > 0 || cess > 0;
+    const lines: CreateJournalEntryInput['lines'] = [];
+    if (hasTaxSplit) {
+      lines.push({ accountCode: '4001', debit: taxable, description: 'Sales return' });
+      if (cgst > 0) lines.push({ accountCode: '2103', debit: cgst, description: 'Output CGST reversal' });
+      if (sgst > 0) lines.push({ accountCode: '2105', debit: sgst, description: 'Output SGST reversal' });
+      if (igst > 0) lines.push({ accountCode: '2106', debit: igst, description: 'Output IGST reversal' });
+    } else {
+      // Legacy path — no tax breakdown, post flat against Sales Revenue.
+      lines.push({ accountCode: '4001', debit: note.amount });
+    }
+    lines.push({ accountCode: '1103', credit: note.amount });
+
     await this.createJournalEntry({
       date: note.date,
       description: `Credit note to ${note.customerName}`,
       sourceType: 'credit_note',
       sourceId: note.id,
-      lines: [
-        { accountCode: '4001', debit: note.amount },
-        { accountCode: '1103', credit: note.amount },
-      ],
+      lines,
+    });
+  }
+
+  /**
+   * Customer-side debit note posting (additional billing on the customer).
+   *
+   *   Dr Accounts Receivable (1103)   = total
+   *   Cr Sales Revenue (4001)         = taxableValue
+   *   Cr Output CGST   (2103)         = cgstAmount
+   *   Cr Output SGST   (2105)         = sgstAmount
+   *   Cr Output IGST   (2106)         = igstAmount
+   *
+   * Mirrors postCreditNote in reverse. taxableValue must be supplied — there
+   * is no legacy fall-back since customer DNs are a new feature.
+   */
+  async postCustomerDebitNote(note: {
+    amount: number;
+    date: string;
+    id: string;
+    customerName: string;
+    taxableValue: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    cessAmount: number;
+  }): Promise<void> {
+    if (await this.isAlreadyPosted('customer_debit_note', note.id)) return;
+
+    const lines: CreateJournalEntryInput['lines'] = [
+      { accountCode: '1103', debit: note.amount, description: `Debit note to ${note.customerName}` },
+      { accountCode: '4001', credit: note.taxableValue, description: 'Additional sales' },
+    ];
+    if (note.cgstAmount > 0) lines.push({ accountCode: '2103', credit: note.cgstAmount, description: 'Output CGST' });
+    if (note.sgstAmount > 0) lines.push({ accountCode: '2105', credit: note.sgstAmount, description: 'Output SGST' });
+    if (note.igstAmount > 0) lines.push({ accountCode: '2106', credit: note.igstAmount, description: 'Output IGST' });
+
+    await this.createJournalEntry({
+      date: note.date,
+      description: `Customer debit note to ${note.customerName}`,
+      sourceType: 'customer_debit_note',
+      sourceId: note.id,
+      lines,
     });
   }
 

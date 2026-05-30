@@ -4,7 +4,7 @@ import { useInboxCount } from '@/hooks/queries/use-inbox';
 import { usePendingPaymentClaimsCount } from '@/hooks/queries/use-payment-claims';
 import {
   LayoutDashboard, Sparkles, Inbox, Folder,
-  FileText, ClipboardList, Truck, FileMinus, Receipt, Users, AlarmClock,
+  FileText, ClipboardList, Truck, FileMinus, FilePlus, Receipt, Users, AlarmClock,
   FileInput, ClipboardCheck, PackageCheck, FileX, CreditCard, Building2, Wallet, Split,
   Package, Warehouse, MoveRight,
   Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target, PieChart,
@@ -17,6 +17,7 @@ import {
   Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
   Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
+  Factory, FlaskConical, TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -131,6 +132,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'quick-invoice', label: 'Quick invoice', icon: Zap, path: '/finance/ar/quick-templates' },
       { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/finance/ar/quotes' },
       { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/finance/ar/credit-notes' },
+      { key: 'customer-debit-notes', label: 'Debit notes', icon: FilePlus, path: '/finance/ar/customer-debit-notes' },
       { key: 'receipts', label: 'Receipts', icon: Receipt, path: '/finance/ar/receipts' },
       { key: 'payment-claims', label: 'Payment reports', icon: HandCoins, path: '/finance/ar/payment-claims' },
       { key: 'customers', label: 'Customers', icon: Users, path: '/finance/ar/customers' },
@@ -198,12 +200,13 @@ const VIEWER_HR_KEYS = new Set<string>([
   'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
 ]);
 
-type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase';
+type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing';
 const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
   { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
   { key: 'purchase', label: 'Purchase', path: '/purchase', icon: ShoppingCart, description: 'POs, receipts, 3-way match' },
+  { key: 'manufacturing', label: 'Manufacturing', path: '/manufacturing', icon: Factory, description: 'BOMs, work orders, costing' },
 ];
 
 export const INVENTORY_NAV_GROUPS: NavGroup[] = [
@@ -272,6 +275,36 @@ export const PURCHASE_NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'pur-items', label: 'Items', icon: Package, path: '/purchase/items' },
       { key: 'pur-vendors', label: 'Vendors', icon: Building2, path: '/purchase/vendors' },
+    ],
+  },
+];
+
+export const MANUFACTURING_NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'mfg-home', label: 'Dashboard', icon: LayoutDashboard, path: '/manufacturing' },
+    ],
+  },
+  {
+    label: 'BOMs',
+    items: [
+      { key: 'mfg-boms', label: 'Bills of materials', icon: FlaskConical, path: '/manufacturing/boms' },
+    ],
+  },
+  {
+    label: 'Production',
+    items: [
+      { key: 'mfg-wos', label: 'Work orders', icon: Factory, path: '/manufacturing/wos' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { key: 'mfg-report-wo-summary', label: 'WO summary', icon: BarChart3, path: '/manufacturing/reports/wo-summary' },
+      { key: 'mfg-report-yield', label: 'Yield trend', icon: TrendingUp, path: '/manufacturing/reports/yield-trend' },
+      { key: 'mfg-report-bom-usage', label: 'BOM usage', icon: PieChart, path: '/manufacturing/reports/bom-usage' },
+      { key: 'mfg-report-pending-close', label: 'Pending close', icon: AlarmClock, path: '/manufacturing/reports/wo-pending-close' },
     ],
   },
 ];
@@ -452,6 +485,7 @@ function SidebarContent({
   const isSettings = currentPath === '/settings' || currentPath.startsWith('/settings/');
   const isInventory = currentPath === '/inventory' || currentPath.startsWith('/inventory/');
   const isPurchase = currentPath === '/purchase' || currentPath.startsWith('/purchase/');
+  const isManufacturing = currentPath === '/manufacturing' || currentPath.startsWith('/manufacturing/');
   const activeModule: ModuleKey = !financeAllowed
     ? 'hr'
     : isSettings
@@ -460,9 +494,11 @@ function SidebarContent({
         ? 'inventory'
         : isPurchase
           ? 'purchase'
-          : currentPath === '/hr' || currentPath.startsWith('/hr/')
-            ? 'hr'
-            : 'finance';
+          : isManufacturing
+            ? 'manufacturing'
+            : currentPath === '/hr' || currentPath.startsWith('/hr/')
+              ? 'hr'
+              : 'finance';
   if (!isSettings) lastActiveModule = activeModule;
   // The ⌘K shortcut palette is Finance-only.
   const showCommand = activeModule === 'finance';
@@ -470,6 +506,7 @@ function SidebarContent({
     activeModule === 'hr' ? HR_NAV_GROUPS
       : activeModule === 'inventory' ? INVENTORY_NAV_GROUPS
       : activeModule === 'purchase' ? PURCHASE_NAV_GROUPS
+      : activeModule === 'manufacturing' ? MANUFACTURING_NAV_GROUPS
       : NAV_GROUPS;
   // Non-admin HR users get the trimmed self-service menu.
   if (activeModule === 'hr' && !canManageHrModule(user?.role)) {

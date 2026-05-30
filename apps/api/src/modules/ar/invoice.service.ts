@@ -3,7 +3,10 @@ import {
   salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants,
   paymentReceipts, receiptAllocations, bankAccounts, items,
   creditNotes, collectionAssignments, dunningLog, journalEntries, poDrafts,
+  gstReturns, gstReturnInvoices,
 } from '@runq/db';
+import { CreditNoteService } from './credit-note.service';
+import type { CreateCreditNoteInput } from '@runq/validators';
 import type { Db } from '@runq/db';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
@@ -530,6 +533,17 @@ export class InvoiceService {
 
   async update(id: string, input: UpdateSalesInvoiceInput): Promise<SalesInvoiceWithDetails> {
     const existing = await this.getById(id);
+
+    // GST amendment guard: an invoice already in a filed GSTR-1 can only be
+    // amended via a CN/DN or void flow — editing would silently desync the
+    // books from the filed return. Caller should use issueCreditNote() /
+    // issueCustomerDebitNote() / voidInvoice() instead.
+    if (await this.isInFiledReturn(id)) {
+      throw new ConflictError(
+        'Cannot edit invoice — it is in a filed GSTR-1 return. Issue a credit note, customer debit note, or void the invoice instead.',
+      );
+    }
+
     // Allow amendments on already-sent invoices when nothing has been
     // collected against them yet — covers the common "customer revised
     // the PO" workflow. Once a payment lands, edits would break the
@@ -706,6 +720,113 @@ export class InvoiceService {
   }
 
   /**
+   * Void a sent / paid / partially-paid / overdue invoice by issuing a
+   * full-value credit note dated `issueDate` (defaults to today), then
+   * marking the invoice 'cancelled'. The CN mirrors the invoice's line
+   * items + tax split, so GSTR-1's CDN section properly reverses the
+   * original supply.
+   *
+   * Receipt allocations are intentionally NOT touched — the customer's
+   * net ledger position becomes a credit equal to the invoice amount,
+   * which is the correct outcome (they paid for something now voided).
+   * If the receipt itself was wrong, the user should also unallocate
+   * that receipt separately.
+   *
+   * Drafts: use cancel() instead (no GL/GST impact).
+   * Already-cancelled: error.
+   */
+  async voidInvoice(id: string, opts: { reason: string; issueDate?: string }): Promise<{ invoice: SalesInvoice; creditNoteId: string }> {
+    const existing = await this.getById(id);
+    if (existing.status === 'cancelled') {
+      throw new ConflictError('Invoice is already cancelled');
+    }
+    if (existing.status === 'draft') {
+      throw new ConflictError('Draft invoices should be cancelled, not voided');
+    }
+
+    const issueDate = opts.issueDate ?? new Date().toISOString().slice(0, 10);
+
+    // Build CN items mirroring the invoice's lines.
+    const cnInput: CreateCreditNoteInput = {
+      customerId: existing.customerId,
+      invoiceId: existing.id,
+      issueDate,
+      reason: opts.reason,
+      placeOfSupply: existing.placeOfSupply ?? null,
+      placeOfSupplyCode: existing.placeOfSupplyCode ?? null,
+      isInterState: existing.isInterState ?? null,
+      reverseCharge: existing.reverseCharge,
+      amendsInvoiceNumber: existing.invoiceNumber,
+      amendsInvoiceDate: existing.invoiceDate,
+      items: existing.items.map((it) => ({
+        itemId: it.itemId ?? null,
+        description: it.description,
+        uom: it.uom ?? null,
+        packSizeValue: Number(it.itemPackSizeValue ?? 1),
+        packSizeUqc: it.itemPackSizeUqc ?? null,
+        quantity: Number(it.quantity),
+        unitPrice: Number(it.unitPrice),
+        amount: Number(it.amount),
+        hsnSacCode: it.hsnSacCode ?? null,
+        taxCategory: (it.taxCategory ?? null) as CreateCreditNoteInput['items'][number]['taxCategory'],
+        taxRate: it.taxRate !== null && it.taxRate !== undefined ? Number(it.taxRate) : null,
+        cgstRate: Number(it.cgstRate ?? 0),
+        cgstAmount: Number(it.cgstAmount ?? 0),
+        sgstRate: Number(it.sgstRate ?? 0),
+        sgstAmount: Number(it.sgstAmount ?? 0),
+        igstRate: Number(it.igstRate ?? 0),
+        igstAmount: Number(it.igstAmount ?? 0),
+        cessRate: Number(it.cessRate ?? 0),
+        cessAmount: Number(it.cessAmount ?? 0),
+      })),
+    };
+
+    const cnService = new CreditNoteService(this.db, this.tenantId);
+    const draftCn = await cnService.create(cnInput);
+    await cnService.issue(draftCn.id);
+    await cnService.applyToInvoice(draftCn.id, existing.id).catch(() => {
+      // If invoice is fully paid, applyToInvoice is a no-op on the invoice
+      // (surplus stays as customer credit) — but still marks CN 'adjusted'.
+      // Swallow the no-op error if any.
+    });
+
+    const [row] = await this.db
+      .update(salesInvoices)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)))
+      .returning();
+
+    const audit = new AuditService(this.db, this.tenantId);
+    await audit.log({
+      action: 'voided',
+      entityType: 'sales_invoice',
+      entityId: id,
+      metadata: { creditNoteId: draftCn.id, reason: opts.reason },
+    });
+
+    return { invoice: this.toInvoice(row!), creditNoteId: draftCn.id };
+  }
+
+  /**
+   * True if this invoice has been included in any GSTR-1 return that has
+   * already been filed with GSTN. Used as a guard by update/hardDelete to
+   * force the caller into the CN/DN/void flow.
+   */
+  private async isInFiledReturn(invoiceId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: gstReturnInvoices.id })
+      .from(gstReturnInvoices)
+      .innerJoin(gstReturns, eq(gstReturns.id, gstReturnInvoices.returnId))
+      .where(and(
+        eq(gstReturnInvoices.tenantId, this.tenantId),
+        eq(gstReturnInvoices.invoiceId, invoiceId),
+        eq(gstReturns.status, 'filed'),
+      ))
+      .limit(1);
+    return !!row;
+  }
+
+  /**
    * Hard-delete an invoice. Distinct from cancel(): this physically
    * removes the row from sales_invoices (line items cascade via FK).
    * Used to purge mistakes from imports / typos / test data.
@@ -728,6 +849,15 @@ export class InvoiceService {
    */
   async hardDelete(id: string): Promise<void> {
     const existing = await this.getById(id);
+
+    // GST guard: never hard-delete an invoice that's been filed. The GST
+    // record is immutable once filed; the user must void via auto-CN instead.
+    if (await this.isInFiledReturn(id)) {
+      throw new ConflictError(
+        'Cannot delete invoice — it is in a filed GSTR-1 return. Use the void flow to reverse it via a credit note.',
+      );
+    }
+
     // Same amendment policy as update(): drafts and cancelled go through
     // unconditionally; sent/overdue invoices can be deleted only when no
     // payment has been received. Once any rupee is collected, the JE

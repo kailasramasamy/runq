@@ -42,7 +42,7 @@ function paymentMethodLabel(v: string): string {
 
 interface StatementRow {
   date: string;
-  type: 'invoice' | 'receipt' | 'credit_note';
+  type: 'invoice' | 'receipt' | 'credit_note' | 'customer_debit_note';
   ref: string;
   entityId?: string;
   description: string;
@@ -1241,8 +1241,10 @@ function PresetChip({
 }
 
 function StatementView({ statement }: { statement: Statement }) {
-  const totalInvoiced = statement.rows.filter((r) => r.type === 'invoice').reduce((s, r) => s + r.debit, 0);
-  const totalReceived = statement.rows.filter((r) => r.type !== 'invoice').reduce((s, r) => s + r.credit, 0);
+  // Debit-side summary: invoices + customer debit notes.
+  const totalInvoiced = statement.rows.filter((r) => r.type === 'invoice' || r.type === 'customer_debit_note').reduce((s, r) => s + r.debit, 0);
+  // Credit-side summary: receipts + credit notes.
+  const totalReceived = statement.rows.filter((r) => r.type === 'receipt' || r.type === 'credit_note').reduce((s, r) => s + r.credit, 0);
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1335,7 +1337,7 @@ function StatementView({ statement }: { statement: Statement }) {
 }
 
 function StatementDescription({ row }: { row: StatementRow }) {
-  if (!row.entityId || row.type === 'credit_note') {
+  if (!row.entityId || row.type === 'credit_note' || row.type === 'customer_debit_note') {
     return <span>{row.description}</span>;
   }
   const target = row.type === 'invoice' ? `invoice/${row.entityId}` : `payment/${row.entityId}`;

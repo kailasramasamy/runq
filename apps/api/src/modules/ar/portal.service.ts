@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, isNull, or } from 'drizzle-orm';
 import {
   salesInvoices,
   customers,
@@ -8,6 +8,7 @@ import {
   paymentReceipts,
   tenants,
   creditNotes,
+  customerDebitNotes,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, UnauthorizedError } from '../../utils/errors';
@@ -281,7 +282,7 @@ export class PortalService {
     fromDate: string,
     toDate: string,
   ): Promise<StatementOfAccount> {
-    const [invoiceRows, receiptRows, creditRows] = await Promise.all([
+    const [invoiceRows, receiptRows, creditRows, debitRows] = await Promise.all([
       this.db
         .select({
           date: salesInvoices.invoiceDate,
@@ -294,7 +295,8 @@ export class PortalService {
           and(
             eq(salesInvoices.tenantId, this.tenantId),
             eq(salesInvoices.customerId, customerId),
-            inArray(salesInvoices.status, ['sent', 'partially_paid', 'paid']),
+            // 'overdue' is just a sent invoice past due date — include it.
+            inArray(salesInvoices.status, ['sent', 'partially_paid', 'paid', 'overdue']),
           ),
         ),
       this.db
@@ -324,6 +326,34 @@ export class PortalService {
             eq(creditNotes.tenantId, this.tenantId),
             eq(creditNotes.customerId, customerId),
             inArray(creditNotes.status, ['issued', 'adjusted']),
+          ),
+        ),
+      // Customer DNs: include only those NOT folded into an invoice's total.
+      // - 'issued' (any invoice link): GL has the debit but invoice total
+      //   not yet bumped via apply() — show as separate row.
+      // - 'adjusted' AND no invoice link: standalone DN raised on the
+      //   customer ledger — show as separate row.
+      // - 'adjusted' AND linked to invoice: apply() already bumped
+      //   invoice.totalAmount, so it's reflected in the invoice debit row.
+      //   Excluded here to avoid double-counting.
+      this.db
+        .select({
+          date: customerDebitNotes.issueDate,
+          amount: customerDebitNotes.amount,
+          ref: customerDebitNotes.debitNoteNumber,
+          id: customerDebitNotes.id,
+          status: customerDebitNotes.status,
+          invoiceId: customerDebitNotes.invoiceId,
+        })
+        .from(customerDebitNotes)
+        .where(
+          and(
+            eq(customerDebitNotes.tenantId, this.tenantId),
+            eq(customerDebitNotes.customerId, customerId),
+            or(
+              eq(customerDebitNotes.status, 'issued'),
+              and(eq(customerDebitNotes.status, 'adjusted'), isNull(customerDebitNotes.invoiceId)),
+            ),
           ),
         ),
     ]);
@@ -382,11 +412,28 @@ export class PortalService {
         });
       }
     }
+    for (const dn of debitRows) {
+      const amt = Number(dn.amount);
+      if (dn.date < fromDate) {
+        openingBalance += amt;
+      } else if (dn.date <= toDate) {
+        allRows.push({
+          date: dn.date,
+          type: 'customer_debit_note',
+          ref: dn.ref,
+          entityId: dn.id,
+          description: `Debit note ${dn.ref}`,
+          debit: amt,
+          credit: 0,
+          runningBalance: 0,
+        });
+      }
+    }
 
     allRows.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      // Invoices first on same date, then credit notes, then receipts
-      const order = { invoice: 0, credit_note: 1, receipt: 2 };
+      // Invoices first on same date, then debit notes, then credit notes, then receipts
+      const order = { invoice: 0, customer_debit_note: 1, credit_note: 2, receipt: 3 };
       return order[a.type] - order[b.type];
     });
 
@@ -475,7 +522,7 @@ export class PortalService {
 
 export interface StatementRow {
   date: string;
-  type: 'invoice' | 'receipt' | 'credit_note';
+  type: 'invoice' | 'receipt' | 'credit_note' | 'customer_debit_note';
   ref: string;
   /** UUID of the underlying invoice/receipt — used for client-side linking. Absent for credit notes. */
   entityId?: string;

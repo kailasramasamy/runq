@@ -125,6 +125,24 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Void a sent/paid/overdue invoice — issues an auto-CN mirroring the
+  // invoice's line items + tax, then sets status='cancelled'. Lands in
+  // the next GSTR-1 as a CDN reversal of the original. Owner-only.
+  app.post(
+    '/:id/void',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const body = z.object({
+        reason: z.string().min(1, 'Reason is required'),
+        issueDate: z.string().date().optional(),
+      }).parse(request.body);
+      const service = new InvoiceService(request.server.db, request.tenantId);
+      const result = await service.voidInvoice(id, body);
+      return { data: result };
+    },
+  );
+
   // Hard delete — physically removes the row from sales_invoices.
   // Distinct from DELETE /:id (which is a soft cancel). Restricted to
   // draft + cancelled statuses, with up-front dependency checks (see

@@ -1,7 +1,11 @@
-import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, inArray, notInArray, isNotNull, sql } from 'drizzle-orm';
 import {
   salesInvoices, salesInvoiceItems, customers,
-  creditNotes, tenants, invoiceSequences, hsnSacCodes, items as itemsTable,
+  creditNotes, creditNoteItems,
+  customerDebitNotes, customerDebitNoteItems,
+  hsnSacCodes, items as itemsTable,
+  gstReturns, gstReturnInvoices,
+  tenants,
 } from '@runq/db';
 import { toCanonical } from './uqc-conversion';
 import type { Db } from '@runq/db';
@@ -79,21 +83,23 @@ export class Gstr1Generator {
    * Generates the full GSTR-1 data for a given period.
    * Returns the classified invoices (for linking) and the aggregated payload.
    */
-  async generate(periodStart: string, periodEnd: string, tenantProfile: TenantGstProfile): Promise<{
+  async generate(periodStart: string, periodEnd: string, _tenantProfile: TenantGstProfile): Promise<{
     data: Gstr1Data;
     classifiedInvoices: ClassifiedInvoice[];
     classifiedCreditNotes: ClassifiedCreditNote[];
   }> {
     const invoicesWithItems = await this.fetchInvoices(periodStart, periodEnd);
+    const missedInvoicesWithItems = await this.fetchMissedInvoices(periodStart);
     const creditNoteRows = await this.fetchCreditNotes(periodStart, periodEnd);
+    const customerDnRows = await this.fetchCustomerDebitNotes(periodStart, periodEnd);
 
     const classifiedInvoices: ClassifiedInvoice[] = [];
     const classifiedCreditNotes: ClassifiedCreditNote[] = [];
 
     const b2bInvoices: Gstr1B2BInvoice[] = [];
+    const b2baInvoices: NonNullable<Gstr1Data['b2ba']> = [];
     const b2csEntries: Map<string, Gstr1B2CSEntry> = new Map(); // key: POS|supplyType|rate
     const b2clInvoices: Gstr1Data['b2cl'] = [];
-    const nilEntries: Gstr1Data['nil'] = [];
     const cdnEntries: Gstr1CDNEntry[] = [];
     const hsnMap: Map<string, Gstr1HSNEntry> = new Map();       // key: HSN|rate
 
@@ -122,12 +128,41 @@ export class Gstr1Generator {
       }
     }
 
-    // ── Credit/debit notes (CDN — only for registered buyers) ──
+    // ── Missed invoices (Table 9A amendment — added in this period
+    //    with a prior-period invoice_date) ──
+
+    for (const { invoice, items, customer } of missedInvoicesWithItems) {
+      const section = classifyInvoice(invoice, customer, items);
+      classifiedInvoices.push({ invoiceId: invoice.id, section });
+      await this.accumulateHSN(hsnMap, items);
+
+      // Only B2B amendments are emitted to Table 9A here. Missed B2CS / B2CL
+      // amendments are out of scope v1 (rarer, separate GSTN tables).
+      if (section === 'b2b') {
+        b2baInvoices.push({
+          ...this.toB2B(invoice, customer, items),
+          originalPeriod: this.invoiceDateToPeriod(invoice.invoiceDate),
+        });
+      }
+    }
+
+    // ── Credit notes (CDN — only for registered buyers) ──
 
     for (const cn of creditNoteRows) {
       if (cn.customerGstin) {
         classifiedCreditNotes.push({ creditNoteId: cn.id, section: 'cdn' });
         cdnEntries.push(this.toCDN(cn));
+      }
+    }
+
+    // ── Customer debit notes (CDN with noteType='D') ──
+
+    for (const dn of customerDnRows) {
+      if (dn.customerGstin) {
+        // Tracked under same classifiedCreditNotes channel for return-invoice
+        // links; the underlying gst_return_invoices.credit_note_id is nullable
+        // and we'll add a dedicated customer_debit_note_id link in a follow-up.
+        cdnEntries.push(this.toCustomerDN(dn));
       }
     }
 
@@ -155,6 +190,7 @@ export class Gstr1Generator {
       nil: nilAgg,
       hsn: Array.from(hsnMap.values()),
       docs: docSummary,
+      ...(b2baInvoices.length > 0 && { b2ba: b2baInvoices }),
     };
 
     return { data, classifiedInvoices, classifiedCreditNotes };
@@ -219,6 +255,11 @@ export class Gstr1Generator {
         customerId: creditNotes.customerId,
         status: creditNotes.status,
         customerGstin: customers.gstin,
+        // amends_invoice_number is the source of truth — survives renumber /
+        // void of the original invoice. Falls back to the joined invoice's
+        // number/date for older CNs without amends_* populated.
+        amendsInvoiceNumber: creditNotes.amendsInvoiceNumber,
+        amendsInvoiceDate: creditNotes.amendsInvoiceDate,
         originalInvoiceNumber: salesInvoices.invoiceNumber,
         originalInvoiceDate: salesInvoices.invoiceDate,
       })
@@ -232,7 +273,144 @@ export class Gstr1Generator {
         inArray(creditNotes.status, ['issued', 'adjusted']),
       ));
 
-    return rows;
+    if (rows.length === 0) return [];
+
+    // Pull line items once and bucket per CN.
+    const ids = rows.map((r) => r.id);
+    const itemRows = await this.db
+      .select()
+      .from(creditNoteItems)
+      .where(inArray(creditNoteItems.creditNoteId, ids));
+    const itemsByCn = new Map<string, typeof itemRows>();
+    for (const it of itemRows) {
+      const list = itemsByCn.get(it.creditNoteId) ?? [];
+      list.push(it);
+      itemsByCn.set(it.creditNoteId, list);
+    }
+
+    return rows.map((r) => ({ ...r, items: itemsByCn.get(r.id) ?? [] }));
+  }
+
+  private async fetchCustomerDebitNotes(periodStart: string, periodEnd: string) {
+    const rows = await this.db
+      .select({
+        id: customerDebitNotes.id,
+        debitNoteNumber: customerDebitNotes.debitNoteNumber,
+        issueDate: customerDebitNotes.issueDate,
+        amount: customerDebitNotes.amount,
+        invoiceId: customerDebitNotes.invoiceId,
+        customerId: customerDebitNotes.customerId,
+        status: customerDebitNotes.status,
+        customerGstin: customers.gstin,
+        amendsInvoiceNumber: customerDebitNotes.amendsInvoiceNumber,
+        amendsInvoiceDate: customerDebitNotes.amendsInvoiceDate,
+        originalInvoiceNumber: salesInvoices.invoiceNumber,
+        originalInvoiceDate: salesInvoices.invoiceDate,
+      })
+      .from(customerDebitNotes)
+      .innerJoin(customers, eq(customers.id, customerDebitNotes.customerId))
+      .leftJoin(salesInvoices, eq(salesInvoices.id, customerDebitNotes.invoiceId))
+      .where(and(
+        eq(customerDebitNotes.tenantId, this.tenantId),
+        gte(customerDebitNotes.issueDate, periodStart),
+        lte(customerDebitNotes.issueDate, periodEnd),
+        inArray(customerDebitNotes.status, ['issued', 'adjusted']),
+      ));
+
+    if (rows.length === 0) return [];
+
+    const ids = rows.map((r) => r.id);
+    const itemRows = await this.db
+      .select()
+      .from(customerDebitNoteItems)
+      .where(inArray(customerDebitNoteItems.customerDebitNoteId, ids));
+    const itemsByDn = new Map<string, typeof itemRows>();
+    for (const it of itemRows) {
+      const list = itemsByDn.get(it.customerDebitNoteId) ?? [];
+      list.push(it);
+      itemsByDn.set(it.customerDebitNoteId, list);
+    }
+
+    return rows.map((r) => ({ ...r, items: itemsByDn.get(r.id) ?? [] }));
+  }
+
+  /**
+   * Returns invoices that should have been in a prior period's GSTR-1 but
+   * weren't (created after that period was filed). Emitted in the current
+   * return as Table 9A amendments with their original invoice_date.
+   *
+   * Detection: invoice_date BETWEEN tenant's gstFilingStartPeriod AND
+   * (current periodStart - 1 day) AND the invoice has no row in
+   * `gst_return_invoices` joined to any filed return.
+   *
+   * Honoring `gstFilingStartPeriod` skips pre-GST historical invoices and
+   * opening-balance entries (e.g. "OB-*"), which were never expected in
+   * any GSTR-1 return.
+   *
+   * Drafts and cancelled invoices are excluded.
+   */
+  private async fetchMissedInvoices(periodStart: string): Promise<InvoiceWithItems[]> {
+    // Lower bound: tenant's GST filing start period. Falls back to a
+    // permissive earliest date when not configured.
+    const filingStart = await this.tenantFilingStartDate();
+
+    // Sub-select: invoice IDs already in any filed return. Filter NULLs —
+    // `gst_return_invoices.invoice_id` is nullable (CN-only rows have it
+    // null), and `NOT IN (subquery with NULLs)` evaluates to NULL → excludes
+    // every row from the outer query.
+    const filedInvoiceIdsSub = this.db
+      .select({ id: gstReturnInvoices.invoiceId })
+      .from(gstReturnInvoices)
+      .innerJoin(gstReturns, eq(gstReturns.id, gstReturnInvoices.returnId))
+      .where(and(
+        eq(gstReturnInvoices.tenantId, this.tenantId),
+        eq(gstReturns.status, 'filed'),
+        isNotNull(gstReturnInvoices.invoiceId),
+      ));
+
+    const rows = await this.db
+      .select({
+        invoice: salesInvoices,
+        customer: {
+          id: customers.id,
+          gstin: customers.gstin,
+          state: customers.state,
+          name: customers.name,
+        },
+      })
+      .from(salesInvoices)
+      .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
+      .where(and(
+        eq(salesInvoices.tenantId, this.tenantId),
+        gte(salesInvoices.invoiceDate, filingStart),
+        lt(salesInvoices.invoiceDate, periodStart),
+        inArray(salesInvoices.status, ['sent', 'partially_paid', 'paid', 'overdue']),
+        notInArray(salesInvoices.id, filedInvoiceIdsSub),
+      ));
+
+    if (rows.length === 0) return [];
+
+    const invoiceIds = rows.map((r) => r.invoice.id);
+    const allItems = await this.db
+      .select()
+      .from(salesInvoiceItems)
+      .where(and(
+        eq(salesInvoiceItems.tenantId, this.tenantId),
+        inArray(salesInvoiceItems.invoiceId, invoiceIds),
+      ));
+
+    const itemsByInvoice = new Map<string, InvoiceItemRow[]>();
+    for (const item of allItems) {
+      const list = itemsByInvoice.get(item.invoiceId) ?? [];
+      list.push(item);
+      itemsByInvoice.set(item.invoiceId, list);
+    }
+
+    return rows.map((r) => ({
+      invoice: r.invoice,
+      items: itemsByInvoice.get(r.invoice.id) ?? [],
+      customer: r.customer,
+    }));
   }
 
   // ── Section builders ─────────────────────────────────────────────────
@@ -310,28 +488,114 @@ export class Gstr1Generator {
     issueDate: string;
     amount: string;
     customerGstin: string | null;
+    amendsInvoiceNumber: string | null;
+    amendsInvoiceDate: string | null;
     originalInvoiceNumber: string | null;
     originalInvoiceDate: string | null;
+    items: Array<typeof creditNoteItems.$inferSelect>;
   }): Gstr1CDNEntry {
-    const amount = Number(cn.amount);
+    // Prefer amends_* (stable text snapshot) over the joined invoice
+    // (which can be null if the original invoice was voided/deleted).
+    const origNumber = cn.amendsInvoiceNumber ?? cn.originalInvoiceNumber ?? '';
+    const origDate = cn.amendsInvoiceDate ?? cn.originalInvoiceDate ?? null;
     return {
       creditNoteId: cn.id,
       buyerGstin: cn.customerGstin!,
       noteNumber: cn.creditNoteNumber,
       noteDate: this.formatDate(cn.issueDate),
       noteType: 'C',
-      originalInvoiceNumber: cn.originalInvoiceNumber ?? '',
-      originalInvoiceDate: cn.originalInvoiceDate ? this.formatDate(cn.originalInvoiceDate) : '',
-      noteValue: amount,
-      items: [{
-        taxableValue: amount,
-        igstAmount: 0,
-        cgstAmount: 0,
-        sgstAmount: 0,
-        cessAmount: 0,
-        gstRate: 0,
-      }],
+      originalInvoiceNumber: origNumber,
+      originalInvoiceDate: origDate ? this.formatDate(origDate) : '',
+      noteValue: Number(cn.amount),
+      items: this.groupNoteItemsByRate(cn.items),
     };
+  }
+
+  private toCustomerDN(dn: {
+    id: string;
+    debitNoteNumber: string;
+    issueDate: string;
+    amount: string;
+    customerGstin: string | null;
+    amendsInvoiceNumber: string | null;
+    amendsInvoiceDate: string | null;
+    originalInvoiceNumber: string | null;
+    originalInvoiceDate: string | null;
+    items: Array<typeof customerDebitNoteItems.$inferSelect>;
+  }): Gstr1CDNEntry {
+    const origNumber = dn.amendsInvoiceNumber ?? dn.originalInvoiceNumber ?? '';
+    const origDate = dn.amendsInvoiceDate ?? dn.originalInvoiceDate ?? null;
+    return {
+      buyerGstin: dn.customerGstin!,
+      noteNumber: dn.debitNoteNumber,
+      noteDate: this.formatDate(dn.issueDate),
+      noteType: 'D',
+      originalInvoiceNumber: origNumber,
+      originalInvoiceDate: origDate ? this.formatDate(origDate) : '',
+      noteValue: Number(dn.amount),
+      items: this.groupNoteItemsByRate(dn.items),
+    };
+  }
+
+  /** Group CN/DN items by GST rate — same shape as invoice item grouping. */
+  private groupNoteItemsByRate(
+    items: Array<{
+      amount: string;
+      taxRate: string | null;
+      cgstAmount: string;
+      sgstAmount: string;
+      igstAmount: string;
+      cessAmount: string;
+    }>,
+  ): Gstr1CDNEntry['items'] {
+    const byRate = new Map<number, {
+      taxableValue: number; cgstAmount: number; sgstAmount: number; igstAmount: number; cessAmount: number;
+    }>();
+    for (const it of items) {
+      const rate = Number(it.taxRate ?? 0);
+      const e = byRate.get(rate);
+      if (e) {
+        e.taxableValue += Number(it.amount);
+        e.cgstAmount  += Number(it.cgstAmount);
+        e.sgstAmount  += Number(it.sgstAmount);
+        e.igstAmount  += Number(it.igstAmount);
+        e.cessAmount  += Number(it.cessAmount);
+      } else {
+        byRate.set(rate, {
+          taxableValue: Number(it.amount),
+          cgstAmount: Number(it.cgstAmount),
+          sgstAmount: Number(it.sgstAmount),
+          igstAmount: Number(it.igstAmount),
+          cessAmount: Number(it.cessAmount),
+        });
+      }
+    }
+    return Array.from(byRate.entries()).map(([rate, a]) => ({ gstRate: rate, ...a }));
+  }
+
+  /** Convert YYYY-MM-DD invoice date to MMYYYY period string. */
+  private invoiceDateToPeriod(dateStr: string): string {
+    const [y, m] = dateStr.split('-');
+    return `${m}${y}`;
+  }
+
+  /**
+   * Tenant's GST filing start date (YYYY-MM-01). Reads from
+   * tenants.settings.gstFilingStartPeriod (MMYYYY format). Returns a
+   * permissive default of '1900-01-01' when not configured — old tenants
+   * that never set this won't lose any missed-invoice detection.
+   */
+  private async tenantFilingStartDate(): Promise<string> {
+    const [row] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+    const period = (row?.settings as { gstFilingStartPeriod?: string } | null)?.gstFilingStartPeriod;
+    if (!period || period.length !== 6) return '1900-01-01';
+    const mm = period.substring(0, 2);
+    const yyyy = period.substring(2);
+    return `${yyyy}-${mm}-01`;
   }
 
   // ── HSN aggregation ──────────────────────────────────────────────────

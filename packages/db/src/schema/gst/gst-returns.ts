@@ -120,6 +120,10 @@ export type Gstr1Data = {
     igstAmount: number;
   }>;
   cdn: Gstr1CDNEntry[];
+  // Table 9A — amended B2B invoices, including invoices that were missed in a
+  // prior period's filed return and are being added now with their original
+  // (prior-period) invoice date. Same shape as b2b plus an originalPeriod hint.
+  b2ba?: Array<Gstr1B2BInvoice & { originalPeriod?: string }>;
   exp: Array<{
     invoiceNumber: string;
     invoiceDate: string;
