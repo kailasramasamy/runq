@@ -296,9 +296,24 @@ function InvoiceView({
   const printUrl = invoicePrintUrl(ctx, invoiceId);
   const pdfUrl = `${printUrl}${printUrl.includes('?') ? '&' : '?'}format=pdf`;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [iframeHeight, setIframeHeight] = useState<number>(800);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [iframeHeight, setIframeHeight] = useState<number>(900);
+  const [scale, setScale] = useState<number>(1);
   const [html, setHtml] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const IFRAME_BASE_WIDTH = 760;
+
+  useEffect(() => {
+    function updateScale() {
+      const el = containerRef.current;
+      if (!el) return;
+      const w = el.clientWidth;
+      setScale(w < IFRAME_BASE_WIDTH ? w / IFRAME_BASE_WIDTH : 1);
+    }
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -375,7 +390,11 @@ function InvoiceView({
           </button>
         </div>
       </div>
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div
+        ref={containerRef}
+        className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"
+        style={{ height: html ? `${iframeHeight * scale}px` : undefined }}
+      >
         {html ? (
           <iframe
             ref={iframeRef}
@@ -383,8 +402,13 @@ function InvoiceView({
             title="Invoice"
             onLoad={handleLoad}
             scrolling="no"
-            style={{ height: `${iframeHeight}px` }}
-            className="block w-full border-0"
+            style={{
+              width: `${IFRAME_BASE_WIDTH}px`,
+              height: `${iframeHeight}px`,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+            className="block border-0"
           />
         ) : (
           <div className="flex h-96 items-center justify-center text-sm text-zinc-500">Loading invoice…</div>
