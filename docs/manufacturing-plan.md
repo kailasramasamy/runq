@@ -140,10 +140,12 @@ apps/mobile/lib/screens/manufacturing/
 | WO start (status → in_progress) | None |
 | WO consumption recorded | None individually — accumulates on the WO |
 | WO output recorded | None individually — accumulates on the WO |
-| **WO close (v1)** | `Dr Inventory(1112)  $output_value` / `Cr Inventory(1112)  $consumed_value` (output_value = consumed_value — cost is conserved) |
+| **WO close (v1)** | **No JE posted.** Under actual costing with single-account inventory, the entry would be a same-account `Dr 1112 / Cr 1112` shuffle with zero net impact on trial balance / P&L / balance sheet. `stock_ledger` already records the movement with the correct WAC — there is nothing more for GL to capture. |
 | **WO close (target)** | `Dr FG-Inventory(1112)  $output_value` / `Cr RM-Inventory(1111)  $consumed_rm` / `Cr Packing-Inventory(1113)  $consumed_pkg` |
 
-**v1 reality:** the existing `InventoryGlPoster` posts every stock movement to a single inventory account `1112`. Until that's refactored to class-routed accounts (separate sub-project, will move GRN + Delivery + Adjustment + Manufacturing together), Manufacturing must match — the JE is a same-account Dr+Cr pair. Net balance-sheet impact: zero. The JE still records sourceType=`'work_order'` + sourceId=woId so the trail-by-WO report works.
+**v1 decision (2026-05-30, Vrindavan dogfood):** the `ManufacturingGlPoster.postClose` returns `null` when `outputValue === consumedValue` (always true under v1 actual costing). `work_orders.je_id` stays NULL, `stock_ledger.journal_entry_id` stays NULL for production rows. Activity register on `1112` stays clean — no paired-and-canceling lines per WO.
+
+The JE machinery is still in place and posts automatically when `outputValue ≠ consumedValue`. That case can't arise under v1 actual costing (cost is conserved by `costing.assignOutputCosts`) but WILL arise when standard costing or class-routed inventory accounts land in Phase C — at which point the existing poster handles the real Dr/Cr split without further change.
 
 **Yield variance in v1 is a stock metric, not a JE line.** With actual-cost roll-up (§8.2), input cost is fully transferred to output cost — output_value always equals consumed_value (cost is conserved). The yield variance figure (`actualQty − expectedQty`, valued at output cost) is reported on `work_orders.yield_variance` and surfaces in reports, but **does not appear as a 5105 JE line** under actual costing. The 5105 account remains seeded for the standard-costing path (Phase C).
 
@@ -491,18 +493,13 @@ The `5105 Production Yield Variance` account is seeded (and backfilled to existi
 
 ### 8.4 GL routing at close (v1)
 
-The `ManufacturingGlPoster.postClose()` function builds a same-account JE:
+**v1 posts no JE on a cost-conserved close.** `ManufacturingGlPoster.postClose` returns `null` when `outputValue === consumedValue` (always true under actual costing — `costing.assignOutputCosts` enforces cost conservation by absorbing rounding drift on the last `wo_output` row). `work_orders.je_id` stays NULL.
 
-```
-Dr Inventory(1112)              output_value   (= consumed_value)
-Cr Inventory(1112)              consumed_value
-```
+Rationale: the same-account `Dr 1112 / Cr 1112` shuffle has zero impact on trial balance, P&L, and balance sheet. The `stock_ledger` rows already record the movement at the correct WAC. Posting the JE would only inflate the activity register on `1112` without adding any auditable financial event. Trail-by-WO is still possible via `work_orders` and `stock_ledger.sourceType='work_order'`.
 
-Cost is conserved → totals balance to the paisa. The last `wo_output` row absorbs any rounding drift from per-unit-cost × qty so `sum(wo_output.value) = sum(wo_consumption.value)` exactly.
+**Future (class-routed inventory accounts):** once GRN + Delivery + Adjustment posters split debits/credits by `itemClass` via `inventoryAccountFor()`, the same `postClose` will produce a real cross-account JE — Cr lines split across `1111` (RM) / `1113` (Packing) per consumed value, Dr line on `1112` for FG output. No code change is needed in `postClose`; the same `outputValue !== consumedValue` branch fires once consumed_value at class-routed accounts diverges from output_value at FG. The `costing.service` already exposes the per-class consumed breakdown (`consumedValueByClass`) for the poster to consume.
 
-JE metadata: `sourceType='work_order'`, `sourceId=woId`, `description='Production — <wo_number> — <bom_name>'`, `date=<close date>`. JE id is stored on `work_orders.je_id`.
-
-**Future (class-routed inventory accounts):** once GRN + Delivery + Adjustment posters split debits/credits by `itemClass` via `inventoryAccountFor()`, the Manufacturing poster will switch in the same sub-project — Cr lines split across `1111` / `1113` per consumed value, Dr line goes to `1112` for FG output. The `costing.service` already exposes the per-class consumed breakdown (`consumedValueByClass`) so the poster change is mechanical.
+**Future (standard costing — Phase C):** when output is valued at BOM-derived standard cost (not actual), `outputValue` and `consumedValue` diverge by definition. The variance flows to `5105`. Same `postClose` machinery handles this without rewrite.
 
 ### 8.5 Reversal
 

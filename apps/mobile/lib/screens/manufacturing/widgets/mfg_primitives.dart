@@ -397,6 +397,7 @@ class MfgDocListTile extends StatelessWidget {
   final String? status;
   final bool? bomIsActive;
   final String? rightValue;
+  final String? productLabel;
   final VoidCallback? onTap;
   const MfgDocListTile({
     super.key,
@@ -407,6 +408,7 @@ class MfgDocListTile extends StatelessWidget {
     this.status,
     this.bomIsActive,
     this.rightValue,
+    this.productLabel,
     this.onTap,
   });
 
@@ -468,12 +470,39 @@ class MfgDocListTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    if (meta.isNotEmpty) ...[
+                    if (productLabel != null || meta.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 10,
-                        runSpacing: 4,
-                        children: meta.map((m) => MfgMetaChip(meta: m)).toList(),
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (productLabel != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: MfgColors.roseTint,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: MfgColors.roseHairline),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.factory_outlined, size: 13, color: brand),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    productLabel!,
+                                    style: RunqText.caption.copyWith(
+                                      color: brand,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ...meta.map((m) => MfgMetaChip(meta: m)),
+                        ],
                       ),
                     ],
                   ],

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Pencil, Copy, CheckCircle, XCircle, Factory } from 'lucide-react';
+import { Pencil, Copy, CheckCircle, XCircle, Factory, Trash2 } from 'lucide-react';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, CardSkeleton,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui';
 import { Link } from '@tanstack/react-router';
 import {
-  useBom, useActivateBom, useDeactivateBom, useCloneBom,
+  useBom, useActivateBom, useDeactivateBom, useCloneBom, useDeleteBom,
 } from '@/hooks/queries/use-boms';
 import { useWorkOrders } from '@/hooks/queries/use-work-orders';
 
@@ -43,9 +43,11 @@ export function BomDetailPage({ bomId }: Props) {
   const activateM = useActivateBom();
   const deactivateM = useDeactivateBom();
   const cloneM = useCloneBom();
+  const deleteM = useDeleteBom();
 
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [showActivate, setShowActivate] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   const bom = data?.data;
   const recentWOs = wosData?.data ?? [];
@@ -83,6 +85,18 @@ export function BomDetailPage({ bomId }: Props) {
   function handleDeactivate() {
     deactivateM.mutate(bomId, {
       onSuccess: () => { toast('BOM deactivated', 'success'); setShowDeactivate(false); },
+      onError: (e) => toast((e as Error).message || 'Failed', 'error'),
+    });
+  }
+
+  function handleDelete() {
+    deleteM.mutate(bomId, {
+      onSuccess: () => {
+        toast('BOM deleted', 'success');
+        setShowDelete(false);
+        navigate({ to: '/manufacturing/boms' });
+      },
+      // 409 from the API carries the "used by N WOs" guidance — surface it.
       onError: (e) => toast((e as Error).message || 'Failed', 'error'),
     });
   }
@@ -128,6 +142,13 @@ export function BomDetailPage({ bomId }: Props) {
                 <CheckCircle size={13} className="mr-1" /> Activate
               </Button>
             )}
+            <Button
+              variant="outline" size="sm"
+              onClick={() => setShowDelete(true)}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+            >
+              <Trash2 size={13} className="mr-1" /> Delete
+            </Button>
           </div>
         }
       />
@@ -295,6 +316,16 @@ export function BomDetailPage({ bomId }: Props) {
         description="This will become the active BOM for its output item. Any currently active BOM for the same item will be deactivated."
         confirmLabel="Activate"
         loading={activateM.isPending}
+      />
+
+      <ConfirmationDialog
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete this BOM permanently?"
+        description="The BOM and its input lines will be removed. If any work orders reference this BOM, deletion is blocked — deactivate it instead to preserve audit history."
+        confirmLabel="Delete"
+        loading={deleteM.isPending}
       />
     </div>
   );

@@ -70,6 +70,17 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.delete(
+    '/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new WorkOrderService(request.server.db, request.tenantId);
+      await service.delete(id);
+      return reply.status(204).send();
+    },
+  );
+
   app.post(
     '/:id/cancel',
     { preHandler: [rbacHook([...WRITE_ROLES])] },

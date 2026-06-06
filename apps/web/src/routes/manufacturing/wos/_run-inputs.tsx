@@ -3,7 +3,7 @@
  * and per-line consumption entry / history.
  * Spec: docs/manufacturing-plan.md §6, §9.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, RotateCcw, FlaskConical } from 'lucide-react';
 import {
   Button, Card, CardHeader, CardContent, Combobox,
@@ -100,9 +100,13 @@ function BomLineCard({
 }) {
   const [open, setOpen] = useState(false);
   const actualConsumed = consumptions.reduce((s, c) => s + c.qty, 0);
+  const actualValue = consumptions.reduce((s, c) => s + c.value, 0);
 
   const pct = line.expectedQty > 0 ? Math.min(actualConsumed / line.expectedQty, 1) : 0;
   const over = actualConsumed > line.expectedQty;
+  const excessQty = over ? actualConsumed - line.expectedQty : 0;
+  const avgUnitCost = actualConsumed > 0 ? actualValue / actualConsumed : 0;
+  const excessValue = excessQty * avgUnitCost;
 
   return (
     <Card>
@@ -139,6 +143,24 @@ function BomLineCard({
               Includes {line.scrapPct}% scrap
             </p>
           )}
+
+          {over && (
+            <div
+              className="mt-2 flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px]"
+              style={{
+                background: 'rgba(217, 119, 6, 0.08)',
+                borderColor: 'rgba(217, 119, 6, 0.35)',
+                color: '#b45309',
+              }}
+            >
+              <span className="font-medium">Excess vs. expected</span>
+              <span className="flex items-center gap-2 font-mono">
+                <span>+{excessQty.toFixed(3)} {line.inputUom}</span>
+                <span style={{ color: 'rgba(180, 83, 9, 0.55)' }}>·</span>
+                <span>{formatINR(excessValue)} loss</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Past consumptions */}
@@ -165,6 +187,9 @@ function BomLineCard({
               bomLineId={line.bomLineId}
               inputItemId={line.inputItemId}
               inputUom={line.inputUom}
+              // Pre-fill the remaining-to-consume so the operator usually
+              // just clicks Post. Negative is clamped (over-consumed).
+              defaultQty={Math.max(line.expectedQty - actualConsumed, 0)}
               onDone={() => setOpen(false)}
             />
           ) : (
@@ -282,6 +307,7 @@ function ConsumeForm({
   bomLineId,
   inputItemId,
   inputUom,
+  defaultQty,
   onDone,
 }: {
   woId: string;
@@ -289,11 +315,14 @@ function ConsumeForm({
   bomLineId: string | null;
   inputItemId: string;
   inputUom: string;
+  defaultQty?: number;
   onDone: () => void;
 }) {
   const { toast } = useToast();
   const [batchNo, setBatchNo] = useState('');
-  const [qty, setQty] = useState('');
+  // Pre-fill from BOM expected − already-consumed. 0 → blank so the operator
+  // sees the empty placeholder instead of a confusing "0".
+  const [qty, setQty] = useState(defaultQty && defaultQty > 0 ? String(defaultQty) : '');
   const [notes, setNotes] = useState('');
 
   const { data: batchRes } = useSuggestedBatches({ woId, inputItemId, warehouseId });
@@ -302,6 +331,17 @@ function ConsumeForm({
     value: b.batchNo,
     label: `${b.batchNo} — ${b.availableQty.toFixed(3)} ${inputUom} avail${b.expiryDate ? `, exp ${b.expiryDate}` : ''}`,
   }));
+
+  // FEFO suggestion: pre-select the first batch (API returns FEFO-sorted)
+  // so the common case is a single click. Operator can override via the
+  // dropdown. Only fires the first time batches arrive — once the operator
+  // has touched batchNo we leave it alone.
+  useEffect(() => {
+    if (!batchNo && batches.length > 0) setBatchNo(batches[0]!.batchNo);
+    // batches identity is stable per react-query response; depending on
+    // length is enough to fire once when data lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batches.length]);
 
   const mutation = useRecordConsumption(woId);
 
@@ -394,21 +434,28 @@ function ConsumptionRow({
 
   return (
     <div
-      className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px]"
+      className="flex items-center gap-3 rounded-md px-2.5 py-2"
       style={{ background: 'var(--surface-2)' }}
     >
       <div className="flex-1 min-w-0">
-        <span className="font-mono font-medium" style={{ color: 'var(--text-1)' }}>
-          {item.qty.toFixed(3)} {item.uom}
-        </span>
+        <div className="font-mono text-[12px] font-semibold leading-tight" style={{ color: 'var(--text-1)' }}>
+          {item.qty.toFixed(3)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{item.uom}</span>
+        </div>
         {item.batchNo && (
-          <span className="ml-2" style={{ color: 'var(--text-3)' }}>
+          <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-3)' }}>
             Batch {item.batchNo}
-          </span>
+          </div>
         )}
-        <span className="ml-2" style={{ color: 'var(--text-3)' }}>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="font-mono text-[12px] tabular-nums" style={{ color: 'var(--text-1)' }}>
           {formatINR(item.value)}
-        </span>
+        </div>
+        {item.unitCost > 0 && (
+          <div className="mt-0.5 text-[10px]" style={{ color: 'var(--text-3)' }}>
+            @ {formatINR(item.unitCost)}/{item.uom}
+          </div>
+        )}
       </div>
       {canMutate && (
         <button
@@ -418,7 +465,7 @@ function ConsumptionRow({
           className="shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50"
           title="Reverse this consumption"
         >
-          <RotateCcw size={12} />
+          <RotateCcw size={13} />
         </button>
       )}
     </div>

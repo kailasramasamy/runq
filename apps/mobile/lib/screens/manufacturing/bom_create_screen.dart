@@ -132,7 +132,10 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
             Expanded(
               child: ListView(
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                // Tall bottom padding leaves room for the sticky Save button
+                // plus the keyboard, so the last input-line row can scroll
+                // fully above both when focused.
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 240),
                 children: [
                   // Output item picker
                   MfgCard(
@@ -261,17 +264,21 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
           ],
         ),
       ),
-      bottomSheet: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: SizedBox(
-            width: double.infinity,
-            child: MfgPrimaryButton(
-              label: 'Save BOM',
-              loading: _busy,
-              onPressed: _canSave ? _save : null,
-              icon: Icons.check_rounded,
-            ),
+      // No SafeArea wrap — white surface extends edge-to-edge under the
+      // button; flat 32px top/bottom for breathing room, matching detail.
+      bottomSheet: Container(
+        decoration: BoxDecoration(
+          color: RT(context).surface,
+          border: Border(top: BorderSide(color: RT(context).hairline)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+        child: SizedBox(
+          width: double.infinity,
+          child: MfgPrimaryButton(
+            label: 'Save BOM',
+            loading: _busy,
+            onPressed: _canSave ? _save : null,
+            icon: Icons.check_rounded,
           ),
         ),
       ),
@@ -453,7 +460,9 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                 Expanded(
                   child: ListView(
                     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                    // Match create screen — clear the sticky Save button +
+                    // keyboard so the last input line can scroll into view.
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 240),
                     children: [
                       MfgCard(
                         child: Column(
@@ -582,17 +591,19 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
               ],
             ),
           ),
-          bottomSheet: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: SizedBox(
-                width: double.infinity,
-                child: MfgPrimaryButton(
-                  label: 'Update BOM',
-                  loading: _busy,
-                  onPressed: _canSave ? _save : null,
-                  icon: Icons.check_rounded,
-                ),
+          bottomSheet: Container(
+            decoration: BoxDecoration(
+              color: RT(context).surface,
+              border: Border(top: BorderSide(color: RT(context).hairline)),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+            child: SizedBox(
+              width: double.infinity,
+              child: MfgPrimaryButton(
+                label: 'Update BOM',
+                loading: _busy,
+                onPressed: _canSave ? _save : null,
+                icon: Icons.check_rounded,
               ),
             ),
           ),
@@ -688,7 +699,12 @@ class _BomLineEditorState extends State<_BomLineEditor> {
               flex: 2,
               child: _TextField(
                 controller: widget.line.qtyCtl,
-                label: 'Qty per output',
+                // Suffix the UoM in the label so the user sees the picked
+                // unit (kg / L / pcs) without us having to claim another
+                // column on this already-narrow row.
+                label: widget.line.inputUom.isEmpty
+                    ? 'Qty per output'
+                    : 'Qty per output (${widget.line.inputUom})',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 capitalization: TextCapitalization.none,
                 onChanged: (_) => widget.onChange(),
@@ -756,6 +772,10 @@ class _TextField extends StatelessWidget {
       onChanged: onChanged,
       enabled: enabled,
       style: RunqText.body.copyWith(color: t.ink),
+      // Lift focused fields well above the keyboard + sticky Save button
+      // (Scaffold.bottomSheet) so input-line rows aren't hidden under
+      // the keypad when the user taps Qty/Scrap.
+      scrollPadding: const EdgeInsets.only(bottom: 220),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: RunqText.caption.copyWith(color: t.muted),

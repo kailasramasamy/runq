@@ -82,3 +82,14 @@ export function useCancelWorkOrder() {
     },
   });
 }
+
+export function useDeleteWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/manufacturing/wos/${id}`),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: WO_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: WO_KEYS.all });
+    },
+  });
+}

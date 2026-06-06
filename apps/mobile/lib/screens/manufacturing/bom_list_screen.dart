@@ -98,7 +98,7 @@ class _BomListScreenState extends ConsumerState<BomListScreen> {
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
                       itemCount: res.data.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => const SizedBox(height: 14),
                       itemBuilder: (_, i) => _BomTile(bom: res.data[i]),
                     ),
                   );
@@ -126,7 +126,7 @@ class _BomTile extends StatelessWidget {
       meta: [
         MfgDocMeta(
           icon: Icons.scale_outlined,
-          label: '${_qty(bom.outputQty)} ${bom.outputUom}',
+          label: '${_qty(bom.outputQty)} x ${bom.outputUom}',
         ),
         MfgDocMeta(
           icon: Icons.format_list_numbered_rounded,

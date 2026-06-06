@@ -96,4 +96,15 @@ export const bomRoutes: FastifyPluginAsync = async (app) => {
       return { data };
     },
   );
+
+  app.delete(
+    '/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new BomService(request.server.db, request.tenantId);
+      await service.delete(id);
+      return reply.status(204).send();
+    },
+  );
 };

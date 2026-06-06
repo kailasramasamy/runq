@@ -356,6 +356,21 @@ class InventoryRepo {
     return _dataList(res).map(InvReorderAlert.fromJson).toList();
   }
 
+  /// Batches with an expiry inside the window — drives the Mfg home
+  /// "Perishables on-hand" tile. `includeExpired` surfaces rows where the
+  /// stock is already past its date so they don't silently roll into a WO.
+  Future<List<InvExpiringBatch>> expiring({
+    int withinDays = 2,
+    bool includeExpired = true,
+    String? warehouseId,
+  }) async {
+    final qp = <String, String>{'withinDays': '$withinDays'};
+    if (includeExpired) qp['includeExpired'] = 'true';
+    if (warehouseId != null && warehouseId.isNotEmpty) qp['warehouseId'] = warehouseId;
+    final res = await apiClient.get('/inventory/stock/expiring${_qs(qp)}');
+    return _dataList(res).map(InvExpiringBatch.fromJson).toList();
+  }
+
   String _qs(Map<String, String> qp) =>
       qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 

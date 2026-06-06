@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
-  stockOnHand, stockLedger, items, warehouses,
+  stockOnHand, stockLedger, items, warehouses, inventoryGrnLines,
 } from '@runq/db';
 import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
@@ -53,13 +53,57 @@ export class StockQueryService {
         r.reorderLevel != null && Number(r.qty) <= Number(r.reorderLevel),
       );
     }
+    // Per-batch expiry: keyed by `${itemId}|${batchNo}`. Pulled in a single
+    // round-trip from GRN lines (the source of truth — stock_on_hand doesn't
+    // store expiry). Empty when no batches are tracked, so the join is free
+    // on non-perishable tenants.
+    const expiryMap = await this.batchExpiryMap(
+      filtered
+        .filter((r) => r.batchNo)
+        .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo })),
+    );
     return filtered.map((r) => ({
       ...r,
       qty: Number(r.qty),
       avgCost: Number(r.avgCost),
       value: Number(r.value),
       reorderLevel: r.reorderLevel ? Number(r.reorderLevel) : null,
+      expiryDate: expiryMap.get(`${r.itemId}|${r.batchNo}`) ?? null,
     }));
+  }
+
+  /** Earliest expiry per (item, batch) across all GRN receipts that brought
+   *  the batch in. Used by on-hand to surface a shelf-life column without a
+   *  second round-trip per row. */
+  private async batchExpiryMap(
+    keys: Array<{ itemId: string; batchNo: string }>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (keys.length === 0) return out;
+    const itemIds = Array.from(new Set(keys.map((k) => k.itemId)));
+    const batchNos = Array.from(new Set(keys.map((k) => k.batchNo)));
+    const rows = await this.db
+      .select({
+        itemId: inventoryGrnLines.itemId,
+        batchNo: inventoryGrnLines.batchNo,
+        expiryDate: sql<string>`MIN(${inventoryGrnLines.expiryDate})::text`,
+      })
+      .from(inventoryGrnLines)
+      .where(
+        and(
+          eq(inventoryGrnLines.tenantId, this.tenantId),
+          inArray(inventoryGrnLines.itemId, itemIds),
+          inArray(inventoryGrnLines.batchNo, batchNos),
+          sql`${inventoryGrnLines.expiryDate} IS NOT NULL`,
+        ),
+      )
+      .groupBy(inventoryGrnLines.itemId, inventoryGrnLines.batchNo);
+    for (const r of rows) {
+      if (r.itemId && r.batchNo && r.expiryDate) {
+        out.set(`${r.itemId}|${r.batchNo}`, r.expiryDate);
+      }
+    }
+    return out;
   }
 
   async ledger(filter: StockLedgerFilter) {

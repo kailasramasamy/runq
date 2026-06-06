@@ -376,20 +376,27 @@ class _OutputRowCardState extends ConsumerState<_OutputRowCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${_qty(row.qty)} ${row.uom}',
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                      text: _qty(row.qty),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
+                    ),
+                    TextSpan(
+                      text: '  ${row.uom}',
+                      style: RunqText.caption.copyWith(color: t.muted),
+                    ),
+                  ]),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  'Batch: ${row.batchNo}',
+                  row.expiryDate != null
+                      ? 'Batch ${row.batchNo}  ·  exp ${mfgPrettyDate(row.expiryDate!)}'
+                      : 'Batch ${row.batchNo}',
                   style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (row.expiryDate != null)
-                  Text(
-                    'Exp: ${mfgPrettyDate(row.expiryDate!)}',
-                    style: RunqText.caption.copyWith(color: t.muted),
-                  ),
                 Text(
                   row.warehouseName,
                   style: RunqText.caption.copyWith(color: t.muted),
@@ -401,9 +408,18 @@ class _OutputRowCardState extends ConsumerState<_OutputRowCard> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                mfgIndianINR(row.value, decimals: 2),
-                style: RunqText.bodyStrong.copyWith(color: t.ink),
+                row.value > 0 ? mfgIndianINR(row.value, decimals: 2) : '—',
+                style: RunqText.bodyStrong.copyWith(
+                  color: row.value > 0 ? t.ink : t.muted,
+                ),
               ),
+              if (row.unitCost > 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                ),
+              ],
               if (widget.isEditable)
                 TextButton(
                   onPressed: _busy ? null : _reverse,

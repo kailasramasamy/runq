@@ -1,13 +1,14 @@
 import { Link } from '@tanstack/react-router';
 import {
   FlaskConical, Factory, ClipboardList, Plus,
-  PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3,
+  PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3, CalendarClock,
 } from 'lucide-react';
 import {
-  PageHeader, Card, CardContent, Skeleton, EmptyState,
+  PageHeader, Card, CardContent, Skeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useMfgDashboard } from '@/hooks/queries/use-mfg-reports';
 import { useWorkOrders } from '@/hooks/queries/use-work-orders';
+import { useExpiring } from '@/hooks/queries/use-inventory';
 
 const ACCENT = '#E11D48';
 
@@ -158,6 +159,8 @@ export function ManufacturingHomePage() {
         </Card>
       </div>
 
+      <PerishablesTile />
+
       {/* Quick actions */}
       <div className="mt-6">
         <h2 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
@@ -235,6 +238,76 @@ export function ManufacturingHomePage() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+/**
+ * Batches expiring today / tomorrow / already expired. Driven by the existing
+ * /stock/expiring API (date-granularity is enough — perishables get a fresh
+ * batch each shift, so "expires today" = today's planning trigger).
+ * Hides entirely when nothing is on the clock, so non-perishable tenants
+ * don't see noise.
+ */
+function PerishablesTile() {
+  const { data, isLoading } = useExpiring({ withinDays: 2, includeExpired: true });
+  if (isLoading || !data || data.length === 0) return null;
+  const rows = data.slice(0, 5);
+  return (
+    <div className="mt-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+          Perishables on-hand
+        </h2>
+        <Link
+          to="/inventory/reports/expiry"
+          search={{ withinDays: '7', includeExpired: 'true' } as never}
+          className="text-xs font-medium hover:underline"
+          style={{ color: ACCENT }}
+        >
+          View all →
+        </Link>
+      </div>
+      <Card>
+        <CardContent className="!p-0">
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {rows.map((r) => (
+              <li key={`${r.itemId}-${r.warehouseId}-${r.batchNo}`} className="flex items-center gap-3 p-3">
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: 'rgba(225, 29, 72, 0.10)', color: ACCENT }}
+                >
+                  <CalendarClock size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="truncate text-sm font-semibold">{r.itemName}</span>
+                    <span className="font-mono text-xs text-zinc-500">{r.batchNo}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-zinc-500">
+                    {r.qty.toLocaleString()} {r.itemUnit ?? ''} · {r.warehouseName}
+                  </div>
+                </div>
+                <ExpiryBadge days={r.daysToExpiry} />
+                <Link
+                  to="/manufacturing/wos/new"
+                  className="ml-1 shrink-0 text-xs font-medium hover:underline"
+                  style={{ color: ACCENT }}
+                >
+                  Plan WO →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ExpiryBadge({ days }: { days: number }) {
+  if (days < 0) return <Badge variant="danger">Expired</Badge>;
+  if (days === 0) return <Badge variant="danger">Today</Badge>;
+  if (days === 1) return <Badge variant="warning">Tomorrow</Badge>;
+  return <Badge variant="warning">{days}d</Badge>;
+}
 
 function KpiCard({
   icon: Icon, label, value, to, loading, highlight,

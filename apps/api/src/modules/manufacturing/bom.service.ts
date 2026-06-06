@@ -1,12 +1,12 @@
 import { and, eq, desc, sql, ilike, or } from 'drizzle-orm';
-import { boms, bomLines, workOrders } from '@runq/db';
+import { boms, bomLines, workOrders, woConsumption, woOutput } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { items } from '@runq/db';
 import type { BomListRow, BomWithLines, BomLine } from '@runq/types';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
-import { NotFoundError } from '../../utils/errors';
+import { ConflictError, NotFoundError } from '../../utils/errors';
 
 export interface BomListResult {
   data: BomListRow[];
@@ -140,15 +140,28 @@ export class BomService {
   async update(id: string, input: UpdateBomInput, userId?: string): Promise<BomWithLines> {
     const existing = await this.getById(id);
 
-    // Check if any WOs reference this BOM
-    const [woRef] = await this.db
+    // Version-bump only when a referencing WO has actually locked in the old
+    // recipe — i.e. consumption recorded, output recorded, or JE posted. A
+    // bare draft WO computes its expected qty from the current BOM at run-
+    // time, so editing in-place is safe. This avoids the "every edit makes a
+    // new BOM" surprise during early setup, while still preserving the audit
+    // snapshot once the shop floor has touched the recipe.
+    const [lockedWo] = await this.db
       .select({ id: workOrders.id })
       .from(workOrders)
-      .where(and(eq(workOrders.tenantId, this.tenantId), eq(workOrders.bomId, id)))
+      .where(and(
+        eq(workOrders.tenantId, this.tenantId),
+        eq(workOrders.bomId, id),
+        or(
+          sql`${workOrders.jeId} IS NOT NULL`,
+          sql`EXISTS (SELECT 1 FROM ${woConsumption} c WHERE c.wo_id = ${workOrders.id})`,
+          sql`EXISTS (SELECT 1 FROM ${woOutput}      o WHERE o.wo_id = ${workOrders.id})`,
+        ),
+      ))
       .limit(1);
 
-    if (!woRef) {
-      // Edit in place
+    if (!lockedWo) {
+      // No WO has acted on this BOM yet — safe to edit in place.
       return this.updateInPlace(id, input);
     }
 
@@ -268,6 +281,32 @@ export class BomService {
       .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
 
     return this.getById(id);
+  }
+
+  /**
+   * Hard-delete a BOM. Refuses if any work order references it — the
+   * referencing rows would either lose their audit link or need their
+   * non-nullable bom_id wiped. Suggests deactivate for that case.
+   */
+  async delete(id: string): Promise<void> {
+    // Confirm the BOM exists in this tenant (also catches cross-tenant id leaks).
+    await this.getById(id);
+
+    const [refCount] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(workOrders)
+      .where(and(eq(workOrders.tenantId, this.tenantId), eq(workOrders.bomId, id)));
+    if ((refCount?.n ?? 0) > 0) {
+      throw new ConflictError(
+        `BOM is referenced by ${refCount!.n} work order(s). Deactivate it instead — that hides it from new work orders while keeping the audit trail.`,
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx.delete(bomLines).where(eq(bomLines.bomId, id));
+      await tx.delete(boms)
+        .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
+    });
   }
 
   // ─── Internals ──────────────────────────────────────────────────────────

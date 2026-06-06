@@ -736,7 +736,9 @@ class MfgItemRow {
         id: j['id'] as String,
         name: j['name'] as String,
         sku: (j['sku'] as String?) ?? '',
-        uom: (j['uom'] as String?) ?? '',
+        // /masters/items returns the UoM in `unit`; keep `uom` as a fallback
+        // in case any caller still hands us the renamed shape.
+        uom: (j['unit'] as String?) ?? (j['uom'] as String?) ?? '',
         itemClass: (j['itemClass'] as String?) ?? '',
       );
 }

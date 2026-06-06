@@ -93,3 +93,14 @@ export function useDeactivateBom() {
     },
   });
 }
+
+export function useDeleteBom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/manufacturing/boms/${id}`),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: BOM_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: BOM_KEYS.all });
+    },
+  });
+}

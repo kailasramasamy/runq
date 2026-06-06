@@ -116,7 +116,11 @@ class _BomLineCard extends ConsumerWidget {
     final t = RT(context);
     final expected = line.expectedQty(plannedQty);
     final actualSoFar = consumedRows.fold<double>(0, (s, r) => s + r.qty);
+    final actualValue = consumedRows.fold<double>(0, (s, r) => s + r.value);
     final isOver = actualSoFar > expected;
+    final excessQty = isOver ? actualSoFar - expected : 0.0;
+    final avgUnitCost = actualSoFar > 0 ? actualValue / actualSoFar : 0.0;
+    final excessValue = excessQty * avgUnitCost;
 
     return MfgCard(
       padding: const EdgeInsets.all(0),
@@ -172,6 +176,40 @@ class _BomLineCard extends ConsumerWidget {
               ),
             ),
           ),
+          // Excess vs. expected — amber strip when over-consumed
+          if (isOver)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: MfgColors.orangeAlertBg,
+                border: Border.all(color: MfgColors.orangeAlert.withValues(alpha: 0.35)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 14, color: MfgColors.orangeAlert),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Excess vs. expected',
+                      style: RunqText.caption.copyWith(
+                        color: MfgColors.orangeAlert,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '+${_qty(excessQty)} ${line.inputUom}  ·  ${mfgIndianINR(excessValue, decimals: 2)} loss',
+                    style: RunqText.caption.copyWith(
+                      color: MfgColors.orangeAlert,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Expanded section
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
@@ -350,27 +388,63 @@ class _ConsumedRowTileState extends ConsumerState<_ConsumedRowTile> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Left — qty (prominent) + batch / warehouse (muted)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${_qty(row.qty)} ${row.uom}'
-                  '${row.batchNo != null ? '  ·  ${row.batchNo}' : ''}',
-                  style: RunqText.body.copyWith(color: t.ink),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                      text: _qty(row.qty),
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
+                    ),
+                    TextSpan(
+                      text: '  ${row.uom}',
+                      style: RunqText.caption.copyWith(color: t.muted),
+                    ),
+                  ]),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${row.warehouseName}  ·  ${mfgIndianINR(row.value, decimals: 2)}',
+                  row.batchNo != null
+                      ? 'Batch ${row.batchNo}  ·  ${row.warehouseName}'
+                      : row.warehouseName,
                   style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          // Right — value + unit cost
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                mfgIndianINR(row.value, decimals: 2),
+                style: RunqText.bodyStrong.copyWith(color: t.ink),
+              ),
+              if (row.unitCost > 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                ),
+              ],
+            ],
+          ),
           if (widget.isEditable)
             TextButton(
               onPressed: _busy ? null : _reverse,
-              style: TextButton.styleFrom(foregroundColor: MfgColors.error),
+              style: TextButton.styleFrom(
+                foregroundColor: MfgColors.error,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: _busy
                   ? const SizedBox(
                       width: 14, height: 14,

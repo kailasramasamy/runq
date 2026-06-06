@@ -46,17 +46,31 @@ export class ManufacturingGlPoster {
   }
 
   /**
-   * WO close — same-account stock shuffle in v1. Returns je.id for storage
-   * on `work_orders.je_id`.
+   * WO close — under v1 actual costing with the single-account inventory
+   * convention, the JE would be a `Dr 1112 / Cr 1112` same-account shuffle
+   * with zero net impact on the trial balance, P&L, or balance sheet.
    *
-   * Cost conservation: outputValue === consumedValue (caller guarantees via
-   * `costing.assignOutputCosts` rounding-drift handling). If they differ
-   * `GLService.createJournalEntry` will throw on the balance check.
+   * Decision (2026-05-30, Vrindavan dogfood): **skip the JE when net impact
+   * is zero.** The stock movements are already in `stock_ledger` with the
+   * correct WAC; nothing more needs to land in GL. `work_orders.je_id` stays
+   * NULL for cost-conserved closes, and the `stock_ledger.journal_entry_id`
+   * backlink stays NULL for production rows in v1. Activity register on the
+   * inventory account stays clean.
+   *
+   * The JE machinery still posts when output_value ≠ consumed_value — that
+   * case can't arise under v1 actual costing (cost conservation guarantee),
+   * but it WILL arise when standard costing or class-routed inventory
+   * accounts land (Phase C). When that happens, this poster does the right
+   * thing without further change: variance lines go to 5105 + cross-class
+   * Dr/Cr flows through `1111` / `1113` / `1112`.
    */
   async postClose(args: PostManufactureCloseArgs): Promise<string | null> {
-    // Zero-value WO (e.g. all inputs were zero-cost) — skip JE entirely.
-    // The stock movements still posted; there's nothing financial to record.
+    // Zero-value WO (e.g. all inputs were zero-cost) — nothing to record.
     if (args.outputValue === 0 && args.consumedValue === 0) return null;
+
+    // v1 actual costing: input cost rolls into output cost on the same
+    // inventory account → no JE needed. The stock_ledger captures the move.
+    if (args.outputValue === args.consumedValue) return null;
 
     const je = await this.gl.createJournalEntry({
       date: args.date,

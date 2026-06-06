@@ -73,6 +73,8 @@ export interface Item {
   trackBatches?: boolean;
   trackExpiry?: boolean;
   trackSerials?: boolean;
+  /** Per-item batch code template (Direct Receipt picker pre-fill). */
+  batchCodeTemplate?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -355,6 +355,8 @@ class _StockTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                    if (row.expiryDate != null)
+                      _ExpiryPill(date: row.expiryDate!),
                   ],
                 ),
                 if (meta.isNotEmpty) ...[
@@ -407,5 +409,46 @@ class _StockTile extends StatelessWidget {
   static String _fmtQty(double q) {
     if (q == q.roundToDouble()) return q.toStringAsFixed(0);
     return q.toStringAsFixed(2);
+  }
+}
+
+/// Per-row expiry pill. Sits beside the Low badge in the stock tile header.
+/// Suppressed for batches outside the 7-day urgency window so the list
+/// stays calm on non-perishable stock.
+class _ExpiryPill extends StatelessWidget {
+  const _ExpiryPill({required this.date});
+  final String date;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = _daysFromToday(date);
+    if (days == null || days > 7) return const SizedBox.shrink();
+    final urgent = days <= 1;
+    final bg = urgent ? InvColors.errorBg : InvColors.orangeAlertBg;
+    final fg = urgent ? InvColors.error : InvColors.orangeAlert;
+    final label = days < 0
+        ? 'Expired'
+        : days == 0
+            ? 'Today'
+            : days == 1
+                ? 'Tomorrow'
+                : '${days}d';
+    return Container(
+      margin: const EdgeInsets.only(left: 6, top: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      child: Text(
+        label,
+        style: RunqText.micro.copyWith(color: fg, letterSpacing: 0.2),
+      ),
+    );
+  }
+
+  static int? _daysFromToday(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return d.difference(today).inDays;
   }
 }

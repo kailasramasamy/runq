@@ -134,6 +134,7 @@ export function OnHandPage() {
               <Th>SKU</Th>
               <Th>Warehouse</Th>
               <Th>Batch</Th>
+              <Th>Expiry</Th>
               <Th className="text-right">Qty</Th>
               <Th className="text-right">Avg cost</Th>
               <Th className="text-right">Value</Th>
@@ -156,6 +157,7 @@ export function OnHandPage() {
                 <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
                 <TableCell>{r.warehouseName}</TableCell>
                 <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
+                <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
                 <TableCell className="text-right tabular-nums">
                   {r.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
                 </TableCell>
@@ -172,4 +174,26 @@ export function OnHandPage() {
       )}
     </div>
   );
+}
+
+/** Per-row expiry indicator. Shows nothing for batches without a tracked
+ *  date (most non-perishable stock), a coloured badge for batches inside
+ *  the 2-day urgency window, and a plain date otherwise. */
+function ExpiryCell({ date }: { date: string | null }) {
+  if (!date) return <span className="text-zinc-400">—</span>;
+  const days = daysFromToday(date);
+  if (days == null) return <span className="text-xs text-zinc-500">{date}</span>;
+  if (days < 0) return <Badge variant="danger">Expired · {date}</Badge>;
+  if (days === 0) return <Badge variant="danger">Today · {date}</Badge>;
+  if (days === 1) return <Badge variant="warning">Tomorrow · {date}</Badge>;
+  if (days <= 7) return <Badge variant="warning">{days}d · {date}</Badge>;
+  return <span className="text-xs text-zinc-500">{date}</span>;
+}
+
+function daysFromToday(iso: string): number | null {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((d.getTime() - today.getTime()) / 86_400_000);
 }

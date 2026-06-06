@@ -107,6 +107,9 @@ export const createItemSchema = z.object({
   trackBatches: z.boolean().optional(),
   trackExpiry: z.boolean().optional(),
   trackSerials: z.boolean().optional(),
+  /** Per-item batch code template used by Direct Receipt to pre-fill a
+   *  fresh batch code. Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. */
+  batchCodeTemplate: z.string().max(80).nullish(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

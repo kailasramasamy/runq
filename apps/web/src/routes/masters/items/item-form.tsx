@@ -134,6 +134,11 @@ export function ItemForm({
   const [trackBatches, setTrackBatches] = useState(initialTracking.trackBatches);
   const [trackExpiry, setTrackExpiry] = useState(initialTracking.trackExpiry);
   const [trackSerials, setTrackSerials] = useState(initialTracking.trackSerials);
+  // Per-item batch code template — used by Direct Receipt to pre-fill a
+  // fresh batch code. Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}.
+  const [batchCodeTemplate, setBatchCodeTemplate] = useState<string>(
+    source?.batchCodeTemplate ?? '',
+  );
   // Track whether the user has manually toggled any flag — if so, class
   // changes stop overwriting their choices. Without this, picking "Raw
   // material" and then unchecking Expiry would silently re-check on the
@@ -238,7 +243,16 @@ export function ItemForm({
       // Tracking flags. Services skip them — items table CHECK / queries
       // don't read them for type='service'.
       ...(type === 'product'
-        ? { trackInventory, trackBatches, trackExpiry, trackSerials }
+        ? {
+            trackInventory,
+            trackBatches,
+            trackExpiry,
+            trackSerials,
+            // Empty string → null so we don't store a meaningless empty template.
+            batchCodeTemplate: trackBatches && batchCodeTemplate.trim()
+              ? batchCodeTemplate.trim()
+              : null,
+          }
         : {}),
       // Carry the source's COGM breakdown into the new item when duplicating,
       // so variants inherit the cost build-up. NEVER include in the edit
@@ -446,6 +460,17 @@ export function ItemForm({
               disabled={!trackInventory}
             />
           </div>
+          {trackBatches && (
+            <div className="pt-2">
+              <Input
+                label="Auto batch code"
+                value={batchCodeTemplate}
+                onChange={(e) => setBatchCodeTemplate(e.target.value)}
+                placeholder="e.g. {SKU}-POOL-{YYYYMMDD}"
+                helper="Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. Pre-fills the batch field on Direct Receipt."
+              />
+            </div>
+          )}
         </fieldset>
       )}
 

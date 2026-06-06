@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
-import { Pencil, XCircle, Play } from 'lucide-react';
+import { Pencil, XCircle, Play, Lock, Trash2 } from 'lucide-react';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, CardSkeleton,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   ConfirmationDialog, useToast,
 } from '@/components/ui';
-import { useWorkOrder, useCancelWorkOrder } from '@/hooks/queries/use-work-orders';
-import { useWoConsumption, useWoOutput } from '@/hooks/queries/use-wo-run';
+import { useWorkOrder, useCancelWorkOrder, useDeleteWorkOrder } from '@/hooks/queries/use-work-orders';
+import { useWoConsumption, useWoOutput, useStartWo, useCloseWo, useWoCostingPreview } from '@/hooks/queries/use-wo-run';
+import { RunCloseDialog } from './_run-close-dialog';
 import { formatINR } from '@/lib/utils';
 import type { WorkOrderExpectedLine } from '@runq/types';
 
@@ -39,10 +40,44 @@ export function WorkOrderDetailPage({ woId }: Props) {
   const { toast } = useToast();
   const { data, isLoading, isError } = useWorkOrder(woId);
   const cancelM = useCancelWorkOrder();
+  const deleteM = useDeleteWorkOrder();
+  const startM = useStartWo();
+  const closeM = useCloseWo();
   const [showCancel, setShowCancel] = useState(false);
+  const [showClose, setShowClose] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   const wo = data?.data;
   const showRunLink = wo?.status === 'in_progress' || wo?.status === 'completed';
+  const canStart = wo?.status === 'draft';
+  const canClose = wo?.status === 'completed';
+
+  // Costing preview powers the close dialog (qty + variance summary).
+  const { data: previewRes } = useWoCostingPreview(woId);
+  const preview = previewRes?.data ?? null;
+
+  async function handleStartRun() {
+    if (!wo) return;
+    try {
+      await startM.mutateAsync(woId);
+      navigate({ to: '/manufacturing/wos/$woId/run', params: { woId } });
+    } catch (e) {
+      toast(`Could not start WO: ${(e as Error).message}`, 'error');
+    }
+  }
+
+  function handleClose(varianceAcknowledged: boolean) {
+    closeM.mutate(
+      { woId, data: { varianceAcknowledged } },
+      {
+        onSuccess: () => {
+          toast('Work order closed', 'success');
+          setShowClose(false);
+        },
+        onError: (e) => toast((e as Error).message || 'Failed to close', 'error'),
+      },
+    );
+  }
 
   // Fetch actuals for closed WOs and enriched detail view
   const { data: consumptionRes } = useWoConsumption(woId);
@@ -64,6 +99,9 @@ export function WorkOrderDetailPage({ woId }: Props) {
 
   const canEdit = wo.status === 'draft';
   const canCancel = wo.status === 'draft' || wo.status === 'in_progress';
+  // Delete is intentionally draft-only — anything past draft has stock
+  // ledger / cost side-effects the API refuses to drop. Use Cancel for those.
+  const canDelete = wo.status === 'draft';
 
   const tone = { bg: STATUS_BG[wo.status] ?? 'var(--surface-2)', fg: STATUS_FG[wo.status] ?? 'var(--text-2)' };
 
@@ -75,6 +113,17 @@ export function WorkOrderDetailPage({ woId }: Props) {
         onError: (e) => toast((e as Error).message || 'Failed to cancel', 'error'),
       },
     );
+  }
+
+  function handleDelete() {
+    deleteM.mutate(woId, {
+      onSuccess: () => {
+        toast('Work order deleted', 'success');
+        setShowDelete(false);
+        navigate({ to: '/manufacturing/wos' });
+      },
+      onError: (e) => toast((e as Error).message || 'Failed to delete', 'error'),
+    });
   }
 
   return (
@@ -96,6 +145,26 @@ export function WorkOrderDetailPage({ woId }: Props) {
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            {canStart && (
+              <Button
+                size="sm"
+                onClick={handleStartRun}
+                disabled={startM.isPending}
+                style={{ background: ACCENT, borderColor: ACCENT }}
+              >
+                <Play size={13} className="mr-1" />
+                {startM.isPending ? 'Starting…' : 'Start Run'}
+              </Button>
+            )}
+            {canClose && (
+              <Button
+                size="sm"
+                onClick={() => setShowClose(true)}
+                style={{ background: ACCENT, borderColor: ACCENT }}
+              >
+                <Lock size={13} className="mr-1" /> Close Work Order
+              </Button>
+            )}
             {showRunLink && (
               <Button
                 size="sm"
@@ -116,6 +185,15 @@ export function WorkOrderDetailPage({ woId }: Props) {
             {canCancel && (
               <Button variant="outline" size="sm" onClick={() => setShowCancel(true)}>
                 <XCircle size={13} className="mr-1" /> Cancel
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="outline" size="sm"
+                onClick={() => setShowDelete(true)}
+                className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+              >
+                <Trash2 size={13} className="mr-1" /> Delete
               </Button>
             )}
           </div>
@@ -277,17 +355,32 @@ export function WorkOrderDetailPage({ woId }: Props) {
                   muted={wo.status !== 'closed'}
                 />
               </div>
-              {wo.status === 'closed' && wo.jeId && (
-                <div className="mt-3 rounded border px-3 py-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-                  <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>Journal entry posted</p>
-                  <Link
-                    to="/finance/gl/journal-entries/$journalEntryId"
-                    params={{ journalEntryId: wo.jeId }}
-                    className="text-[11px] font-medium underline"
-                    style={{ color: ACCENT }}
-                  >
-                    View JE →
-                  </Link>
+              {wo.status === 'closed' && (
+                <div className="mt-3 space-y-2">
+                  <div className="rounded border px-3 py-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                    <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>Finished goods landed in stock</p>
+                    <Link
+                      to="/inventory/stock/on-hand"
+                      search={{ q: wo.outputItemName }}
+                      className="text-[11px] font-medium underline"
+                      style={{ color: ACCENT }}
+                    >
+                      View {wo.outputItemName} in inventory →
+                    </Link>
+                  </div>
+                  {wo.jeId && (
+                    <div className="rounded border px-3 py-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                      <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>Journal entry posted</p>
+                      <Link
+                        to="/finance/gl/journal-entries/$journalEntryId"
+                        params={{ journalEntryId: wo.jeId }}
+                        className="text-[11px] font-medium underline"
+                        style={{ color: ACCENT }}
+                      >
+                        View JE →
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
               {wo.status !== 'closed' && wo.status !== 'draft' && (
@@ -324,7 +417,13 @@ export function WorkOrderDetailPage({ woId }: Props) {
               <CardContent>
                 <div className="space-y-1">
                   {outputs.map((o) => (
-                    <div key={o.id} className="flex justify-between text-[12px]">
+                    <Link
+                      key={o.id}
+                      to="/inventory/stock/on-hand"
+                      search={{ q: o.batchNo }}
+                      className="flex justify-between rounded px-2 py-1 text-[12px] -mx-2 hover:bg-[color:var(--surface-2)]"
+                      title="View this batch in inventory on-hand"
+                    >
                       <span style={{ color: 'var(--text-2)' }}>
                         {o.batchNo}
                         {o.expiryDate ? ` · exp ${o.expiryDate}` : ''}
@@ -332,7 +431,7 @@ export function WorkOrderDetailPage({ woId }: Props) {
                       <span className="font-mono tabular-nums" style={{ color: 'var(--text-1)' }}>
                         {o.qty.toFixed(3)} {o.uom}
                       </span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </CardContent>
@@ -349,6 +448,23 @@ export function WorkOrderDetailPage({ woId }: Props) {
         description="The work order will be marked cancelled. No stock transactions exist yet (Phase 1), so no reversals are needed."
         confirmLabel="Cancel WO"
         loading={cancelM.isPending}
+      />
+      <ConfirmationDialog
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete this work order permanently?"
+        description="The WO row will be removed. Only draft work orders can be deleted — anything past draft must be cancelled instead, so stock movements get reversed cleanly."
+        confirmLabel="Delete"
+        loading={deleteM.isPending}
+      />
+      <RunCloseDialog
+        open={showClose}
+        onClose={() => setShowClose(false)}
+        onConfirm={handleClose}
+        preview={preview}
+        outputUom={wo.outputUom}
+        isLoading={closeM.isPending}
       />
     </div>
   );

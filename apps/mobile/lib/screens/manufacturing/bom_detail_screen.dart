@@ -158,20 +158,31 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                         children: [
                           Text('BOM Info', style: RunqText.label),
                           const SizedBox(height: 10),
+                          // Hairline between each row gives the info card the
+                          // same scannable feel as the Input Lines card below.
                           _InfoRow(label: 'Name', value: bom.name),
+                          Divider(color: t.hairline, height: 1),
                           _InfoRow(label: 'Code', value: bom.bomCode),
+                          Divider(color: t.hairline, height: 1),
                           _InfoRow(label: 'Version', value: 'v${bom.version}'),
+                          Divider(color: t.hairline, height: 1),
                           _InfoRow(
+                            // "1 × 500ml" reads cleaner than "1 500ml" —
+                            // makes the qty × pack-size relationship obvious.
                             label: 'Output',
-                            value: '${_qty(bom.outputQty)} ${bom.outputUom}',
+                            value: '${_qty(bom.outputQty)} × ${bom.outputUom}',
                           ),
-                          if (bom.effectiveFrom != null)
+                          if (bom.effectiveFrom != null) ...[
+                            Divider(color: t.hairline, height: 1),
                             _InfoRow(
                               label: 'Effective',
                               value: mfgPrettyDate(bom.effectiveFrom!),
                             ),
-                          if (bom.notes != null && bom.notes!.isNotEmpty)
+                          ],
+                          if (bom.notes != null && bom.notes!.isNotEmpty) ...[
+                            Divider(color: t.hairline, height: 1),
                             _InfoRow(label: 'Notes', value: bom.notes!),
+                          ],
                         ],
                       ),
                     ),
@@ -210,16 +221,19 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                 ),
               ),
             ),
-            // Bottom action bar
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  border: Border(top: BorderSide(color: t.hairline)),
-                ),
-                child: Row(
+            // Bottom action bar. The white background extends through the
+            // home-indicator inset so the empty strip below the buttons is
+            // white too — bgWarm peeking through there made the bar look
+            // like it was floating on a cream stripe.
+            Container(
+              decoration: BoxDecoration(
+                color: t.surface,
+                border: Border(top: BorderSide(color: t.hairline)),
+              ),
+              // Flat 32px breathing room top + bottom; no SafeArea wrap so
+              // the white background extends edge-to-edge under the buttons.
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+              child: Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
@@ -244,7 +258,6 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                   ],
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -264,7 +277,7 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -314,7 +327,7 @@ class _BomLineRow extends StatelessWidget {
               Text(line.inputItemName, style: RunqText.bodyStrong.copyWith(color: t.ink)),
               const SizedBox(height: 2),
               Text(
-                '${_qty(line.qtyPerOutput)} ${line.inputUom} per output'
+                '${_qty(line.qtyPerOutput)} x ${line.inputUom} per output'
                 '${line.scrapPct > 0 ? ' · ${line.scrapPct.toStringAsFixed(1)}% scrap' : ''}'
                 '${line.isOptional ? ' · optional' : ''}',
                 style: RunqText.caption.copyWith(color: t.muted),

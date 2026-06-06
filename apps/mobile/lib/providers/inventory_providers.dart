@@ -28,6 +28,14 @@ final invOnHandProvider = FutureProvider.autoDispose
   );
 });
 
+/// Perishables tile: window defaults match the Mfg home view (next 2 days
+/// + already-expired). Kept narrow so the Mfg home doesn't pull a 30-day
+/// list it would only slice down anyway.
+final invExpiringProvider = FutureProvider.autoDispose
+    .family<List<InvExpiringBatch>, int>((ref, withinDays) async {
+  return inventoryRepo.expiring(withinDays: withinDays, includeExpired: true);
+});
+
 final invGrnListProvider = FutureProvider.autoDispose.family<List<InvGrn>, String?>((ref, status) async {
   return inventoryRepo.grnList(status: status);
 });

@@ -710,6 +710,7 @@ export class ItemService {
       trackBatches: row.trackBatches,
       trackExpiry: row.trackExpiry,
       trackSerials: row.trackSerials,
+      batchCodeTemplate: row.batchCodeTemplate,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

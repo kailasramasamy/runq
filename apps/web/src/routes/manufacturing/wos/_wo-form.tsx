@@ -4,7 +4,7 @@ import {
   Button, Input, Combobox, Card, CardHeader, CardContent,
 } from '@/components/ui';
 import { useBoms, useBom } from '@/hooks/queries/use-boms';
-import { useWarehouses } from '@/hooks/queries/use-inventory';
+import { useWarehouses, useAutoSelectWarehouse } from '@/hooks/queries/use-inventory';
 import type { WorkOrderWithDetail } from '@runq/types';
 import type { CreateWorkOrderInput } from '@runq/validators';
 
@@ -25,8 +25,13 @@ export function WoForm({ initial, onSubmit, isLoading }: WoFormProps) {
   const [bomId, setBomId] = useState(initial?.bomId ?? '');
   const [plannedQty, setPlannedQty] = useState(String(initial?.plannedQty ?? ''));
   const [warehouseId, setWarehouseId] = useState(initial?.warehouseId ?? '');
+  useAutoSelectWarehouse(warehouseId, setWarehouseId);
   const [shift, setShift] = useState(initial?.shift ?? '');
-  const [scheduledFor, setScheduledFor] = useState(initial?.scheduledFor ?? '');
+  // Default to today on new WOs — overwhelmingly the operator is creating it
+  // for the current shift. Edit path keeps whatever was saved.
+  const [scheduledFor, setScheduledFor] = useState(
+    initial?.scheduledFor ?? new Date().toISOString().slice(0, 10),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: bomsData } = useBoms({ isActive: true, limit: 200 });
@@ -189,7 +194,7 @@ export function WoForm({ initial, onSubmit, isLoading }: WoFormProps) {
                     const expected = Number(l.qtyPerOutput) * Number(plannedQty) * (1 + Number(l.scrapPct) / 100);
                     return (
                       <li key={l.id} className="flex items-center justify-between gap-2 text-[12px]">
-                        <span>{l.inputItemId}</span>
+                        <span>{l.inputItemName}</span>
                         <span className="font-mono tabular-nums" style={{ color: 'var(--text-2)' }}>
                           {expected.toFixed(3)} {l.inputUom}
                           {l.scrapPct > 0 && (

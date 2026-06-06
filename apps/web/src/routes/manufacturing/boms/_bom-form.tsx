@@ -28,6 +28,16 @@ const UOM_OPTIONS = [
   'dozen', 'tonne', 'nos', 'set',
 ].map((u) => ({ value: u, label: u }));
 
+/** Build a UOM option list with the picked item's stocking unit pinned at
+ *  the top — so a recipe stated per "500ml pouch" or "400g pack" is one
+ *  click instead of typing the custom unit each time. */
+function uomOptionsFor(unit: string | null | undefined) {
+  if (unit && !UOM_OPTIONS.some((o) => o.value === unit)) {
+    return [{ value: unit, label: `${unit} (item unit)` }, ...UOM_OPTIONS];
+  }
+  return UOM_OPTIONS;
+}
+
 function emptyLine(): BomLineField {
   return {
     inputItemId: '',
@@ -43,8 +53,18 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
   const [bomCode, setBomCode] = useState(initial?.bomCode ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [outputItemId, setOutputItemId] = useState(initial?.outputItemId ?? '');
-  const [outputQty, setOutputQty] = useState(String(initial?.outputQty ?? ''));
+  // Default to 1 on a new BOM — most recipes are stated "per 1 finished
+  // unit". The WO scales components by wo.qty / bom.outputQty, so this is
+  // the recipe's reference batch size, not a production target.
+  const [outputQty, setOutputQty] = useState(String(initial?.outputQty ?? '1'));
   const [outputUom, setOutputUom] = useState(initial?.outputUom ?? '');
+  // Pre-fill output UOM from the picked item's stocking unit. User can
+  // override — e.g. an item stocked in "pouch" with a recipe sized per mL.
+  function handleOutputItemChange(value: string) {
+    setOutputItemId(value);
+    const picked = outputItemsData?.data?.find((i) => i.id === value);
+    if (picked?.unit && !outputUom) setOutputUom(picked.unit);
+  }
   const [effectiveFrom, setEffectiveFrom] = useState(initial?.effectiveFrom ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [lines, setLines] = useState<BomLineField[]>(
@@ -77,6 +97,19 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
     value: i.id,
     label: `${i.name}${i.sku ? ` (${i.sku})` : ''}`,
   }));
+  // Picked items — used to render the static UOM suffix on yield + line qty.
+  const pickedOutputItem = outputItemsData?.data?.find((i) => i.id === outputItemId);
+  const pickedInputItem = (inputItemId: string) =>
+    inputItemsData?.data?.find((i) => i.id === inputItemId);
+
+  // Pre-fill line UOM from the picked item's stocking unit (the common
+  // case). User can still override the dropdown to record components in a
+  // different unit (e.g. raw milk item stocked in L, recipe written in mL).
+  function handleInputItemChange(idx: number, value: string) {
+    updateLine(idx, 'inputItemId', value);
+    const picked = pickedInputItem(value);
+    if (picked?.unit && !lines[idx]?.inputUom) updateLine(idx, 'inputUom', picked.unit);
+  }
   const inputItemOptions = [
     { value: '', label: 'Select item…' },
     ...(inputItemsData?.data ?? []).map((i) => ({
@@ -104,8 +137,8 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
     if (!initial && !bomCode.trim()) errs.bomCode = 'BOM code is required';
     if (!name.trim()) errs.name = 'Name is required';
     if (!outputItemId) errs.outputItemId = 'Output item is required';
-    if (!outputQty || Number(outputQty) <= 0) errs.outputQty = 'Output qty must be positive';
-    if (!outputUom.trim()) errs.outputUom = 'Output UOM is required';
+    if (!outputQty || Number(outputQty) <= 0) errs.outputQty = 'Yield per batch must be positive';
+    if (!outputUom.trim()) errs.outputUom = 'UOM is required';
     if (lines.length === 0) errs.lines = 'At least one input line is required';
     lines.forEach((l, i) => {
       if (!l.inputItemId) errs[`line_${i}_item`] = 'Item required';
@@ -185,22 +218,22 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="sm:col-span-1">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-12">
+            <div className="sm:col-span-5">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
                 Output item *
               </label>
               <Combobox
                 options={outputItemOptions}
                 value={outputItemId}
-                onChange={setOutputItemId}
+                onChange={handleOutputItemChange}
                 placeholder="Search finished good…"
               />
               {errors.outputItemId && <p className="mt-1 text-[11px] text-red-500">{errors.outputItemId}</p>}
             </div>
-            <div>
+            <div className="sm:col-span-4">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
-                Output qty *
+                Unit size *
               </label>
               <Input
                 type="number"
@@ -208,22 +241,28 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                 step="0.001"
                 value={outputQty}
                 onChange={(e) => setOutputQty(e.target.value)}
-                placeholder="1.000"
+                placeholder="500"
                 error={errors.outputQty}
               />
               {errors.outputQty && <p className="mt-1 text-[11px] text-red-500">{errors.outputQty}</p>}
             </div>
-            <div>
+            <div className="sm:col-span-3">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
-                Output UOM *
+                UOM *
               </label>
               <Combobox
-                options={UOM_OPTIONS}
+                options={uomOptionsFor(pickedOutputItem?.unit)}
                 value={outputUom}
                 onChange={setOutputUom}
-                placeholder="kg, L, pcs…"
+                placeholder="mL, kg, pcs…"
               />
               {errors.outputUom && <p className="mt-1 text-[11px] text-red-500">{errors.outputUom}</p>}
+            </div>
+            <div className="sm:col-span-12 -mt-2">
+              <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+                One unit of {pickedOutputItem?.name ?? 'the output'} is this much (e.g. <em>500 mL</em>, <em>1 kg</em>, <em>1 pouch</em>).
+                Components below are stated per this unit; work orders scale them by <code>wo.qty ÷ this</code>.
+              </p>
             </div>
           </div>
 
@@ -277,7 +316,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                   <Combobox
                     options={inputItemOptions}
                     value={line.inputItemId}
-                    onChange={(v) => updateLine(idx, 'inputItemId', v)}
+                    onChange={(v) => handleInputItemChange(idx, v)}
                     placeholder="Search input item…"
                   />
                   {errors[`line_${idx}_item`] && (
@@ -287,7 +326,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                 <div className="col-span-5 sm:col-span-2">
                   {idx === 0 && (
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
-                      Qty / output *
+                      Qty per unit *
                     </label>
                   )}
                   <Input
@@ -296,7 +335,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                     step="0.0001"
                     value={line.qtyPerOutput}
                     onChange={(e) => updateLine(idx, 'qtyPerOutput', e.target.value)}
-                    placeholder="1.0000"
+                    placeholder="0"
                     error={errors[`line_${idx}_qty`]}
                   />
                 </div>
@@ -307,7 +346,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                     </label>
                   )}
                   <Combobox
-                    options={UOM_OPTIONS}
+                    options={uomOptionsFor(pickedInputItem(line.inputItemId)?.unit)}
                     value={line.inputUom}
                     onChange={(v) => updateLine(idx, 'inputUom', v)}
                     placeholder="UOM"

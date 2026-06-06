@@ -83,12 +83,15 @@ class InvOnHandRow {
   /// (item, warehouse, batch). Used by the redesigned stock-on-hand list to
   /// show a "Last moved 22 May" hint and to flag dead stock.
   final String? lastMovementAt;
+  /// Earliest GRN expiry date for this (item, batch). Null when the batch
+  /// isn't expiry-tracked or no GRN line carries a date.
+  final String? expiryDate;
   const InvOnHandRow({
     required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
     this.itemClass,
     required this.warehouseId, required this.warehouseName, required this.batchNo,
     required this.qty, required this.avgCost, required this.value, this.reorderLevel,
-    this.lastMovementAt,
+    this.lastMovementAt, this.expiryDate,
   });
   bool get isLow => reorderLevel != null && qty <= (reorderLevel ?? 0);
   factory InvOnHandRow.fromJson(Map<String, dynamic> j) => InvOnHandRow(
@@ -105,6 +108,7 @@ class InvOnHandRow {
         value: (j['value'] as num?)?.toDouble() ?? 0,
         reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
         lastMovementAt: j['lastMovementAt'] as String?,
+        expiryDate: j['expiryDate'] as String?,
       );
 }
 
@@ -600,6 +604,41 @@ class InvReorderAlert {
         urgency: (j['urgency'] as String?) ?? 'warning',
         supplierName: j['supplierName'] as String?,
         leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
+      );
+}
+
+/// One on-hand batch with an expiry date inside the requested window.
+/// Mirrors the `/inventory/stock/expiring` shape — see web `ExpiryRow`.
+class InvExpiringBatch {
+  final String itemId;
+  final String warehouseId;
+  final String batchNo;
+  final double qty;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final String warehouseName;
+  final String expiryDate;
+  /// Negative = already expired. 0 = today. Driven off CURRENT_DATE on the server.
+  final int daysToExpiry;
+  const InvExpiringBatch({
+    required this.itemId, required this.warehouseId, required this.batchNo,
+    required this.qty,
+    required this.itemName, this.itemSku, this.itemUnit,
+    required this.warehouseName,
+    required this.expiryDate, required this.daysToExpiry,
+  });
+  factory InvExpiringBatch.fromJson(Map<String, dynamic> j) => InvExpiringBatch(
+        itemId: j['itemId'] as String,
+        warehouseId: j['warehouseId'] as String,
+        batchNo: (j['batchNo'] as String?) ?? '',
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        expiryDate: (j['expiryDate'] as String?) ?? '',
+        daysToExpiry: (j['daysToExpiry'] as num?)?.toInt() ?? 0,
       );
 }
 

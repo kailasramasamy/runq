@@ -64,7 +64,12 @@ export function useCreateDirectReceipt() {
   return useMutation({
     mutationFn: (data: CreateDirectReceiptInput) =>
       api.post<ApiSuccess<{ id: string; grnNo: string }>>('/purchase/direct-receipts', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.all });
+      // Open-batches drives the BatchPicker chips — a fresh receipt
+      // creates / grows a batch, so its cache is stale immediately.
+      qc.invalidateQueries({ queryKey: ['open-batches'] });
+    },
   });
 }
 
@@ -72,6 +77,11 @@ export function useCancelDirectReceipt() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(`/purchase/direct-receipts/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.all });
+      // Open-batches drives the BatchPicker chips — a fresh receipt
+      // creates / grows a batch, so its cache is stale immediately.
+      qc.invalidateQueries({ queryKey: ['open-batches'] });
+    },
   });
 }

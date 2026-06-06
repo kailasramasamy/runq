@@ -85,6 +85,10 @@ export const items = pgTable(
     barcode: varchar('barcode', { length: 64 }),
     weightKg: decimal('weight_kg', { precision: 10, scale: 3 }),
     shelfLifeDays: decimal('shelf_life_days', { precision: 6, scale: 0 }),
+    // Per-item batch-code template for batch-tracked items. Rendered on the
+    // Direct Receipt form to pre-fill a new batch code; user can override.
+    // Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. NULL = no auto-suggest.
+    batchCodeTemplate: varchar('batch_code_template', { length: 80 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -165,46 +165,25 @@ async function main(): Promise<void> {
   const closed = closeResult.data;
   check('status → closed', closed.status === 'closed');
   check('closedAt set', !!closed.closedAt);
-  check('je_id stored on WO', !!closed.jeId);
+  // v1 design (2026-05-30): cost-conserved closes do NOT post a JE — see
+  // ManufacturingGlPoster.postClose. je_id stays NULL, stock_ledger entries
+  // also stay NULL on journal_entry_id.
+  check('je_id is NULL (cost-conserved, no JE expected)', closed.jeId === null || closed.jeId === undefined);
   check('consumed_value rolled up = 500', Number(closed.consumedValue) === 500);
   check('output_value = consumed_value (cost conservation)',
     Number(closed.outputValue) === Number(closed.consumedValue));
   // Yield variance: planned=8, actual=8 → 0
   check('yield_variance = 0 (planned == actual)', Number(closed.yieldVariance) === 0);
 
-  // 8. JE assertions --------------------------------------------------------
-  console.log('\n8. Verify journal entry');
-  const je = await db.execute<{
-    id: string;
-    description: string;
-    source_type: string;
-    source_id: string;
-    total_debit: string;
-    total_credit: string;
-  }>(sql`
-    SELECT id, description, source_type, source_id, total_debit, total_credit
-    FROM journal_entries WHERE id = ${closed.jeId}
+  // 8. JE NOT posted (cost-conserved v1) ------------------------------------
+  console.log('\n8. Verify no JE posted for cost-conserved WO');
+  const jeProbe = await db.execute<{ id: string }>(sql`
+    SELECT id FROM journal_entries
+    WHERE tenant_id = ${TENANT_ID} AND source_type = 'work_order' AND source_id = ${wo.id}
   `);
-  const jeRow = je.rows[0];
-  check('JE row exists', !!jeRow);
-  check('sourceType=work_order', jeRow?.source_type === 'work_order');
-  check('sourceId = woId', jeRow?.source_id === wo.id);
-  check('totalDebit = totalCredit', jeRow?.total_debit === jeRow?.total_credit);
-  check('totalDebit = 500', Number(jeRow?.total_debit) === 500);
+  check('no journal_entries row for this WO', jeProbe.rows.length === 0);
 
-  const jeLines = await db.execute<{ account_code: string; debit: string; credit: string; description: string }>(sql`
-    SELECT a.code AS account_code, jl.debit, jl.credit, jl.description
-    FROM journal_lines jl JOIN accounts a ON a.id = jl.account_id
-    WHERE jl.journal_entry_id = ${closed.jeId}
-    ORDER BY jl.debit DESC
-  `);
-  check('JE has 2 lines', jeLines.rows.length === 2);
-  check('Both lines on 1112',
-    jeLines.rows.every((r) => r.account_code === '1112'));
-  check('Dr line = 500', Number(jeLines.rows[0]?.debit) === 500);
-  check('Cr line = 500', Number(jeLines.rows[1]?.credit) === 500);
-
-  // 9. Stock ledger backlink + on-hand --------------------------------------
+  // 9. Stock ledger (still records the production movements) ----------------
   console.log('\n9. Verify stock ledger');
   const ledger = await db.execute<{ movement_type: string; qty_in: string; qty_out: string; unit_cost: string; journal_entry_id: string | null }>(sql`
     SELECT movement_type, qty_in, qty_out, unit_cost, journal_entry_id
@@ -218,8 +197,8 @@ async function main(): Promise<void> {
   check('production_out qty=10', Number(outs?.qty_out) === 10);
   check('production_in qty=8', Number(ins?.qty_in) === 8);
   check('production_in unit_cost = 62.5 (500/8)', Number(ins?.unit_cost) === 62.5);
-  check('both ledger rows backlinked to JE',
-    ledger.rows.every((r) => r.journal_entry_id === closed.jeId));
+  check('ledger rows have NULL journal_entry_id (no JE in v1)',
+    ledger.rows.every((r) => r.journal_entry_id === null));
 
   // Stock-on-hand checks
   const sohIn = await db.execute<{ qty: string }>(sql`
@@ -383,8 +362,11 @@ async function main(): Promise<void> {
       WHERE tenant_id = ${TENANT_ID} AND item_id = ${OUTPUT_ITEM_ID} AND warehouse_id = ${WAREHOUSE_ID}
     `);
     await db.execute(sql`DELETE FROM stock_ledger WHERE source_type = 'work_order' AND source_id = ${wo.id}`);
-    await db.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ${closed.jeId}`);
-    await db.execute(sql`DELETE FROM journal_entries WHERE id = ${closed.jeId}`);
+    // v1 cost-conserved closes don't post a JE; guard the cleanup.
+    if (closed.jeId) {
+      await db.execute(sql`DELETE FROM journal_lines WHERE journal_entry_id = ${closed.jeId}`);
+      await db.execute(sql`DELETE FROM journal_entries WHERE id = ${closed.jeId}`);
+    }
     await db.execute(sql`DELETE FROM wo_consumption WHERE wo_id = ${wo.id}`);
     await db.execute(sql`DELETE FROM wo_output WHERE wo_id = ${wo.id}`);
     await db.execute(sql`DELETE FROM work_orders WHERE id = ${wo.id}`);

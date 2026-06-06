@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   createDirectReceiptSchema,
   directReceiptFilterSchema,
@@ -7,6 +8,11 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { DirectReceiptService } from './direct-receipt.service';
+
+const openBatchesQuerySchema = z.object({
+  itemId: z.string().uuid(),
+  warehouseId: z.string().uuid(),
+});
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -20,6 +26,16 @@ export const directReceiptRoutes: FastifyPluginAsync = async (app) => {
       const filters = directReceiptFilterSchema.parse(request.query);
       const svc = new DirectReceiptService(request.server.db, request.tenantId, request.user?.userId);
       return svc.list(filters, { page: pagination.page, limit: pagination.limit });
+    },
+  );
+
+  app.get(
+    '/open-batches',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { itemId, warehouseId } = openBatchesQuerySchema.parse(request.query);
+      const svc = new DirectReceiptService(request.server.db, request.tenantId, request.user?.userId);
+      return svc.listOpenBatches(itemId, warehouseId);
     },
   );
 

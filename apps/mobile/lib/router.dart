@@ -75,6 +75,7 @@ import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/inventory/inventory_transfer_screen.dart';
 import 'screens/inventory/inventory_adjustment_screen.dart';
 import 'screens/inventory/inventory_stock_take_screen.dart';
+import 'screens/inventory/inventory_expiry_screen.dart';
 import 'screens/inventory/inventory_reorder_screen.dart';
 import 'screens/inventory/inventory_activity_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
@@ -287,6 +288,9 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // Alerts tab — reuses the existing reorder screen for now;
             // expanding to include expiry + dead-stock in a later pass.
             GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryReorderScreen())),
+            // Batch expiry report — drilled into from the Mfg Perishables
+            // tile and from Inventory alerts. Web parity: /inventory/reports/expiry.
+            GoRoute(path: '/inventory/reports/expiry', pageBuilder: _fadePage((_) => const InventoryExpiryScreen())),
             // Purchase & Procurement bot-nav tabs. Detail / form screens
             // (PO create, edit, receive) push onto the root navigator so
             // they take the full viewport — same pattern as inventory.

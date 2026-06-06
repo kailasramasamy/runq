@@ -236,6 +236,24 @@ export class WorkOrderService {
     return this.getById(id);
   }
 
+  /**
+   * Hard-delete a draft work order. Anything past draft has stock-ledger or
+   * cost-side-effects we must reverse via cancel() instead — deleting would
+   * leave orphan ledger rows / wo_consumption / wo_output that the close-out
+   * JE assumes exist.
+   */
+  async delete(id: string): Promise<void> {
+    const existing = await this.getById(id);
+    if (existing.status !== 'draft') {
+      throw new ConflictError(
+        `Only draft work orders can be deleted (this one is ${existing.status}). Cancel it instead — that reverses any stock movement and keeps the audit trail.`,
+      );
+    }
+    await this.db
+      .delete(workOrders)
+      .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
+  }
+
   async cancel(id: string, input: CancelWorkOrderInput, userId?: string): Promise<WorkOrderWithDetail> {
     void userId;
     const existing = await this.getById(id);

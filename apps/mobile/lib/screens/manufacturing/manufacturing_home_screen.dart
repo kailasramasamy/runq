@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/notifications_repo.dart';
 import '../../providers/auth_provider.dart';
+import '../../api/inventory_models.dart';
+import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -40,6 +42,7 @@ class ManufacturingHomeScreen extends ConsumerWidget {
           onRefresh: () async {
             ref.invalidate(mfgDashboardProvider);
             ref.invalidate(workOrderListProvider);
+            ref.invalidate(invExpiringProvider);
             await Future<void>.delayed(const Duration(milliseconds: 200));
           },
           child: ListView(
@@ -56,9 +59,17 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                 data: (d) => _ThisWeekCard(dashboard: d),
               ) ?? const SizedBox.shrink(),
               const SizedBox(height: 8),
+              // Perishable raw-material batches expiring in the next 2 days
+              // (or already expired). Hidden when nothing's on the clock, so
+              // non-perishable tenants don't see noise. Driven by the same
+              // /inventory/stock/expiring endpoint as the web Mfg tile.
+              const _PerishablesSection(),
               MfgSectionHeader(label: 'Quick actions'),
               const _QuickActionsGrid(),
               const SizedBox(height: 16),
+              // Today's scheduled WOs — only renders when something's
+              // scheduled today; hidden otherwise to keep the home tidy.
+              const _TodayWosSection(),
               MfgSectionHeader(
                 label: 'Recent work orders',
                 trailing: TextButton(
@@ -102,14 +113,12 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                               title: wo.woNumber,
                               subtitle: wo.bomName,
                               status: wo.status,
+                              productLabel:
+                                  '${wo.outputItemName} · ${_fmtQty(wo.plannedQty)} ${wo.outputUom}',
                               meta: [
                                 MfgDocMeta(
                                   icon: Icons.event_outlined,
                                   label: mfgPrettyDate(wo.scheduledFor),
-                                ),
-                                MfgDocMeta(
-                                  icon: Icons.factory_outlined,
-                                  label: wo.outputItemName,
                                 ),
                                 if (wo.shift != null && wo.shift!.isNotEmpty)
                                   MfgDocMeta(
@@ -336,6 +345,317 @@ class _QuickActionsGrid extends ConsumerWidget {
     );
   }
 }
+
+// ── Today's WOs section ───────────────────────────────────────────────────
+//
+// Shown above "Recent work orders" so operators land on what they actually
+// need to start *today* without filtering. Watches the same WO list provider
+// pinned to today's date on both ends, then hides itself when there's
+// nothing scheduled (no empty card, no header — pure absence).
+class _PerishablesSection extends ConsumerWidget {
+  const _PerishablesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Window of 2 days + includeExpired = the dairy operator's daily horizon:
+    // "what's at risk if I don't run a WO now."
+    final async = ref.watch(invExpiringProvider(2));
+    return async.maybeWhen(
+      data: (rows) {
+        if (rows.isEmpty) return const SizedBox.shrink();
+        // Group batches by item: one tile shows total-on-hand + a per-batch
+        // expiry breakdown, so the planner sees "how much A1 milk total"
+        // without losing which slice expires first (FEFO). Groups are sorted
+        // soonest-expiry-first.
+        final groups = _groupPerishables(rows);
+        final top = groups.take(5).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            MfgSectionHeader(
+              label: 'Perishables on-hand',
+              trailing: TextButton(
+                onPressed: () => context.push('/inventory/reports/expiry'),
+                child: Text(
+                  groups.length > top.length ? 'See all (${groups.length}) →' : 'See all →',
+                  style: RunqText.caption.copyWith(color: MfgColors.brand(context)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                children: [
+                  for (final g in top)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _PerishableGroupTile(group: g),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// One item's expiring stock, aggregated across its batches.
+class _PerishableGroup {
+  final String itemId;
+  final String itemName;
+  final String? itemUnit;
+
+  /// Batches sorted soonest-expiry first (FEFO order).
+  final List<InvExpiringBatch> batches;
+  const _PerishableGroup(this.itemId, this.itemName, this.itemUnit, this.batches);
+
+  double get totalQty => batches.fold(0.0, (s, b) => s + b.qty);
+  int get soonest => batches.first.daysToExpiry;
+}
+
+/// Collapse expiring batches into per-item groups: each group's batches are
+/// FEFO-sorted, and groups are ordered by their soonest-expiring batch so the
+/// most-at-risk item sits on top.
+List<_PerishableGroup> _groupPerishables(List<InvExpiringBatch> rows) {
+  final byItem = <String, List<InvExpiringBatch>>{};
+  for (final r in rows) {
+    (byItem[r.itemId] ??= []).add(r);
+  }
+  return byItem.values.map((b) {
+    final sorted = [...b]..sort((x, y) => x.daysToExpiry.compareTo(y.daysToExpiry));
+    final f = sorted.first;
+    return _PerishableGroup(f.itemId, f.itemName, f.itemUnit, sorted);
+  }).toList()
+    ..sort((a, b) => a.soonest.compareTo(b.soonest));
+}
+
+/// Urgency pill colours/label off days-to-expiry — red = today/expired,
+/// amber = tomorrow+.
+(Color, Color, String) _perishUrgency(int days) {
+  if (days < 0) return (MfgColors.errorBg, MfgColors.error, 'Expired');
+  if (days == 0) return (MfgColors.errorBg, MfgColors.error, 'Today');
+  if (days == 1) return (MfgColors.orangeAlertBg, MfgColors.orangeAlert, 'Tomorrow');
+  return (MfgColors.orangeAlertBg, MfgColors.orangeAlert, '${days}d');
+}
+
+/// Grouped perishables tile: item header + total-on-hand pill, then a
+/// per-batch FEFO breakdown when more than one batch exists. The headline
+/// urgency pill tracks the SOONEST batch — that's the run-now signal a single
+/// blended total would hide. Tap = jump into WO create.
+class _PerishableGroupTile extends StatelessWidget {
+  final _PerishableGroup group;
+  const _PerishableGroupTile({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = MfgColors.brand(context);
+    final (bg, fg, label) = _perishUrgency(group.soonest);
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => context.push('/manufacturing/wos/new'),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.hairline),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: MfgColors.roseSubtle,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.inventory_2_outlined, color: brand, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: _body(t, bg, fg, label)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(RunqTokens t, Color bg, Color fg, String label) {
+    final multi = group.batches.length > 1;
+    final first = group.batches.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header: item name + headline (soonest-batch) urgency pill.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                group.itemName,
+                style: RunqText.bodyStrong.copyWith(color: t.ink),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 6),
+            _pill(label, bg, fg),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // Total-on-hand line: solid rose qty pill + batch count (or, for a
+        // single batch, its warehouse/batch meta inline — no redundant list).
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _qtyPill('${_fmtQty(group.totalQty)} ${group.itemUnit ?? ''}'.trim()),
+            Text(
+              multi
+                  ? '${group.batches.length} batches'
+                  : '${first.warehouseName}'
+                      '${first.batchNo.isEmpty ? '' : ' · ${first.batchNo}'}',
+              style: RunqText.caption.copyWith(color: t.muted),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+        // Per-batch FEFO breakdown — only when it adds information.
+        if (multi) ...[
+          const SizedBox(height: 8),
+          for (final b in group.batches) _batchRow(t, b),
+        ],
+      ],
+    );
+  }
+
+  Widget _batchRow(RunqTokens t, InvExpiringBatch b) {
+    final (bg, fg, label) = _perishUrgency(b.daysToExpiry);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 4, height: 4,
+            margin: const EdgeInsets.only(left: 2, right: 8),
+            decoration: BoxDecoration(color: t.muted, shape: BoxShape.circle),
+          ),
+          Text(
+            '${_fmtQty(b.qty)} ${b.itemUnit ?? ''}'.trim(),
+            style: RunqText.caption.copyWith(color: t.ink, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 6),
+          _pill(label, bg, fg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${b.warehouseName}${b.batchNo.isEmpty ? '' : ' · ${b.batchNo}'}',
+              style: RunqText.caption.copyWith(color: t.muted),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, Color bg, Color fg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+        child: Text(
+          label,
+          style: RunqText.caption.copyWith(color: fg, fontWeight: FontWeight.w600),
+        ),
+      );
+
+  // Saturated rose (not theme-aware brand(), which flips to roseLight in dark
+  // mode and would wash out white text). Per palette: rose is the solid-fill
+  // token for light-text pills.
+  Widget _qtyPill(String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: MfgColors.rose,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          text,
+          style: RunqText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+      );
+}
+
+class _TodayWosSection extends ConsumerWidget {
+  const _TodayWosSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final todayIso = DateTime.now().toIso8601String().substring(0, 10);
+    final async = ref.watch(workOrderListProvider(
+      WoListParams(scheduledFrom: todayIso, scheduledTo: todayIso),
+    ));
+    return async.maybeWhen(
+      data: (res) {
+        if (res.data.isEmpty) return const SizedBox.shrink();
+        final top = res.data.take(5).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            MfgSectionHeader(
+              label: "Today's runs",
+              trailing: TextButton(
+                onPressed: () => context.push(
+                  '/manufacturing/wos?scheduledFrom=$todayIso&scheduledTo=$todayIso',
+                ),
+                child: Text(
+                  res.total > top.length ? 'See all (${res.total}) →' : 'See all →',
+                  style: RunqText.caption.copyWith(color: MfgColors.brand(context)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                children: [
+                  for (final wo in top)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: MfgDocListTile(
+                        icon: Icons.precision_manufacturing_outlined,
+                        title: wo.woNumber,
+                        subtitle: wo.bomName,
+                        status: wo.status,
+                        productLabel:
+                            '${wo.outputItemName} · ${_fmtQty(wo.plannedQty)} ${wo.outputUom}',
+                        meta: [
+                          if (wo.shift != null && wo.shift!.isNotEmpty)
+                            MfgDocMeta(
+                              icon: Icons.access_time_outlined,
+                              label: wo.shift!,
+                            ),
+                        ],
+                        onTap: () => context.push('/manufacturing/wos/${wo.id}'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+String _fmtQty(double v) =>
+    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
 
 class _RecentSkeleton extends StatelessWidget {
   const _RecentSkeleton();

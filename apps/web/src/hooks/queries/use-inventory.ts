@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 
@@ -34,6 +35,9 @@ export interface OnHandRow {
   value: number;
   reorderLevel: number | null;
   lastMovementAt: string | null;
+  /** Earliest GRN expiry date for this (item, batch). Null when the batch
+   *  isn't expiry-tracked or no GRN line carries a date. */
+  expiryDate: string | null;
 }
 
 export interface LedgerRow {
@@ -205,6 +209,33 @@ export function useWarehouses() {
     queryKey: INV_KEYS.warehouses,
     queryFn: () => api.get<{ data: Warehouse[] }>('/inventory/warehouses').then(get),
   });
+}
+
+/**
+ * Auto-fill an empty warehouseId state once warehouses load. Picks:
+ *   1. the warehouse flagged isDefault=true, else
+ *   2. the only active warehouse (single-godown SMEs)
+ *
+ * Drop into any form with a warehouse picker:
+ *   useAutoSelectWarehouse(warehouseId, setWarehouseId)
+ *
+ * Skips on edit forms (warehouseId already set) and on multi-warehouse
+ * tenants with no default — there the operator has to choose explicitly.
+ */
+export function useAutoSelectWarehouse(
+  current: string,
+  setValue: (id: string) => void,
+): void {
+  const { data: warehouses } = useWarehouses();
+  useEffect(() => {
+    if (current || !warehouses?.length) return;
+    const active = warehouses.filter((w) => w.isActive);
+    const pick =
+      active.find((w) => w.isDefault) ??
+      (active.length === 1 ? active[0] : undefined);
+    if (pick) setValue(pick.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouses?.length]);
 }
 
 export function useWarehouse(id: string) {

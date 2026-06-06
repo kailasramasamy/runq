@@ -4,9 +4,10 @@ import {
   PageHeader, Button, Card, CardHeader, CardContent,
   Input, DateInput, Textarea, Combobox, useToast,
 } from '@/components/ui';
-import { useWarehouses } from '@/hooks/queries/use-inventory';
+import { useWarehouses, useAutoSelectWarehouse } from '@/hooks/queries/use-inventory';
 import { useItems } from '@/hooks/queries/use-items';
 import { useCreateDirectReceipt } from '@/hooks/queries/use-direct-receipts';
+import { BatchPicker } from '@/components/inventory/batch-picker';
 
 export function NewDirectReceiptPage() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export function NewDirectReceiptPage() {
   const noInputItems = activeInputItems.length === 0;
 
   const [warehouseId, setWarehouseId] = useState('');
+  useAutoSelectWarehouse(warehouseId, setWarehouseId);
   const [inventoryItemId, setInventoryItemId] = useState('');
   const [receivedAt, setReceivedAt] = useState(today);
   const [qty, setQty] = useState('');
@@ -46,6 +48,15 @@ export function NewDirectReceiptPage() {
 
   const mutation = useCreateDirectReceipt();
 
+  // Conditional requirements driven by the picked item's tracking flags.
+  // Direct Receipt eventually posts a stock_ledger row via StockLedgerService,
+  // which rejects missing batch_no for batch-tracked items and missing expiry
+  // for expiry-tracked items. Surface those requirements up-front so the user
+  // doesn't see a generic API error after submit.
+  const pickedItem = activeInputItems.find((i) => i.id === inventoryItemId);
+  const batchRequired = !!pickedItem?.trackBatches;
+  const expiryRequired = !!pickedItem?.trackExpiry;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!warehouseId || !inventoryItemId) {
@@ -56,6 +67,14 @@ export function NewDirectReceiptPage() {
     const r = parseFloat(unitRate);
     if (!(q > 0) || !(r >= 0)) {
       toast('Qty > 0 and rate ≥ 0', 'error');
+      return;
+    }
+    if (batchRequired && !batchNo.trim()) {
+      toast(`${pickedItem?.name} is batch-tracked — batch no is required`, 'error');
+      return;
+    }
+    if (expiryRequired && !expiryDate) {
+      toast(`${pickedItem?.name} tracks expiry — expiry date is required`, 'error');
       return;
     }
     mutation.mutate(
@@ -160,19 +179,28 @@ export function NewDirectReceiptPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Optional batch + transport" />
+          <CardHeader
+            title={
+              batchRequired || expiryRequired
+                ? 'Batch + transport'
+                : 'Optional batch + transport'
+            }
+          />
           <CardContent>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input
-                label="Batch"
+              <BatchPicker
+                itemId={inventoryItemId}
+                warehouseId={warehouseId}
                 value={batchNo}
-                onChange={(e) => setBatchNo(e.target.value)}
-                placeholder="Required if item is batch-tracked"
+                onChange={setBatchNo}
+                required={batchRequired}
+                itemName={pickedItem?.name}
               />
               <DateInput
                 label="Expiry"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
+                required={expiryRequired}
               />
               <Input
                 label="Vehicle no"

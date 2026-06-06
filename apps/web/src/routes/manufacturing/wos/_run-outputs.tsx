@@ -224,24 +224,32 @@ function OutputRow({
 
   return (
     <div
-      className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px]"
+      className="flex items-center gap-3 rounded-md px-2.5 py-2"
       style={{ background: 'var(--surface-2)' }}
     >
       <div className="flex-1 min-w-0">
-        <span className="font-mono font-medium" style={{ color: 'var(--text-1)' }}>
-          {item.qty.toFixed(3)} {outputUom}
-        </span>
-        <span className="ml-2" style={{ color: 'var(--text-3)' }}>
-          Batch {item.batchNo}
-        </span>
-        {item.expiryDate && (
-          <span className="ml-2" style={{ color: 'var(--text-3)' }}>
-            exp {item.expiryDate}
-          </span>
-        )}
-        <span className="ml-2" style={{ color: 'var(--text-3)' }}>
+        <div className="font-mono text-[12px] font-semibold leading-tight" style={{ color: 'var(--text-1)' }}>
+          {item.qty.toFixed(3)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{outputUom}</span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-3)' }}>
+          <span className="truncate">Batch {item.batchNo}</span>
+          {item.expiryDate && (
+            <>
+              <span style={{ color: 'var(--border)' }}>·</span>
+              <span className="shrink-0">exp {item.expiryDate}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="font-mono text-[12px] tabular-nums" style={{ color: item.value > 0 ? 'var(--text-1)' : 'var(--text-3)' }}>
           {item.value > 0 ? formatINR(item.value) : '—'}
-        </span>
+        </div>
+        {item.unitCost > 0 && (
+          <div className="mt-0.5 text-[10px]" style={{ color: 'var(--text-3)' }}>
+            @ {formatINR(item.unitCost)}/{outputUom}
+          </div>
+        )}
       </div>
       {canMutate && (
         <button
@@ -251,7 +259,7 @@ function OutputRow({
           className="shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50"
           title="Reverse this output"
         >
-          <RotateCcw size={12} />
+          <RotateCcw size={13} />
         </button>
       )}
     </div>

@@ -22,10 +22,13 @@ export function RunCostingStrip({ preview, isLoading, outputUom }: Props) {
 
   return (
     <div
-      className="sticky bottom-0 z-20 border-t"
-      style={{ background: 'var(--surface-1)', borderColor: 'var(--border)' }}
+      className="sticky bottom-0 z-20 border-t shadow-[0_-4px_12px_-6px_rgba(0,0,0,0.12)]"
+      style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
     >
-      <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
+      <div
+        className="mx-auto max-w-7xl px-4 pt-3 sm:px-6"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+      >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           <CostCell
             label="Consumed value"

@@ -16,9 +16,14 @@ import { formatINR } from '@/lib/utils';
 export function DirectReceiptListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  // Default to last 30 days — matches the rest of the app and keeps a
+  // freshly-posted receipt visible even if its receivedAt was backdated.
   const today = new Date().toISOString().slice(0, 10);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   const [warehouseId, setWarehouseId] = useState('');
-  const [dateFrom, setDateFrom] = useState(today);
+  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [page, setPage] = useState(1);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -50,6 +55,7 @@ export function DirectReceiptListPage() {
   return (
     <div>
       <PageHeader
+        fullWidth
         breadcrumbs={[{ label: 'Purchase', href: '/purchase' }, { label: 'Direct Receipts' }]}
         title="Direct Receipts"
         description="Memo qty entry — no bill, no JE. Use for daily milk arrivals or any vendor-less stock-in."

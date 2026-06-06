@@ -4,7 +4,12 @@ import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { users, userTenants, tenants, employees } from '@runq/db';
-import { socialLoginSchema, socialBindSchema } from '@runq/validators';
+import {
+  socialLoginSchema,
+  socialBindSchema,
+  phoneOtpRequestSchema,
+  phoneOtpVerifySchema,
+} from '@runq/validators';
 import { UnauthorizedError, NotFoundError, AppError } from '../../utils/errors';
 import { getFirebaseAuth } from '../../utils/push/firebase-admin';
 import { loadEnv } from '../../config/env';
@@ -144,7 +149,38 @@ async function issueSession(app: any, user: any) {
   };
 }
 
+// Hardcoded OTP until SMS infra is wired up. The mobile signin screen shows
+// this as a hint so testers don't have to dig through code. The Firebase
+// social-bind flow (below) replaces this longer-term, but mobile still ships
+// the two-step phone+OTP screen.
+const FIXED_OTP = '123456';
+
 export const socialAuthRoutes: FastifyPluginAsync = async (app) => {
+  // Always 200 — never leak whether the phone is registered. Real SMS dispatch
+  // will hook in here later; for now this is effectively a no-op the mobile
+  // client uses to gate the OTP-entry screen.
+  app.post('/phone-otp/request', async (request, reply) => {
+    phoneOtpRequestSchema.parse(request.body);
+    return reply.send({ data: { ok: true } });
+  });
+
+  app.post('/phone-otp/verify', async (request, reply) => {
+    const { phone, otp } = phoneOtpVerifySchema.parse(request.body);
+    if (otp !== FIXED_OTP) throw new UnauthorizedError('Invalid OTP');
+
+    const normalised = normalisePhone(phone);
+    if (normalised.length < 10) throw new UnauthorizedError('Invalid phone');
+
+    const user = await resolveUserByPhone(app.db, normalised);
+    // Backfill the phone column on a previously email-only user so future
+    // logins fast-path through the users.phone lookup in resolveUserByPhone.
+    if (!user.phone) {
+      await app.db.update(users).set({ phone: normalised }).where(eq(users.id, user.id));
+      user.phone = normalised;
+    }
+    return reply.send({ data: await issueSession(app, user) });
+  });
+
   // Phase 2 — every login after binding. Token must already be linked to a
   // runq user via users.firebase_uid; otherwise we return needsBinding so the
   // app can route into the Phase-1 bind flow.

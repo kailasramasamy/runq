@@ -201,12 +201,15 @@ const VIEWER_HR_KEYS = new Set<string>([
 ]);
 
 type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing';
-const MODULES: { key: ModuleKey; label: string; path: string; icon: LucideIcon; description: string }[] = [
+// `chipLabel` overrides `label` inside the sidebar header pill where space
+// is tight (232px sidebar, ~200px content area). Longer module names overlap
+// the logo otherwise. Falls back to `label` when not provided.
+const MODULES: { key: ModuleKey; label: string; chipLabel?: string; path: string; icon: LucideIcon; description: string }[] = [
   { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
   { key: 'purchase', label: 'Purchase', path: '/purchase', icon: ShoppingCart, description: 'POs, receipts, 3-way match' },
-  { key: 'manufacturing', label: 'Manufacturing', path: '/manufacturing', icon: Factory, description: 'BOMs, work orders, costing' },
+  { key: 'manufacturing', label: 'Manufacturing', chipLabel: 'Mfg', path: '/manufacturing', icon: Factory, description: 'BOMs, work orders, costing' },
 ];
 
 export const INVENTORY_NAV_GROUPS: NavGroup[] = [
@@ -346,7 +349,7 @@ function ModuleSwitcher({
           color: open ? 'white' : 'var(--accent-text)',
         }}
       >
-        {active.label}
+        {active.chipLabel ?? active.label}
         <ChevronDown size={11} className={cn('transition-transform', open && 'rotate-180')} />
       </button>
       {open && (

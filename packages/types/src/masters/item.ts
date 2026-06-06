@@ -77,6 +77,9 @@ export interface Item {
   trackBatches: boolean;
   trackExpiry: boolean;
   trackSerials: boolean;
+  /** Template for auto-suggesting a fresh batch code at receipt time.
+   *  Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. NULL = no template. */
+  batchCodeTemplate: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

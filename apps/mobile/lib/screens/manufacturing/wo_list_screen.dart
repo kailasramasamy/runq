@@ -125,7 +125,7 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
                       itemCount: res.data.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => const SizedBox(height: 14),
                       itemBuilder: (_, i) => _WoTile(wo: res.data[i]),
                     ),
                   );
@@ -148,17 +148,14 @@ class _WoTile extends StatelessWidget {
     return MfgDocListTile(
       icon: Icons.precision_manufacturing_outlined,
       title: wo.woNumber,
-      subtitle: '${wo.bomCode} v${wo.bomVersion} — ${wo.outputItemName}',
+      subtitle: '${wo.bomCode} v${wo.bomVersion}',
       status: wo.status,
+      productLabel:
+          '${wo.outputItemName} · ${_qty(wo.plannedQty)} x ${wo.outputUom}',
       meta: [
         MfgDocMeta(
           icon: Icons.event_outlined,
           label: mfgPrettyDate(wo.scheduledFor),
-        ),
-        MfgDocMeta(
-          icon: Icons.scale_outlined,
-          label: '${_qty(wo.plannedQty)} ${wo.outputUom}',
-          value: 'planned',
         ),
         if (wo.shift != null && wo.shift!.isNotEmpty)
           MfgDocMeta(icon: Icons.access_time_outlined, label: wo.shift!),

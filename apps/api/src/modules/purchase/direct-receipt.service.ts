@@ -1,9 +1,10 @@
-import { and, eq, gte, lte, desc, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, desc, sql } from 'drizzle-orm';
 import {
   inventoryGrns,
   inventoryGrnLines,
   inventorySerials,
   items as itemsTable,
+  stockOnHand,
   warehouses,
 } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -55,6 +56,39 @@ export interface DirectReceiptRow {
 export interface DirectReceiptListResult {
   data: DirectReceiptRow[];
   meta: PaginationMeta;
+}
+
+export interface OpenBatchRow {
+  batchNo: string;
+  onHandQty: number;
+  lastMovementAt: string | null;
+  expiryDate: string | null;
+}
+
+export interface OpenBatchesResult {
+  open: OpenBatchRow[];
+  /** Pre-filled code for a fresh batch, rendered from items.batchCodeTemplate
+   *  using the item's SKU and `today` (server clock). Null when the item has
+   *  no template — UI falls back to free entry. */
+  suggested: string | null;
+}
+
+/** Render a batch-code template. Tokens are upper-case in braces; unknown
+ *  tokens are left as literals so a typo doesn't silently produce garbage. */
+export function renderBatchTemplate(
+  template: string,
+  sku: string | null,
+  today: Date,
+): string {
+  const yyyy = String(today.getUTCFullYear());
+  const mm = String(today.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(today.getUTCDate()).padStart(2, '0');
+  return template
+    .replace(/\{SKU\}/g, sku ?? '')
+    .replace(/\{YYYYMMDD\}/g, `${yyyy}${mm}${dd}`)
+    .replace(/\{YYYY\}/g, yyyy)
+    .replace(/\{MM\}/g, mm)
+    .replace(/\{DD\}/g, dd);
 }
 
 export class DirectReceiptService {
@@ -286,5 +320,88 @@ export class DirectReceiptService {
         .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
         .where(eq(inventoryGrns.id, id));
     });
+  }
+
+  /**
+   * Open batches for (item, warehouse) — anything with on-hand > 0 and a
+   * non-empty batch number. Drives the Direct Receipt batch picker so the
+   * operator can pool a new receipt into an existing batch (e.g. 31 AM milk
+   * → same A1-POOL-20260531 opened by 30 PM) instead of retyping the code.
+   *
+   * Also returns a `suggested` code rendered from the item's template, used
+   * when the operator picks "Start new batch".
+   */
+  async listOpenBatches(itemId: string, warehouseId: string): Promise<OpenBatchesResult> {
+    const [item] = await this.db
+      .select({
+        id: itemsTable.id,
+        sku: itemsTable.sku,
+        batchCodeTemplate: itemsTable.batchCodeTemplate,
+      })
+      .from(itemsTable)
+      .where(and(eq(itemsTable.tenantId, this.tenantId), eq(itemsTable.id, itemId)))
+      .limit(1);
+    if (!item) throw new NotFoundError('Item not found');
+
+    // Pull open batches from stock_on_hand. Filter empty batch_no so items
+    // tracked without batches don't surface as "open batch ''".
+    const rows = await this.db
+      .select({
+        batchNo: stockOnHand.batchNo,
+        qty: stockOnHand.qty,
+        lastMovementAt: stockOnHand.lastMovementAt,
+      })
+      .from(stockOnHand)
+      .where(and(
+        eq(stockOnHand.tenantId, this.tenantId),
+        eq(stockOnHand.itemId, itemId),
+        eq(stockOnHand.warehouseId, warehouseId),
+        sql`${stockOnHand.batchNo} <> ''`,
+        sql`${stockOnHand.qty} > 0`,
+      ))
+      .orderBy(desc(stockOnHand.lastMovementAt))
+      .limit(20);
+
+    // Expiry is per-GRN-line, not per on-hand row. Pull the most recent
+    // line's expiry per batch so the picker can show "expires 02 Jun" for
+    // FEFO context. Single round-trip via IN-list — bounded by limit above.
+    const batchNos = rows.map((r) => r.batchNo);
+    const expiryByBatch = new Map<string, string | null>();
+    if (batchNos.length > 0) {
+      // Order by the parent GRN's received_date — grn_lines has no createdAt
+      // and uuid PKs aren't chronological. Most-recent line per batch wins.
+      const lines = await this.db
+        .select({
+          batchNo: inventoryGrnLines.batchNo,
+          expiryDate: inventoryGrnLines.expiryDate,
+        })
+        .from(inventoryGrnLines)
+        .innerJoin(inventoryGrns, eq(inventoryGrns.id, inventoryGrnLines.grnId))
+        .where(and(
+          eq(inventoryGrnLines.tenantId, this.tenantId),
+          eq(inventoryGrnLines.itemId, itemId),
+          inArray(inventoryGrnLines.batchNo, batchNos),
+        ))
+        .orderBy(desc(inventoryGrns.receivedDate));
+      for (const l of lines) {
+        if (l.batchNo && !expiryByBatch.has(l.batchNo)) {
+          expiryByBatch.set(l.batchNo, l.expiryDate ?? null);
+        }
+      }
+    }
+
+    const suggested = item.batchCodeTemplate
+      ? renderBatchTemplate(item.batchCodeTemplate, item.sku ?? null, new Date())
+      : null;
+
+    return {
+      open: rows.map((r) => ({
+        batchNo: r.batchNo,
+        onHandQty: Number(r.qty),
+        lastMovementAt: r.lastMovementAt?.toISOString() ?? null,
+        expiryDate: expiryByBatch.get(r.batchNo) ?? null,
+      })),
+      suggested,
+    };
   }
 }
