@@ -8,7 +8,7 @@ import {
 } from '@/components/ui';
 import { useMfgDashboard } from '@/hooks/queries/use-mfg-reports';
 import { useWorkOrders } from '@/hooks/queries/use-work-orders';
-import { useExpiring } from '@/hooks/queries/use-inventory';
+import { useExpiring, type ExpiryRow } from '@/hooks/queries/use-inventory';
 
 const ACCENT = '#E11D48';
 
@@ -246,10 +246,46 @@ export function ManufacturingHomePage() {
  * Hides entirely when nothing is on the clock, so non-perishable tenants
  * don't see noise.
  */
+type PerishableGroup = {
+  itemId: string;
+  itemName: string;
+  itemUnit: string | null;
+  totalQty: number;
+  /** FEFO-sorted: soonest expiry first. */
+  batches: ExpiryRow[];
+};
+
+/**
+ * Collapse expiring batches into per-item groups: batches FEFO-sorted within
+ * each group, groups ordered by their soonest-expiring batch so the most
+ * at-risk item sits on top.
+ */
+function groupPerishables(rows: ExpiryRow[]): PerishableGroup[] {
+  const byItem = new Map<string, ExpiryRow[]>();
+  for (const r of rows) {
+    const list = byItem.get(r.itemId);
+    if (list) list.push(r);
+    else byItem.set(r.itemId, [r]);
+  }
+  return [...byItem.values()]
+    .map((batches) => {
+      const sorted = [...batches].sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+      const f = sorted[0];
+      return {
+        itemId: f.itemId,
+        itemName: f.itemName,
+        itemUnit: f.itemUnit,
+        totalQty: sorted.reduce((s, b) => s + b.qty, 0),
+        batches: sorted,
+      };
+    })
+    .sort((a, b) => a.batches[0].daysToExpiry - b.batches[0].daysToExpiry);
+}
+
 function PerishablesTile() {
   const { data, isLoading } = useExpiring({ withinDays: 2, includeExpired: true });
   if (isLoading || !data || data.length === 0) return null;
-  const rows = data.slice(0, 5);
+  const groups = groupPerishables(data).slice(0, 5);
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center justify-between">
@@ -268,37 +304,78 @@ function PerishablesTile() {
       <Card>
         <CardContent className="!p-0">
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {rows.map((r) => (
-              <li key={`${r.itemId}-${r.warehouseId}-${r.batchNo}`} className="flex items-center gap-3 p-3">
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: 'rgba(225, 29, 72, 0.10)', color: ACCENT }}
-                >
-                  <CalendarClock size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="truncate text-sm font-semibold">{r.itemName}</span>
-                    <span className="font-mono text-xs text-zinc-500">{r.batchNo}</span>
-                  </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
-                    {r.qty.toLocaleString()} {r.itemUnit ?? ''} · {r.warehouseName}
-                  </div>
-                </div>
-                <ExpiryBadge days={r.daysToExpiry} />
-                <Link
-                  to="/manufacturing/wos/new"
-                  className="ml-1 shrink-0 text-xs font-medium hover:underline"
-                  style={{ color: ACCENT }}
-                >
-                  Plan WO →
-                </Link>
-              </li>
+            {groups.map((g) => (
+              <PerishableGroupRow key={g.itemId} group={g} />
             ))}
           </ul>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * One item's total-on-hand + headline (soonest-batch) badge, with a per-batch
+ * FEFO breakdown when more than one batch exists. The headline badge tracks
+ * the SOONEST batch — the run-now signal a blended total would hide.
+ */
+function PerishableGroupRow({ group }: { group: PerishableGroup }) {
+  const multi = group.batches.length > 1;
+  const first = group.batches[0];
+  return (
+    <li className="p-3">
+      <div className="flex items-center gap-3">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: 'rgba(225, 29, 72, 0.10)', color: ACCENT }}
+        >
+          <CalendarClock size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="truncate text-sm font-semibold">{group.itemName}</span>
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-white"
+              style={{ background: ACCENT }}
+            >
+              {group.totalQty.toLocaleString()} {group.itemUnit ?? ''}
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs text-zinc-500">
+            {multi
+              ? `${group.batches.length} batches`
+              : `${first.warehouseName}${first.batchNo ? ` · ${first.batchNo}` : ''}`}
+          </div>
+        </div>
+        <ExpiryBadge days={first.daysToExpiry} />
+        <Link
+          to="/manufacturing/wos/new"
+          className="ml-1 shrink-0 text-xs font-medium hover:underline"
+          style={{ color: ACCENT }}
+        >
+          Plan WO →
+        </Link>
+      </div>
+      {multi && (
+        <ul className="mt-2 space-y-1.5 pl-12">
+          {group.batches.map((b) => (
+            <li
+              key={`${b.warehouseId}-${b.batchNo}`}
+              className="flex items-center gap-2 text-xs"
+            >
+              <span className="h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
+              <span className="shrink-0 font-medium tabular-nums">
+                {b.qty.toLocaleString()} {b.itemUnit ?? ''}
+              </span>
+              <ExpiryBadge days={b.daysToExpiry} />
+              <span className="truncate text-zinc-500">
+                {b.warehouseName}{b.batchNo ? ` · ${b.batchNo}` : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 
