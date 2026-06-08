@@ -97,7 +97,6 @@ export class Gstr1Generator {
     const classifiedCreditNotes: ClassifiedCreditNote[] = [];
 
     const b2bInvoices: Gstr1B2BInvoice[] = [];
-    const b2baInvoices: NonNullable<Gstr1Data['b2ba']> = [];
     const b2csEntries: Map<string, Gstr1B2CSEntry> = new Map(); // key: POS|supplyType|rate
     const b2clInvoices: Gstr1Data['b2cl'] = [];
     const cdnEntries: Gstr1CDNEntry[] = [];
@@ -128,21 +127,20 @@ export class Gstr1Generator {
       }
     }
 
-    // ── Missed invoices (Table 9A amendment — added in this period
-    //    with a prior-period invoice_date) ──
+    // ── Missed invoices — entered after a prior period was filed, so they
+    //    were never furnished in any return. These are reported in the
+    //    CURRENT period's Table 4A (B2B) with their original invoice date.
+    //    NOT Table 9A: GSTN 9A amends an invoice already filed, and there is
+    //    no original record to amend for a never-furnished invoice. Missed
+    //    B2CS / B2CL are out of scope v1 (rarer, separate GSTN tables).
 
     for (const { invoice, items, customer } of missedInvoicesWithItems) {
       const section = classifyInvoice(invoice, customer, items);
       classifiedInvoices.push({ invoiceId: invoice.id, section });
       await this.accumulateHSN(hsnMap, items);
 
-      // Only B2B amendments are emitted to Table 9A here. Missed B2CS / B2CL
-      // amendments are out of scope v1 (rarer, separate GSTN tables).
       if (section === 'b2b') {
-        b2baInvoices.push({
-          ...this.toB2B(invoice, customer, items),
-          originalPeriod: this.invoiceDateToPeriod(invoice.invoiceDate),
-        });
+        b2bInvoices.push(this.toB2B(invoice, customer, items));
       }
     }
 
@@ -190,7 +188,6 @@ export class Gstr1Generator {
       nil: nilAgg,
       hsn: Array.from(hsnMap.values()),
       docs: docSummary,
-      ...(b2baInvoices.length > 0 && { b2ba: b2baInvoices }),
     };
 
     return { data, classifiedInvoices, classifiedCreditNotes };
@@ -573,12 +570,6 @@ export class Gstr1Generator {
     return Array.from(byRate.entries()).map(([rate, a]) => ({ gstRate: rate, ...a }));
   }
 
-  /** Convert YYYY-MM-DD invoice date to MMYYYY period string. */
-  private invoiceDateToPeriod(dateStr: string): string {
-    const [y, m] = dateStr.split('-');
-    return `${m}${y}`;
-  }
-
   /**
    * Tenant's GST filing start date (YYYY-MM-01). Reads from
    * tenants.settings.gstFilingStartPeriod (MMYYYY format). Returns a
@@ -640,9 +631,10 @@ export class Gstr1Generator {
    * items master; lines without a linked item fall back to the line's
    * own uom × quantity (pack_size assumed 1).
    *
-   * Throws if a single HSN+rate bucket sees mixed canonical UQC families
-   * (e.g. one line in LTR and another in KGS) — that's a data error and
-   * we'd rather fail loud than silently mis-report.
+   * Buckets by HSN + rate + canonical UQC. GSTN Table 12 keys on the same
+   * triple, so one HSN code legitimately sold in different units (e.g. a
+   * balm in grams and a roll-on in ml, both under 30049011) yields one row
+   * per UQC rather than an error.
    */
   private async accumulateHSN(map: Map<string, Gstr1HSNEntry>, items: InvoiceItemRow[]): Promise<void> {
     if (!this.itemPackCache) await this.loadItemPackCache();
@@ -653,7 +645,6 @@ export class Gstr1Generator {
       if (!hsn) continue;
 
       const rate = Number(item.taxRate ?? 0);
-      const key = `${hsn}|${rate}`;
 
       // Resolution order: explicit line-level pack_size_uqc → items
       // master → line uom. Honoring an explicit per-line pack_size lets
@@ -675,15 +666,12 @@ export class Gstr1Generator {
         );
       }
 
+      // Key includes the canonical UQC so the same HSN+rate sold in
+      // different units lands in separate Table 12 rows (GSTN-valid).
+      const key = `${hsn}|${rate}|${canonical.uqc}`;
+
       const existing = map.get(key);
       if (existing) {
-        if (existing.uqc !== canonical.uqc) {
-          throw new Error(
-            `[GSTR-1 HSN] Mixed UQC for HSN ${hsn} @ ${rate}%: existing=${existing.uqc}, new=${canonical.uqc} ` +
-            `(invoice item ${item.id}). All variants of the same HSN must convert to the same canonical UQC. ` +
-            `Check pack_size_uqc on the item master.`,
-          );
-        }
         existing.totalQuantity += canonical.qty;
         existing.taxableValue += Number(item.amount);
         existing.igstAmount += Number(item.igstAmount);
