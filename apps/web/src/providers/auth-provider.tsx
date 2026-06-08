@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
-import type { User, LoginResponse, TenantMembership } from '@runq/types';
+import type { User, LoginResponse, TenantMembership, ModuleCode } from '@runq/types';
 
 const TOKEN_KEY = 'runq-token';
 const ACTIVE_TENANT_KEY = 'runq-active-tenant-id';
@@ -60,6 +60,11 @@ interface AuthContextValue {
   isPlatform: boolean;
   isLoading: boolean;
   tenants: TenantMembership[];
+  /** Modules the user can access in the active tenant (effective = tenant
+   * entitlement ∩ per-user grant). Drives nav + route gating. */
+  modules: ModuleCode[];
+  /** Convenience membership check over `modules`. */
+  hasModule: (code: ModuleCode) => boolean;
   activeTenantId: string | null;
   switchTenant: (tenantId: string) => void;
   /** Re-fetch /auth/me to refresh the tenants list. Used when callers expect
@@ -77,6 +82,8 @@ const AuthContext = createContext<AuthContextValue>({
   isPlatform: false,
   isLoading: true,
   tenants: [],
+  modules: [],
+  hasModule: () => false,
   activeTenantId: null,
   switchTenant: () => {},
   refreshTenants: async () => {},
@@ -87,8 +94,9 @@ const AuthContext = createContext<AuthContextValue>({
 interface AuthMeResponse {
   data: {
     user: Omit<User, 'createdAt' | 'updatedAt'> | null;
-    tenant: { id: string; name: string; slug: string } | null;
+    tenant: { id: string; name: string; slug: string; enabledModules?: ModuleCode[] } | null;
     tenants?: TenantMembership[];
+    modules?: ModuleCode[];
     platform?: boolean;
   };
 }
@@ -99,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPlatform, setIsPlatform] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [tenants, setTenants] = useState<TenantMembership[]>([]);
+  const [modules, setModules] = useState<ModuleCode[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(
     () => localStorage.getItem(ACTIVE_TENANT_KEY),
   );
@@ -120,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setTenants([]);
+    setModules([]);
     setActiveTenantId(null);
     redirectToLoginExpired();
   }, [clearExpiryTimer]);
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setTenants([]);
+    setModules([]);
     setActiveTenantId(null);
   }, [clearExpiryTimer]);
 
@@ -251,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsPlatform(!!res.data.platform);
           const list = res.data.tenants ?? [];
           setTenants(list);
+          setModules(res.data.modules ?? []);
           // Active tenant: prefer server's view (it returned the active tenant
           // it resolved). If the server's tenant is in our list, use it;
           // otherwise fall back to first membership.
@@ -289,6 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .then((res) => {
           if (!res) return;
           setTenants(res.data.tenants ?? []);
+          setModules(res.data.modules ?? []);
           const serverActive = res.data.tenant?.id ?? null;
           if (serverActive) applyTenant(serverActive);
         })
@@ -317,6 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.data.user) setUser(res.data.user);
       const list = res.data.tenants ?? [];
       setTenants(list);
+      setModules(res.data.modules ?? []);
       // If the server's active tenant disagrees with localStorage (e.g., we
       // joined a new tenant elsewhere), keep the user on their current one
       // unless it's no longer in the list. In that case, fall back to first.
@@ -337,6 +351,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isPlatform,
         isLoading,
         tenants,
+        modules,
+        hasModule: (code: ModuleCode) => modules.includes(code),
         activeTenantId,
         switchTenant,
         refreshTenants,

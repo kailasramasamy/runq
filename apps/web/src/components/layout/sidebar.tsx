@@ -22,7 +22,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../providers/theme-provider';
-import { useAuth, canAccessFinanceModule, canManageHrModule } from '../../providers/auth-provider';
+import { useAuth, canManageHrModule } from '../../providers/auth-provider';
 
 export type NavItem = {
   key: string;
@@ -313,13 +313,14 @@ export const MANUFACTURING_NAV_GROUPS: NavGroup[] = [
 ];
 
 function ModuleSwitcher({
-  activeModule, onNavigate,
+  activeModule, items, onNavigate,
 }: {
   activeModule: ModuleKey;
+  items: typeof MODULES;
   onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const active = MODULES.find((m) => m.key === activeModule) ?? MODULES[0];
+  const active = items.find((m) => m.key === activeModule) ?? items[0];
 
   useEffect(() => {
     if (!open) return;
@@ -364,7 +365,7 @@ function ModuleSwitcher({
           >
             Switch module
           </div>
-          {MODULES.map((m) => {
+          {items.map((m) => {
             const isActive = m.key === activeModule;
             const ModIcon = m.icon;
             return (
@@ -470,11 +471,11 @@ function SidebarContent({
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme } = useTheme();
-  const { user } = useAuth();
-  // Only owner / accountant / client_owner reach the Finance module;
-  // hr + viewer are HR-only. Hide the module switcher for them and lock
-  // the sidebar to HR.
-  const financeAllowed = canAccessFinanceModule(user?.role);
+  const { user, modules } = useAuth();
+  // Module visibility is exactly the effective module set from the server
+  // (`/auth/me`), which already bakes in role defaults, the role floor, and
+  // any per-user grant. The sidebar just reflects it.
+  const visibleModules = MODULES.filter((m) => modules.includes(m.key));
   // The Upgrade card is a billing CTA — only owners/accountants/HR admins can act on it.
   const showUpgrade = canManageHrModule(user?.role);
   // Help & docs is for owners/accountants/HR admins — not employee self-service.
@@ -489,19 +490,26 @@ function SidebarContent({
   const isInventory = currentPath === '/inventory' || currentPath.startsWith('/inventory/');
   const isPurchase = currentPath === '/purchase' || currentPath.startsWith('/purchase/');
   const isManufacturing = currentPath === '/manufacturing' || currentPath.startsWith('/manufacturing/');
-  const activeModule: ModuleKey = !financeAllowed
-    ? 'hr'
-    : isSettings
-      ? lastActiveModule
-      : isInventory
-        ? 'inventory'
-        : isPurchase
-          ? 'purchase'
-          : isManufacturing
-            ? 'manufacturing'
-            : currentPath === '/hr' || currentPath.startsWith('/hr/')
-              ? 'hr'
-              : 'finance';
+  // Module implied by the current path.
+  const pathModule: ModuleKey = isInventory
+    ? 'inventory'
+    : isPurchase
+      ? 'purchase'
+      : isManufacturing
+        ? 'manufacturing'
+        : currentPath === '/hr' || currentPath.startsWith('/hr/')
+          ? 'hr'
+          : 'finance';
+  // Clamp to a module the user can actually see. On /settings, stay on the
+  // last browsed module (if still visible). Falls back to the first visible
+  // module; route guards handle redirecting disallowed deep links.
+  const canSee = (k: ModuleKey) => visibleModules.some((m) => m.key === k);
+  const fallbackModule = visibleModules[0]?.key ?? 'hr';
+  const activeModule: ModuleKey = isSettings
+    ? (canSee(lastActiveModule) ? lastActiveModule : fallbackModule)
+    : canSee(pathModule)
+      ? pathModule
+      : fallbackModule;
   if (!isSettings) lastActiveModule = activeModule;
   // The ⌘K shortcut palette is Finance-only.
   const showCommand = activeModule === 'finance';
@@ -573,7 +581,9 @@ function SidebarContent({
                   className="h-[18px] w-auto max-w-none shrink-0"
                 />
               </Link>
-              {financeAllowed && <ModuleSwitcher activeModule={activeModule} onNavigate={onNavigate} />}
+              {visibleModules.length > 1 && (
+                <ModuleSwitcher activeModule={activeModule} items={visibleModules} onNavigate={onNavigate} />
+              )}
             </div>
             {onToggleCollapse && (
               <button

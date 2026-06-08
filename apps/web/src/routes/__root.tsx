@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { Topbar } from '../components/layout/topbar';
-import { useAuth, canAccessFinanceModule, canManageHrModule } from '../providers/auth-provider';
+import { useAuth, canManageHrModule } from '../providers/auth-provider';
+import { MODULE_CODES, type ModuleCode } from '@runq/types';
 import { FinanceAgent } from '../components/agent/finance-agent';
 import { AgentActivityPage } from './agent/activity';
 import { SupportWidget } from '../components/support/support-widget';
@@ -370,27 +371,58 @@ const dashboardLayoutRoute = createRoute({
 
 // ─── Finance module — namespaced under /finance ──────────────────────────────
 
-// Hard module lock: hr / viewer typing a /finance URL are bounced to HR.
-function FinanceModuleGuard() {
-  const { user, isLoading } = useAuth();
-  if (!isLoading && !canAccessFinanceModule(user?.role)) {
-    return <Navigate to="/hr" replace />;
+// Home route per module, in display order — used to land users on the first
+// module they can actually see.
+const MODULE_HOME: Record<ModuleCode, string> = {
+  finance: '/finance',
+  hr: '/hr',
+  inventory: '/inventory',
+  purchase: '/purchase',
+  manufacturing: '/manufacturing',
+};
+
+// First module the user can see, in display order. Effective modules already
+// encode role defaults + grants, so visibility is purely membership here.
+// A user with no modules (e.g. an ungranted viewer) lands on their profile —
+// a cross-module page with no guard, which avoids a redirect loop.
+function homePathFor(modules: ModuleCode[]): string {
+  for (const code of MODULE_CODES) {
+    if (modules.includes(code)) return MODULE_HOME[code];
   }
+  return '/profile';
+}
+
+// Maps a pathname to the business-ops module that owns it.
+const BUSINESS_PREFIXES: { prefix: string; code: ModuleCode }[] = [
+  { prefix: '/purchase', code: 'purchase' },
+  { prefix: '/manufacturing', code: 'manufacturing' },
+  { prefix: '/inventory', code: 'inventory' },
+  { prefix: '/finance', code: 'finance' },
+];
+
+// Guard for the four business-ops modules. The server's effective module set
+// is the single source of truth (role defaults + floor + grant baked in), so
+// the guard just checks the grant; ungranted users bounce to their own home.
+function BusinessModuleGuard() {
+  const { isLoading, hasModule } = useAuth();
+  const { location } = useRouterState();
+  if (isLoading) return <Outlet />;
+  const match = BUSINESS_PREFIXES.find((m) => location.pathname.startsWith(m.prefix));
+  if (match && !hasModule(match.code)) return <Navigate to="/" replace />;
   return <Outlet />;
 }
 
 const financeRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/finance',
-  component: FinanceModuleGuard,
+  component: BusinessModuleGuard,
 });
 
-// Bare "/" lands on the user's home module. Only owner / accountant /
-// client_owner have the Finance module; hr + viewer go to HR.
+// Bare "/" lands on the first module the user can see.
 function RootRedirect() {
-  const { user, isLoading } = useAuth();
+  const { isLoading, modules } = useAuth();
   if (isLoading) return null;
-  return <Navigate to={canAccessFinanceModule(user?.role) ? '/finance' : '/hr'} />;
+  return <Navigate to={homePathFor(modules) as '/hr'} />;
 }
 const rootRedirectRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
@@ -623,7 +655,7 @@ const debitNoteDetailRoute = createRoute({
 const purchaseRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/purchase',
-  component: FinanceModuleGuard,
+  component: BusinessModuleGuard,
 });
 
 const purchaseIndexRoute = createRoute({
@@ -1813,7 +1845,7 @@ const VIEWER_HR_PATHS = [
   '/hr/leave-balances', '/hr/expense-claims',
 ];
 function HrModuleGuard() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasModule } = useAuth();
   const { location } = useRouterState();
   const path = location.pathname;
   // Only police paths *inside* the HR module. This guard reads the global
@@ -1821,6 +1853,10 @@ function HrModuleGuard() {
   // it is still briefly mounted — without the `inHrModule` check it would
   // see the new path, decide it's "not allowed", and bounce back to /hr.
   const inHrModule = path === '/hr' || path.startsWith('/hr/');
+  // Per-user module grant: ungranted users bounce to their own home.
+  if (!isLoading && inHrModule && !hasModule('hr')) {
+    return <Navigate to="/" replace />;
+  }
   if (!isLoading && !canManageHrModule(user?.role) && inHrModule) {
     const allowed = path === '/hr'
       || VIEWER_HR_PATHS.some((p) => path === p || path.startsWith(p + '/'));
@@ -1995,7 +2031,7 @@ const hrRewardTypesRoute = createRoute({
 const inventoryRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/inventory',
-  component: () => <Outlet />,
+  component: BusinessModuleGuard,
 });
 
 const inventoryIndexRoute = createRoute({
@@ -2223,13 +2259,13 @@ const invCategoriesRoute = createRoute({
 // ─── Manufacturing Module Routes ─────────────────────────────────────────────
 //
 // Manufacturing is a top-level module (mirrors /finance, /hr, /inventory).
-// All routes nest under /manufacturing. Uses FinanceModuleGuard for role gating
-// (owner / accountant / production roles).
+// All routes nest under /manufacturing. Uses BusinessModuleGuard for the
+// finance-role floor + per-user module grant.
 
 const manufacturingRoute = createRoute({
   getParentRoute: () => dashboardLayoutRoute,
   path: '/manufacturing',
-  component: FinanceModuleGuard,
+  component: BusinessModuleGuard,
 });
 
 const manufacturingIndexRoute = createRoute({

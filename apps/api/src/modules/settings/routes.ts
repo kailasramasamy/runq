@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { companySettingsSchema, invoiceNumberingSchema, emailProviderConfigSchema, testEmailSchema } from '@runq/validators';
 import { eq } from 'drizzle-orm';
 import { tenants } from '@runq/db';
+import { sanitizeModuleCodes } from '@runq/types';
 import { rbacHook } from '../../hooks/rbac';
 import { SettingsService } from './settings.service';
 import { CAPortalService } from '../ca-portal/ca-portal.service';
@@ -63,6 +64,35 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
         .set({ currentFy: body.currentFy, updatedAt: new Date() })
         .where(eq(tenants.id, request.tenantId));
       return { data: { currentFy: body.currentFy } };
+    },
+  );
+
+  // Tenant module ceiling. Which functional areas the tenant has turned on —
+  // the cap for every per-user grant. Read by all (drives nav); write owner-only.
+  app.get(
+    '/enabled-modules',
+    { preHandler: [rbacHook([...ALL_ROLES])] },
+    async (request) => {
+      const rows = await request.server.db
+        .select({ enabledModules: tenants.enabledModules })
+        .from(tenants)
+        .where(eq(tenants.id, request.tenantId))
+        .limit(1);
+      return { data: { enabledModules: sanitizeModuleCodes(rows[0]?.enabledModules ?? []) } };
+    },
+  );
+
+  app.put(
+    '/enabled-modules',
+    { preHandler: [rbacHook([...OWNER_ROLES])] },
+    async (request) => {
+      const body = z.object({ enabledModules: z.array(z.string()) }).parse(request.body);
+      const enabledModules = sanitizeModuleCodes(body.enabledModules);
+      await request.server.db
+        .update(tenants)
+        .set({ enabledModules, updatedAt: new Date() })
+        .where(eq(tenants.id, request.tenantId));
+      return { data: { enabledModules } };
     },
   );
 

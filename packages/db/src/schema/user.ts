@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, boolean, timestamp, pgEnum, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, boolean, timestamp, pgEnum, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 import { tenants } from './tenant';
 
 // `hr` = People Ops persona. Tenant-wide read on HR data, full HR write,
@@ -44,6 +44,10 @@ export const userTenants = pgTable(
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     role: userRoleEnum('role').notNull(),
+    // Per-user module grant (subset of the tenant's enabled_modules). NULL =
+    // inherit all of the tenant's enabled modules — the default for owners and
+    // pre-existing members. Codes are from @runq/types MODULE_CODES.
+    modules: jsonb('modules').$type<string[]>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

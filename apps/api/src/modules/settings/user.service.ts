@@ -1,7 +1,8 @@
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { users, userTenants, employees, designations } from '@runq/db';
+import { users, userTenants, employees, designations, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { User } from '@runq/types';
+import { sanitizeModuleCodes } from '@runq/types';
 import argon2 from 'argon2';
 import { NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors';
 import { sendEmail } from '../../utils/email';
@@ -20,7 +21,13 @@ export interface UpdateUserInput {
   email?: string;
   role?: 'owner' | 'accountant' | 'viewer' | 'hr';
   isActive?: boolean;
+  // Per-user module grant. `null` resets to "inherit all tenant modules";
+  // an array restricts the user to that subset (capped by the tenant ceiling).
+  modules?: string[] | null;
 }
+
+/** A tenant user plus their per-membership module grant (null = inherit). */
+export type UserWithModules = User & { modules: string[] | null };
 
 export interface EligibleEmployee {
   id: string;
@@ -35,7 +42,7 @@ export class UserService {
     private readonly tenantId: string,
   ) {}
 
-  async list(): Promise<User[]> {
+  async list(): Promise<UserWithModules[]> {
     // Multi-tenant: list users by membership in the active tenant, not by
     // their home tenant. The same user may be a member of multiple tenants
     // with different roles — surface the role for THIS tenant.
@@ -46,6 +53,7 @@ export class UserService {
         email: users.email,
         name: users.name,
         membershipRole: userTenants.role,
+        membershipModules: userTenants.modules,
         isActive: users.isActive,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
@@ -60,6 +68,7 @@ export class UserService {
       email: r.email,
       name: r.name,
       role: r.membershipRole,
+      modules: r.membershipModules ?? null,
       isActive: r.isActive,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -199,11 +208,33 @@ export class UserService {
       if (input.isActive !== undefined) patch.isActive = input.isActive;
       await this.db.update(users).set(patch).where(eq(users.id, id));
     }
+    // Module grant lives on the membership row. `null` clears it (inherit all
+    // tenant modules); an array is sanitized and capped by what the tenant has
+    // actually enabled, so a stale code can never grant beyond the ceiling.
+    if (input.modules !== undefined) {
+      const value = input.modules === null ? null : await this.capToTenant(input.modules);
+      await this.db
+        .update(userTenants)
+        .set({ modules: value, updatedAt: new Date() })
+        .where(eq(userTenants.id, membership.id));
+    }
 
     const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     if (!row) throw new NotFoundError('User');
     const finalRole = input.role ?? (await this.fetchMembershipRole(id));
     return { ...this.toUser(row), role: finalRole };
+  }
+
+  // Intersect a requested module list with the tenant's enabled modules so a
+  // user can never be granted a module the tenant hasn't turned on.
+  private async capToTenant(requested: string[]): Promise<string[]> {
+    const [tenant] = await this.db
+      .select({ enabledModules: tenants.enabledModules })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+    const enabled = new Set(sanitizeModuleCodes(tenant?.enabledModules ?? []));
+    return sanitizeModuleCodes(requested).filter((code) => enabled.has(code));
   }
 
   private async fetchMembershipRole(userId: string): Promise<User['role']> {

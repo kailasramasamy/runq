@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Trash2, Search } from 'lucide-react';
 import {
   Card,
   CardContent,
   PageHeader,
   Button,
   Badge,
+  Input,
   Table,
   TableHeader,
   TableBody,
@@ -16,24 +17,27 @@ import {
   ConfirmationDialog,
   TableSkeleton,
 } from '@/components/ui';
-import { useUsers, useUpdateUser, useDeleteUser } from '@/hooks/queries/use-settings';
+import { useUsers, useUpdateUser, useDeleteUser, useEnabledModules, type TenantUser } from '@/hooks/queries/use-settings';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/components/ui';
 import { AddEmployeeSection } from '@/components/settings/add-employee-section';
 import { InviteUserSection } from '@/components/settings/invite-user-section';
+import { TenantModulesCard, ModuleGrantEditor } from '@/components/settings/module-access';
 import { ROLE_OPTIONS, roleBadgeVariant } from '@/components/settings/roles';
-import type { User, UserRole } from '@runq/types';
+import type { UserRole, ModuleCode } from '@runq/types';
 
 // ─── User Row ─────────────────────────────────────────────────────────────────
 
 function UserRow({
   user,
   isSelf,
+  enabledModules,
   onDelete,
 }: {
-  user: User;
+  user: TenantUser;
   isSelf: boolean;
-  onDelete: (user: User) => void;
+  enabledModules: ModuleCode[];
+  onDelete: (user: TenantUser) => void;
 }) {
   const updateUser = useUpdateUser();
   const { toast } = useToast();
@@ -75,6 +79,9 @@ function UserRow({
         )}
       </TableCell>
       <TableCell>
+        <ModuleGrantEditor user={user} enabledModules={enabledModules} />
+      </TableCell>
+      <TableCell>
         <Badge variant={user.isActive ? 'success' : 'default'}>
           {user.isActive ? 'Active' : 'Inactive'}
         </Badge>
@@ -103,11 +110,14 @@ function UserRow({
 
 export function UsersPage() {
   const { data, isLoading } = useUsers();
+  const { data: modulesData } = useEnabledModules();
   const deleteUser = useDeleteUser();
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
 
-  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const enabledModules = modulesData?.data.enabledModules ?? [];
+  const [deleteTarget, setDeleteTarget] = useState<TenantUser | null>(null);
+  const [search, setSearch] = useState('');
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -122,20 +132,46 @@ export function UsersPage() {
   }
 
   const users = data?.data ?? [];
+  const query = search.trim().toLowerCase();
+  const filteredUsers = useMemo(
+    () =>
+      query
+        ? users.filter((u) =>
+            [u.name, u.email, u.role].some((f) => f?.toLowerCase().includes(query)),
+          )
+        : users,
+    [users, query],
+  );
 
   return (
     <div>
       <PageHeader
-        title="Users & roles"
+        title="Users & access"
         breadcrumbs={[{ label: 'Settings' }, { label: 'Users' }]}
-        description="Manage who has access to your workspace."
+        description="Manage who has access to your workspace and which modules they can use."
       />
+
+      {/* Workspace-level module switches — the ceiling for every per-user grant. */}
+      <div className="mb-4">
+        <TenantModulesCard />
+      </div>
 
       {/* Two ways in: turn an employee into a user, or invite someone by email. */}
       <AddEmployeeSection />
       <InviteUserSection />
 
-      <h3 className="mb-2 mt-6 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Users</h3>
+      <div className="mb-2 mt-6 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Users</h3>
+        {users.length > 0 && (
+          <Input
+            icon={<Search size={13} />}
+            placeholder="Search users…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full max-w-xs"
+          />
+        )}
+      </div>
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-2">
@@ -146,12 +182,12 @@ export function UsersPage() {
               className="h-20 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800"
             />
           ))
-        ) : users.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="rounded-lg border border-zinc-200 bg-white p-3 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
-            No users yet. Add one above.
+            {query ? 'No users match your search.' : 'No users yet. Add one above.'}
           </div>
         ) : (
-          users.map((u) => {
+          filteredUsers.map((u) => {
             const isSelf = u.id === currentUser?.id;
             return (
               <div
@@ -176,6 +212,10 @@ export function UsersPage() {
                       {u.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-zinc-500">Modules</span>
+                  <ModuleGrantEditor user={u} enabledModules={enabledModules} />
                 </div>
                 {!isSelf && (
                   <div className="mt-2 flex justify-end">
@@ -204,21 +244,26 @@ export function UsersPage() {
                 <Th>Name</Th>
                 <Th>Email</Th>
                 <Th>Role</Th>
+                <Th>Modules</Th>
                 <Th>Status</Th>
                 <Th align="right">Actions</Th>
               </tr>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={4} cols={5} />
-              ) : users.length === 0 ? (
-                <TableEmpty colSpan={5} message="No users yet. Add one above." />
+                <TableSkeleton rows={4} cols={6} />
+              ) : filteredUsers.length === 0 ? (
+                <TableEmpty
+                  colSpan={6}
+                  message={query ? 'No users match your search.' : 'No users yet. Add one above.'}
+                />
               ) : (
-                users.map((u) => (
+                filteredUsers.map((u) => (
                   <UserRow
                     key={u.id}
                     user={u}
                     isSelf={u.id === currentUser?.id}
+                    enabledModules={enabledModules}
                     onDelete={setDeleteTarget}
                   />
                 ))

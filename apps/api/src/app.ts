@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyPluginAsync } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -9,6 +9,8 @@ import { redisPlugin } from './plugins/redis';
 import { authPlugin } from './plugins/auth';
 import { tenantContextPlugin } from './plugins/tenant-context';
 import { errorHandlerPlugin } from './plugins/error-handler';
+import { requireModule } from './hooks/module-access';
+import type { ModuleCode } from '@runq/types';
 import { authRoutes } from './modules/auth/routes';
 import { socialAuthRoutes } from './modules/auth/social-auth.routes';
 import { apRoutes } from './modules/ap/routes';
@@ -106,17 +108,36 @@ export async function buildApp() {
     scope.addHook('onRequest', scope.authenticate);
     scope.addHook('preHandler', scope.resolveTenantContext);
 
-    await scope.register(apRoutes, { prefix: '/api/v1/ap' });
-    await scope.register(purchaseRoutes, { prefix: '/api/v1/purchase' });
-    await scope.register(manufacturingRoutes, { prefix: '/api/v1/manufacturing' });
-    await scope.register(arRoutes, { prefix: '/api/v1/ar' });
-    await scope.register(bankingRoutes, { prefix: '/api/v1/banking' });
-    await scope.register(pgReconRoutes, { prefix: '/api/v1/pg-recon' });
+    // Register a module's routes behind a `requireModule` gate. The gate reads
+    // request.effectiveModules (set by resolveTenantContext above), so a user
+    // without the module gets a 403 before any handler runs. Encapsulated in a
+    // child plugin so the preHandler applies only to that module's routes.
+    const guarded = (routes: FastifyPluginAsync, prefix: string, module: ModuleCode) =>
+      scope.register(async (s) => {
+        s.addHook('preHandler', requireModule(module));
+        await s.register(routes, { prefix });
+      });
+
+    // Finance: AR, AP, banking, GST, fixed assets, GL, Tally, PG recon.
+    await guarded(apRoutes, '/api/v1/ap', 'finance');
+    await guarded(arRoutes, '/api/v1/ar', 'finance');
+    await guarded(bankingRoutes, '/api/v1/banking', 'finance');
+    await guarded(pgReconRoutes, '/api/v1/pg-recon', 'finance');
+    await guarded(glRoutes, '/api/v1/gl', 'finance');
+    await guarded(tallyRoutes, '/api/v1/tally', 'finance');
+    await guarded(faRoutes, '/api/v1/fa', 'finance');
+    await guarded(gstRoutes, '/api/v1/gst', 'finance');
+    // The four operational modules.
+    await guarded(purchaseRoutes, '/api/v1/purchase', 'purchase');
+    await guarded(manufacturingRoutes, '/api/v1/manufacturing', 'manufacturing');
+    await guarded(inventoryRoutes, '/api/v1/inventory', 'inventory');
+    await guarded(hrRoutes, '/api/v1/hr', 'hr');
+
+    // Shared / cross-cutting — NOT module-gated. A single-module user still
+    // needs masters, settings, attachments, reports, audit, agent, etc.
     await scope.register(dashboardRoutes, { prefix: '/api/v1/dashboard' });
     await scope.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
     await scope.register(settingsRoutes, { prefix: '/api/v1/settings' });
-    await scope.register(glRoutes, { prefix: '/api/v1/gl' });
-    await scope.register(tallyRoutes, { prefix: '/api/v1/tally' });
     await scope.register(mastersRoutes, { prefix: '/api/v1/masters' });
     await scope.register(attachmentRoutes, { prefix: '/api/v1/common' });
     await scope.register(reportsRoutes, { prefix: '/api/v1/reports' });
@@ -124,11 +145,7 @@ export async function buildApp() {
     await scope.register(billSyncAdminRoutes, { prefix: '/api/v1/bill-sync/admin' });
     await scope.register(workflowRoutes, { prefix: '/api/v1/workflows' });
     await scope.register(vendorManagementRoutes, { prefix: '/api/v1/vendor-management' });
-    await scope.register(hrRoutes, { prefix: '/api/v1/hr' });
-    await scope.register(inventoryRoutes, { prefix: '/api/v1/inventory' });
     await scope.register(inboxRoutes, { prefix: '/api/v1/inbox' });
-    await scope.register(faRoutes, { prefix: '/api/v1/fa' });
-    await scope.register(gstRoutes, { prefix: '/api/v1/gst' });
     await scope.register(webhookEndpointRoutes, { prefix: '/api/v1/webhook-endpoints' });
     await scope.register(trailRoutes, { prefix: '/api/v1/audit' });
     await scope.register(agentRoutes, { prefix: '/api/v1/agent' });

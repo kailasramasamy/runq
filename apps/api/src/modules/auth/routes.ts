@@ -867,7 +867,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const [tenant] = resolvedActiveId
       ? await app.db
-          .select({ id: tenants.id, name: tenants.name, slug: tenants.slug, settings: tenants.settings })
+          .select({ id: tenants.id, name: tenants.name, slug: tenants.slug, settings: tenants.settings, enabledModules: tenants.enabledModules })
           .from(tenants)
           .where(eq(tenants.id, resolvedActiveId))
           .limit(1)
@@ -890,6 +890,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         user: userPayload,
         tenant: tenant ?? null,
         tenants: accessibleTenants,
+        // The user's effective module access in the active tenant
+        // (tenant.enabledModules ∩ per-user grant). Drives nav + route gating.
+        modules: request.effectiveModules ?? [],
         impersonatedBy: request.user.impersonatedBy ?? null,
       },
     };

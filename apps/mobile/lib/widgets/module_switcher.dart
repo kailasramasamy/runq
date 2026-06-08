@@ -82,6 +82,7 @@ class _ModuleSwitcherState extends ConsumerState<ModuleSwitcher>
   @override
   Widget build(BuildContext context) {
     final active = ref.watch(appModuleProvider);
+    final allowed = ref.watch(allowedModulesProvider);
     final tone = widget.accent ?? _accentFor(context, active);
     final ink = widget.onDarkSurface ? Colors.white : tone;
     final bg = widget.onDarkSurface
@@ -102,6 +103,7 @@ class _ModuleSwitcherState extends ConsumerState<ModuleSwitcher>
           link: _link,
           anim: _anim,
           active: active,
+          modules: allowed,
           accentOf: (m) => _accentFor(context, m),
           onClose: _close,
           onPick: (m) async {
@@ -158,6 +160,7 @@ class _SwitcherOverlay extends StatelessWidget {
     required this.link,
     required this.anim,
     required this.active,
+    required this.modules,
     required this.accentOf,
     required this.onClose,
     required this.onPick,
@@ -166,6 +169,7 @@ class _SwitcherOverlay extends StatelessWidget {
   final LayerLink link;
   final AnimationController anim;
   final AppModule active;
+  final List<AppModule> modules;
   final Color Function(AppModule) accentOf;
   final VoidCallback onClose;
   final ValueChanged<AppModule> onPick;
@@ -213,7 +217,7 @@ class _SwitcherOverlay extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final m in AppModule.values)
+                          for (final m in modules)
                             _MenuRow(
                               module: m,
                               isActive: m == active,

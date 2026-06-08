@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { User, UserRole } from '@runq/types';
+import type { User, UserRole, ModuleCode } from '@runq/types';
 import type { CompanySettingsInput, InvoiceNumberingInput } from '@runq/validators';
 
 // ─── Keys ────────────────────────────────────────────────────────────────────
@@ -9,6 +9,7 @@ const SETTINGS_KEYS = {
   company: ['settings', 'company'] as const,
   invoiceNumbering: ['settings', 'invoice-numbering'] as const,
   users: ['settings', 'users'] as const,
+  enabledModules: ['settings', 'enabled-modules'] as const,
   onboarding: ['settings', 'onboarding'] as const,
 };
 
@@ -104,7 +105,13 @@ export interface CreateUserInput {
 export interface UpdateUserInput {
   role?: UserRole;
   isActive?: boolean;
+  // Per-user module grant. `null` = inherit all tenant modules; an array
+  // restricts the user to that subset.
+  modules?: ModuleCode[] | null;
 }
+
+/** A tenant user plus their per-membership module grant (null = inherit all). */
+export type TenantUser = User & { modules: ModuleCode[] | null };
 
 export interface EligibleEmployee {
   id: string;
@@ -116,7 +123,29 @@ export interface EligibleEmployee {
 export function useUsers() {
   return useQuery({
     queryKey: SETTINGS_KEYS.users,
-    queryFn: () => api.get<{ data: User[] }>('/settings/users'),
+    queryFn: () => api.get<{ data: TenantUser[] }>('/settings/users'),
+  });
+}
+
+// ─── Module access (tenant ceiling) ────────────────────────────────────────────
+
+export function useEnabledModules() {
+  return useQuery({
+    queryKey: SETTINGS_KEYS.enabledModules,
+    queryFn: () => api.get<{ data: { enabledModules: ModuleCode[] } }>('/settings/enabled-modules'),
+  });
+}
+
+export function useUpdateEnabledModules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabledModules: ModuleCode[]) =>
+      api.put<{ data: { enabledModules: ModuleCode[] } }>('/settings/enabled-modules', { enabledModules }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_KEYS.enabledModules });
+      // Per-user grants are capped by the ceiling — re-fetch so the UI reflects it.
+      qc.invalidateQueries({ queryKey: SETTINGS_KEYS.users });
+    },
   });
 }
 

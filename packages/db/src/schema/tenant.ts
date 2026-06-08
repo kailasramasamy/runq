@@ -7,6 +7,13 @@ export const tenants = pgTable('tenants', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull().unique(),
   settings: jsonb('settings').notNull().default({}),
+  // Module access ceiling: which functional areas the tenant has turned on.
+  // Codes are from @runq/types MODULE_CODES. Owner-controlled, decoupled from
+  // billing for now. Defaults to all modules so existing tenants are unchanged.
+  enabledModules: jsonb('enabled_modules')
+    .$type<string[]>()
+    .notNull()
+    .default(['finance', 'hr', 'inventory', 'purchase', 'manufacturing']),
   status: tenantStatusEnum('status').notNull().default('trial'),
   planId: uuid('plan_id'),
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),

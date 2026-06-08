@@ -18,6 +18,9 @@ const updateUserBodySchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(['owner', 'accountant', 'viewer', 'hr']).optional(),
   isActive: z.boolean().optional(),
+  // Per-user module grant. `null` = inherit all tenant modules; an array
+  // restricts to that subset. Codes are validated/capped in the service.
+  modules: z.array(z.string()).nullable().optional(),
 });
 
 export const userRoutes: FastifyPluginAsync = async (app) => {

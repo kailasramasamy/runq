@@ -24,16 +24,20 @@ class AuthUser {
 class AuthState {
   final AuthUser? user;
   final String? token;
+  /// Effective module access in the active tenant (codes from MODULE_CODES:
+  /// finance/hr/inventory/purchase/manufacturing). Drives the module switcher.
+  final List<String> modules;
   final bool isLoading;
   final bool sessionExpired;
-  const AuthState({this.user, this.token, this.isLoading = true, this.sessionExpired = false});
+  const AuthState({this.user, this.token, this.modules = const [], this.isLoading = true, this.sessionExpired = false});
 
   bool get isAuthenticated => token != null && user != null;
 
-  AuthState copyWith({AuthUser? user, String? token, bool? isLoading, bool? sessionExpired, bool clearUser = false, bool clearToken = false}) {
+  AuthState copyWith({AuthUser? user, String? token, List<String>? modules, bool? isLoading, bool? sessionExpired, bool clearUser = false, bool clearToken = false}) {
     return AuthState(
       user: clearUser ? null : (user ?? this.user),
       token: clearToken ? null : (token ?? this.token),
+      modules: modules ?? this.modules,
       isLoading: isLoading ?? this.isLoading,
       sessionExpired: sessionExpired ?? this.sessionExpired,
     );
@@ -61,8 +65,7 @@ class AuthController extends StateNotifier<AuthState> {
     apiClient.setToken(stored);
     try {
       final res = await apiClient.get('/auth/me');
-      final user = _userFrom(res);
-      state = AuthState(token: stored, user: user, isLoading: false);
+      state = AuthState(token: stored, user: _userFrom(res), modules: _modulesFrom(res), isLoading: false);
       unawaited(PushService.instance.onLogin());
     } on ApiException catch (e) {
       if (e.statusCode == 401) {
@@ -111,12 +114,15 @@ class AuthController extends StateNotifier<AuthState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
     apiClient.setToken(token);
-    state = AuthState(
-      token: token,
-      user: _userFrom(data),
-      isLoading: false,
-      sessionExpired: false,
-    );
+    // The login response carries token + user but not the per-user module
+    // grant — fetch /auth/me for the authoritative session so the switcher
+    // gates correctly from the first frame. Fall back to login data if it fails.
+    try {
+      final me = await apiClient.get('/auth/me');
+      state = AuthState(token: token, user: _userFrom(me), modules: _modulesFrom(me), isLoading: false, sessionExpired: false);
+    } catch (_) {
+      state = AuthState(token: token, user: _userFrom(data), isLoading: false, sessionExpired: false);
+    }
     unawaited(PushService.instance.onLogin());
   }
 
@@ -149,6 +155,16 @@ class AuthController extends StateNotifier<AuthState> {
       return AuthUser.fromJson(((body['data'] as Map)['user'] as Map).cast<String, dynamic>());
     }
     return null;
+  }
+
+  // `modules` is a sibling of `user` under `data`. Accepts either the full
+  // response ({ data: { modules } }) or a bare data map ({ modules }).
+  List<String> _modulesFrom(Object? body) {
+    final data = (body is Map && body['data'] is Map) ? body['data'] as Map : body;
+    if (data is Map && data['modules'] is List) {
+      return (data['modules'] as List).map((e) => e.toString()).toList();
+    }
+    return const [];
   }
 
   bool _isExpired(String token) {

@@ -10,6 +10,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'auth_provider.dart';
 
 enum AppModule { finance, hr, inventory, purchase, manufacturing }
 
@@ -80,3 +81,13 @@ class AppModuleNotifier extends StateNotifier<AppModule> {
 
 final appModuleProvider =
     StateNotifierProvider<AppModuleNotifier, AppModule>((ref) => AppModuleNotifier());
+
+/// Modules the signed-in user may switch into — `AppModule.values` filtered by
+/// the effective grant from `/auth/me` (enum name == backend module code).
+/// While the session is still loading we don't yet know the grant, so we show
+/// everything rather than flash an empty switcher; once loaded we honour it.
+final allowedModulesProvider = Provider<List<AppModule>>((ref) {
+  final auth = ref.watch(authProvider);
+  if (auth.isLoading) return AppModule.values;
+  return AppModule.values.where((m) => auth.modules.contains(m.name)).toList();
+});

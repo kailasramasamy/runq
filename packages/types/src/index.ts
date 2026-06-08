@@ -1,5 +1,6 @@
 export * from './tenant';
 export * from './auth';
+export * from './modules';
 export * from './ap/vendor';
 // Legacy ap/purchase-order (WMS-integration shape) is no longer re-exported
 // — superseded by ./purchase/po below. Direct path import still works for
