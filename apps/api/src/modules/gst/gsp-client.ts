@@ -122,16 +122,34 @@ export class WhiteBooksGspClient implements GspClient {
   readonly provider = 'whitebooks';
 
   async requestOtp(gstin: string, username: string): Promise<OtpChallenge> {
+    const config = getConfig();
+    if (!config.clientId || !config.clientSecret || !config.email) {
+      return { success: false, message: 'GSP credentials not configured (MASTERS_INDIA_CLIENT_ID / _SECRET / _EMAIL)' };
+    }
+
     const stateCode = stateCodeFromGstin(gstin);
     const url = withEmail('/authentication/otprequest');
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: commonHeaders(username, stateCode),
-    });
 
-    const data = await res.json();
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'GET', headers: commonHeaders(username, stateCode) });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { success: false, message: `Could not reach GSP at ${config.baseUrl}: ${reason}` };
+    }
+
+    // White Books returns non-JSON (HTML / plain text) on auth or GSP-access
+    // rejection — read as text first so a parse failure surfaces the real
+    // upstream status + body instead of throwing a 500.
+    const raw = await res.text();
+    let data: { status_cd?: string; status?: number; error?: { message?: string }; status_desc?: string; message?: string; txn?: string; header?: { txn?: string } };
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return { success: false, message: `GSP returned ${res.status} ${res.statusText}: ${raw.slice(0, 200) || '(empty body)'}` };
+    }
+
     const success = data.status_cd === '1' || data.status === 1;
-
     return {
       success,
       message: data.error?.message || data.status_desc || data.message || (success ? 'OTP sent' : 'Failed'),
