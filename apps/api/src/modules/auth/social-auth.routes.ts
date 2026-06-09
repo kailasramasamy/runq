@@ -12,16 +12,10 @@ import {
 } from '@runq/validators';
 import { UnauthorizedError, NotFoundError, AppError } from '../../utils/errors';
 import { getFirebaseAuth } from '../../utils/push/firebase-admin';
+import { normalisePhone } from '../../utils/phone';
 import { loadEnv } from '../../config/env';
 
 const env = loadEnv();
-
-// Strip non-digits and drop an India country code prefix so `+91 98765 43210`,
-// `9198765 43210`, and `9876543210` all resolve to the same canonical form.
-function normalisePhone(input: string): string {
-  const digits = input.replace(/\D/g, '');
-  return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
-}
 
 // Verify the Firebase ID token. checkRevoked=true catches a stale token after
 // admin disables or resets the Firebase user — important for the "reset login"

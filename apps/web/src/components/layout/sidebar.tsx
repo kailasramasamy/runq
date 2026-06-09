@@ -111,6 +111,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Setup',
     items: [
+      { key: 'hr-users', label: 'Users & roles', icon: UserCog, path: '/settings/users' },
       { key: 'hr-settings', label: 'Settings', icon: Settings, path: '/settings/setup' },
     ],
   },

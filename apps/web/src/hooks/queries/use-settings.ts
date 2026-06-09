@@ -97,9 +97,12 @@ export function useUpdateInvoiceNumbering() {
 
 export interface CreateUserInput {
   name: string;
-  email: string;
-  password: string;
   role: UserRole;
+  // Email path (web login) sends email + password; phone path (mobile OTP-only
+  // staff) sends just phone — the API synthesises the rest.
+  email?: string;
+  password?: string;
+  phone?: string;
 }
 
 export interface UpdateUserInput {
@@ -116,7 +119,8 @@ export type TenantUser = User & { modules: ModuleCode[] | null };
 export interface EligibleEmployee {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   designation: string | null;
 }
 

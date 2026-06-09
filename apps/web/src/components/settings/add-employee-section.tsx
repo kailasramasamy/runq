@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Plus, UserPlus } from 'lucide-react';
 import { Card, CardContent, Button, Input, Select, Combobox, useToast } from '@/components/ui';
-import { useCreateUser, useEligibleEmployees } from '@/hooks/queries/use-settings';
-import { ROLE_OPTIONS } from './roles';
+import { useCreateUser, useEligibleEmployees, type CreateUserInput } from '@/hooks/queries/use-settings';
+import { useAuth } from '@/providers/auth-provider';
+import { assignableRoleOptions } from './roles';
 import type { UserRole } from '@runq/types';
 
 function errMessage(err: unknown, fallback: string): string {
@@ -17,24 +18,31 @@ function errMessage(err: unknown, fallback: string): string {
 export function AddEmployeeSection() {
   const [open, setOpen] = useState(false);
   const create = useCreateUser();
+  const { user } = useAuth();
   const { data: eligibleData, isLoading: loadingEmployees } = useEligibleEmployees();
   const { toast } = useToast();
   const [employeeId, setEmployeeId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('viewer');
 
+  const roleOptions = assignableRoleOptions(user?.role);
   const employees = eligibleData?.data ?? [];
   const employeeOptions = employees.map((e) => ({
     value: e.id,
     label: e.designation ? `${e.name} — ${e.designation}` : e.name,
   }));
+  // No email on file → mobile OTP-only staff: skip email + password, key the
+  // login off their phone. The API synthesises a non-routable email.
+  const phoneOnly = employeeId !== '' && !email && phone !== '';
 
   function reset() {
     setEmployeeId('');
     setName('');
     setEmail('');
+    setPhone('');
     setPassword('');
     setRole('viewer');
   }
@@ -44,12 +52,16 @@ export function AddEmployeeSection() {
     const emp = employees.find((e) => e.id === value);
     setName(emp?.name ?? '');
     setEmail(emp?.email ?? '');
+    setPhone(emp?.phone ?? '');
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const payload: CreateUserInput = phoneOnly
+      ? { name, role, phone }
+      : { name, role, email, password, ...(phone ? { phone } : {}) };
     try {
-      await create.mutateAsync({ name, email, password, role });
+      await create.mutateAsync(payload);
       toast(`${name} added as a user`, 'success');
       reset();
       setOpen(false);
@@ -67,8 +79,9 @@ export function AddEmployeeSection() {
               Add Employee as User
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-              Give an existing HR employee a login. You set their password — they can sign in
-              right away.
+              Give an existing HR employee a login. Staff with an email sign in on the web with a
+              password you set; staff with only a phone sign in on the mobile app via OTP. Assign
+              their modules from the table below once added.
             </p>
           </div>
           {!open && (
@@ -98,27 +111,33 @@ export function AddEmployeeSection() {
               />
             </div>
             <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} disabled />
-            <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} disabled />
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Min. 8 characters"
-            />
+            {phoneOnly ? (
+              <Input label="Phone" value={phone} disabled helper="Signs in on the mobile app via OTP" />
+            ) : (
+              <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} disabled />
+            )}
+            {!phoneOnly && (
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Min. 8 characters"
+              />
+            )}
             <Select
               label="Role"
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
-              options={ROLE_OPTIONS}
+              options={roleOptions}
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:col-span-2">
               <Button
                 type="submit"
                 loading={create.isPending}
                 size="sm"
-                disabled={!employeeId || !password}
+                disabled={!employeeId || (!phoneOnly && !password)}
               >
                 <UserPlus size={14} />
                 Add User

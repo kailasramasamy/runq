@@ -1,4 +1,5 @@
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
 import { users, userTenants, employees, designations, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { User } from '@runq/types';
@@ -8,12 +9,22 @@ import { NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors
 import { sendEmail } from '../../utils/email';
 import { userInvite } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
+import { normalisePhone } from '../../utils/phone';
+
+// Roles only a tenant owner may create or assign. An `hr` admin can provision
+// and manage staff logins (viewer/hr) but must never mint or promote to an
+// owner/accountant account — that would be a privilege escalation.
+const OWNER_ASSIGNABLE_ROLES = new Set(['owner', 'client_owner', 'accountant']);
+const isOwnerRole = (role: string) => role === 'owner' || role === 'client_owner';
 
 export interface CreateUserInput {
-  email: string;
   name: string;
-  password: string;
   role: 'owner' | 'accountant' | 'viewer' | 'hr';
+  // Email path (web/desktop login): both required together. Phone path
+  // (mobile OTP-only staff): `phone` set, email/password synthesised below.
+  email?: string;
+  password?: string;
+  phone?: string;
 }
 
 export interface UpdateUserInput {
@@ -32,7 +43,8 @@ export type UserWithModules = User & { modules: string[] | null };
 export interface EligibleEmployee {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   designation: string | null;
 }
 
@@ -76,20 +88,28 @@ export class UserService {
   }
 
   async listEligibleEmployees(): Promise<EligibleEmployee[]> {
-    // Employees that can still be turned into a login account: active, with an
-    // email on file, and not already linked to a user in THIS tenant. The link
-    // is by email (case-insensitive) — the same key `create()` uses below.
+    // Employees that can still be turned into a login account: active and not
+    // already linked to a user in THIS tenant. Eligible if they have an email
+    // (web/desktop login) OR a phone (mobile OTP-only staff). The user link is
+    // by email (case-insensitive) OR by digit-normalised phone — the same two
+    // keys `create()` and the OTP login path resolve against.
+    const empDigits = sql`regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g')`;
+    const linkExpr = or(
+      sql`lower(${users.email}) = lower(${employees.email})`,
+      sql`${users.phone} <> '' AND (${empDigits} = ${users.phone} OR ${empDigits} = '91' || ${users.phone})`,
+    );
     const rows = await this.db
       .select({
         id: employees.id,
         firstName: employees.firstName,
         lastName: employees.lastName,
         email: employees.email,
+        phone: employees.phone,
         designation: designations.name,
       })
       .from(employees)
       .leftJoin(designations, eq(designations.id, employees.designationId))
-      .leftJoin(users, sql`lower(${users.email}) = lower(${employees.email})`)
+      .leftJoin(users, linkExpr)
       .leftJoin(
         userTenants,
         and(eq(userTenants.userId, users.id), eq(userTenants.tenantId, this.tenantId)),
@@ -97,7 +117,7 @@ export class UserService {
       .where(and(
         eq(employees.tenantId, this.tenantId),
         eq(employees.status, 'active'),
-        isNotNull(employees.email),
+        or(sql`${employees.email} IS NOT NULL`, sql`${employees.phone} IS NOT NULL`),
         isNull(employees.deletedAt),
         isNull(userTenants.id),
       ));
@@ -105,60 +125,95 @@ export class UserService {
     return rows.map((r) => ({
       id: r.id,
       name: [r.firstName, r.lastName].filter(Boolean).join(' '),
-      email: r.email!,
+      email: r.email,
+      phone: r.phone,
       designation: r.designation,
     }));
   }
 
-  async create(input: CreateUserInput, invitedByUserId?: string): Promise<User> {
-    // If the email already exists as a user globally, attach them to this
-    // tenant instead of creating a duplicate. (For inviting external CAs the
-    // proper flow is the join_tenant invite link — this path is for owners
-    // adding internal team members.)
-    const [existing] = await this.db
-      .select({ id: users.id, isActive: users.isActive })
-      .from(users)
-      .where(eq(users.email, input.email))
-      .limit(1);
+  async create(input: CreateUserInput, actingRole: string, invitedByUserId?: string): Promise<User> {
+    if (!isOwnerRole(actingRole) && OWNER_ASSIGNABLE_ROLES.has(input.role)) {
+      throw new ForbiddenError('Only an owner can create owner or accountant users');
+    }
+    // Two provisioning paths: an email login (web/desktop) or an OTP-only phone
+    // login (mobile staff). `buildIdentity` resolves both to a concrete user row
+    // shape so the dedupe + insert below is path-agnostic.
+    const identity = await this.buildIdentity(input);
 
-    let userId: string;
+    // Attach to this tenant if the person already exists globally (by email or
+    // phone) instead of minting a duplicate; otherwise create the user.
+    const existing = await this.findUser(identity.email, identity.phone);
     let userRow: typeof users.$inferSelect;
 
     if (existing) {
-      // Already a member of this tenant?
       const [membership] = await this.db
         .select({ id: userTenants.id })
         .from(userTenants)
         .where(and(eq(userTenants.userId, existing.id), eq(userTenants.tenantId, this.tenantId)))
         .limit(1);
       if (membership) throw new ConflictError('User is already a member of this tenant');
-      userId = existing.id;
-      const [row] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
-      userRow = row!;
+      if (identity.phone && !existing.phone) {
+        await this.db.update(users).set({ phone: identity.phone }).where(eq(users.id, existing.id));
+      }
+      userRow = existing;
     } else {
-      const passwordHash = await argon2.hash(input.password);
       const [row] = await this.db
         .insert(users)
-        .values({ tenantId: this.tenantId, email: input.email, name: input.name, role: input.role, passwordHash })
+        .values({
+          tenantId: this.tenantId,
+          email: identity.email,
+          name: input.name,
+          phone: identity.phone,
+          role: input.role,
+          passwordHash: identity.passwordHash,
+        })
         .returning();
-      userId = row!.id;
       userRow = row!;
     }
 
-    // Attach to the active tenant.
     await this.db
       .insert(userTenants)
-      .values({ userId, tenantId: this.tenantId, role: input.role })
+      .values({ userId: userRow.id, tenantId: this.tenantId, role: input.role })
       .onConflictDoNothing();
 
-    this.sendInviteEmail(input, invitedByUserId).catch((err) =>
-      console.error('Invite email failed:', err),
-    );
-
+    // Only the email path gets an invite — synth `.local` addresses are non-routable.
+    if (identity.sendInvite) {
+      this.sendInviteEmail({ name: input.name, email: identity.email, role: input.role }, invitedByUserId)
+        .catch((err) => console.error('Invite email failed:', err));
+    }
     return { ...this.toUser(userRow), role: input.role };
   }
 
-  private async sendInviteEmail(input: CreateUserInput, invitedByUserId?: string): Promise<void> {
+  // Resolve a create request to a concrete login identity. Email path needs a
+  // password; phone path synthesises a non-routable email + random hash (the
+  // user signs in via mobile OTP, never a password) and keys off the same
+  // normalised phone the OTP login resolves against.
+  private async buildIdentity(input: CreateUserInput): Promise<{
+    email: string;
+    phone: string | null;
+    passwordHash: string;
+    sendInvite: boolean;
+  }> {
+    const phone = input.phone ? normalisePhone(input.phone) : null;
+    if (input.email) {
+      if (!input.password) throw new ConflictError('A password is required for an email login');
+      return { email: input.email, phone, passwordHash: await argon2.hash(input.password), sendInvite: true };
+    }
+    if (!phone || phone.length < 10) throw new ConflictError('A valid phone or email is required');
+    const passwordHash = await argon2.hash(randomBytes(32).toString('hex'));
+    return { email: `phone-${phone}@runq.local`, phone, passwordHash, sendInvite: false };
+  }
+
+  private async findUser(email: string, phone: string | null) {
+    const match = phone ? or(eq(users.email, email), eq(users.phone, phone)) : eq(users.email, email);
+    const [row] = await this.db.select().from(users).where(match).limit(1);
+    return row;
+  }
+
+  private async sendInviteEmail(
+    input: { name: string; email: string; role: string },
+    invitedByUserId?: string,
+  ): Promise<void> {
     const companyName = await getTenantName(this.db, this.tenantId);
 
     let invitedBy = companyName;
@@ -184,14 +239,25 @@ export class UserService {
     await sendEmail({ to: input.email, fromName: companyName, ...template });
   }
 
-  async update(id: string, input: UpdateUserInput): Promise<User> {
+  async update(id: string, input: UpdateUserInput, actingRole: string): Promise<User> {
     // Verify membership in this tenant first.
     const [membership] = await this.db
-      .select({ id: userTenants.id })
+      .select({ id: userTenants.id, role: userTenants.role })
       .from(userTenants)
       .where(and(eq(userTenants.userId, id), eq(userTenants.tenantId, this.tenantId)))
       .limit(1);
     if (!membership) throw new NotFoundError('User');
+
+    // Escalation guard: a non-owner admin (hr) may manage staff but never touch
+    // an owner/accountant membership, nor promote anyone into those roles.
+    if (!isOwnerRole(actingRole)) {
+      if (OWNER_ASSIGNABLE_ROLES.has(membership.role)) {
+        throw new ForbiddenError('Only an owner can modify owner or accountant users');
+      }
+      if (input.role && OWNER_ASSIGNABLE_ROLES.has(input.role)) {
+        throw new ForbiddenError('Only an owner can assign the owner or accountant role');
+      }
+    }
 
     // Role + isActive changes are scoped to the active tenant via user_tenants.
     // Name/email changes apply to the user record (global identity).
@@ -246,7 +312,7 @@ export class UserService {
     return row?.role ?? 'viewer';
   }
 
-  async delete(id: string, requestingUserId: string): Promise<void> {
+  async delete(id: string, requestingUserId: string, actingRole: string): Promise<void> {
     // "Delete" = remove the user's membership in THIS tenant (the user record
     // itself stays, since they may belong to other tenants).
     if (id === requestingUserId) {
@@ -260,6 +326,11 @@ export class UserService {
       .limit(1);
 
     if (!target) throw new NotFoundError('User');
+
+    // Escalation guard: a non-owner admin (hr) can't remove owner/accountant users.
+    if (!isOwnerRole(actingRole) && OWNER_ASSIGNABLE_ROLES.has(target.role)) {
+      throw new ForbiddenError('Only an owner can remove owner or accountant users');
+    }
 
     // Don't let the last owner be removed — would leave the tenant unmanageable.
     if (target.role === 'owner' || target.role === 'client_owner') {

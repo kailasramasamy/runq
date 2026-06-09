@@ -23,7 +23,12 @@ import { useToast } from '@/components/ui';
 import { AddEmployeeSection } from '@/components/settings/add-employee-section';
 import { InviteUserSection } from '@/components/settings/invite-user-section';
 import { TenantModulesCard, ModuleGrantEditor } from '@/components/settings/module-access';
-import { ROLE_OPTIONS, roleBadgeVariant } from '@/components/settings/roles';
+import { assignableRoleOptions, roleBadgeVariant } from '@/components/settings/roles';
+
+// Owner/accountant memberships are owner-managed only; an hr admin can't edit or
+// remove them (mirrors the API escalation guard).
+const PRIVILEGED_ROLES = new Set(['owner', 'client_owner', 'accountant']);
+const isOwnerRole = (role?: string | null) => role === 'owner' || role === 'client_owner';
 import type { UserRole, ModuleCode } from '@runq/types';
 
 // ─── User Row ─────────────────────────────────────────────────────────────────
@@ -31,16 +36,20 @@ import type { UserRole, ModuleCode } from '@runq/types';
 function UserRow({
   user,
   isSelf,
+  actorRole,
   enabledModules,
   onDelete,
 }: {
   user: TenantUser;
   isSelf: boolean;
+  actorRole?: string;
   enabledModules: ModuleCode[];
   onDelete: (user: TenantUser) => void;
 }) {
   const updateUser = useUpdateUser();
   const { toast } = useToast();
+  // A non-owner admin (hr) can't touch owner/accountant memberships.
+  const canManage = !isSelf && (isOwnerRole(actorRole) || !PRIVILEGED_ROLES.has(user.role));
 
   async function handleRoleChange(newRole: string) {
     try {
@@ -61,21 +70,21 @@ function UserRow({
       </TableCell>
       <TableCell className="text-zinc-600 dark:text-zinc-400">{user.email}</TableCell>
       <TableCell>
-        {isSelf ? (
-          <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
-        ) : (
+        {canManage ? (
           <select
             value={user.role}
             onChange={(e) => handleRoleChange(e.target.value)}
             disabled={updateUser.isPending}
             className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
           >
-            {ROLE_OPTIONS.map((o) => (
+            {assignableRoleOptions(actorRole).map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
+        ) : (
+          <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
         )}
       </TableCell>
       <TableCell>
@@ -90,11 +99,11 @@ function UserRow({
         <Button
           variant="ghost"
           size="sm"
-          disabled={isSelf}
+          disabled={!canManage}
           onClick={() => onDelete(user)}
-          title={isSelf ? 'Cannot delete yourself' : `Remove ${user.name}`}
+          title={isSelf ? 'Cannot delete yourself' : canManage ? `Remove ${user.name}` : 'Only an owner can remove this user'}
           className={
-            isSelf
+            !canManage
               ? 'opacity-30'
               : 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30'
           }
@@ -189,6 +198,8 @@ export function UsersPage() {
         ) : (
           filteredUsers.map((u) => {
             const isSelf = u.id === currentUser?.id;
+            const canManage =
+              !isSelf && (isOwnerRole(currentUser?.role) || !PRIVILEGED_ROLES.has(u.role));
             return (
               <div
                 key={u.id}
@@ -217,7 +228,7 @@ export function UsersPage() {
                   <span className="text-xs text-zinc-500">Modules</span>
                   <ModuleGrantEditor user={u} enabledModules={enabledModules} />
                 </div>
-                {!isSelf && (
+                {canManage && (
                   <div className="mt-2 flex justify-end">
                     <Button
                       variant="ghost"
@@ -263,6 +274,7 @@ export function UsersPage() {
                     key={u.id}
                     user={u}
                     isSelf={u.id === currentUser?.id}
+                    actorRole={currentUser?.role}
                     enabledModules={enabledModules}
                     onDelete={setDeleteTarget}
                   />

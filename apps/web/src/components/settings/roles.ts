@@ -9,6 +9,13 @@ export const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Viewer' },
 ];
 
+// An hr admin may provision staff but not mint owner/accountant logins — mirrors
+// the API escalation guard. Owners get the full list.
+export function assignableRoleOptions(actorRole: string | null | undefined) {
+  if (actorRole === 'owner' || actorRole === 'client_owner') return ROLE_OPTIONS;
+  return ROLE_OPTIONS.filter((o) => o.value === 'hr' || o.value === 'viewer');
+}
+
 // Roles offered on an email invite — the backend only accepts these two for
 // join_tenant invites. Owner/HR are assigned directly, not via invite link.
 export const INVITE_ROLE_OPTIONS = [
