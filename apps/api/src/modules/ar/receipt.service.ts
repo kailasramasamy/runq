@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, inArray, desc } from 'drizzle-orm';
 import { paymentReceipts, receiptAllocations, salesInvoices, customers } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { PaymentReceipt, ReceiptAllocation } from '@runq/types';
@@ -54,6 +54,7 @@ export class ReceiptService {
         .from(paymentReceipts)
         .innerJoin(customers, eq(paymentReceipts.customerId, customers.id))
         .where(baseWhere)
+        .orderBy(desc(paymentReceipts.receiptDate), desc(paymentReceipts.createdAt))
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(paymentReceipts).innerJoin(customers, eq(paymentReceipts.customerId, customers.id)).where(baseWhere),
