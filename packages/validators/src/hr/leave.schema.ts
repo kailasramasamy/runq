@@ -63,6 +63,9 @@ export const adjustLeaveBalanceSchema = z.object({
   year: z.number().int(),
   opening: z.number().nonnegative().optional(),
   accrued: z.number().nonnegative().optional(),
+  // Normally maintained from approved/cancelled leave requests; editable here
+  // so admins can correct it for leave taken outside the system.
+  used: z.number().nonnegative().optional(),
 });
 
 export type CreateLeaveTypeInput = z.infer<typeof createLeaveTypeSchema>;

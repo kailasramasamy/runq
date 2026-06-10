@@ -209,6 +209,7 @@ export class LeaveBalanceService {
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (input.opening != null) updates.opening = String(input.opening);
     if (input.accrued != null) updates.accrued = String(input.accrued);
+    if (input.used != null) updates.used = String(input.used);
 
     const [row] = await this.db
       .update(leaveBalances)

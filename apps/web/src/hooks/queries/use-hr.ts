@@ -490,7 +490,7 @@ export function useLeaveBalances(filter: { employeeId?: string; year?: number })
 export function useAdjustLeaveBalance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (d: { employeeId: string; leaveTypeId: string; year: number; opening?: number; accrued?: number }) =>
+    mutationFn: (d: { employeeId: string; leaveTypeId: string; year: number; opening?: number; accrued?: number; used?: number }) =>
       api.put<ApiSuccess<LeaveBalance>>(`/hr/leave-balances`, d),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'leave', 'balances'] }),
   });

@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Scale, ArrowRight, ChevronRight, ChevronDown } from 'lucide-react';
+import { Scale, ArrowRight, ChevronRight, ChevronDown, Pencil } from 'lucide-react';
 import {
-  PageHeader, Button, Select, Combobox, useToast,
+  PageHeader, Button, Select, Combobox, useToast, Modal, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
 import { EmptyState, Avatar, SearchInput } from '@/components/ar/primitives';
 import {
   useLeaveBalances, useEmployees, useCarryForwardLeave, useInitializeLeaveBalances,
-  type LeaveBalance,
+  useAdjustLeaveBalance, type LeaveBalance,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -22,6 +22,9 @@ export function LeaveBalancesPage() {
   const { data, isLoading } = useLeaveBalances({ year, employeeId: employeeId || undefined });
   const carryForward = useCarryForwardLeave();
   const initialize = useInitializeLeaveBalances();
+  const adjust = useAdjustLeaveBalance();
+  const [editing, setEditing] = useState<LeaveBalance | null>(null);
+  const [form, setForm] = useState({ opening: '', accrued: '', used: '' });
 
   const balances = data?.data ?? [];
   const q = search.trim().toLowerCase();
@@ -76,6 +79,29 @@ export function LeaveBalancesPage() {
         toast(`Created ${r.data.created} balances across ${r.data.employees} employees`, 'success'),
       onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
     });
+  }
+
+  function openEdit(b: LeaveBalance) {
+    setEditing(b);
+    setForm({ opening: String(Number(b.opening)), accrued: String(Number(b.accrued)), used: String(Number(b.used)) });
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+    adjust.mutate(
+      {
+        employeeId: editing.employeeId,
+        leaveTypeId: editing.leaveTypeId,
+        year: editing.year,
+        opening: Number(form.opening),
+        accrued: Number(form.accrued),
+        used: Number(form.used),
+      },
+      {
+        onSuccess: () => { toast('Leave balance updated', 'success'); setEditing(null); },
+        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+      },
+    );
   }
 
   return (
@@ -136,13 +162,14 @@ export function LeaveBalancesPage() {
             <Th align="right">Used</Th>
             <Th align="right">Balance</Th>
             <Th>Progress</Th>
+            <Th />
           </tr>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : balances.length === 0 ? (
-            <tr><td colSpan={6}>
+            <tr><td colSpan={7}>
               <EmptyState
                 icon={<Scale size={18} />}
                 title="No leave balances"
@@ -150,7 +177,7 @@ export function LeaveBalancesPage() {
               />
             </td></tr>
           ) : groups.length === 0 ? (
-            <tr><td colSpan={6}>
+            <tr><td colSpan={7}>
               <EmptyState icon={<Scale size={18} />} title="No balances match" description="Try a different search term." />
             </td></tr>
           ) : groups.map((g) => {
@@ -163,23 +190,59 @@ export function LeaveBalancesPage() {
                 isExpanded={isExpanded}
                 totalBalance={totalBalance}
                 onToggle={() => toggleExpand(g.id)}
+                onEdit={openEdit}
+                readOnly={readOnly}
               />
             );
           })}
         </TableBody>
       </Table>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Edit leave balance" size="sm">
+        {editing && (
+          <div className="space-y-4">
+            <div className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+              <span className="font-medium" style={{ color: 'var(--text-1)' }}>{editing.employeeName}</span>
+              {' · '}{editing.typeName} ({editing.typeCode}) · {editing.year}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Opening" type="number" min={0} step="0.5" value={form.opening}
+                onChange={(e) => setForm((f) => ({ ...f, opening: e.target.value }))} />
+              <Input label="Accrued" type="number" min={0} step="0.5" value={form.accrued}
+                onChange={(e) => setForm((f) => ({ ...f, accrued: e.target.value }))} />
+              <Input label="Used" type="number" min={0} step="0.5" value={form.used}
+                onChange={(e) => setForm((f) => ({ ...f, used: e.target.value }))} />
+            </div>
+            <div className="flex items-center justify-between rounded-md px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+              <span className="text-[12px]" style={{ color: 'var(--text-3)' }}>Resulting balance</span>
+              <span className="num text-[15px] font-semibold" style={{ color: 'var(--text-1)' }}>
+                {Number(form.opening || 0) + Number(form.accrued || 0) - Number(form.used || 0)}
+              </span>
+            </div>
+            <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+              Used is normally maintained from approved leave — edit it only to correct leave taken outside the system.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button size="sm" onClick={saveEdit} disabled={adjust.isPending}>Save</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
 
 /** One employee group: a clickable summary row + the nested leave-type rows. */
 function FragmentRows({
-  group, isExpanded, totalBalance, onToggle,
+  group, isExpanded, totalBalance, onToggle, onEdit, readOnly,
 }: {
   group: { id: string; name: string; code: string; rows: LeaveBalance[] };
   isExpanded: boolean;
   totalBalance: number;
   onToggle: () => void;
+  onEdit: (b: LeaveBalance) => void;
+  readOnly: boolean;
 }) {
   return (
     <>
@@ -199,7 +262,7 @@ function FragmentRows({
           </div>
         </TableCell>
         <TableCell align="right" className="num text-[15px] font-semibold" style={{ color: 'var(--text-1)' }}>{totalBalance}</TableCell>
-        <TableCell />
+        <TableCell colSpan={2} />
       </TableRow>
       {isExpanded && group.rows.map((b) => {
         const accrued = Number(b.accrued);
@@ -230,6 +293,19 @@ function FragmentRows({
                 </div>
                 <span className="num w-7 text-right text-[10px]" style={{ color: 'var(--text-3)' }}>{pct}%</span>
               </div>
+            </TableCell>
+            <TableCell align="right">
+              {!readOnly && (
+                <button
+                  onClick={() => onEdit(b)}
+                  className="rounded p-1 hover:bg-[var(--surface-2)]"
+                  style={{ color: 'var(--text-3)' }}
+                  aria-label="Edit balance"
+                  title="Edit balance"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
             </TableCell>
           </TableRow>
         );
