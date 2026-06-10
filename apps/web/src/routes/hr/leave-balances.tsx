@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Scale, ArrowRight } from 'lucide-react';
+import { Scale, ArrowRight, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   PageHeader, Button, Select, Combobox, useToast,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
@@ -7,6 +7,7 @@ import {
 import { EmptyState, Avatar, SearchInput } from '@/components/ar/primitives';
 import {
   useLeaveBalances, useEmployees, useCarryForwardLeave, useInitializeLeaveBalances,
+  type LeaveBalance,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -16,6 +17,7 @@ export function LeaveBalancesPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [employeeId, setEmployeeId] = useState('');
   const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   const { data, isLoading } = useLeaveBalances({ year, employeeId: employeeId || undefined });
   const carryForward = useCarryForwardLeave();
@@ -37,6 +39,29 @@ export function LeaveBalancesPage() {
       label: `${e.employeeCode} — ${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`,
     })),
   ];
+
+  // Collapse the flat (employee × leave-type) rows into one group per
+  // employee, with the leave types nested under an expandable header.
+  const groupsMap = new Map<string, { name: string; code: string; rows: typeof filtered }>();
+  for (const b of filtered) {
+    if (!groupsMap.has(b.employeeId)) {
+      groupsMap.set(b.employeeId, { name: b.employeeName, code: b.employeeCode, rows: [] });
+    }
+    groupsMap.get(b.employeeId)!.rows.push(b);
+  }
+  const groups = Array.from(groupsMap, ([id, g]) => ({ id, ...g }));
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  const allExpanded = groups.length > 0 && groups.every((g) => expanded.has(g.id));
+  function toggleAll() {
+    setExpanded(allExpanded ? new Set() : new Set(groups.map((g) => g.id)));
+  }
 
   function doCarryForward() {
     carryForward.mutate({ fromYear: year, toYear: year + 1 }, {
@@ -92,14 +117,20 @@ export function LeaveBalancesPage() {
           <Combobox label="Employee" options={empOptions} value={employeeId} onChange={setEmployeeId} />
         </div>
         <div className="flex-1" />
-        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{filtered.length} rows</span>
+        {groups.length > 0 && (
+          <Button variant="outline" size="sm" onClick={toggleAll}>
+            {allExpanded ? 'Collapse all' : 'Expand all'}
+          </Button>
+        )}
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {groups.length} employee{groups.length === 1 ? '' : 's'} · {filtered.length} balance{filtered.length === 1 ? '' : 's'}
+        </span>
       </div>
 
       <Table>
         <TableHeader>
           <tr>
-            <Th>Employee</Th>
-            <Th>Type</Th>
+            <Th>Employee / Type</Th>
             <Th align="right">Opening</Th>
             <Th align="right">Accrued</Th>
             <Th align="right">Used</Th>
@@ -109,63 +140,100 @@ export function LeaveBalancesPage() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
+            <tr><td colSpan={6} className="px-3 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</td></tr>
           ) : balances.length === 0 ? (
-            <tr><td colSpan={7}>
+            <tr><td colSpan={6}>
               <EmptyState
                 icon={<Scale size={18} />}
                 title="No leave balances"
                 description="New hires are provisioned automatically. Use “Initialize balances” to back-fill all active employees for this year."
               />
             </td></tr>
-          ) : filtered.length === 0 ? (
-            <tr><td colSpan={7}>
+          ) : groups.length === 0 ? (
+            <tr><td colSpan={6}>
               <EmptyState icon={<Scale size={18} />} title="No balances match" description="Try a different search term." />
             </td></tr>
-          ) : filtered.map((b) => {
-            const accrued = Number(b.accrued);
-            const used = Number(b.used);
-            const pct = accrued > 0 ? Math.round(Math.min(used / accrued, 1) * 100) : 0;
-            const barColor = pct > 80 ? '#dc2626' : pct > 50 ? '#d97706' : '#16a34a';
+          ) : groups.map((g) => {
+            const isExpanded = expanded.has(g.id);
+            const totalBalance = g.rows.reduce((s, b) => s + b.balance, 0);
             return (
-              <TableRow key={b.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={b.employeeName} size={28} />
-                    <div className="min-w-0">
-                      <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{b.employeeName}</div>
-                      <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{b.employeeCode}</div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className="num rounded px-1.5 py-0.5 text-[11px] font-bold"
-                      style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
-                    >
-                      {b.typeCode}
-                    </span>
-                    <span className="text-[12px]" style={{ color: 'var(--text-2)' }}>{b.typeName}</span>
-                  </span>
-                </TableCell>
-                <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.opening)}</TableCell>
-                <TableCell align="right" className="num font-medium" style={{ color: '#16a34a' }}>+{accrued}</TableCell>
-                <TableCell align="right" className="num font-medium" style={{ color: '#dc2626' }}>−{used}</TableCell>
-                <TableCell align="right" className="num text-[15px] font-semibold" style={{ color: b.balance > 0 ? 'var(--text-1)' : 'var(--text-3)' }}>{b.balance}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--surface-2)' }}>
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
-                    </div>
-                    <span className="num w-7 text-right text-[10px]" style={{ color: 'var(--text-3)' }}>{pct}%</span>
-                  </div>
-                </TableCell>
-              </TableRow>
+              <FragmentRows
+                key={g.id}
+                group={g}
+                isExpanded={isExpanded}
+                totalBalance={totalBalance}
+                onToggle={() => toggleExpand(g.id)}
+              />
             );
           })}
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/** One employee group: a clickable summary row + the nested leave-type rows. */
+function FragmentRows({
+  group, isExpanded, totalBalance, onToggle,
+}: {
+  group: { id: string; name: string; code: string; rows: LeaveBalance[] };
+  isExpanded: boolean;
+  totalBalance: number;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <TableRow onClick={onToggle} style={{ cursor: 'pointer' }}>
+        <TableCell colSpan={4}>
+          <div className="flex items-center gap-2.5">
+            {isExpanded
+              ? <ChevronDown size={15} style={{ color: 'var(--text-3)' }} />
+              : <ChevronRight size={15} style={{ color: 'var(--text-3)' }} />}
+            <Avatar name={group.name} size={28} />
+            <div className="min-w-0">
+              <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{group.name}</div>
+              <div className="num truncate text-[11px]" style={{ color: 'var(--text-3)' }}>
+                {group.code} · {group.rows.length} type{group.rows.length === 1 ? '' : 's'}
+              </div>
+            </div>
+          </div>
+        </TableCell>
+        <TableCell align="right" className="num text-[15px] font-semibold" style={{ color: 'var(--text-1)' }}>{totalBalance}</TableCell>
+        <TableCell />
+      </TableRow>
+      {isExpanded && group.rows.map((b) => {
+        const accrued = Number(b.accrued);
+        const used = Number(b.used);
+        const pct = accrued > 0 ? Math.round(Math.min(used / accrued, 1) * 100) : 0;
+        const barColor = pct > 80 ? '#dc2626' : pct > 50 ? '#d97706' : '#16a34a';
+        return (
+          <TableRow key={b.id}>
+            <TableCell>
+              <span className="inline-flex items-center gap-1.5 pl-7">
+                <span
+                  className="num rounded px-1.5 py-0.5 text-[11px] font-bold"
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+                >
+                  {b.typeCode}
+                </span>
+                <span className="text-[12px]" style={{ color: 'var(--text-2)' }}>{b.typeName}</span>
+              </span>
+            </TableCell>
+            <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(b.opening)}</TableCell>
+            <TableCell align="right" className="num font-medium" style={{ color: '#16a34a' }}>+{accrued}</TableCell>
+            <TableCell align="right" className="num font-medium" style={{ color: '#dc2626' }}>−{used}</TableCell>
+            <TableCell align="right" className="num text-[15px] font-semibold" style={{ color: b.balance > 0 ? 'var(--text-1)' : 'var(--text-3)' }}>{b.balance}</TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--surface-2)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
+                </div>
+                <span className="num w-7 text-right text-[10px]" style={{ color: 'var(--text-3)' }}>{pct}%</span>
+              </div>
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </>
   );
 }
