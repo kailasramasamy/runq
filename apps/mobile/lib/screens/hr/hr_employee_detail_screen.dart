@@ -289,41 +289,27 @@ class _HeroAvatar extends StatelessWidget {
     );
     if (!hasPhoto) return avatar;
     // Tap to view full-size — only meaningful when there's an actual photo
-    // behind the initials fallback. We precache the image before pushing
-    // the viewer so the Hero flight has bytes ready and never falls back
-    // to the initials tile mid-animation.
-    return Builder(builder: (innerCtx) {
-      return GestureDetector(
-        onTap: () async {
-          final provider = HrAvatar(
+    // behind the initials fallback. The viewer reuses the same photo URL as
+    // this on-screen avatar, so its decoded image is already in the cache —
+    // we open immediately (no await) and let the Hero fly with the cached
+    // bytes. HrAvatar's initials fallback + fade-in covers the rare case
+    // where the avatar hasn't finished downloading yet.
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context, rootNavigator: true).push(PageRouteBuilder(
+          opaque: false,
+          barrierColor: Colors.black.withValues(alpha: 0.92),
+          pageBuilder: (_, __, ___) => _PhotoViewer(
             name: name,
             photoUrl: photoUrl,
             employeeId: employeeId,
-            size: 1,
-          ).imageProvider;
-          if (provider != null) {
-            // Best-effort precache. Don't block the open if it errors; the
-            // viewer will gracefully show initials in that case.
-            try {
-              await precacheImage(provider, innerCtx);
-            } catch (_) {}
-          }
-          if (!innerCtx.mounted) return;
-          Navigator.of(innerCtx, rootNavigator: true).push(PageRouteBuilder(
-            opaque: false,
-            barrierColor: Colors.black.withValues(alpha: 0.92),
-            pageBuilder: (_, __, ___) => _PhotoViewer(
-              name: name,
-              photoUrl: photoUrl,
-              employeeId: employeeId,
-            ),
-            transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-            transitionDuration: const Duration(milliseconds: 200),
-          ));
-        },
-        child: Hero(tag: 'emp-photo-$employeeId', child: avatar),
-      );
-    });
+          ),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+          transitionDuration: const Duration(milliseconds: 200),
+        ));
+      },
+      child: Hero(tag: 'emp-photo-$employeeId', child: avatar),
+    );
   }
 }
 
@@ -351,6 +337,25 @@ class _PhotoViewer extends StatelessWidget {
               Center(
                 child: Hero(
                   tag: 'emp-photo-$employeeId',
+                  // During the flight, paint ONLY the cached photo — not the
+                  // full HrAvatar, whose initials-fallback layer would flash
+                  // through for the frame or two before the destination
+                  // image stream resolves in the overlay.
+                  flightShuttleBuilder: (_, __, dir, fromCtx, toCtx) {
+                    final provider = HrAvatar(
+                      name: name,
+                      photoUrl: photoUrl,
+                      employeeId: employeeId,
+                      size: 1,
+                    ).imageProvider;
+                    if (provider == null) {
+                      return (dir == HeroFlightDirection.push ? toCtx : fromCtx).widget;
+                    }
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image(image: provider, fit: BoxFit.cover, gaplessPlayback: true),
+                    );
+                  },
                   child: HrAvatar(
                     name: name,
                     photoUrl: photoUrl,
@@ -1785,8 +1790,13 @@ class _ActionsSheet extends ConsumerWidget {
               icon: Icons.photo_camera_outlined,
               label: 'Update photo',
               onTap: () async {
+                // Grab the root navigator's context (alive for the app's
+                // lifetime) before popping — otherwise _pickAndUploadPhoto's
+                // mounted-guard sees this sheet's now-defunct context after
+                // the gallery picker returns and bails before uploading.
+                final rootCtx = Navigator.of(context, rootNavigator: true).context;
                 Navigator.of(context).pop();
-                await _pickAndUploadPhoto(context, emp);
+                await _pickAndUploadPhoto(rootCtx, emp);
               },
             ),
             _SheetRow(
@@ -2070,7 +2080,11 @@ Future<void> _pickAndUploadPhoto(BuildContext context, HrEmployee emp) async {
     if (context.mounted) {
       ProviderScope.containerOf(context, listen: false)
         ..invalidate(hrEmployeeProvider(emp.id))
-        ..invalidate(hrEmployeesProvider);
+        ..invalidate(hrEmployeesProvider)
+        // The More-screen header avatar reads photoUrl from hrMeProvider
+        // (GET /hr/me), a separate cache — refresh it too when this is the
+        // user's own photo, else their header keeps showing initials.
+        ..invalidate(hrMeProvider);
       showRunqSnack(context, 'Photo updated', kind: SnackKind.success);
     }
   } catch (e) {

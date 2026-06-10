@@ -88,7 +88,11 @@ class HrAvatar extends StatelessWidget {
     if (p.isEmpty) return null;
     if (p.startsWith('http://') || p.startsWith('https://')) return p;
     if (employeeId == null || employeeId!.isEmpty) return null;
-    return '${ApiConfig.baseUrl}/hr/employees/$employeeId/photo';
+    // The endpoint path is stable per employee, so NetworkImage (which keys
+    // its cache on the URL string) would keep serving the old photo after a
+    // re-upload. The S3 key in [photoUrl] changes on every upload (it embeds
+    // a timestamp), so fold it into a `v` param to bust the cache on change.
+    return '${ApiConfig.baseUrl}/hr/employees/$employeeId/photo?v=${Uri.encodeQueryComponent(p)}';
   }
 
   /// Auth headers for the photo endpoint — strip when serving an
@@ -184,7 +188,12 @@ class HrAvatar extends StatelessWidget {
                 errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 // Same for the load-progress phase: keep the initials
                 // visible until the bytes are ready, then fade in.
-                frameBuilder: (_, child, frame, __) {
+                frameBuilder: (_, child, frame, wasSync) {
+                  // Synchronous cache hit — e.g. the full-screen photo
+                  // viewer reusing the avatar's already-decoded image.
+                  // Paint it at once so the Hero flight never flashes the
+                  // initials fallback beneath it.
+                  if (wasSync) return child;
                   if (frame == null) return const SizedBox.shrink();
                   return AnimatedOpacity(
                     opacity: 1,
