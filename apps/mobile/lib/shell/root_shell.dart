@@ -130,13 +130,17 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     // the splash lands on /home but prefs still say HR (e.g. an admin
     // who switched yesterday), reading prefs would show HR tabs over a
     // Finance screen. Reading the route avoids that drift.
-    final module = loc.startsWith('/manufacturing')
+    // Match on a `/` boundary, not a bare prefix: `/purchases` (the Finance
+    // Purchases tab) must NOT be read as the `/purchase` module, otherwise
+    // tapping Purchases inside Finance swaps the whole bottom nav.
+    bool inModule(String base) => loc == base || loc.startsWith('$base/');
+    final module = inModule('/manufacturing')
         ? AppModule.manufacturing
-        : loc.startsWith('/purchase')
+        : inModule('/purchase')
             ? AppModule.purchase
-            : loc.startsWith('/inventory')
+            : inModule('/inventory')
                 ? AppModule.inventory
-                : loc.startsWith('/hr')
+                : inModule('/hr')
                     ? AppModule.hr
                     : AppModule.finance;
     // Mirror the active route into the persisted module so the next cold
