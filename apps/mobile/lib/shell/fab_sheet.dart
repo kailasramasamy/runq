@@ -160,7 +160,7 @@ List<FabAction> purchaseFabActions() => [
         title: 'Direct receipt',
         sub: 'Memo qty (milk-style; no bill yet)',
         tint: const Color(0xFF5B21B6),
-        onTap: (ctx) => ctx.push('/purchase/direct'),
+        onTap: (ctx) => ctx.push('/purchase/direct/new'),
       ),
     ];
 

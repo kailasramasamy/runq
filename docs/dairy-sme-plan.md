@@ -1,8 +1,8 @@
 # runq for Dairy SME — Module Strategy & Build Plan
 
 **Owner:** Kailas
-**Last updated:** 2026-05-24
-**Status:** Strategy doc, pre-build for dairy-specific modules
+**Last updated:** 2026-06-09
+**Status:** Epoch 1 (factory backbone) substantially shipped — Inventory, Purchase, Manufacturing live. Epoch 2 (customer side) next.
 **Target ICP:** Mid-size Indian dairy SMEs — receive milk from farmers/societies, manufacture (pouch milk, paneer, curd, ghee, butter), dispatch to retail/distributor/institutional channels.
 
 ---
@@ -39,10 +39,10 @@ Underneath all of it: **Finance, HR, Fixed Assets, Compliance**.
 |---|---|---|---|---|
 | 1 | Finance (AR/AP/Banking/GST) | ✅ Done | — | Phase 1–3 complete |
 | 2 | HR & Payroll | ✅ Done | — | Indian SME factory focus |
-| 3 | Inventory (batch+expiry+FEFO, mobile-scan) | ✅ Done | — | Shipped 2026-05-25; API+web+mobile parity. Plan: `docs/inventory-plan.md`. Dairy deltas tracked separately in §6. |
-| 4 | **Purchase & Procurement** (PR→RFQ→PO→3-way match) | ❌ TBD | **P0** | Upstream of GRN; gates payment discipline |
-| 5 | **Manufacturing / Production (BOM)** | ❌ TBD | **P0** | Non-negotiable for dairy costing & traceability |
-| 6 | **Sales & Distribution** (SO, routes, van load, dispatch) | ❌ TBD | **P0** | Daily 2x dispatch pain |
+| 3 | Inventory (batch+expiry+FEFO, mobile-scan) | ✅ Done | — | Shipped 2026-05-25; API+web+mobile parity. Plan: `docs/inventory-plan.md`. Dairy deltas (batch/expiry/FEFO/perishables) shipped 2026-06-06 (`1bb3247`, `941044b`); remaining deltas in §3.1. |
+| 4 | **Purchase & Procurement** (PR→RFQ→PO→3-way match) | ✅ Done (core) | — | Shipped 2026-05-28 (`92e64cb`): PO CRUD, GRN, 3-way match, scan-receive. PR/RFQ deferred (see §3.2). |
+| 5 | **Manufacturing / Production (BOM)** | ✅ Done (Phase A) | — | Shipped 2026-05-30 (`c2dd033`): BOM, work orders, runs, GL costing, reports. |
+| 6 | **Sales & Distribution** (SO, routes, van load, dispatch) | ❌ TBD | **P0** | Daily 2x dispatch pain — next major build (Epoch 2) |
 | 7 | **Quality Control** | ❌ TBD | **P0** | FSSAI audit requirement |
 | 8 | **Milk Procurement** (farmer mgmt, rate chart, payout) | ❌ TBD | **P0 — moat** | Dairy-specific; Tally/Zoho don't touch this |
 | 9 | Fixed Assets | ⏳ Phase 2 | P1 | Chillers, tankers, machines, AMC |
@@ -52,41 +52,60 @@ Underneath all of it: **Finance, HR, Fixed Assets, Compliance**.
 | 13 | Compliance Tracker | ⏳ Phase 3 | P2 | FSSAI, BIS, pollution, W&M renewals |
 | 14 | Cold Chain / IoT | ⏳ Phase 3 | P2 | Needs hardware partner |
 
+### Platform foundations (shipped — enable the multi-persona model)
+
+A dairy runs many personas on one tenant — office finance, plant floor, delivery
+staff, (later) collection clerks. Two pieces of access infrastructure landed that
+make this workable, and de-risk the §3.7 "runq Collect" persona split:
+
+- **Per-user module access** (2026-06-08, `a10dae3`): tenant-level module ceiling
+  × per-user grant, enforced across API/web/mobile. An owner enables Finance/HR/
+  Inventory/Purchase/Manufacturing per workspace, then grants each user a subset.
+  Viewers default to HR & Payroll. Lets a dairy give plant/delivery staff only the
+  modules they need.
+- **Phone-only staff onboarding** (2026-06-09, `4598ac0`): owner/HR provision a
+  login for an email-less employee from the web (keyed to their phone), assign
+  modules immediately, and the worker signs in on the mobile app via OTP — no
+  email required. This is the onboarding path for field/floor staff and a direct
+  precursor to the low-literacy collection-clerk persona in §3.7.
+
 ---
 
 ## 3. P0 modules — detailed scope
 
-### 3.1 Inventory (WIP)
-- Batch + expiry first-class, FEFO picking, mobile-scan-first.
-- Already covered in `docs/inventory-plan.md`.
-- **Dairy deltas needed** (track as inventory extension):
-  - Quality attributes on receipt (FAT/SNF/temp).
-  - UOM conversion (L ↔ kg, fat-corrected kg).
-  - Van/route as warehouse-location pattern (documentation).
-  - Spoilage/expired-return adjustment reason + GL mapping.
-  - Verify FEFO is *enforced* on delivery picking, not just suggested.
+### 3.1 Inventory — ✅ generic MVP done; dairy deltas 🟡 partial
+- Batch + expiry first-class, FEFO picking, mobile-scan-first — shipped, see `docs/inventory-plan.md`.
+- **Dairy deltas:**
+  - ✅ Batch + expiry tracking, expiry views, grouped perishables-on-hand with FEFO breakdown (2026-06-06, `1bb3247`/`941044b`).
+  - ❌ Quality attributes on receipt (FAT/SNF/temp).
+  - ❌ UOM conversion (L ↔ kg, fat-corrected kg).
+  - ❌ Van/route as warehouse-location pattern (documentation).
+  - ❌ Spoilage/expired-return adjustment reason + GL mapping.
+  - ❌ Verify FEFO is *enforced* on delivery picking, not just suggested.
 
-### 3.2 Purchase & Procurement
-**Scope (MVP):**
-- Purchase Requisition (PR) — internal request, approval chain.
-- Request for Quote (RFQ) — multi-vendor comparison.
-- Purchase Order (PO) — formal order; price, terms, delivery schedule.
-- GRN against PO (already built — wire it up).
-- 3-way match (PO ↔ GRN ↔ Bill) as a validation rule on bill approval.
-- Vendor catalogue / price history.
+### 3.2 Purchase & Procurement — ✅ core shipped (2026-05-28, `92e64cb`)
+**Shipped (MVP core):**
+- Purchase Order (PO) — formal order; price, terms, delivery schedule. ✅
+- GRN against PO. ✅
+- 3-way match (PO ↔ GRN ↔ Bill) on bill approval. ✅
+- Scan-receive (mobile). ✅
 
-**Skip in MVP:** contracts, blanket POs, vendor scorecards.
+**Deferred (not in v1):**
+- Purchase Requisition (PR) + approval chain, Request for Quote (RFQ), vendor
+  catalogue / price history. (PP Phase 5 — PR/reports/dashboard/polish —
+  consciously skipped for v1; don't auto-propose.)
 
-**Effort estimate:** 4–5 weeks.
+**Skip entirely:** contracts, blanket POs, vendor scorecards.
 
-### 3.3 Manufacturing / Production (BOM)
-**Phase A — Minimal viable (2–3 weeks):**
-- `bom_headers`, `bom_lines` (scrap %, qty per output).
-- `work_orders` (planned qty, status, shift, timing).
-- `wo_consumption` (FEFO-suggested, editable).
-- `wo_output` (new batch + expiry).
-- GL postings: Dr FG / Cr Raw Materials + Packing at weighted-avg cost.
-- Yield variance → variance GL.
+### 3.3 Manufacturing / Production (BOM) — ✅ Phase A shipped (2026-05-30, `c2dd033`)
+**Phase A — Minimal viable — shipped:**
+- `bom_headers`, `bom_lines` (scrap %, qty per output). ✅
+- `work_orders` (planned qty, status, shift, timing). ✅
+- `wo_consumption` (FEFO-suggested, editable). ✅
+- `wo_output` (new batch + expiry). ✅
+- GL postings: Dr FG / Cr Raw Materials + Packing at weighted-avg cost. ✅
+- Yield variance → variance GL. ✅
+- Reports. ✅
 - Mobile: scan-to-confirm consumption on plant floor.
 
 **Phase B — Skip:** routing, job cards, WIP between stages.
@@ -201,14 +220,14 @@ Market **runq Collect** as a named product from day one — even though technica
 
 Plan the next ~6 months as **3 epochs**:
 
-### Epoch 1 — Finish core operational backbone (Jun–Jul 2026)
+### Epoch 1 — Core operational backbone (Jun–Jul 2026) — ✅ substantially done
 **Goal:** A dairy can run procurement → production → dispatch end-to-end on runq.
 
-1. **Inventory (WIP)** — close out current phases + dairy deltas (quality attrs, UOM, FEFO enforcement). *2–3 wks*
-2. **Purchase & Procurement** — PR/RFQ/PO + 3-way match. *4–5 wks*
-3. **Manufacturing Phase A** — BOM + WO + consumption + output. *2–3 wks*
+1. ✅ **Inventory** — generic MVP (2026-05-25) + dairy deltas batch/expiry/FEFO/perishables (2026-06-06). Remaining deltas in §3.1 (quality attrs on receipt, UOM L↔kg, FEFO *enforcement* on picking).
+2. ✅ **Purchase & Procurement** — PO + GRN + 3-way match + scan-receive (2026-05-28). PR/RFQ deferred.
+3. ✅ **Manufacturing Phase A** — BOM + WO + consumption + output + GL costing + reports (2026-05-30).
 
-**Why this order:** Inventory is the substrate. Purchase is needed to legitimately bring stock in. Manufacturing turns stock into FG. After this epoch, the factory side works.
+**Why this order:** Inventory is the substrate. Purchase is needed to legitimately bring stock in. Manufacturing turns stock into FG. After this epoch, the factory side works. **Remaining for Epoch 1 closeout:** the §3.1 dairy deltas (quality attrs on receipt, UOM conversion, FEFO enforcement on delivery picking).
 
 ### Epoch 2 — Customer side + audit-readiness (Aug–Sep 2026)
 **Goal:** A dairy can sell, dispatch, collect, and pass an FSSAI audit.
@@ -247,10 +266,12 @@ Plan the next ~6 months as **3 epochs**:
 | Module | Phase | Owner | Target start | Target ship | Status |
 |---|---|---|---|---|---|
 | Inventory (generic MVP) | — | — | — | 2026-05-25 | ✅ Done — API + web + mobile parity, see `inventory-plan.md` |
-| Inventory dairy deltas | A | — | Jun 2026 | Jun 2026 | Not started |
-| Purchase & Procurement | MVP | — | Jun 2026 | Jul 2026 | Not started |
-| Manufacturing (BOM) | A | — | Jul 2026 | Jul 2026 | Not started |
-| Sales & Distribution | MVP | — | Aug 2026 | Sep 2026 | Not started |
+| Inventory dairy deltas | A | — | Jun 2026 | Jun 2026 | 🟡 Partial — batch/expiry/FEFO/perishables shipped 2026-06-06 (`1bb3247`,`941044b`); quality attrs + UOM + FEFO-enforcement pending |
+| Purchase & Procurement | MVP | — | May 2026 | 2026-05-28 | ✅ Core done (`92e64cb`) — PO, GRN, 3-way match, scan-receive; PR/RFQ deferred |
+| Manufacturing (BOM) | A | — | May 2026 | 2026-05-30 | ✅ Done (`c2dd033`) — BOM, WO, runs, GL costing, reports |
+| Platform — per-user module access | — | — | Jun 2026 | 2026-06-08 | ✅ Done (`a10dae3`) — tenant ceiling × per-user grant, API/web/mobile |
+| Platform — phone-only staff onboarding | — | — | Jun 2026 | 2026-06-09 | ✅ Done (`4598ac0`) — web-provision OTP staff + HR user management |
+| Sales & Distribution | MVP | — | Aug 2026 | Sep 2026 | Not started — next major build |
 | Quality Control | MVP | — | Sep 2026 | Sep 2026 | Not started |
 | Milk Procurement — Collect backend + web | 1 | — | Oct 2026 | Nov 2026 | Not started |
 | Milk Procurement — Collect mobile app (offline) | 2 | — | Jan 2027 | Mar 2027 | Not started |

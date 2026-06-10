@@ -266,6 +266,9 @@ class DirectReceiptRow {
   final String? sourceLabel;
   final String? batchNo;
   final String? expiryDate;
+  final String? vehicleNo;
+  final String? lrNo;
+  final String? notes;
   final String status;
 
   DirectReceiptRow({
@@ -283,6 +286,9 @@ class DirectReceiptRow {
     this.sourceLabel,
     this.batchNo,
     this.expiryDate,
+    this.vehicleNo,
+    this.lrNo,
+    this.notes,
   });
 
   factory DirectReceiptRow.fromJson(Map<String, dynamic> j) => DirectReceiptRow(
@@ -299,7 +305,26 @@ class DirectReceiptRow {
         sourceLabel: j['sourceLabel'] as String?,
         batchNo: j['batchNo'] as String?,
         expiryDate: j['expiryDate'] as String?,
+        vehicleNo: j['vehicleNo'] as String?,
+        lrNo: j['lrNo'] as String?,
+        notes: j['notes'] as String?,
         status: j['status'] as String,
+      );
+}
+
+/// An open batch (on-hand qty > 0) for an item × warehouse, surfaced as a
+/// one-tap chip in the direct-receipt batch picker so a fresh receipt can
+/// pool into an existing batch without retyping the code.
+class OpenBatch {
+  final String batchNo;
+  final double onHandQty;
+  final String? expiryDate;
+  const OpenBatch({required this.batchNo, required this.onHandQty, this.expiryDate});
+
+  factory OpenBatch.fromJson(Map<String, dynamic> j) => OpenBatch(
+        batchNo: j['batchNo'] as String,
+        onHandQty: _num(j['onHandQty']),
+        expiryDate: j['expiryDate'] as String?,
       );
 }
 

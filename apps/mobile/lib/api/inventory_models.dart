@@ -124,10 +124,14 @@ class InvItem {
   final bool trackBatches;
   final bool trackExpiry;
   final bool trackSerials;
+  /// Default purchase rate from the item master. Used to apply the rate on a
+  /// direct receipt so floor workers don't enter it daily. Null if unset.
+  final double? defaultPurchasePrice;
   const InvItem({
     required this.id, required this.name, this.sku, this.unit, this.barcode,
     this.itemClass,
     required this.trackBatches, required this.trackExpiry, required this.trackSerials,
+    this.defaultPurchasePrice,
   });
   factory InvItem.fromJson(Map<String, dynamic> j) => InvItem(
         id: j['id'] as String,
@@ -139,6 +143,7 @@ class InvItem {
         trackBatches: j['trackBatches'] as bool? ?? false,
         trackExpiry: j['trackExpiry'] as bool? ?? false,
         trackSerials: j['trackSerials'] as bool? ?? false,
+        defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
       );
 }
 

@@ -98,11 +98,11 @@ export class DirectReceiptService {
     private readonly userId?: string | null,
   ) {}
 
-  async create(input: CreateDirectReceiptInput): Promise<{ id: string; grnNo: string }> {
-    // Validate item is stock-tracked + tracking flag consistency.
+  /** Validate the item is stock-tracked and its tracking flags are satisfied
+   *  by the input. Shared by create + update so both enforce the same rules. */
+  private async assertReceiptItem(input: CreateDirectReceiptInput): Promise<void> {
     const [item] = await this.db
       .select({
-        id: itemsTable.id,
         name: itemsTable.name,
         trackInventory: itemsTable.trackInventory,
         trackBatches: itemsTable.trackBatches,
@@ -128,6 +128,10 @@ export class DirectReceiptService {
         `${item.name} is serial-tracked; direct-receipt entry doesn't accept serials yet — use GRN-from-PO`,
       );
     }
+  }
+
+  async create(input: CreateDirectReceiptInput): Promise<{ id: string; grnNo: string }> {
+    await this.assertReceiptItem(input);
 
     return this.db.transaction(async (tx) => {
       const grnNo = await nextDocNo(tx, this.tenantId, 'GRN');
@@ -319,6 +323,109 @@ export class DirectReceiptService {
         .update(inventoryGrns)
         .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
         .where(eq(inventoryGrns.id, id));
+    });
+  }
+
+  /**
+   * In-place edit of a posted direct receipt. Keeps the same GRN id + number:
+   * reverses the original stock movement and posts a fresh one with the edited
+   * values in a single transaction. The ledger stays append-only (reversal +
+   * new rows), so audit history is preserved while on-hand nets correctly.
+   */
+  async update(
+    id: string,
+    input: CreateDirectReceiptInput,
+  ): Promise<{ id: string; grnNo: string }> {
+    await this.assertReceiptItem(input);
+
+    return this.db.transaction(async (tx) => {
+      const [grn] = await tx
+        .select()
+        .from(inventoryGrns)
+        .where(and(
+          eq(inventoryGrns.id, id),
+          eq(inventoryGrns.tenantId, this.tenantId),
+          eq(inventoryGrns.source, 'direct'),
+        ))
+        .limit(1);
+      if (!grn) throw new NotFoundError('DirectReceipt');
+      if (grn.status === 'cancelled') {
+        throw new ConflictError('Cannot edit a reversed receipt');
+      }
+
+      const [line] = await tx
+        .select()
+        .from(inventoryGrnLines)
+        .where(eq(inventoryGrnLines.grnId, id))
+        .limit(1);
+      if (!line) throw new NotFoundError('DirectReceipt line');
+
+      const ledger = new StockLedgerService(this.tenantId);
+      // Reverse the original movement (old item / warehouse / batch / qty).
+      await ledger.recordMovement(tx, {
+        itemId: line.itemId!,
+        warehouseId: grn.warehouseId,
+        batchNo: line.batchNo ?? null,
+        movementType: 'reversal',
+        sourceType: 'inventory_grn',
+        sourceId: grn.id,
+        sourceLineId: line.id,
+        qtyDelta: -Number(line.qty),
+        unitCost: Number(line.unitRate),
+        movedAt: new Date(),
+        postedBy: this.userId ?? null,
+      });
+
+      const lineTotal = input.qty * input.unitRate;
+      const notes = input.sourceLabel
+        ? input.notes
+          ? `${input.sourceLabel} — ${input.notes}`
+          : input.sourceLabel
+        : input.notes ?? null;
+
+      await tx
+        .update(inventoryGrns)
+        .set({
+          warehouseId: input.warehouseId,
+          receivedDate: input.receivedAt,
+          vehicleNo: input.vehicleNo ?? null,
+          lrNo: input.lrNo ?? null,
+          notes,
+          totalValue: String(lineTotal),
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryGrns.id, id));
+
+      await tx
+        .update(inventoryGrnLines)
+        .set({
+          itemId: input.inventoryItemId,
+          batchNo: input.batchNo ?? null,
+          mfgDate: input.mfgDate ?? null,
+          expiryDate: input.expiryDate ?? null,
+          qty: String(input.qty),
+          unitRate: String(input.unitRate),
+          lineTotal: String(lineTotal),
+          notes: input.sourceLabel ?? null,
+        })
+        .where(eq(inventoryGrnLines.id, line.id));
+
+      // Post the new movement with the edited values.
+      await ledger.recordMovement(tx, {
+        itemId: input.inventoryItemId,
+        warehouseId: input.warehouseId,
+        batchNo: input.batchNo ?? null,
+        movementType: 'grn',
+        sourceType: 'inventory_grn',
+        sourceId: grn.id,
+        sourceLineId: line.id,
+        qtyDelta: input.qty,
+        unitCost: input.unitRate,
+        movedAt: new Date(input.receivedAt),
+        postedBy: this.userId ?? null,
+      });
+
+      return { id: grn.id, grnNo: grn.grnNo };
     });
   }
 

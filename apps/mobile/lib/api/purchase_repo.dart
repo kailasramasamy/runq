@@ -156,6 +156,33 @@ class PurchaseRepo {
         .toList();
   }
 
+  Map<String, dynamic> _directReceiptBody({
+    required String warehouseId,
+    required String inventoryItemId,
+    required String receivedAt,
+    required double qty,
+    required double unitRate,
+    String? sourceLabel,
+    String? batchNo,
+    String? expiryDate,
+    String? vehicleNo,
+    String? lrNo,
+    String? notes,
+  }) =>
+      {
+        'warehouseId': warehouseId,
+        'inventoryItemId': inventoryItemId,
+        'receivedAt': receivedAt,
+        'qty': qty,
+        'unitRate': unitRate,
+        if (sourceLabel != null) 'sourceLabel': sourceLabel,
+        if (batchNo != null) 'batchNo': batchNo,
+        if (expiryDate != null) 'expiryDate': expiryDate,
+        if (vehicleNo != null) 'vehicleNo': vehicleNo,
+        if (lrNo != null) 'lrNo': lrNo,
+        if (notes != null) 'notes': notes,
+      };
+
   Future<({String id, String grnNo})> createDirectReceipt({
     required String warehouseId,
     required String inventoryItemId,
@@ -169,26 +196,61 @@ class PurchaseRepo {
     String? lrNo,
     String? notes,
   }) async {
-    final body = <String, dynamic>{
-      'warehouseId': warehouseId,
-      'inventoryItemId': inventoryItemId,
-      'receivedAt': receivedAt,
-      'qty': qty,
-      'unitRate': unitRate,
-      if (sourceLabel != null) 'sourceLabel': sourceLabel,
-      if (batchNo != null) 'batchNo': batchNo,
-      if (expiryDate != null) 'expiryDate': expiryDate,
-      if (vehicleNo != null) 'vehicleNo': vehicleNo,
-      if (lrNo != null) 'lrNo': lrNo,
-      if (notes != null) 'notes': notes,
-    };
+    final body = _directReceiptBody(
+      warehouseId: warehouseId, inventoryItemId: inventoryItemId,
+      receivedAt: receivedAt, qty: qty, unitRate: unitRate,
+      sourceLabel: sourceLabel, batchNo: batchNo, expiryDate: expiryDate,
+      vehicleNo: vehicleNo, lrNo: lrNo, notes: notes,
+    );
     final res = await apiClient.post('/purchase/direct-receipts', body);
+    final data = (res['data'] as Map).cast<String, dynamic>();
+    return (id: data['id'] as String, grnNo: data['grnNo'] as String);
+  }
+
+  /// In-place edit of a posted direct receipt — same GRN, server reverses the
+  /// old stock movement and re-posts the edited values.
+  Future<({String id, String grnNo})> updateDirectReceipt(
+    String id, {
+    required String warehouseId,
+    required String inventoryItemId,
+    required String receivedAt,
+    required double qty,
+    required double unitRate,
+    String? sourceLabel,
+    String? batchNo,
+    String? expiryDate,
+    String? vehicleNo,
+    String? lrNo,
+    String? notes,
+  }) async {
+    final body = _directReceiptBody(
+      warehouseId: warehouseId, inventoryItemId: inventoryItemId,
+      receivedAt: receivedAt, qty: qty, unitRate: unitRate,
+      sourceLabel: sourceLabel, batchNo: batchNo, expiryDate: expiryDate,
+      vehicleNo: vehicleNo, lrNo: lrNo, notes: notes,
+    );
+    final res = await apiClient.put('/purchase/direct-receipts/$id', body);
     final data = (res['data'] as Map).cast<String, dynamic>();
     return (id: data['id'] as String, grnNo: data['grnNo'] as String);
   }
 
   Future<void> cancelDirectReceipt(String id) async {
     await apiClient.delete('/purchase/direct-receipts/$id');
+  }
+
+  /// Open batches (on-hand > 0) for an item × warehouse, plus a server-
+  /// rendered `suggested` code for starting a fresh batch. Drives the
+  /// direct-receipt batch picker. Response is unwrapped: { open, suggested }.
+  Future<({List<OpenBatch> open, String? suggested})> openBatches(
+      String itemId, String warehouseId) async {
+    final res = await apiClient.get(
+      '/purchase/direct-receipts/open-batches?itemId=$itemId&warehouseId=$warehouseId',
+    );
+    final map = (res as Map).cast<String, dynamic>();
+    final open = (map['open'] as List? ?? const [])
+        .map((e) => OpenBatch.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+    return (open: open, suggested: map['suggested'] as String?);
   }
 
   // ─── PP Phase 3 — 3-way match ──────────────────────────────────────

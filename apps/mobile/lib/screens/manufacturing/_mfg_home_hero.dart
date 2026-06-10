@@ -18,13 +18,13 @@ class _HeroCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          gradient: MfgColors.heroGradient,
+          gradient: MfgColors.heroGradientSoft,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: MfgColors.roseDeep.withValues(alpha: 0.30),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+              color: MfgColors.roseDeep.withValues(alpha: 0.16),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),

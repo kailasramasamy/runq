@@ -141,13 +141,23 @@ class InventoryRepo {
 
   /// Catalog search for the "Map item" picker. Hits the masters list
   /// endpoint with its existing per-word `search` param.
-  Future<List<InvItem>> searchItems(String query, {int limit = 25}) async {
+  Future<List<InvItem>> searchItems(String query,
+      {int limit = 25, String? itemClassGroup}) async {
     final qp = <String, String>{
       'limit': '$limit',
       if (query.trim().isNotEmpty) 'search': query.trim(),
+      if (itemClassGroup != null && itemClassGroup != 'all')
+        'itemClassGroup': itemClassGroup,
     };
     final res = await apiClient.get('/masters/items${_qs(qp)}');
     return _dataList(res).map(InvItem.fromJson).toList();
+  }
+
+  /// Single item as the lightweight [InvItem] (tracking flags + master rate).
+  /// Used when prefilling an edit form where we only have the item id.
+  Future<InvItem> itemById(String id) async {
+    final res = await apiClient.get('/masters/items/$id');
+    return InvItem.fromJson(_data(res));
   }
 
   Future<InvGrn> postGrn(String id) async {

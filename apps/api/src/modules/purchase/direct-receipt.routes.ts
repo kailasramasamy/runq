@@ -50,6 +50,18 @@ export const directReceiptRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  app.put(
+    '/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = createDirectReceiptSchema.parse(request.body);
+      const svc = new DirectReceiptService(request.server.db, request.tenantId, request.user?.userId);
+      const data = await svc.update(id, input);
+      return reply.send({ data });
+    },
+  );
+
   app.delete(
     '/:id',
     { preHandler: [rbacHook([...WRITE_ROLES])] },

@@ -97,6 +97,12 @@ export function ItemForm({
   const [mrp, setMrp] = useState(source?.mrp?.toString() ?? '');
   const [costPrice, setCostPrice] = useState(source?.costPrice?.toString() ?? '');
   const [basicPrice, setBasicPrice] = useState(source?.basicPrice?.toString() ?? '');
+  // Buy-side default — applied as the rate on direct receipts so floor staff
+  // don't enter it daily. Editable even on edit (not part of the interrelated
+  // selling-price chain above).
+  const [defaultPurchasePrice, setDefaultPurchasePrice] = useState(
+    source?.defaultPurchasePrice?.toString() ?? '',
+  );
   const [gstValue, setGstValue] = useState(source?.gstValue?.toString() ?? '');
   const [margin, setMargin] = useState(source?.margin?.toString() ?? '');
 
@@ -215,6 +221,7 @@ export function ItemForm({
       unit: unit || null,
       gstRate: num(gstRate),
       defaultSellingPrice: num(defaultSellingPrice),
+      defaultPurchasePrice: num(defaultPurchasePrice),
       mrp: num(mrp),
       costPrice: num(costPrice),
       basicPrice: num(basicPrice),
@@ -400,6 +407,26 @@ export function ItemForm({
               landingLabel="Sell Price"
             />
           )}
+        </fieldset>
+      )}
+
+      {/* Purchasing — buy-side default, always editable. Feeds the direct-
+          receipt form so workers don't key the rate per delivery. */}
+      {type === 'product' && (
+        <fieldset className="space-y-3">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Purchasing
+          </legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+            <Input
+              label="Default Purchase Rate"
+              type="number"
+              value={defaultPurchasePrice}
+              onChange={(e) => setDefaultPurchasePrice(e.target.value)}
+              placeholder="₹ per unit"
+              helper="Auto-applied as the rate on direct receipts"
+            />
+          </div>
         </fieldset>
       )}
 

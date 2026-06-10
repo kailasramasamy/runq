@@ -42,6 +42,15 @@ class MfgColors {
     colors: [Color(0xFF9F1239), Color(0xFFF43F5E)],
   );
 
+  /// Softer hero gradient for the large home dashboard card — stays on the
+  /// rose scale ([roseDarkest] → [roseDeep]) but skips the bright pink stop,
+  /// so the full-width fill reads calmer without leaving the brand palette.
+  static const heroGradientSoft = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [roseDarkest, roseDeep],
+  );
+
   /// Deeper variant for headers that sit on long pages.
   static const profileGradient = LinearGradient(
     begin: Alignment.topCenter,
