@@ -512,6 +512,47 @@ export class ReconciliationService {
     return this.toMatch(match);
   }
 
+  /**
+   * Manual "Receive on account (advance)": take an unreconciled customer credit
+   * and book it as an unallocated advance receipt instead of against invoices.
+   * Used when the auto-classifier missed a non-invoice credit, or to correct one.
+   */
+  async receiveOnAccount(input: { bankTransactionId: string; customerId?: string }): Promise<{ receiptId: string }> {
+    const [txn] = await this.db
+      .select()
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.id, input.bankTransactionId), eq(bankTransactions.tenantId, this.tenantId)))
+      .limit(1);
+
+    if (!txn) throw new NotFoundError('Bank transaction');
+    if (txn.reconStatus !== 'unreconciled') throw new ConflictError('Transaction is already reconciled');
+    if (txn.type !== 'credit') throw new ConflictError('Only credit transactions can be received on account');
+    await this.validateNotInClosedPeriod(txn.transactionDate, txn.bankAccountId);
+
+    const customerId = input.customerId ?? txn.customerId;
+    if (!customerId) throw new ConflictError('Assign a customer to this transaction first');
+
+    const [cust] = await this.db.select({ name: customers.name }).from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId))).limit(1);
+    if (!cust) throw new NotFoundError('Customer');
+
+    const bankGlCode = await this.fetchBankGlCode(txn.bankAccountId);
+    if (!bankGlCode) throw new ConflictError('Bank account has no linked GL account. Link one in bank account settings.');
+
+    const result = await new AutoReceiptService(this.db, this.tenantId).receiveOnAccount({
+      bankTransactionId: txn.id,
+      customerId,
+      customerName: cust.name,
+      bankAccountId: txn.bankAccountId,
+      bankGlAccountCode: bankGlCode,
+      amount: toNumber(txn.amount),
+      transactionDate: txn.transactionDate,
+      narration: txn.narration,
+      reference: txn.reference,
+    });
+    return { receiptId: result.receiptId };
+  }
+
   private async fetchUnreconciledTxns(bankAccountId: string, dateFrom?: string, dateTo?: string) {
     const conditions = [
       eq(bankTransactions.bankAccountId, bankAccountId),

@@ -5,6 +5,7 @@ import {
   unmatchSchema,
   closePeriodSchema,
   postAsExpenseSchema,
+  receiveOnAccountSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -90,6 +91,17 @@ export const reconciliationRoutes: FastifyPluginAsync = async (app) => {
       const service = new ReconciliationService(request.server.db, request.tenantId);
       const match = await service.postAsExpense(input, request.user!.userId);
       return { data: match };
+    },
+  );
+
+  app.post(
+    '/reconciliation/receive-on-account',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const input = receiveOnAccountSchema.parse(request.body);
+      const service = new ReconciliationService(request.server.db, request.tenantId);
+      const result = await service.receiveOnAccount(input);
+      return reply.status(201).send({ data: result });
     },
   );
 

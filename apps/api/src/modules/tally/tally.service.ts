@@ -375,7 +375,7 @@ ${ledgers.join('\n')}
         customerId: paymentReceipts.customerId, bankAccountId: paymentReceipts.bankAccountId,
         receiptDate: paymentReceipts.receiptDate, amount: paymentReceipts.amount,
         paymentMethod: paymentReceipts.paymentMethod, referenceNumber: paymentReceipts.referenceNumber,
-        notes: paymentReceipts.notes,
+        notes: paymentReceipts.notes, isOnAccount: paymentReceipts.isOnAccount,
         createdAt: paymentReceipts.createdAt, updatedAt: paymentReceipts.updatedAt,
         customerName: customers.name, bankName: bankAccounts.name,
       })

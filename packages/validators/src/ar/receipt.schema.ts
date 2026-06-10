@@ -16,6 +16,12 @@ export const createReceiptSchema = z.object({
   notes: z.string().nullish(),
 });
 
+// Replace a receipt's allocation set explicitly (remittance-advice driven).
+// Empty array is allowed — it moves the receipt fully on-account.
+export const setReceiptAllocationsSchema = z.object({
+  allocations: z.array(allocationSchema),
+});
+
 export const receiptFilterSchema = z.object({
   customerId: z.string().uuid().optional(),
   bankAccountId: z.string().uuid().optional(),
@@ -25,4 +31,5 @@ export const receiptFilterSchema = z.object({
 });
 
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;
+export type SetReceiptAllocationsInput = z.infer<typeof setReceiptAllocationsSchema>;
 export type ReceiptFilter = z.infer<typeof receiptFilterSchema>;

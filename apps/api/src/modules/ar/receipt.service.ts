@@ -195,6 +195,88 @@ export class ReceiptService {
     return receiptWithAllocations;
   }
 
+  /**
+   * Replace a receipt's allocation set with an explicit one (remittance-advice
+   * driven). Applies the per-invoice DELTA (new − old) to amount_received so
+   * credit-note and other-receipt contributions to the same invoices are
+   * preserved. Sum of lines may be ≤ receipt amount; any shortfall stays
+   * on-account. Returns the refreshed receipt.
+   */
+  async reallocate(receiptId: string, lines: { invoiceId: string; amount: number }[]): Promise<ReceiptWithAllocations> {
+    const receipt = await this.getById(receiptId); // throws NotFound; gives current allocations
+    const oldByInv = new Map(receipt.allocations.map((a) => [a.invoiceId, a.amount]));
+    const newByInv = await this.validateReallocation(receipt, lines, oldByInv);
+
+    await this.db.transaction(async (tx) => {
+      const affected = new Set<string>([...oldByInv.keys(), ...newByInv.keys()]);
+      for (const invId of affected) {
+        await tx.execute(sql`SELECT id FROM sales_invoices WHERE id = ${invId} FOR UPDATE`);
+      }
+
+      await tx.delete(receiptAllocations).where(eq(receiptAllocations.receiptId, receiptId));
+      if (lines.length > 0) {
+        await tx.insert(receiptAllocations).values(lines.map((l) => ({
+          tenantId: this.tenantId, receiptId, invoiceId: l.invoiceId, amount: l.amount.toFixed(2),
+        })));
+      }
+
+      for (const invId of affected) {
+        const delta = (newByInv.get(invId) ?? 0) - (oldByInv.get(invId) ?? 0);
+        await tx.execute(sql`
+          UPDATE sales_invoices SET
+            amount_received = ROUND(amount_received::numeric + ${delta}, 2),
+            balance_due     = GREATEST(0, ROUND(total_amount::numeric - (amount_received::numeric + ${delta}), 2)),
+            status = CASE
+              WHEN total_amount::numeric - (amount_received::numeric + ${delta}) <= 0.005 THEN 'paid'
+              WHEN amount_received::numeric + ${delta} > 0.005 THEN 'partially_paid'
+              ELSE 'sent' END::sales_invoice_status,
+            updated_at = NOW()
+          WHERE id = ${invId} AND tenant_id = ${this.tenantId}`);
+      }
+    });
+
+    return this.getById(receiptId);
+  }
+
+  /** Validate explicit allocation lines against the receipt and invoice headroom. */
+  private async validateReallocation(
+    receipt: ReceiptWithAllocations,
+    lines: { invoiceId: string; amount: number }[],
+    oldByInv: Map<string, number>,
+  ): Promise<Map<string, number>> {
+    const newByInv = new Map<string, number>();
+    for (const l of lines) {
+      if (l.amount <= 0) throw new ConflictError('Allocation amounts must be positive');
+      if (newByInv.has(l.invoiceId)) throw new ConflictError('Duplicate invoice in allocation set');
+      newByInv.set(l.invoiceId, l.amount);
+    }
+
+    const sum = lines.reduce((s, l) => s + l.amount, 0);
+    if (sum - receipt.amount > 0.01) {
+      throw new ConflictError(`Allocations (₹${sum.toFixed(2)}) exceed receipt amount (₹${receipt.amount.toFixed(2)})`);
+    }
+
+    const ids = [...newByInv.keys()];
+    const invs = ids.length === 0 ? [] : await this.db
+      .select({ id: salesInvoices.id, number: salesInvoices.invoiceNumber, total: salesInvoices.totalAmount, balanceDue: salesInvoices.balanceDue, customerId: salesInvoices.customerId })
+      .from(salesInvoices)
+      .where(and(eq(salesInvoices.tenantId, this.tenantId), inArray(salesInvoices.id, ids)));
+    const invById = new Map(invs.map((i) => [i.id, i]));
+
+    for (const [invId, amount] of newByInv) {
+      const inv = invById.get(invId);
+      if (!inv) throw new NotFoundError(`Invoice ${invId}`);
+      if (inv.customerId !== receipt.customerId) throw new ConflictError(`Invoice ${inv.number} belongs to a different customer`);
+      // Headroom = current balance + whatever this receipt already put on it
+      // (that prior allocation is about to be removed).
+      const headroom = toNumber(inv.balanceDue) + (oldByInv.get(invId) ?? 0);
+      if (amount - headroom > 0.01) {
+        throw new ConflictError(`Allocation ₹${amount.toFixed(2)} exceeds available ₹${headroom.toFixed(2)} on invoice ${inv.number}`);
+      }
+    }
+    return newByInv;
+  }
+
   private async sendReceiptEmail(receipt: ReceiptWithAllocations): Promise<void> {
     const [customerRow] = await this.db
       .select({ email: customers.email })
@@ -266,6 +348,7 @@ export class ReceiptService {
       paymentMethod: row.paymentMethod,
       referenceNumber: row.referenceNumber ?? null,
       notes: row.notes ?? null,
+      isOnAccount: row.isOnAccount,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

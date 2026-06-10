@@ -7,6 +7,7 @@ import {
   useManualMatch,
   useUnmatch,
   usePostAsExpense,
+  useReceiveOnAccount,
   useMatchedTransactions,
 } from '@/hooks/queries/use-reconciliation';
 import type { MatchedTransaction } from '@/hooks/queries/use-reconciliation';
@@ -34,7 +35,7 @@ import {
   Combobox,
 } from '@/components/ui';
 import { PageHeader } from '@/components/ar/primitives';
-import { GitCompare, Receipt, Unlink, Search } from 'lucide-react';
+import { GitCompare, Receipt, Unlink, Search, PiggyBank } from 'lucide-react';
 
 interface AutoResult {
   matched: number;
@@ -109,12 +110,14 @@ function BankTxnRow({
   onSelect,
   suggestions,
   onPostExpense,
+  onReceiveOnAccount,
 }: {
   txn: BankTransaction;
   selected: boolean;
   onSelect: (id: string) => void;
   suggestions: SuggestedMatch[];
   onPostExpense?: (id: string) => void;
+  onReceiveOnAccount?: (id: string) => void;
 }) {
   const topSuggestion = suggestions[0];
 
@@ -169,6 +172,15 @@ function BankTxnRow({
               title="Post as Expense"
             >
               <Receipt size={14} />
+            </button>
+          )}
+          {txn.type === 'credit' && onReceiveOnAccount && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReceiveOnAccount(txn.id); }}
+              className="rounded p-1 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400"
+              title="Receive on account (advance — no invoice)"
+            >
+              <PiggyBank size={14} />
             </button>
           )}
         </div>
@@ -284,6 +296,7 @@ export function ReconciliationPage() {
   const manualMatchMutation = useManualMatch();
   const unmatchMutation = useUnmatch();
   const postExpenseMutation = usePostAsExpense();
+  const receiveOnAccountMutation = useReceiveOnAccount();
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const bankBalance = unreconciledData?.data?.summary?.bankBalance ?? selectedAccount?.currentBalance ?? 0;
@@ -365,6 +378,22 @@ export function ReconciliationPage() {
           setExpenseNarration('');
         },
         onError: () => toast('Failed to post expense.', 'error'),
+      },
+    );
+  }
+
+  function handleReceiveOnAccount(txnId: string) {
+    const txn = unreconciledTxns.find((t) => t.id === txnId);
+    if (!txn?.customerId) {
+      toast('Assign a customer to this transaction first.', 'error');
+      return;
+    }
+    if (!window.confirm(`Receive ${formatINR(txn.amount)} on account as an advance (no invoice)?`)) return;
+    receiveOnAccountMutation.mutate(
+      { bankTransactionId: txnId },
+      {
+        onSuccess: () => toast('Received on account as advance.', 'success'),
+        onError: () => toast('Failed to receive on account.', 'error'),
       },
     );
   }
@@ -494,6 +523,7 @@ export function ReconciliationPage() {
                           onSelect={setSelectedBankTxn}
                           suggestions={txnSuggestions}
                           onPostExpense={handleOpenExpenseForm}
+                          onReceiveOnAccount={handleReceiveOnAccount}
                         />
                       );
                     })}

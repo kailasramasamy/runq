@@ -30,7 +30,14 @@ export const postAsExpenseSchema = z.object({
   narration: z.string().max(500).optional(),
 });
 
+export const receiveOnAccountSchema = z.object({
+  bankTransactionId: z.string().uuid(),
+  // Optional override — falls back to the customer already tagged on the txn.
+  customerId: z.string().uuid().optional(),
+});
+
 export type AutoReconcileInput = z.infer<typeof autoReconcileSchema>;
+export type ReceiveOnAccountInput = z.infer<typeof receiveOnAccountSchema>;
 export type ManualMatchInput = z.infer<typeof manualMatchSchema>;
 export type UnmatchInput = z.infer<typeof unmatchSchema>;
 export type ClosePeriodInput = z.infer<typeof closePeriodSchema>;

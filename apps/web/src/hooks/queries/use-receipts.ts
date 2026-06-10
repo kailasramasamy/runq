@@ -65,3 +65,15 @@ export function useCreateReceipt() {
     onSuccess: () => qc.invalidateQueries({ queryKey: RECEIPT_KEYS.all }),
   });
 }
+
+export function useUpdateReceiptAllocations(receiptId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (allocations: { invoiceId: string; amount: number }[]) =>
+      api.put<ApiSuccess<ReceiptWithAllocations>>(`/ar/receipts/${receiptId}/allocations`, { allocations }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: RECEIPT_KEYS.detail(receiptId) });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}

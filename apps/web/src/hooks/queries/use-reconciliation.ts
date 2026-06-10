@@ -89,3 +89,12 @@ export function usePostAsExpense() {
     onSuccess: () => qc.invalidateQueries({ queryKey: RECON_KEYS.all }),
   });
 }
+
+export function useReceiveOnAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { bankTransactionId: string; customerId?: string }) =>
+      api.post<ApiSuccess<{ receiptId: string }>>('/banking/reconciliation/receive-on-account', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: RECON_KEYS.all }),
+  });
+}

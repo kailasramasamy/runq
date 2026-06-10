@@ -31,6 +31,26 @@ interface AutoReceiptResult {
   skippedDrafts: { invoiceId: string; invoiceNumber: string; invoiceDate: string; totalAmount: string }[];
 }
 
+// Narration tokens that mark a credit as a non-invoice advance (transport
+// advance, security deposit, loan repayment) rather than an invoice payment.
+const ON_ACCOUNT_NARRATION_KEYWORDS = [
+  'advance', 'truck', 'transport', 'freight', 'cartage',
+  'deposit', 'loan', 'security', 'margin',
+];
+
+/**
+ * Heuristic: does this credit's narration look like a non-invoice advance
+ * rather than payment against invoices? The bias is intentional — a false
+ * positive lands the cash on-account (safe, reversible by allocating later);
+ * a false negative would FIFO non-invoice cash onto invoices, which is the
+ * exact mis-allocation this guard exists to prevent.
+ */
+export function looksLikeOnAccountCredit(narration: string | null): boolean {
+  if (!narration) return false;
+  const n = narration.toLowerCase();
+  return ON_ACCOUNT_NARRATION_KEYWORDS.some((kw) => n.includes(kw));
+}
+
 export class AutoReceiptService {
   constructor(
     private readonly db: Db,
@@ -47,16 +67,35 @@ export class AutoReceiptService {
    * 3. No invoices → tag bank txn with customerId but leave unreconciled
    *    so the user can create the invoice first, then reconcile manually.
    */
-  async createFromBankTxn(params: AutoReceiptParams): Promise<AutoReceiptResult | null> {
+  /** Resolve the Accounts Receivable control account (code 1103). */
+  private async findArGlId(): Promise<string | null> {
     const [arGl] = await this.db.select({ id: accounts.id }).from(accounts)
       .where(and(eq(accounts.tenantId, this.tenantId), eq(accounts.code, '1103'))).limit(1);
-    const arGlId = arGl?.id ?? null;
+    return arGl?.id ?? null;
+  }
+
+  /**
+   * Public entry for the manual "Receive on account (advance)" reconcile action.
+   * Creates an unallocated advance receipt for the credit and links the bank txn.
+   */
+  async receiveOnAccount(params: AutoReceiptParams): Promise<AutoReceiptResult> {
+    return this.createOnAccountReceipt(params, await this.findArGlId());
+  }
+
+  async createFromBankTxn(params: AutoReceiptParams): Promise<AutoReceiptResult | null> {
+    const arGlId = await this.findArGlId();
 
     // 1. Existing receipt? Just link bank txn to it
     const existingReceipt = await this.findExistingReceipt(params);
     if (existingReceipt) {
       await this.linkToExistingReceipt(params.bankTransactionId, existingReceipt, params.customerId, arGlId);
       return null;
+    }
+
+    // 1b. Non-invoice credit (transport advance, deposit, loan)? Receive it
+    //     on-account instead of FIFO-allocating it onto invoices it wasn't for.
+    if (looksLikeOnAccountCredit(params.narration)) {
+      return this.createOnAccountReceipt(params, arGlId);
     }
 
     // 2. Fetch all unpaid invoices for this customer (oldest first)
@@ -127,6 +166,61 @@ export class AutoReceiptService {
         sql`${salesInvoices.invoiceDate} <= ${receiptDate}::date`,
       ))
       .orderBy(salesInvoices.invoiceDate);
+  }
+
+  /**
+   * Create an on-account (advance) receipt: posts Dr Bank / Cr AR for the full
+   * amount and links the bank txn, but inserts NO allocations. The cash sits as
+   * a customer credit until an invoice is raised and it's allocated manually.
+   */
+  private async createOnAccountReceipt(
+    params: AutoReceiptParams,
+    arGlId: string | null,
+  ): Promise<AutoReceiptResult> {
+    const gl = new GLService(this.db, this.tenantId);
+
+    const receiptId = await this.db.transaction(async (tx) => {
+      const [receipt] = await tx.insert(paymentReceipts).values({
+        tenantId: this.tenantId,
+        customerId: params.customerId,
+        bankAccountId: params.bankAccountId,
+        receiptDate: params.transactionDate,
+        amount: String(params.amount),
+        paymentMethod: 'bank_transfer',
+        referenceNumber: params.reference,
+        isOnAccount: true,
+        notes: `Auto-created on-account (advance) from bank transaction — "${params.narration ?? ''}"`.slice(0, 500),
+      }).returning();
+
+      await tx.insert(reconciliationMatches).values({
+        tenantId: this.tenantId,
+        bankTransactionId: params.bankTransactionId,
+        receiptId: receipt!.id,
+        matchType: 'auto_amount_date',
+      });
+
+      await tx.update(bankTransactions)
+        .set({ customerId: params.customerId, glAccountId: arGlId, reconStatus: 'matched', updatedAt: new Date() })
+        .where(eq(bankTransactions.id, params.bankTransactionId));
+
+      return receipt!.id;
+    });
+
+    await gl.postReceipt({
+      amount: params.amount,
+      date: params.transactionDate,
+      id: receiptId,
+      customerName: params.customerName,
+    });
+
+    await new AuditService(this.db, this.tenantId).log({
+      action: 'auto_created_on_account_from_bank_txn',
+      entityType: 'payment_receipt',
+      entityId: receiptId,
+      metadata: { bankTransactionId: params.bankTransactionId, customerId: params.customerId, amount: params.amount, narration: params.narration },
+    });
+
+    return { receiptId, allocations: [], unallocated: params.amount, skippedDrafts: [] };
   }
 
   /**

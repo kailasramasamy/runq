@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { createReceiptSchema, receiptFilterSchema, paginationSchema, uuidParamSchema } from '@runq/validators';
+import { createReceiptSchema, setReceiptAllocationsSchema, receiptFilterSchema, paginationSchema, uuidParamSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { GLService } from '../gl/gl.service';
@@ -56,6 +56,18 @@ export const receiptRoutes: FastifyPluginAsync = async (app) => {
       });
 
       return reply.status(201).send({ data: receipt });
+    },
+  );
+
+  app.put(
+    '/:id/allocations',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { allocations } = setReceiptAllocationsSchema.parse(request.body);
+      const service = new ReceiptService(request.server.db, request.tenantId);
+      const receipt = await service.reallocate(id, allocations);
+      return { data: receipt };
     },
   );
 };

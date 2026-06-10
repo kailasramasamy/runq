@@ -1,6 +1,7 @@
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { ArrowDownToLine, ArrowLeft } from 'lucide-react';
 import { useReceipt } from '../../../hooks/queries/use-receipts';
+import { RemittanceAllocator } from './remittance-allocator';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import type { ReceiptAllocationDetail } from '../../../hooks/queries/use-receipts';
 import { formatINR } from '../../../lib/utils';
@@ -148,6 +149,15 @@ export function ReceiptDetailPage({ receiptId }: Props) {
             </div>
           </CardContent>
         </Card>
+
+        {receipt.isOnAccount && receipt.allocations.length === 0 && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300">
+            This is an <span className="font-medium">on-account advance</span> — received with no invoice yet. Allocate it below once an invoice is raised.
+          </div>
+        )}
+
+        {/* Remittance-driven allocation */}
+        <RemittanceAllocator receipt={receipt} />
 
         {/* Allocations */}
         {receipt.allocations.length > 0 && (

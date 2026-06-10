@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, date, decimal, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, text, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from './customers';
 import { salesInvoices } from './invoices';
@@ -15,6 +15,10 @@ export const paymentReceipts = pgTable('payment_receipts', {
   paymentMethod: paymentMethodEnum('payment_method').notNull(),
   referenceNumber: varchar('reference_number', { length: 100 }),
   notes: text('notes'),
+  // True when the receipt is an advance / on-account credit with no invoice to
+  // settle (e.g. a transport advance). Such receipts post Dr Bank / Cr AR but
+  // are deliberately left unallocated until an invoice exists to apply them to.
+  isOnAccount: boolean('is_on_account').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

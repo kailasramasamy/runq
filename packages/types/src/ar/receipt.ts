@@ -8,6 +8,7 @@ export interface PaymentReceipt {
   paymentMethod: string;
   referenceNumber: string | null;
   notes: string | null;
+  isOnAccount: boolean;
   createdAt: string;
   updatedAt: string;
 }
