@@ -15,8 +15,10 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../api/hr_models.dart';
+import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -26,24 +28,17 @@ import 'widgets/hr_reporting_section.dart';
 import 'widgets/hr_resume_sections.dart';
 import 'widgets/hr_widgets.dart';
 
-class HrDirectoryProfileScreen extends ConsumerStatefulWidget {
+class HrDirectoryProfileScreen extends ConsumerWidget {
   final String id;
   const HrDirectoryProfileScreen({super.key, required this.id});
 
   @override
-  ConsumerState<HrDirectoryProfileScreen> createState() =>
-      _HrDirectoryProfileScreenState();
-}
-
-class _HrDirectoryProfileScreenState
-    extends ConsumerState<HrDirectoryProfileScreen> {
-  /// Index into the section list built from the loaded profile.
-  int _selected = 0;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final async = ref.watch(hrWorkProfileProvider(widget.id));
+    final async = ref.watch(hrWorkProfileProvider(id));
+    // Owner / HR get a bridge to the full admin record (edit, docs, photo,
+    // salary, reporting, status) — this safe profile is otherwise read-only.
+    final canManage = ref.watch(appRoleProvider).canManageHrSetup;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -51,10 +46,6 @@ class _HrDirectoryProfileScreenState
         loading: () => const Center(child: CircularProgressIndicator(color: HrColors.teal)),
         error: (e, _) => _ErrorBody(message: '$e'),
         data: (profile) {
-          final sections = _sectionsFor(profile);
-          final sel = sections.isEmpty
-              ? 0
-              : _selected.clamp(0, sections.length - 1);
           return CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
@@ -71,30 +62,35 @@ class _HrDirectoryProfileScreenState
                   onPressed: () => Navigator.of(context).maybePop(),
                   icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                 ),
+                actions: [
+                  if (canManage)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: TextButton.icon(
+                        onPressed: () => context.push('/hr/people/$id'),
+                        icon: const Icon(Icons.manage_accounts_outlined,
+                            size: 18, color: Colors.white),
+                        label: Text('Manage',
+                            style: RunqText.label.copyWith(color: Colors.white)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               SliverToBoxAdapter(child: _HeroBody(emp: profile.employee)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                  child: _ContactRail(emp: profile.employee),
-                ),
-              ),
-              if (sections.isNotEmpty)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _PillBarDelegate(
-                    labels: [for (final s in sections) s.label],
-                    selected: sel,
-                    background: t.bgWarm,
-                    onTap: (i) => setState(() => _selected = i),
-                  ),
-                ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-                sliver: SliverToBoxAdapter(
-                  child: sections.isEmpty
-                      ? const SizedBox.shrink()
-                      : sections[sel].widget,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _ContactRail(emp: profile.employee),
+                    const SizedBox(height: 18),
+                    ..._sections(context, profile),
+                  ]),
                 ),
               ),
             ],
@@ -104,13 +100,49 @@ class _HrDirectoryProfileScreenState
     );
   }
 
-  /// Reporting first, then the resume sections (About / Experience / …).
-  List<({String label, Widget widget})> _sectionsFor(HrWorkProfile p) {
-    final out = <({String label, Widget widget})>[];
+  /// Builds the vertical stack of self-titled cards. Employment and Contact
+  /// tables are always present, so the screen never collapses to an empty
+  /// void for a colleague with no resume or reporting line. Reporting and
+  /// the resume sections (About / Experience / …) follow when available.
+  List<Widget> _sections(BuildContext context, HrWorkProfile p) {
+    final emp = p.employee;
+    final out = <Widget>[];
+    void add(Widget w) {
+      if (out.isNotEmpty) out.add(const SizedBox(height: 14));
+      out.add(w);
+    }
+
+    add(ResumeSectionCard(
+      title: 'Employment',
+      child: _SpecTable(rows: [
+        (label: 'Employee code', value: emp.employeeCode),
+        (label: 'Designation', value: emp.designationName ?? '—'),
+        (label: 'Department', value: emp.departmentName ?? '—'),
+        (label: 'Type', value: _empTypeLabel(emp.employmentType)),
+        (label: 'Status', value: _statusLabel(emp.status)),
+        if (emp.joiningDate != null)
+          (label: 'Joined', value: _fullDate(emp.joiningDate!)),
+      ]),
+    ));
+
+    final phone = emp.phone, email = emp.email;
+    final contact = <({String label, String value})>[
+      if (phone != null && phone.isNotEmpty) (label: 'Phone', value: phone),
+      if (email != null && email.isNotEmpty) (label: 'Email', value: email),
+    ];
+    if (contact.isNotEmpty) {
+      add(ResumeSectionCard(title: 'Contact', child: _SpecTable(rows: contact)));
+    }
+
     final reporting = HrReportingSection(profile: p);
-    if (reporting.hasContent) out.add((label: 'Reporting', widget: reporting));
+    if (reporting.hasContent) add(reporting);
+
     final resume = p.resume;
-    if (resume != null) out.addAll(hrResumeSections(resume));
+    if (resume != null) {
+      for (final s in hrResumeSections(resume)) {
+        add(s.widget);
+      }
+    }
     return out;
   }
 }
@@ -201,86 +233,43 @@ class _HeroChip extends StatelessWidget {
   }
 }
 
-// ─── Pill nav bar ────────────────────────────────────────────────────────────
+// ─── Spec table ──────────────────────────────────────────────────────────────
 
-/// Pinned, horizontally-scrollable section selector. Stays put under the
-/// app bar while the active section scrolls beneath it.
-class _PillBarDelegate extends SliverPersistentHeaderDelegate {
-  final List<String> labels;
-  final int selected;
-  final Color background;
-  final ValueChanged<int> onTap;
-  const _PillBarDelegate({
-    required this.labels,
-    required this.selected,
-    required this.background,
-    required this.onTap,
-  });
-
-  static const double _height = 54;
-
-  @override
-  double get minExtent => _height;
-  @override
-  double get maxExtent => _height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      height: _height,
-      color: background,
-      alignment: Alignment.centerLeft,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
-        itemCount: labels.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) => _Pill(
-          label: labels[i],
-          selected: i == selected,
-          onTap: () => onTap(i),
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(_PillBarDelegate old) =>
-      old.selected != selected ||
-      old.background != background ||
-      old.labels.length != labels.length;
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _Pill({required this.label, required this.selected, required this.onTap});
+/// Compact two-column label/value table — the body of the Employment and
+/// Contact cards. A fixed label column plus hairline row dividers give a
+/// clean tabular read consistent with the resume cards above it.
+class _SpecTable extends StatelessWidget {
+  final List<({String label, String value})> rows;
+  const _SpecTable({required this.rows});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? HrColors.teal : t.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? HrColors.teal : t.hairline,
-            width: 0.5,
+    return Column(
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 104,
+                  child: Text(rows[i].label,
+                      style: RunqText.caption.copyWith(color: t.muted)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(rows[i].value,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: RunqText.label.copyWith(
-            color: selected ? Colors.white : t.muted,
-          ),
-        ),
-      ),
+          if (i < rows.length - 1)
+            Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+        ],
+      ],
     );
   }
 }
@@ -425,4 +414,9 @@ String _empTypeLabel(String s) => switch (s) {
 String _monthYear(DateTime d) {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return '${m[d.month - 1]} ${d.year}';
+}
+
+String _fullDate(DateTime d) {
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return '${d.day} ${m[d.month - 1]} ${d.year}';
 }

@@ -93,7 +93,10 @@ class _HrWizardState extends State<HrWizard> {
       setState(() => _busy = true);
       try {
         await widget.onSubmit();
-        if (mounted) Navigator.of(context).maybePop();
+        // pop(), not maybePop(): the PopScope below intercepts maybePop on
+        // any step > 0 and walks back a step instead of leaving. An explicit
+        // pop bypasses that and actually closes the wizard after saving.
+        if (mounted) Navigator.of(context).pop();
       } catch (_) {
         // Owner surfaces the error; we just unfreeze.
       } finally {
@@ -110,7 +113,9 @@ class _HrWizardState extends State<HrWizard> {
     setState(() => _busy = true);
     try {
       await cb();
-      if (mounted) Navigator.of(context).maybePop();
+      // Explicit pop — see _next: maybePop is swallowed by the PopScope on
+      // steps > 0, so "Save changes" from a later step must pop directly.
+      if (mounted) Navigator.of(context).pop();
     } catch (_) {
       // Caller surfaces the error.
     } finally {
@@ -150,12 +155,24 @@ class _HrWizardState extends State<HrWizard> {
                 secondaryEnabled: !_busy
                     && (widget.secondaryActionEnabled?.call() ?? true),
               ),
-              if (step.subtitle != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 6),
-                  child: Text(step.subtitle!,
-                      style: RunqText.body.copyWith(color: t.muted)),
+              // Step heading — surfaces the step title (previously unused) as
+              // the primary heading, with the wizard title kept small above.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(step.title,
+                        style: RunqText.h3
+                            .copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+                    if (step.subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(step.subtitle!,
+                          style: RunqText.body.copyWith(color: t.muted)),
+                    ],
+                  ],
                 ),
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -228,48 +245,69 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onBack,
-            icon: Icon(Icons.arrow_back_rounded, color: t.ink),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(title, style: RunqText.h2.copyWith(color: t.ink)),
-          ),
-          if (secondaryLabel != null && onSecondary != null) ...[
-            TextButton(
-              onPressed: secondaryEnabled ? onSecondary : null,
-              style: TextButton.styleFrom(
-                foregroundColor: HrColors.brand(context),
-                disabledForegroundColor: t.muted2,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: onBack,
+                icon: Icon(Icons.arrow_back_rounded, color: t.ink),
               ),
-              child: Text(secondaryLabel!,
-                  style: RunqText.body.copyWith(fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(width: 4),
-          ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: HrColors.tealSubtle,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              '${index + 1} of $total',
-              style: RunqText.label.copyWith(
-                color: HrColors.brand(context),
-                fontWeight: FontWeight.w700,
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(title,
+                    style: RunqText.h4.copyWith(color: t.muted),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
+              if (secondaryLabel != null && onSecondary != null) ...[
+                TextButton(
+                  onPressed: secondaryEnabled ? onSecondary : null,
+                  style: TextButton.styleFrom(
+                    foregroundColor: HrColors.brand(context),
+                    disabledForegroundColor: t.muted2,
+                    visualDensity: VisualDensity.compact,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Text(secondaryLabel!,
+                      style: RunqText.body.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 4),
+              ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: HrColors.tealSubtle,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${index + 1} of $total',
+                  style: RunqText.label.copyWith(
+                    color: HrColors.brand(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Step progress — fills as the user advances, a clearer signal than
+        // the count chip alone.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: (index + 1) / total,
+              minHeight: 4,
+              backgroundColor: t.hairline,
+              valueColor: const AlwaysStoppedAnimation<Color>(HrColors.teal),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -369,21 +407,16 @@ class HrFormSection extends StatelessWidget {
             ),
           ),
         Container(
+          padding: const EdgeInsets.symmetric(vertical: 2),
           decoration: BoxDecoration(
             color: t.surface,
             borderRadius: BorderRadius.circular(RunqRadii.smallCard),
             border: Border.all(color: t.hairline, width: 0.5),
             boxShadow: RunqShadows.card,
           ),
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                children[i],
-                if (i < children.length - 1)
-                  Divider(height: 1, thickness: 0.5, color: t.hairlineSoft, indent: 14),
-              ],
-            ],
-          ),
+          // No dividers — each field is a self-contained well, so rows read
+          // as distinct inputs separated by whitespace rather than hairlines.
+          child: Column(children: children),
         ),
       ],
     );
@@ -391,6 +424,43 @@ class HrFormSection extends StatelessWidget {
 }
 
 // ─── Inputs ───────────────────────────────────────────────────────────────
+
+/// Shared field label — sits above each input well. Darker + semibold than
+/// the old caption so the label/value hierarchy reads clearly; required
+/// fields get a teal asterisk.
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  final bool required;
+  const _FieldLabel(this.label, {this.required = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 7),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: RunqText.caption
+                  .copyWith(color: t.ink2, fontWeight: FontWeight.w600)),
+          if (required)
+            Text(' *',
+                style: RunqText.caption.copyWith(
+                    color: HrColors.teal, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recessed well used by the tappable select/date fields so they read as
+/// inputs, matching the filled text field.
+BoxDecoration _wellDecoration(RunqTokens t) => BoxDecoration(
+      color: t.bgWarm,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: t.hairline, width: 0.5),
+    );
 
 class HrTextField extends StatelessWidget {
   final String label;
@@ -423,15 +493,11 @@ class HrTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            required ? '$label *' : label,
-            style: RunqText.caption.copyWith(color: t.muted),
-          ),
-          const SizedBox(height: 4),
+          _FieldLabel(label, required: required),
           TextField(
             controller: controller,
             keyboardType: keyboard,
@@ -446,10 +512,23 @@ class HrTextField extends StatelessWidget {
               hintStyle: RunqText.body.copyWith(color: t.muted2),
               isDense: true,
               counterText: '',
-              contentPadding: EdgeInsets.zero,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
+              filled: true,
+              fillColor: t.bgWarm,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: t.hairline, width: 0.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: t.hairline, width: 0.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                    color: HrColors.teal.withValues(alpha: 0.6), width: 1.5),
+              ),
             ),
           ),
         ],
@@ -500,35 +579,36 @@ class HrSelectField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final shown = value == null ? (hint ?? 'Select…') : display(value as T);
-    return InkWell(
-      onTap: () => _open(context),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final isEmpty = value == null;
+    final shown = isEmpty ? (hint ?? 'Select…') : display(value as T);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FieldLabel(label, required: required),
+          InkWell(
+            onTap: () => _open(context),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+              decoration: _wellDecoration(t),
+              child: Row(
                 children: [
-                  Text(
-                    required ? '$label *' : label,
-                    style: RunqText.caption.copyWith(color: t.muted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    shown,
-                    style: RunqText.body.copyWith(
-                      color: value == null ? t.muted2 : t.ink,
+                  Expanded(
+                    child: Text(
+                      shown,
+                      style: RunqText.body
+                          .copyWith(color: isEmpty ? t.muted2 : t.ink),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
+                  Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
                 ],
               ),
             ),
-            Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -707,36 +787,37 @@ class HrDateField extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    final shown = value == null
+    final isEmpty = value == null;
+    final shown = isEmpty
         ? 'Select…'
         : '${value!.day} ${m[value!.month - 1]} ${value!.year}';
-    return InkWell(
-      onTap: () => _pick(context),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FieldLabel(label, required: required),
+          InkWell(
+            onTap: () => _pick(context),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+              decoration: _wellDecoration(t),
+              child: Row(
                 children: [
-                  Text(
-                    required ? '$label *' : label,
-                    style: RunqText.caption.copyWith(color: t.muted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    shown,
-                    style: RunqText.body.copyWith(
-                      color: value == null ? t.muted2 : t.ink,
+                  Expanded(
+                    child: Text(
+                      shown,
+                      style: RunqText.body
+                          .copyWith(color: isEmpty ? t.muted2 : t.ink),
                     ),
                   ),
+                  Icon(Icons.calendar_today_outlined, color: t.muted, size: 16),
                 ],
               ),
             ),
-            Icon(Icons.calendar_today_outlined, color: t.muted, size: 16),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

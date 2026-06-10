@@ -25,6 +25,7 @@ import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../services/hr_document_intake.dart';
 import 'hr_assign_salary_sheet.dart';
+import 'hr_profile_checklist.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
@@ -128,7 +129,7 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
             body: TabBarView(
               controller: _tabs,
               children: [
-                _InfoTab(emp: emp),
+                _InfoTab(emp: emp, canManage: canManage),
                 _LeaveTab(employeeId: emp.id),
                 _PayTab(emp: emp),
                 _DocsTab(employeeId: emp.id, employeeName: emp.displayName),
@@ -509,9 +510,142 @@ class _ActionTile extends StatelessWidget {
 
 // ─── Info tab ─────────────────────────────────────────────────────────────
 
+// ─── Profile setup guidance ───────────────────────────────────────────────
+
+/// Top-of-Info card that scores the profile and guides HR to the missing
+/// pieces. Each incomplete item links straight to the action that fixes it.
+class _ProfileSetupCard extends StatelessWidget {
+  final HrEmployee emp;
+  final bool canManage;
+  const _ProfileSetupCard({required this.emp, required this.canManage});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final c = employeeCompleteness(emp);
+    final crit = c.criticalMissing;
+    final accent = c.isComplete
+        ? const Color(0xFF16A34A)
+        : (crit > 0 ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(
+          color: c.isComplete ? t.hairline : accent.withValues(alpha: 0.45),
+          width: c.isComplete ? 0.5 : 1,
+        ),
+        boxShadow: RunqShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(c.isComplete ? Icons.check_circle_rounded : Icons.assignment_outlined,
+                  color: accent, size: 18),
+              const SizedBox(width: 8),
+              Text('Profile setup',
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              const Spacer(),
+              Text('${c.percent}%',
+                  style: RunqText.tabular(size: 15, w: FontWeight.w800, color: accent)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: c.fraction,
+              minHeight: 6,
+              backgroundColor: t.hairline,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            c.isComplete
+                ? 'All set — every key detail is filled in.'
+                : '${c.missing.length} to add${crit > 0 ? ' · $crit critical for payroll' : ''}',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+          if (!c.isComplete) ...[
+            const SizedBox(height: 8),
+            Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+            for (final m in c.missing)
+              _MissingRow(
+                check: m,
+                onTap: canManage ? () => _runProfileFix(context, m.fix, emp) : null,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MissingRow extends StatelessWidget {
+  final ProfileCheck check;
+  final VoidCallback? onTap;
+  const _MissingRow({required this.check, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            Icon(check.icon, size: 18, color: t.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(check.label, style: RunqText.body.copyWith(color: t.ink)),
+            ),
+            if (check.critical) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('Critical',
+                    style: RunqText.label.copyWith(color: const Color(0xFFDC2626))),
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Routes a missing-item tap to the action that fixes it. Each action already
+/// invalidates hrEmployeeProvider, so the card re-scores on return.
+void _runProfileFix(BuildContext context, ProfileFix fix, HrEmployee emp) {
+  switch (fix) {
+    case ProfileFix.edit:
+      context.push('/hr/employees/edit', extra: emp);
+    case ProfileFix.photo:
+      _pickAndUploadPhoto(context, emp);
+    case ProfileFix.manager:
+      _setReportingManager(context, emp);
+    case ProfileFix.salary:
+      showAssignSalarySheet(context, emp);
+  }
+}
+
 class _InfoTab extends StatelessWidget {
   final HrEmployee emp;
-  const _InfoTab({required this.emp});
+  final bool canManage;
+  const _InfoTab({required this.emp, required this.canManage});
 
   @override
   Widget build(BuildContext context) {
@@ -565,13 +699,26 @@ class _InfoTab extends StatelessWidget {
       if (emp.dailyWageRate != null)
         _InfoRow(icon: Icons.engineering_outlined, label: 'Daily wage rate', value: hrFormatINR(emp.dailyWageRate!)),
     ];
+    // Always shown — surfaces the reporting line and signals it's unset.
+    // Change it via the … menu → Set reporting manager.
+    final reporting = <_InfoRow>[
+      _InfoRow(
+        icon: Icons.account_tree_outlined,
+        label: 'Reports to',
+        value: emp.reportingToName ?? 'Not set',
+      ),
+    ];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       children: [
+        _ProfileSetupCard(emp: emp, canManage: canManage),
+        const SizedBox(height: 14),
         _ContactRail(emp: emp),
         const SizedBox(height: 14),
+        _Section(title: 'Reporting', rows: reporting),
+        const SizedBox(height: 12),
         if (personal.isNotEmpty) ...[
           _Section(title: 'Personal', rows: personal),
           const SizedBox(height: 12),
@@ -709,11 +856,10 @@ class _LeaveTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    // Provider returns the logged-in user's balances — accurate for the
-    // self-view path (More → profile). For another employee browsed from
-    // People, a per-employee provider would be needed; leaving that as a
-    // follow-up since the manager workflow runs through Pay → Approvals.
-    final balancesAsync = ref.watch(hrMyLeaveBalancesProvider);
+    final year = DateTime.now().year;
+    final balancesAsync =
+        ref.watch(hrEmployeeLeaveBalancesProvider((employeeId: employeeId, year: year)));
+    final requestsAsync = ref.watch(hrEmployeeLeaveRequestsProvider(employeeId));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
@@ -738,7 +884,7 @@ class _LeaveTab extends ConsumerWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
-                  child: Text('Balances ${DateTime.now().year}',
+                  child: Text('Balances $year',
                       style: RunqText.label.copyWith(color: t.muted2)),
                 ),
                 ...rows.map((b) => Padding(
@@ -749,9 +895,95 @@ class _LeaveTab extends ConsumerWidget {
             );
           },
         ),
+        // Recent leave history for this employee — quiet when none/loading
+        // so the tab never shows a spinner just for the secondary section.
+        requestsAsync.maybeWhen(
+          data: (reqs) {
+            if (reqs.isEmpty) return const SizedBox.shrink();
+            final recent = [...reqs]
+              ..sort((a, b) => b.fromDate.compareTo(a.fromDate));
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 18),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+                  child: Text('Recent requests',
+                      style: RunqText.label.copyWith(color: t.muted2)),
+                ),
+                ...recent.take(8).map((r) => _LeaveRequestRow(r: r)),
+              ],
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
       ],
     );
   }
+}
+
+class _LeaveRequestRow extends StatelessWidget {
+  final HrLeaveRequest r;
+  const _LeaveRequestRow({required this.r});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: HrColors.tealSubtle,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(r.typeCode,
+                style: RunqText.label.copyWith(color: HrColors.brand(context))),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_leaveRange(r.fromDate, r.toDate),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                const SizedBox(height: 2),
+                Text(
+                  '${_leaveDays(r.totalDays)}${r.halfDay ? ' · half day' : ''}',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          HrStatusBadge(status: r.status),
+        ],
+      ),
+    );
+  }
+}
+
+const _kLeaveMon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+String _leaveDayMon(DateTime d) => '${d.day} ${_kLeaveMon[d.month - 1]}';
+
+String _leaveRange(DateTime a, DateTime b) {
+  final sameDay = a.year == b.year && a.month == b.month && a.day == b.day;
+  if (sameDay) return '${a.day} ${_kLeaveMon[a.month - 1]} ${a.year}';
+  return '${_leaveDayMon(a)} – ${_leaveDayMon(b)} ${b.year}';
+}
+
+String _leaveDays(double v) {
+  final s = v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
+  return '$s ${v == 1 ? 'day' : 'days'}';
 }
 
 class _BalanceCard extends StatelessWidget {
@@ -840,13 +1072,17 @@ class _BalanceCard extends StatelessWidget {
 
 // ─── Pay tab ──────────────────────────────────────────────────────────────
 
-class _PayTab extends StatelessWidget {
+class _PayTab extends ConsumerWidget {
   final HrEmployee emp;
   const _PayTab({required this.emp});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
+    final slipsAsync = ref.watch(hrEmployeePayslipsProvider(emp.id));
+    final hasBank = emp.bankName != null ||
+        emp.bankAccountMasked != null ||
+        emp.bankIfsc != null;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -861,27 +1097,112 @@ class _PayTab extends StatelessWidget {
             title: 'No compensation set',
             subtitle: 'Set CTC or daily wage rate from the web app to surface pay details here.',
           ),
-        const SizedBox(height: 14),
-        _Section(
-          title: 'Payout account',
-          rows: [
-            if (emp.bankName != null)
-              _InfoRow(icon: Icons.account_balance_rounded, label: 'Bank', value: emp.bankName!),
-            if (emp.bankAccountMasked != null)
-              _InfoRow(icon: Icons.account_balance_wallet_outlined, label: 'Account', value: emp.bankAccountMasked!),
-            if (emp.bankIfsc != null)
-              _InfoRow(icon: Icons.code_rounded, label: 'IFSC', value: emp.bankIfsc!),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Text(
-            'Payslips for this employee become available after each payroll run is approved.',
-            style: RunqText.caption.copyWith(color: t.muted),
+        if (hasBank) ...[
+          const SizedBox(height: 14),
+          _Section(
+            title: 'Payout account',
+            rows: [
+              if (emp.bankName != null)
+                _InfoRow(icon: Icons.account_balance_rounded, label: 'Bank', value: emp.bankName!),
+              if (emp.bankAccountMasked != null)
+                _InfoRow(icon: Icons.account_balance_wallet_outlined, label: 'Account', value: emp.bankAccountMasked!),
+              if (emp.bankIfsc != null)
+                _InfoRow(icon: Icons.code_rounded, label: 'IFSC', value: emp.bankIfsc!),
+            ],
           ),
+        ],
+        const SizedBox(height: 18),
+        slipsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 28),
+            child: Center(child: CircularProgressIndicator(color: HrColors.teal)),
+          ),
+          error: (e, _) => Text('$e', style: RunqText.body.copyWith(color: t.muted)),
+          data: (slips) {
+            if (slips.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'Payslips appear here after each payroll run is approved.',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                  child: Text('Payslips',
+                      style: RunqText.label.copyWith(color: t.muted2)),
+                ),
+                ...slips.map((ps) => _EmpPayslipRow(ps: ps)),
+              ],
+            );
+          },
         ),
       ],
+    );
+  }
+}
+
+// Mirrors the self-service Pay screen's payslip row so the admin and
+// employee views read identically. Taps through to the shared payslip
+// breakdown route.
+class _EmpPayslipRow extends StatelessWidget {
+  final HrPayslip ps;
+  const _EmpPayslipRow({required this.ps});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: t.hairline, width: 0.5),
+      ),
+      child: InkWell(
+        onTap: () => context.push('/hr/payslips/${ps.payrollRunId}/${ps.id}'),
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(ps.periodLabel,
+                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                    const SizedBox(height: 2),
+                    Text('Gross ${hrFormatINR(ps.gross)}',
+                        style: RunqText.caption.copyWith(color: t.muted)),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(hrFormatINR(ps.netPay < 0 ? 0 : ps.netPay),
+                      style: RunqText.tabular(size: 15, w: FontWeight.w700, color: t.ink)),
+                  if (ps.netPay < 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('${hrFormatINR(-ps.netPay)} owed',
+                          style: RunqText.caption.copyWith(
+                              color: const Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, size: 18, color: t.muted),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1477,6 +1798,14 @@ class _ActionsSheet extends ConsumerWidget {
               },
             ),
             _SheetRow(
+              icon: Icons.account_tree_outlined,
+              label: 'Set reporting manager',
+              onTap: () {
+                Navigator.of(context).pop();
+                _setReportingManager(context, emp);
+              },
+            ),
+            _SheetRow(
               icon: Icons.event_available_outlined,
               label: 'Apply leave on behalf',
               onTap: () {
@@ -1783,6 +2112,270 @@ Future<void> _toggleStatus(BuildContext context, HrEmployee emp) async {
     }
   } catch (e) {
     if (context.mounted) showRunqSnack(context, 'Update failed: $e', kind: SnackKind.error);
+  }
+}
+
+// ─── Reporting-manager picker ─────────────────────────────────────────────
+
+/// Opens the searchable manager picker. Called synchronously right after the
+/// actions sheet pops, so `context` is still valid to anchor the new modal —
+/// the same pattern as Assign salary. All the work (load / patch / refresh)
+/// lives inside the sheet, which owns a mounted context + ref.
+void _setReportingManager(BuildContext context, HrEmployee emp) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ManagerPickerSheet(emp: emp),
+  );
+}
+
+class _ManagerPickerSheet extends ConsumerStatefulWidget {
+  final HrEmployee emp;
+  const _ManagerPickerSheet({required this.emp});
+
+  @override
+  ConsumerState<_ManagerPickerSheet> createState() => _ManagerPickerSheetState();
+}
+
+class _ManagerPickerSheetState extends ConsumerState<_ManagerPickerSheet> {
+  String _q = '';
+  final _controller = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply(String? managerId) async {
+    final emp = widget.emp;
+    // No-op if unchanged — just dismiss.
+    if (managerId == emp.reportingToId) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await hrRepo.updateEmployee(emp.id, {'reportingToId': managerId});
+      // Refresh the detail record, the People list, this person's work
+      // profile (so its Reporting section appears) and the org chart.
+      ref
+        ..invalidate(hrEmployeeProvider(emp.id))
+        ..invalidate(hrEmployeesProvider)
+        ..invalidate(hrWorkProfileProvider(emp.id))
+        ..invalidate(hrOrgChartProvider);
+      if (mounted) {
+        showRunqSnack(
+          context,
+          managerId == null ? 'Reporting manager cleared' : 'Reporting manager updated',
+          kind: SnackKind.success,
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showRunqSnack(context, 'Update failed: $e', kind: SnackKind.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    final async = ref.watch(hrOrgChartProvider);
+    final q = _q.trim().toLowerCase();
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(8, 12, 8, 12 + inset),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.82,
+      ),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reporting manager',
+                    style: RunqText.h4.copyWith(color: t.ink)),
+                const SizedBox(height: 2),
+                Text('Who does ${widget.emp.displayName} report to?',
+                    style: RunqText.caption.copyWith(color: t.muted)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: TextField(
+              controller: _controller,
+              textCapitalization: TextCapitalization.none,
+              onChanged: (v) => setState(() => _q = v),
+              decoration: InputDecoration(
+                hintText: 'Search name or code',
+                hintStyle: RunqText.body.copyWith(color: t.muted2),
+                prefixIcon: Icon(Icons.search_rounded, size: 18, color: t.muted),
+                isDense: true,
+                filled: true,
+                fillColor: t.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: t.hairline, width: 0.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                      color: HrColors.teal.withValues(alpha: 0.55), width: 1.5),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Flexible(
+            child: async.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(child: CircularProgressIndicator(color: HrColors.teal)),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('$e', style: RunqText.body.copyWith(color: t.muted)),
+              ),
+              data: (people) {
+                // Everyone but this employee can be their manager; a person
+                // can't report to themselves.
+                final candidates = people
+                    .where((e) => e.id != widget.emp.id)
+                    .where((e) =>
+                        q.isEmpty ||
+                        e.displayName.toLowerCase().contains(q) ||
+                        e.employeeCode.toLowerCase().contains(q) ||
+                        (e.designationName?.toLowerCase().contains(q) ?? false))
+                    .toList()
+                  ..sort((a, b) =>
+                      a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+                return ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    if (q.isEmpty)
+                      _ManagerOption(
+                        leading: Icon(Icons.person_off_outlined, color: t.muted, size: 22),
+                        title: 'No manager',
+                        subtitle: 'Top of the reporting line',
+                        selected: widget.emp.reportingToId == null,
+                        onTap: _saving ? null : () => _apply(null),
+                      ),
+                    for (final e in candidates)
+                      _ManagerOption(
+                        leading: HrAvatar(
+                          name: e.displayName,
+                          photoUrl: e.photoUrl,
+                          employeeId: e.id,
+                          size: 36,
+                        ),
+                        title: e.displayName,
+                        subtitle: [
+                          e.employeeCode,
+                          if (e.designationName != null) e.designationName!,
+                        ].join(' · '),
+                        selected: widget.emp.reportingToId == e.id,
+                        onTap: _saving ? null : () => _apply(e.id),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManagerOption extends StatelessWidget {
+  final Widget leading;
+  final String title, subtitle;
+  final bool selected;
+  final VoidCallback? onTap;
+  const _ManagerOption({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? HrColors.teal : t.hairline,
+                width: selected ? 1.2 : 0.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: RunqText.bodyStrong.copyWith(color: t.ink),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle,
+                            style: RunqText.caption.copyWith(color: t.muted),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ],
+                  ),
+                ),
+                if (selected)
+                  const Icon(Icons.check_circle_rounded, color: HrColors.teal, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, and } from 'drizzle-orm';
-import { payslips } from '@runq/db';
+import { eq, and, desc } from 'drizzle-orm';
+import { payslips, payrollRuns } from '@runq/db';
 import {
   createSalaryComponentSchema, updateSalaryComponentSchema,
   createSalaryStructureSchema, updateSalaryStructureSchema,
@@ -53,6 +53,29 @@ const employeeIdQuery = z.object({ employeeId: z.string().uuid() });
 const payslipParams = z.object({ id: z.string().uuid(), payslipId: z.string().uuid() });
 
 export const payrollRoutes: FastifyPluginAsync = async (app) => {
+  // --- Per-employee payslips (admin) ---
+  // Mirrors /hr/me/payslips but for an arbitrary employee, so owner/HR can
+  // review another employee's pay history from the admin detail screen.
+  // MANAGE-only, matching every other payroll read (no viewer).
+  app.get('/employees/:id/payslips', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const rows = await req.server.db
+      .select({
+        ps: payslips,
+        month: payrollRuns.month,
+        year: payrollRuns.year,
+        runStatus: payrollRuns.status,
+      })
+      .from(payslips)
+      .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
+      .where(and(eq(payslips.tenantId, req.tenantId), eq(payslips.employeeId, id)))
+      .orderBy(desc(payrollRuns.year), desc(payrollRuns.month))
+      .limit(24);
+    return {
+      data: rows.map((r) => ({ ...r.ps, month: r.month, year: r.year, runStatus: r.runStatus })),
+    };
+  });
+
   // --- Salary components ---
   app.get('/salary-components', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const svc = new SalaryComponentService(req.server.db, req.tenantId);

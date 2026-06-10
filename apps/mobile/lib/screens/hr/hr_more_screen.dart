@@ -118,6 +118,8 @@ class HrMoreScreen extends ConsumerWidget {
             _SettingsGroup(
               title: 'HR setup',
               rows: [
+                _Row(Icons.people_alt_outlined, 'Employees',
+                    onTap: () => context.push('/hr/people')),
                 _Row(Icons.apartment_outlined, 'Departments',
                     onTap: () => context.push('/hr/departments')),
                 _Row(Icons.badge_outlined, 'Designations',

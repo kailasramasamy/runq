@@ -1,4 +1,5 @@
 import { eq, and, or, ilike, isNull, sql, desc } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { employees, departments, designations } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -67,15 +68,20 @@ export class EmployeeService {
   }
 
   async getById(id: string) {
+    // Self-join to resolve the reporting manager's name for the detail view.
+    const mgr = alias(employees, 'mgr');
     const [row] = await this.db
       .select({
         emp: employees,
         departmentName: departments.name,
         designationName: designations.name,
+        mgrFirstName: mgr.firstName,
+        mgrLastName: mgr.lastName,
       })
       .from(employees)
       .leftJoin(departments, eq(departments.id, employees.departmentId))
       .leftJoin(designations, eq(designations.id, employees.designationId))
+      .leftJoin(mgr, eq(mgr.id, employees.reportingToId))
       .where(applyHrScope(this.scope, employees.id, and(
         eq(employees.id, id),
         eq(employees.tenantId, this.tenantId),
@@ -85,7 +91,15 @@ export class EmployeeService {
     // Out-of-scope rows look identical to non-existent ones to the caller
     // — both 404. We never reveal that a record exists but is forbidden.
     if (!row) throw new NotFoundError('Employee');
-    return { ...row.emp, departmentName: row.departmentName, designationName: row.designationName };
+    const reportingToName = row.mgrFirstName
+      ? `${row.mgrFirstName}${row.mgrLastName ? ` ${row.mgrLastName}` : ''}`
+      : null;
+    return {
+      ...row.emp,
+      departmentName: row.departmentName,
+      designationName: row.designationName,
+      reportingToName,
+    };
   }
 
   async getByCode(code: string): Promise<EmployeeRow | null> {

@@ -185,9 +185,10 @@ class HrEmployee {
   // Wage / contract-labour fields
   final String? agency;
   final double? dailyWageRate;
-  // Reporting line — only the id today; mobile resolves the name lazily
-  // when it needs to render the manager card.
+  // Reporting line. The id is on every row; the manager's display name is
+  // joined server-side only on the single-employee fetch (/hr/employees/:id).
   final String? reportingToId;
+  final String? reportingToName;
 
   HrEmployee({
     required this.id,
@@ -222,6 +223,7 @@ class HrEmployee {
     this.agency,
     this.dailyWageRate,
     this.reportingToId,
+    this.reportingToName,
   });
 
   factory HrEmployee.fromJson(Map<String, dynamic> j) => HrEmployee(
@@ -257,6 +259,7 @@ class HrEmployee {
         agency: _str(j['agency']),
         dailyWageRate: _numOrNull(j['dailyWageRate']),
         reportingToId: _str(j['reportingToId']),
+        reportingToName: _str(j['reportingToName']),
       );
 
   String get displayName =>

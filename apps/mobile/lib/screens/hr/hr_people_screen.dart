@@ -12,6 +12,7 @@ import '../../providers/app_role_provider.dart';
 import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'hr_profile_checklist.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_widgets.dart';
 
@@ -296,6 +297,7 @@ class _EmployeeRow extends StatelessWidget {
     final dotColor = employee.status == 'on_leave'
         ? const Color(0xFFD97706)
         : (employee.status == 'active' ? const Color(0xFF16A34A) : const Color(0xFF94A3B8));
+    final setup = employeeCompleteness(employee);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -310,6 +312,7 @@ class _EmployeeRow extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               HrAvatar(
                 name: employee.displayName,
@@ -334,6 +337,12 @@ class _EmployeeRow extends StatelessWidget {
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: RunqText.caption.copyWith(color: t.muted),
                     ),
+                    // Setup progress — shown only while the profile is
+                    // incomplete, so finished rows stay clean.
+                    if (!setup.isComplete) ...[
+                      const SizedBox(height: 7),
+                      _SetupBar(setup: setup),
+                    ],
                   ],
                 ),
               ),
@@ -356,6 +365,44 @@ class _EmployeeRow extends StatelessWidget {
         'terminated' => 'Left',
         _ => s,
       };
+}
+
+/// Thin setup-progress line on an employee card. Red when critical items are
+/// missing (blocks payroll), amber when only recommended items remain.
+class _SetupBar extends StatelessWidget {
+  final ProfileCompleteness setup;
+  const _SetupBar({required this.setup});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final crit = setup.criticalMissing;
+    final accent =
+        crit > 0 ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+    return Row(
+      children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: setup.fraction,
+              minHeight: 4,
+              backgroundColor: t.hairline,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          crit > 0 ? '${setup.percent}% · $crit critical' : '${setup.percent}%',
+          style: RunqText.caption.copyWith(
+            color: crit > 0 ? accent : t.muted,
+            fontWeight: crit > 0 ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Empty extends StatelessWidget {

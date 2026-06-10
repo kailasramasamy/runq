@@ -174,6 +174,23 @@ final hrMyLeaveRequestsProvider =
   return _watchAuth(ref, () => hrRepo.leaveRequests(employeeId: empId));
 });
 
+/// Leave balances for a specific employee + year — backs the admin
+/// employee-detail Leave tab when owner/HR browses another employee.
+/// (`hrMyLeaveBalancesProvider` is hardwired to the logged-in user.)
+final hrEmployeeLeaveBalancesProvider = FutureProvider.family<List<HrLeaveBalance>,
+    ({String employeeId, int year})>((ref, q) async {
+  return _watchAuth(
+    ref,
+    () => hrRepo.leaveBalances(employeeId: q.employeeId, year: q.year),
+  );
+});
+
+/// Leave requests for a specific employee — admin employee-detail Leave tab.
+final hrEmployeeLeaveRequestsProvider =
+    FutureProvider.family<List<HrLeaveRequest>, String>((ref, employeeId) async {
+  return _watchAuth(ref, () => hrRepo.leaveRequests(employeeId: employeeId));
+});
+
 /// Reviewed (approved / rejected / cancelled) leave requests within the
 /// caller's HR scope — backs the manager Leaves tab's "Recent decisions"
 /// history section. Server returns these as part of the unfiltered
@@ -276,6 +293,13 @@ final hrStatutoryCalendarProvider =
 
 final hrMyPayslipsProvider = FutureProvider<List<HrPayslip>>((ref) async {
   return _watchAuth(ref, () => hrRepo.myPayslips());
+});
+
+/// Payslip history for a specific employee — admin/HR Pay tab on the
+/// employee-detail screen.
+final hrEmployeePayslipsProvider =
+    FutureProvider.family<List<HrPayslip>, String>((ref, employeeId) async {
+  return _watchAuth(ref, () => hrRepo.employeePayslips(employeeId));
 });
 
 final hrPayslipDetailProvider =

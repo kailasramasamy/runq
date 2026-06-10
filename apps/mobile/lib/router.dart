@@ -23,6 +23,7 @@ import 'screens/purchase/po_create_screen.dart';
 import 'screens/purchase/po_receive_screen.dart';
 import 'screens/purchase/po_scan_receive_screen.dart';
 import 'screens/purchase/direct_receipt_screen.dart';
+import 'screens/purchase/direct_receipt_create_screen.dart';
 import 'screens/purchase/purchase_home_screen.dart';
 import 'screens/purchase/po_match_screen.dart';
 import 'screens/purchase/po_edit_screen.dart';
@@ -93,6 +94,7 @@ import 'screens/hr/hr_designations_screen.dart';
 import 'screens/hr/hr_shifts_screen.dart';
 import 'screens/hr/hr_leave_balance_adjust_screen.dart';
 import 'screens/hr/hr_directory_screen.dart';
+import 'screens/hr/hr_directory_browse_screen.dart';
 import 'screens/hr/hr_directory_profile_screen.dart';
 import 'screens/hr/hr_org_chart_screen.dart';
 import 'screens/hr/hr_leave_screen.dart';
@@ -501,6 +503,27 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const HrDirectoryScreen(), key: state.pageKey),
         ),
+        // Department browser + drill-down. Registered before `/hr/directory/:id`
+        // so "browse" isn't captured as a profile id.
+        GoRoute(
+          path: '/hr/directory/browse',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const HrDirectoryBrowseScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/hr/directory/browse/:deptId',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            HrDeptMembersScreen(
+              departmentId: state.pathParameters['deptId'] == 'none'
+                  ? null
+                  : state.pathParameters['deptId'],
+              title: state.uri.queryParameters['name'] ?? 'Department',
+            ),
+            key: state.pageKey,
+          ),
+        ),
         GoRoute(
           path: '/hr/directory/:id',
           parentNavigatorKey: rootKey,
@@ -751,6 +774,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(const PurchaseOrderCreateScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchase/direct/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const DirectReceiptCreateScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchase/direct/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            DirectReceiptCreateScreen(edit: state.extra as DirectReceiptEditArgs?),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/purchase/pos/:id',

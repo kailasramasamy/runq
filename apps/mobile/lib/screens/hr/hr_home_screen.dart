@@ -202,7 +202,10 @@ class _DarkHeader extends ConsumerWidget {
           // (/hr/directory bypasses HrAccessScope, so an employee can
           // find any colleague, not just their own team).
           const SizedBox(height: 12),
-          _SearchPill(onTap: () => context.push('/hr/directory')),
+          _SearchPill(
+            onTap: () => context.push('/hr/directory'),
+            onBrowse: () => context.push('/hr/directory/browse'),
+          ),
           if (canSwitchPersona) ...[
             const SizedBox(height: 14),
             HrRoleSegment(
@@ -1414,16 +1417,18 @@ class _QaChip extends StatelessWidget {
 
 class _SearchPill extends StatelessWidget {
   final VoidCallback onTap;
-  const _SearchPill({required this.onTap});
+  final VoidCallback onBrowse;
+  const _SearchPill({required this.onTap, required this.onBrowse});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final brand = HrColors.brand(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
         decoration: BoxDecoration(
           color: t.surface,
           borderRadius: BorderRadius.circular(999),
@@ -1434,8 +1439,25 @@ class _SearchPill extends StatelessWidget {
           children: [
             Icon(Icons.search_rounded, color: t.muted, size: 18),
             const SizedBox(width: 8),
-            Text('Search employees',
-                style: RunqText.body.copyWith(color: t.muted)),
+            Expanded(
+              child: Text('Search employees',
+                  style: RunqText.body.copyWith(color: t.muted)),
+            ),
+            // Browse-by-department shortcut. Its own tap target — taps here
+            // open the directory browser, not the search route.
+            Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onBrowse,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(Icons.folder_shared_rounded,
+                      color: brand, size: 20),
+                ),
+              ),
+            ),
           ],
         ),
       ),

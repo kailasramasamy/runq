@@ -36,6 +36,13 @@ class HrRepo {
     return _dataList(res).map(HrPayslip.fromJson).toList();
   }
 
+  /// Payslip history for a specific employee — admin/HR view of another
+  /// person's pay, backing the employee-detail Pay tab.
+  Future<List<HrPayslip>> employeePayslips(String employeeId) async {
+    final res = await apiClient.get('/hr/employees/$employeeId/payslips');
+    return _dataList(res).map(HrPayslip.fromJson).toList();
+  }
+
   // ── /hr/employees ────────────────────────────────────────────────────────
 
   Future<HrEmployeeListPage> employees({
