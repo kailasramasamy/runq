@@ -30,6 +30,12 @@ export const createSalaryStructureSchema = z.object({
 });
 export const updateSalaryStructureSchema = createSalaryStructureSchema.partial();
 
+export const generateSalaryStructureSchema = z.object({
+  name: z.string().trim().max(100).optional(),
+  roleHint: z.string().trim().min(1).max(120),
+  includeStatutory: z.boolean().default(true),
+});
+
 export const assignEmployeeSalarySchema = z.object({
   employeeId: z.string().uuid(),
   salaryStructureId: z.string().uuid().nullish(),
@@ -52,6 +58,7 @@ export type CreateSalaryComponentInput = z.infer<typeof createSalaryComponentSch
 export type UpdateSalaryComponentInput = z.infer<typeof updateSalaryComponentSchema>;
 export type CreateSalaryStructureInput = z.infer<typeof createSalaryStructureSchema>;
 export type UpdateSalaryStructureInput = z.infer<typeof updateSalaryStructureSchema>;
+export type GenerateSalaryStructureInput = z.infer<typeof generateSalaryStructureSchema>;
 export type AssignEmployeeSalaryInput = z.infer<typeof assignEmployeeSalarySchema>;
 export type CreatePayrollRunInput = z.infer<typeof createPayrollRunSchema>;
 export type UpdatePayslipInput = z.infer<typeof updatePayslipSchema>;

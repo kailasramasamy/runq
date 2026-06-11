@@ -1,17 +1,20 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { eq, and, desc } from 'drizzle-orm';
-import { payslips, payrollRuns } from '@runq/db';
+import { payslips, payrollRuns, tenants } from '@runq/db';
 import {
   createSalaryComponentSchema, updateSalaryComponentSchema,
   createSalaryStructureSchema, updateSalaryStructureSchema,
+  generateSalaryStructureSchema,
   assignEmployeeSalarySchema,
   createPayrollRunSchema, updatePayslipSchema,
   uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
+import { AppError } from '../../utils/errors';
 import { SalaryComponentService } from './payroll/salary-component.service';
 import { SalaryStructureService } from './payroll/salary-structure.service';
+import { generateDefaultStructure } from './payroll/salary-structure-generator';
 import { EmployeeSalaryService } from './payroll/employee-salary.service';
 import { PayrollRunService } from './payroll/payroll-run.service';
 import { HrNotifier } from './hr-notifier';
@@ -116,6 +119,38 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     const input = createSalaryStructureSchema.parse(req.body);
     const svc = new SalaryStructureService(req.server.db, req.tenantId);
     return reply.status(201).send({ data: await svc.create(input) });
+  });
+  // AI assistant: propose a default structure for review (does NOT persist).
+  app.post('/salary-structures/generate', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const input = generateSalaryStructureSchema.parse(req.body);
+    const components = await new SalaryComponentService(req.server.db, req.tenantId).list();
+    if (components.length === 0) throw new AppError(400, 'Seed salary components before generating a structure');
+
+    const [tenant] = await req.server.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, req.tenantId))
+      .limit(1);
+    const industry = ((tenant?.settings as Record<string, unknown> | null)?.industry as string | undefined)?.trim() || 'Indian SME';
+
+    const proposal = await generateDefaultStructure({
+      industry,
+      roleHint: input.roleHint,
+      includeStatutory: input.includeStatutory,
+      components: components.map((c) => ({ code: c.code, name: c.name, type: c.type })),
+    });
+
+    // Resolve the proposed component codes back to their tenant component IDs.
+    const idByCode = new Map(components.map((c) => [c.code, c.id]));
+    return {
+      data: {
+        name: input.name?.trim() || proposal.name,
+        description: proposal.description,
+        components: proposal.components
+          .map((c) => ({ salaryComponentId: idByCode.get(c.code)!, value: c.value, calcType: c.calcType }))
+          .filter((c) => c.salaryComponentId),
+      },
+    };
   });
   app.put('/salary-structures/:id', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);

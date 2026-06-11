@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Layers, X } from 'lucide-react';
+import { Plus, Trash2, Layers, X, Sparkles } from 'lucide-react';
 import {
   PageHeader, Button, Input, Select, Combobox, Textarea, Card, CardHeader, CardContent,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, Modal, ConfirmationDialog,
@@ -7,8 +7,8 @@ import {
 import { EmptyState, ListToolbar } from '@/components/ar/primitives';
 import {
   useSalaryStructures, useSalaryStructure, useCreateSalaryStructure, useDeleteSalaryStructure,
-  useSalaryComponents,
-  type CalcType,
+  useSalaryComponents, useGenerateSalaryStructure,
+  type CalcType, type GeneratedStructure,
 } from '@/hooks/queries/use-hr-payroll';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -18,15 +18,33 @@ const CALC_OPTS: Array<{ value: CalcType; label: string }> = [
   { value: 'percent_of_ctc', label: '% of CTC' },
 ];
 
+type Line = { salaryComponentId: string; value: string; calcType: CalcType };
+type StructureDraft = { name: string; description: string; lines: Line[] };
+
+function draftFromGenerated(g: GeneratedStructure): StructureDraft {
+  return {
+    name: g.name,
+    description: g.description,
+    lines: g.components.map((c) => ({ salaryComponentId: c.salaryComponentId, value: String(c.value), calcType: c.calcType })),
+  };
+}
+
 export function SalaryStructuresPage() {
   const readOnly = useIsReadOnly();
   const { toast } = useToast();
   const { data, isLoading } = useSalaryStructures();
   const remove = useDeleteSalaryStructure();
   const [showNew, setShowNew] = useState(false);
+  const [showGen, setShowGen] = useState(false);
+  const [draft, setDraft] = useState<StructureDraft | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+
+  function openNew(initial: StructureDraft | null) {
+    setDraft(initial);
+    setShowNew(true);
+  }
 
   const structures = data?.data ?? [];
   const q = search.trim().toLowerCase();
@@ -42,7 +60,12 @@ export function SalaryStructuresPage() {
         title="Salary structures"
         description="Templates of components — assigned to employees with a CTC."
         actions={!readOnly && (
-          <Button size="sm" onClick={() => setShowNew(true)}><Plus size={13} /> New structure</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowGen(true)}>
+              <Sparkles size={13} className="text-teal-600" /> Generate with AI
+            </Button>
+            <Button size="sm" onClick={() => openNew(null)}><Plus size={13} /> New structure</Button>
+          </div>
         )}
       />
 
@@ -87,7 +110,13 @@ export function SalaryStructuresPage() {
         </TableBody>
       </Table>
 
-      {showNew && <NewStructureModal onClose={() => setShowNew(false)} />}
+      {showNew && <NewStructureModal initial={draft} onClose={() => { setShowNew(false); setDraft(null); }} />}
+      {showGen && (
+        <GenerateStructureModal
+          onClose={() => setShowGen(false)}
+          onGenerated={(g) => { setShowGen(false); openNew(draftFromGenerated(g)); }}
+        />
+      )}
       {viewId && <ViewStructureModal id={viewId} onClose={() => setViewId(null)} />}
 
       <ConfirmationDialog
@@ -109,16 +138,16 @@ export function SalaryStructuresPage() {
   );
 }
 
-function NewStructureModal({ onClose }: { onClose: () => void }) {
+function NewStructureModal({ onClose, initial }: { onClose: () => void; initial?: StructureDraft | null }) {
   const { toast } = useToast();
   const create = useCreateSalaryStructure();
   const { data: compData } = useSalaryComponents();
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [lines, setLines] = useState<Array<{ salaryComponentId: string; value: string; calcType: CalcType }>>([
-    { salaryComponentId: '', value: '', calcType: 'fixed' },
-  ]);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [lines, setLines] = useState<Line[]>(
+    initial?.lines?.length ? initial.lines : [{ salaryComponentId: '', value: '', calcType: 'fixed' }],
+  );
 
   const compOptions = (compData?.data ?? []).map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }));
 
@@ -147,6 +176,12 @@ function NewStructureModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title="New salary structure" size="lg">
       <form onSubmit={handleSubmit} className="space-y-3">
+        {initial && (
+          <div className="flex items-start gap-2 rounded-md px-3 py-2 text-[12px]" style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}>
+            <Sparkles size={14} className="mt-0.5 shrink-0" />
+            <span>AI-drafted from your role hint. Review the components and values, then save.</span>
+          </div>
+        )}
         <Input label="Name *" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Worker / Office Staff / Supervisor" />
         <Textarea label="Description" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
 
@@ -178,6 +213,63 @@ function NewStructureModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={!name || create.isPending}>{create.isPending ? 'Saving…' : 'Create'}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function GenerateStructureModal({ onClose, onGenerated }: { onClose: () => void; onGenerated: (g: GeneratedStructure) => void }) {
+  const { toast } = useToast();
+  const generate = useGenerateSalaryStructure();
+  const [name, setName] = useState('');
+  const [roleHint, setRoleHint] = useState('');
+  const [includeStatutory, setIncludeStatutory] = useState(true);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    generate.mutate(
+      { name: name.trim() || undefined, roleHint: roleHint.trim(), includeStatutory },
+      {
+        onSuccess: (r) => onGenerated(r.data),
+        onError: (err: any) => toast(err?.message ?? 'Generation failed', 'error'),
+      },
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Generate structure with AI" size="md">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+          Describe the role and we'll draft an India-standard salary structure from your existing components. You'll review it before saving.
+        </p>
+        <Input
+          label="Role / grade *"
+          value={roleHint}
+          onChange={(e) => setRoleHint(e.target.value)}
+          required
+          placeholder="e.g. Factory worker, Senior Engineer, Office staff"
+        />
+        <Input
+          label="Structure name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Optional — AI suggests one if left blank"
+        />
+        <label className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-2)' }}>
+          <input
+            type="checkbox"
+            checked={includeStatutory}
+            onChange={(e) => setIncludeStatutory(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+          />
+          Include statutory components (PF, ESI, PT, TDS)
+        </label>
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!roleHint.trim() || generate.isPending}>
+            <Sparkles size={13} /> {generate.isPending ? 'Generating…' : 'Generate'}
+          </Button>
         </div>
       </form>
     </Modal>

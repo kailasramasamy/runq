@@ -117,6 +117,17 @@ export function useCreateSalaryStructure() {
     onSuccess: () => qc.invalidateQueries({ queryKey: PR_KEYS.structures }),
   });
 }
+export interface GeneratedStructure {
+  name: string;
+  description: string;
+  components: Array<{ salaryComponentId: string; value: number; calcType: CalcType }>;
+}
+export function useGenerateSalaryStructure() {
+  return useMutation({
+    mutationFn: (d: { name?: string; roleHint: string; includeStatutory: boolean }) =>
+      api.post<ApiSuccess<GeneratedStructure>>(`/hr/salary-structures/generate`, d),
+  });
+}
 export function useUpdateSalaryStructure() {
   const qc = useQueryClient();
   return useMutation({
