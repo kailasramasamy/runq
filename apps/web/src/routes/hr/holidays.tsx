@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, CalendarDays, Sparkles } from 'lucide-react';
 import {
   PageHeader, Button, Input, Select,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
@@ -7,6 +7,7 @@ import {
 import { EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
 import {
   useHolidays, useCreateHoliday, useDeleteHoliday,
+  useSuggestHolidays, useBulkCreateHolidays, type SuggestedHoliday,
 } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
 
@@ -34,6 +35,7 @@ export function HolidaysPage() {
   const [type, setType] = useState<'national' | 'state' | 'company' | 'optional'>('company');
   const [stateName, setStateName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showGen, setShowGen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -69,10 +71,17 @@ export function HolidaysPage() {
                 options={[year - 1, year, year + 1].map((y) => ({ value: String(y), label: String(y) }))}
               />
             </div>
+            {!readOnly && (
+              <Button variant="outline" size="sm" onClick={() => setShowGen(true)}>
+                <Sparkles size={13} className="text-teal-600" /> Generate with AI
+              </Button>
+            )}
             {!readOnly && <Button size="sm" onClick={() => setShowAdd(true)}><Plus size={13} /> New holiday</Button>}
           </div>
         }
       />
+
+      {showGen && <GenerateHolidaysModal year={year} onClose={() => setShowGen(false)} />}
 
       {showAdd && (
         <Modal open onClose={() => setShowAdd(false)} title="Add holiday" size="lg">
@@ -163,5 +172,95 @@ export function HolidaysPage() {
         variant="danger"
       />
     </div>
+  );
+}
+
+type Reviewable = SuggestedHoliday & { include: boolean };
+
+function GenerateHolidaysModal({ year, onClose }: { year: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const suggest = useSuggestHolidays();
+  const bulk = useBulkCreateHolidays();
+  const [stateName, setStateName] = useState('');
+  const [rows, setRows] = useState<Reviewable[] | null>(null);
+
+  function runSuggest(e: React.FormEvent) {
+    e.preventDefault();
+    suggest.mutate({ year, state: stateName.trim() || undefined }, {
+      onSuccess: (r) => setRows(r.data.map((h) => ({ ...h, include: true }))),
+      onError: (err: any) => toast(err?.message ?? 'Generation failed', 'error'),
+    });
+  }
+
+  function saveSelected() {
+    const selected = (rows ?? []).filter((r) => r.include).map(({ include, ...h }) => h);
+    if (selected.length === 0) return;
+    bulk.mutate(selected, {
+      onSuccess: (r) => {
+        const { createdCount, skipped } = r.data;
+        toast(`Added ${createdCount} holiday${createdCount === 1 ? '' : 's'}${skipped.length ? ` · ${skipped.length} already existed` : ''}`, 'success');
+        onClose();
+      },
+      onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
+    });
+  }
+
+  const selectedCount = (rows ?? []).filter((r) => r.include).length;
+
+  return (
+    <Modal open onClose={onClose} title={`Generate ${year} holidays with AI`} size="lg">
+      {!rows ? (
+        <form onSubmit={runSuggest} className="space-y-3">
+          <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+            We'll draft India's national holidays and major festivals with their correct {year} dates. You'll review and pick before saving.
+          </p>
+          <Input
+            label="State (optional)"
+            value={stateName}
+            onChange={(e) => setStateName(e.target.value)}
+            placeholder="e.g. Tamil Nadu — adds that state's holidays too"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={suggest.isPending}>
+              <Sparkles size={13} /> {suggest.isPending ? 'Generating…' : 'Generate'}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-[12px]" style={{ color: 'var(--text-3)' }}>
+            <span>{selectedCount} of {rows.length} selected</span>
+            <button
+              className="hover:underline"
+              onClick={() => setRows(rows.map((r) => ({ ...r, include: selectedCount !== rows.length })))}
+            >
+              {selectedCount === rows.length ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <div className="max-h-[50vh] overflow-y-auto rounded-md border" style={{ borderColor: 'var(--border)' }}>
+            {rows.map((r, i) => (
+              <label key={`${r.date}-${r.name}`} className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                <input
+                  type="checkbox"
+                  checked={r.include}
+                  onChange={(e) => setRows(rows.map((x, idx) => idx === i ? { ...x, include: e.target.checked } : x))}
+                  className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+                />
+                <span className="num w-24 shrink-0 text-[12px]" style={{ color: 'var(--text-2)' }}>{r.date}</span>
+                <span className="flex-1 text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>{r.name}</span>
+                <Badge variant={TYPE_VARIANT[r.type]}>{r.type}</Badge>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setRows(null)}>Back</Button>
+            <Button onClick={saveSelected} disabled={selectedCount === 0 || bulk.isPending}>
+              {bulk.isPending ? 'Adding…' : `Add ${selectedCount} holiday${selectedCount === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

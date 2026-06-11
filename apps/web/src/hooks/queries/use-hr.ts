@@ -357,6 +357,22 @@ export function useDeleteHoliday() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'holidays'] }),
   });
 }
+export type SuggestedHoliday = Omit<Holiday, 'id'>;
+export interface HolidayBulkResult { created: Holiday[]; createdCount: number; skipped: string[]; }
+export function useSuggestHolidays() {
+  return useMutation({
+    mutationFn: (d: { year: number; state?: string }) =>
+      api.post<ApiSuccess<SuggestedHoliday[]>>(`/hr/holidays/suggest`, d),
+  });
+}
+export function useBulkCreateHolidays() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (holidays: SuggestedHoliday[]) =>
+      api.post<ApiSuccess<HolidayBulkResult>>(`/hr/holidays/bulk`, { holidays }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'holidays'] }),
+  });
+}
 
 // ─── Attendance ──────────────────────────────────────────────────────────
 
