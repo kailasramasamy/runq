@@ -19,6 +19,12 @@ final invWarehousesProvider = FutureProvider.autoDispose<List<InvWarehouse>>((re
   return inventoryRepo.warehouses();
 });
 
+// Category tree for the item form's category / subcategory pickers. Cached
+// (not autoDispose) so reopening the form doesn't refetch every time.
+final invCategoryTreeProvider = FutureProvider<List<InvCategory>>((ref) async {
+  return inventoryRepo.categoryTree();
+});
+
 final invOnHandProvider = FutureProvider.autoDispose
     .family<List<InvOnHandRow>, ({String? warehouseId, bool lowOnly, String? itemClassGroup})>((ref, args) async {
   return inventoryRepo.onHand(

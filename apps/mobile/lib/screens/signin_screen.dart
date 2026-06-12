@@ -9,6 +9,7 @@ import '../providers/app_module_provider.dart';
 import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/hr_providers.dart';
+import '../services/firebase_auth_service.dart';
 import '../theme/runq_theme.dart';
 
 // Theme-aware colour palette for the sign-in screen. The whole screen used
@@ -142,17 +143,18 @@ class SignInScreen extends ConsumerStatefulWidget {
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-// Two-step phone + OTP sign-in. Step 1 captures phone and calls
-// /auth/phone-otp/request (no-op today, future SMS dispatch); step 2
-// captures the 6-digit OTP and calls /auth/phone-otp/verify which either
-// returns a session for an existing user or auto-provisions a viewer-role
-// user from a matching employee row.
-enum _Step { phone, otp }
+// `choose` shows the sign-in options: Continue with Google, plus a phone +
+// date-of-birth path for users without a Google account. Two ways DOB is used:
+//   - `bind`     — after a first Google sign-in, links the social identity to
+//                  the employee (one-time; every Google login after is one tap).
+//   - `dobLogin` — standalone phone + DOB login, no Google at all.
+// Both collect phone + DDMMYY; they differ only in which API call they make.
+enum _Step { choose, bind, dobLogin }
 
 class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerProviderStateMixin {
   final _phone = TextEditingController();
-  final _otp = TextEditingController();
-  _Step _step = _Step.phone;
+  final _dob = TextEditingController();
+  _Step _step = _Step.choose;
   bool _loading = false;
   String? _error;
 
@@ -180,34 +182,93 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   @override
   void dispose() {
     _phone.dispose();
-    _otp.dispose();
+    _dob.dispose();
     _enter.dispose();
     super.dispose();
   }
 
-  Future<void> _requestOtp() async {
+  Future<void> _google() => _social(() => ref.read(authProvider.notifier).signInWithGoogle());
+  Future<void> _apple() => _social(() => ref.read(authProvider.notifier).signInWithApple());
+
+  // Run a provider sign-in: land if already bound, switch to the bind step if
+  // this is a first login, do nothing if the user cancelled the sheet.
+  Future<void> _social(Future<SocialResult> Function() run) async {
     FocusScope.of(context).unfocus();
-    final phone = _phone.text.trim();
-    // Server normalises (strips non-digits, drops a 91 country prefix), but
-    // we still bail early on obviously-too-short input to save the round trip.
-    if (phone.replaceAll(RegExp(r'\D'), '').length < 10) {
-      setState(() => _error = 'Enter a valid 10-digit mobile number.');
-      return;
-    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).requestOtp(phone);
+      final result = await run();
       if (!mounted) return;
-      setState(() => _step = _Step.otp);
+      if (result == SocialResult.signedIn) {
+        await _land();
+      } else if (result == SocialResult.needsBinding) {
+        setState(() => _step = _Step.bind);
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
     } catch (e) {
       if (!mounted) return;
-      debugPrint('[signin] requestOtp error: $e');
+      debugPrint('[signin] social error: $e');
+      setState(() => _error = kDebugMode
+          ? 'Sign-in failed: $e'
+          : 'Could not sign in. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _goToDobLogin() => setState(() {
+        _step = _Step.dobLogin;
+        _dob.clear();
+        _error = null;
+      });
+
+  void _back() => setState(() {
+        _step = _Step.choose;
+        _dob.clear();
+        _error = null;
+      });
+
+  // Submit the phone + DOB form. In `bind` it links the just-signed-in
+  // Google/Apple identity to the employee; in `dobLogin` it's a standalone
+  // login with no social identity. Same validation + error handling either way.
+  Future<void> _submitDob() async {
+    FocusScope.of(context).unfocus();
+    if (_phone.text.replaceAll(RegExp(r'\D'), '').length < 10) {
+      setState(() => _error = 'Enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (_dob.text.trim().length != 6) {
+      setState(() => _error = 'Enter your date of birth as DDMMYY.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final auth = ref.read(authProvider.notifier);
+      if (_step == _Step.dobLogin) {
+        await auth.loginWithDob(_phone.text, _dob.text);
+      } else {
+        await auth.bindWithDob(_phone.text, _dob.text);
+      }
+      if (!mounted) return;
+      await _land();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      // Wipe a wrong DOB so the boxes reset cleanly for the retry; the server
+      // message already carries the remaining-attempts / lockout copy.
+      if (e.statusCode == 401) _dob.clear();
+      setState(() => _error = e.statusCode == 404
+          ? 'No employee found for this number. Ask your admin to add you.'
+          : e.message);
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('[signin] bind error: $e');
       setState(() => _error = kDebugMode
           ? 'Connection failed: $e'
           : 'Could not reach the server. Check your connection.');
@@ -216,55 +277,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
     }
   }
 
-  Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
-    if (_otp.text.trim().length != 6) {
-      setState(() => _error = 'Enter the 6-digit OTP.');
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  // Wait briefly for /hr/me so the landing matches role on first paint —
+  // admins get Finance Home, everyone else gets HR Home. The router redirect
+  // catches stragglers if HrMe takes longer than the budget.
+  Future<void> _land() async {
     try {
-      await ref.read(authProvider.notifier).verifyOtp(_phone.text, _otp.text);
-      if (!mounted) return;
-      // Wait briefly for /hr/me so the landing matches role on first paint
-      // — admins get Finance Home, everyone else gets HR Home. The router
-      // redirect catches stragglers if HrMe takes longer than the budget.
-      try {
-        await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
-      } catch (_) {}
-      if (!mounted) return;
-      final role = ref.read(appRoleProvider);
-      // Non-admins always land in HR. Admins return to the module they
-      // last used, so a sign-in mid-day doesn't yank them out of context.
-      String landing;
-      if (!role.canAccessFinance) {
-        landing = '/hr/home';
-      } else {
-        landing = ref.read(appModuleProvider) == AppModule.hr ? '/hr/home' : '/home';
-      }
-      context.go(landing);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      // Wipe a wrong code so the boxes reset cleanly for the retry.
-      if (e.statusCode == 401) _otp.clear();
-      setState(() => _error = e.statusCode == 401
-          ? 'Invalid OTP. Try again.'
-          : e.statusCode == 404
-              ? 'No account found for this phone. Ask your admin to add you.'
-              : e.message);
-    } catch (e) {
-      if (!mounted) return;
-      // Surface the real error in debug so connectivity issues are diagnosable.
-      debugPrint('[signin] network error: $e');
-      setState(() => _error = kDebugMode
-          ? 'Connection failed: $e'
-          : 'Could not reach the server. Check your connection.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
+    } catch (_) {}
+    if (!mounted) return;
+    final role = ref.read(appRoleProvider);
+    // Non-admins always land in HR. Admins return to the module they last
+    // used, so a sign-in mid-day doesn't yank them out of context.
+    final String landing;
+    if (!role.canAccessFinance) {
+      landing = '/hr/home';
+    } else {
+      landing = ref.read(appModuleProvider) == AppModule.hr ? '/hr/home' : '/home';
     }
+    context.go(landing);
   }
 
   @override
@@ -317,19 +347,17 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           child: _SignInCard(
                             palette: p,
                             phone: _phone,
-                            otp: _otp,
+                            dob: _dob,
                             step: _step,
                             error: _error,
                             loading: _loading,
-                            onRequestOtp: _requestOtp,
-                            onVerifyOtp: _submit,
-                            onChangePhone: () {
-                              setState(() {
-                                _step = _Step.phone;
-                                _otp.clear();
-                                _error = null;
-                              });
-                            },
+                            appleSupported:
+                                FirebaseAuthService.instance.appleSignInSupported,
+                            onGoogle: _google,
+                            onApple: _apple,
+                            onUseDob: _goToDobLogin,
+                            onSubmitDob: _submitDob,
+                            onBack: _back,
                           ),
                         ),
                       ),
@@ -480,28 +508,33 @@ class _SessionExpiredBanner extends StatelessWidget {
 
 class _SignInCard extends StatelessWidget {
   final _Palette palette;
-  final TextEditingController phone, otp;
+  final TextEditingController phone, dob;
   final _Step step;
   final String? error;
   final bool loading;
-  final VoidCallback onRequestOtp;
-  final VoidCallback onVerifyOtp;
-  final VoidCallback onChangePhone;
+  final bool appleSupported;
+  final VoidCallback onGoogle;
+  final VoidCallback onApple;
+  final VoidCallback onUseDob;
+  final VoidCallback onSubmitDob;
+  final VoidCallback onBack;
   const _SignInCard({
     required this.palette,
     required this.phone,
-    required this.otp,
+    required this.dob,
     required this.step,
     required this.error,
     required this.loading,
-    required this.onRequestOtp,
-    required this.onVerifyOtp,
-    required this.onChangePhone,
+    required this.appleSupported,
+    required this.onGoogle,
+    required this.onApple,
+    required this.onUseDob,
+    required this.onSubmitDob,
+    required this.onBack,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isPhoneStep = step == _Step.phone;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -515,117 +548,219 @@ class _SignInCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isPhoneStep)
-            _ThemedField(
-              palette: palette,
-              label: 'Mobile number',
-              controller: phone,
-              hint: '98765 43210',
-              icon: Icons.phone_iphone_rounded,
-              keyboardType: TextInputType.phone,
-              leadingText: '+91',
-              autofillHints: const [AutofillHints.telephoneNumber],
-              textInputAction: TextInputAction.done,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
-              onSubmitted: (_) => onRequestOtp(),
-            )
-          else ...[
-            // Echo the phone the user just typed, with an inline "change"
-            // affordance so a typo isn't fatal — going back resets the OTP
-            // field and the error so the user lands cleanly on step 1 again.
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.phone_iphone_rounded, size: 16, color: palette.iconMuted),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '+91 ${phone.text.trim()}',
-                      style: RunqText.body.copyWith(color: palette.fieldText),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: loading ? null : onChangePhone,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                      child: Text(
-                        'Change',
-                        style: RunqText.bodyStrong.copyWith(color: palette.linkInk),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _OtpInput(
-              palette: palette,
-              controller: otp,
-              loading: loading,
-              onCompleted: onVerifyOtp,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Test mode: use 123456',
-                style: RunqText.caption.copyWith(color: palette.subtitleInk),
-              ),
-            ),
-          ],
+          if (step == _Step.choose) ..._chooseBody() else ..._dobBody(),
           if (error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: palette.errorBg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: palette.errorBorder, width: 0.5),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline_rounded, size: 14, color: palette.errorText),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      error!,
-                      style: RunqText.caption.copyWith(color: palette.errorText),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 14),
+            _ErrorBanner(palette: palette, message: error!),
           ],
-          const SizedBox(height: 18),
-          SizedBox(
-            height: 48,
-            child: FilledButton(
-              onPressed: loading ? null : (isPhoneStep ? onRequestOtp : onVerifyOtp),
-              style: FilledButton.styleFrom(
-                backgroundColor: palette.primaryBtn,
-                disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _chooseBody() {
+    return [
+      _SocialButton(
+        palette: palette,
+        label: 'Continue with Google',
+        logo: SvgPicture.asset('assets/branding/google-g.svg', width: 18, height: 18),
+        background: Colors.white,
+        foreground: const Color(0xFF1F1F1F),
+        border: palette.fieldBorder,
+        onPressed: loading ? null : onGoogle,
+      ),
+      if (appleSupported) ...[
+        const SizedBox(height: 12),
+        _SocialButton(
+          palette: palette,
+          label: 'Continue with Apple',
+          logo: const Icon(Icons.apple, size: 22, color: Colors.white),
+          background: Colors.black,
+          foreground: Colors.white,
+          onPressed: loading ? null : onApple,
+        ),
+      ],
+      if (loading)
+        const Padding(
+          padding: EdgeInsets.only(top: 16),
+          child: Center(
+            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        )
+      else ...[
+        // Divider so the no-Google path reads as a clear alternative, not a
+        // lesser option — important since some users won't have Google.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            children: [
+              Expanded(child: Divider(color: palette.cardBorder, height: 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text('or', style: RunqText.caption.copyWith(color: palette.subtleInk)),
               ),
-              child: loading
-                  ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(isPhoneStep ? Icons.arrow_forward_rounded : Icons.login_rounded, size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          isPhoneStep ? 'Send OTP' : 'Sign in',
-                          style: RunqText.bodyStrong.copyWith(color: Colors.white),
-                        ),
-                      ],
+              Expanded(child: Divider(color: palette.cardBorder, height: 1)),
+            ],
+          ),
+        ),
+        _SocialButton(
+          palette: palette,
+          label: 'Use phone & date of birth',
+          logo: Icon(Icons.phone_iphone_rounded, size: 18, color: palette.linkInk),
+          background: palette.fieldBg,
+          foreground: palette.titleInk,
+          border: palette.fieldBorder,
+          onPressed: onUseDob,
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _dobBody() {
+    final isLogin = step == _Step.dobLogin;
+    return [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text(
+          isLogin
+              ? 'Enter your mobile number and security code to sign in.'
+              : "First time here? Confirm it's you with your phone number and "
+                  "security code. You'll only do this once.",
+          style: RunqText.caption.copyWith(color: palette.subtitleInk),
+        ),
+      ),
+      _ThemedField(
+        palette: palette,
+        label: 'Mobile number',
+        controller: phone,
+        hint: '98765 43210',
+        icon: Icons.phone_iphone_rounded,
+        keyboardType: TextInputType.phone,
+        leadingText: '+91',
+        autofillHints: const [AutofillHints.telephoneNumber],
+        textInputAction: TextInputAction.next,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(10),
+        ],
+      ),
+      const SizedBox(height: 14),
+      _OtpInput(
+        palette: palette,
+        controller: dob,
+        loading: loading,
+        label: 'Security code',
+        hint: 'DOB · DDMMYY',
+        autofocus: false,
+        onCompleted: onSubmitDob,
+      ),
+      const SizedBox(height: 18),
+      SizedBox(
+        height: 48,
+        child: FilledButton(
+          onPressed: loading ? null : onSubmitDob,
+          style: FilledButton.styleFrom(
+            backgroundColor: palette.primaryBtn,
+            disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.login_rounded, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      isLogin ? 'Sign in' : 'Verify & continue',
+                      style: RunqText.bodyStrong.copyWith(color: Colors.white),
                     ),
-            ),
+                  ],
+                ),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Center(
+        child: TextButton(
+          onPressed: loading ? null : onBack,
+          child: Text(isLogin ? 'Back' : 'Use a different account',
+              style: RunqText.bodyStrong.copyWith(color: palette.linkInk)),
+        ),
+      ),
+    ];
+  }
+}
+
+// Provider sign-in button — a logo + label on a brand-coloured pill.
+class _SocialButton extends StatelessWidget {
+  final _Palette palette;
+  final String label;
+  final Widget logo;
+  final Color background, foreground;
+  final Color? border;
+  final VoidCallback? onPressed;
+  const _SocialButton({
+    required this.palette,
+    required this.label,
+    required this.logo,
+    required this.background,
+    required this.foreground,
+    this.border,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: border == null ? BorderSide.none : BorderSide(color: border!, width: 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            logo,
+            const SizedBox(width: 10),
+            Text(label, style: RunqText.bodyStrong.copyWith(color: foreground)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final _Palette palette;
+  final String message;
+  const _ErrorBanner({required this.palette, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.errorBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: palette.errorBorder, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, size: 14, color: palette.errorText),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message, style: RunqText.caption.copyWith(color: palette.errorText)),
           ),
         ],
       ),
@@ -641,7 +776,6 @@ class _ThemedField extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<String>? autofillHints;
   final TextInputAction? textInputAction;
-  final ValueChanged<String>? onSubmitted;
   final String? leadingText;
   final List<TextInputFormatter>? inputFormatters;
   const _ThemedField({
@@ -653,7 +787,6 @@ class _ThemedField extends StatelessWidget {
     this.keyboardType,
     this.autofillHints,
     this.textInputAction,
-    this.onSubmitted,
     this.leadingText,
     this.inputFormatters,
   });
@@ -680,11 +813,13 @@ class _ThemedField extends StatelessWidget {
             autofillHints: autofillHints,
             textInputAction: textInputAction,
             inputFormatters: inputFormatters,
-            onSubmitted: onSubmitted,
-            // Default is 20px — too tight here. Pushes the focused field up
-            // enough that the Sign-in button stays visible above the keypad
-            // without manual scrolling.
-            scrollPadding: const EdgeInsets.only(bottom: 140),
+            // resizeToAvoidBottomInset is false, so the scroll viewport runs
+            // full-height behind the keypad and scrollPadding is measured from
+            // the screen bottom. To lift the focused field clear of the keypad
+            // we must add the keyboard height; the +220 then makes room for the
+            // DOB boxes + Sign-in button that sit ~160px below this field.
+            scrollPadding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 220),
             style: RunqText.body.copyWith(color: palette.fieldText),
             cursorColor: palette.linkInk,
             decoration: InputDecoration(
@@ -728,11 +863,17 @@ class _OtpInput extends StatefulWidget {
   final _Palette palette;
   final TextEditingController controller;
   final bool loading;
+  final String label;
+  final String? hint;
+  final bool autofocus;
   final VoidCallback onCompleted;
   const _OtpInput({
     required this.palette,
     required this.controller,
     required this.loading,
+    this.label = 'One-time code',
+    this.hint,
+    this.autofocus = true,
     required this.onCompleted,
   });
 
@@ -768,9 +909,20 @@ class _OtpInputState extends State<_OtpInput> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'One-time code',
-          style: RunqText.bodyStrong.copyWith(color: p.labelInk),
+        Row(
+          children: [
+            Text(
+              widget.label,
+              style: RunqText.bodyStrong.copyWith(color: p.labelInk),
+            ),
+            if (widget.hint != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                widget.hint!,
+                style: RunqText.caption.copyWith(color: p.subtleInk),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 6),
         Stack(
@@ -812,13 +964,16 @@ class _OtpInputState extends State<_OtpInput> {
                 child: TextField(
                   controller: widget.controller,
                   focusNode: _focus,
-                  autofocus: true,
+                  autofocus: widget.autofocus,
                   readOnly: widget.loading,
                   showCursor: false,
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.oneTimeCode],
-                  scrollPadding: const EdgeInsets.only(bottom: 140),
+                  // Add the keyboard height (viewport runs behind the keypad)
+                  // plus room for the Sign-in + Back buttons just below.
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 130),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(6),

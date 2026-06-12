@@ -8,6 +8,7 @@ import '../../providers/purchase_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
+import '../../widgets/profile_avatar_button.dart';
 import 'widgets/pur_colors.dart';
 import 'widgets/pur_primitives.dart';
 
@@ -159,6 +160,8 @@ class _TopBar extends ConsumerWidget {
             unread: unread,
             onTap: () => context.push('/notifications?scope=purchase'),
           ),
+          const SizedBox(width: 4),
+          ProfileAvatarButton(onTap: () => context.push('/purchase/more')),
         ],
       ),
     );

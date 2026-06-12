@@ -48,11 +48,12 @@ class InvColors {
     colors: [Color(0xFF92400E), Color(0xFFB45309)],
   );
 
-  /// Theme-aware brand colour for text/icon contexts. Returns the
-  /// saturated amber in light mode, [amberLight] in dark mode so AA
-  /// contrast holds on dark surfaces.
-  static Color brand(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? amberLight : amber;
+  /// The module brand orange, used for every accent (icons, active tabs,
+  /// focus rings, FAB). Kept the same [amber] in both light and dark mode so
+  /// the whole module — including the hard-amber bottom nav, hero and FAB —
+  /// reads as one consistent colour. (Context retained for call-site
+  /// compatibility and any future per-theme tuning.)
+  static Color brand(BuildContext context) => amber;
 
   // ── Status palette ──────────────────────────────────────────────────────
   // Paired bg/fg tokens used by StatusPill, UrgencyPill, and inline status

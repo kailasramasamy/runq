@@ -25,6 +25,7 @@ import 'screens/purchase/po_scan_receive_screen.dart';
 import 'screens/purchase/direct_receipt_screen.dart';
 import 'screens/purchase/direct_receipt_create_screen.dart';
 import 'screens/purchase/purchase_home_screen.dart';
+import 'screens/purchase/purchase_more_screen.dart';
 import 'screens/purchase/po_match_screen.dart';
 import 'screens/purchase/po_edit_screen.dart';
 import 'screens/banking_screen.dart';
@@ -64,6 +65,7 @@ import 'screens/signin_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/hr/hr_home_screen.dart';
 import 'screens/inventory/inventory_home_screen.dart';
+import 'screens/inventory/inventory_more_screen.dart';
 import 'screens/inventory/inventory_on_hand_screen.dart';
 import 'screens/inventory/inventory_moves_screen.dart';
 import 'screens/inventory/inventory_grn_screen.dart';
@@ -73,6 +75,8 @@ import 'screens/inventory/inventory_delivery_detail_screen.dart';
 import 'screens/inventory/inventory_delivery_edit_screen.dart';
 import 'screens/inventory/inventory_delivery_screen.dart';
 import 'screens/inventory/inventory_item_detail_screen.dart';
+import 'screens/inventory/inventory_items_list_screen.dart';
+import 'screens/inventory/inventory_item_new_screen.dart';
 import 'screens/inventory/inventory_transfer_screen.dart';
 import 'screens/inventory/inventory_adjustment_screen.dart';
 import 'screens/inventory/inventory_stock_take_screen.dart';
@@ -114,6 +118,7 @@ import 'screens/hr/hr_helpdesk_screen.dart';
 import 'screens/hr/hr_performance_screen.dart';
 import 'screens/hr/hr_rewards_screen.dart';
 import 'screens/manufacturing/manufacturing_home_screen.dart';
+import 'screens/manufacturing/manufacturing_more_screen.dart';
 import 'screens/manufacturing/bom_list_screen.dart';
 import 'screens/manufacturing/bom_detail_screen.dart';
 import 'screens/manufacturing/bom_create_screen.dart';
@@ -377,6 +382,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             key: state.pageKey,
           ),
         ),
+        // Items list + create must precede the ':id' route so the static
+        // 'items' / 'items/new' paths win over the param match.
+        GoRoute(
+          path: '/inventory/items',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const InventoryItemsListScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/items/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const InventoryItemNewScreen(), key: state.pageKey),
+        ),
         GoRoute(
           path: '/inventory/items/:id',
           parentNavigatorKey: rootKey,
@@ -409,6 +428,21 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/inventory/activity',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryActivityScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/more',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const InventoryMoreScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchase/more',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const PurchaseMoreScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/manufacturing/more',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const ManufacturingMoreScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/hr/time',
@@ -569,8 +603,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // Edit takes the existing employee via `extra` so we don't
             // double-fetch from the network — caller already had it loaded.
             final emp = state.extra as HrEmployee?;
+            // Optional ?step= jumps straight to the wizard step holding the
+            // field the user tapped (from the profile-setup checklist).
+            final step = int.tryParse(state.uri.queryParameters['step'] ?? '');
             return _slidePage(
-              HrEmployeeFormScreen(existing: emp),
+              HrEmployeeFormScreen(existing: emp, initialStep: step ?? 0),
               key: state.pageKey,
             );
           },

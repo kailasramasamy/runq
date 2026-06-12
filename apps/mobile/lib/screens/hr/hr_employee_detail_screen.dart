@@ -13,6 +13,7 @@ library;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -582,7 +583,7 @@ class _ProfileSetupCard extends StatelessWidget {
             for (final m in c.missing)
               _MissingRow(
                 check: m,
-                onTap: canManage ? () => _runProfileFix(context, m.fix, emp) : null,
+                onTap: canManage ? () => _runProfileFix(context, m, emp) : null,
               ),
           ],
         ],
@@ -634,10 +635,11 @@ class _MissingRow extends StatelessWidget {
 
 /// Routes a missing-item tap to the action that fixes it. Each action already
 /// invalidates hrEmployeeProvider, so the card re-scores on return.
-void _runProfileFix(BuildContext context, ProfileFix fix, HrEmployee emp) {
-  switch (fix) {
+void _runProfileFix(BuildContext context, ProfileCheck check, HrEmployee emp) {
+  switch (check.fix) {
     case ProfileFix.edit:
-      context.push('/hr/employees/edit', extra: emp);
+      // Jump straight to the wizard step that holds the tapped field.
+      context.push('/hr/employees/edit?step=${check.editStep}', extra: emp);
     case ProfileFix.photo:
       _pickAndUploadPhoto(context, emp);
     case ProfileFix.manager:
@@ -1515,9 +1517,16 @@ class _DocRow extends ConsumerWidget {
         transitionsBuilder: (_, anim, __, c) => FadeTransition(opacity: anim, child: c),
         transitionDuration: const Duration(milliseconds: 200),
       ));
+    } else if (doc.isPdf) {
+      // PDFs render in-app via PDFView. The viewer's app-bar carries a
+      // Share action so the user can hand off to Files / WhatsApp only when
+      // they actually want to — tapping the row no longer jumps to share.
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(builder: (_) => _DocPdfViewer(doc: doc)),
+      );
     } else {
-      // PDFs + others: download to a temp file and hand off to the OS share
-      // sheet so the user can open in Files / Preview / Drive / etc.
+      // Anything else (no in-app renderer): download and hand off to the OS
+      // share sheet so the user can open in Files / Drive / etc.
       await _downloadAndShare(context);
     }
   }
@@ -1726,6 +1735,169 @@ class _DocImageViewerState extends State<_DocImageViewer> {
         Uint8List.fromList(_bytes!),
         fit: BoxFit.contain,
       ),
+    );
+  }
+}
+
+/// In-app PDF preview for an HR document. Downloads bytes via the auth'd
+/// document endpoint, writes them to the app-sandboxed temp dir (PDFView's
+/// native iOS renderer won't accept the system temp), then renders inline.
+/// The app-bar's Share action hands the same file off to the OS share sheet
+/// only when the user asks for it.
+class _DocPdfViewer extends StatefulWidget {
+  final HrDocument doc;
+  const _DocPdfViewer({required this.doc});
+  @override
+  State<_DocPdfViewer> createState() => _DocPdfViewerState();
+}
+
+class _DocPdfViewerState extends State<_DocPdfViewer> {
+  File? _file;
+  String? _error;
+  bool _loading = true;
+  int _pages = 0;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _download();
+  }
+
+  Future<void> _download() async {
+    try {
+      final bytes = await hrRepo.downloadDocument(widget.doc.id);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${widget.doc.fileName}');
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      setState(() {
+        _file = file;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _share() async {
+    final f = _file;
+    if (f == null) return;
+    final size = MediaQuery.of(context).size;
+    try {
+      await Share.shareXFiles(
+        [XFile(f.path, mimeType: widget.doc.mimeType, name: widget.doc.fileName)],
+        sharePositionOrigin: Rect.fromLTWH(size.width - 60, 0, 40, 40),
+      );
+    } catch (e) {
+      if (mounted) {
+        showRunqSnack(context, 'Share failed: $e', kind: SnackKind.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Scaffold(
+      backgroundColor: t.bgWarm,
+      appBar: AppBar(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.doc.fileName,
+              style: RunqText.bodyStrong,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 1),
+            Text(
+              _pages > 0 ? 'Page ${_currentPage + 1} of $_pages' : 'PDF',
+              style: RunqText.caption.copyWith(color: t.muted),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.ios_share, size: 20),
+            tooltip: 'Share',
+            onPressed: _file == null ? null : _share,
+          ),
+          const SizedBox(width: 4),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(height: 0.5, color: t.hairline),
+        ),
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    final t = RT(context);
+    if (_loading) {
+      return Center(
+        child: SizedBox(
+          width: 28, height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: t.brand),
+        ),
+      );
+    }
+    if (_error != null || _file == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 36, color: RunqColors.redInk),
+              const SizedBox(height: 8),
+              Text("Couldn't load this document", style: RunqText.bodyStrong),
+              const SizedBox(height: 4),
+              Text(
+                _error ?? 'Unknown error',
+                textAlign: TextAlign.center,
+                style: RunqText.caption.copyWith(color: t.muted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return PDFView(
+      filePath: _file!.path,
+      enableSwipe: true,
+      swipeHorizontal: false,
+      autoSpacing: true,
+      pageSnap: false,
+      fitPolicy: FitPolicy.WIDTH,
+      onRender: (pages) {
+        if (!mounted) return;
+        setState(() => _pages = pages ?? 0);
+      },
+      onPageChanged: (page, _) {
+        if (!mounted) return;
+        setState(() => _currentPage = page ?? 0);
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() => _error = e.toString());
+      },
     );
   }
 }

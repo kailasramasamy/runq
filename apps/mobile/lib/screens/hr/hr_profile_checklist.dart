@@ -19,12 +19,17 @@ class ProfileCheck {
   final bool critical;
   final IconData icon;
   final ProfileFix fix;
+  /// Zero-based step in the edit wizard that holds this field, so a tap can
+  /// jump straight to it instead of starting at step 1. Only meaningful when
+  /// [fix] is [ProfileFix.edit]; ignored for the other (single-action) fixes.
+  final int editStep;
   const ProfileCheck({
     required this.label,
     required this.done,
     required this.critical,
     required this.icon,
     required this.fix,
+    this.editStep = 0,
   });
 }
 
@@ -58,13 +63,15 @@ ProfileCompleteness employeeCompleteness(HrEmployee e) {
         done: _has(e.phone),
         critical: true,
         icon: Icons.phone_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 0),
     ProfileCheck(
         label: 'Department',
         done: _has(e.departmentId),
         critical: true,
         icon: Icons.apartment_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 1),
     ProfileCheck(
         label: 'Compensation',
         done: e.ctcAnnual != null || e.dailyWageRate != null,
@@ -76,19 +83,22 @@ ProfileCompleteness employeeCompleteness(HrEmployee e) {
         done: _has(e.bankAccountNumber) && _has(e.bankIfsc),
         critical: true,
         icon: Icons.account_balance_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 4),
     ProfileCheck(
         label: 'PAN',
         done: _has(e.pan),
         critical: true,
         icon: Icons.fingerprint_rounded,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 3),
     ProfileCheck(
         label: 'Designation',
         done: _has(e.designationId),
         critical: false,
         icon: Icons.badge_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 1),
     ProfileCheck(
         label: 'Reporting manager',
         done: _has(e.reportingToId),
@@ -100,13 +110,15 @@ ProfileCompleteness employeeCompleteness(HrEmployee e) {
         done: _has(e.aadhaar),
         critical: false,
         icon: Icons.credit_card_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 3),
     ProfileCheck(
         label: 'Date of birth',
         done: e.dateOfBirth != null,
         critical: false,
         icon: Icons.cake_outlined,
-        fix: ProfileFix.edit),
+        fix: ProfileFix.edit,
+        editStep: 2),
     ProfileCheck(
         label: 'Photo',
         done: _has(e.photoUrl),

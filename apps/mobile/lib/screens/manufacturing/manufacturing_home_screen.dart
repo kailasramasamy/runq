@@ -9,6 +9,7 @@ import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
+import '../../widgets/profile_avatar_button.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
@@ -162,6 +163,8 @@ class _TopBar extends ConsumerWidget {
             unread: unread,
             onTap: () => context.push('/notifications?scope=manufacturing'),
           ),
+          const SizedBox(width: 4),
+          ProfileAvatarButton(onTap: () => context.push('/manufacturing/more')),
         ],
       ),
     );

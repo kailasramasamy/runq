@@ -1,7 +1,7 @@
 // Inventory Home — godown-floor dashboard. Matches the Finance / HR home
 // chrome: light scaffold, module switcher pinned top-left, a bell on the
 // right, then a hero card holding stock-value KPIs, the Low / In / Out
-// strip, and the warehouse pill. Body keeps the 2-col mini-stat row, 2x3
+// strip, and the warehouse pill. Body keeps the 2-col mini-stat row, 2x4
 // quick actions grid, and a 5-row Recent activity card with a "See all"
 // deep-link.
 
@@ -18,6 +18,7 @@ import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
+import '../../widgets/profile_avatar_button.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
@@ -128,6 +129,8 @@ class _TopBar extends ConsumerWidget {
             unread: unread,
             onTap: () => context.push('/notifications?scope=inventory'),
           ),
+          const SizedBox(width: 4),
+          ProfileAvatarButton(onTap: () => context.push('/inventory/more')),
         ],
       ),
     );
@@ -483,7 +486,7 @@ class _HeroMiniKpi extends StatelessWidget {
   }
 }
 
-// ── Quick actions grid (2x3) ──────────────────────────────────────────────
+// ── Quick actions grid (2x4) ──────────────────────────────────────────────
 
 class _QuickActions extends StatelessWidget {
   const _QuickActions({required this.k});
@@ -491,6 +494,12 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tiles = <Widget>[
+      InvActionTile(
+        icon: Icons.category_outlined,
+        title: 'Items',
+        subtitle: 'Catalog',
+        onTap: () => context.push('/inventory/items'),
+      ),
       InvActionTile(
         icon: Icons.inventory_2_outlined,
         title: 'Receive',
@@ -525,8 +534,14 @@ class _QuickActions extends StatelessWidget {
         icon: Icons.visibility_outlined,
         title: 'On Hand',
         subtitle: 'Live stock',
-        badge: k.lowStockCount > 0 ? '${k.lowStockCount}' : null,
         onTap: () => context.push('/inventory/on-hand'),
+      ),
+      InvActionTile(
+        icon: Icons.warning_amber_rounded,
+        title: 'Alerts',
+        subtitle: 'Low stock',
+        badge: k.lowStockCount > 0 ? '${k.lowStockCount}' : null,
+        onTap: () => context.push('/inventory/alerts'),
       ),
     ];
     final rows = <Widget>[];

@@ -12,10 +12,19 @@ import '../router.dart' show rootKey, openNotificationTarget;
 @pragma('vm:entry-point')
 Future<void> _firebaseBgHandler(RemoteMessage message) async {}
 
-/// Initialise Firebase and register the background handler. Call once from
-/// main() before runApp().
+/// Initialise the default Firebase app. Idempotent — safe to call from both the
+/// auth and messaging init paths. Auth depends on this having run, so it's
+/// invoked first thing in main() independent of FCM.
+Future<void> initFirebase() async {
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
+}
+
+/// Register the FCM background handler + foreground presentation. Call once from
+/// main() after [initFirebase].
 Future<void> initFirebaseMessaging() async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await initFirebase();
   FirebaseMessaging.onBackgroundMessage(_firebaseBgHandler);
   // iOS: show the system banner even when the app is in the foreground.
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(

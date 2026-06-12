@@ -51,23 +51,6 @@ export const acceptJoinInviteSchema = z.object({
   password: z.string().min(8).optional(),
 });
 
-// Phone+OTP login (mobile app only). The web client continues to use
-// email+password. Phone is whatever the client sends — server normalises
-// with a stripPhone() helper before lookup. OTP is six digits, today
-// hardcoded to '123456' on the server (see phone-otp.routes.ts) until a
-// real SMS provider is wired up.
-export const phoneOtpRequestSchema = z.object({
-  phone: z.string().min(8).max(20),
-});
-
-export const phoneOtpVerifySchema = z.object({
-  phone: z.string().min(8).max(20),
-  otp: z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
-});
-
-export type PhoneOtpRequestInput = z.infer<typeof phoneOtpRequestSchema>;
-export type PhoneOtpVerifyInput = z.infer<typeof phoneOtpVerifySchema>;
-
 // Change password for a logged-in user — verifies the current password
 // before setting the new one. Distinct from a forgot-password email reset.
 export const changePasswordSchema = z.object({

@@ -1,12 +1,13 @@
 import { eq, and, or, ilike, isNull, sql, desc } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { employees, departments, designations } from '@runq/db';
+import { employees, departments, designations, users } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type {
   CreateEmployeeInput, UpdateEmployeeInput, EmployeeFilter,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { normalisePhone } from '../../utils/phone';
 import { applyHrScope } from './access-scope';
 import { LeaveBalanceService } from './leave-balance.service';
 
@@ -165,6 +166,38 @@ export class EmployeeService {
       .returning();
     if (!row) throw new NotFoundError('Employee');
     return row;
+  }
+
+  /// Clear the mobile-login bind: zero the DOB-attempt throttle and unlink the
+  /// employee's Google/Apple identity so they can re-bind from a fresh device
+  /// or a different social account. Used by the admin "Reset mobile login"
+  /// action after a lockout or a wrong-account bind.
+  async resetMobileLogin(id: string) {
+    const [emp] = await this.db
+      .update(employees)
+      .set({ mobileBindAttempts: 0, updatedAt: new Date() })
+      .where(applyHrScope(this.scope, employees.id, and(
+        eq(employees.id, id),
+        eq(employees.tenantId, this.tenantId),
+        isNull(employees.deletedAt),
+      )))
+      .returning();
+    if (!emp) throw new NotFoundError('Employee');
+
+    // Unbind the backing user (matched by phone) so a re-bind can attach a new
+    // firebase_uid. Email-only users with no phone are left untouched.
+    const phone = emp.phone ? normalisePhone(emp.phone) : null;
+    if (phone) {
+      const matchExpr = sql`regexp_replace(${users.phone}, '\\D', '', 'g')`;
+      await this.db
+        .update(users)
+        .set({ firebaseUid: null, authProvider: null })
+        .where(and(
+          eq(users.tenantId, this.tenantId),
+          sql`(${matchExpr} = ${phone} OR ${matchExpr} = ${'91' + phone})`,
+        ));
+    }
+    return { ok: true };
   }
 
   private normalize(input: Record<string, any>): Record<string, any> {

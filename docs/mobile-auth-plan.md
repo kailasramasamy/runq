@@ -1,5 +1,49 @@
 # runq Mobile Auth — Implementation Plan
 
+**Status:** IMPLEMENTED (2026-06-11) — DOB-gated variant. Code complete; pending
+manual Firebase Console + native config before on-device testing (see
+"Implemented variant" below).
+
+> ## Implemented variant (supersedes the MSG91/Firebase-Phone design below)
+>
+> To avoid any SMS cost at launch, the one-time bind uses the employee's **date
+> of birth (DDMMYY)** instead of an SMS OTP. There is **no phone OTP and no
+> MSG91** — Firebase Phone Auth is not used at all. Only Google + Apple
+> sign-in providers are needed.
+>
+> **Flow**
+> - *Every login:* tap Google/Apple → `POST /auth/social/login {idToken}` →
+>   if `firebase_uid` is bound, returns the runq JWT.
+> - *First login:* `/social/login` returns `{needsBinding:true}` → the app
+>   collects phone + DOB → `POST /auth/social/bind {idToken, phone, dob}` →
+>   server matches the employee by phone, verifies DOB, links the uid.
+>
+> **Guardrails**
+> - 5 wrong DOB tries → `employees.mobile_bind_attempts` locks the bind;
+>   admin clears it via **HR → Employee → Reset mobile login**
+>   (`POST /hr/employees/:id/reset-mobile-login`, clears the counter + unbinds
+>   `firebase_uid`).
+> - No DOB on file → bind blocked ("ask your admin").
+> - Anti-hijack guards retained (uid already bound elsewhere, etc.).
+>
+> **Touched:** `social-auth.schema.ts` (`socialBindSchema` += phone, dob);
+> `social-auth.routes.ts` (rewrote `/social/bind`, deleted `/phone-otp/*` +
+> `FIXED_OTP`); `employee.service.ts` (`resetMobileLogin`); migration
+> `0130_employee_bind_throttle.sql`; mobile `firebase_auth_service.dart`
+> (Google/Apple only), `auth_provider.dart`, `signin_screen.dart`;
+> web `detail.tsx` + `useResetMobileLogin`.
+>
+> **Remaining manual setup:** Firebase Console — enable Google + Apple
+> providers (Phone NOT needed). iOS — re-download `GoogleService-Info.plist`
+> after enabling Google (it currently has no `CLIENT_ID`), add its
+> `REVERSED_CLIENT_ID` as a URL scheme in `Info.plist`, add the "Sign in with
+> Apple" capability. Android — add debug+release SHA-1/256 to the Firebase
+> Android app, re-download `google-services.json`.
+
+---
+
+## Original design (MSG91 phone OTP) — superseded, kept for reference
+
 **Status:** Planned — on hold (as of 2026-05-22). To be resumed later.
 **Decision:** One-time MSG91 phone OTP for account binding, then Google / Apple
 Sign-In for all subsequent logins.

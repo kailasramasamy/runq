@@ -73,7 +73,8 @@ class _ModuleSwitcherState extends ConsumerState<ModuleSwitcher>
     return switch (m) {
       AppModule.finance => isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5),
       AppModule.hr => isDark ? const Color(0xFF67E8F9) : const Color(0xFF0891B2),
-      AppModule.inventory => isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+      // Brand orange in both modes (matches the inventory bottom nav + hero).
+      AppModule.inventory => const Color(0xFFD97706),
       AppModule.purchase => isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED),
       AppModule.manufacturing => isDark ? const Color(0xFFFDA4AF) : const Color(0xFFE11D48),
     };

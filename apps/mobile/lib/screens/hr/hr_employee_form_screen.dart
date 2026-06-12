@@ -23,7 +23,10 @@ import 'widgets/hr_form.dart';
 class HrEmployeeFormScreen extends ConsumerStatefulWidget {
   /// Edit existing when set; create new when null.
   final HrEmployee? existing;
-  const HrEmployeeFormScreen({super.key, this.existing});
+  /// Zero-based wizard step to open on. Lets the profile-setup checklist jump
+  /// straight to the step holding a missing field.
+  final int initialStep;
+  const HrEmployeeFormScreen({super.key, this.existing, this.initialStep = 0});
 
   @override
   ConsumerState<HrEmployeeFormScreen> createState() => _HrEmployeeFormScreenState();
@@ -292,6 +295,7 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
     return HrWizard(
       title: isCreate ? 'New employee' : 'Edit employee',
       submitLabel: isCreate ? 'Add employee' : 'Save changes',
+      initialStep: widget.initialStep,
       onSubmit: _save,
       // "Save draft" on create lets the user persist a partial record so
       // they don't lose progress when data trickles in. "Save changes" on

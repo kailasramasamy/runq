@@ -13,6 +13,13 @@ import 'widgets/app_update_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadAppInfo();
+  // Sign-in (Google/Apple) needs the Firebase app, so initialise it up front
+  // and independently of FCM. Without it the login screen can't authenticate.
+  try {
+    await initFirebase();
+  } on Exception catch (e) {
+    debugPrint('Firebase init failed: $e');
+  }
   try {
     await initFirebaseMessaging();
   } on Exception catch (e) {

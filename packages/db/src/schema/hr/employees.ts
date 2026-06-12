@@ -1,6 +1,6 @@
 import {
   pgTable, uuid, varchar, text, decimal, date, boolean, timestamp,
-  pgEnum, index, uniqueIndex,
+  integer, pgEnum, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { departments } from './departments';
@@ -61,6 +61,11 @@ export const employees = pgTable('employees', {
   agency: varchar('agency', { length: 150 }),
   dailyWageRate: decimal('daily_wage_rate', { precision: 10, scale: 2 }),
   vendorId: uuid('vendor_id'),
+
+  // Mobile first-login throttle: failed DOB attempts during /auth/social/bind.
+  // Reaching 5 locks the bind until an admin resets it (Settings → Users →
+  // Reset mobile login). Reset to 0 on a successful bind.
+  mobileBindAttempts: integer('mobile_bind_attempts').notNull().default(0),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

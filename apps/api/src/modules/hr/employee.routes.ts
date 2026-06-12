@@ -50,4 +50,13 @@ export const employeeRoutes: FastifyPluginAsync = async (app) => {
     const svc = new EmployeeService(req.server.db, req.tenantId, scope);
     return { data: await svc.remove(id) };
   });
+
+  // Clear a locked / mis-bound mobile login so the employee can re-bind their
+  // Google/Apple account with their date of birth.
+  app.post('/employees/:id/reset-mobile-login', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const scope = await resolveHrAccessScope(req);
+    const svc = new EmployeeService(req.server.db, req.tenantId, scope);
+    return { data: await svc.resetMobileLogin(id) };
+  });
 };

@@ -160,6 +160,38 @@ class InventoryRepo {
     return InvItem.fromJson(_data(res));
   }
 
+  /// Paged item-master list for the Items screen. Search + class-group filter
+  /// are applied server-side; pagination meta comes back for load-more.
+  Future<InvItemPage> items({
+    int page = 1,
+    int limit = 25,
+    String? search,
+    String? itemClassGroup,
+  }) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    if (itemClassGroup != null && itemClassGroup != 'all') {
+      qp['itemClassGroup'] = itemClassGroup;
+    }
+    final res = await apiClient.get('/masters/items${_qs(qp)}');
+    return InvItemPage.fromResponse(res);
+  }
+
+  /// Active category tree (roots + nested subcategories) for the item form's
+  /// category / subcategory pickers.
+  Future<List<InvCategory>> categoryTree() async {
+    final res = await apiClient.get('/masters/categories/tree');
+    return _dataList(res).map(InvCategory.fromJson).toList();
+  }
+
+  /// Create an item in the masters module. [body] is the already-validated
+  /// payload (name + optional sku / type / class / unit / hsn / prices /
+  /// tracking flags). Returns the created item as [InvItemDetail].
+  Future<InvItemDetail> createItem(Map<String, dynamic> body) async {
+    final res = await apiClient.post('/masters/items', body);
+    return InvItemDetail.fromJson(_data(res));
+  }
+
   Future<InvGrn> postGrn(String id) async {
     final res = await apiClient.post('/inventory/grn/$id/post', const {});
     return InvGrn.fromJson(_data(res));

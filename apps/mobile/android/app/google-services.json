@@ -12,7 +12,36 @@
           "package_name": "com.quartex.runq"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1296814909-3ibir6ppj46ui0nmk8atbhm547sqag0o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quartex.runq",
+            "certificate_hash": "d5fb0f9b9f1135dbd6aad783af19a2db1183ef3e"
+          }
+        },
+        {
+          "client_id": "1296814909-8g4475t2nbo767u7v7er30rrcnrm791h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quartex.runq",
+            "certificate_hash": "3610badab78c2cb2c3fc509a0aca1e4cbc3e003c"
+          }
+        },
+        {
+          "client_id": "1296814909-t51jp148u000i1kd4rrgh4nagdjs97v9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.quartex.runq",
+            "certificate_hash": "b78d5a37bc62eadda0647732139fbcd55ba3139b"
+          }
+        },
+        {
+          "client_id": "1296814909-mridbh74ffagba64egc822c1bfactcvf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD8k75SxjPuj8ba5GajJfulp5IxQTSKMgo"
@@ -20,7 +49,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1296814909-mridbh74ffagba64egc822c1bfactcvf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1296814909-3v6mmkv3djnoe46jr6cpgge75o8917qf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.quartex.runq"
+              }
+            }
+          ]
         }
       }
     }

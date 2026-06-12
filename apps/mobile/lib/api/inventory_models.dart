@@ -793,6 +793,89 @@ class InvItemDetail {
       );
 }
 
+// One row of the item-master list (GET /masters/items). Lighter than
+// InvItemDetail — just what the Items list tile renders.
+class InvItemListRow {
+  final String id;
+  final String name;
+  final String? sku;
+  final String? unit;
+  final String? type; // 'product' | 'service'
+  final String? itemClass;
+  final String? category;
+  final double? defaultSellingPrice;
+  final double? gstRate;
+  final bool isActive;
+  const InvItemListRow({
+    required this.id, required this.name, this.sku, this.unit, this.type,
+    this.itemClass, this.category, this.defaultSellingPrice, this.gstRate,
+    required this.isActive,
+  });
+  factory InvItemListRow.fromJson(Map<String, dynamic> j) => InvItemListRow(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        sku: j['sku'] as String?,
+        unit: j['unit'] as String?,
+        type: j['type'] as String?,
+        itemClass: j['itemClass'] as String?,
+        category: j['category'] as String?,
+        defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
+        gstRate: (j['gstRate'] as num?)?.toDouble(),
+        isActive: j['isActive'] as bool? ?? true,
+      );
+}
+
+// One page of the item-master list — rows plus pagination meta so the Items
+// screen can decide whether to fetch the next page.
+class InvItemPage {
+  final List<InvItemListRow> rows;
+  final int total;
+  final int totalPages;
+  final int page;
+  const InvItemPage({
+    required this.rows,
+    required this.total,
+    required this.totalPages,
+    required this.page,
+  });
+  factory InvItemPage.fromResponse(dynamic res) {
+    final list = (res is Map && res['data'] is List)
+        ? (res['data'] as List).cast<Map<String, dynamic>>()
+        : const <Map<String, dynamic>>[];
+    final meta = (res is Map && res['meta'] is Map)
+        ? (res['meta'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    return InvItemPage(
+      rows: list.map(InvItemListRow.fromJson).toList(),
+      total: (meta['total'] as num?)?.toInt() ?? list.length,
+      totalPages: (meta['totalPages'] as num?)?.toInt() ?? 1,
+      page: (meta['page'] as num?)?.toInt() ?? 1,
+    );
+  }
+}
+
+// A node in the category tree (GET /masters/categories/tree) — a root
+// category with its nested subcategories. Drives the item form's category /
+// subcategory pickers. Only the fields the picker needs are parsed.
+class InvCategory {
+  final String id;
+  final String name;
+  final List<InvCategory> subcategories;
+  const InvCategory({
+    required this.id,
+    required this.name,
+    this.subcategories = const [],
+  });
+  factory InvCategory.fromJson(Map<String, dynamic> j) => InvCategory(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        subcategories: ((j['subcategories'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InvCategory.fromJson)
+            .toList(),
+      );
+}
+
 // One stock-on-hand row from /inventory/items/:id/stock — per warehouse +
 // batch. Lighter than InvOnHandRow because the item context is implicit.
 class InvItemStockRow {

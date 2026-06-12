@@ -303,6 +303,15 @@ export function useDeleteEmployee() {
   });
 }
 
+// Clears the employee's mobile-login bind: zeroes the DOB-attempt lockout and
+// unlinks their Google/Apple account so they can sign in again from scratch.
+export function useResetMobileLogin() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<ApiSuccess<{ ok: boolean }>>(`/hr/employees/${id}/reset-mobile-login`, {}),
+  });
+}
+
 // ─── Shifts ──────────────────────────────────────────────────────────────
 
 export function useShifts() {

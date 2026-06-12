@@ -6,8 +6,8 @@ import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
-import '../widgets/gradient_avatar.dart';
 import '../widgets/module_switcher.dart';
+import '../widgets/profile_avatar_button.dart';
 import '../widgets/section_head.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
@@ -142,7 +142,7 @@ class _Header extends ConsumerWidget {
                 onTap: () => context.push('/approvals'),
               ),
               const SizedBox(width: 8),
-              _AvatarButton(name: user?.name ?? user?.email ?? '?'),
+              ProfileAvatarButton(onTap: () => context.push('/profile')),
             ],
           ),
           const SizedBox(height: 12),
@@ -163,20 +163,6 @@ class _Header extends ConsumerWidget {
   static String _weekday(int wd) {
     const labels = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
     return labels[wd - 1];
-  }
-}
-
-class _AvatarButton extends StatelessWidget {
-  final String name;
-  const _AvatarButton({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/profile'),
-      borderRadius: BorderRadius.circular(12),
-      child: GradientAvatar(name: name, size: 40),
-    );
   }
 }
 

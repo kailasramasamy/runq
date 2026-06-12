@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Pencil, X, ArrowLeft, Camera, Trash2 } from 'lucide-react';
-import { PageHeader, Button, Badge, useToast } from '@/components/ui';
+import { Pencil, X, ArrowLeft, Camera, Trash2, Smartphone } from 'lucide-react';
+import { PageHeader, Button, Badge, useToast, ConfirmationDialog } from '@/components/ui';
 import { Avatar } from '@/components/ar/primitives';
 import { EmployeeForm } from '@/components/forms/employee-form';
-import { useEmployee, useUpdateEmployee, type EmployeeStatus } from '@/hooks/queries/use-hr';
+import { useEmployee, useUpdateEmployee, useResetMobileLogin, type EmployeeStatus } from '@/hooks/queries/use-hr';
 import {
   useEmployeePhotoSrc, useUploadEmployeePhoto, useDeleteEmployeePhoto,
 } from '@/hooks/queries/use-employee-documents';
@@ -30,9 +30,11 @@ export function EmployeeDetailPage({ employeeId }: Props) {
   const { toast } = useToast();
   const { data, isLoading } = useEmployee(employeeId);
   const mutation = useUpdateEmployee();
+  const resetLogin = useResetMobileLogin();
 
   const [tab, setTab] = useState<Tab>('overview');
   const [editing, setEditing] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
   const employee = data?.data;
@@ -45,6 +47,13 @@ export function EmployeeDetailPage({ employeeId }: Props) {
     mutation.mutate({ id: employeeId, ...input }, {
       onSuccess: () => { toast('Employee updated', 'success'); setEditing(false); },
       onError: (e: any) => toast(e?.message ?? 'Failed to update', 'error'),
+    });
+  }
+
+  function handleResetLogin() {
+    resetLogin.mutate(employeeId, {
+      onSuccess: () => { toast('Mobile login reset — they can sign in again', 'success'); setResetOpen(false); },
+      onError: (e: any) => toast(e?.message ?? 'Failed to reset', 'error'),
     });
   }
 
@@ -72,9 +81,14 @@ export function EmployeeDetailPage({ employeeId }: Props) {
               <X size={13} /> Cancel edit
             </Button>
           ) : (
-            <Button size="sm" onClick={() => { setEditing(true); setTab('overview'); }}>
-              <Pencil size={13} /> Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setResetOpen(true)}>
+                <Smartphone size={13} /> Reset mobile login
+              </Button>
+              <Button size="sm" onClick={() => { setEditing(true); setTab('overview'); }}>
+                <Pencil size={13} /> Edit
+              </Button>
+            </div>
           )
         }
       />
@@ -159,6 +173,16 @@ export function EmployeeDetailPage({ employeeId }: Props) {
       {tab === 'resume' && <ResumeTab employeeId={employeeId} />}
       {tab === 'leave' && <LeaveTab employeeId={employeeId} />}
       {tab === 'payroll' && <PayrollTab employeeId={employeeId} />}
+
+      <ConfirmationDialog
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        onConfirm={handleResetLogin}
+        title="Reset mobile login"
+        description={`Unlink ${name}'s Google/Apple account and clear any lockout. They'll sign in again with Google/Apple and confirm their date of birth. Use this if they were locked out or linked the wrong account.`}
+        confirmLabel="Reset login"
+        loading={resetLogin.isPending}
+      />
     </div>
   );
 }
