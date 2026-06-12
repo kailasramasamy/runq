@@ -98,6 +98,7 @@ export function OverviewTab({ employee }: { employee: EmployeeRecord }) {
         />
         <Field label="Employment type" value={employee.employmentType.replace('_', ' ')} />
         <Field label="Status" value={employee.status.replace('_', ' ')} />
+        <Field label="Reporting manager" value={employee.reportingToName} />
       </SectionCard>
 
       <SectionCard title="Bank details">

@@ -48,6 +48,7 @@ export interface Employee {
   departmentId: string | null;
   designationId: string | null;
   reportingToId: string | null;
+  reportingToName: string | null;
   pan: string | null;
   aadhaar: string | null;
   uan: string | null;

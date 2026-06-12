@@ -105,6 +105,11 @@ export function EmployeeDetailPage({ employeeId }: Props) {
             <div className="mt-0.5 text-[13px]" style={{ color: 'var(--text-2)' }}>
               {employee.designationName ?? '—'} · {employee.departmentName ?? '—'}
             </div>
+            {employee.reportingToName && (
+              <div className="mt-0.5 text-[12px]" style={{ color: 'var(--text-3)' }}>
+                Reports to {employee.reportingToName}
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge variant={statusBadge?.variant ?? 'default'}>{statusBadge?.label ?? employee.status}</Badge>
               <Badge variant="default">{employee.employmentType.replace('_', ' ')}</Badge>

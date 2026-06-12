@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardHeader, CardContent, Input, Select, Button, Combobox } from '@/components/ui';
 import type { Employee } from '@/hooks/queries/use-hr';
-import { useDepartments, useDesignations } from '@/hooks/queries/use-hr';
+import { useDepartments, useDesignations, useEmployees } from '@/hooks/queries/use-hr';
 
 interface Props {
   initialData?: Employee;
@@ -26,7 +26,7 @@ type FormState = {
   joiningDate: string; confirmationDate: string; exitDate: string;
   status: 'active' | 'inactive' | 'terminated' | 'on_leave';
   employmentType: 'permanent' | 'contract' | 'intern' | 'consultant' | 'wage';
-  departmentId: string; designationId: string;
+  departmentId: string; designationId: string; reportingToId: string;
   pan: string; aadhaar: string; uan: string; pfNumber: string; esiNumber: string;
   bankAccountNumber: string; bankIfsc: string; bankName: string;
   ctcAnnual: string;
@@ -51,6 +51,7 @@ function buildInitial(e?: Employee): FormState {
     employmentType: e?.employmentType ?? 'permanent',
     departmentId: e?.departmentId ?? '',
     designationId: e?.designationId ?? '',
+    reportingToId: e?.reportingToId ?? '',
     pan: e?.pan ?? '',
     aadhaar: e?.aadhaar ?? '',
     uan: e?.uan ?? '',
@@ -99,6 +100,9 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
   const [form, setForm] = useState<FormState>(() => buildInitial(initialData));
   const { data: deptData } = useDepartments();
   const { data: desigData } = useDesignations();
+  // Active employees power the reporting-manager picker. Fetch a wide page so
+  // the Combobox (searchable) lists everyone for typical SME headcounts.
+  const { data: empData } = useEmployees({ status: 'active', limit: 500 });
 
   function up<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -111,6 +115,25 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
 
   const deptOptions = (deptData?.data ?? []).map((d) => ({ value: d.id, label: d.name }));
   const desigOptions = (desigData?.data ?? []).map((d) => ({ value: d.id, label: d.name }));
+  // Exclude the employee being edited so they can't report to themselves.
+  const managerOptions = (empData?.data ?? [])
+    .filter((emp) => emp.id !== initialData?.id)
+    .map((emp) => ({
+      value: emp.id,
+      label: `${emp.firstName}${emp.lastName ? ` ${emp.lastName}` : ''} (${emp.employeeCode})`,
+    }));
+  // Keep the currently-assigned manager selectable + labelled even if they're
+  // inactive or outside the fetched page — otherwise the Combobox falls back
+  // to showing the raw id. Uses the name the detail endpoint already returns.
+  if (
+    initialData?.reportingToId &&
+    !managerOptions.some((o) => o.value === initialData.reportingToId)
+  ) {
+    managerOptions.unshift({
+      value: initialData.reportingToId,
+      label: initialData.reportingToName ?? initialData.reportingToId,
+    });
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -170,6 +193,12 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
               options={[{ value: '', label: '— None —' }, ...desigOptions]}
               value={form.designationId}
               onChange={(v) => up('designationId', v)}
+            />
+            <Combobox
+              label="Reporting manager"
+              options={[{ value: '', label: '— None —' }, ...managerOptions]}
+              value={form.reportingToId}
+              onChange={(v) => up('reportingToId', v)}
             />
             <Select
               label="Status"

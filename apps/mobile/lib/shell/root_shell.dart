@@ -22,9 +22,24 @@ class _Tab {
 // module signal.
 const _financeTabs = <_Tab>[
   _Tab('/home', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/purchases', 'Purchases', Icons.shopping_bag_outlined, Icons.shopping_bag_rounded),
-  _Tab('/sales', 'Sales', Icons.trending_up_outlined, Icons.trending_up_rounded),
-  _Tab('/money', 'Money', Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded),
+  _Tab(
+    '/purchases',
+    'Purchases',
+    Icons.shopping_bag_outlined,
+    Icons.shopping_bag_rounded,
+  ),
+  _Tab(
+    '/sales',
+    'Sales',
+    Icons.trending_up_outlined,
+    Icons.trending_up_rounded,
+  ),
+  _Tab(
+    '/money',
+    'Money',
+    Icons.account_balance_wallet_outlined,
+    Icons.account_balance_wallet_rounded,
+  ),
 ];
 
 // People is no longer in the bottom nav — reachable from Home via the
@@ -34,7 +49,12 @@ const _financeTabs = <_Tab>[
 // HR setup for admins.
 const _hrTabs = <_Tab>[
   _Tab('/hr/home', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/hr/time', 'Time', Icons.access_time_outlined, Icons.access_time_filled_rounded),
+  _Tab(
+    '/hr/time',
+    'Time',
+    Icons.access_time_outlined,
+    Icons.access_time_filled_rounded,
+  ),
   _Tab('/hr/pay', 'Pay', Icons.payments_outlined, Icons.payments_rounded),
   _Tab('/hr/more', 'More', Icons.apps_outlined, Icons.apps_rounded),
 ];
@@ -46,9 +66,24 @@ const _hrTabs = <_Tab>[
 // nav doesn't have to grow to 8 tabs as the module fills out.
 const _inventoryTabs = <_Tab>[
   _Tab('/inventory', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/inventory/on-hand', 'Stock', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
-  _Tab('/inventory/moves', 'Moves', Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
-  _Tab('/inventory/alerts', 'Alerts', Icons.notifications_none_rounded, Icons.notifications_rounded),
+  _Tab(
+    '/inventory/on-hand',
+    'Stock',
+    Icons.inventory_2_outlined,
+    Icons.inventory_2_rounded,
+  ),
+  _Tab(
+    '/inventory/moves',
+    'Moves',
+    Icons.swap_horiz_outlined,
+    Icons.swap_horiz_rounded,
+  ),
+  _Tab(
+    '/inventory/alerts',
+    'Alerts',
+    Icons.notifications_none_rounded,
+    Icons.notifications_rounded,
+  ),
 ];
 
 // Purchase & Procurement module tabs. Home is the dashboard with KPIs +
@@ -58,8 +93,18 @@ const _inventoryTabs = <_Tab>[
 // stub for now; Phase 3 match commits happen from AP bill detail).
 const _purchaseTabs = <_Tab>[
   _Tab('/purchase', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/purchase/pos', 'POs', Icons.shopping_cart_outlined, Icons.shopping_cart_rounded),
-  _Tab('/purchase/direct', 'Receipts', Icons.local_shipping_outlined, Icons.local_shipping_rounded),
+  _Tab(
+    '/purchase/pos',
+    'POs',
+    Icons.shopping_cart_outlined,
+    Icons.shopping_cart_rounded,
+  ),
+  _Tab(
+    '/purchase/direct',
+    'Receipts',
+    Icons.local_shipping_outlined,
+    Icons.local_shipping_rounded,
+  ),
   _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
 
@@ -67,8 +112,18 @@ const _purchaseTabs = <_Tab>[
 // list; WOs is the work order list.
 const _manufacturingTabs = <_Tab>[
   _Tab('/manufacturing', 'Home', Icons.home_outlined, Icons.home_rounded),
-  _Tab('/manufacturing/boms', 'BOMs', Icons.add_chart_outlined, Icons.add_chart_rounded),
-  _Tab('/manufacturing/wos', 'WOs', Icons.precision_manufacturing_outlined, Icons.precision_manufacturing_rounded),
+  _Tab(
+    '/manufacturing/boms',
+    'BOMs',
+    Icons.add_chart_outlined,
+    Icons.add_chart_rounded,
+  ),
+  _Tab(
+    '/manufacturing/wos',
+    'WOs',
+    Icons.precision_manufacturing_outlined,
+    Icons.precision_manufacturing_rounded,
+  ),
 ];
 
 class RootShell extends ConsumerStatefulWidget {
@@ -80,13 +135,17 @@ class RootShell extends ConsumerStatefulWidget {
   ConsumerState<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends ConsumerState<RootShell> with SingleTickerProviderStateMixin {
+class _RootShellState extends ConsumerState<RootShell>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _fabCtrl;
 
   @override
   void initState() {
     super.initState();
-    _fabCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+    _fabCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
   }
 
   @override
@@ -137,12 +196,12 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     final module = inModule('/manufacturing')
         ? AppModule.manufacturing
         : inModule('/purchase')
-            ? AppModule.purchase
-            : inModule('/inventory')
-                ? AppModule.inventory
-                : inModule('/hr')
-                    ? AppModule.hr
-                    : AppModule.finance;
+        ? AppModule.purchase
+        : inModule('/inventory')
+        ? AppModule.inventory
+        : inModule('/hr')
+        ? AppModule.hr
+        : AppModule.finance;
     // Mirror the active route into the persisted module so the next cold
     // start lands the user in the same module they left. Done as a side
     // effect after build to avoid mutating provider state mid-build.
@@ -172,80 +231,104 @@ class _RootShellState extends ConsumerState<RootShell> with SingleTickerProvider
     final sysBottom = MediaQuery.of(context).padding.bottom;
     final navInset = sysBottom > 0 ? (sysBottom * 0.6).clamp(14.0, 22.0) : 12.0;
     final fadeHeight = 64 /* nav pill */ + navInset + 24;
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          widget.child,
-          // Fade content behind the nav pill so scrolling rows don't get
-          // sliced abruptly at the nav edge.
-          Positioned(
-            left: 0, right: 0, bottom: 0,
-            height: fadeHeight,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [bg.withValues(alpha: 0), bg.withValues(alpha: 0.85), bg],
-                    stops: const [0, 0.55, 1],
+    final baseTheme = Theme.of(context);
+    return Theme(
+      // Drop this outer Scaffold's iOS status-bar tap slot so it doesn't
+      // shadow each tab's own Scaffold — whose handler resolves the correct
+      // per-tab primary scroll controller for tap-to-scroll-top. iOS is
+      // restored for the body (and its tab Scaffolds) below.
+      data: baseTheme.copyWith(platform: TargetPlatform.android),
+      child: Scaffold(
+        extendBody: true,
+        body: Theme(
+          data: baseTheme,
+          child: Stack(
+            children: [
+              widget.child,
+              // Fade content behind the nav pill so scrolling rows don't get
+              // sliced abruptly at the nav edge.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: fadeHeight,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          bg.withValues(alpha: 0),
+                          bg.withValues(alpha: 0.85),
+                          bg,
+                        ],
+                        stops: const [0, 0.55, 1],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          AnimatedBuilder(
-            animation: _fabCtrl,
-            builder: (_, __) {
-              if (_fabCtrl.value == 0) return const SizedBox.shrink();
-              return Positioned.fill(
-                child: GestureDetector(
-                  onTap: _toggleSheet,
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 2 * _fabCtrl.value, sigmaY: 2 * _fabCtrl.value),
-                    child: Container(color: Colors.black.withValues(alpha: 0.25 * _fabCtrl.value)),
-                  ),
+              AnimatedBuilder(
+                animation: _fabCtrl,
+                builder: (_, __) {
+                  if (_fabCtrl.value == 0) return const SizedBox.shrink();
+                  return Positioned.fill(
+                    child: GestureDetector(
+                      onTap: _toggleSheet,
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 2 * _fabCtrl.value,
+                          sigmaY: 2 * _fabCtrl.value,
+                        ),
+                        child: Container(
+                          color: Colors.black.withValues(
+                            alpha: 0.25 * _fabCtrl.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              AnimatedBuilder(
+                animation: _fabCtrl,
+                builder: (_, __) => FabSheet(
+                  progress: _fabCtrl.value,
+                  onClose: _toggleSheet,
+                  actions: actions,
                 ),
-              );
-            },
+              ),
+            ],
           ),
-          AnimatedBuilder(
-            animation: _fabCtrl,
-            builder: (_, __) => FabSheet(
-              progress: _fabCtrl.value,
-              onClose: _toggleSheet,
-              actions: actions,
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _BottomNavPill(
-        tabs: tabs,
-        activeIndex: active,
-        // Brand colour for the active tab + centre FAB. Each module
-        // keeps its own accent so the bottom bar stays on-brand.
-        accent: switch (module) {
-          AppModule.hr => const Color(0xFF0891B2),
-          AppModule.inventory => _inventoryAmber,
-          AppModule.purchase => _purchaseViolet,
-          AppModule.manufacturing => const Color(0xFFE11D48),
-          AppModule.finance => RunqColors.indigo,
-        },
-        // HR module uses a Home-only shell: every non-Home destination is
-        // pushed onto the root navigator (bot nav disappears, back arrow
-        // appears). Finance + Inventory keep the classic switch-between-
-        // tabs flow.
-        onTap: (i) {
-          final target = tabs[i].path;
-          if (module == AppModule.hr && i != 0) {
-            context.push(target);
-          } else {
-            context.go(target);
-          }
-        },
-        onFab: _toggleSheet,
-        fabCtrl: _fabCtrl,
+        ),
+        bottomNavigationBar: _BottomNavPill(
+          tabs: tabs,
+          activeIndex: active,
+          // Brand colour for the active tab + centre FAB. Each module
+          // keeps its own accent so the bottom bar stays on-brand.
+          accent: switch (module) {
+            AppModule.hr => const Color(0xFF0891B2),
+            AppModule.inventory => _inventoryAmber,
+            AppModule.purchase => _purchaseViolet,
+            AppModule.manufacturing => const Color(0xFFE11D48),
+            AppModule.finance => RunqColors.indigo,
+          },
+          // HR module uses a Home-only shell: every non-Home destination is
+          // pushed onto the root navigator (bot nav disappears, back arrow
+          // appears). Finance + Inventory keep the classic switch-between-
+          // tabs flow.
+          onTap: (i) {
+            final target = tabs[i].path;
+            if (module == AppModule.hr && i != 0) {
+              context.push(target);
+            } else {
+              context.go(target);
+            }
+          },
+          onFab: _toggleSheet,
+          fabCtrl: _fabCtrl,
+        ),
       ),
     );
   }
@@ -278,30 +361,44 @@ class _BottomNavPill extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(12, 0, 12, inset),
       child: ClipRRect(
-          borderRadius: BorderRadius.circular(RunqRadii.hero),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: t.surface.withValues(alpha: 0.92),
-                border: Border.all(color: t.hairline, width: 0.5),
-                borderRadius: BorderRadius.circular(RunqRadii.hero),
-                boxShadow: RunqShadows.tabBar,
-              ),
-              child: Row(
-                children: [
-                  for (var i = 0; i < 2; i++)
-                    Expanded(child: _NavItem(tab: tabs[i], active: i == activeIndex, accent: accent, onTap: () => onTap(i))),
-                  _FabButton(onTap: onFab, fabCtrl: fabCtrl, accent: accent),
-                  for (var i = 2; i < tabs.length; i++)
-                    Expanded(child: _NavItem(tab: tabs[i], active: i == activeIndex, accent: accent, onTap: () => onTap(i))),
-                ],
-              ),
+        borderRadius: BorderRadius.circular(RunqRadii.hero),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: t.surface.withValues(alpha: 0.92),
+              border: Border.all(color: t.hairline, width: 0.5),
+              borderRadius: BorderRadius.circular(RunqRadii.hero),
+              boxShadow: RunqShadows.tabBar,
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < 2; i++)
+                  Expanded(
+                    child: _NavItem(
+                      tab: tabs[i],
+                      active: i == activeIndex,
+                      accent: accent,
+                      onTap: () => onTap(i),
+                    ),
+                  ),
+                _FabButton(onTap: onFab, fabCtrl: fabCtrl, accent: accent),
+                for (var i = 2; i < tabs.length; i++)
+                  Expanded(
+                    child: _NavItem(
+                      tab: tabs[i],
+                      active: i == activeIndex,
+                      accent: accent,
+                      onTap: () => onTap(i),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
+      ),
     );
   }
 }
@@ -354,7 +451,11 @@ class _FabButton extends StatelessWidget {
   final VoidCallback onTap;
   final AnimationController fabCtrl;
   final Color accent;
-  const _FabButton({required this.onTap, required this.fabCtrl, required this.accent});
+  const _FabButton({
+    required this.onTap,
+    required this.fabCtrl,
+    required this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {

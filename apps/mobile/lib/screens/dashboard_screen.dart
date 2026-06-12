@@ -32,55 +32,62 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      bottom: false,
-      child: RefreshIndicator(
-        color: RT(context).brand,
-        onRefresh: () => _refresh(ref),
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          slivers: [
-            const SliverToBoxAdapter(child: _Header()),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              sliver: SliverToBoxAdapter(child: CashHeroCard()),
+    // Transparent Scaffold so this screen owns the iOS status-bar tap target
+    // (scroll-to-top), while the RootShell background still shows through.
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: RT(context).brand,
+          onRefresh: () => _refresh(ref),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 24),
-              sliver: SliverToBoxAdapter(child: QuickActionsRow()),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                child: SectionHead(
-                  title: 'Needs your attention',
-                  action: 'Ask agent →',
-                  onAction: () => context.push('/agent'),
+            slivers: [
+              const SliverToBoxAdapter(child: _Header()),
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                sliver: SliverToBoxAdapter(child: CashHeroCard()),
+              ),
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 24),
+                sliver: SliverToBoxAdapter(child: QuickActionsRow()),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: SectionHead(
+                    title: 'Needs your attention',
+                    action: 'Ask agent →',
+                    onAction: () => context.push('/agent'),
+                  ),
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SpotlightCards()),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
-              sliver: SliverToBoxAdapter(child: GstSection()),
-            ),
-            const SliverToBoxAdapter(child: RecentInvoicesSection()),
-            const SliverToBoxAdapter(child: RecentBillsSection()),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
-                child: SectionHead(
-                  title: 'Activity',
-                  action: 'See all',
-                  onAction: () => context.push('/activity'),
+              const SliverToBoxAdapter(child: SpotlightCards()),
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
+                sliver: SliverToBoxAdapter(child: GstSection()),
+              ),
+              const SliverToBoxAdapter(child: RecentInvoicesSection()),
+              const SliverToBoxAdapter(child: RecentBillsSection()),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                  child: SectionHead(
+                    title: 'Activity',
+                    action: 'See all',
+                    onAction: () => context.push('/activity'),
+                  ),
                 ),
               ),
-            ),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
-              sliver: SliverToBoxAdapter(child: ActivityList(maxItems: 5)),
-            ),
-          ],
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
+                sliver: SliverToBoxAdapter(child: ActivityList(maxItems: 5)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -103,7 +110,9 @@ class _Header extends ConsumerWidget {
     final e = (email ?? '').trim();
     if (e.isEmpty) return 'there';
     final local = e.split('@').first;
-    return local.isEmpty ? 'there' : '${local[0].toUpperCase()}${local.substring(1)}';
+    return local.isEmpty
+        ? 'there'
+        : '${local[0].toUpperCase()}${local.substring(1)}';
   }
 
   @override
@@ -111,15 +120,29 @@ class _Header extends ConsumerWidget {
     final t = RT(context);
     final user = ref.watch(authProvider).user;
     final approvals = ref.watch(pendingApprovalsProvider);
-    final hasNotifications = approvals.maybeWhen(data: (l) => l.isNotEmpty, orElse: () => false);
+    final hasNotifications = approvals.maybeWhen(
+      data: (l) => l.isNotEmpty,
+      orElse: () => false,
+    );
     final role = ref.watch(appRoleProvider);
 
     const months = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final today = DateTime.now();
-    final dateLabel = '${_weekday(today.weekday)}, ${today.day} ${months[today.month - 1]}';
+    final dateLabel =
+        '${_weekday(today.weekday)}, ${today.day} ${months[today.month - 1]}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 16),
@@ -146,8 +169,7 @@ class _Header extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(dateLabel,
-              style: RunqText.bodyStrong.copyWith(color: t.muted)),
+          Text(dateLabel, style: RunqText.bodyStrong.copyWith(color: t.muted)),
           const SizedBox(height: 2),
           Text(
             '${_greeting()}, ${_firstName(user?.name, user?.email)} 👋',
@@ -161,7 +183,15 @@ class _Header extends ConsumerWidget {
   }
 
   static String _weekday(int wd) {
-    const labels = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const labels = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     return labels[wd - 1];
   }
 }
@@ -170,7 +200,11 @@ class _IconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool badge;
-  const _IconButton({required this.icon, required this.onTap, this.badge = false});
+  const _IconButton({
+    required this.icon,
+    required this.onTap,
+    this.badge = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +216,8 @@ class _IconButton extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 40, height: 40,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: t.surface,
               borderRadius: BorderRadius.circular(12),
@@ -193,9 +228,11 @@ class _IconButton extends StatelessWidget {
           ),
           if (badge)
             Positioned(
-              right: 8, top: 8,
+              right: 8,
+              top: 8,
               child: Container(
-                width: 8, height: 8,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: RunqColors.redInk,
                   shape: BoxShape.circle,
@@ -208,4 +245,3 @@ class _IconButton extends StatelessWidget {
     );
   }
 }
-
