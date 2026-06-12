@@ -134,9 +134,13 @@ export class PaymentService {
     const invoiceRows = await this.fetchAndValidateInvoices(invoiceIds, input.allocations, input.totalAmount);
 
     const result = await this.db.transaction(async (tx) => {
-      // Lock all target invoices to prevent concurrent balance corruption
+      // Lock all target invoices to prevent concurrent balance corruption.
+      // Use inArray (not `= ANY(${arr})`, which drizzle doesn't marshal as a
+      // Postgres array — it fails with "malformed array literal").
       const invoiceIds = input.allocations.map((a) => a.invoiceId);
-      await tx.execute(sql`SELECT id FROM purchase_invoices WHERE id = ANY(${invoiceIds}) FOR UPDATE`);
+      await tx.execute(
+        sql`SELECT id FROM purchase_invoices WHERE ${inArray(purchaseInvoices.id, invoiceIds)} FOR UPDATE`,
+      );
 
       const [payment] = await tx
         .insert(payments)

@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { bankTransactions, accounts } from '@runq/db';
 import type { Db } from '@runq/db';
 
@@ -33,7 +33,7 @@ export class BankChargesService {
       .from(accounts)
       .where(and(
         eq(accounts.tenantId, this.tenantId),
-        sql`${accounts.code} = ANY(${codes})`,
+        inArray(accounts.code, codes),
       ));
   }
 
@@ -52,7 +52,7 @@ export class BankChargesService {
       .where(and(
         eq(bankTransactions.tenantId, this.tenantId),
         eq(bankTransactions.bankAccountId, bankAccountId),
-        sql`${bankTransactions.glAccountId} = ANY(${acctIds})`,
+        inArray(bankTransactions.glAccountId, acctIds),
       ))
       .groupBy(sql`1`, bankTransactions.glAccountId);
   }

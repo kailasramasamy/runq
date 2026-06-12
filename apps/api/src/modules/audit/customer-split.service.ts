@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, sql, inArray } from 'drizzle-orm';
 import { salesInvoices, customers } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -98,7 +98,7 @@ export class CustomerSplitService {
         .set({ customerId: input.targetCustomerId, updatedAt: new Date() })
         .where(and(
           eq(salesInvoices.tenantId, this.tenantId),
-          sql`${salesInvoices.id} = ANY(${ids}::uuid[])`,
+          inArray(salesInvoices.id, ids),
         ));
     });
 

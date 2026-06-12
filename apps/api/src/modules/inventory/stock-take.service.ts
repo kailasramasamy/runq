@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, count } from 'drizzle-orm';
+import { and, asc, desc, eq, sql, count, inArray } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
   inventoryStockTakes, inventoryStockTakeLines, stockOnHand, items, warehouses,
@@ -231,7 +231,7 @@ export class StockTakeService {
         SET recount_flag = TRUE
         WHERE stock_take_id = ${id}
           AND tenant_id = ${this.ctx.tenantId}
-          AND id = ANY(${input.lineIds})
+          AND ${inArray(inventoryStockTakeLines.id, input.lineIds)}
       `);
     } else if (input.varianceThresholdPct != null) {
       const threshold = input.varianceThresholdPct / 100;
