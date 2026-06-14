@@ -21,3 +21,7 @@ docs/.obsidian/graph.json
 
 # Flutter build output
 apps/mobile/android/build/
+
+# Ad-hoc milk-procurement dev/e2e scripts (kept local, not versioned)
+apps/api/mp_*.mjs
+packages/db/mp_*.mjs
