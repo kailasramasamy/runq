@@ -139,6 +139,19 @@ button:not(:disabled),
   --accent-text: oklch(0.82 0.13 13);
 }
 
+/* Milk Procurement (Dhenu) — emerald (#0F7A5A). The brand colour from the
+   Dhenu design spec; distinct from finance indigo / hr teal / inventory amber. */
+[data-module="milk_procurement"] {
+  --accent: oklch(0.55 0.12 163);
+  --accent-soft: oklch(0.95 0.04 163);
+  --accent-text: oklch(0.45 0.11 163);
+}
+.dark[data-module="milk_procurement"] {
+  --accent: oklch(0.72 0.13 163);
+  --accent-soft: oklch(0.3 0.06 163);
+  --accent-text: oklch(0.79 0.11 163);
+}
+
 body {
   font-family: var(--font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";

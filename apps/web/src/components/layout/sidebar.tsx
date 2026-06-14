@@ -17,7 +17,7 @@ import {
   Network,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
   Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
-  Factory, FlaskConical, TrendingUp,
+  Factory, FlaskConical, TrendingUp, Milk, Droplets, Users2, SlidersHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -201,7 +201,7 @@ const VIEWER_HR_KEYS = new Set<string>([
   'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
 ]);
 
-type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing';
+type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing' | 'milk_procurement';
 // `chipLabel` overrides `label` inside the sidebar header pill where space
 // is tight (232px sidebar, ~200px content area). Longer module names overlap
 // the logo otherwise. Falls back to `label` when not provided.
@@ -211,6 +211,7 @@ const MODULES: { key: ModuleKey; label: string; chipLabel?: string; path: string
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
   { key: 'purchase', label: 'Purchase', path: '/purchase', icon: ShoppingCart, description: 'POs, receipts, 3-way match' },
   { key: 'manufacturing', label: 'Manufacturing', chipLabel: 'Mfg', path: '/manufacturing', icon: Factory, description: 'BOMs, work orders, costing' },
+  { key: 'milk_procurement', label: 'Milk Procurement', chipLabel: 'Milk', path: '/milk-procurement', icon: Milk, description: 'Dhenu — farmers, collection, payout' },
 ];
 
 export const INVENTORY_NAV_GROUPS: NavGroup[] = [
@@ -309,6 +310,40 @@ export const MANUFACTURING_NAV_GROUPS: NavGroup[] = [
       { key: 'mfg-report-yield', label: 'Yield trend', icon: TrendingUp, path: '/manufacturing/reports/yield-trend' },
       { key: 'mfg-report-bom-usage', label: 'BOM usage', icon: PieChart, path: '/manufacturing/reports/bom-usage' },
       { key: 'mfg-report-pending-close', label: 'Pending close', icon: AlarmClock, path: '/manufacturing/reports/wo-pending-close' },
+    ],
+  },
+];
+
+export const MILK_NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { key: 'mp-home', label: 'Dashboard', icon: LayoutDashboard, path: '/milk-procurement' },
+    ],
+  },
+  {
+    label: 'Operate',
+    items: [
+      { key: 'mp-collection', label: 'Collection', icon: Droplets, path: '/milk-procurement/collection' },
+      { key: 'mp-consignments', label: 'Consignments', icon: Truck, path: '/milk-procurement/consignments' },
+      { key: 'mp-payouts', label: 'Payouts', icon: Coins, path: '/milk-procurement/payouts' },
+      { key: 'mp-personas', label: 'View as persona', icon: Users2, path: '/milk-procurement/personas' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { key: 'mp-report-collection', label: 'Collection summary', icon: BarChart3, path: '/milk-procurement/reports/collection' },
+    ],
+  },
+  {
+    label: 'Setup',
+    items: [
+      { key: 'mp-nodes', label: 'Network (VMCC/CC/PP)', icon: Network, path: '/milk-procurement/nodes' },
+      { key: 'mp-farmers', label: 'Farmers', icon: Users, path: '/milk-procurement/farmers' },
+      { key: 'mp-rate-charts', label: 'Rate charts', icon: Scale, path: '/milk-procurement/rate-charts' },
+      { key: 'mp-operators', label: 'Operators', icon: HardHat, path: '/milk-procurement/operators' },
+      { key: 'mp-settings', label: 'Settings', icon: SlidersHorizontal, path: '/milk-procurement/settings' },
     ],
   },
 ];
@@ -491,6 +526,7 @@ function SidebarContent({
   const isInventory = currentPath === '/inventory' || currentPath.startsWith('/inventory/');
   const isPurchase = currentPath === '/purchase' || currentPath.startsWith('/purchase/');
   const isManufacturing = currentPath === '/manufacturing' || currentPath.startsWith('/manufacturing/');
+  const isMilk = currentPath === '/milk-procurement' || currentPath.startsWith('/milk-procurement/');
   // Module implied by the current path.
   const pathModule: ModuleKey = isInventory
     ? 'inventory'
@@ -498,9 +534,11 @@ function SidebarContent({
       ? 'purchase'
       : isManufacturing
         ? 'manufacturing'
-        : currentPath === '/hr' || currentPath.startsWith('/hr/')
-          ? 'hr'
-          : 'finance';
+        : isMilk
+          ? 'milk_procurement'
+          : currentPath === '/hr' || currentPath.startsWith('/hr/')
+            ? 'hr'
+            : 'finance';
   // Clamp to a module the user can actually see. On /settings, stay on the
   // last browsed module (if still visible). Falls back to the first visible
   // module; route guards handle redirecting disallowed deep links.
@@ -519,6 +557,7 @@ function SidebarContent({
       : activeModule === 'inventory' ? INVENTORY_NAV_GROUPS
       : activeModule === 'purchase' ? PURCHASE_NAV_GROUPS
       : activeModule === 'manufacturing' ? MANUFACTURING_NAV_GROUPS
+      : activeModule === 'milk_procurement' ? MILK_NAV_GROUPS
       : NAV_GROUPS;
   // Non-admin HR users get the trimmed self-service menu.
   if (activeModule === 'hr' && !canManageHrModule(user?.role)) {

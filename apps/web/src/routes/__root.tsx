@@ -215,6 +215,18 @@ import { AdminAnnouncementsPage } from './admin/announcements';
 import { AdminSettingsPage } from './admin/settings';
 // Manufacturing module
 import { ManufacturingHomePage } from './manufacturing/index';
+import { MilkProcurementHomePage } from './milk-procurement/index';
+import { MpNodesPage } from './milk-procurement/nodes';
+import { MpFarmersPage } from './milk-procurement/farmers';
+import { MpRateChartsPage } from './milk-procurement/rate-charts';
+import { MpRateChartNewPage } from './milk-procurement/rate-charts-new';
+import { MpCollectionPage } from './milk-procurement/collection';
+import { MpConsignmentsPage } from './milk-procurement/consignments';
+import { MpPayoutsPage } from './milk-procurement/payouts';
+import { MpPersonasPage } from './milk-procurement/personas';
+import { MpOperatorsPage } from './milk-procurement/operators';
+import { MpSettingsPage } from './milk-procurement/settings';
+import { MpCollectionReportPage } from './milk-procurement/reports-collection';
 import { BomListPage } from './manufacturing/boms/index';
 import { NewBomPage } from './manufacturing/boms/new';
 import { EditBomPage } from './manufacturing/boms/edit';
@@ -336,7 +348,9 @@ function DashboardLayout() {
           ? 'purchase'
           : pathname === '/manufacturing' || pathname.startsWith('/manufacturing/')
             ? 'manufacturing'
-            : 'finance';
+            : pathname === '/milk-procurement' || pathname.startsWith('/milk-procurement/')
+              ? 'milk_procurement'
+              : 'finance';
   // Set on <html> rather than a layout div so portalled dropdowns and modals
   // (rendered outside the layout subtree) still inherit the module accent.
   useEffect(() => {
@@ -379,6 +393,10 @@ const MODULE_HOME: Record<ModuleCode, string> = {
   inventory: '/inventory',
   purchase: '/purchase',
   manufacturing: '/manufacturing',
+  // Dhenu milk-procurement has no web surface (it's the standalone mobile app);
+  // a web user whose only module is this lands on their profile, like the
+  // no-usable-module fallback.
+  milk_procurement: '/profile',
 };
 
 // First module the user can see, in display order. Effective modules already
@@ -397,6 +415,7 @@ const BUSINESS_PREFIXES: { prefix: string; code: ModuleCode }[] = [
   { prefix: '/purchase', code: 'purchase' },
   { prefix: '/manufacturing', code: 'manufacturing' },
   { prefix: '/inventory', code: 'inventory' },
+  { prefix: '/milk-procurement', code: 'milk_procurement' },
   { prefix: '/finance', code: 'finance' },
 ];
 
@@ -2561,6 +2580,40 @@ const adminSettingsRoute = createRoute({
   component: AdminSettingsPage,
 });
 
+// ─── Milk Procurement (Dhenu) — nests under /milk-procurement ──────────────────
+
+const milkProcurementRoute = createRoute({
+  getParentRoute: () => dashboardLayoutRoute,
+  path: '/milk-procurement',
+  component: BusinessModuleGuard,
+});
+const mpIndexRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/', component: MilkProcurementHomePage });
+const mpNodesRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes', component: MpNodesPage });
+const mpFarmersRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/farmers', component: MpFarmersPage });
+const mpRateChartsRoute = createRoute({
+  getParentRoute: () => milkProcurementRoute,
+  path: '/rate-charts',
+  validateSearch: (s: Record<string, unknown>): { view?: string } => ({ view: typeof s.view === 'string' ? s.view : undefined }),
+  component: MpRateChartsPage,
+});
+const mpRateChartNewRoute = createRoute({
+  getParentRoute: () => milkProcurementRoute,
+  path: '/rate-charts/new',
+  validateSearch: (s: Record<string, unknown>): { from?: string } => ({ from: typeof s.from === 'string' ? s.from : undefined }),
+  component: MpRateChartNewPage,
+});
+// Collection & Consignments each merge their history into a route-driven tab —
+// the path selects the active tab, preserving deep links.
+const mpCollectionRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/collection', component: () => <MpCollectionPage tab="record" /> });
+const mpCollectionHistoryRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/collection/history', component: () => <MpCollectionPage tab="history" /> });
+const mpConsignmentsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/consignments', component: () => <MpConsignmentsPage view="operate" /> });
+const mpConsignmentHistoryRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/consignments/history', component: () => <MpConsignmentsPage view="history" /> });
+const mpPayoutsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/payouts', component: MpPayoutsPage });
+const mpPersonasRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/personas', component: MpPersonasPage });
+const mpOperatorsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/operators', component: MpOperatorsPage });
+const mpSettingsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/settings', component: MpSettingsPage });
+const mpReportCollectionRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/collection', component: MpCollectionReportPage });
+
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 export const routeTree = rootRoute.addChildren([
@@ -2798,6 +2851,22 @@ export const routeTree = rootRoute.addChildren([
       mfgReportYieldTrendRoute,
       mfgReportBomUsageRoute,
       mfgReportWoPendingCloseRoute,
+    ]),
+    milkProcurementRoute.addChildren([
+      mpIndexRoute,
+      mpNodesRoute,
+      mpFarmersRoute,
+      mpRateChartsRoute,
+      mpRateChartNewRoute,
+      mpCollectionRoute,
+      mpCollectionHistoryRoute,
+      mpConsignmentsRoute,
+      mpConsignmentHistoryRoute,
+      mpPayoutsRoute,
+      mpPersonasRoute,
+      mpOperatorsRoute,
+      mpSettingsRoute,
+      mpReportCollectionRoute,
     ]),
     inventoryRoute.addChildren([
       inventoryIndexRoute,

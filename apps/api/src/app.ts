@@ -16,6 +16,7 @@ import { socialAuthRoutes } from './modules/auth/social-auth.routes';
 import { apRoutes } from './modules/ap/routes';
 import { purchaseRoutes } from './modules/purchase/routes';
 import { manufacturingRoutes } from './modules/manufacturing/routes';
+import { milkProcurementRoutes } from './modules/milk-procurement/routes';
 import { arRoutes } from './modules/ar/routes';
 import { invoicePrintRoutes } from './modules/ar/invoice-print.routes';
 import { billPrintRoutes } from './modules/ap/bill-print.routes';
@@ -132,6 +133,7 @@ export async function buildApp() {
     await guarded(manufacturingRoutes, '/api/v1/manufacturing', 'manufacturing');
     await guarded(inventoryRoutes, '/api/v1/inventory', 'inventory');
     await guarded(hrRoutes, '/api/v1/hr', 'hr');
+    await guarded(milkProcurementRoutes, '/api/v1/milk-procurement', 'milk_procurement');
 
     // Shared / cross-cutting — NOT module-gated. A single-module user still
     // needs masters, settings, attachments, reports, audit, agent, etc.

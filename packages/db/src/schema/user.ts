@@ -3,7 +3,8 @@ import { tenants } from './tenant';
 
 // `hr` = People Ops persona. Tenant-wide read on HR data, full HR write,
 // but no Finance write — narrower than `accountant`. Added in mig 0084.
-export const userRoleEnum = pgEnum('user_role', ['owner', 'accountant', 'viewer', 'client_owner', 'hr']);
+// `field_operator` + `farmer` added mig 0132 (Dhenu personas).
+export const userRoleEnum = pgEnum('user_role', ['owner', 'accountant', 'viewer', 'client_owner', 'hr', 'field_operator', 'farmer']);
 
 export const inviteTypeEnum = pgEnum('invite_type', ['new_tenant', 'join_tenant']);
 

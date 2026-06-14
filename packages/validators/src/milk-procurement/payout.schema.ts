@@ -1,0 +1,38 @@
+import { z } from 'zod';
+
+/**
+ * Dhenu milk-procurement — payout validators.
+ * Spec: docs/dhenu-schema-spec.md §6. Farmer ledger (advances/loans), payout
+ * cycles generated from pours, deductions, lock, and pay (direct/via-VMCC).
+ */
+
+export const createLedgerEntrySchema = z.object({
+  farmerId: z.string().uuid(),
+  entryType: z.enum(['advance_given', 'feed_loan_given', 'repayment', 'adjustment']),
+  amount: z.number().positive(),
+  occurredOn: z.string().date(),
+  // for repayment: which bucket it pays down
+  refType: z.enum(['advance', 'cattle_feed_loan']).nullish(),
+});
+
+export const ledgerFilterSchema = z.object({
+  // optional: a farmer persona reads their own ledger (server forces the id)
+  farmerId: z.string().uuid().optional(),
+});
+
+// `Payout`-prefixed to avoid clashing with HR review-cycle schemas in the barrel
+export const createPayoutCycleSchema = z.object({
+  scopeNodeId: z.string().uuid().nullish(),
+  periodStart: z.string().date(),
+  periodEnd: z.string().date(),
+});
+
+export const payoutCycleFilterSchema = z.object({
+  status: z.enum(['open', 'locked', 'paid', 'reversed']).optional(),
+  scopeNodeId: z.string().uuid().optional(),
+});
+
+export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
+export type LedgerFilter = z.infer<typeof ledgerFilterSchema>;
+export type CreatePayoutCycleInput = z.infer<typeof createPayoutCycleSchema>;
+export type PayoutCycleFilter = z.infer<typeof payoutCycleFilterSchema>;

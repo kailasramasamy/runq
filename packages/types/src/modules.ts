@@ -19,6 +19,7 @@ export const MODULE_CODES = [
   'inventory',
   'purchase',
   'manufacturing',
+  'milk_procurement',
 ] as const;
 
 export type ModuleCode = (typeof MODULE_CODES)[number];
@@ -36,6 +37,8 @@ export const MODULES: readonly ModuleDef[] = [
   { code: 'inventory', label: 'Inventory', routePrefixes: ['/inventory'] },
   { code: 'purchase', label: 'Purchase', routePrefixes: ['/purchase'] },
   { code: 'manufacturing', label: 'Manufacturing', routePrefixes: ['/manufacturing'] },
+  // Dhenu milk procurement — premium add-on, NOT in the tenant default set.
+  { code: 'milk_procurement', label: 'Milk Procurement', routePrefixes: ['/milk-procurement'] },
 ] as const;
 
 export function isModuleCode(value: string): value is ModuleCode {
@@ -52,19 +55,23 @@ export function sanitizeModuleCodes(input: readonly string[]): ModuleCode[] {
 // Every other role (owner, accountant, viewer) is a READ_ROLE everywhere, so it
 // may be granted any module — write is gated separately inside each module.
 const HR_ONLY_ROLES = new Set<string>(['hr']);
+// Dhenu personas are confined to milk_procurement, just as `hr` is to HR.
+const MILK_ONLY_ROLES = new Set<string>(['field_operator', 'farmer']);
 
 /**
  * Which enabled modules a role is *permitted* to access at all — the ceiling
- * for any explicit per-user grant. The `hr` role is limited to HR & Payroll;
- * every other role may be granted any enabled module (read access is open to
- * owner/accountant/viewer across all modules at the rbac layer). Keeps the
- * per-user grant in lockstep with API rbac so a granted module never 403s.
+ * for any explicit per-user grant. `hr` is limited to HR & Payroll;
+ * `field_operator`/`farmer` to Milk Procurement; every other role may be
+ * granted any enabled module (read access is open to owner/accountant/viewer
+ * across all modules at the rbac layer). Keeps the per-user grant in lockstep
+ * with API rbac so a granted module never 403s.
  */
 export function roleAllowedModules(
   role: string | null | undefined,
   enabled: readonly ModuleCode[],
 ): ModuleCode[] {
   if (HR_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'hr');
+  if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
   return [...enabled];
 }
 
@@ -81,5 +88,6 @@ export function defaultModulesForRole(
 ): ModuleCode[] {
   if (role === 'owner' || role === 'client_owner') return [...enabled];
   if (role === 'accountant') return enabled.filter((code) => code === 'finance');
+  if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
   return enabled.filter((code) => code === 'hr');
 }

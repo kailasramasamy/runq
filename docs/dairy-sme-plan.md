@@ -56,7 +56,7 @@ Underneath all of it: **Finance, HR, Fixed Assets, Compliance**.
 
 A dairy runs many personas on one tenant — office finance, plant floor, delivery
 staff, (later) collection clerks. Two pieces of access infrastructure landed that
-make this workable, and de-risk the §3.7 "runq Collect" persona split:
+make this workable, and de-risk the §3.7 Dhenu persona split:
 
 - **Per-user module access** (2026-06-08, `a10dae3`): tenant-level module ceiling
   × per-user grant, enforced across API/web/mobile. An owner enables Finance/HR/
@@ -157,9 +157,13 @@ make this workable, and de-risk the §3.7 "runq Collect" persona split:
 
 ---
 
-## 3.7 Milk Procurement — architectural decision: "runq Collect"
+## 3.7 Milk Procurement — architectural decision: "Dhenu"
 
-**Decision:** Build as a **separate app on the same backend** — branded **runq Collect**. Not a tab inside the runq web ERP, not a fully separate product.
+**Decision:** Build as a **separate app on the same backend** — branded **Dhenu** (Sanskrit for *cow*, the source). Not a tab inside the runq web ERP, not a fully separate product. Standalone brand with **no `runq` prefix** — so it lists cleanly on the App/Play stores and can be sold on its own.
+
+> **Name locked (2026-06-13):** **Dhenu**. Picked after screening App/Play store clashes — only adjacent gaushala/cow-charity apps exist (no milk-procurement collision); store slate is effectively clean in-category. Ships as bare app name *"Dhenu"* (fallback "Dhenu Milk" if Apple flags the exact string), with store subtitle *"Milk procurement"* for SEO. Code dir stays `apps/collect/` — brand ≠ directory.
+
+**Personas (one app, four user types):** farmers (pour-in + own ledger/payout), VMCC (village milk collection centre), CC (chilling centre), PP (processing plant intake). Low-literacy / vernacular-first across all four.
 
 ### Why not "just another module in runq"
 The collection-centre user is a fundamentally different persona, device, and context from the office ERP user:
@@ -183,36 +187,43 @@ Cramming both into one app punishes both users.
 - Dilutes brand and sales motion.
 - Loses the real moat: **one platform, end-to-end traceability farmer → retail shelf**.
 
-### The hybrid — runq Collect
+### The hybrid — Dhenu
 
 **Architecture:**
-- New backend module in monorepo: `apps/api/src/modules/procurement-milk/` + `packages/db/src/schema/milk_procurement.ts`.
+- New backend module in monorepo, one-module-per-domain like every other runq domain (`ap`, `inventory`, `purchase`, `manufacturing`): `apps/api/src/modules/milk-procurement/` + `packages/db/src/schema/milk_procurement.ts`. (Slug `milk-procurement/` — matches the schema file; **not** `procurement-milk/`.)
+- **Not folded into `purchase`.** `purchase` is PO → GRN → 3-way-match; milk collection is farmer master → twice-daily FAT/SNF entry → rate-chart pricing → fortnightly payout. Zero model overlap, different release cadence (offline sync + BT hardware), different access/billing boundary.
+- **Register as a first-class access module** (like Finance/HR/Inventory) in the per-user module-access system from day one — that's what makes the standalone Dhenu sales motion and per-active-farmer billing work without a retrofit.
 - New mobile app: `apps/collect/` (Flutter, shares auth + API base). Optimized for one workflow: receive farmer → weigh → test → print receipt → sync.
 - Optional collection-centre web view for tablet clerks.
-- **Shared backend:** tenant, users, vendors (farmer = vendor sub-type), inventory engine (raw milk batches), GL, AP.
+- **Separate ≠ siloed — shares the backend via function calls, not rebuilt primitives:** tenant, users, vendors (farmer = vendor sub-type), inventory engine (raw milk batches), GL (payout JE), AP (advance + cattle-feed-loan ledger). The moat is farmer→shelf traceability as in-process calls, not a fragile cross-product API.
 
 **Commercial:**
-- Sub-brand **"runq Collect"** — distinct positioning, same family.
+- Standalone brand **"Dhenu"** — distinct positioning, same backend family. No `runq` in the name so it sells on its own.
 - Three sales motions:
   1. **Bundled** with full runq ERP (most dairies).
-  2. **Standalone** — Collect + thin AP/payout sliver. Land cheap, expand later.
+  2. **Standalone** — Dhenu + thin AP/payout sliver. Land cheap, expand later.
   3. **Co-op edition** — village societies, multi-society deployment sold to the parent dairy.
-- **Pricing: per-active-farmer/month** (e.g. ₹3–5/farmer/mo). Independent of ERP seats. A 5,000-farmer dairy = ₹15–25K/month on Collect *alone*, on top of ERP.
+- **Pricing: per-active-farmer/month** (e.g. ₹3–5/farmer/mo). Independent of ERP seats. A 5,000-farmer dairy = ₹15–25K/month on Dhenu *alone*, on top of ERP.
 
 **Engineering:**
 - Same git repo, same CI, same DB, same deploy — no fragmentation.
 - Mobile app on its own release cadence.
-- Hardware peripheral code (analyzer/scale BT, thermal printer) stays isolated in Collect — never pollutes the ERP mobile app.
+- Hardware peripheral code (analyzer/scale BT, thermal printer) stays isolated in Dhenu — never pollutes the ERP mobile app.
 
-### Collect rollout phases
+### Dhenu rollout phases
 | Phase | Scope | Target |
 |---|---|---|
 | 1 | Backend module + tablet-friendly web UI (online clerk) | Epoch 3 (Oct–Nov 2026) |
 | 2 | Dedicated Flutter `apps/collect/` mobile app with offline sync | Q1 2027 |
 | 3 | Hardware peripherals: milk analyzer (BT), weighing scale, thermal printer | Q2 2027 |
 
+### Design
+Dhenu has its **own design language** — not the runq ERP / `module-ui` look — built for low-literacy, vernacular, offline rural users. Full spec (design system + 4 role dashboards + farmer Part-1 screens, Part 2 stubbed): **`docs/dhenu-design-spec.md`** (Sprint 1, 2026-06-13).
+Backend data model (16 `mp_`-prefixed tables — network/farmers/rate-chart/collection/payout, reusing vendors/inventory/GL/AP): **`docs/dhenu-schema-spec.md`** (spec for review, 2026-06-13).
+Build tracker (phased API + app + cross-cutting increments, status-tracked): **`docs/dhenu-tracker.md`**. Schema + migration + API masters (A1) shipped & e2e-passed; next is A2 rate charts → A3 pour capture.
+
 ### Brand positioning
-Market **runq Collect** as a named product from day one — even though technically it's a runq module. Lets you sell it standalone without re-platforming later. Tagline candidate: *"The only Indian milk-procurement app that posts straight to your books."*
+Market **Dhenu** as a named, standalone product from day one — even though technically it's a runq module on the shared backend. Lets you sell it on its own without re-platforming later. Tagline candidate: *"The only Indian milk-procurement app that posts straight to your books."*
 
 ---
 
@@ -273,9 +284,9 @@ Plan the next ~6 months as **3 epochs**:
 | Platform — phone-only staff onboarding | — | — | Jun 2026 | 2026-06-09 | ✅ Done (`4598ac0`) — web-provision OTP staff + HR user management |
 | Sales & Distribution | MVP | — | Aug 2026 | Sep 2026 | Not started — next major build |
 | Quality Control | MVP | — | Sep 2026 | Sep 2026 | Not started |
-| Milk Procurement — Collect backend + web | 1 | — | Oct 2026 | Nov 2026 | Not started |
-| Milk Procurement — Collect mobile app (offline) | 2 | — | Jan 2027 | Mar 2027 | Not started |
-| Milk Procurement — Collect hardware peripherals | 3 | — | Apr 2027 | Jun 2027 | Not started |
+| Milk Procurement — Dhenu backend + web | 1 | — | Oct 2026 | Nov 2026 | Not started |
+| Milk Procurement — Dhenu mobile app (offline) | 2 | — | Jan 2027 | Mar 2027 | Not started |
+| Milk Procurement — Dhenu hardware peripherals | 3 | — | Apr 2027 | Jun 2027 | Not started |
 | Fixed Assets | — | — | TBD | TBD | Backlog |
 | Plant Maintenance | — | — | TBD | TBD | Backlog |
 | CRM / Schemes & Claims | — | — | TBD | TBD | Backlog |
