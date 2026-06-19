@@ -11,13 +11,15 @@ const STATUSES = [
   { value: '', label: 'All' }, { value: 'in_transit', label: 'In transit' },
   { value: 'received', label: 'Received' }, { value: 'reversed', label: 'Reversed' },
 ];
+const SHIFTS = [{ value: '', label: 'All shifts' }, { value: 'am', label: '☀️ AM' }, { value: 'pm', label: '🌙 PM' }];
 const LEG_LABEL: Record<string, string> = { vmcc_to_cc: 'VMCC → CC', cc_to_pp: 'CC → PP' };
+const SHIFT_LABEL: Record<string, string> = { am: '☀️ AM', pm: '🌙 PM' };
 const LIMIT = 50;
 
 export function ConsignmentHistoryView() {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const [f, setF] = useState({ kind: '', fromNodeId: '', toNodeId: '', from: monthAgo, to: today, status: '' });
+  const [f, setF] = useState({ kind: '', fromNodeId: '', toNodeId: '', from: monthAgo, to: today, shift: '', status: '' });
   const [page, setPage] = useState(1);
 
   const { data: nodesData } = useNodes({ limit: 300 });
@@ -28,7 +30,7 @@ export function ConsignmentHistoryView() {
 
   const { data, isLoading } = useConsignments({
     kind: f.kind || undefined, fromNodeId: f.fromNodeId || undefined, toNodeId: f.toNodeId || undefined,
-    from: f.from || undefined, to: f.to || undefined, status: f.status || undefined, page, limit: LIMIT,
+    from: f.from || undefined, to: f.to || undefined, shift: f.shift || undefined, status: f.status || undefined, page, limit: LIMIT,
   });
   const rows = data?.data ?? [];
   const meta = data?.meta;
@@ -43,6 +45,7 @@ export function ConsignmentHistoryView() {
           <Combobox label="To node" value={f.toNodeId} onChange={(v) => set({ toNodeId: v })} options={nodeOpt('All nodes')} placeholder="All nodes" />
           <Input label="From" type="date" value={f.from} max={f.to} onChange={(e) => set({ from: e.target.value })} />
           <Input label="To" type="date" value={f.to} max={today} onChange={(e) => set({ to: e.target.value })} />
+          <Combobox label="Shift" value={f.shift} onChange={(v) => set({ shift: v })} options={SHIFTS} />
           <Combobox label="Status" value={f.status} onChange={(v) => set({ status: v })} options={STATUSES} />
         </CardContent>
       </Card>
@@ -52,21 +55,22 @@ export function ConsignmentHistoryView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <Th>Date</Th><Th>No.</Th><Th>Leg</Th><Th>From → To</Th><Th>Container</Th>
+                <Th>Date</Th><Th>No.</Th><Th>Leg</Th><Th>Shift</Th><Th>From → To</Th><Th>Container</Th>
                 <Th align="right">Disp.</Th><Th align="right">Rcpt.</Th><Th align="right">Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Status</Th>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={8} cols={11} />
+                <TableSkeleton rows={8} cols={12} />
               ) : rows.length === 0 ? (
-                <TableEmpty colSpan={11} message="No consignments for these filters." />
+                <TableEmpty colSpan={12} message="No consignments for these filters." />
               ) : (
                 rows.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="text-xs tabular-nums">{c.collectionDate}</TableCell>
                     <TableCell className="text-xs text-zinc-500">{c.consignmentNo}</TableCell>
                     <TableCell className="text-xs">{LEG_LABEL[c.kind]}</TableCell>
+                    <TableCell className="text-xs">{c.shift ? SHIFT_LABEL[c.shift] : '—'}</TableCell>
                     <TableCell className="text-xs">{nm(c.fromNodeId)} → {nm(c.toNodeId)}</TableCell>
                     <TableCell className="text-xs">{c.containerNo ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{c.dispatchQty ?? '—'}</TableCell>

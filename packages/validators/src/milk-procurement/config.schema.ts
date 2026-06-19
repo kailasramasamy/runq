@@ -8,6 +8,14 @@ import { z } from 'zod';
 
 export const upsertGlSettingsSchema = z.object({
   defaultPayoutMode: z.enum(['direct_to_farmer', 'via_vmcc']).optional(),
+  // Cycle cadence: typically 10 or 15 days; weekly/monthly allowed (1–31).
+  cycleDays: z.number().int().min(1).max(31).nullish(),
+  cycleAnchorDate: z.string().date().nullish(),
+  autoGenerateCycle: z.boolean().optional(),
+  // Support contacts surfaced on the app's Help & Support screen.
+  supportPhone: z.string().trim().max(20).nullish(),
+  supportEmail: z.string().trim().email().max(120).nullish(),
+  supportWhatsapp: z.string().trim().max(20).nullish(),
   milkPurchaseAccountId: z.string().uuid().nullish(),
   farmerPayableAccountId: z.string().uuid().nullish(),
   qualityBonusAccountId: z.string().uuid().nullish(),
@@ -15,6 +23,15 @@ export const upsertGlSettingsSchema = z.object({
   feedLoanAccountId: z.string().uuid().nullish(),
   rawMilkInventoryAccountId: z.string().uuid().nullish(),
   varianceAccountId: z.string().uuid().nullish(),
+}).superRefine((v, ctx) => {
+  // Auto-roll needs a defined cadence to compute period boundaries.
+  if (v.autoGenerateCycle && (v.cycleDays == null || v.cycleAnchorDate == null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'cycleDays and cycleAnchorDate are required to auto-generate cycles',
+      path: ['autoGenerateCycle'],
+    });
+  }
 });
 
 export type UpsertGlSettingsInput = z.infer<typeof upsertGlSettingsSchema>;

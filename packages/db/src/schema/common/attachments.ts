@@ -9,6 +9,7 @@ export const attachmentEntityTypeEnum = pgEnum('attachment_entity_type', [
   'receipt',
   'expense',
   'employee',
+  'farmer',
 ]);
 
 export const documentAttachments = pgTable('document_attachments', {

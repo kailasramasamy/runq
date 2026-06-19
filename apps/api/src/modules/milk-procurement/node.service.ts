@@ -102,8 +102,14 @@ export class NodeService {
     if (filters.search) {
       conds.push(or(ilike(mpNodes.name, `%${filters.search}%`), ilike(mpNodes.code, `%${filters.search}%`))!);
     }
-    const scope = scopeNodes(principal);
-    if (scope) conds.push(scope);
+    // Operators are normally restricted to their own node(s) so the app lands on
+    // an owned node. An explicit nodeType query is a dispatch-destination lookup
+    // (e.g. "list the CCs a VMCC can send to"), so expose that tier tenant-wide —
+    // operators may already dispatch to any node. Reads only; writes stay guarded.
+    if (!(principal.kind === 'operator' && filters.nodeType)) {
+      const scope = scopeNodes(principal);
+      if (scope) conds.push(scope);
+    }
     return and(...conds);
   }
 

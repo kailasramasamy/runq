@@ -116,3 +116,4 @@ export * from './milk-procurement/consignments';
 export * from './milk-procurement/qc-tests';
 export * from './milk-procurement/payouts';
 export * from './milk-procurement/operations';
+export * from './milk-procurement/credentials';

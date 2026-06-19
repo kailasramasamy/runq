@@ -1,0 +1,157 @@
+// HTML template for a farmer's per-cycle milk collection statement. Rendered to
+// PDF via the shared Puppeteer helper (renderHtmlToPdf) so mobile + web share an
+// identical document. Self-contained: inline CSS, no external assets.
+
+export interface StatementPour {
+  collectionDate: string; // YYYY-MM-DD
+  shift: 'am' | 'pm';
+  milkType: string;
+  qtyLitres: number;
+  fat: number | null;
+  snf: number | null;
+  ratePerLitre: number;
+  lineAmount: number;
+  receiptNo?: string | null;
+}
+
+export interface PourStatementData {
+  tenantName: string;
+  farmer: {
+    name: string; code: string;
+    village?: string | null; phone?: string | null; nodeName?: string | null;
+    bankName?: string | null; bankAccountNumber?: string | null;
+    bankIfsc?: string | null; upiId?: string | null;
+  };
+  period: { from: string; to: string; label?: string | null };
+  pours: StatementPour[];
+  totals: {
+    litres: number; amount: number; count: number;
+    amLitres: number; pmLitres: number; avgFat: number | null; avgSnf: number | null;
+  };
+  generatedAt: string; // ISO
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+}
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${String(d).padStart(2, '0')} ${MONTHS[(m ?? 1) - 1]} ${y}`;
+}
+function inr(n: number): string {
+  return `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function num(n: number | null, dp = 1): string {
+  return n == null ? '–' : n.toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+const milkLabel = (m: string): string => ({ cow: 'Cow', buffalo: 'Buffalo', mixed: 'Mixed' }[m] ?? m);
+
+function metaRow(k: string, v: string): string {
+  return `<div class="meta-row"><span class="meta-k">${esc(k)}</span><span class="meta-v">${esc(v)}</span></div>`;
+}
+
+function summaryCard(label: string, value: string): string {
+  return `<div class="card"><div class="card-v">${value}</div><div class="card-l">${esc(label)}</div></div>`;
+}
+
+function pourRow(p: StatementPour): string {
+  return `<tr>
+    <td>${fmtDate(p.collectionDate)}</td>
+    <td class="center">${p.shift === 'am' ? 'AM' : 'PM'}</td>
+    <td class="center">${esc(milkLabel(p.milkType))}</td>
+    <td class="right">${num(p.qtyLitres, 1)}</td>
+    <td class="right">${num(p.fat, 1)}</td>
+    <td class="right">${num(p.snf, 1)}</td>
+    <td class="right">${num(p.ratePerLitre, 2)}</td>
+    <td class="right">${inr(p.lineAmount)}</td>
+  </tr>`;
+}
+
+function bankLine(f: PourStatementData['farmer']): string {
+  const parts: string[] = [];
+  if (f.bankName || f.bankAccountNumber) {
+    parts.push(`${esc(f.bankName ?? 'Bank')} · A/C ${esc(f.bankAccountNumber ?? '–')}${f.bankIfsc ? ` · ${esc(f.bankIfsc)}` : ''}`);
+  }
+  if (f.upiId) parts.push(`UPI: ${esc(f.upiId)}`);
+  return parts.length ? `<div class="pay">${parts.join(' &nbsp;|&nbsp; ')}</div>` : '';
+}
+
+export function renderPourStatementHTML(d: PourStatementData): string {
+  const periodLabel = d.period.label
+    ? `${esc(d.period.label)} (${fmtDate(d.period.from)} – ${fmtDate(d.period.to)})`
+    : `${fmtDate(d.period.from)} – ${fmtDate(d.period.to)}`;
+  const gen = new Date(d.generatedAt);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/>${STYLE}</head><body><div class="page">
+    <div class="header">
+      <div>
+        <div class="brand">${esc(d.tenantName)}</div>
+        <div class="sub">Milk Collection Statement</div>
+      </div>
+      <div class="meta">
+        ${metaRow('Farmer', d.farmer.name)}
+        ${metaRow('Code', d.farmer.code)}
+        ${d.farmer.nodeName ? metaRow('VMCC', d.farmer.nodeName) : ''}
+        ${metaRow('Period', periodLabel)}
+      </div>
+    </div>
+    ${bankLine(d.farmer)}
+    <div class="cards">
+      ${summaryCard('Total milk', `${num(d.totals.litres, 1)} L`)}
+      ${summaryCard('Total amount', inr(d.totals.amount))}
+      ${summaryCard('Pours', String(d.totals.count))}
+      ${summaryCard('AM / PM', `${num(d.totals.amLitres, 1)} / ${num(d.totals.pmLitres, 1)} L`)}
+      ${summaryCard('Avg FAT / SNF', `${num(d.totals.avgFat, 1)} / ${num(d.totals.avgSnf, 1)}`)}
+    </div>
+    <table>
+      <thead><tr>
+        <th>Date</th><th class="center">Shift</th><th class="center">Type</th>
+        <th class="right">Qty (L)</th><th class="right">FAT</th><th class="right">SNF</th>
+        <th class="right">Rate ₹/L</th><th class="right">Amount</th>
+      </tr></thead>
+      <tbody>
+        ${d.pours.length ? d.pours.map(pourRow).join('') : '<tr><td colspan="8" class="empty">No pours in this period.</td></tr>'}
+      </tbody>
+      <tfoot><tr>
+        <td colspan="3" class="tfoot-label">Total</td>
+        <td class="right">${num(d.totals.litres, 1)}</td>
+        <td colspan="2"></td>
+        <td class="right tfoot-label">Net</td>
+        <td class="right grand">${inr(d.totals.amount)}</td>
+      </tr></tfoot>
+    </table>
+    <div class="footer">Generated ${fmtDate(gen.toISOString().slice(0, 10))} · Powered by runq</div>
+  </div></body></html>`;
+}
+
+const STYLE = `<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 12px; color: #14150F; }
+  .page { width: 100%; max-width: 182mm; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+    padding-bottom: 14px; margin-bottom: 14px; border-bottom: 2px solid #0F7A5A; }
+  .brand { font-size: 22px; font-weight: 700; color: #0F7A5A; letter-spacing: -0.2px; }
+  .sub { font-size: 11px; color: #5B635C; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+  .meta { font-size: 11px; border: 1px solid #E9E7DF; border-radius: 6px; padding: 8px 12px; background: #FBFAF6; min-width: 220px; }
+  .meta-row { display: flex; justify-content: space-between; gap: 16px; padding: 2px 0; }
+  .meta-row + .meta-row { border-top: 1px dashed #E9E7DF; }
+  .meta-k { color: #5B635C; }
+  .meta-v { color: #14150F; font-weight: 600; }
+  .pay { font-size: 11px; color: #5B635C; margin-bottom: 12px; padding: 6px 10px; background: #F1F7F4; border-radius: 6px; }
+  .cards { display: flex; gap: 8px; margin-bottom: 14px; }
+  .card { flex: 1; border: 1px solid #E9E7DF; border-radius: 8px; padding: 8px 10px; }
+  .card-v { font-size: 15px; font-weight: 700; color: #14150F; font-variant-numeric: tabular-nums; }
+  .card-l { font-size: 10px; color: #5B635C; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead th { background: #0F7A5A; color: #fff; font-weight: 600; padding: 7px 8px; text-align: left; }
+  tbody td { padding: 6px 8px; border-bottom: 1px solid #EFEDE6; font-variant-numeric: tabular-nums; }
+  tbody tr:nth-child(even) td { background: #FBFAF6; }
+  .right { text-align: right; } .center { text-align: center; }
+  .empty { text-align: center; color: #5B635C; padding: 20px; }
+  tfoot td { padding: 8px; border-top: 2px solid #0F7A5A; font-weight: 700; }
+  .tfoot-label { color: #5B635C; }
+  .grand { color: #0F7A5A; font-size: 13px; }
+  .footer { margin-top: 16px; font-size: 10px; color: #9aa29a; text-align: center; }
+</style>`;

@@ -53,10 +53,10 @@ export const mpPours = pgTable('mp_pours', {
   uniqueIndex('uq_mp_pours_device')
     .on(t.tenantId, t.nodeId, t.deviceLocalId)
     .where(sql`${t.deviceLocalId} IS NOT NULL`),
-  // one active pour per (farmer, date, shift); last-write-wins at the service layer
-  uniqueIndex('uq_mp_pours_active_slot')
-    .on(t.tenantId, t.farmerId, t.collectionDate, t.shift)
-    .where(sql`${t.status} = 'recorded'`),
+  // No one-per-slot unique guard: a farmer may have several recorded pours per
+  // shift (multiple cans, or cow + buffalo). Replace-vs-add is an explicit
+  // operator choice (RecordPourInput.asNewLot); same-slot replacement is
+  // milk-type-scoped in the service.
 ]);
 
 export type MpPourRow = typeof mpPours.$inferSelect;

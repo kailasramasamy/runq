@@ -1,15 +1,33 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, FileDown } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, CardHeader, Button, Badge, Modal, Input, Combobox, Pagination,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
+import { sharePdf } from '@/lib/share-pdf';
 import { Tabs } from '@/components/ar/primitives';
 import {
   useNodes, useFarmers, usePayoutCycles, usePayoutCycle, useCreatePayoutCycle, useCycleAction,
-  useFarmerLedger, useAddLedgerEntry,
+  useFarmerLedger, useAddLedgerEntry, useGlSettings,
   useOperatorPayoutCompute, useOperatorPayouts, useMarkOperatorPayout, type MpOperatorPayoutLine,
 } from '@/hooks/queries/use-milk-procurement';
+
+/** Calendar-aligned cycle window containing `today` (15-day → [1-15],[16-end]). */
+function currentCyclePeriod(cycleDays: number, today: string): { start: string; end: string } | null {
+  if (cycleDays < 1) return null;
+  const [y, m, d] = today.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const threshold = Math.min(30, daysInMonth);
+  const starts: number[] = [];
+  for (let s = 1; s <= threshold; s += cycleDays) starts.push(s);
+  let idx = 0;
+  for (let i = 0; i < starts.length; i += 1) if (d >= starts[i]!) idx = i;
+  const start = starts[idx]!;
+  const end = idx < starts.length - 1 ? starts[idx + 1]! - 1 : daysInMonth;
+  const iso = (day: number) => `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return { start: iso(start), end: iso(end) };
+}
 
 const LEDGER_TYPES = [
   { value: 'advance_given', label: 'Advance given' },
@@ -86,11 +104,28 @@ function CycleDetail({ cycleId }: { cycleId: string }) {
   const lock = useCycleAction('lock');
   const pay = useCycleAction('pay');
   const { toast } = useToast();
+  const [downloading, setDownloading] = useState<string | null>(null);
   const cycle = data?.data;
   if (!cycle) return <Card><CardContent className="py-10 text-center text-sm text-zinc-500">Loading cycle…</CardContent></Card>;
 
   const act = (m: typeof lock, label: string) =>
     m.mutate(cycleId, { onSuccess: () => toast(`Cycle ${label}`, 'success'), onError: () => toast(`Failed to ${label}`, 'error') });
+
+  const downloadStatement = async (farmerId: string, ref: string) => {
+    setDownloading(farmerId);
+    try {
+      await sharePdf({
+        path: `/milk-procurement/farmers/${farmerId}/pour-statement`,
+        params: { from: cycle.periodStart, to: cycle.periodEnd, label: `Cycle ${cycle.cycleNo}`, format: 'pdf' },
+        filename: `pour-statement-${ref}-${cycle.periodStart}.pdf`,
+        title: `Pour statement ${ref} — ${cycle.cycleNo}`,
+      });
+    } catch {
+      toast('Failed to download statement', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
     <Card>
@@ -110,20 +145,35 @@ function CycleDetail({ cycleId }: { cycleId: string }) {
           <div><div className="text-zinc-500">Net</div><div className="font-semibold text-emerald-700">₹{cycle.totalNet}</div></div>
         </div>
         <Table>
-          <TableHeader><TableRow><Th>Farmer line</Th><Th align="right">Gross</Th><Th align="right">Deduct</Th><Th align="right">Net</Th><Th>Paid</Th></TableRow></TableHeader>
+          <TableHeader><TableRow><Th>Farmer line</Th><Th align="right">Gross</Th><Th align="right">Deduct</Th><Th align="right">Net</Th><Th>Paid</Th><Th /></TableRow></TableHeader>
           <TableBody>
             {cycle.lines.length === 0 ? (
-              <TableEmpty colSpan={5} message="No lines." />
+              <TableEmpty colSpan={6} message="No lines." />
             ) : (
-              cycle.lines.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell className="text-xs">{l.statementNo ?? l.farmerId.slice(0, 8)}</TableCell>
-                  <TableCell className="text-right">{l.grossAmount}</TableCell>
-                  <TableCell className="text-right">{l.deductionTotal}</TableCell>
-                  <TableCell className="text-right font-medium">{l.netAmount}</TableCell>
-                  <TableCell>{l.paymentId ? <Badge variant="success">✓</Badge> : '—'}</TableCell>
-                </TableRow>
-              ))
+              cycle.lines.map((l) => {
+                const ref = l.statementNo ?? l.farmerId.slice(0, 8);
+                return (
+                  <TableRow key={l.id}>
+                    <TableCell className="text-xs">{ref}</TableCell>
+                    <TableCell className="text-right">{l.grossAmount}</TableCell>
+                    <TableCell className="text-right">{l.deductionTotal}</TableCell>
+                    <TableCell className="text-right font-medium">{l.netAmount}</TableCell>
+                    <TableCell>{l.paymentId ? <Badge variant="success">✓</Badge> : '—'}</TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Download pour statement"
+                        loading={downloading === l.farmerId}
+                        disabled={downloading !== null}
+                        onClick={() => downloadStatement(l.farmerId, ref)}
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -195,8 +245,13 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const { toast } = useToast();
   const { data: nodesData } = useNodes({ limit: 300 });
   const nodes = nodesData?.data ?? [];
+  const { data: settingsData } = useGlSettings();
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState({ scopeNodeId: '', periodStart: today, periodEnd: today });
+  const s = settingsData?.data;
+  const seed = s?.cycleDays ? currentCyclePeriod(s.cycleDays, today) : null;
+  const [f, setF] = useState({
+    scopeNodeId: '', periodStart: seed?.start ?? today, periodEnd: seed?.end ?? today,
+  });
 
   const submit = () => {
     create.mutate(

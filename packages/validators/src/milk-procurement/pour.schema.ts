@@ -5,8 +5,10 @@ import { z } from 'zod';
  * Spec: docs/dhenu-schema-spec.md §5.1.
  *
  * Recording resolves the rate from the active chart, computes amounts, and
- * stamps a receipt number. Append-only: a second pour for the same
- * (farmer, date, shift) reverses the prior one (last-write-wins).
+ * stamps a receipt number. Append-only: a repeat for the same
+ * (farmer, date, shift, milkType) reverses the prior one (last-write-wins) —
+ * unless `asNewLot` is set, which keeps both as separately-priced lots
+ * (multiple cans, or cow + buffalo in one shift).
  */
 
 export const recordPourSchema = z.object({
@@ -23,6 +25,8 @@ export const recordPourSchema = z.object({
   captureSource: z.enum(['manual', 'device']).default('manual'),
   // mobile offline-queue replay dedupe (idempotency key)
   deviceLocalId: z.string().max(64).nullish(),
+  // true → record an additional lot instead of replacing the prior same-slot pour
+  asNewLot: z.boolean().default(false),
 });
 
 export const pourFilterSchema = z.object({

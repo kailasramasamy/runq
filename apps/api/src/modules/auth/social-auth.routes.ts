@@ -2,68 +2,16 @@ import { FastifyPluginAsync } from 'fastify';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import type { DecodedIdToken } from 'firebase-admin/auth';
-import { users, userTenants, tenants, employees } from '@runq/db';
+import { users, employees } from '@runq/db';
 import { socialLoginSchema, socialBindSchema, phoneDobLoginSchema } from '@runq/validators';
-import { UnauthorizedError, NotFoundError, ForbiddenError, AppError } from '../../utils/errors';
-import { getFirebaseAuth } from '../../utils/push/firebase-admin';
+import { UnauthorizedError, NotFoundError, ForbiddenError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
-import { loadEnv } from '../../config/env';
-
-const env = loadEnv();
+import {
+  verifyIdToken, readSocialProvider, dobToDDMMYY, ensureMembership, issueSession,
+} from './auth-session';
 
 // Failed DOB tries before the one-time bind locks (admin reset required).
 const MAX_BIND_ATTEMPTS = 5;
-
-// Verify the Firebase ID token. checkRevoked=true catches a stale token after
-// admin disables or resets the Firebase user — important for the reset-login flow.
-async function verifyIdToken(idToken: string): Promise<DecodedIdToken> {
-  const auth = getFirebaseAuth();
-  if (!auth) throw new AppError(503, 'Firebase auth not configured', 'ConfigError');
-  try {
-    return await auth.verifyIdToken(idToken, true);
-  } catch {
-    throw new UnauthorizedError('Invalid or expired sign-in token');
-  }
-}
-
-// Which social provider minted this token. Bind/login only trust Google/Apple —
-// never a bare phone or anonymous identity.
-function readSocialProvider(t: DecodedIdToken): 'google' | 'apple' | null {
-  const ids = (t.firebase?.identities ?? {}) as Record<string, unknown>;
-  if (Array.isArray(ids['google.com'])) return 'google';
-  if (Array.isArray(ids['apple.com'])) return 'apple';
-  return null;
-}
-
-// Employee date_of_birth → DDMMYY, the format the mobile client submits. Returns
-// null when no DOB is on file (caller blocks the bind and tells them to ask HR).
-// drizzle's `date` column comes back as 'YYYY-MM-DD'; tolerate a Date too.
-function dobToDDMMYY(dob: string | Date | null | undefined): string | null {
-  if (!dob) return null;
-  const iso = typeof dob === 'string' ? dob : dob.toISOString().slice(0, 10);
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return null;
-  const [, yyyy, mm, dd] = m;
-  return `${dd}${mm}${yyyy.slice(2)}`;
-}
-
-// Tenant-context plugin gates every protected request on a user_tenants row.
-async function ensureMembership(
-  db: any,
-  userId: string,
-  tenantId: string,
-  role: 'owner' | 'accountant' | 'viewer' | 'client_owner' | 'hr',
-): Promise<void> {
-  const [existing] = await db
-    .select({ id: userTenants.id })
-    .from(userTenants)
-    .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)))
-    .limit(1);
-  if (!existing) {
-    await db.insert(userTenants).values({ userId, tenantId, role });
-  }
-}
 
 // Match an employee by phone — digit-normalised so rows stored with spaces,
 // +91, or a leading 91 still resolve. Returns null when no employee matches.
@@ -143,35 +91,6 @@ async function verifyEmployeeByDob(db: any, phoneRaw: string, dob: string) {
     );
   }
   return { emp, phone };
-}
-
-// Final step shared by /login and /bind — issue the runq JWT + sanitised user.
-async function issueSession(app: any, user: any) {
-  if (!user.isActive) throw new UnauthorizedError('Account is disabled');
-  await ensureMembership(app.db, user.id, user.tenantId, user.role);
-
-  const [tenant] = await app.db
-    .select({ id: tenants.id, name: tenants.name })
-    .from(tenants)
-    .where(eq(tenants.id, user.tenantId))
-    .limit(1);
-  if (!tenant) throw new UnauthorizedError('Tenant not found');
-
-  const token = app.jwt.sign(
-    { userId: user.id, tenantId: tenant.id, role: user.role },
-    { expiresIn: env.JWT_EXPIRES_IN },
-  );
-  return {
-    token,
-    user: {
-      id: user.id,
-      tenantId: user.tenantId,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      isActive: user.isActive,
-    },
-  };
 }
 
 export const socialAuthRoutes: FastifyPluginAsync = async (app) => {

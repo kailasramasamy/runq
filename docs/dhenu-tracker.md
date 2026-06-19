@@ -33,6 +33,7 @@
 | A6 | **Payout** — cycles / lines / deductions / farmer-ledger | ✅ | A3 | generate from pours; advance+feed-loan deductions; lock rolls totals + posts repayment ledger; pay direct/via-VMCC → `payments`; **e2e**. ⚠ GL post on lock deferred to C3 (CoA sign-off) — `journal_entry_id` null |
 | A7 | **Operator comp** — commission from pour volume | ✅ | A3 | terms CRUD; `GET /operators/commission` (nodeQty × rate + salary + rent); **e2e** |
 | A8 | **Config** — `mp_gl_settings` + `mp_sequences` admin | ✅ | A6 | GET/PUT gl-settings (upsert, default payout mode + account map), GET sequences; **e2e** |
+| A8b | **Cycle config** — tenant cadence + auto-roll | ✅ | A6,A8 | `mp_gl_settings.cycle_days/cycle_anchor_date/auto_generate_cycle` (mig 0135); daily `cycle-roll-scheduler` (04:00 IST) generates each closed period's cycle, idempotent + self-healing; web Settings card + manual-modal prefill |
 | A9 | **Reports** — collection rollups | ✅ | A3,A6 | `GET /reports/collection` (qty/am-pm/farmers/avg FAT-SNF/gross); **e2e**. Farmer ledger via A6 `/payouts/ledger`; cycle summary via A6 `/payouts/cycles/:id` |
 
 **Phase A (API module) — COMPLETE.** All increments e2e-passed against `runq_dev`.
@@ -51,13 +52,19 @@
 
 | # | Increment | Status | Depends | Notes |
 |---|---|---|---|---|
-| B0 | Flutter app scaffold + Dhenu design system | ⬜ | 0.2 | tokens, components, theme, dark mode; own language (not `module-ui`) |
-| B1 | Auth + role resolution (Firebase OTP) | ⬜ | B0 | reuse mobile OTP; role → dashboard |
-| B2 | VMCC capture flow (`+ Record Collection`) | ⬜ | A3,B1 | most-used screen; manual entry; offline queue |
-| B3 | Farmer Part-1 (home, rate, collections, payment, rewards) | ⬜ | A2,A3,A6 | the moat screens; read-mostly + transparency |
-| B4 | VMCC / CC / PP dashboards | ⬜ | A3,A4 | the 4 role homes |
-| B5 | Services hub stub (Part-2 placeholder) | ⬜ | B3 | "coming soon" grid + notify-me |
-| B6 | Localisation + audio read-aloud | ⬜ | B0 | vernacular + 🔊 on rate/payment |
+| B0 | Flutter app scaffold + Dhenu design system | ✅ | 0.2 | `apps/collect/`; `dhenu_tokens`/`dhenu_theme` (§2), 12-widget lib (§3), gallery (`/gallery` debug route), `check-fonts.sh`. Inter+tabular, emerald/AM-PM/grade tokens, light+dark |
+| B1 | Auth + role resolution | ✅ | B0 | **Reuses Google/Apple + phone-DOB** (NOT phone OTP — decision); `auth_provider` role→Persona (farmer/operator/admin); go_router redirect; splash/login/bind. **Firebase wired (2026-06-14):** `com.quartex.dhenu` registered as Android+iOS apps under the existing `runq-63597` project (so the shared backend's `verifyIdToken` trusts the tokens); `google-services.json`+gradle plugin, `GoogleService-Info.plist`+Xcode bundle+URL scheme, `firebase_options.dart` updated. ⚠ Android Google sign-in still needs the debug/release SHA-1 added in console (iOS ready) |
+| B2 | VMCC capture flow (`+ Record Collection`) | ✅ | A3,B1 | `record_collection` (farmer searchable picker, ShiftToggle, qty/FAT/SNF, live rate preview via `/rate-charts/resolve`); offline `PourQueue` (Hive+connectivity+uuid `deviceLocalId`); `sync_provider`→SyncStatus chip; full VMCC home (§5.2) |
+| B3 | Farmer Part-1 (home, rate, collections, payment, rewards) | ✅ | A2,A3,A6 | §5.1/§6: home, collections+detail, rate chart (FAT×SNF matrix "you-are-here"), payment breakup, rewards. ⚠ Payment/History from **own pours+ledger ONLY** (farmer role 403s on `/payouts/cycles`); grouped by calendar month; full §6.3 fidelity needs a farmer-scoped statement endpoint |
+| B4 | VMCC / CC / PP dashboards | ✅ | A3,A4 | RoleShell + §4.3 bottom nav per role; VMCC farmers/reports tabs; CC home/receive/dispatch/vmccs (§5.3); PP home/receive/tankers/qc (§5.4) over `/consignments` + `/qc-tests`; shared ProfileTab |
+| B5 | Services hub stub (Part-2 placeholder) | ✅ | B3 | `farmer_services_stub` — coming-soon grid + Notify-me (§6.6) |
+| B6 | Localisation + audio read-aloud | ✅* | B0 | `TtsService` (flutter_tts) wired to AudioPlay on rate+payment+home figures; `locale_provider`+persist+language picker (8 langs); `flutter_localizations` delegates. **\*UI string translations to the 7 Indic langs are a follow-on needing native-speaker input** — infra ready, Material widgets localise, app strings still English |
+
+**✅ Independent Dhenu auth module — DONE (2026-06-15, e2e 10/10).** Decision: Dhenu auth is **fully independent of HR `employees` auth**. New `mp_credentials` table (mig `0134`) holds the Dhenu login identity (phone + DOB + firebase_uid + auth_provider + 5-try throttle), keyed `(tenant, phone)`, with `farmer_id` + `user_id` links. New route module `mp-auth.routes.ts` at `/auth/mp/{phone-dob/login,social/login,social/bind}` resolves **`mp_credentials` only** (never employees); on first login it mints/links a `users` row (role `farmer`/`field_operator`) whose membership auto-resolves to the `milk_procurement` module. Shared firebase/session primitives extracted to `auth/auth-session.ts` (used by both HR + Dhenu, no dup). Flutter `auth_provider.dart` repointed to `/auth/mp/*`. **e2e (`scripts/e2e-mp-auth.ts`):** wrong-DOB 401 + throttle, correct-DOB → farmer JWT, `/auth/me` modules = `[milk_procurement]`, 5-try lockout 403. ⏳ Social bind/login paths need a real Firebase token → device-verified.
+
+**✅ Web-admin provisioning — DONE (2026-06-15, e2e 7/7).** `credentials.service.ts#upsertCredential` (idempotent on `(tenant, phone)`, resets throttle on DOB edit). Farmer create/update (`farmer.service.ts`) provisions a `farmer` credential when phone + DOB are given; operator create (`operator.service.ts`) provisions a `field_operator` credential from an optional `loginPhone`+`loginDob`. Web forms: `farmers.tsx` create+edit get a DOB field; `operators.tsx` gets an "App login (optional)" phone+DOB group. **e2e (`scripts/e2e-mp-provision.ts`):** real `FarmerService.create` w/ phone+DOB → credential row → `/auth/mp/phone-dob/login` → farmer session w/ `milk_procurement`. So the owner can now create a farmer/operator in web admin and they sign in to the app — no manual seeding.
+
+**Phase B (Dhenu mobile app) — code COMPLETE (B0–B6).** `flutter analyze` clean, `check-fonts.sh` clean, debug APK builds, boot/auth widget test passes. **Firebase wired for both platforms (2026-06-14).** ⏳ **Not yet done: interactive device e2e** (needs a seeded `field_operator` user assigned to a VMCC in `runq_dev`; rebuild required to pick up the new native Firebase config); add the Android SHA-1 in the Firebase console before Android Google sign-in works.
 
 ---
 

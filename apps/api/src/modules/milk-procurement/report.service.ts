@@ -2,6 +2,7 @@ import { and, eq, sql, gte, lte } from 'drizzle-orm';
 import { mpPours } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CollectionReportQuery } from '@runq/validators';
+import { MpPrincipal, scopePours } from './access-scope';
 
 export interface CollectionSummary {
   from: string;
@@ -24,12 +25,16 @@ export class ReportService {
     private readonly tenantId: string,
   ) {}
 
-  async collectionSummary(q: CollectionReportQuery): Promise<CollectionSummary> {
+  async collectionSummary(q: CollectionReportQuery, principal?: MpPrincipal): Promise<CollectionSummary> {
     const conds = [
       eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
       gte(mpPours.collectionDate, q.from), lte(mpPours.collectionDate, q.to),
     ];
     if (q.nodeId) conds.push(eq(mpPours.nodeId, q.nodeId));
+    if (principal) {
+      const scope = scopePours(principal);
+      if (scope) conds.push(scope);
+    }
     const [r] = await this.db.select({
       totalQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
       amQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'am'), 0)`,

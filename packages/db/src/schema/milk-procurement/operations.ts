@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, boolean, integer, decimal, date, timestamp, index, uniqueIndex,
+  pgTable, uuid, varchar, text, boolean, integer, decimal, date, timestamp, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
@@ -17,6 +17,10 @@ export const mpNodeOperators = pgTable('mp_node_operators', {
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   nodeId: uuid('node_id').notNull().references(() => mpNodes.id),
   userId: uuid('user_id').references(() => users.id),
+  // Responsible person for this node — name + mobile shown in web & app; the
+  // mobile doubles as the Dhenu login phone (DOB lives in mp_credentials).
+  name: varchar('name', { length: 255 }),
+  phone: varchar('phone', { length: 20 }),
   payeeVendorId: uuid('payee_vendor_id').references(() => vendors.id),
   role: mpOperatorRole('role').notNull().default('operator'),
   compType: mpCompType('comp_type').notNull(),
@@ -50,6 +54,15 @@ export const mpGlSettings = pgTable('mp_gl_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   defaultPayoutMode: mpPayoutMode('default_payout_mode').notNull().default('direct_to_farmer'),
+  // Collection/payout cycle: cadence (cycleDays from cycleAnchorDate) +
+  // whether the daily scheduler auto-generates each cycle as its period closes.
+  cycleDays: integer('cycle_days'),
+  cycleAnchorDate: date('cycle_anchor_date'),
+  autoGenerateCycle: boolean('auto_generate_cycle').notNull().default(false),
+  // Support contacts shown on the app's Help & Support screen (all personas read).
+  supportPhone: text('support_phone'),
+  supportEmail: text('support_email'),
+  supportWhatsapp: text('support_whatsapp'),
   milkPurchaseAccountId: uuid('milk_purchase_account_id').references(() => accounts.id),
   farmerPayableAccountId: uuid('farmer_payable_account_id').references(() => accounts.id),
   qualityBonusAccountId: uuid('quality_bonus_account_id').references(() => accounts.id),

@@ -27,6 +27,14 @@ export const operatorRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.computeComp(q) };
   });
 
+  // The signed-in operator's own comp terms + this month's earning. Self-scoped
+  // by user_id, so field_operator is allowed (unlike the admin reads above).
+  app.get('/me', { preHandler: [rbacHook([...READ_ROLES, 'field_operator'])] }, async (request) => {
+    const service = new NodeOperatorService(request.server.db, request.tenantId);
+    const today = new Date().toISOString().slice(0, 10);
+    return { data: await service.self(request.user!.userId, today) };
+  });
+
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const { id } = uuidParamSchema.parse(request.params);
     const service = new NodeOperatorService(request.server.db, request.tenantId);

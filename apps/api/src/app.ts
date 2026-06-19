@@ -13,6 +13,7 @@ import { requireModule } from './hooks/module-access';
 import type { ModuleCode } from '@runq/types';
 import { authRoutes } from './modules/auth/routes';
 import { socialAuthRoutes } from './modules/auth/social-auth.routes';
+import { mpAuthRoutes } from './modules/milk-procurement/mp-auth.routes';
 import { apRoutes } from './modules/ap/routes';
 import { purchaseRoutes } from './modules/purchase/routes';
 import { manufacturingRoutes } from './modules/manufacturing/routes';
@@ -89,6 +90,7 @@ export async function buildApp() {
     await authScope.register(rateLimit, { max: 10, timeWindow: '1 minute' });
     await authScope.register(authRoutes);
     await authScope.register(socialAuthRoutes);
+    await authScope.register(mpAuthRoutes);
   }, { prefix: '/api/v1/auth' });
   await app.register(async (publicScope) => {
     await publicScope.register(rateLimit, { max: 5, timeWindow: '1 minute' });

@@ -4,6 +4,7 @@ export * from './common/hsn.schema';
 export * from './common/query-bool.schema';
 export * from './auth/login.schema';
 export * from './auth/social-auth.schema';
+export * from './auth/mp-auth.schema';
 export * from './ap/vendor.schema';
 export * from './ap/purchase-invoice.schema';
 export * from './ap/vendor-catalog.schema';

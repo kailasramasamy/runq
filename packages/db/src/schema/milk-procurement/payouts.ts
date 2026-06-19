@@ -50,10 +50,15 @@ export const mpPayoutLines = pgTable('mp_payout_lines', {
   paymentId: uuid('payment_id').references(() => payments.id),
   settledViaNodeId: uuid('settled_via_node_id').references(() => mpNodes.id),
   statementNo: varchar('statement_no', { length: 40 }),
+  // Operational disbursement flag — set when the operator marks this farmer paid
+  // (cash/UPI in the field). Independent of the cycle-level Lock→Pay GL posting.
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  paidBy: uuid('paid_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_mp_payout_lines_cycle').on(t.tenantId, t.payoutCycleId),
   index('idx_mp_payout_lines_farmer').on(t.tenantId, t.farmerId),
+  index('idx_mp_payout_lines_paid').on(t.tenantId, t.payoutCycleId, t.paidAt),
 ]);
 
 /**

@@ -7,9 +7,20 @@ export const attachmentEntityTypeSchema = z.enum([
   'receipt',
   'expense',
   'employee',
+  'farmer',
 ]);
 
 export type AttachmentEntityTypeInput = z.infer<typeof attachmentEntityTypeSchema>;
+
+/** Dhenu farmer document categories. Drives which scan a farmer attachment is. */
+export const farmerDocumentKindSchema = z.enum([
+  'profile_photo',
+  'kyc',
+  'aadhaar',
+  'other',
+]);
+
+export type FarmerDocumentKindInput = z.infer<typeof farmerDocumentKindSchema>;
 
 /**
  * HR employee document kinds. Used to group the Documents tab into sections

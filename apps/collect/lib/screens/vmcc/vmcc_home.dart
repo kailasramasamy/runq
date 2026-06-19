@@ -1,0 +1,215 @@
+import 'package:flutter/material.dart';
+import '../../theme/dhenu_icons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../api/mp_models.dart';
+import '../../providers/mp_context_provider.dart';
+import '../../providers/sync_provider.dart';
+import '../../providers/transfer_providers.dart';
+import '../../theme/dhenu_theme.dart';
+import '../../theme/dhenu_tokens.dart';
+import '../../utils/format.dart';
+import '../../widgets/dhenu_card.dart';
+import '../../widgets/dhenu_states.dart';
+import '../../widgets/hero_number_card.dart';
+import '../../widgets/pour_detail_sheet.dart';
+import '../../widgets/primary_action.dart';
+import '../../widgets/shift_grouped_pours.dart';
+import '../../widgets/sync_status.dart';
+import '../../widgets/tank_gauge.dart';
+import 'record_collection.dart';
+import 'vmcc_collection_history.dart';
+import 'vmcc_farmers_tab.dart';
+import 'vmcc_reports_tab.dart';
+
+/// VMCC operator home tab — the capture-centric dashboard (spec §5.2). Rendered
+/// as the Home tab inside [VmccShell]; the capture action is the bottom-nav ➕.
+class VmccHome extends ConsumerWidget {
+  const VmccHome({super.key, required this.node});
+  final MpNode node;
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(nodeTodaySummaryProvider(node.id));
+    ref.invalidate(nodeTodayPoursProvider(node.id));
+    ref.invalidate(nodeAvailabilityProvider);
+    await Future.wait([
+      ref.read(nodeTodaySummaryProvider(node.id).future),
+      ref.read(nodeTodayPoursProvider(node.id).future),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = DT(context);
+    final sync = ref.watch(syncProvider);
+    final summary = ref.watch(nodeTodaySummaryProvider(node.id));
+    return RefreshIndicator(
+      onRefresh: () => _refresh(ref),
+      child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.fromLTRB(
+            DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
+        children: [
+          _header(context, ref, t, sync),
+          const SizedBox(height: DhenuSpacing.lg),
+          _hero(t, summary),
+          const SizedBox(height: DhenuSpacing.md),
+          _statsRow(ref, t, summary),
+          const SizedBox(height: DhenuSpacing.lg),
+          PrimaryAction(
+            label: 'Record Collection',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
+            ),
+          ),
+          const SizedBox(height: DhenuSpacing.lg),
+          _quickLinks(context, t),
+          const SizedBox(height: DhenuSpacing.xl),
+          Text('Recent entries', style: DhenuText.title.copyWith(color: t.ink)),
+          const SizedBox(height: DhenuSpacing.sm),
+          _recent(context, t, ref),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
+        Expanded(child: _linkCard(context, t, DhenuIcons.users, 'Farmers',
+            VmccFarmersTab(node: node))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
+            VmccCollectionHistory(node: node))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, 'Reports',
+            VmccReportsTab(node: node))),
+      ]);
+
+  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
+      DhenuCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: page,
+          ),
+        )),
+        child: Column(children: [
+          Icon(icon, color: t.brand),
+          const SizedBox(height: DhenuSpacing.sm),
+          Text(label, style: DhenuText.label.copyWith(color: t.ink)),
+        ]),
+      );
+
+  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, SyncSnapshot sync) => Row(
+        children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(node.name, style: DhenuText.h2.copyWith(color: t.ink)),
+              Text(
+                '${shiftFrom(currentShift()) == Shift.am ? '☀️ AM' : '🌙 PM'} shift · in progress',
+                style: DhenuText.caption.copyWith(color: t.inkSoft),
+              ),
+            ]),
+          ),
+          SyncStatus(
+            state: sync.state,
+            pendingCount: sync.pendingCount,
+            agoLabel: 'just now',
+            onTap: () => ref.read(syncProvider.notifier).forceSync(),
+          ),
+        ],
+      );
+
+  Widget _hero(DhenuTokens t, AsyncValue<MpCollectionSummary?> summary) {
+    return summary.when(
+      loading: () => const DhenuLoadingList(rows: 2),
+      error: (e, _) => HeroNumberCard(label: 'TODAY', primaryValue: '—', footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
+      data: (s) {
+        final isAm = shiftFrom(currentShift()) == Shift.am;
+        final qty = s == null ? 0.0 : (isAm ? s.amQty : s.pmQty);
+        return HeroNumberCard(
+          label: 'TODAY ${isAm ? '☀️ AM' : '🌙 PM'}',
+          primaryValue: litres(qty, unit: true),
+          gradient: const LinearGradient(
+            colors: [DhenuColors.brand, DhenuColors.brandDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          footer: s == null
+              ? null
+              : Row(children: [
+                  Text('${s.farmerCount} farmers',
+                      style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
+                  const Spacer(),
+                  Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
+                      style: DhenuText.caption.copyWith(color: Colors.white)),
+                ]),
+        );
+      },
+    );
+  }
+
+  Widget _statsRow(WidgetRef ref, DhenuTokens t, AsyncValue<MpCollectionSummary?> summary) {
+    final total = summary.asData?.value?.totalQty ?? 0;
+    // Milk still at the VMCC awaiting dispatch = today's collected − dispatched,
+    // across both shifts (decrements as each shift's consignment goes out).
+    final pending = ref.watch(nodeAvailabilityProvider((nodeId: node.id, shift: null)))
+        .asData?.value?.available ?? 0;
+    final allSent = pending <= 0.05;
+    return Row(children: [
+      Expanded(child: _miniCard(t, 'To dispatch',
+          allSent ? (total > 0 ? 'All dispatched' : 'Nothing yet') : litres(pending, unit: true),
+          color: allSent ? t.gradeA : t.am)),
+      const SizedBox(width: DhenuSpacing.md),
+      Expanded(
+        child: node.capacityLitres == null
+            ? _miniCard(t, 'Collected', litres(total, unit: true))
+            : DhenuCard(
+                child: TankGauge(current: total, capacity: node.capacityLitres!, label: 'BMC tank'),
+              ),
+      ),
+    ]);
+  }
+
+  Widget _miniCard(DhenuTokens t, String label, String value, {Color? color}) => DhenuCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: DhenuText.label.copyWith(color: t.inkSoft)),
+          const SizedBox(height: DhenuSpacing.xs),
+          Text(value, style: DhenuText.title.copyWith(color: color ?? t.ink)),
+        ]),
+      );
+
+
+  Widget _recent(BuildContext context, DhenuTokens t, WidgetRef ref) {
+    final poursAsync = ref.watch(nodeTodayPoursProvider(node.id));
+    final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
+    final byId = {for (final f in farmers) f.id: f};
+    return poursAsync.when(
+      loading: () => const DhenuLoadingList(),
+      error: (e, _) => DhenuEmptyState(icon: DhenuIcons.cloudOff, title: 'Could not load entries', subtitle: '$e'),
+      data: (pours) {
+        if (pours.isEmpty) {
+          return const DhenuEmptyState(
+            icon: DhenuIcons.drop,
+            title: 'No collection yet today',
+            subtitle: 'Tap Record Collection to start',
+          );
+        }
+        return ShiftGroupedPours(
+          pours: pours,
+          farmersById: byId,
+          showDate: true,
+          onTapPour: (p, farmer) => showPourDetailSheet(
+            context,
+            pour: p,
+            node: node,
+            farmer: farmer,
+            onModify: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => RecordCollectionScreen(node: node, seedPour: p, seedFarmer: farmer),
+            )),
+          ),
+        );
+      },
+    );
+  }
+}

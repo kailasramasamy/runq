@@ -10,8 +10,9 @@ import {
 } from '@/hooks/queries/use-milk-procurement';
 
 type OperatorForm = {
-  nodeId: string; role: string; compType: string; ratePerLitre: string;
+  nodeId: string; name: string; role: string; compType: string; ratePerLitre: string;
   monthlySalary: string; rentAmount: string; effectiveFrom: string;
+  loginPhone: string; loginDob: string;
 };
 
 const COMP_TYPES = [
@@ -33,9 +34,9 @@ export function MpOperatorsPage() {
   const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? id.slice(0, 8);
   const today = new Date().toISOString().slice(0, 10);
   const duplicate = (o: MpOperator) => setDupInitial({
-    nodeId: o.nodeId, role: o.role, compType: o.compType,
+    nodeId: o.nodeId, name: o.name ?? '', role: o.role, compType: o.compType,
     ratePerLitre: o.ratePerLitre ?? '', monthlySalary: o.monthlySalary ?? '',
-    rentAmount: o.rentAmount ?? '', effectiveFrom: today,
+    rentAmount: o.rentAmount ?? '', effectiveFrom: today, loginPhone: o.phone ?? '', loginDob: o.dob ?? '',
   });
 
   return (
@@ -53,16 +54,19 @@ export function MpOperatorsPage() {
         <CardHeader>Operators</CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><Th>Node</Th><Th>Role</Th><Th>Comp</Th><Th align="right">Rate/Salary</Th><Th align="right">Rent</Th><Th>Status</Th><Th align="right">Actions</Th></TableRow></TableHeader>
+            <TableHeader><TableRow><Th>Node</Th><Th>Person</Th><Th>Role</Th><Th>Comp</Th><Th align="right">Rate/Salary</Th><Th align="right">Rent</Th><Th>Status</Th><Th align="right">Actions</Th></TableRow></TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={4} cols={7} />
+                <TableSkeleton rows={4} cols={8} />
               ) : operators.length === 0 ? (
-                <TableEmpty colSpan={7} message="No operators yet." />
+                <TableEmpty colSpan={8} message="No operators yet." />
               ) : (
                 operators.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>{nodeName(o.nodeId)}</TableCell>
+                    <TableCell className="text-zinc-500">
+                      {o.name || o.phone ? <span>{o.name ?? '—'}{o.phone ? ` · ${o.phone}` : ''}</span> : '—'}
+                    </TableCell>
                     <TableCell>{o.role}</TableCell>
                     <TableCell className="text-xs">{o.compType.replace(/_/g, ' ')}</TableCell>
                     <TableCell className="text-right">{o.ratePerLitre ?? o.monthlySalary ?? '—'}</TableCell>
@@ -138,16 +142,18 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
   const create = useCreateOperator();
   const { toast } = useToast();
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState<OperatorForm>(initial ?? { nodeId: '', role: 'operator', compType: 'per_litre_commission', ratePerLitre: '', monthlySalary: '', rentAmount: '', effectiveFrom: today });
+  const [f, setF] = useState<OperatorForm>(initial ?? { nodeId: '', name: '', role: 'operator', compType: 'per_litre_commission', ratePerLitre: '', monthlySalary: '', rentAmount: '', effectiveFrom: today, loginPhone: '', loginDob: '' });
 
   const submit = () => {
     create.mutate(
       {
-        nodeId: f.nodeId, role: f.role as 'operator' | 'owner', compType: f.compType as 'per_litre_commission' | 'fixed_salary',
+        nodeId: f.nodeId, name: f.name || null, role: f.role as 'operator' | 'owner', compType: f.compType as 'per_litre_commission' | 'fixed_salary',
         ratePerLitre: f.compType === 'per_litre_commission' && f.ratePerLitre ? Number(f.ratePerLitre) : null,
         monthlySalary: f.compType === 'fixed_salary' && f.monthlySalary ? Number(f.monthlySalary) : null,
         rentAmount: f.rentAmount ? Number(f.rentAmount) : null,
         effectiveFrom: f.effectiveFrom,
+        loginPhone: f.loginPhone || null,
+        loginDob: f.loginDob || null,
       },
       { onSuccess: () => { toast('Operator added', 'success'); onClose(); }, onError: () => toast('Failed to add operator', 'error') },
     );
@@ -158,6 +164,7 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
       <div className="space-y-3">
         <Combobox label="Node" value={f.nodeId} onChange={(v) => setF({ ...f, nodeId: v })}
           options={nodes.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))} placeholder="Select node…" required />
+        <Input label="Person name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <div className="grid grid-cols-2 gap-2">
           <Combobox label="Role" value={f.role} onChange={(v) => setF({ ...f, role: v })} options={ROLES} />
           <Combobox label="Comp type" value={f.compType} onChange={(v) => setF({ ...f, compType: v })} options={COMP_TYPES} />
@@ -170,6 +177,13 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
         <div className="grid grid-cols-2 gap-2">
           <Input label="Rent (₹, optional)" type="number" value={f.rentAmount} onChange={(e) => setF({ ...f, rentAmount: e.target.value })} />
           <Input label="Effective from" type="date" value={f.effectiveFrom} onChange={(e) => setF({ ...f, effectiveFrom: e.target.value })} />
+        </div>
+        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+          <p className="mb-2 text-xs font-medium text-zinc-500">App login (optional) — lets this operator sign in to Dhenu</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Phone" value={f.loginPhone} onChange={(e) => setF({ ...f, loginPhone: e.target.value })} />
+            <Input label="Date of birth" type="date" value={f.loginDob} onChange={(e) => setF({ ...f, loginDob: e.target.value })} />
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

@@ -32,7 +32,12 @@ export const payoutCycleFilterSchema = z.object({
   scopeNodeId: z.string().uuid().optional(),
 });
 
+// Mark a single farmer line, or every line in a cycle, paid/unpaid (operational
+// disbursement flag — see mp_payout_lines.paid_at).
+export const markLinePaidSchema = z.object({ paid: z.boolean() });
+
 export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
 export type LedgerFilter = z.infer<typeof ledgerFilterSchema>;
 export type CreatePayoutCycleInput = z.infer<typeof createPayoutCycleSchema>;
 export type PayoutCycleFilter = z.infer<typeof payoutCycleFilterSchema>;
+export type MarkLinePaidInput = z.infer<typeof markLinePaidSchema>;

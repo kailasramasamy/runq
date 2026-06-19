@@ -74,15 +74,18 @@ export function MpConsignmentsPage({ view }: { view: 'operate' | 'history' }) {
   );
 }
 
-const EMPTY_DISPATCH = { fromNodeId: '', toNodeId: '', containerNo: '', dispatchQty: '', dispatchFat: '', dispatchSnf: '' };
+const clockShift = (): 'am' | 'pm' => (new Date().getHours() < 12 ? 'am' : 'pm');
+const EMPTY_DISPATCH = { fromNodeId: '', toNodeId: '', containerNo: '', dispatchQty: '', dispatchFat: '', dispatchSnf: '', shift: 'am' as 'am' | 'pm' };
 
 function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today: string }) {
   const dispatch = useDispatchConsignment();
   const { toast } = useToast();
-  const [f, setF] = useState({ ...EMPTY_DISPATCH, collectionDate: today });
+  const [f, setF] = useState({ ...EMPTY_DISPATCH, collectionDate: today, shift: clockShift() });
   const sources = nodes.filter((n) => n.nodeType === leg.from);
   const dests = nodes.filter((n) => n.nodeType === leg.to && n.id !== f.fromNodeId);
-  const avail = useNodeAvailability(f.fromNodeId, f.collectionDate).data?.data;
+  // No-BMC source nodes dispatch each shift separately; BMC nodes pool the whole day.
+  const perShift = !!f.fromNodeId && nodes.find((n) => n.id === f.fromNodeId)?.hasBmc === false;
+  const avail = useNodeAvailability(f.fromNodeId, f.collectionDate, perShift ? f.shift : undefined).data?.data;
 
   // Default dispatch QC to the source's volume-weighted average; operator edits after lab-testing the blend.
   useEffect(() => {
@@ -105,6 +108,7 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
     dispatch.mutate(
       {
         kind: leg.kind, fromNodeId: f.fromNodeId, toNodeId: f.toNodeId, collectionDate: f.collectionDate,
+        shift: perShift ? f.shift : null,
         containerNo: f.containerNo || null,
         dispatchQty: Number(f.dispatchQty),
         dispatchFat: f.dispatchFat ? Number(f.dispatchFat) : null,
@@ -122,8 +126,17 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
       <CardHeader>Dispatch · {leg.label}</CardHeader>
       <CardContent className="space-y-3">
         <Combobox label={`From (${leg.from.toUpperCase()})`} value={f.fromNodeId}
-          onChange={(v) => setF({ ...f, fromNodeId: v, toNodeId: '', dispatchQty: '', dispatchFat: '', dispatchSnf: '' })}
+          onChange={(v) => {
+            // Default the destination to the source's assigned parent (VMCC→its CC,
+            // CC→its PP); operator can still pick a different one.
+            const parent = nodes.find((n) => n.id === v)?.parentNodeId ?? '';
+            const defaultTo = nodes.some((n) => n.id === parent && n.nodeType === leg.to) ? parent : '';
+            setF({ ...f, fromNodeId: v, toNodeId: defaultTo, dispatchQty: '', dispatchFat: '', dispatchSnf: '' });
+          }}
           options={sources.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))} placeholder={`Source ${leg.from.toUpperCase()}…`} required />
+        {perShift && (
+          <ShiftSelect value={f.shift} onChange={(s) => setF({ ...f, shift: s, dispatchQty: '', dispatchFat: '', dispatchSnf: '' })} />
+        )}
         <AvailabilityHint avail={avail} qty={f.dispatchQty} onUseAll={useAll} />
         <Combobox label={`To (${leg.to.toUpperCase()})`} value={f.toNodeId} onChange={(v) => setF({ ...f, toNodeId: v })}
           options={dests.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))} placeholder={`Destination ${leg.to.toUpperCase()}…`} required />
@@ -142,9 +155,30 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
         {avail && (avail.avgFat != null || avail.avgSnf != null) && (
           <p className="-mt-1 text-xs text-zinc-400">FAT/SNF prefilled with source average — edit after testing the blend.</p>
         )}
-        <Button className="w-full" onClick={submit} loading={dispatch.isPending} disabled={!f.fromNodeId || !f.toNodeId || !f.dispatchQty}>Dispatch</Button>
+        <Button className="w-full" onClick={submit} loading={dispatch.isPending}
+          disabled={!f.fromNodeId || !f.toNodeId || !f.dispatchQty || (!!avail && (avail.available <= 0 || Number(f.dispatchQty) > avail.available))}>
+          {avail && avail.available <= 0 ? 'Nothing left to dispatch' : 'Dispatch'}
+        </Button>
       </CardContent>
     </Card>
+  );
+}
+
+// No-BMC nodes dispatch each shift separately, so availability is scoped to the
+// chosen shift. BMC nodes pool the whole day and never see this control.
+function ShiftSelect({ value, onChange }: { value: 'am' | 'pm'; onChange: (s: 'am' | 'pm') => void }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-zinc-500">Shift (no BMC — dispatched separately)</label>
+      <div className="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+        {(['am', 'pm'] as const).map((s) => (
+          <button key={s} type="button" onClick={() => onChange(s)}
+            className={`rounded-md px-4 py-1 text-sm font-medium ${value === s ? 'bg-emerald-600 text-white' : 'text-zinc-500'}`}>
+            {s === 'am' ? '☀️ AM' : '🌙 PM'}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import {
   createConsignmentSchema,
   receiveConsignmentSchema,
+  directReceiveConsignmentSchema,
   consignmentFilterSchema,
   consignmentAvailabilitySchema,
   paginationSchema,
@@ -28,7 +29,7 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const q = consignmentAvailabilitySchema.parse(request.query);
     const principal = await resolveMpPrincipal(request);
     const service = new ConsignmentService(request.server.db, request.tenantId);
-    return { data: await service.availability(q.nodeId, q.collectionDate, principal) };
+    return { data: await service.availability(q.nodeId, q.collectionDate, principal, q.shift) };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
@@ -45,12 +46,29 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data: await service.dispatch(input, request.user?.userId, principal) });
   });
 
+  // Ad-hoc receive: record milk that arrived with no dispatch entry.
+  app.post('/direct-receive', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
+    const input = directReceiveConsignmentSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ConsignmentService(request.server.db, request.tenantId);
+    return reply.status(201).send({ data: await service.directReceive(input, request.user?.userId, principal) });
+  });
+
   app.post('/:id/receive', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
     const { id } = uuidParamSchema.parse(request.params);
     const input = receiveConsignmentSchema.parse(request.body);
     const principal = await resolveMpPrincipal(request);
     const service = new ConsignmentService(request.server.db, request.tenantId);
     return { data: await service.receive(id, input, request.user?.userId, principal) };
+  });
+
+  // Correct the most recent receipt (CC fixing a just-entered qty/FAT/SNF).
+  app.post('/:id/edit-receipt', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const input = receiveConsignmentSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ConsignmentService(request.server.db, request.tenantId);
+    return { data: await service.editReceipt(id, input, request.user?.userId, principal) };
   });
 
   app.post('/:id/reverse', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {

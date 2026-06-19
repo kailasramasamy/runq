@@ -18,6 +18,8 @@ export const vendors = pgTable('vendors', {
   bankAccountNumber: varchar('bank_account_number', { length: 30 }),
   bankIfsc: varchar('bank_ifsc', { length: 11 }),
   bankName: varchar('bank_name', { length: 255 }),
+  // UPI VPA (e.g. name@bank) — alternative payout rail to a bank account.
+  upiId: varchar('upi_id', { length: 64 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
   earlyPaymentDiscountPercent: decimal('early_payment_discount_percent', { precision: 5, scale: 2 }),
   earlyPaymentDiscountDays: integer('early_payment_discount_days'),

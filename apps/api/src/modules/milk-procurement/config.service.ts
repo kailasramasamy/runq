@@ -19,6 +19,30 @@ export class ConfigService {
     return row ?? null;
   }
 
+  /** Cycle cadence only — safe to expose to farmer/operator personas. */
+  async getCycleConfig(): Promise<{
+    cycleDays: number | null; cycleAnchorDate: string | null; autoGenerateCycle: boolean;
+  }> {
+    const s = await this.getSettings();
+    return {
+      cycleDays: s?.cycleDays ?? null,
+      cycleAnchorDate: s?.cycleAnchorDate ?? null,
+      autoGenerateCycle: s?.autoGenerateCycle ?? false,
+    };
+  }
+
+  /** Support contacts only — safe to expose to every persona. */
+  async getSupportConfig(): Promise<{
+    supportPhone: string | null; supportEmail: string | null; supportWhatsapp: string | null;
+  }> {
+    const s = await this.getSettings();
+    return {
+      supportPhone: s?.supportPhone ?? null,
+      supportEmail: s?.supportEmail ?? null,
+      supportWhatsapp: s?.supportWhatsapp ?? null,
+    };
+  }
+
   async upsertSettings(input: UpsertGlSettingsInput): Promise<GlSettingsRow> {
     const existing = await this.getSettings();
     if (existing) {
@@ -33,6 +57,12 @@ export class ConfigService {
     const [row] = await this.db.insert(mpGlSettings).values({
       tenantId: this.tenantId,
       defaultPayoutMode: input.defaultPayoutMode ?? 'direct_to_farmer',
+      cycleDays: input.cycleDays ?? null,
+      cycleAnchorDate: input.cycleAnchorDate ?? null,
+      autoGenerateCycle: input.autoGenerateCycle ?? false,
+      supportPhone: input.supportPhone ?? null,
+      supportEmail: input.supportEmail ?? null,
+      supportWhatsapp: input.supportWhatsapp ?? null,
       milkPurchaseAccountId: input.milkPurchaseAccountId ?? null,
       farmerPayableAccountId: input.farmerPayableAccountId ?? null,
       qualityBonusAccountId: input.qualityBonusAccountId ?? null,

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The Push Notifications entitlement (aps-environment) was TEMPORARILY
+	     removed for Personal-Team dev signing during the Apple account
+	     personal->org transition (Personal Teams cannot provision Push).
+	     RESTORE before switching back to team QBLZB22TU6 or any TestFlight /
+	     App Store build, or FCM push stops working: re-add an "aps-environment"
+	     string key set to "development" (use "production" for release archives). -->
+</dict>
+</plist>

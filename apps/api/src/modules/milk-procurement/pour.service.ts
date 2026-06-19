@@ -67,14 +67,17 @@ export class PourService {
         ));
         if (dup) return dup;
       }
-      // last-write-wins: reverse any existing active pour for this slot
-      const [prior] = await tx.select({ id: mpPours.id }).from(mpPours).where(and(
-        eq(mpPours.tenantId, this.tenantId), eq(mpPours.farmerId, input.farmerId),
-        eq(mpPours.collectionDate, input.collectionDate), eq(mpPours.shift, input.shift),
-        eq(mpPours.status, 'recorded'),
-      ));
-      if (prior) {
-        await tx.update(mpPours).set({ status: 'reversed' }).where(eq(mpPours.id, prior.id));
+      // last-write-wins: a repeat for the same (farmer, date, shift, milk type)
+      // reverses ALL prior readings for that slot (a "Replace" is one corrected
+      // reading) — unless the operator deliberately adds a lot.
+      let priorId: string | null = null;
+      if (!input.asNewLot) {
+        const priors = await tx.update(mpPours).set({ status: 'reversed' }).where(and(
+          eq(mpPours.tenantId, this.tenantId), eq(mpPours.farmerId, input.farmerId),
+          eq(mpPours.collectionDate, input.collectionDate), eq(mpPours.shift, input.shift),
+          eq(mpPours.milkType, input.milkType), eq(mpPours.status, 'recorded'),
+        )).returning({ id: mpPours.id });
+        priorId = priors[0]?.id ?? null;
       }
       const receiptNo = await this.nextReceiptNo(tx, input.collectionDate);
       const [pour] = await tx.insert(mpPours).values({
@@ -98,7 +101,7 @@ export class PourService {
         captureSource: input.captureSource,
         receiptNo,
         status: 'recorded',
-        reversalOf: prior?.id ?? null,
+        reversalOf: priorId,
         deviceLocalId: input.deviceLocalId ?? null,
         recordedBy: userId ?? null,
         syncedAt: new Date(),

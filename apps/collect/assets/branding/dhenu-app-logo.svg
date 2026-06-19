@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1025 1025">
+  <defs>
+    <style>
+      .cls-1 {
+        filter: url(#drop-shadow-1);
+      }
+
+      .cls-2 {
+        fill: url(#linear-gradient-3);
+      }
+
+      .cls-3 {
+        fill: url(#linear-gradient-2);
+      }
+
+      .cls-4 {
+        fill: #fef7ee;
+      }
+
+      .cls-5 {
+        fill: url(#linear-gradient);
+        stroke: #231f20;
+      }
+
+      .cls-5, .cls-6 {
+        stroke-miterlimit: 10;
+      }
+
+      .cls-6 {
+        fill: none;
+        stroke: #0b8f67;
+        stroke-linecap: round;
+        stroke-width: 30px;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1=".5" y1="512.5" x2="1024.5" y2="512.5" gradientTransform="translate(0 1025) scale(1 -1)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#44ba87"/>
+      <stop offset="1" stop-color="#038b65"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="752.62" y1="614.45" x2="521.44" y2="30.49" gradientTransform="translate(-98.12 239.17) rotate(-15.79)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#006838" stop-opacity="0"/>
+      <stop offset="1" stop-color="#006838" stop-opacity=".4"/>
+    </linearGradient>
+    <filter id="drop-shadow-1" x="178.1" y="65.06" width="736.8" height="924.96" filterUnits="userSpaceOnUse">
+      <feOffset dx="34" dy="27"/>
+      <feGaussianBlur result="blur" stdDeviation="50"/>
+      <feFlood flood-color="#356e4d" flood-opacity=".75"/>
+      <feComposite in2="blur" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <linearGradient id="linear-gradient-3" x1="352.03" y1="500.58" x2="766.41" y2="500.58" gradientUnits="userSpaceOnUse">
+      <stop offset=".38" stop-color="#fef7ee"/>
+      <stop offset=".43" stop-color="#f9f2e8" stop-opacity=".94"/>
+      <stop offset=".61" stop-color="#ebe4d9" stop-opacity=".76"/>
+      <stop offset=".75" stop-color="#e2dccf" stop-opacity=".64"/>
+      <stop offset=".82" stop-color="#dfd9cc" stop-opacity=".6"/>
+    </linearGradient>
+  </defs>
+  <g id="bg">
+    <rect class="cls-5" x=".5" y=".5" width="1024" height="1024" transform="translate(1025 1025) rotate(-180)"/>
+  </g>
+  <g id="Layer_2" data-name="Layer 2">
+    <polygon class="cls-3" points="997.24 634 672.43 725.86 523.26 198.42 529.22 196.74 997.24 634"/>
+    <g class="cls-1">
+      <path class="cls-4" d="M730.82,594.65c0,120.58-97.75,218.32-218.32,218.32s-218.32-97.75-218.32-218.32c0-102.4,38.16-169.46,102.45-257.81,22.62-31.08,92.39-128.69,104.17-143.11,6.05-7.4,17.35-7.4,23.4,0,11.76,14.38,81.12,112.14,103.66,143.11,64.3,88.33,102.97,155.31,102.97,257.81Z"/>
+    </g>
+    <path class="cls-2" d="M719.69,589.85c0,114.43-92.76,207.19-207.19,207.19s-207.19-92.76-207.19-207.19c0-97.18,36.22-160.82,97.23-244.66,21.47-29.5,87.67-122.13,98.86-135.81,5.74-7.02,16.46-7.02,22.2,0,11.16,13.65,76.98,106.43,98.37,135.81,61.02,83.83,97.72,147.39,97.72,244.66Z"/>
+    <path class="cls-6" d="M367.82,630s32.52,98.32,130.06,108.39"/>
+  </g>
+</svg>

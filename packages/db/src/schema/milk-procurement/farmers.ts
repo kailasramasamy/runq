@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, boolean, integer, date, timestamp, index, uniqueIndex,
+  pgTable, uuid, varchar, boolean, integer, decimal, jsonb, text, date, timestamp, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenants } from '../tenant';
@@ -7,6 +7,10 @@ import { vendors } from '../ap/vendors';
 import { documentAttachments } from '../common/attachments';
 import { mpMilkType } from './enums';
 import { mpNodes } from './nodes';
+
+/** Herd composition row stored in `cattle_breeds` JSON. `cattle_count` is the
+ *  sum of `count` across rows; breed values are validated at the app layer. */
+export type MpCattleBreed = { breed: string; count: number };
 
 /**
  * Farmer / society master. Financial identity (bank, AP sub-ledger) is
@@ -20,10 +24,23 @@ export const mpFarmers = pgTable('mp_farmers', {
   code: varchar('code', { length: 40 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   phone: varchar('phone', { length: 20 }),
+  village: varchar('village', { length: 120 }),
+  address: text('address'),
+  // Government ID for KYC / subsidy linkage / cross-node de-dup. Stored raw
+  // (v1); the supporting scan lives as a `farmer` document attachment.
+  aadhaar: varchar('aadhaar', { length: 12 }),
   isSociety: boolean('is_society').notNull().default(false),
   defaultMilkType: mpMilkType('default_milk_type').notNull().default('cow'),
+  // Herd: per-breed counts (JSON); `cattleCount` is their sum; `inMilkCount`
+  // are those currently milking (dry = cattleCount − inMilkCount).
+  cattleBreeds: jsonb('cattle_breeds').$type<MpCattleBreed[]>(),
   cattleCount: integer('cattle_count'),
+  inMilkCount: integer('in_milk_count'),
+  // Farm GPS pin captured by the operator on-site (route planning, verify).
+  lat: decimal('lat', { precision: 10, scale: 7 }),
+  lng: decimal('lng', { precision: 10, scale: 7 }),
   kycDocId: uuid('kyc_doc_id').references(() => documentAttachments.id),
+  photoDocId: uuid('photo_doc_id').references(() => documentAttachments.id),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

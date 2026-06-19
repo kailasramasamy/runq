@@ -21,9 +21,20 @@ export interface MpNode {
   payoutMode: PayoutMode | null; payeeVendorId: string | null;
   city: string | null; state: string | null; isActive: boolean;
 }
+export type CattleBreed = 'desi_natti' | 'crossbred' | 'jersey' | 'hf' | 'gir' | 'sahiwal' | 'murrah' | 'other';
+export interface CattleBreedCount { breed: CattleBreed; count: number }
+export interface MpFarmerAttachment { id: string; kind: string; fileName: string; fileSize: number; mimeType: string }
+
 export interface MpFarmer {
   id: string; code: string; name: string; phone: string | null; vendorId: string;
   isSociety: boolean; defaultMilkType: MilkType; cattleCount: number | null; isActive: boolean;
+  dateOfBirth?: string | null;
+  village?: string | null; address?: string | null; aadhaar?: string | null;
+  cattleBreeds?: CattleBreedCount[] | null; inMilkCount?: number | null;
+  lat?: number | null; lng?: number | null;
+  bankAccountName?: string | null; bankAccountNumber?: string | null;
+  bankIfsc?: string | null; bankName?: string | null; upiId?: string | null;
+  profilePhotoUrl?: string | null;
 }
 export interface MpRateChart {
   id: string; name: string; milkType: MilkType; pricingMode: 'matrix' | 'flat';
@@ -133,6 +144,28 @@ export function useDeactivateFarmer() {
   });
 }
 
+export function useUploadFarmerAttachment(farmerId: string) {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, kind }: { file: File; kind: 'profile_photo' | 'kyc' | 'aadhaar' | 'other' }) => {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('kind', kind);
+      const token = localStorage.getItem('runq-token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const tenantId = localStorage.getItem('runq-active-tenant-id');
+      if (tenantId) headers['X-Tenant-Id'] = tenantId;
+      const res = await fetch(`/api/v1${BASE}/farmers/${farmerId}/attachments`, {
+        method: 'POST', headers, body: form,
+      });
+      if (!res.ok) throw await res.json();
+      return (await res.json()).data as MpFarmerAttachment;
+    },
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'farmers'] }),
+  });
+}
+
 // ── rate charts ─────────────────────────────────────────────────────────────
 export function useRateCharts(filters?: { milkType?: MilkType; limit?: number }) {
   return useQuery({
@@ -216,7 +249,7 @@ export interface MpConsignment {
   status: 'in_transit' | 'received' | 'reversed';
 }
 export function useConsignments(filters?: {
-  kind?: string; toNodeId?: string; fromNodeId?: string; status?: string;
+  kind?: string; toNodeId?: string; fromNodeId?: string; status?: string; shift?: string;
   collectionDate?: string; from?: string; to?: string; page?: number; limit?: number;
 }) {
   return useQuery({
@@ -244,10 +277,10 @@ export interface MpAvailability {
   collected: number; dispatched: number; available: number;
   avgFat: number | null; avgSnf: number | null;
 }
-export function useNodeAvailability(nodeId: string, collectionDate: string) {
+export function useNodeAvailability(nodeId: string, collectionDate: string, shift?: 'am' | 'pm') {
   return useQuery({
-    queryKey: ['mp', 'consignments', 'available', nodeId, collectionDate],
-    queryFn: () => api.get<ApiSuccess<MpAvailability>>(`${BASE}/consignments/available${qs({ nodeId, collectionDate })}`),
+    queryKey: ['mp', 'consignments', 'available', nodeId, collectionDate, shift ?? null],
+    queryFn: () => api.get<ApiSuccess<MpAvailability>>(`${BASE}/consignments/available${qs({ nodeId, collectionDate, shift })}`),
     enabled: !!nodeId && !!collectionDate,
   });
 }
@@ -294,7 +327,8 @@ export function useCycleAction(action: 'lock' | 'pay') {
 
 // ── operators ────────────────────────────────────────────────────────────────
 export interface MpOperator {
-  id: string; nodeId: string; userId: string | null; role: 'operator' | 'owner';
+  id: string; nodeId: string; userId: string | null; name: string | null; phone: string | null;
+  dob: string | null; role: 'operator' | 'owner';
   compType: 'per_litre_commission' | 'fixed_salary';
   ratePerLitre: string | null; monthlySalary: string | null; rentAmount: string | null;
   effectiveFrom: string; isActive: boolean;
@@ -366,6 +400,8 @@ export function useMarkOperatorPayout() {
 // ── config (gl settings) ─────────────────────────────────────────────────────
 export interface MpGlSettings {
   id: string; defaultPayoutMode: PayoutMode;
+  cycleDays: number | null; cycleAnchorDate: string | null; autoGenerateCycle: boolean;
+  supportPhone: string | null; supportEmail: string | null; supportWhatsapp: string | null;
   milkPurchaseAccountId: string | null; farmerPayableAccountId: string | null;
 }
 export function useGlSettings() {

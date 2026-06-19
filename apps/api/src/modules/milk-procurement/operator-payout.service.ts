@@ -7,9 +7,11 @@ import type {
   OperatorPayoutComputeQuery, CreateOperatorPayoutInput, OperatorPayoutFilter,
 } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
+import { MpPrincipal, assertNodeAccess } from './access-scope';
 
 export interface OperatorPayoutLine {
-  operatorId: string; nodeId: string; nodeName: string; role: string; compType: string;
+  operatorId: string; nodeId: string; nodeName: string; name: string | null;
+  role: string; compType: string;
   nodeQty: number; commission: number; salary: number; rent: number; total: number;
   paidPayoutId: string | null; paidOn: string | null;
 }
@@ -22,7 +24,9 @@ export class OperatorPayoutService {
   ) {}
 
   /** What each active operator is owed for the period; flags any already paid. */
-  async compute(q: OperatorPayoutComputeQuery): Promise<{ from: string; to: string; lines: OperatorPayoutLine[] }> {
+  async compute(
+    q: OperatorPayoutComputeQuery, principal?: MpPrincipal,
+  ): Promise<{ from: string; to: string; lines: OperatorPayoutLine[] }> {
     const conds = [
       eq(mpNodeOperators.tenantId, this.tenantId),
       eq(mpNodeOperators.isActive, true),
@@ -30,11 +34,16 @@ export class OperatorPayoutService {
       or(isNull(mpNodeOperators.effectiveTo), gte(mpNodeOperators.effectiveTo, q.from)),
     ];
     if (q.nodeId) conds.push(eq(mpNodeOperators.nodeId, q.nodeId));
+    // A CC/PP manager only sees operators within its own subtree.
+    if (principal?.kind === 'operator') {
+      conds.push(principal.nodeIds.size
+        ? inArray(mpNodeOperators.nodeId, [...principal.nodeIds]) : sql`false`);
+    }
     const ops = await this.db.select({
       id: mpNodeOperators.id, nodeId: mpNodeOperators.nodeId, role: mpNodeOperators.role,
       compType: mpNodeOperators.compType, ratePerLitre: mpNodeOperators.ratePerLitre,
       monthlySalary: mpNodeOperators.monthlySalary, rentAmount: mpNodeOperators.rentAmount,
-      nodeName: mpNodes.name,
+      nodeName: mpNodes.name, name: mpNodeOperators.name,
     }).from(mpNodeOperators).innerJoin(mpNodes, eq(mpNodes.id, mpNodeOperators.nodeId)).where(and(...conds));
     if (ops.length === 0) return { from: q.from, to: q.to, lines: [] };
 
@@ -44,7 +53,8 @@ export class OperatorPayoutService {
       const c = comp(o, vol.get(o.nodeId) ?? 0);
       const p = paid.get(o.id);
       return {
-        operatorId: o.id, nodeId: o.nodeId, nodeName: o.nodeName, role: o.role, compType: o.compType,
+        operatorId: o.id, nodeId: o.nodeId, nodeName: o.nodeName, name: o.name,
+        role: o.role, compType: o.compType,
         ...c, paidPayoutId: p?.id ?? null, paidOn: p?.paidOn ?? null,
       };
     });
@@ -52,10 +62,13 @@ export class OperatorPayoutService {
   }
 
   /** Record a payout for one operator + period (amounts recomputed server-side). */
-  async markPaid(input: CreateOperatorPayoutInput, today: string): Promise<MpOperatorPayoutRow> {
+  async markPaid(
+    input: CreateOperatorPayoutInput, today: string, principal?: MpPrincipal,
+  ): Promise<MpOperatorPayoutRow> {
     const [op] = await this.db.select().from(mpNodeOperators)
       .where(and(eq(mpNodeOperators.tenantId, this.tenantId), eq(mpNodeOperators.id, input.operatorId)));
     if (!op) throw new NotFoundError('Operator not found');
+    if (principal?.kind === 'operator') assertNodeAccess(principal, op.nodeId);
     const [existing] = await this.db.select({ id: mpOperatorPayouts.id }).from(mpOperatorPayouts).where(and(
       eq(mpOperatorPayouts.tenantId, this.tenantId), eq(mpOperatorPayouts.operatorId, op.id),
       eq(mpOperatorPayouts.periodStart, input.periodStart), eq(mpOperatorPayouts.periodEnd, input.periodEnd),
@@ -77,6 +90,7 @@ export class OperatorPayoutService {
   async list(
     filters: OperatorPayoutFilter,
     pagination: { page: number; limit: number },
+    principal?: MpPrincipal,
   ): Promise<{ data: MpOperatorPayoutRow[]; meta: PaginationMeta }> {
     const { page, limit } = pagination;
     const { offset } = applyPagination(page, limit);
@@ -85,6 +99,10 @@ export class OperatorPayoutService {
     if (filters.operatorId) conds.push(eq(mpOperatorPayouts.operatorId, filters.operatorId));
     if (filters.from) conds.push(gte(mpOperatorPayouts.periodStart, filters.from));
     if (filters.to) conds.push(lte(mpOperatorPayouts.periodEnd, filters.to));
+    if (principal?.kind === 'operator') {
+      conds.push(principal.nodeIds.size
+        ? inArray(mpOperatorPayouts.nodeId, [...principal.nodeIds]) : sql`false`);
+    }
     const where = and(...conds);
     const [rows, countResult] = await Promise.all([
       this.db.select().from(mpOperatorPayouts).where(where)
