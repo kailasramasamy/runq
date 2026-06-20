@@ -142,6 +142,8 @@ class MpFarmer {
   final bool nameNativeVerified;
   final String? phone, village, address, aadhaar;
   final String? bankAccountName, bankAccountNumber, bankIfsc, bankName, upiId;
+  /// Stored profile-photo attachment id; non-null when a photo exists.
+  final String? photoDocId;
   final double? lat, lng;
   final bool isSociety, isActive;
   final MilkType defaultMilkType;
@@ -157,6 +159,7 @@ class MpFarmer {
     required this.vendorId,
     this.nameNative,
     this.nameNativeVerified = false,
+    this.photoDocId,
     this.phone,
     this.village,
     this.address,
@@ -179,6 +182,9 @@ class MpFarmer {
     this.primaryNodeName,
   });
 
+  /// True when this farmer has a stored profile photo to display.
+  bool get hasPhoto => (photoDocId ?? '').isNotEmpty;
+
   /// First two initials for the avatar atom.
   String get initials {
     final parts = name
@@ -199,6 +205,7 @@ class MpFarmer {
     vendorId: _s(j['vendorId']),
     nameNative: _sn(j['nameNative']),
     nameNativeVerified: _b(j['nameNativeVerified']),
+    photoDocId: _sn(j['photoDocId']),
     phone: _sn(j['phone']),
     village: _sn(j['village']),
     address: _sn(j['address']),

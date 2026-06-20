@@ -313,7 +313,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     return SourceRow(
       title: display,
       subtitle: (farmer != null && display != farmer.name) ? farmer.name : null,
-      leadingInitials: farmer?.initials,
+      farmer: farmer,
       litres: litres(ln.qtyLitres, unit: true),
       amount: rupees(ln.netAmount),
       amountFirst: true,

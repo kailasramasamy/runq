@@ -8,6 +8,8 @@ import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../widgets/farmer_avatar.dart';
+import '../../widgets/farmer_photo_viewer.dart';
 import 'add_farmer_herd_section.dart';
 import 'add_farmer_screen.dart';
 import 'add_farmer_form_sections.dart';
@@ -143,13 +145,13 @@ class _FarmerDetailsTab extends StatelessWidget {
     return DhenuCard(
       child: Row(
         children: [
-          CircleAvatar(
+          FarmerAvatar(
+            farmer: farmer,
             radius: 28,
-            backgroundColor: t.brandSubtle,
-            child: Text(
-              farmer.initials,
-              style: DhenuText.title.copyWith(color: t.brand),
-            ),
+            heroTag: 'farmer-photo-${farmer.id}',
+            onTap: farmer.hasPhoto
+                ? () => showFarmerPhoto(context, farmer)
+                : null,
           ),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(

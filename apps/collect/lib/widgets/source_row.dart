@@ -4,6 +4,7 @@ import '../api/mp_models.dart';
 import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
+import 'farmer_avatar.dart';
 
 /// The list atom — farmer at VMCC, VMCC at CC, etc.
 /// Row height ≥56; hairline divider handled by caller.
@@ -13,6 +14,7 @@ class SourceRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.leadingInitials,
+    this.farmer,
     required this.litres,
     this.quality,
     this.amount,
@@ -27,7 +29,12 @@ class SourceRow extends StatelessWidget {
   /// Optional small secondary line under the title (e.g. full consignment id).
   final String? subtitle;
 
+  /// When provided, renders [FarmerAvatar] (photo + initials fallback) instead
+  /// of the plain initials circle. Takes precedence over [leadingInitials].
+  final MpFarmer? farmer;
+
   /// Two-letter initials for the circular avatar. If null, shows a generic icon.
+  /// Ignored when [farmer] is set.
   final String? leadingInitials;
 
   /// Liters string (e.g. "7.5L"), rendered tabular.
@@ -63,7 +70,7 @@ class SourceRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _Avatar(initials: leadingInitials, t: t),
+              _Avatar(initials: leadingInitials, farmer: farmer, t: t),
               const SizedBox(width: DhenuSpacing.md),
               Expanded(
                 child: Column(
@@ -122,23 +129,27 @@ class SourceRow extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.initials, required this.t});
+  const _Avatar({required this.initials, required this.t, this.farmer});
 
   final String? initials;
   final DhenuTokens t;
+  final MpFarmer? farmer;
 
   @override
   Widget build(BuildContext context) {
-    const size = DhenuSpacing.x4; // 40px avatar
+    const radius = DhenuSpacing.x4 / 2; // 20px → 40px diameter
+    if (farmer != null) {
+      return FarmerAvatar(farmer: farmer!, radius: radius);
+    }
     if (initials == null || initials!.isEmpty) {
       return CircleAvatar(
-        radius: size / 2,
+        radius: radius,
         backgroundColor: t.brandSubtle,
         child: Icon(DhenuIcons.user, size: 20, color: t.brand),
       );
     }
     return CircleAvatar(
-      radius: size / 2,
+      radius: radius,
       backgroundColor: t.brandSubtle,
       child: Text(
         initials!,
@@ -171,7 +182,7 @@ class FarmerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return SourceRow(
       title: farmerName(context, farmer),
-      leadingInitials: farmer.initials,
+      farmer: farmer,
       litres: litres,
       quality: quality,
       amount: amount,

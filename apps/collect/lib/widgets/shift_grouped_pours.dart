@@ -98,7 +98,10 @@ class ShiftGroupedPours extends StatelessWidget {
     final milkType = milkTypeL10n(l, p.milkType);
     return SourceRow(
       title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
-      leadingInitials: singleFarmer ? milkType.substring(0, 1) : farmer?.initials,
+      // In single-farmer mode, the farmer avatar is not meaningful (milk type
+      // is the lead), so fall back to a plain initial.
+      leadingInitials: singleFarmer ? milkType.substring(0, 1) : null,
+      farmer: singleFarmer ? null : farmer,
       litres: litres(p.qtyLitres, unit: true),
       quality: p.fat == null
           ? null

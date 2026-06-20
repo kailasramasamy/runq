@@ -272,7 +272,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     final display = farmer != null ? farmerName(context, farmer) : l.historyFarmerFallback;
     return SourceRow(
       title: display,
-      leadingInitials: farmer?.initials,
+      farmer: farmer,
       litres: litres(qty, unit: true),
       amount: rupees(amt),
       onTap: farmer == null

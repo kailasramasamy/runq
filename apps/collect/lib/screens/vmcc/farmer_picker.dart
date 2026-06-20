@@ -94,7 +94,7 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
             return SourceRow(
               title: display,
               subtitle: display != f.name ? f.name : null,
-              leadingInitials: f.initials,
+              farmer: f,
               litres: f.code,
               onTap: () => Navigator.of(context).pop(f),
             );
