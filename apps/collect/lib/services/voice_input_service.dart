@@ -13,6 +13,10 @@ class VoiceInputService {
   bool _available = false;
   void Function(String status)? _onStatus;
 
+  /// The locale id actually used by the last [listen] (after fallback) — shown
+  /// in the capture UI so an unsupported language is visible, not silent.
+  String? resolvedLocale;
+
   /// Requests mic + speech-recognition permission on first call. Returns whether
   /// recognition is usable; retries while unavailable (don't cache a failure —
   /// the operator may grant permission after the first prompt).
@@ -20,13 +24,30 @@ class VoiceInputService {
     if (_available) return true;
     try {
       _available = await _stt.initialize(
-        onError: (_) => _onStatus?.call('notListening'),
+        onError: (_) => _onStatus?.call('error'),
         onStatus: (s) => _onStatus?.call(s),
       );
     } catch (_) {
       _available = false;
     }
     return _available;
+  }
+
+  /// Pick a locale the device's recognizer actually supports: exact match →
+  /// same language (any region) → the device's system locale → null (default).
+  Future<String?> _resolveLocale(String preferred) async {
+    try {
+      final ids = (await _stt.locales()).map((e) => e.localeId).toList();
+      if (ids.contains(preferred)) return preferred;
+      final lang = preferred.split(RegExp('[-_]')).first.toLowerCase();
+      final sameLang =
+          ids.where((id) => id.toLowerCase().startsWith(lang)).toList();
+      if (sameLang.isNotEmpty) return sameLang.first;
+      final sys = await _stt.systemLocale();
+      return sys?.localeId;
+    } catch (_) {
+      return preferred;
+    }
   }
 
   bool get isListening => _stt.isListening;
@@ -55,19 +76,21 @@ class VoiceInputService {
   }) async {
     if (!_available) return;
     _onStatus = onStatus;
+    final use = await _resolveLocale(localeId);
+    resolvedLocale = use ?? '(default)';
     try {
       await _stt.listen(
         onResult: (r) => onResult(r.recognizedWords),
         onSoundLevelChange: onSoundLevel,
         listenOptions: SpeechListenOptions(
-          localeId: localeId,
+          localeId: use,
           listenFor: const Duration(seconds: 30),
           pauseFor: const Duration(seconds: 4),
           partialResults: true,
         ),
       );
     } catch (_) {
-      _onStatus?.call('notListening');
+      _onStatus?.call('error');
     }
   }
 

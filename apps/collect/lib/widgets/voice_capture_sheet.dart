@@ -58,7 +58,7 @@ class _VoiceCaptureSheetState extends State<_VoiceCaptureSheet> {
         if (mounted) setState(() => _level = lvl);
       },
       onStatus: (s) {
-        if (mounted && (s == 'notListening' || s == 'done')) {
+        if (mounted && (s == 'notListening' || s == 'done' || s == 'error')) {
           setState(() {
             _listening = false;
             _level = 0;
@@ -143,6 +143,10 @@ class _VoiceCaptureSheetState extends State<_VoiceCaptureSheet> {
                 ),
               ),
             ]),
+            const SizedBox(height: DhenuSpacing.sm),
+            // Diagnostic: which locale the recognizer actually used.
+            Text('🎙 ${VoiceInputService.instance.resolvedLocale ?? '—'}',
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
           ]),
         ),
       ),
