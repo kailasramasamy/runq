@@ -4,6 +4,7 @@ import {
   updateFarmerSchema,
   farmerFilterSchema,
   farmerDocumentKindSchema,
+  transliterateNameSchema,
   pourStatementQuerySchema,
   paginationSchema,
   uuidParamSchema,
@@ -15,6 +16,7 @@ import { AppError, ForbiddenError } from '../../utils/errors';
 import { getStorageProvider } from '../../utils/storage';
 import { AttachmentService } from '../common/attachment.service';
 import { FarmerService } from './farmer.service';
+import { transliterateName } from './transliteration.service';
 import { StatementService } from './statement.service';
 import { renderPourStatementHTML } from './statement-template';
 import { resolveMpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
@@ -33,6 +35,12 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new FarmerService(request.server.db, request.tenantId);
     return service.list(filters, { page: pagination.page, limit: pagination.limit }, principal);
+  });
+
+  // Live native-script suggestion for the add-farmer form (operator confirms it).
+  app.post('/transliterate', { preHandler: [rbacHook([...FARMER_WRITE_ROLES])] }, async (request) => {
+    const { name, lang } = transliterateNameSchema.parse(request.body);
+    return { data: { nameNative: await transliterateName(name, lang) } };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

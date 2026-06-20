@@ -6,8 +6,15 @@ import { pgEnum } from 'drizzle-orm/pg-core';
  */
 export const mpNodeType = pgEnum('mp_node_type', ['vmcc', 'cc', 'pp']);
 export const mpPayoutMode = pgEnum('mp_payout_mode', ['direct_to_farmer', 'via_vmcc']);
-export const mpMilkType = pgEnum('mp_milk_type', ['cow', 'buffalo', 'mixed']);
-export const mpPricingMode = pgEnum('mp_pricing_mode', ['matrix', 'flat']);
+// `cow` is retained as legacy (pre-A1/A2 data); new entries use cow_a1
+// (crossbred/regular cow) or cow_a2 (indigenous/desi cow).
+export const mpMilkType = pgEnum('mp_milk_type', ['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']);
+// `clr` = lactometer-only pricing: a 1-D CLR→₹/L breakpoint table, for VMCCs
+// without a fat/SNF milk analyzer. See mpMeasurementMode on the node.
+export const mpPricingMode = pgEnum('mp_pricing_mode', ['matrix', 'flat', 'clr']);
+// A node's milk-testing capability. `analyzer` → fat/SNF (matrix/flat charts);
+// `lactometer` → CLR-only (clr charts). VMCC-level toggle; CC/PP are analyzer.
+export const mpMeasurementMode = pgEnum('mp_measurement_mode', ['analyzer', 'lactometer']);
 export const mpGrade = pgEnum('mp_grade', ['a', 'b', 'c']);
 export const mpRateRule = pgEnum('mp_rate_rule', ['quality_bonus', 'volume_slab']);
 export const mpShift = pgEnum('mp_shift', ['am', 'pm']);

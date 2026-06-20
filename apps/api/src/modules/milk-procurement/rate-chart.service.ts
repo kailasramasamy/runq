@@ -20,8 +20,11 @@ export interface RateResolution {
   baseRatePerLitre: number;
   bonusPerLitre: number;
   ratePerLitre: number;
-  grade: Grade;
+  // null on CLR (lactometer) charts — no fat/SNF to grade on.
+  grade: Grade | null;
 }
+
+type PricingMode = MpRateChartRow['pricingMode'];
 
 /** Rate charts (matrix/flat) + the per-pour rate resolution used by A3. */
 export class RateChartService {
@@ -52,7 +55,8 @@ export class RateChartService {
     if (!chart) throw new NotFoundError('Rate chart not found');
     const [cells, rules] = await Promise.all([
       this.db.select().from(mpRateChartCells)
-        .where(eq(mpRateChartCells.rateChartId, id)).orderBy(mpRateChartCells.fat, mpRateChartCells.snf),
+        .where(eq(mpRateChartCells.rateChartId, id))
+        .orderBy(mpRateChartCells.clr, mpRateChartCells.fat, mpRateChartCells.snf),
       this.db.select().from(mpRateChartRules).where(eq(mpRateChartRules.rateChartId, id)),
     ]);
     return { ...chart, cells, rules };
@@ -75,7 +79,8 @@ export class RateChartService {
       if (input.cells.length) {
         await tx.insert(mpRateChartCells).values(input.cells.map((c) => ({
           tenantId: this.tenantId, rateChartId: chartId,
-          fat: String(c.fat), snf: String(c.snf), ratePerLitre: String(c.ratePerLitre),
+          fat: numOrNull(c.fat), snf: numOrNull(c.snf), clr: numOrNull(c.clr),
+          ratePerLitre: String(c.ratePerLitre),
         })));
       }
       if (input.rules.length) {
@@ -101,12 +106,20 @@ export class RateChartService {
   /** Resolve the per-litre rate for a pour. Used by the pour-capture path (A3). */
   async resolveRate(input: ResolveRateInput): Promise<RateResolution> {
     const onDate = input.onDate ?? new Date().toISOString().slice(0, 10);
-    const chart = await this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null);
-    if (!chart) throw new NotFoundError(`No active ${input.milkType} rate chart effective ${onDate}`);
+    // CLR supplied → lactometer (clr) chart; else fat/SNF → matrix/flat chart.
+    const useClr = input.clr != null;
+    const modes: PricingMode[] = useClr ? ['clr'] : ['matrix', 'flat'];
+    const chart = await this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
+    if (!chart) {
+      const kind = useClr ? 'CLR' : input.milkType;
+      throw new NotFoundError(`No active ${kind} rate chart effective ${onDate}`);
+    }
     const base = chart.pricingMode === 'flat'
       ? Number(chart.flatRatePerLitre)
-      : await this.matrixRate(chart.id, input.fat, input.snf);
-    const grade = deriveGrade(input.fat, input.snf);
+      : chart.pricingMode === 'clr'
+        ? await this.clrRate(chart.id, input.clr!)
+        : await this.matrixRate(chart.id, input.fat!, input.snf!);
+    const grade = useClr ? null : deriveGrade(input.fat!, input.snf!);
     const bonus = await this.bonusFor(chart.id, grade, input.cycleQtyLitres);
     return {
       rateChartId: chart.id,
@@ -121,17 +134,29 @@ export class RateChartService {
     milkType: ResolveRateInput['milkType'],
     onDate: string,
     scopeNodeId: string | null,
+    modes: PricingMode[],
   ): Promise<MpRateChartRow | null> {
-    const candidates = await this.db.select().from(mpRateCharts).where(and(
+    const candidates = (await this.db.select().from(mpRateCharts).where(and(
       eq(mpRateCharts.tenantId, this.tenantId),
       eq(mpRateCharts.milkType, milkType),
       eq(mpRateCharts.isActive, true),
       lte(mpRateCharts.effectiveFrom, onDate),
       or(isNull(mpRateCharts.effectiveTo), gte(mpRateCharts.effectiveTo, onDate)),
-    )).orderBy(desc(mpRateCharts.effectiveFrom));
+    )).orderBy(desc(mpRateCharts.effectiveFrom)))
+      .filter((c) => modes.includes(c.pricingMode));
     // prefer a chart scoped to this node; else fall back to a tenant-wide one
     const scoped = scopeNodeId ? candidates.find((c) => c.scopeNodeId === scopeNodeId) : undefined;
     return scoped ?? candidates.find((c) => c.scopeNodeId === null) ?? null;
+  }
+
+  /** CLR (lactometer) nearest-floor: largest cell with clr ≤ input. Top cell caps. */
+  private async clrRate(chartId: string, clr: number): Promise<number> {
+    const [cell] = await this.db.select().from(mpRateChartCells).where(and(
+      eq(mpRateChartCells.rateChartId, chartId),
+      lte(mpRateChartCells.clr, String(clr)),
+    )).orderBy(desc(mpRateChartCells.clr)).limit(1);
+    if (!cell) throw new NotFoundError(`No CLR rate cell for clr=${clr}`);
+    return Number(cell.ratePerLitre);
   }
 
   private async matrixRate(chartId: string, fat: number, snf: number): Promise<number> {
@@ -145,7 +170,7 @@ export class RateChartService {
     return Number(cell.ratePerLitre);
   }
 
-  private async bonusFor(chartId: string, grade: Grade, cycleQty?: number): Promise<number> {
+  private async bonusFor(chartId: string, grade: Grade | null, cycleQty?: number): Promise<number> {
     const rules: Rule[] = await this.db.select().from(mpRateChartRules)
       .where(eq(mpRateChartRules.rateChartId, chartId));
     let bonus = 0;

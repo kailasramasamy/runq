@@ -65,6 +65,9 @@ function farmerInsertValues(
   return {
     tenantId, vendorId, code,
     name: input.name,
+    // operator-provided native name is, by definition, confirmed
+    nameNative: input.nameNative ?? null,
+    nameNativeVerified: input.nameNative != null,
     phone: input.phone ?? null,
     village: input.village ?? null,
     address: input.address ?? null,
@@ -100,6 +103,11 @@ function farmerUpdatePatch(input: UpdateFarmerInput): Partial<typeof mpFarmers.$
   }
   if (input.lat !== undefined) patch.lat = input.lat != null ? String(input.lat) : null;
   if (input.lng !== undefined) patch.lng = input.lng != null ? String(input.lng) : null;
+  // editing the native name is an operator confirmation
+  if (input.nameNative !== undefined) {
+    patch.nameNative = input.nameNative ?? null;
+    patch.nameNativeVerified = input.nameNative != null;
+  }
   return patch;
 }
 
@@ -224,7 +232,11 @@ export class FarmerService {
     const conds = [eq(mpFarmers.tenantId, this.tenantId), sql`${mpFarmers.deletedAt} IS NULL`];
     if (filters.isActive !== undefined) conds.push(eq(mpFarmers.isActive, filters.isActive));
     if (filters.search) {
-      conds.push(or(ilike(mpFarmers.name, `%${filters.search}%`), ilike(mpFarmers.code, `%${filters.search}%`))!);
+      conds.push(or(
+        ilike(mpFarmers.name, `%${filters.search}%`),
+        ilike(mpFarmers.nameNative, `%${filters.search}%`),
+        ilike(mpFarmers.code, `%${filters.search}%`),
+      )!);
     }
     if (filters.nodeId) {
       conds.push(sql`EXISTS (SELECT 1 FROM ${mpFarmerMemberships} m

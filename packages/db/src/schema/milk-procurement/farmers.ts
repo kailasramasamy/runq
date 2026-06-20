@@ -23,6 +23,10 @@ export const mpFarmers = pgTable('mp_farmers', {
   vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
   code: varchar('code', { length: 40 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
+  // Native-script (regional-language) form of `name`, for RL display. Seeded by
+  // machine transliteration (verified=false); operator confirm flips verified.
+  nameNative: varchar('name_native', { length: 255 }),
+  nameNativeVerified: boolean('name_native_verified').notNull().default(false),
   phone: varchar('phone', { length: 20 }),
   village: varchar('village', { length: 120 }),
   address: text('address'),

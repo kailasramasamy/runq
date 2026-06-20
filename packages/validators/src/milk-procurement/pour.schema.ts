@@ -11,23 +11,29 @@ import { z } from 'zod';
  * (multiple cans, or cow + buffalo in one shift).
  */
 
-export const recordPourSchema = z.object({
-  nodeId: z.string().uuid(),
-  farmerId: z.string().uuid(),
-  collectionDate: z.string().date(),
-  shift: z.enum(['am', 'pm']),
-  milkType: z.enum(['cow', 'buffalo', 'mixed']),
-  qtyLitres: z.number().positive(),
-  fat: z.number().min(0).max(15),
-  snf: z.number().min(0).max(15),
-  clr: z.number().min(0).max(40).nullish(),
-  tempC: z.number().min(-5).max(60).nullish(),
-  captureSource: z.enum(['manual', 'device']).default('manual'),
-  // mobile offline-queue replay dedupe (idempotency key)
-  deviceLocalId: z.string().max(64).nullish(),
-  // true → record an additional lot instead of replacing the prior same-slot pour
-  asNewLot: z.boolean().default(false),
-});
+export const recordPourSchema = z
+  .object({
+    nodeId: z.string().uuid(),
+    farmerId: z.string().uuid(),
+    collectionDate: z.string().date(),
+    shift: z.enum(['am', 'pm']),
+    milkType: z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']),
+    qtyLitres: z.number().positive(),
+    // analyzer nodes send fat+snf; lactometer nodes send clr alone.
+    fat: z.number().min(0).max(15).nullish(),
+    snf: z.number().min(0).max(15).nullish(),
+    clr: z.number().min(0).max(40).nullish(),
+    tempC: z.number().min(-5).max(60).nullish(),
+    captureSource: z.enum(['manual', 'device']).default('manual'),
+    // mobile offline-queue replay dedupe (idempotency key)
+    deviceLocalId: z.string().max(64).nullish(),
+    // true → record an additional lot instead of replacing the prior same-slot pour
+    asNewLot: z.boolean().default(false),
+  })
+  .refine((d) => d.clr != null || (d.fat != null && d.snf != null), {
+    message: 'provide clr (lactometer) or fat+snf (analyzer)',
+    path: ['clr'],
+  });
 
 export const pourFilterSchema = z.object({
   nodeId: z.string().uuid().optional(),

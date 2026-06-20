@@ -29,6 +29,9 @@ export const createFarmerSchema = z.object({
   // from the node when omitted.
   code: z.string().min(1).max(40).optional(),
   name: z.string().min(1).max(255),
+  // Native-script name for RL display. Provided by the operator (confirmed) on
+  // create/update → marks the row verified; left null → falls back to `name`.
+  nameNative: z.string().max(255).nullish(),
   phone: z.string().max(20).nullish(),
   // With `phone`, provisions a Dhenu app login (mp_credentials): phone + DOB
   // (DDMMYY) is the sign-in. Independent of HR employee auth.
@@ -37,7 +40,7 @@ export const createFarmerSchema = z.object({
   address: z.string().max(1000).nullish(),
   aadhaar: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits').nullish(),
   isSociety: z.boolean().default(false),
-  defaultMilkType: z.enum(['cow', 'buffalo', 'mixed']).default('cow'),
+  defaultMilkType: z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']).default('cow_a1'),
   // Herd: per-breed counts. `cattleCount` is derived (sum) server-side.
   cattleBreeds: z.array(cattleBreedCountSchema).nullish(),
   cattleCount: z.number().int().nonnegative().nullish(),
@@ -77,7 +80,14 @@ export const farmerFilterSchema = z.object({
   isActive: boolFilter.optional(),
 });
 
+/** Live transliteration suggestion for the add-farmer native-name field. */
+export const transliterateNameSchema = z.object({
+  name: z.string().min(1).max(255),
+  lang: z.string().min(2).max(8), // target language code (ta, kn, hi, …)
+});
+
 export type PourStatementQuery = z.infer<typeof pourStatementQuerySchema>;
 export type CreateFarmerInput = z.infer<typeof createFarmerSchema>;
 export type UpdateFarmerInput = z.infer<typeof updateFarmerSchema>;
 export type FarmerFilter = z.infer<typeof farmerFilterSchema>;
+export type TransliterateNameInput = z.infer<typeof transliterateNameSchema>;

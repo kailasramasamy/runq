@@ -50,7 +50,8 @@ export class PourService {
     assertNodeAccess(principal, input.nodeId);
     // resolve rate from the active chart for this milk type / node scope
     const res = await this.rates.resolveRate({
-      milkType: input.milkType, fat: input.fat, snf: input.snf,
+      milkType: input.milkType,
+      fat: input.fat ?? undefined, snf: input.snf ?? undefined, clr: input.clr ?? undefined,
       scopeNodeId: input.nodeId, onDate: input.collectionDate,
     });
     const qty = input.qtyLitres;
@@ -88,8 +89,8 @@ export class PourService {
         shift: input.shift,
         milkType: input.milkType,
         qtyLitres: String(qty),
-        fat: String(input.fat),
-        snf: String(input.snf),
+        fat: numOrNull(input.fat),
+        snf: numOrNull(input.snf),
         clr: numOrNull(input.clr),
         tempC: numOrNull(input.tempC),
         qualityGrade: res.grade,
