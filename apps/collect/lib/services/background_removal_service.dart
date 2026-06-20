@@ -12,9 +12,8 @@ class BackgroundRemovalService {
   static final SelfieSegmenter _segmenter =
       SelfieSegmenter(mode: SegmenterMode.single, enableRawSizeMask: true);
 
-  // Light emerald fill (a pale tint of the brand #0F7A5A), so the person stands
-  // out and it reads gently in both light and dark avatars.
-  static const _bgR = 200, _bgG = 230, _bgB = 220;
+  // Brand emerald (#0F7A5A) — matches the initials-avatar fill.
+  static const _bgR = 15, _bgG = 122, _bgB = 90;
 
   /// Returns a new JPEG with the person on the brand fill, or [source] on error.
   static Future<File> personOnBrandFill(File source) async {
