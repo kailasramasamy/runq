@@ -1,0 +1,439 @@
+{
+  "@@locale": "en",
+  "navHome": "Home",
+  "@navHome": {
+    "description": "VMCC bottom-nav: home tab"
+  },
+  "navCollect": "Collect",
+  "navDispatch": "Dispatch",
+  "navPayments": "Payments",
+  "navProfile": "Profile",
+  "commonLitres": "Litres",
+  "commonSelectFarmer": "Select farmer",
+  "commonMilkType": "Milk type",
+  "commonCancel": "Cancel",
+  "commonNext": "Next",
+  "commonToday": "Today",
+  "milkTypeCowA1": "Cow A1 (regular)",
+  "milkTypeCowA2": "Cow A2 (desi)",
+  "milkTypeBuffalo": "Buffalo",
+  "milkTypeMixed": "Mixed",
+  "milkTypeCowLegacy": "Cow (legacy)",
+  "recordCollectionTitle": "Record Collection",
+  "editCollectionTitle": "Edit Collection",
+  "collectAlreadyRecorded": "Already recorded this {shift} shift",
+  "@collectAlreadyRecorded": {
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      }
+    }
+  },
+  "collectReplaceOrAdd": "Replace it (correction) or add another lot for {name}?",
+  "@collectReplaceOrAdd": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "collectReplace": "Replace",
+  "collectAddLot": "Add lot",
+  "collectSavedOnDevice": "Saved on device · will sync",
+  "collectComputingRate": "Computing rate…",
+  "collectEnterClrPreview": "Enter CLR to preview the rate",
+  "collectEnterFatSnfPreview": "Enter FAT & SNF to preview the rate",
+  "collectRateOnSync": "Rate computed on sync",
+  "collectTodaysEntries": "Today's entries ({count})",
+  "@collectTodaysEntries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "collectSaveAndNext": "Save & next",
+  "historyLoadError": "Could not load history",
+  "historyByDay": "By day",
+  "historyByFarmer": "By farmer",
+  "historyAll": "All",
+  "historyNoHistory": "No collection history",
+  "historyNoHistorySubtitle": "Recorded collections from the last 30 days appear here",
+  "historyNoFarmersMatch": "No farmers match",
+  "historyNoFarmersMatchSubtitle": "Try another name",
+  "historySearchFarmer": "Search farmer",
+  "historyFarmerFallback": "Farmer",
+  "historyDaySubtitle": "{count} farmers · 🌙 {pm} · ☀️ {am}",
+  "@historyDaySubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "pm": {
+        "type": "String"
+      },
+      "am": {
+        "type": "String"
+      }
+    }
+  },
+  "pourDetailDeleteTitle": "Delete entry?",
+  "pourDetailDeleteContent": "Reverses {qty} for {name}. This cannot be undone.",
+  "@pourDetailDeleteContent": {
+    "placeholders": {
+      "qty": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pourDetailFarmerFallback": "this farmer",
+  "pourDetailDelete": "Delete",
+  "pourDetailModify": "Modify",
+  "pourDetailReversed": "Reversed",
+  "pourDetailRatePerLitre": "Rate / litre",
+  "pourDetailQuantity": "Quantity",
+  "pourDetailMilkType": "Milk type",
+  "pourDetailShift": "Shift",
+  "pourDetailDate": "Date",
+  "pourDetailAmount": "Amount",
+  "shiftAm": "AM",
+  "shiftPm": "PM",
+  "shiftMorning": "Morning",
+  "shiftEvening": "Evening",
+  "shiftFarmerFallback": "Farmer",
+  "profileMemberSince": "Member since",
+  "profileCollectionCentre": "Collection centre",
+  "profileBankPayout": "Bank & payout",
+  "profileNotifications": "Notifications",
+  "profileHelpSupport": "Help & support",
+  "profileAbout": "About",
+  "profileAppearance": "APPEARANCE",
+  "profileThemeSystem": "System default",
+  "profileThemeLight": "Light",
+  "profileThemeDark": "Dark",
+  "profileLogOut": "Log out",
+  "homeRecentEntries": "Recent entries",
+  "homeFarmers": "Farmers",
+  "homeHistory": "History",
+  "homeReports": "Reports",
+  "homeAmShiftInProgress": "☀️ AM shift · in progress",
+  "homePmShiftInProgress": "🌙 PM shift · in progress",
+  "homeJustNow": "just now",
+  "homeHeroToday": "TODAY",
+  "homeHeroTodayAm": "TODAY ☀️ AM",
+  "homeHeroTodayPm": "TODAY 🌙 PM",
+  "homeFarmerCount": "{count} farmers",
+  "@homeFarmerCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "homeToDispatch": "To dispatch",
+  "homeAllDispatched": "All dispatched",
+  "homeNothingYet": "Nothing yet",
+  "homeCollected": "Collected",
+  "homeBmcTank": "BMC tank",
+  "homeLoadError": "Could not load entries",
+  "homeNoCollectionToday": "No collection yet today",
+  "homeNoCollectionSubtitle": "Tap Record Collection to start",
+  "dispatchTitle": "Dispatch",
+  "dispatchAvailability": "Availability",
+  "dispatchToCollectionCentre": "Dispatch to Collection Centre",
+  "dispatchQtyHint": "Dispatch Qty (L)",
+  "dispatchContainerHint": "Container No. (optional)",
+  "dispatchTankerButton": "Dispatch Tanker",
+  "dispatchTodaysOutbound": "Today's Outbound",
+  "dispatchNoDispatchesToday": "No dispatches today",
+  "dispatchNoDispatchesSubtitle": "Use the form above to dispatch a tanker",
+  "dispatchSelectDestination": "Select destination centre…",
+  "dispatchSearchCentre": "Search centre",
+  "dispatchNoCentresFound": "No centres found",
+  "dispatchErrorNoDestination": "Select a destination collection centre",
+  "dispatchErrorInvalidQty": "Enter a valid dispatch quantity",
+  "dispatchErrorOverQty": "Only {available} L available to dispatch",
+  "@dispatchErrorOverQty": {
+    "placeholders": {
+      "available": {}
+    }
+  },
+  "dispatchAmountDispatched": "{amount} dispatched",
+  "@dispatchAmountDispatched": {
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "dispatchNothingLeft": "Nothing left to dispatch.",
+  "dispatchNothingLeftThisShift": "Nothing left to dispatch this shift.",
+  "dispatchContainerLabel": "Container {no}",
+  "@dispatchContainerLabel": {
+    "placeholders": {
+      "no": {}
+    }
+  },
+  "dispatchNoContainerNo": "No container no.",
+  "dispatchStatusTransit": "⏳ transit",
+  "dispatchStatusReceived": "✓ received",
+  "dispatchAvailableToDispatch": "Available to dispatch",
+  "dispatchCollectedDispatched": "Collected {collected} · Dispatched {dispatched}",
+  "@dispatchCollectedDispatched": {
+    "placeholders": {
+      "collected": {},
+      "dispatched": {}
+    }
+  },
+  "dispatchNoData": "No data",
+  "dispatchShiftAm": "☀️ AM",
+  "dispatchShiftPm": "🌙 PM",
+  "paymentsCouldNotLoadCycles": "Could not load cycles",
+  "paymentsStartNewCycle": "Start new cycle",
+  "paymentsNoCyclesTitle": "No cycles yet",
+  "paymentsNoCyclesSubtitle": "Start a cycle to pay farmers for a period",
+  "paymentsCyclesDisbursements": "Cycles & farmer disbursements",
+  "paymentsCyclesTitle": "Cycles",
+  "paymentsPendingToPayLabel": "Pending to pay",
+  "paymentsPendingFarmersSub": "{farmers} farmers · {open} open",
+  "@paymentsPendingFarmersSub": {
+    "placeholders": {
+      "farmers": {},
+      "open": {}
+    }
+  },
+  "paymentsPaidLabel": "Paid",
+  "paymentsPaidCyclesSub": "across {count} cycles",
+  "@paymentsPaidCyclesSub": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "paymentsCycleStatusOpen": "Open",
+  "paymentsCycleStatusLocked": "Locked",
+  "paymentsCycleStatusPaid": "Paid",
+  "paymentsCycleStatusReversed": "Reversed",
+  "paymentsNetLabel": "net",
+  "paymentsFarmerCount": "{count} farmers",
+  "@paymentsFarmerCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "paymentsPaidCount": "{paid}/{total} paid",
+  "@paymentsPaidCount": {
+    "placeholders": {
+      "paid": {},
+      "total": {}
+    }
+  },
+  "paymentsAmountPending": "{amount} pending",
+  "@paymentsAmountPending": {
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "paymentsSelectPeriod": "Select period",
+  "paymentsCouldNotLoadPeriods": "Could not load periods",
+  "paymentsPeriodInProgress": "in progress",
+  "paymentsPeriodClosed": "closed",
+  "farmersAddFarmer": "Add Farmer",
+  "farmersSearchHint": "Search by name or code",
+  "farmersCouldNotLoad": "Could not load farmers",
+  "farmersEmptyTitle": "No farmers registered",
+  "farmersNoMatchTitle": "No matching farmers",
+  "farmersEmptySubtitle": "Farmers registered at this VMCC appear here",
+  "farmerDetailEditTooltip": "Edit farmer",
+  "farmerDetailTabDetails": "Details",
+  "farmerDetailTabPours": "Pours",
+  "farmerDetailTabPayments": "Payments",
+  "farmerDetailStatusActive": "Active",
+  "farmerDetailStatusInactive": "Inactive",
+  "farmerDetailPhone": "Phone",
+  "farmerDetailContact": "Contact",
+  "farmerDetailVillage": "Village",
+  "farmerDetailAddress": "Address",
+  "farmerDetailGps": "GPS",
+  "farmerDetailLocation": "Location",
+  "farmerDetailTotalCattle": "Total cattle",
+  "farmerDetailCurrentlyMilking": "Currently milking",
+  "farmerDetailHerd": "Herd",
+  "farmerDetailAadhaar": "Aadhaar",
+  "farmerDetailIdentity": "Identity",
+  "farmerDetailBankName": "Bank name",
+  "farmerDetailAccountNumber": "Account number",
+  "farmerDetailIfsc": "IFSC",
+  "farmerDetailUpiId": "UPI ID",
+  "farmerDetailPayment": "Payment",
+  "farmerDetailNotProvided": "Not provided",
+  "farmerPoursLoadError": "Could not load pours",
+  "farmerPoursEmptyTitle": "No recent pours",
+  "farmerPoursEmptySubtitle": "No pours in the last 30 days. Share a past cycle statement above.",
+  "farmerPoursCount": "{count} pours",
+  "@farmerPoursCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "farmerPours30DayTotal": "30-day total",
+  "farmerPaymentsAddEntry": "Add entry",
+  "farmerPaymentsAmountHint": "Amount (₹)",
+  "farmerPaymentsRecordEntry": "Record entry",
+  "farmerPaymentsHistory": "History",
+  "farmerPaymentsLoadError": "Could not load ledger",
+  "farmerPaymentsOutstanding": "Outstanding",
+  "farmerPaymentsInvalidAmount": "Enter a valid amount",
+  "farmerPaymentsNoEntries": "No entries yet",
+  "farmerPaymentsTypeAdvance": "Advance",
+  "farmerPaymentsFeedLoan": "Feed loan",
+  "farmerPaymentsRepayment": "Repayment",
+  "farmerPaymentsAgainstAdvance": "Against advance",
+  "farmerPaymentsAgainstFeedLoan": "Against feed loan",
+  "farmerPaymentsAdvanceGiven": "Advance given",
+  "farmerPaymentsFeedLoanGiven": "Feed loan given",
+  "farmerPaymentsRepaymentLabel": "Repayment",
+  "farmerPaymentsAdjustment": "Adjustment",
+  "addFarmerAddTitle": "Add Farmer",
+  "addFarmerEditTitle": "Edit Farmer",
+  "addFarmerCamera": "Camera",
+  "addFarmerGallery": "Gallery",
+  "addFarmerNameRequired": "Name is required",
+  "addFarmerAadhaarLength": "Aadhaar must be exactly 12 digits",
+  "addFarmerLocationPermissionDenied": "Location permission denied",
+  "addFarmerRegisteredToast": "{name} registered",
+  "@addFarmerRegisteredToast": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "addFarmerUpdatedToast": "{name} updated",
+  "@addFarmerUpdatedToast": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "addFarmerSaveChanges": "Save Changes",
+  "addFarmerRegisterFarmer": "Register Farmer",
+  "addFarmerSectionBasics": "Basics",
+  "addFarmerFieldFullName": "Full Name *",
+  "addFarmerFieldPhoneNumber": "Phone Number",
+  "addFarmerFieldDobHint": "Date of Birth (optional — enables app login)",
+  "addFarmerSectionLocation": "Location",
+  "addFarmerFieldVillage": "Village",
+  "addFarmerFieldAddress": "Address",
+  "addFarmerGettingLocation": "Getting location…",
+  "addFarmerCaptureGps": "Capture GPS location",
+  "addFarmerSectionIdentity": "Identity",
+  "addFarmerPhotoAdded": "Profile photo added",
+  "addFarmerPhotoAdd": "Add profile photo",
+  "addFarmerPhotoTapToChange": "Tap to change",
+  "addFarmerPhotoHint": "Take a photo or pick from gallery",
+  "addFarmerFieldAadhaar": "Aadhaar Number",
+  "addFarmerFieldKyc": "KYC Document",
+  "addFarmerFieldKycAdded": "KYC Document added",
+  "addFarmerSectionPayment": "Payment",
+  "addFarmerFieldBankName": "Bank Name",
+  "addFarmerFieldAccountHolderName": "Account Holder Name",
+  "addFarmerFieldAccountNumber": "Account Number",
+  "addFarmerFieldIfscCode": "IFSC Code",
+  "addFarmerFieldUpiId": "UPI ID",
+  "herdSectionTitle": "Herd",
+  "herdTotalHead": "{count} head",
+  "@herdTotalHead": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "herdMilkType": "Milk type",
+  "herdCattleBreeds": "Cattle breeds",
+  "herdNoBreedsYet": "No breeds added yet.",
+  "herdAddBreed": "Add breed",
+  "herdInMilkCount": "Currently milking count",
+  "herdBreedLabel": "Breed",
+  "herdQtyHint": "Qty",
+  "herdBreedDesiNatti": "Desi / Natti",
+  "herdBreedCrossbred": "Crossbred",
+  "herdBreedJersey": "Jersey",
+  "herdBreedHf": "HF",
+  "herdBreedGir": "Gir",
+  "herdBreedSahiwal": "Sahiwal",
+  "herdBreedMurrah": "Murrah",
+  "herdBreedOther": "Other",
+  "reportsTodaysCollection": "Today's Collection",
+  "reportsCouldNotLoadSummary": "Could not load summary",
+  "reportsNoCollectionToday": "No collection today",
+  "reportsTotalCollected": "Total collected",
+  "reportsFarmersPoursStat": "{farmerCount} farmers · {pourCount} pours",
+  "@reportsFarmersPoursStat": {
+    "placeholders": {
+      "farmerCount": {},
+      "pourCount": {}
+    }
+  },
+  "reportsStatAmLabel": "☀️ AM",
+  "reportsStatPmLabel": "🌙 PM",
+  "reportsStatAvgFat": "Avg FAT",
+  "reportsStatAvgSnf": "Avg SNF",
+  "reportsStatFarmers": "Farmers",
+  "reportsStatGross": "Gross",
+  "cycleCycle": "Cycle",
+  "cycleCouldNotLoad": "Could not load cycle",
+  "cycleNotFound": "Cycle not found",
+  "cycleNoLines": "No lines in this cycle",
+  "cycleNoFarmersMatch": "No farmers match",
+  "cycleNetPayable": "NET PAYABLE",
+  "cyclePaidLegend": "{amount} paid · {paid}/{total}",
+  "@cyclePaidLegend": {
+    "placeholders": {
+      "amount": {},
+      "paid": {},
+      "total": {}
+    }
+  },
+  "cycleMarkAllPaid": "Mark all paid",
+  "cycleMarkAllUnpaid": "Mark all unpaid",
+  "cycleFilterAll": "All",
+  "cycleFilterUnpaid": "Unpaid",
+  "cycleFilterPaid": "Paid",
+  "cycleLockTitle": "Lock cycle?",
+  "cycleLockContent": "Locking freezes totals and posts loan repayments. You can pay after.",
+  "cyclePayTitle": "Pay cycle?",
+  "cyclePayContent": "This posts payments for every farmer and cannot be undone.",
+  "cycleLockAction": "Lock",
+  "cyclePayAction": "Pay",
+  "cycleLockCycle": "Lock cycle",
+  "cyclePayCycle": "Pay cycle",
+  "farmerHistoryNoPoursSubtitle": "This farmer has no recorded pours in the last 30 days",
+  "ledgerEditDetails": "Edit details",
+  "ledgerAddEntry": "Add entry",
+  "ledgerAmountHint": "Amount (₹)",
+  "ledgerInvalidAmount": "Enter a valid amount",
+  "ledgerRecordEntry": "Record entry",
+  "ledgerHistory": "History",
+  "ledgerLoadError": "Could not load ledger",
+  "ledgerOutstanding": "Outstanding",
+  "ledgerNoEntries": "No entries yet",
+  "ledgerEntryAdvance": "Advance",
+  "ledgerEntryFeedLoan": "Feed loan",
+  "ledgerEntryRepayment": "Repayment",
+  "ledgerAgainstAdvance": "Against advance",
+  "ledgerAgainstFeedLoan": "Against feed loan",
+  "ledgerHistoryAdvanceGiven": "Advance given",
+  "ledgerHistoryFeedLoanGiven": "Feed loan given",
+  "ledgerHistoryRepayment": "Repayment",
+  "ledgerHistoryAdjustment": "Adjustment",
+  "statementNoCycles": "No cycles available",
+  "statementSelectCycle": "Select cycle",
+  "statementGenerateError": "Could not generate statement: {error}",
+  "@statementGenerateError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "statementPreparing": "Preparing…",
+  "statementShareButton": "Share cycle statement",
+  "pickerSearchHint": "Search farmer by name or code",
+  "pickerLoadError": "Could not load farmers",
+  "pickerNoMatch": "No matching farmers",
+  "addFarmerNativeNameLabel": "Name (regional script)",
+  "addFarmerNativeNameHint": "Auto-filled from the name above — edit if needed"
+}

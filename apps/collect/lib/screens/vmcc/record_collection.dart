@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:dhenu/l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../api/mp_repo.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../services/pour_queue.dart';
@@ -35,18 +37,37 @@ class RecordCollectionScreen extends ConsumerStatefulWidget {
 class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen> {
   MpFarmer? _farmer;
   Shift _shift = shiftFrom(currentShift());
-  MilkType _milkType = MilkType.cow;
+  late MilkType _milkType;
   final _qty = TextEditingController();
   final _fat = TextEditingController();
   final _snf = TextEditingController();
+  final _clr = TextEditingController();
   final _qtyFocus = FocusNode();
   final _fatFocus = FocusNode();
   final _snfFocus = FocusNode();
+  final _clrFocus = FocusNode();
 
   Timer? _debounce;
   MpRateResolution? _rate;
   bool _resolving = false;
   bool _saving = false;
+
+  /// Types the operator may select at this node. Falls back to the four
+  /// non-legacy defaults when the node has no restriction.
+  List<MilkType> get _effectiveAllowed {
+    final allowed = widget.node.allowedMilkTypes;
+    if (allowed != null && allowed.isNotEmpty) return allowed;
+    return _defaultSelectableMilkTypes;
+  }
+
+  /// The node's preferred default, clamped to allowed — or the first allowed
+  /// type when the node has no preference.
+  MilkType get _nodeDefaultMilkType {
+    final preferred = widget.node.defaultMilkType;
+    final allowed = _effectiveAllowed;
+    if (preferred != null && allowed.contains(preferred)) return preferred;
+    return allowed.first;
+  }
 
   @override
   void initState() {
@@ -55,13 +76,21 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     if (seed != null) {
       _farmer = widget.seedFarmer;
       _shift = seed.shift;
+      // Edit: preserve the pour's actual milk type even if it's outside the
+      // node's current allowed set (e.g. legacy cow data).
       _milkType = seed.milkType;
       _qty.text = _trimNum(seed.qtyLitres);
-      if (seed.fat != null) _fat.text = _trimNum(seed.fat!);
-      if (seed.snf != null) _snf.text = _trimNum(seed.snf!);
+      if (widget.node.isLactometer) {
+        if (seed.clr != null) _clr.text = _trimNum(seed.clr!);
+      } else {
+        if (seed.fat != null) _fat.text = _trimNum(seed.fat!);
+        if (seed.snf != null) _snf.text = _trimNum(seed.snf!);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _resolveRate();
       });
+    } else {
+      _milkType = _nodeDefaultMilkType;
     }
   }
 
@@ -74,24 +103,31 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     _qty.dispose();
     _fat.dispose();
     _snf.dispose();
+    _clr.dispose();
     _qtyFocus.dispose();
     _fatFocus.dispose();
     _snfFocus.dispose();
+    _clrFocus.dispose();
     super.dispose();
   }
 
   double get _qtyVal => double.tryParse(_qty.text) ?? 0;
   double? get _fatVal => double.tryParse(_fat.text);
   double? get _snfVal => double.tryParse(_snf.text);
+  double? get _clrVal => double.tryParse(_clr.text);
   bool get _isEdit => widget.seedPour != null;
   // edits keep the original collection date; fresh entries are for today
   String get _collectionDate => widget.seedPour?.collectionDate ?? todayIso();
-  bool get _canSave => _farmer != null && _qtyVal > 0 && _fatVal != null && _snfVal != null && !_saving;
+  bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
+      (widget.node.isLactometer ? _clrVal != null : _fatVal != null && _snfVal != null);
 
   void _onFieldChanged() {
     setState(() {});
     _debounce?.cancel();
-    if (_fatVal == null || _snfVal == null) {
+    final ready = widget.node.isLactometer
+        ? _clrVal != null
+        : _fatVal != null && _snfVal != null;
+    if (!ready) {
       setState(() => _rate = null);
       return;
     }
@@ -99,14 +135,19 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   }
 
   Future<void> _resolveRate() async {
-    final fat = _fatVal, snf = _snfVal;
-    if (fat == null || snf == null) return;
+    final isLactometer = widget.node.isLactometer;
+    final clr = _clrVal;
+    final fat = _fatVal;
+    final snf = _snfVal;
+    if (isLactometer && clr == null) return;
+    if (!isLactometer && (fat == null || snf == null)) return;
     setState(() => _resolving = true);
     try {
       final r = await mpRepo.resolveRate(
         milkType: _milkType,
-        fat: fat,
-        snf: snf,
+        fat: isLactometer ? null : fat,
+        snf: isLactometer ? null : snf,
+        clr: isLactometer ? clr : null,
         cycleQtyLitres: _qtyVal > 0 ? _qtyVal : null,
         scopeNodeId: widget.node.id,
         onDate: _collectionDate,
@@ -126,7 +167,12 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     if (picked != null) {
       setState(() {
         _farmer = picked;
-        _milkType = picked.defaultMilkType;
+        // Use farmer's default only when it's within the node's allowed set;
+        // otherwise fall back to the node's own default.
+        final farmerDefault = picked.defaultMilkType;
+        _milkType = _effectiveAllowed.contains(farmerDefault)
+            ? farmerDefault
+            : _nodeDefaultMilkType;
       });
       _onFieldChanged();
       _qtyFocus.requestFocus(); // jump straight into entry
@@ -134,12 +180,16 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   }
 
   /// The bottom button doubles as a "next field" stepper: when something's
-  /// missing it focuses the first empty field; once all three are in, it saves.
+  /// missing it focuses the first empty field; once all are in, it saves.
   void _onPrimary() {
     if (_farmer == null) { _pickFarmer(); return; }
     if (_qtyVal <= 0) { _qtyFocus.requestFocus(); return; }
-    if (_fatVal == null) { _fatFocus.requestFocus(); return; }
-    if (_snfVal == null) { _snfFocus.requestFocus(); return; }
+    if (widget.node.isLactometer) {
+      if (_clrVal == null) { _clrFocus.requestFocus(); return; }
+    } else {
+      if (_fatVal == null) { _fatFocus.requestFocus(); return; }
+      if (_snfVal == null) { _snfFocus.requestFocus(); return; }
+    }
     _save();
   }
 
@@ -162,6 +212,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     if (_isEdit) return _saveEdit();
     // A repeat for the same slot is a correction by default; adding a lot is
     // deliberate. Ask, so an operator never silently double-pays a farmer.
+    // Capture name before any await so context is still synchronously accessible.
+    final name = farmerName(context, _farmer!);
     final existing = _existingSlotPour();
     var asNewLot = false;
     if (existing != null) {
@@ -169,7 +221,6 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       if (choice == null) return; // cancelled — keep the form as-is
       asNewLot = choice;
     }
-    final name = _farmer!.name;
     final qtyLabel = litres(_qtyVal, unit: true);
     setState(() => _saving = true);
     final body = <String, dynamic>{
@@ -177,10 +228,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       'farmerId': _farmer!.id,
       'collectionDate': todayIso(),
       'shift': _shift.name,
-      'milkType': _milkType.name,
+      'milkType': milkTypeToApi(_milkType),
       'qtyLitres': _qtyVal,
-      'fat': _fatVal,
-      'snf': _snfVal,
+      if (widget.node.isLactometer) 'clr': _clrVal
+      else ...{'fat': _fatVal, 'snf': _snfVal},
       'asNewLot': asNewLot,
     };
     final sentNow = await PourQueue.instance.record(body);
@@ -197,7 +248,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// past-day edits don't migrate to today. Online-only (edits are infrequent).
   Future<void> _saveEdit() async {
     final seed = widget.seedPour!;
-    final name = _farmer!.name;
+    final name = farmerName(context, _farmer!);
     final qtyLabel = litres(_qtyVal, unit: true);
     setState(() => _saving = true);
     try {
@@ -207,10 +258,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         'farmerId': _farmer!.id,
         'collectionDate': seed.collectionDate,
         'shift': _shift.name,
-        'milkType': _milkType.name,
+        'milkType': milkTypeToApi(_milkType),
         'qtyLitres': _qtyVal,
-        'fat': _fatVal,
-        'snf': _snfVal,
+        if (widget.node.isLactometer) 'clr': _clrVal
+        else ...{'fat': _fatVal, 'snf': _snfVal},
         'asNewLot': true,
       });
       if (!mounted) return;
@@ -229,7 +280,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
 
   void _showSavedSnack(String name, String qtyLabel, bool sentNow) => showDhenuToast(
         context,
-        sentNow ? '$qtyLabel · $name' : 'Saved on device · will sync',
+        sentNow ? '$qtyLabel · $name' : AppLocalizations.of(context).collectSavedOnDevice,
         type: sentNow ? DhenuToastType.success : DhenuToastType.info,
         icon: sentNow ? null : DhenuIcons.cloud,
       );
@@ -237,9 +288,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// Returns true = add another lot, false = replace prior, null = cancel.
   Future<bool?> _askReplaceOrAdd(MpPour existing) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final shiftLabel = _shift == Shift.am ? 'AM' : 'PM';
     // Capture now: _farmer is cleared on save while the sheet animates out.
-    final farmerName = _farmer!.name;
+    final capturedName = farmerName(context, _farmer!);
     return showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -255,10 +307,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
               padding: const EdgeInsets.fromLTRB(
                   DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Already recorded this $shiftLabel shift',
+                Text(l.collectAlreadyRecorded(shiftLabel),
                     style: DhenuText.title.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.xs),
-                Text('Replace it (correction) or add another lot for $farmerName?',
+                Text(l.collectReplaceOrAdd(capturedName),
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 const SizedBox(height: DhenuSpacing.md),
                 DhenuCard(
@@ -279,17 +331,17 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                 Row(children: [
                   Expanded(child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Replace'),
+                    child: Text(l.collectReplace),
                   )),
                   const SizedBox(width: DhenuSpacing.md),
                   Expanded(child: FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Add lot'),
+                    child: Text(l.collectAddLot),
                   )),
                 ]),
                 Center(child: TextButton(
                   onPressed: () => Navigator.pop(ctx, null),
-                  child: Text('Cancel', style: DhenuText.label.copyWith(color: t.inkSoft)),
+                  child: Text(l.commonCancel, style: DhenuText.label.copyWith(color: t.inkSoft)),
                 )),
               ]),
             ),
@@ -305,6 +357,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       _qty.clear();
       _fat.clear();
       _snf.clear();
+      _clr.clear();
       _rate = null;
       _saving = false;
     });
@@ -313,9 +366,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.seedPour != null ? 'Edit Collection' : 'Record Collection',
+        title: Text(widget.seedPour != null ? l.editCollectionTitle : l.recordCollectionTitle,
             style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
@@ -331,13 +385,21 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           const SizedBox(height: DhenuSpacing.lg),
           _milkTypePicker(t),
           const SizedBox(height: DhenuSpacing.lg),
-          Row(children: [
-            Expanded(child: _numberField(_qty, 'Litres', 'L', _qtyFocus, _fatFocus)),
-            const SizedBox(width: DhenuSpacing.md),
-            Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
-            const SizedBox(width: DhenuSpacing.md),
-            Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, null)),
-          ]),
+          if (widget.node.isLactometer) ...[
+            Row(children: [
+              Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _clrFocus)),
+              const SizedBox(width: DhenuSpacing.md),
+              Expanded(child: _numberField(_clr, 'CLR', '', _clrFocus, null)),
+            ]),
+          ] else ...[
+            Row(children: [
+              Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _fatFocus)),
+              const SizedBox(width: DhenuSpacing.md),
+              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
+              const SizedBox(width: DhenuSpacing.md),
+              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, null)),
+            ]),
+          ],
           const SizedBox(height: DhenuSpacing.lg),
           _ratePreview(t),
           const SizedBox(height: DhenuSpacing.xl),
@@ -347,7 +409,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       bottomSheet: Padding(
         padding: const EdgeInsets.all(DhenuSpacing.screen),
         child: PrimaryAction(
-          label: _canSave ? 'Save & next' : 'Next',
+          label: _canSave ? l.collectSaveAndNext : l.commonNext,
           icon: _canSave ? DhenuIcons.check : DhenuIcons.arrowRight,
           loading: _saving,
           onPressed: _saving ? null : _onPrimary,
@@ -361,7 +423,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         const SizedBox(width: DhenuSpacing.sm),
         Text(
           _collectionDate == todayIso()
-              ? '${prettyDate(_collectionDate)} · Today'
+              ? '${prettyDate(_collectionDate)} · ${AppLocalizations.of(context).commonToday}'
               : prettyDate(_collectionDate),
           style: DhenuText.label.copyWith(color: t.inkSoft),
         ),
@@ -375,7 +437,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Today\'s entries (${pours.length})', style: DhenuText.title.copyWith(color: t.ink)),
+      Text(AppLocalizations.of(context).collectTodaysEntries(pours.length),
+          style: DhenuText.title.copyWith(color: t.ink)),
       const SizedBox(height: DhenuSpacing.sm),
       ShiftGroupedPours(
         pours: pours,
@@ -411,7 +474,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             const SizedBox(width: DhenuSpacing.md),
             Expanded(
               child: Text(
-                _farmer?.name ?? 'Select farmer',
+                _farmer != null ? farmerName(context, _farmer!) : AppLocalizations.of(context).commonSelectFarmer,
                 style: DhenuText.title.copyWith(
                   color: _farmer == null ? t.inkSoft : t.ink,
                   fontWeight: _farmer == null ? FontWeight.w400 : FontWeight.w600,
@@ -425,8 +488,28 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         ),
       );
 
-  Widget _milkTypePicker(DhenuTokens t) => Row(
-        children: MilkType.values.map((m) {
+  static const _defaultSelectableMilkTypes = [
+    MilkType.cowA1, MilkType.cowA2, MilkType.buffalo, MilkType.mixed,
+  ];
+
+  Widget _milkTypePicker(DhenuTokens t) {
+    final allowed = _effectiveAllowed;
+
+    // Single-type node: show a read-only label instead of a picker.
+    if (allowed.length == 1) {
+      return Row(children: [
+        Icon(DhenuIcons.milk, size: 16, color: t.brand),
+        const SizedBox(width: DhenuSpacing.sm),
+        Text('${AppLocalizations.of(context).commonMilkType} · ', style: DhenuText.label.copyWith(color: t.inkSoft)),
+        Text(_milkLabel(allowed.first), style: DhenuText.label.copyWith(color: t.ink)),
+      ]);
+    }
+
+    // IntrinsicHeight + stretch keeps pills uniform when a longer label wraps.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: allowed.map((m) {
           final selected = _milkType == m;
           return Expanded(
             child: Padding(
@@ -438,8 +521,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                 },
                 borderRadius: BorderRadius.circular(DhenuRadii.pill),
                 child: Container(
-                  height: 44,
+                  constraints: const BoxConstraints(minHeight: 44),
                   alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: DhenuSpacing.xs, vertical: DhenuSpacing.sm),
                   decoration: BoxDecoration(
                     color: selected ? t.brandSubtle : Colors.transparent,
                     borderRadius: BorderRadius.circular(DhenuRadii.pill),
@@ -447,6 +532,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                   ),
                   child: Text(
                     _milkLabel(m),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft),
                   ),
                 ),
@@ -454,13 +542,11 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             ),
           );
         }).toList(),
-      );
+      ),
+    );
+  }
 
-  String _milkLabel(MilkType m) => switch (m) {
-        MilkType.cow => 'Cow',
-        MilkType.buffalo => 'Buffalo',
-        MilkType.mixed => 'Mixed',
-      };
+  String _milkLabel(MilkType m) => milkTypeL10n(AppLocalizations.of(context), m);
 
   Widget _numberField(
     TextEditingController c, String label, String suffix, FocusNode focus, FocusNode? next,
@@ -479,16 +565,19 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       );
 
   Widget _ratePreview(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
     if (_resolving) {
-      return _previewShell(t, child: Text('Computing rate…', style: DhenuText.body.copyWith(color: t.inkSoft)));
+      return _previewShell(t, child: Text(l.collectComputingRate, style: DhenuText.body.copyWith(color: t.inkSoft)));
     }
     final r = _rate;
     if (r == null) {
+      final isLactometer = widget.node.isLactometer;
+      final missingInput = isLactometer ? _clrVal == null : (_fatVal == null || _snfVal == null);
       return _previewShell(t,
           child: Text(
-            _fatVal == null || _snfVal == null
-                ? 'Enter FAT & SNF to preview the rate'
-                : 'Rate computed on sync',
+            missingInput
+                ? (isLactometer ? l.collectEnterClrPreview : l.collectEnterFatSnfPreview)
+                : l.collectRateOnSync,
             style: DhenuText.body.copyWith(color: t.inkSoft),
           ));
     }
@@ -497,7 +586,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          QualityBadge(fat: _fatVal, snf: _snfVal, grade: r.grade),
+          if (widget.node.isLactometer)
+            QualityBadge(fat: null, snf: null, grade: r.grade ?? Grade.unknown)
+          else
+            QualityBadge(fat: _fatVal, snf: _snfVal, grade: r.grade ?? Grade.unknown),
           const Spacer(),
           Text(rupees(r.ratePerLitre, paise: true), style: DhenuText.number(size: 22, color: t.brand)),
           Text(' /L', style: DhenuText.caption.copyWith(color: t.inkSoft)),

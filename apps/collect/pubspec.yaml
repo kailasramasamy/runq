@@ -44,6 +44,8 @@ dependencies:
 
   # Audio read-aloud (🔊) on rate + payment figures for low-literacy users.
   flutter_tts: ^4.2.0
+  # Voice dictation for add-farmer form (low-literacy VMCC operators).
+  speech_to_text: ^7.0.0
   flutter_lucide: ^1.11.0
 
   # Add Farmer — camera/gallery photo pick and GPS location capture.
@@ -61,6 +63,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/branding/
 

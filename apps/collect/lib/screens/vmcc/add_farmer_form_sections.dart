@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter/services.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../widgets/voice_field.dart';
 
 // ── Section shell ────────────────────────────────────────────────────────────
 
@@ -80,36 +82,62 @@ class FarmerBasicsSection extends StatelessWidget {
   const FarmerBasicsSection({
     super.key,
     required this.nameCtrl,
+    required this.nameNativeCtrl,
     required this.phoneCtrl,
     required this.dob,
     required this.onPickDob,
+    this.onNameChanged,
+    this.onNativeNameChanged,
+    this.onNativeVoiceResult,
   });
 
   final TextEditingController nameCtrl;
+  final TextEditingController nameNativeCtrl;
   final TextEditingController phoneCtrl;
   final DateTime? dob;
   final VoidCallback onPickDob;
+  final ValueChanged<String>? onNameChanged;
+  final ValueChanged<String>? onNativeNameChanged;
+  /// Called when the operator dictates into the native-name field so the
+  /// screen can trigger Latin transliteration if nameCtrl is still untouched.
+  final ValueChanged<String>? onNativeVoiceResult;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
+    final isRegionalLocale =
+        Localizations.localeOf(context).languageCode != 'en';
     return FormSectionCard(
       icon: DhenuIcons.user,
-      title: 'Basics',
+      title: l.addFarmerSectionBasics,
       children: [
-        TextField(
+        VoiceField(
           controller: nameCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Full Name *'),
+          labelText: l.addFarmerFieldFullName,
           textInputAction: TextInputAction.next,
+          onChanged: onNameChanged,
         ),
+        if (isRegionalLocale) ...[
+          const SizedBox(height: DhenuSpacing.md),
+          VoiceField(
+            controller: nameNativeCtrl,
+            textCapitalization: TextCapitalization.words,
+            labelText: l.addFarmerNativeNameLabel,
+            hintText: l.addFarmerNativeNameHint,
+            textInputAction: TextInputAction.next,
+            onChanged: onNativeNameChanged,
+            onResult: onNativeVoiceResult,
+          ),
+        ],
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: phoneCtrl,
           keyboardType: TextInputType.phone,
           textCapitalization: TextCapitalization.none,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Phone Number'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldPhoneNumber),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
@@ -130,7 +158,7 @@ class FarmerBasicsSection extends StatelessWidget {
                 Expanded(
                   child: Text(
                     dob == null
-                        ? 'Date of Birth (optional — enables app login)'
+                        ? l.addFarmerFieldDobHint
                         : '${dob!.day.toString().padLeft(2, '0')}/${dob!.month.toString().padLeft(2, '0')}/${dob!.year}',
                     style: DhenuText.body.copyWith(
                       color: dob == null ? t.inkSoft : t.ink,
@@ -171,22 +199,23 @@ class FarmerLocationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final hasPin = lat != null && lng != null;
     return FormSectionCard(
       icon: DhenuIcons.mapPin,
-      title: 'Location',
+      title: l.addFarmerSectionLocation,
       children: [
-        TextField(
+        VoiceField(
           controller: villageCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Village'),
+          labelText: l.addFarmerFieldVillage,
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
-        TextField(
+        VoiceField(
           controller: addressCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Address'),
+          labelText: l.addFarmerFieldAddress,
           maxLines: 2,
           textInputAction: TextInputAction.newline,
         ),
@@ -202,10 +231,10 @@ class FarmerLocationSection extends StatelessWidget {
               : Icon(hasPin ? DhenuIcons.checkCircle : DhenuIcons.mapPin, size: 18),
           label: Text(
             gpsLoading
-                ? 'Getting location…'
+                ? l.addFarmerGettingLocation
                 : hasPin
                     ? '📍 ${lat!.toStringAsFixed(5)}, ${lng!.toStringAsFixed(5)}'
-                    : 'Capture GPS location',
+                    : l.addFarmerCaptureGps,
           ),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
@@ -241,9 +270,10 @@ class FarmerIdentitySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return FormSectionCard(
       icon: DhenuIcons.idCard,
-      title: 'Identity',
+      title: l.addFarmerSectionIdentity,
       children: [
         _ProfilePhotoPicker(file: photoFile, onTap: onPickPhoto),
         const SizedBox(height: DhenuSpacing.lg),
@@ -253,15 +283,16 @@ class FarmerIdentitySection extends StatelessWidget {
           textCapitalization: TextCapitalization.none,
           maxLength: 12,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            labelText: 'Aadhaar Number',
+          decoration: InputDecoration(
+            labelText: l.addFarmerFieldAadhaar,
             counterText: '',
           ),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
         _DocPickerRow(
-          label: 'KYC Document',
+          label: l.addFarmerFieldKyc,
+          addedLabel: l.addFarmerFieldKycAdded,
           icon: DhenuIcons.document,
           file: kycFile,
           onTap: onPickKyc,
@@ -280,6 +311,7 @@ class _ProfilePhotoPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final has = file != null;
     return GestureDetector(
       onTap: onTap,
@@ -306,12 +338,12 @@ class _ProfilePhotoPicker extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  has ? 'Profile photo added' : 'Add profile photo',
+                  has ? l.addFarmerPhotoAdded : l.addFarmerPhotoAdd,
                   style: DhenuText.body.copyWith(color: t.ink),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  has ? 'Tap to change' : 'Take a photo or pick from gallery',
+                  has ? l.addFarmerPhotoTapToChange : l.addFarmerPhotoHint,
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ],
@@ -331,12 +363,14 @@ class _ProfilePhotoPicker extends StatelessWidget {
 class _DocPickerRow extends StatelessWidget {
   const _DocPickerRow({
     required this.label,
+    required this.addedLabel,
     required this.icon,
     required this.file,
     required this.onTap,
   });
 
   final String label;
+  final String addedLabel;
   final IconData icon;
   final File? file;
   final VoidCallback onTap;
@@ -370,7 +404,7 @@ class _DocPickerRow extends StatelessWidget {
             const SizedBox(width: DhenuSpacing.md),
             Expanded(
               child: Text(
-                has ? '$label added' : label,
+                has ? addedLabel : label,
                 style: DhenuText.body.copyWith(color: has ? t.ink : t.inkSoft),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -407,21 +441,22 @@ class FarmerPaymentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return FormSectionCard(
       icon: DhenuIcons.payments,
-      title: 'Payment',
+      title: l.addFarmerSectionPayment,
       children: [
         TextField(
           controller: bankNameCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Bank Name'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldBankName),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: bankAccountNameCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Account Holder Name'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldAccountHolderName),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
@@ -430,21 +465,21 @@ class FarmerPaymentSection extends StatelessWidget {
           keyboardType: TextInputType.number,
           textCapitalization: TextCapitalization.none,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Account Number'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldAccountNumber),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: bankIfscCtrl,
           textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(labelText: 'IFSC Code'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldIfscCode),
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: upiIdCtrl,
           textCapitalization: TextCapitalization.none,
-          decoration: const InputDecoration(labelText: 'UPI ID'),
+          decoration: InputDecoration(labelText: l.addFarmerFieldUpiId),
           textInputAction: TextInputAction.done,
         ),
       ],

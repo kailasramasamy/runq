@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter/services.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import 'add_farmer_form_sections.dart';
@@ -19,15 +21,28 @@ const _breeds = [
   'other',
 ];
 
+/// Legacy non-localized label used by screens that don't have a locale context.
+/// New code should use [breedLabelL10n] instead.
 String breedLabel(String b) => switch (b) {
   'desi_natti' => 'Desi / Natti',
-  'crossbred' => 'Crossbred',
-  'jersey' => 'Jersey',
-  'hf' => 'HF',
-  'gir' => 'Gir',
-  'sahiwal' => 'Sahiwal',
-  'murrah' => 'Murrah',
-  _ => 'Other',
+  'crossbred'  => 'Crossbred',
+  'jersey'     => 'Jersey',
+  'hf'         => 'HF',
+  'gir'        => 'Gir',
+  'sahiwal'    => 'Sahiwal',
+  'murrah'     => 'Murrah',
+  _            => 'Other',
+};
+
+String breedLabelL10n(AppLocalizations l, String b) => switch (b) {
+  'desi_natti' => l.herdBreedDesiNatti,
+  'crossbred'  => l.herdBreedCrossbred,
+  'jersey'     => l.herdBreedJersey,
+  'hf'         => l.herdBreedHf,
+  'gir'        => l.herdBreedGir,
+  'sahiwal'    => l.herdBreedSahiwal,
+  'murrah'     => l.herdBreedMurrah,
+  _            => l.herdBreedOther,
 };
 
 /// A herd row. The quantity lives in its own controller so the field starts
@@ -68,10 +83,11 @@ class FarmerHerdSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final total = breedRows.fold<int>(0, (s, r) => s + r.count);
     return FormSectionCard(
       icon: DhenuIcons.pets,
-      title: 'Herd',
+      title: l.herdSectionTitle,
       trailing: total > 0
           ? Container(
               padding: const EdgeInsets.symmetric(
@@ -83,19 +99,19 @@ class FarmerHerdSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(DhenuRadii.pill),
               ),
               child: Text(
-                '$total head',
+                l.herdTotalHead(total),
                 style: DhenuText.label.copyWith(color: t.brand),
               ),
             )
           : null,
       children: [
-        const FieldCaption('Milk type'),
+        FieldCaption(l.herdMilkType),
         _MilkTypePicker(value: milkType, onChanged: onMilkTypeChanged),
         const SizedBox(height: DhenuSpacing.lg),
-        const FieldCaption('Cattle breeds'),
+        FieldCaption(l.herdCattleBreeds),
         if (breedRows.isEmpty)
           Text(
-            'No breeds added yet.',
+            l.herdNoBreedsYet,
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         for (var i = 0; i < breedRows.length; i++) ...[
@@ -112,7 +128,7 @@ class FarmerHerdSection extends StatelessWidget {
           child: TextButton.icon(
             onPressed: onAddBreed,
             icon: const Icon(DhenuIcons.add, size: 18),
-            label: const Text('Add breed'),
+            label: Text(l.herdAddBreed),
             style: TextButton.styleFrom(
               foregroundColor: t.brand,
               padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm),
@@ -125,7 +141,7 @@ class FarmerHerdSection extends StatelessWidget {
           keyboardType: TextInputType.number,
           textCapitalization: TextCapitalization.none,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Currently milking count'),
+          decoration: InputDecoration(labelText: l.herdInMilkCount),
           textInputAction: TextInputAction.next,
         ),
       ],
@@ -138,43 +154,52 @@ class _MilkTypePicker extends StatelessWidget {
   final MilkType value;
   final ValueChanged<MilkType> onChanged;
 
-  String _label(MilkType m) => switch (m) {
-    MilkType.cow => 'Cow',
-    MilkType.buffalo => 'Buffalo',
-    MilkType.mixed => 'Mixed',
-  };
+  static const _selectableMilkTypes = [
+    MilkType.cowA1, MilkType.cowA2, MilkType.buffalo, MilkType.mixed,
+  ];
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    return Row(
-      children: MilkType.values.map((m) {
-        final sel = m == value;
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(right: DhenuSpacing.xs),
-            child: InkWell(
-              onTap: () => onChanged(m),
-              borderRadius: BorderRadius.circular(DhenuRadii.pill),
-              child: Container(
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: sel ? t.brandSubtle : Colors.transparent,
-                  borderRadius: BorderRadius.circular(DhenuRadii.pill),
-                  border: Border.all(color: sel ? t.brand : t.hairline),
-                ),
-                child: Text(
-                  _label(m),
-                  style: DhenuText.label.copyWith(
-                    color: sel ? t.brand : t.inkSoft,
+    final l = AppLocalizations.of(context);
+    // IntrinsicHeight + stretch keeps all pills the same height as the tallest,
+    // so a longer (wrapped) regional-language label doesn't overflow its pill.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _selectableMilkTypes.map((m) {
+          final sel = m == value;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: DhenuSpacing.xs),
+              child: InkWell(
+                onTap: () => onChanged(m),
+                borderRadius: BorderRadius.circular(DhenuRadii.pill),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: DhenuSpacing.xs, vertical: DhenuSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: sel ? t.brandSubtle : Colors.transparent,
+                    borderRadius: BorderRadius.circular(DhenuRadii.pill),
+                    border: Border.all(color: sel ? t.brand : t.hairline),
+                  ),
+                  child: Text(
+                    milkTypeL10n(l, m),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DhenuText.label.copyWith(
+                      color: sel ? t.brand : t.inkSoft,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 }
@@ -195,6 +220,7 @@ class _BreedRowWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
@@ -202,12 +228,12 @@ class _BreedRowWidget extends StatelessWidget {
           child: DropdownButtonFormField<String>(
             initialValue: row.breed,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Breed',
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: InputDecoration(
+              labelText: l.herdBreedLabel,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
             items: _breeds
-                .map((b) => DropdownMenuItem(value: b, child: Text(breedLabel(b))))
+                .map((b) => DropdownMenuItem(value: b, child: Text(breedLabelL10n(l, b))))
                 .toList(),
             onChanged: (v) {
               if (v != null) onBreedChanged(v);
@@ -223,9 +249,9 @@ class _BreedRowWidget extends StatelessWidget {
             textCapitalization: TextCapitalization.none,
             textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              hintText: 'Qty',
-              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: InputDecoration(
+              hintText: l.herdQtyHint,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             ),
             onChanged: (_) => onQtyChanged(),
           ),

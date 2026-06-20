@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/dhenu_icons.dart';
 import '../api/mp_models.dart';
+import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
@@ -169,7 +170,7 @@ class FarmerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SourceRow(
-      title: farmer.name,
+      title: farmerName(context, farmer),
       leadingInitials: farmer.initials,
       litres: litres,
       quality: quality,

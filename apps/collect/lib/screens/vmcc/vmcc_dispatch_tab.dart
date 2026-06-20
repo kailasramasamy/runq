@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -94,20 +95,21 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   }
 
   Future<void> _dispatch() async {
+    final l = AppLocalizations.of(context);
     if (_destCc == null) {
-      setState(() => _error = 'Select a destination collection centre');
+      setState(() => _error = l.dispatchErrorNoDestination);
       return;
     }
     final qty = double.tryParse(_qtyCtrl.text);
     final fat = double.tryParse(_fatCtrl.text);
     final snf = double.tryParse(_snfCtrl.text);
     if (qty == null || qty <= 0) {
-      setState(() => _error = 'Enter a valid dispatch quantity');
+      setState(() => _error = l.dispatchErrorInvalidQty);
       return;
     }
     final available = ref.read(nodeAvailabilityProvider(_availArgs)).asData?.value?.available ?? 0;
     if (qty - available > 0.001) {
-      setState(() => _error = 'Only ${available.toStringAsFixed(1)} L available to dispatch');
+      setState(() => _error = l.dispatchErrorOverQty(available.toStringAsFixed(1)));
       return;
     }
     setState(() { _saving = true; _error = null; });
@@ -140,6 +142,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final availAsync = ref.watch(nodeAvailabilityProvider(_availArgs));
     final outboundAsync = ref.watch(nodeOutboundConsignmentsProvider(widget.node.id));
     availAsync.whenData(_prefillFromAvailability);
@@ -149,7 +152,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       backgroundColor: t.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Dispatch', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -157,22 +160,22 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
         Row(children: [
-          Expanded(child: Text('Availability', style: DhenuText.title.copyWith(color: t.ink))),
+          Expanded(child: Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink))),
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        _availCard(t, availAsync),
+        _availCard(t, l, availAsync),
         const SizedBox(height: DhenuSpacing.xl),
         if (canDispatch) ...[
-        Text('Dispatch to Collection Centre', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.dispatchToCollectionCentre, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.md),
-        _destPicker(t),
+        _destPicker(t, l),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: _qtyCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textCapitalization: TextCapitalization.none,
-          decoration: const InputDecoration(hintText: 'Dispatch Qty (L)'),
+          decoration: InputDecoration(hintText: l.dispatchQtyHint),
         ),
         const SizedBox(height: DhenuSpacing.md),
         Row(children: [
@@ -194,7 +197,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         TextField(
           controller: _containerCtrl,
           textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(hintText: 'Container No. (optional)'),
+          decoration: InputDecoration(hintText: l.dispatchContainerHint),
         ),
         if (_error != null) ...[
           const SizedBox(height: DhenuSpacing.sm),
@@ -202,18 +205,18 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         ],
         const SizedBox(height: DhenuSpacing.lg),
         PrimaryAction(
-          label: 'Dispatch Tanker',
+          label: l.dispatchTankerButton,
           icon: DhenuIcons.truck,
           onPressed: _dispatch,
           loading: _saving,
         ),
         ] else ...[
-          _dispatchedCard(t, availAsync, outboundAsync),
+          _dispatchedCard(t, l, availAsync, outboundAsync),
         ],
         const SizedBox(height: DhenuSpacing.xl),
-        Text('Today\'s Outbound', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.dispatchTodaysOutbound, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
-        _outboundList(t, outboundAsync),
+        _outboundList(t, l, outboundAsync),
       ],
       ),
     );
@@ -223,6 +226,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   /// sent out this shift, with the container number for each leg.
   Widget _dispatchedCard(
     DhenuTokens t,
+    AppLocalizations l,
     AsyncValue<MpAvailability?> availAsync,
     AsyncValue<List<MpConsignment>> outAsync,
   ) {
@@ -237,12 +241,12 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           Icon(DhenuIcons.checkCircle, size: 20, color: t.gradeA),
           const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-            child: Text('${litres(dispatched, unit: true)} dispatched',
+            child: Text(l.dispatchAmountDispatched(litres(dispatched, unit: true)),
                 style: DhenuText.title.copyWith(color: t.ink)),
           ),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
-        Text('Nothing left to dispatch${_perShift ? ' this shift' : ''}.',
+        Text(_perShift ? l.dispatchNothingLeftThisShift : l.dispatchNothingLeft,
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
         for (final c in legs) ...[
           const SizedBox(height: DhenuSpacing.md),
@@ -255,8 +259,8 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 const SizedBox(height: DhenuSpacing.xs),
                 Text(
                   (c.containerNo?.isNotEmpty ?? false)
-                      ? 'Container ${c.containerNo}'
-                      : 'No container no.',
+                      ? l.dispatchContainerLabel(c.containerNo!)
+                      : l.dispatchNoContainerNo,
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ]),
@@ -269,18 +273,18 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     );
   }
 
-  Widget _availCard(DhenuTokens t, AsyncValue<MpAvailability?> availAsync) {
+  Widget _availCard(DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync) {
     return DhenuCard(
       child: availAsync.when(
         loading: () => const DhenuLoadingList(rows: 1),
         error: (e, _) => Text('—', style: DhenuText.body.copyWith(color: t.inkSoft)),
         data: (a) => a == null
-            ? Text('No data', style: DhenuText.body.copyWith(color: t.inkSoft))
+            ? Text(l.dispatchNoData, style: DhenuText.body.copyWith(color: t.inkSoft))
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                TankGauge(current: a.available, capacity: a.collected, label: 'Available to dispatch'),
+                TankGauge(current: a.available, capacity: a.collected, label: l.dispatchAvailableToDispatch),
                 const SizedBox(height: DhenuSpacing.sm),
                 Text(
-                  'Collected ${litres(a.collected, unit: true)} · Dispatched ${litres(a.dispatched, unit: true)}',
+                  l.dispatchCollectedDispatched(litres(a.collected, unit: true), litres(a.dispatched, unit: true)),
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ]),
@@ -288,7 +292,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     );
   }
 
-  Widget _destPicker(DhenuTokens t) {
+  Widget _destPicker(DhenuTokens t, AppLocalizations l) {
     return GestureDetector(
       onTap: _pickCc,
       child: Container(
@@ -301,7 +305,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         ),
         child: Row(children: [
           Expanded(child: Text(
-            _destCc?.name ?? 'Select destination centre…',
+            _destCc?.name ?? l.dispatchSelectDestination,
             style: DhenuText.body.copyWith(color: _destCc == null ? t.inkSoft : t.ink),
           )),
           Icon(DhenuIcons.chevronDown, color: t.inkSoft),
@@ -310,26 +314,26 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     );
   }
 
-  String _outboundTitle(MpConsignment c) {
+  String _outboundTitle(AppLocalizations l, MpConsignment c) {
     if (c.shift == null) return c.consignmentNo;
-    return c.shift == Shift.am ? '☀️ AM' : '🌙 PM';
+    return c.shift == Shift.am ? l.dispatchShiftAm : l.dispatchShiftPm;
   }
 
   /// Full consignment id shown below the shift label so it never truncates.
   String? _outboundSubtitle(MpConsignment c) =>
       c.shift == null ? null : c.consignmentNo;
 
-  Widget _outboundList(DhenuTokens t, AsyncValue<List<MpConsignment>> outAsync) {
+  Widget _outboundList(DhenuTokens t, AppLocalizations l, AsyncValue<List<MpConsignment>> outAsync) {
     return outAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (_, _) => const SizedBox.shrink(),
       data: (all) {
         final outbound = all.where((c) => c.kind == 'vmcc_to_cc').toList();
         if (outbound.isEmpty) {
-          return const DhenuEmptyState(
+          return DhenuEmptyState(
             icon: DhenuIcons.truck,
-            title: 'No dispatches today',
-            subtitle: 'Use the form above to dispatch a tanker',
+            title: l.dispatchNoDispatchesToday,
+            subtitle: l.dispatchNoDispatchesSubtitle,
           );
         }
         return DhenuCard(
@@ -338,11 +342,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
             for (var i = 0; i < outbound.length; i++) ...[
               if (i > 0) Divider(height: 1, color: t.hairline),
               SourceRow(
-                title: _outboundTitle(outbound[i]),
+                title: _outboundTitle(l, outbound[i]),
                 subtitle: _outboundSubtitle(outbound[i]),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
                 trailingStatus: Text(
-                  outbound[i].inTransit ? '⏳ transit' : '✓ received',
+                  outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
                   style: DhenuText.caption.copyWith(
                     color: outbound[i].inTransit ? t.gradeB : t.gradeA,
                   ),
@@ -371,6 +375,7 @@ class _CcPickerState extends State<_CcPicker> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final filtered = _query.isEmpty
         ? widget.ccs
         : widget.ccs.where((n) => n.name.toLowerCase().contains(_query.toLowerCase())).toList();
@@ -392,13 +397,13 @@ class _CcPickerState extends State<_CcPicker> {
             child: TextField(
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
-              decoration: const InputDecoration(
-                  hintText: 'Search centre', prefixIcon: Icon(DhenuIcons.search)),
+              decoration: InputDecoration(
+                  hintText: l.dispatchSearchCentre, prefixIcon: const Icon(DhenuIcons.search)),
             ),
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const DhenuEmptyState(icon: DhenuIcons.plant, title: 'No centres found')
+                ? DhenuEmptyState(icon: DhenuIcons.plant, title: l.dispatchNoCentresFound)
                 : ListView.separated(
                     controller: ctrl,
                     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

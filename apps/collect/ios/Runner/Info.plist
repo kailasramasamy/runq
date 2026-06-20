@@ -79,6 +79,10 @@
 				</array>
 			</dict>
 		</array>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Used to dictate farmer details by voice.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Used to dictate farmer details by voice.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Dhenu uses your camera to capture the farmer's profile photo and KYC documents.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

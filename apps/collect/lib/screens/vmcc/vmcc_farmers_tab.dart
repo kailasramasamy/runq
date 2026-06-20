@@ -1,7 +1,9 @@
+import 'package:dhenu/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
@@ -38,13 +40,14 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final farmersAsync = ref.watch(nodeFarmersProvider(widget.node.id));
     return Stack(
       children: [
         Column(
           children: [
-            _searchBar(t),
-            Expanded(child: _body(t, farmersAsync)),
+            _searchBar(t, l),
+            Expanded(child: _body(t, l, farmersAsync)),
           ],
         ),
         Positioned(
@@ -55,14 +58,14 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
             backgroundColor: t.brand,
             foregroundColor: Colors.white,
             icon: const Icon(DhenuIcons.userPlus),
-            label: const Text('Add Farmer'),
+            label: Text(l.farmersAddFarmer),
           ),
         ),
       ],
     );
   }
 
-  Widget _searchBar(DhenuTokens t) => Padding(
+  Widget _searchBar(DhenuTokens t, AppLocalizations l) => Padding(
     padding: const EdgeInsets.fromLTRB(
       DhenuSpacing.screen,
       DhenuSpacing.md,
@@ -71,29 +74,29 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
     ),
     child: TextField(
       onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-      decoration: const InputDecoration(
-        hintText: 'Search by name or code',
-        prefixIcon: Icon(DhenuIcons.search),
+      decoration: InputDecoration(
+        hintText: l.farmersSearchHint,
+        prefixIcon: const Icon(DhenuIcons.search),
       ),
     ),
   );
 
-  Widget _body(DhenuTokens t, AsyncValue<List<MpFarmer>> farmersAsync) {
+  Widget _body(DhenuTokens t, AppLocalizations l, AsyncValue<List<MpFarmer>> farmersAsync) {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: farmersAsync.when(
         loading: () => const DhenuLoadingList(),
         error: (e, _) => DhenuEmptyState(
           icon: DhenuIcons.cloudOff,
-          title: 'Could not load farmers',
+          title: l.farmersCouldNotLoad,
           subtitle: '$e',
         ),
-        data: (all) => _list(t, all),
+        data: (all) => _list(t, l, all),
       ),
     );
   }
 
-  Widget _list(DhenuTokens t, List<MpFarmer> all) {
+  Widget _list(DhenuTokens t, AppLocalizations l, List<MpFarmer> all) {
     final farmers = _query.isEmpty
         ? all
         : all
@@ -112,10 +115,10 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
           DhenuEmptyState(
             icon: DhenuIcons.userOff,
             title: _query.isEmpty
-                ? 'No farmers registered'
-                : 'No matching farmers',
+                ? l.farmersEmptyTitle
+                : l.farmersNoMatchTitle,
             subtitle: _query.isEmpty
-                ? 'Farmers registered at this VMCC appear here'
+                ? l.farmersEmptySubtitle
                 : null,
           ),
         ],
@@ -132,8 +135,10 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
       separatorBuilder: (_, _) => Divider(height: 1, color: t.hairline),
       itemBuilder: (_, i) {
         final f = farmers[i];
+        final display = farmerName(context, f);
         return SourceRow(
-          title: f.name,
+          title: display,
+          subtitle: display != f.name ? f.name : null,
           leadingInitials: f.initials,
           litres: f.code,
           trailingStatus: Icon(

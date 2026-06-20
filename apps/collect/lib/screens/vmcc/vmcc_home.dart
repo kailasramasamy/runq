@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/sync_provider.dart';
 import '../../providers/transfer_providers.dart';
@@ -40,6 +41,7 @@ class VmccHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final sync = ref.watch(syncProvider);
     final summary = ref.watch(nodeTodaySummaryProvider(node.id));
     return RefreshIndicator(
@@ -49,37 +51,37 @@ class VmccHome extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          _header(context, ref, t, sync),
+          _header(context, ref, t, l, sync),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, summary),
+          _hero(t, l, summary),
           const SizedBox(height: DhenuSpacing.md),
-          _statsRow(ref, t, summary),
+          _statsRow(ref, t, l, summary),
           const SizedBox(height: DhenuSpacing.lg),
           PrimaryAction(
-            label: 'Record Collection',
+            label: l.recordCollectionTitle,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
             ),
           ),
           const SizedBox(height: DhenuSpacing.lg),
-          _quickLinks(context, t),
+          _quickLinks(context, t, l),
           const SizedBox(height: DhenuSpacing.xl),
-          Text('Recent entries', style: DhenuText.title.copyWith(color: t.ink)),
+          Text(l.homeRecentEntries, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _recent(context, t, ref),
+          _recent(context, t, l, ref),
         ],
       ),
     );
   }
 
-  Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
-        Expanded(child: _linkCard(context, t, DhenuIcons.users, 'Farmers',
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [
+        Expanded(child: _linkCard(context, t, DhenuIcons.users, l.homeFarmers,
             VmccFarmersTab(node: node))),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
+        Expanded(child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
             VmccCollectionHistory(node: node))),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, 'Reports',
+        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.homeReports,
             VmccReportsTab(node: node))),
       ]);
 
@@ -100,13 +102,13 @@ class VmccHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, SyncSnapshot sync) => Row(
+  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, SyncSnapshot sync) => Row(
         children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(node.name, style: DhenuText.h2.copyWith(color: t.ink)),
               Text(
-                '${shiftFrom(currentShift()) == Shift.am ? '☀️ AM' : '🌙 PM'} shift · in progress',
+                shiftFrom(currentShift()) == Shift.am ? l.homeAmShiftInProgress : l.homePmShiftInProgress,
                 style: DhenuText.caption.copyWith(color: t.inkSoft),
               ),
             ]),
@@ -114,21 +116,21 @@ class VmccHome extends ConsumerWidget {
           SyncStatus(
             state: sync.state,
             pendingCount: sync.pendingCount,
-            agoLabel: 'just now',
+            agoLabel: l.homeJustNow,
             onTap: () => ref.read(syncProvider.notifier).forceSync(),
           ),
         ],
       );
 
-  Widget _hero(DhenuTokens t, AsyncValue<MpCollectionSummary?> summary) {
+  Widget _hero(DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {
     return summary.when(
       loading: () => const DhenuLoadingList(rows: 2),
-      error: (e, _) => HeroNumberCard(label: 'TODAY', primaryValue: '—', footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
+      error: (e, _) => HeroNumberCard(label: l.homeHeroToday, primaryValue: '—', footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
       data: (s) {
         final isAm = shiftFrom(currentShift()) == Shift.am;
         final qty = s == null ? 0.0 : (isAm ? s.amQty : s.pmQty);
         return HeroNumberCard(
-          label: 'TODAY ${isAm ? '☀️ AM' : '🌙 PM'}',
+          label: isAm ? l.homeHeroTodayAm : l.homeHeroTodayPm,
           primaryValue: litres(qty, unit: true),
           gradient: const LinearGradient(
             colors: [DhenuColors.brand, DhenuColors.brandDark],
@@ -138,7 +140,7 @@ class VmccHome extends ConsumerWidget {
           footer: s == null
               ? null
               : Row(children: [
-                  Text('${s.farmerCount} farmers',
+                  Text(l.homeFarmerCount(s.farmerCount),
                       style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
                   const Spacer(),
                   Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
@@ -149,7 +151,7 @@ class VmccHome extends ConsumerWidget {
     );
   }
 
-  Widget _statsRow(WidgetRef ref, DhenuTokens t, AsyncValue<MpCollectionSummary?> summary) {
+  Widget _statsRow(WidgetRef ref, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {
     final total = summary.asData?.value?.totalQty ?? 0;
     // Milk still at the VMCC awaiting dispatch = today's collected − dispatched,
     // across both shifts (decrements as each shift's consignment goes out).
@@ -157,15 +159,15 @@ class VmccHome extends ConsumerWidget {
         .asData?.value?.available ?? 0;
     final allSent = pending <= 0.05;
     return Row(children: [
-      Expanded(child: _miniCard(t, 'To dispatch',
-          allSent ? (total > 0 ? 'All dispatched' : 'Nothing yet') : litres(pending, unit: true),
+      Expanded(child: _miniCard(t, l.homeToDispatch,
+          allSent ? (total > 0 ? l.homeAllDispatched : l.homeNothingYet) : litres(pending, unit: true),
           color: allSent ? t.gradeA : t.am)),
       const SizedBox(width: DhenuSpacing.md),
       Expanded(
         child: node.capacityLitres == null
-            ? _miniCard(t, 'Collected', litres(total, unit: true))
+            ? _miniCard(t, l.homeCollected, litres(total, unit: true))
             : DhenuCard(
-                child: TankGauge(current: total, capacity: node.capacityLitres!, label: 'BMC tank'),
+                child: TankGauge(current: total, capacity: node.capacityLitres!, label: l.homeBmcTank),
               ),
       ),
     ]);
@@ -180,19 +182,19 @@ class VmccHome extends ConsumerWidget {
       );
 
 
-  Widget _recent(BuildContext context, DhenuTokens t, WidgetRef ref) {
+  Widget _recent(BuildContext context, DhenuTokens t, AppLocalizations l, WidgetRef ref) {
     final poursAsync = ref.watch(nodeTodayPoursProvider(node.id));
     final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
     return poursAsync.when(
       loading: () => const DhenuLoadingList(),
-      error: (e, _) => DhenuEmptyState(icon: DhenuIcons.cloudOff, title: 'Could not load entries', subtitle: '$e'),
+      error: (e, _) => DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.homeLoadError, subtitle: '$e'),
       data: (pours) {
         if (pours.isEmpty) {
-          return const DhenuEmptyState(
+          return DhenuEmptyState(
             icon: DhenuIcons.drop,
-            title: 'No collection yet today',
-            subtitle: 'Tap Record Collection to start',
+            title: l.homeNoCollectionToday,
+            subtitle: l.homeNoCollectionSubtitle,
           );
         }
         return ShiftGroupedPours(

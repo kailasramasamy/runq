@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -58,6 +60,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
     final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
@@ -68,51 +71,51 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
         error: (e, _) => ListView(children: [
           const SizedBox(height: DhenuSpacing.x4),
           DhenuEmptyState(
-              icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: '$e'),
+              icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: '$e'),
         ]),
-        data: (pours) => _body(t, _filtered(pours), byId),
+        data: (pours) => _body(t, l, _filtered(pours), byId),
       ),
     );
   }
 
-  Widget _body(DhenuTokens t, List<MpPour> pours, Map<String, MpFarmer> byId) {
+  Widget _body(DhenuTokens t, AppLocalizations l, List<MpPour> pours, Map<String, MpFarmer> byId) {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
-        _controls(t),
+        _controls(t, l),
         const SizedBox(height: DhenuSpacing.lg),
         if (pours.isEmpty)
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.history,
-            title: 'No collection history',
-            subtitle: 'Recorded collections from the last 30 days appear here',
+            title: l.historyNoHistory,
+            subtitle: l.historyNoHistorySubtitle,
           )
         else if (_view == _HistoryView.byDay)
-          ..._byDay(t, pours, byId)
+          ..._byDay(t, l, pours, byId)
         else
-          ..._byFarmer(t, pours, byId),
+          ..._byFarmer(t, l, pours, byId),
       ],
     );
   }
 
   // ── Controls ──────────────────────────────────────────────────────────────
 
-  Widget _controls(DhenuTokens t) => Column(children: [
-        _segment<_HistoryView>(t, _view, (v) => setState(() => _view = v), const [
-          (_HistoryView.byDay, 'By day'),
-          (_HistoryView.byFarmer, 'By farmer'),
+  Widget _controls(DhenuTokens t, AppLocalizations l) => Column(children: [
+        _segment<_HistoryView>(t, _view, (v) => setState(() => _view = v), [
+          (_HistoryView.byDay, l.historyByDay),
+          (_HistoryView.byFarmer, l.historyByFarmer),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        _segment<Shift?>(t, _shift, (v) => setState(() => _shift = v), const [
-          (null, 'All'),
-          (Shift.pm, '🌙 PM'),
-          (Shift.am, '☀️ AM'),
+        _segment<Shift?>(t, _shift, (v) => setState(() => _shift = v), [
+          (null, l.historyAll),
+          (Shift.pm, '🌙 ${l.shiftPm}'),
+          (Shift.am, '☀️ ${l.shiftAm}'),
         ]),
         if (_view == _HistoryView.byFarmer) ...[
           const SizedBox(height: DhenuSpacing.sm),
-          _searchField(t),
+          _searchField(t, l),
         ],
       ]);
 
@@ -148,12 +151,12 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
         ),
       );
 
-  Widget _searchField(DhenuTokens t) => TextField(
+  Widget _searchField(DhenuTokens t, AppLocalizations l) => TextField(
         onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
         textCapitalization: TextCapitalization.words,
         style: DhenuText.body.copyWith(color: t.ink),
         decoration: InputDecoration(
-          hintText: 'Search farmer',
+          hintText: l.historySearchFarmer,
           prefixIcon: Icon(DhenuIcons.search, color: t.inkSoft),
           filled: true,
           fillColor: t.inputFill,
@@ -166,7 +169,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   // ── By day ────────────────────────────────────────────────────────────────
 
-  List<Widget> _byDay(DhenuTokens t, List<MpPour> pours, Map<String, MpFarmer> byId) {
+  List<Widget> _byDay(DhenuTokens t, AppLocalizations l, List<MpPour> pours, Map<String, MpFarmer> byId) {
     final groups = <String, List<MpPour>>{};
     for (final p in pours) {
       (groups[p.collectionDate] ??= []).add(p);
@@ -178,13 +181,13 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     }
     return [
       for (final d in dates) ...[
-        _daySection(t, d, groups[d]!, byId),
+        _daySection(t, l, d, groups[d]!, byId),
         const SizedBox(height: DhenuSpacing.md),
       ],
     ];
   }
 
-  Widget _daySection(DhenuTokens t, String date, List<MpPour> dayPours,
+  Widget _daySection(DhenuTokens t, AppLocalizations l, String date, List<MpPour> dayPours,
       Map<String, MpFarmer> byId) {
     final isOpen = _expanded.contains(date);
     final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres);
@@ -204,7 +207,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(prettyDate(date), style: DhenuText.title.copyWith(color: t.ink)),
-                Text('$farmerCount farmers · 🌙 ${litres(pmL)} · ☀️ ${litres(amL)}',
+                Text(l.historyDaySubtitle(farmerCount, litres(pmL), litres(amL)),
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ]),
             ),
@@ -224,7 +227,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   // ── By farmer ─────────────────────────────────────────────────────────────
 
-  List<Widget> _byFarmer(DhenuTokens t, List<MpPour> pours, Map<String, MpFarmer> byId) {
+  List<Widget> _byFarmer(DhenuTokens t, AppLocalizations l, List<MpPour> pours, Map<String, MpFarmer> byId) {
     final byFarmer = <String, List<MpPour>>{};
     for (final p in pours) {
       (byFarmer[p.farmerId] ??= []).add(p);
@@ -238,9 +241,11 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       ];
     }
     if (ids.isEmpty) {
-      return const [
+      return [
         DhenuEmptyState(
-            icon: DhenuIcons.searchOff, title: 'No farmers match', subtitle: 'Try another name'),
+            icon: DhenuIcons.searchOff,
+            title: l.historyNoFarmersMatch,
+            subtitle: l.historyNoFarmersMatchSubtitle),
       ];
     }
     return [
@@ -249,7 +254,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
         child: Column(children: [
           for (var i = 0; i < ids.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
-            _farmerRow(byId[ids[i]], byFarmer[ids[i]]!),
+            _farmerRow(l, byId[ids[i]], byFarmer[ids[i]]!),
           ],
         ]),
       ),
@@ -261,11 +266,12 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     return f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query);
   }
 
-  Widget _farmerRow(MpFarmer? farmer, List<MpPour> pours) {
+  Widget _farmerRow(AppLocalizations l, MpFarmer? farmer, List<MpPour> pours) {
     final qty = pours.fold<double>(0, (a, p) => a + p.qtyLitres);
     final amt = pours.fold<double>(0, (a, p) => a + p.lineAmount);
+    final display = farmer != null ? farmerName(context, farmer) : l.historyFarmerFallback;
     return SourceRow(
-      title: farmer?.name ?? 'Farmer',
+      title: display,
       leadingInitials: farmer?.initials,
       litres: litres(qty, unit: true),
       amount: rupees(amt),

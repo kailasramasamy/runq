@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../utils/format.dart';
@@ -41,25 +43,20 @@ class ShiftGroupedPours extends StatelessWidget {
   /// leads with its milk type rather than the (redundant) farmer name.
   final bool singleFarmer;
 
-  static String _milkTypeLabel(MilkType m) => switch (m) {
-        MilkType.cow => 'Cow',
-        MilkType.buffalo => 'Buffalo',
-        MilkType.mixed => 'Mixed',
-      };
-
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final am = [for (final p in pours) if (p.shift == Shift.am) p];
     final pm = [for (final p in pours) if (p.shift == Shift.pm) p];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (pm.isNotEmpty) _group(t, Shift.pm, pm),
+      if (pm.isNotEmpty) _group(context, t, l, Shift.pm, pm),
       if (am.isNotEmpty && pm.isNotEmpty) const SizedBox(height: DhenuSpacing.md),
-      if (am.isNotEmpty) _group(t, Shift.am, am),
+      if (am.isNotEmpty) _group(context, t, l, Shift.am, am),
     ]);
   }
 
-  Widget _group(DhenuTokens t, Shift shift, List<MpPour> shiftPours) {
+  Widget _group(BuildContext context, DhenuTokens t, AppLocalizations l, Shift shift, List<MpPour> shiftPours) {
     final isAm = shift == Shift.am;
     final totalL = shiftPours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalAmt = shiftPours.fold<double>(0, (s, p) => s + p.lineAmount);
@@ -72,7 +69,7 @@ class ShiftGroupedPours extends StatelessWidget {
             left: DhenuSpacing.xs, right: DhenuSpacing.xs, bottom: DhenuSpacing.xs),
         child: Row(children: [
           Text(
-              '${isAm ? '☀️ AM' : '🌙 PM'}'
+              '${isAm ? '☀️ ${l.shiftAm}' : '🌙 ${l.shiftPm}'}'
               '${showDate ? ' · ${prettyDate(shiftPours.first.collectionDate)}' : ''}'
               ' · ${shiftPours.length}',
               style: DhenuText.label.copyWith(color: t.inkSoft)),
@@ -89,18 +86,18 @@ class ShiftGroupedPours extends StatelessWidget {
         child: Column(children: [
           for (var i = 0; i < rows.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
-            _row(t, rows[i]),
+            _row(context, t, l, rows[i]),
           ],
         ]),
       ),
     ]);
   }
 
-  Widget _row(DhenuTokens t, MpPour p) {
+  Widget _row(BuildContext context, DhenuTokens t, AppLocalizations l, MpPour p) {
     final farmer = farmersById[p.farmerId];
-    final milkType = _milkTypeLabel(p.milkType);
+    final milkType = milkTypeL10n(l, p.milkType);
     return SourceRow(
-      title: singleFarmer ? milkType : (farmer?.name ?? 'Farmer'),
+      title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
       leadingInitials: singleFarmer ? milkType.substring(0, 1) : farmer?.initials,
       litres: litres(p.qtyLitres, unit: true),
       quality: p.fat == null

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dhenu/l10n/app_localizations.dart';
 import '../../api/mp_models.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -16,18 +17,18 @@ class VmccShell extends StatelessWidget {
   const VmccShell({super.key, required this.node});
   final MpNode node;
 
-  static const _items = [
-    DhenuNavItem(icon: DhenuIcons.home, label: 'Home'),
-    DhenuNavItem(icon: DhenuIcons.collect, label: 'Collect'),
-    DhenuNavItem(icon: DhenuIcons.dispatch, label: 'Dispatch'),
-    DhenuNavItem(icon: DhenuIcons.payments, label: 'Payments'),
-    DhenuNavItem(icon: DhenuIcons.profile, label: 'Profile'),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final items = [
+      DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
+      DhenuNavItem(icon: DhenuIcons.collect, label: l.navCollect),
+      DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch),
+      DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
+      DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
+    ];
     return RoleShell(
-      items: _items,
+      items: items,
       tabActions: {
         1: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),

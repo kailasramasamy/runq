@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
@@ -6,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -36,7 +38,10 @@ class AddFarmerScreen extends ConsumerStatefulWidget {
 class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   // Basics
   final _nameCtrl = TextEditingController();
+  final _nameNativeCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  bool _nativeEdited = false;
+  Timer? _transliterateTimer;
   DateTime? _dob;
 
   // Location
@@ -51,7 +56,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   File? _kycFile;
 
   // Herd
-  MilkType _milkType = MilkType.cow;
+  MilkType _milkType = MilkType.cowA1;
   final List<BreedRow> _breedRows = [];
   final _inMilkCtrl = TextEditingController();
 
@@ -71,6 +76,8 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     final f = widget.existing;
     if (f == null) return;
     _nameCtrl.text = f.name;
+    _nameNativeCtrl.text = f.nameNative ?? '';
+    if (_nameNativeCtrl.text.isNotEmpty) _nativeEdited = true;
     _phoneCtrl.text = f.phone ?? '';
     _villageCtrl.text = f.village ?? '';
     _addressCtrl.text = f.address ?? '';
@@ -84,9 +91,37 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     }
   }
 
+  void _onNameChanged(String value) {
+    if (_nativeEdited) return;
+    _transliterateTimer?.cancel();
+    final lang = Localizations.localeOf(context).languageCode;
+    if (lang == 'en') return;
+    _transliterateTimer = Timer(const Duration(milliseconds: 600), () async {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return;
+      final suggestion = await mpRepo.transliterateName(trimmed, lang);
+      if (!mounted || _nativeEdited || suggestion == null) return;
+      setState(() => _nameNativeCtrl.text = suggestion);
+    });
+  }
+
+  /// Called when the operator dictates into the native-name field.
+  /// Fills the Latin name field via romanisation if it hasn't been manually edited.
+  void _onNativeVoiceResult(String nativeText) {
+    setState(() => _nativeEdited = true);
+    final trimmed = nativeText.trim();
+    if (trimmed.isEmpty || _nameCtrl.text.trim().isNotEmpty) return;
+    mpRepo.transliterateName(trimmed, 'en').then((latin) {
+      if (!mounted || latin == null || _nameCtrl.text.trim().isNotEmpty) return;
+      setState(() => _nameCtrl.text = latin);
+    });
+  }
+
   @override
   void dispose() {
+    _transliterateTimer?.cancel();
     _nameCtrl.dispose();
+    _nameNativeCtrl.dispose();
     _phoneCtrl.dispose();
     _villageCtrl.dispose();
     _addressCtrl.dispose();
@@ -126,7 +161,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
         if (mounted) {
           showDhenuToast(
             context,
-            'Location permission denied',
+            AppLocalizations.of(context).addFarmerLocationPermissionDenied,
             type: DhenuToastType.error,
           );
         }
@@ -176,6 +211,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
 
   Future<ImageSource?> _showImageSourceSheet() {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: t.surface,
@@ -190,12 +226,12 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
           children: [
             ListTile(
               leading: const Icon(DhenuIcons.camera),
-              title: const Text('Camera'),
+              title: Text(l.addFarmerCamera),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(DhenuIcons.images),
-              title: const Text('Gallery'),
+              title: Text(l.addFarmerGallery),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
           ],
@@ -205,14 +241,15 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   }
 
   bool _validate() {
+    final l = AppLocalizations.of(context);
     if (_nameCtrl.text.trim().isEmpty) {
-      setState(() => _nameError = 'Name is required');
+      setState(() => _nameError = l.addFarmerNameRequired);
       return false;
     }
     if (_aadhaarCtrl.text.isNotEmpty && _aadhaarCtrl.text.length != 12) {
       showDhenuToast(
         context,
-        'Aadhaar must be exactly 12 digits',
+        l.addFarmerAadhaarLength,
         type: DhenuToastType.error,
       );
       return false;
@@ -232,11 +269,14 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
       if (farmer == null) throw Exception('No response from server');
       await _uploadDocs(farmer.id);
       if (!mounted) return;
+      final l = AppLocalizations.of(context);
       final nodeId = widget.node?.id ?? widget.existing?.primaryNodeId;
       if (nodeId != null) ref.invalidate(nodeFarmersProvider(nodeId));
       showDhenuToast(
         context,
-        '${farmer.name} ${widget.isEdit ? 'updated' : 'registered'}',
+        widget.isEdit
+            ? l.addFarmerUpdatedToast(farmer.name)
+            : l.addFarmerRegisteredToast(farmer.name),
         type: DhenuToastType.success,
       );
       Navigator.of(context).pop(true);
@@ -251,10 +291,12 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   Map<String, dynamic> _buildBody() {
     final body = <String, dynamic>{
       'name': _nameCtrl.text.trim(),
-      'defaultMilkType': _milkType.name,
+      'defaultMilkType': milkTypeToApi(_milkType),
       // Membership only set on registration; an edit keeps the existing node.
       if (!widget.isEdit) 'nodeId': widget.node!.id,
     };
+    final nameNative = _nameNativeCtrl.text.trim();
+    if (nameNative.isNotEmpty) body['nameNative'] = nameNative;
     if (_phoneCtrl.text.isNotEmpty) body['phone'] = _phoneCtrl.text.trim();
     if (_dob != null) {
       body['dateOfBirth'] =
@@ -310,12 +352,13 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(
         title: Text(
-          widget.isEdit ? 'Edit Farmer' : 'Add Farmer',
+          widget.isEdit ? l.addFarmerEditTitle : l.addFarmerAddTitle,
           style: DhenuText.h2.copyWith(color: t.ink),
         ),
       ),
@@ -343,9 +386,13 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
       children: [
         FarmerBasicsSection(
           nameCtrl: _nameCtrl,
+          nameNativeCtrl: _nameNativeCtrl,
           phoneCtrl: _phoneCtrl,
           dob: _dob,
           onPickDob: _dob != null ? () => setState(() => _dob = null) : _pickDob,
+          onNameChanged: _onNameChanged,
+          onNativeNameChanged: (_) => setState(() => _nativeEdited = true),
+          onNativeVoiceResult: _onNativeVoiceResult,
         ),
         if (_nameError != null) ...[
           const SizedBox(height: DhenuSpacing.xs),
@@ -396,6 +443,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   }
 
   Widget _footer(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(DhenuSpacing.screen),
       decoration: BoxDecoration(
@@ -405,7 +453,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
       child: SafeArea(
         top: false,
         child: PrimaryAction(
-          label: widget.isEdit ? 'Save Changes' : 'Register Farmer',
+          label: widget.isEdit ? l.addFarmerSaveChanges : l.addFarmerRegisterFarmer,
           icon: widget.isEdit ? DhenuIcons.check : DhenuIcons.userPlus,
           loading: _saving,
           onPressed: _saving ? null : _save,

@@ -3,6 +3,8 @@ import '../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
 import '../api/mp_repo.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
@@ -37,15 +39,17 @@ class _PourDetailSheet extends ConsumerWidget {
   final VoidCallback? onModify;
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete entry?'),
-        content: Text('Reverses ${litres(pour.qtyLitres, unit: true)} for ${farmer?.name ?? 'this farmer'}. '
-            'This cannot be undone.'),
+        title: Text(l.pourDetailDeleteTitle),
+        content: Text(l.pourDetailDeleteContent(
+            litres(pour.qtyLitres, unit: true),
+            farmer != null ? farmerName(context, farmer!) : l.pourDetailFarmerFallback)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.pourDetailDelete)),
         ],
       ),
     );
@@ -63,6 +67,7 @@ class _PourDetailSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final reversed = pour.status != 'recorded';
     return Container(
       decoration: BoxDecoration(
@@ -77,8 +82,8 @@ class _PourDetailSheet extends ConsumerWidget {
                 DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: Text(farmer?.name ?? 'Farmer', style: DhenuText.h2.copyWith(color: t.ink))),
-                if (reversed) ...[_reversedTag(t), const SizedBox(width: DhenuSpacing.sm)],
+                Expanded(child: Text(farmer != null ? farmerName(context, farmer!) : l.pourDetailFarmerFallback, style: DhenuText.h2.copyWith(color: t.ink))),
+                if (reversed) ...[_reversedTag(t, l), const SizedBox(width: DhenuSpacing.sm)],
                 _CloseButton(t: t, onTap: () => Navigator.pop(context)),
               ]),
               if (pour.receiptNo != null)
@@ -101,10 +106,10 @@ class _PourDetailSheet extends ConsumerWidget {
               ],
               const SizedBox(height: DhenuSpacing.lg),
               Divider(height: 1, color: t.hairline),
-              ..._detailRows(t),
+              ..._detailRows(t, l),
               if (!reversed) ...[
                 const SizedBox(height: DhenuSpacing.lg),
-                _actions(context, ref, t),
+                _actions(context, ref, t, l),
               ],
             ]),
           ),
@@ -113,7 +118,7 @@ class _PourDetailSheet extends ConsumerWidget {
     );
   }
 
-  Widget _actions(BuildContext context, WidgetRef ref, DhenuTokens t) {
+  Widget _actions(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
     final delete = OutlinedButton.icon(
       onPressed: () => _delete(context, ref),
       style: OutlinedButton.styleFrom(
@@ -122,7 +127,7 @@ class _PourDetailSheet extends ConsumerWidget {
         minimumSize: const Size.fromHeight(48),
       ),
       icon: const Icon(DhenuIcons.trash, size: 18),
-      label: const Text('Delete'),
+      label: Text(l.pourDetailDelete),
     );
     if (onModify == null) return delete;
     return Row(children: [
@@ -134,7 +139,7 @@ class _PourDetailSheet extends ConsumerWidget {
           },
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           icon: const Icon(DhenuIcons.edit, size: 18),
-          label: const Text('Modify'),
+          label: Text(l.pourDetailModify),
         ),
       ),
       const SizedBox(width: DhenuSpacing.md),
@@ -142,14 +147,14 @@ class _PourDetailSheet extends ConsumerWidget {
     ]);
   }
 
-  List<Widget> _detailRows(DhenuTokens t) {
+  List<Widget> _detailRows(DhenuTokens t, AppLocalizations l) {
     final items = <(String, String, bool)>[
-      ('Rate / litre', rupees(pour.ratePerLitre, paise: true), false),
-      ('Quantity', litres(pour.qtyLitres, unit: true), false),
-      ('Milk type', _milkLabel(pour.milkType), false),
-      ('Shift', pour.shift == Shift.am ? '☀️ AM' : '🌙 PM', false),
-      ('Date', prettyDate(pour.collectionDate), false),
-      ('Amount', rupees(pour.lineAmount), true),
+      (l.pourDetailRatePerLitre, rupees(pour.ratePerLitre, paise: true), false),
+      (l.pourDetailQuantity, litres(pour.qtyLitres, unit: true), false),
+      (l.pourDetailMilkType, milkTypeL10n(l, pour.milkType), false),
+      (l.pourDetailShift, pour.shift == Shift.am ? '☀️ ${l.shiftAm}' : '🌙 ${l.shiftPm}', false),
+      (l.pourDetailDate, prettyDate(pour.collectionDate), false),
+      (l.pourDetailAmount, rupees(pour.lineAmount), true),
     ];
     final out = <Widget>[];
     for (var i = 0; i < items.length; i++) {
@@ -171,20 +176,14 @@ class _PourDetailSheet extends ConsumerWidget {
         ]),
       );
 
-  Widget _reversedTag(DhenuTokens t) => Container(
+  Widget _reversedTag(DhenuTokens t, AppLocalizations l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
         decoration: BoxDecoration(
           color: t.inkSoft.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
         ),
-        child: Text('Reversed', style: DhenuText.label.copyWith(color: t.inkSoft)),
+        child: Text(l.pourDetailReversed, style: DhenuText.label.copyWith(color: t.inkSoft)),
       );
-
-  String _milkLabel(MilkType m) => switch (m) {
-        MilkType.cow => 'Cow',
-        MilkType.buffalo => 'Buffalo',
-        MilkType.mixed => 'Mixed',
-      };
 }
 
 /// Subtle circular close affordance for the sheet's top-right corner.

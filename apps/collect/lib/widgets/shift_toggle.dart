@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
@@ -19,6 +20,7 @@ class ShiftToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Container(
       decoration: BoxDecoration(
         color: t.hairline,
@@ -30,7 +32,7 @@ class ShiftToggle extends StatelessWidget {
         children: [
           _Segment(
             emoji: '☀️',
-            label: 'AM',
+            label: l.shiftAm,
             selected: value == Shift.am,
             selectedColor: t.am,
             inkSoft: t.inkSoft,
@@ -39,7 +41,7 @@ class ShiftToggle extends StatelessWidget {
           ),
           _Segment(
             emoji: '🌙',
-            label: 'PM',
+            label: l.shiftPm,
             selected: value == Shift.pm,
             selectedColor: t.pm,
             inkSoft: t.inkSoft,

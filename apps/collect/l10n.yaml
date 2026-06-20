@@ -1,0 +1,7 @@
+# Flutter gen_l10n config. Source of truth is app_en.arb; app_kn / app_ta hold
+# the Indic translations (machine first-pass, marked for native review).
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false

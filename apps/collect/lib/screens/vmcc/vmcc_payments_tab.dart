@@ -1,3 +1,4 @@
+import 'package:dhenu/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,6 +61,7 @@ class VmccPaymentsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final cyclesAsync = ref.watch(nodeCyclesProvider(node.id));
     return Scaffold(
       body: RefreshIndicator(
@@ -68,15 +70,15 @@ class VmccPaymentsTab extends ConsumerWidget {
           loading: () => const DhenuLoadingList(rows: 4),
           error: (e, _) => ListView(children: [
             const SizedBox(height: DhenuSpacing.x4),
-            DhenuEmptyState(icon: DhenuIcons.cloudOff, title: 'Could not load cycles', subtitle: '$e'),
+            DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.paymentsCouldNotLoadCycles, subtitle: '$e'),
           ]),
-          data: (cycles) => _list(t, context, cycles),
+          data: (cycles) => _list(t, l, context, cycles),
         ),
       ),
       bottomSheet: Padding(
         padding: const EdgeInsets.all(DhenuSpacing.screen),
         child: PrimaryAction(
-          label: 'Start new cycle',
+          label: l.paymentsStartNewCycle,
           icon: DhenuIcons.add,
           onPressed: () => _newCycle(context, ref),
         ),
@@ -84,18 +86,18 @@ class VmccPaymentsTab extends ConsumerWidget {
     );
   }
 
-  Widget _list(DhenuTokens t, BuildContext context, List<MpPayoutCycle> cycles) {
+  Widget _list(DhenuTokens t, AppLocalizations l, BuildContext context, List<MpPayoutCycle> cycles) {
     if (cycles.isEmpty) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, 120),
         children: [
-          DhenuSectionHeader('Payments'),
+          DhenuSectionHeader(l.navPayments),
           const SizedBox(height: DhenuSpacing.x4),
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.payments,
-            title: 'No cycles yet',
-            subtitle: 'Start a cycle to pay farmers for a period',
+            title: l.paymentsNoCyclesTitle,
+            subtitle: l.paymentsNoCyclesSubtitle,
           ),
         ],
       );
@@ -105,16 +107,16 @@ class VmccPaymentsTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, 120),
       children: [
-        DhenuSectionHeader('Payments'),
+        DhenuSectionHeader(l.navPayments),
         const SizedBox(height: DhenuSpacing.xs),
-        Text('Cycles & farmer disbursements', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        Text(l.paymentsCyclesDisbursements, style: DhenuText.caption.copyWith(color: t.inkSoft)),
         const SizedBox(height: DhenuSpacing.lg),
-        _summary(context, t, cycles),
+        _summary(context, t, l, cycles),
         const SizedBox(height: DhenuSpacing.xl),
-        Text('Cycles', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.paymentsCyclesTitle, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         for (final c in cycles) ...[
-          _cycleCard(t, context, c),
+          _cycleCard(t, l, context, c),
           const SizedBox(height: DhenuSpacing.md),
         ],
       ],
@@ -123,7 +125,7 @@ class VmccPaymentsTab extends ConsumerWidget {
 
   /// At-a-glance: rupees still owed to farmers vs rupees already disbursed,
   /// summed across every live (non-reversed) cycle.
-  Widget _summary(BuildContext context, DhenuTokens t, List<MpPayoutCycle> cycles) {
+  Widget _summary(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPayoutCycle> cycles) {
     final live = cycles.where((c) => c.status != 'reversed');
     final pendingRs = live.fold<double>(0, (a, c) => a + c.pendingTotal);
     final pendingFarmers = live.fold<int>(0, (a, c) => a + c.pendingCount);
@@ -133,12 +135,12 @@ class VmccPaymentsTab extends ConsumerWidget {
     // stretch to equal height inside the (vertically-unbounded) ListView.
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(child: _statCard(context, paid: false, label: 'Pending to pay',
-            value: rupees(pendingRs), sub: '$pendingFarmers farmers · $openCount open',
+        Expanded(child: _statCard(context, paid: false, label: l.paymentsPendingToPayLabel,
+            value: rupees(pendingRs), sub: l.paymentsPendingFarmersSub(pendingFarmers, openCount),
             icon: DhenuIcons.clock)),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _statCard(context, paid: true, label: 'Paid',
-            value: rupees(paidRs), sub: 'across ${cycles.length} cycles',
+        Expanded(child: _statCard(context, paid: true, label: l.paymentsPaidLabel,
+            value: rupees(paidRs), sub: l.paymentsPaidCyclesSub(cycles.length),
             icon: DhenuIcons.checkCircle)),
       ]),
     );
@@ -190,12 +192,12 @@ class VmccPaymentsTab extends ConsumerWidget {
     );
   }
 
-  Widget _cycleCard(DhenuTokens t, BuildContext context, MpPayoutCycle c) {
+  Widget _cycleCard(DhenuTokens t, AppLocalizations l, BuildContext context, MpPayoutCycle c) {
     final (label, color) = switch (c.status) {
-      'open' => ('Open', t.gradeB),
-      'locked' => ('Locked', t.brand),
-      'paid' => ('Paid', t.gradeA),
-      _ => ('Reversed', t.inkSoft),
+      'open' => (l.paymentsCycleStatusOpen, t.gradeB),
+      'locked' => (l.paymentsCycleStatusLocked, t.brand),
+      'paid' => (l.paymentsCycleStatusPaid, t.gradeA),
+      _ => (l.paymentsCycleStatusReversed, t.inkSoft),
     };
     final net = c.netTotal > 0 ? c.netTotal : c.totalNet;
     return DhenuCard(
@@ -219,9 +221,9 @@ class VmccPaymentsTab extends ConsumerWidget {
         const SizedBox(height: DhenuSpacing.md),
         Row(children: [
           Text(rupees(net), style: DhenuText.number(size: 20, color: t.ink)),
-          Text('  net', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Text('  ${l.paymentsNetLabel}', style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const Spacer(),
-          Text('${c.lineCount} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Text(l.paymentsFarmerCount(c.lineCount), style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ]),
         if (c.lineCount > 0) ...[
           const SizedBox(height: DhenuSpacing.md),
@@ -233,11 +235,11 @@ class VmccPaymentsTab extends ConsumerWidget {
           Row(children: [
             Icon(DhenuIcons.checkCircle, size: 13, color: t.gradeA),
             const SizedBox(width: DhenuSpacing.xs),
-            Text('${c.paidCount}/${c.lineCount} paid',
+            Text(l.paymentsPaidCount(c.paidCount, c.lineCount),
                 style: DhenuText.caption.copyWith(color: t.inkSoft)),
             const Spacer(),
             if (c.pendingTotal > 0)
-              Text('${rupees(c.pendingTotal)} pending',
+              Text(l.paymentsAmountPending(rupees(c.pendingTotal)),
                   style: DhenuText.caption.copyWith(color: t.gradeB)),
           ]),
         ],
@@ -253,6 +255,7 @@ class _PeriodPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final periodsAsync = ref.watch(recentCyclePeriodsProvider);
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -270,14 +273,14 @@ class _PeriodPicker extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.md),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text('Select period', style: DhenuText.title.copyWith(color: t.ink)),
+              child: Text(l.paymentsSelectPeriod, style: DhenuText.title.copyWith(color: t.ink)),
             ),
           ),
           Expanded(
             child: periodsAsync.when(
               loading: () => const DhenuLoadingList(),
               error: (e, _) => DhenuEmptyState(
-                  icon: DhenuIcons.cloudOff, title: 'Could not load periods', subtitle: '$e'),
+                  icon: DhenuIcons.cloudOff, title: l.paymentsCouldNotLoadPeriods, subtitle: '$e'),
               data: (periods) => ListView.separated(
                 controller: ctrl,
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -287,7 +290,7 @@ class _PeriodPicker extends ConsumerWidget {
                   final p = periods[i];
                   return SourceRow(
                     title: p.label,
-                    litres: i == 0 ? 'in progress' : 'closed',
+                    litres: i == 0 ? l.paymentsPeriodInProgress : l.paymentsPeriodClosed,
                     onTap: () => Navigator.of(context).pop(p),
                   );
                 },

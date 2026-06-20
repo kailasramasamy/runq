@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -32,24 +34,25 @@ class VmccFarmerHistory extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
     return Scaffold(
-      appBar: AppBar(title: Text(farmer.name, style: DhenuText.h2.copyWith(color: t.ink))),
+      appBar: AppBar(title: Text(farmerName(context, farmer), style: DhenuText.h2.copyWith(color: t.ink))),
       body: poursAsync.when(
         loading: () => const DhenuLoadingList(rows: 5),
         error: (e, _) => DhenuEmptyState(
-            icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: '$e'),
-        data: (all) => _body(context, t, [for (final p in all) if (p.farmerId == farmer.id) p]),
+            icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: '$e'),
+        data: (all) => _body(context, t, l, [for (final p in all) if (p.farmerId == farmer.id) p]),
       ),
     );
   }
 
-  Widget _body(BuildContext context, DhenuTokens t, List<MpPour> mine) {
+  Widget _body(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPour> mine) {
     if (mine.isEmpty) {
-      return const DhenuEmptyState(
+      return DhenuEmptyState(
         icon: DhenuIcons.history,
-        title: 'No collection history',
-        subtitle: 'This farmer has no recorded pours in the last 30 days',
+        title: l.historyNoHistory,
+        subtitle: l.farmerHistoryNoPoursSubtitle,
       );
     }
     final groups = <String, List<MpPour>>{};

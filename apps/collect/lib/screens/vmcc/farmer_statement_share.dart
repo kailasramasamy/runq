@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -24,10 +25,11 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
   bool _busy = false;
 
   Future<void> _run() async {
+    final l = AppLocalizations.of(context);
     final cycles = await ref.read(recentCyclePeriodsProvider.future);
     if (!mounted) return;
     if (cycles.isEmpty) {
-      showDhenuToast(context, 'No cycles available', type: DhenuToastType.error);
+      showDhenuToast(context, l.statementNoCycles, type: DhenuToastType.error);
       return;
     }
     final picked = await _pickCycle(cycles);
@@ -43,7 +45,8 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
       );
     } catch (e) {
       if (mounted) {
-        showDhenuToast(context, 'Could not generate statement: $e', type: DhenuToastType.error);
+        final l2 = AppLocalizations.of(context);
+        showDhenuToast(context, l2.statementGenerateError(e), type: DhenuToastType.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -52,6 +55,7 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
 
   Future<MpCyclePeriod?> _pickCycle(List<MpCyclePeriod> cycles) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return showModalBottomSheet<MpCyclePeriod>(
       context: context,
       backgroundColor: t.surface,
@@ -66,7 +70,7 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   DhenuSpacing.lg, DhenuSpacing.lg, DhenuSpacing.lg, DhenuSpacing.sm),
-              child: Text('Select cycle', style: DhenuText.title.copyWith(color: t.ink)),
+              child: Text(l.statementSelectCycle, style: DhenuText.title.copyWith(color: t.ink)),
             ),
             // Flexible + scrollable list so a tall set of cycles never overflows
             // on shorter screens.
@@ -95,12 +99,13 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return OutlinedButton.icon(
       onPressed: _busy ? null : _run,
       icon: _busy
           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(DhenuIcons.share, size: 18),
-      label: Text(_busy ? 'Preparing…' : 'Share cycle statement'),
+      label: Text(_busy ? l.statementPreparing : l.statementShareButton),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
         side: BorderSide(color: t.brand),

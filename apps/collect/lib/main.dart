@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:dhenu/l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -43,8 +44,10 @@ class DhenuApp extends ConsumerWidget {
       darkTheme: DhenuTheme.dark(),
       themeMode: ref.watch(themeModeProvider),
       locale: ref.watch(localeProvider),
-      supportedLocales: supportedLocales,
+      // Only locales with an .arb are truly supported; others fall back to English.
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

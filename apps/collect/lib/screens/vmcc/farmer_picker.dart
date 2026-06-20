@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
@@ -32,6 +34,7 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final farmersAsync = ref.watch(nodeFarmersProvider(widget.nodeId));
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -50,23 +53,23 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
             child: TextField(
               autofocus: true,
               onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-              decoration: const InputDecoration(
-                hintText: 'Search farmer by name or code',
-                prefixIcon: Icon(DhenuIcons.search),
+              decoration: InputDecoration(
+                hintText: l.pickerSearchHint,
+                prefixIcon: const Icon(DhenuIcons.search),
               ),
             ),
           ),
-          Expanded(child: _list(t, farmersAsync, scrollController)),
+          Expanded(child: _list(t, l, farmersAsync, scrollController)),
         ]),
       ),
     );
   }
 
-  Widget _list(DhenuTokens t, AsyncValue<List<MpFarmer>> async, ScrollController controller) {
+  Widget _list(DhenuTokens t, AppLocalizations l, AsyncValue<List<MpFarmer>> async, ScrollController controller) {
     return async.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => Center(
-        child: DhenuEmptyState(icon: DhenuIcons.cloudOff, title: 'Could not load farmers', subtitle: '$e'),
+        child: DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.pickerLoadError, subtitle: '$e'),
       ),
       data: (all) {
         final farmers = _query.isEmpty
@@ -75,8 +78,8 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
                 .where((f) => f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query))
                 .toList();
         if (farmers.isEmpty) {
-          return const Center(
-            child: DhenuEmptyState(icon: DhenuIcons.userOff, title: 'No matching farmers'),
+          return Center(
+            child: DhenuEmptyState(icon: DhenuIcons.userOff, title: l.pickerNoMatch),
           );
         }
         return ListView.separated(
@@ -87,8 +90,10 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
           separatorBuilder: (_, _) => Divider(height: 1, color: t.hairline),
           itemBuilder: (_, i) {
             final f = farmers[i];
+            final display = farmerName(context, f);
             return SourceRow(
-              title: f.name,
+              title: display,
+              subtitle: display != f.name ? f.name : null,
               leadingInitials: f.initials,
               litres: f.code,
               onTap: () => Navigator.of(context).pop(f),

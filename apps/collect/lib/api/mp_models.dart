@@ -15,10 +15,32 @@ bool _b(Object? v) => v == true;
 String _s(Object? v) => (v ?? '').toString();
 String? _sn(Object? v) => v?.toString();
 
-enum MilkType { cow, buffalo, mixed }
+enum MilkType { cow, buffalo, mixed, cowA1, cowA2 }
 
-MilkType milkTypeFrom(String? s) =>
-    MilkType.values.firstWhere((e) => e.name == s, orElse: () => MilkType.cow);
+MilkType milkTypeFrom(String? s) => switch (s) {
+  'cow_a1' => MilkType.cowA1,
+  'cow_a2' => MilkType.cowA2,
+  'buffalo' => MilkType.buffalo,
+  'mixed' => MilkType.mixed,
+  'cow' => MilkType.cow,
+  _ => MilkType.cowA1,
+};
+
+String milkTypeLabel(MilkType m) => switch (m) {
+  MilkType.cowA1 => 'Cow A1 (regular)',
+  MilkType.cowA2 => 'Cow A2 (desi)',
+  MilkType.buffalo => 'Buffalo',
+  MilkType.mixed => 'Mixed',
+  MilkType.cow => 'Cow (legacy)',
+};
+
+String milkTypeToApi(MilkType m) => switch (m) {
+  MilkType.cowA1 => 'cow_a1',
+  MilkType.cowA2 => 'cow_a2',
+  MilkType.buffalo => 'buffalo',
+  MilkType.mixed => 'mixed',
+  MilkType.cow => 'cow',
+};
 
 enum Shift { am, pm }
 
@@ -46,6 +68,12 @@ class MpNode {
   final bool hasBmc, isActive;
   final double? capacityLitres;
   final DateTime? createdAt;
+  /// `'analyzer'` (default, fat+SNF) or `'lactometer'` (CLR-only).
+  final String measurementMode;
+  /// Null = legacy / all types allowed. Otherwise restricts selectable types.
+  final List<MilkType>? allowedMilkTypes;
+  /// Node-level default milk type for new pours. Null = no preference.
+  final MilkType? defaultMilkType;
 
   MpNode({
     required this.id,
@@ -61,11 +89,15 @@ class MpNode {
     this.isActive = true,
     this.capacityLitres,
     this.createdAt,
+    this.measurementMode = 'analyzer',
+    this.allowedMilkTypes,
+    this.defaultMilkType,
   });
 
   bool get isVmcc => nodeType == 'vmcc';
   bool get isCc => nodeType == 'cc';
   bool get isPp => nodeType == 'pp';
+  bool get isLactometer => measurementMode == 'lactometer';
 
   factory MpNode.fromJson(Map<String, dynamic> j) => MpNode(
     id: _s(j['id']),
@@ -83,6 +115,13 @@ class MpNode {
     createdAt: j['createdAt'] == null
         ? null
         : DateTime.tryParse(j['createdAt'].toString()),
+    measurementMode: j['measurementMode'] == 'lactometer' ? 'lactometer' : 'analyzer',
+    allowedMilkTypes: (j['allowedMilkTypes'] as List?)
+        ?.map((e) => milkTypeFrom(e as String?))
+        .toList(),
+    defaultMilkType: j['defaultMilkType'] == null
+        ? null
+        : milkTypeFrom(j['defaultMilkType'] as String?),
   );
 }
 
@@ -98,6 +137,9 @@ class MpBreedCount {
 
 class MpFarmer {
   final String id, code, name, vendorId;
+  /// Native-script (regional-language) name for RL display; null = use [name].
+  final String? nameNative;
+  final bool nameNativeVerified;
   final String? phone, village, address, aadhaar;
   final String? bankAccountName, bankAccountNumber, bankIfsc, bankName, upiId;
   final double? lat, lng;
@@ -113,6 +155,8 @@ class MpFarmer {
     required this.code,
     required this.name,
     required this.vendorId,
+    this.nameNative,
+    this.nameNativeVerified = false,
     this.phone,
     this.village,
     this.address,
@@ -126,7 +170,7 @@ class MpFarmer {
     this.lng,
     this.isSociety = false,
     this.isActive = true,
-    this.defaultMilkType = MilkType.cow,
+    this.defaultMilkType = MilkType.cowA1,
     this.cattleBreeds = const [],
     this.cattleCount,
     this.inMilkCount,
@@ -153,6 +197,8 @@ class MpFarmer {
     code: _s(j['code']),
     name: _s(j['name']),
     vendorId: _s(j['vendorId']),
+    nameNative: _sn(j['nameNative']),
+    nameNativeVerified: _b(j['nameNativeVerified']),
     phone: _sn(j['phone']),
     village: _sn(j['village']),
     address: _sn(j['address']),
@@ -182,17 +228,19 @@ class MpFarmer {
 }
 
 /// Result of `GET /rate-charts/resolve` — note: rates here are JSON numbers.
+/// [grade] may be null for lactometer (CLR-only) nodes where no quality grade
+/// is derived.
 class MpRateResolution {
   final String rateChartId;
   final double baseRatePerLitre, bonusPerLitre, ratePerLitre;
-  final Grade grade;
+  final Grade? grade;
 
   MpRateResolution({
     required this.rateChartId,
     required this.baseRatePerLitre,
     required this.bonusPerLitre,
     required this.ratePerLitre,
-    required this.grade,
+    this.grade,
   });
 
   factory MpRateResolution.fromJson(Map<String, dynamic> j) => MpRateResolution(
@@ -200,7 +248,7 @@ class MpRateResolution {
     baseRatePerLitre: _d(j['baseRatePerLitre']),
     bonusPerLitre: _d(j['bonusPerLitre']),
     ratePerLitre: _d(j['ratePerLitre']),
-    grade: gradeFrom(j['grade'] as String?),
+    grade: j['grade'] == null ? null : gradeFrom(j['grade'] as String?),
   );
 }
 
@@ -305,7 +353,7 @@ class MpPour {
   final Shift shift;
   final MilkType milkType;
   final double qtyLitres, ratePerLitre, lineAmount;
-  final double? fat, snf;
+  final double? fat, snf, clr;
   final Grade qualityGrade;
   final String? receiptNo;
   final String status; // recorded | reversed
@@ -322,6 +370,7 @@ class MpPour {
     required this.lineAmount,
     this.fat,
     this.snf,
+    this.clr,
     this.qualityGrade = Grade.unknown,
     this.receiptNo,
     this.status = 'recorded',
@@ -339,6 +388,7 @@ class MpPour {
     lineAmount: _d(j['lineAmount']),
     fat: _dn(j['fat']),
     snf: _dn(j['snf']),
+    clr: _dn(j['clr']),
     qualityGrade: gradeFrom(j['qualityGrade'] as String?),
     receiptNo: _sn(j['receiptNo']),
     status: _s(j['status']),

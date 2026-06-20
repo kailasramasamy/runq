@@ -76,6 +76,14 @@ class MpRepo {
     return m == null ? null : MpFarmer.fromJson(m);
   }
 
+  /// Native-script suggestion for [name] in [lang] (current app locale code).
+  /// Returns null when transliteration is unavailable (AI off / unmapped).
+  Future<String?> transliterateName(String name, String lang) async {
+    final res = await _api.post('$_base/farmers/transliterate', {'name': name, 'lang': lang});
+    final v = _one(res)?['nameNative'];
+    return (v is String && v.trim().isNotEmpty) ? v : null;
+  }
+
   /// A farmer's per-cycle milk collection statement as PDF bytes (for sharing).
   Future<Uint8List> farmerPourStatementPdf({
     required String farmerId,
@@ -126,16 +134,22 @@ class MpRepo {
     return m == null ? null : MpRateChartDetail.fromJson(m);
   }
 
+  /// Resolve the rate for a pour preview.
+  ///
+  /// Analyzer mode: provide [fat] and [snf].
+  /// Lactometer mode: provide [clr] and omit fat/snf.
+  /// Exactly one of ([fat]+[snf]) or [clr] should be supplied.
   Future<MpRateResolution?> resolveRate({
     required MilkType milkType,
-    required double fat,
-    required double snf,
+    double? fat,
+    double? snf,
+    double? clr,
     double? cycleQtyLitres,
     String? scopeNodeId,
     String? onDate,
   }) async {
     final res = await _api.get(
-      '$_base/rate-charts/resolve${_qs({'milkType': milkType.name, 'fat': fat, 'snf': snf, 'cycleQtyLitres': cycleQtyLitres, 'scopeNodeId': scopeNodeId, 'onDate': onDate})}',
+      '$_base/rate-charts/resolve${_qs({'milkType': milkTypeToApi(milkType), 'fat': fat, 'snf': snf, 'clr': clr, 'cycleQtyLitres': cycleQtyLitres, 'scopeNodeId': scopeNodeId, 'onDate': onDate})}',
     );
     final m = _one(res);
     return m == null ? null : MpRateResolution.fromJson(m);

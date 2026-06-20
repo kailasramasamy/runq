@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -35,12 +36,13 @@ class FarmerPoursTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
     return poursAsync.when(
       loading: () => const DhenuLoadingList(rows: 6),
       error: (e, _) => DhenuEmptyState(
         icon: DhenuIcons.cloudOff,
-        title: 'Could not load pours',
+        title: l.farmerPoursLoadError,
         subtitle: '$e',
       ),
       data: (all) {
@@ -55,16 +57,17 @@ class FarmerPoursTab extends ConsumerWidget {
 
   Widget _body(BuildContext context, List<MpPour> mine) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     if (mine.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(DhenuSpacing.screen),
         children: [
           ShareStatementButton(farmer: farmer),
           const SizedBox(height: DhenuSpacing.xl),
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.history,
-            title: 'No recent pours',
-            subtitle: 'No pours in the last 30 days. Share a past cycle statement above.',
+            title: l.farmerPoursEmptyTitle,
+            subtitle: l.farmerPoursEmptySubtitle,
           ),
         ],
       );
@@ -86,7 +89,7 @@ class FarmerPoursTab extends ConsumerWidget {
         DhenuSpacing.x4,
       ),
       children: [
-        _summaryCard(t, totalL, totalAmt, mine.length),
+        _summaryCard(t, l, totalL, totalAmt, mine.length),
         const SizedBox(height: DhenuSpacing.md),
         ShareStatementButton(farmer: farmer),
         const SizedBox(height: DhenuSpacing.lg),
@@ -107,6 +110,7 @@ class FarmerPoursTab extends ConsumerWidget {
 
   Widget _summaryCard(
     DhenuTokens t,
+    AppLocalizations l,
     double totalL,
     double totalAmt,
     int count,
@@ -114,9 +118,9 @@ class FarmerPoursTab extends ConsumerWidget {
     return DhenuCard(
       child: Row(
         children: [
-          _stat(t, litres(totalL, unit: true), '$count pours'),
+          _stat(t, litres(totalL, unit: true), l.farmerPoursCount(count)),
           Container(width: 1, height: 36, color: t.hairline),
-          _stat(t, rupees(totalAmt), '30-day total'),
+          _stat(t, rupees(totalAmt), l.farmerPours30DayTotal),
         ],
       ),
     );

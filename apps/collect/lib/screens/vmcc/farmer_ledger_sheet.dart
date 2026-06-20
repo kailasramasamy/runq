@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -24,11 +26,7 @@ Future<void> showFarmerLedgerSheet(BuildContext context, MpFarmer farmer) {
   );
 }
 
-const _entryTypes = [
-  ('advance_given', 'Advance'),
-  ('feed_loan_given', 'Feed loan'),
-  ('repayment', 'Repayment'),
-];
+const _entryTypeKeys = ['advance_given', 'feed_loan_given', 'repayment'];
 
 class _FarmerLedgerSheet extends ConsumerStatefulWidget {
   const _FarmerLedgerSheet({required this.farmer});
@@ -59,9 +57,10 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
   }
 
   Future<void> _save() async {
+    final l = AppLocalizations.of(context);
     final amt = double.tryParse(_amount.text);
     if (amt == null || amt <= 0) {
-      setState(() => _error = 'Enter a valid amount');
+      setState(() => _error = l.ledgerInvalidAmount);
       return;
     }
     setState(() { _saving = true; _error = null; });
@@ -84,6 +83,7 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final ledgerAsync = ref.watch(farmerLedgerProvider(widget.farmer.id));
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -111,7 +111,7 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(widget.farmer.name, style: DhenuText.h2.copyWith(color: t.ink)),
+                          Text(farmerName(context, widget.farmer), style: DhenuText.h2.copyWith(color: t.ink)),
                           Text(widget.farmer.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
                         ],
                       ),
@@ -119,26 +119,26 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
                     IconButton(
                       onPressed: _openEdit,
                       icon: Icon(DhenuIcons.edit, color: t.brand),
-                      tooltip: 'Edit details',
+                      tooltip: l.ledgerEditDetails,
                     ),
                   ],
                 ),
                 const SizedBox(height: DhenuSpacing.lg),
-                _balanceCard(t, ledgerAsync),
+                _balanceCard(t, l, ledgerAsync),
                 const SizedBox(height: DhenuSpacing.xl),
-                Text('Add entry', style: DhenuText.title.copyWith(color: t.ink)),
+                Text(l.ledgerAddEntry, style: DhenuText.title.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.md),
-                _typeChips(t),
+                _typeChips(t, l),
                 if (_entryType == 'repayment') ...[
                   const SizedBox(height: DhenuSpacing.md),
-                  _refChips(t),
+                  _refChips(t, l),
                 ],
                 const SizedBox(height: DhenuSpacing.md),
                 TextField(
                   controller: _amount,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                  decoration: const InputDecoration(hintText: 'Amount (₹)', prefixText: '₹ '),
+                  decoration: InputDecoration(hintText: l.ledgerAmountHint, prefixText: '₹ '),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: DhenuSpacing.sm),
@@ -146,15 +146,15 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
                 ],
                 const SizedBox(height: DhenuSpacing.lg),
                 PrimaryAction(
-                  label: 'Record entry',
+                  label: l.ledgerRecordEntry,
                   icon: DhenuIcons.check,
                   onPressed: _save,
                   loading: _saving,
                 ),
                 const SizedBox(height: DhenuSpacing.xl),
-                Text('History', style: DhenuText.title.copyWith(color: t.ink)),
+                Text(l.ledgerHistory, style: DhenuText.title.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.sm),
-                _history(t, ledgerAsync),
+                _history(t, l, ledgerAsync),
               ],
             ),
           ),
@@ -163,12 +163,12 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
     );
   }
 
-  Widget _balanceCard(DhenuTokens t, AsyncValue<({double balance, List<MpLedgerEntry> entries})> a) {
+  Widget _balanceCard(DhenuTokens t, AppLocalizations l, AsyncValue<({double balance, List<MpLedgerEntry> entries})> a) {
     return a.when(
       loading: () => const DhenuLoadingList(rows: 1),
-      error: (e, _) => Text('Could not load ledger', style: DhenuText.body.copyWith(color: t.inkSoft)),
+      error: (e, _) => Text(l.ledgerLoadError, style: DhenuText.body.copyWith(color: t.inkSoft)),
       data: (d) => Row(children: [
-        Text('Outstanding', style: DhenuText.body.copyWith(color: t.inkSoft)),
+        Text(l.ledgerOutstanding, style: DhenuText.body.copyWith(color: t.inkSoft)),
         const Spacer(),
         Text(rupees(d.balance),
             style: DhenuText.number(size: 24, color: d.balance > 0 ? t.gradeC : t.gradeA)),
@@ -176,23 +176,27 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
     );
   }
 
-  Widget _typeChips(DhenuTokens t) => Row(
-        children: _entryTypes.map((e) {
-          final selected = _entryType == e.$1;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: DhenuSpacing.sm),
-              child: _chip(t, e.$2, selected, () => setState(() => _entryType = e.$1)),
-            ),
-          );
-        }).toList(),
-      );
+  Widget _typeChips(DhenuTokens t, AppLocalizations l) {
+    final labels = [l.ledgerEntryAdvance, l.ledgerEntryFeedLoan, l.ledgerEntryRepayment];
+    return Row(
+      children: List.generate(_entryTypeKeys.length, (i) {
+        final key = _entryTypeKeys[i];
+        final selected = _entryType == key;
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: DhenuSpacing.sm),
+            child: _chip(t, labels[i], selected, () => setState(() => _entryType = key)),
+          ),
+        );
+      }),
+    );
+  }
 
-  Widget _refChips(DhenuTokens t) => Row(children: [
-        Expanded(child: _chip(t, 'Against advance', _refType == 'advance',
+  Widget _refChips(DhenuTokens t, AppLocalizations l) => Row(children: [
+        Expanded(child: _chip(t, l.ledgerAgainstAdvance, _refType == 'advance',
             () => setState(() => _refType = 'advance'))),
         const SizedBox(width: DhenuSpacing.sm),
-        Expanded(child: _chip(t, 'Against feed loan', _refType == 'cattle_feed_loan',
+        Expanded(child: _chip(t, l.ledgerAgainstFeedLoan, _refType == 'cattle_feed_loan',
             () => setState(() => _refType = 'cattle_feed_loan'))),
       ]);
 
@@ -212,20 +216,20 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
         ),
       );
 
-  Widget _history(DhenuTokens t, AsyncValue<({double balance, List<MpLedgerEntry> entries})> a) {
+  Widget _history(DhenuTokens t, AppLocalizations l, AsyncValue<({double balance, List<MpLedgerEntry> entries})> a) {
     return a.when(
       loading: () => const DhenuLoadingList(rows: 3),
       error: (_, _) => const SizedBox.shrink(),
       data: (d) {
         if (d.entries.isEmpty) {
-          return const DhenuEmptyState(icon: DhenuIcons.receipt, title: 'No entries yet');
+          return DhenuEmptyState(icon: DhenuIcons.receipt, title: l.ledgerNoEntries);
         }
         return Column(
           children: d.entries.map((e) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
                 child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_label(e.entryType), style: DhenuText.body.copyWith(color: t.ink)),
+                    Text(_label(l, e.entryType), style: DhenuText.body.copyWith(color: t.ink)),
                     Text(prettyDate(e.occurredOn),
                         style: DhenuText.caption.copyWith(color: t.inkSoft)),
                   ])),
@@ -237,10 +241,10 @@ class _FarmerLedgerSheetState extends ConsumerState<_FarmerLedgerSheet> {
     );
   }
 
-  String _label(String entryType) => switch (entryType) {
-        'advance_given' => 'Advance given',
-        'feed_loan_given' => 'Feed loan given',
-        'repayment' => 'Repayment',
-        _ => 'Adjustment',
+  String _label(AppLocalizations l, String entryType) => switch (entryType) {
+        'advance_given' => l.ledgerHistoryAdvanceGiven,
+        'feed_loan_given' => l.ledgerHistoryFeedLoanGiven,
+        'repayment' => l.ledgerHistoryRepayment,
+        _ => l.ledgerHistoryAdjustment,
       };
 }

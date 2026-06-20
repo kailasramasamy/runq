@@ -3,6 +3,8 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -65,16 +67,17 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
 
   Future<bool?> _confirm(String action) {
     final pay = action == 'pay';
+    final l = AppLocalizations.of(context);
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(pay ? 'Pay cycle?' : 'Lock cycle?'),
-        content: Text(pay
-            ? 'This posts payments for every farmer and cannot be undone.'
-            : 'Locking freezes totals and posts loan repayments. You can pay after.'),
+        title: Text(pay ? l.cyclePayTitle : l.cycleLockTitle),
+        content: Text(pay ? l.cyclePayContent : l.cycleLockContent),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(pay ? 'Pay' : 'Lock')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(pay ? l.cyclePayAction : l.cycleLockAction)),
         ],
       ),
     );
@@ -114,6 +117,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final cycleAsync = ref.watch(cycleDetailProvider(widget.cycleId));
     final farmersAsync = ref.watch(nodeFarmersProvider(widget.node.id));
     final farmerById = {
@@ -124,15 +128,15 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     // field clear above the keypad.
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
-      appBar: AppBar(title: Text('Cycle', style: DhenuText.h2.copyWith(color: t.ink))),
+      appBar: AppBar(title: Text(l.cycleCycle, style: DhenuText.h2.copyWith(color: t.ink))),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: cycleAsync.when(
           loading: () => const DhenuLoadingList(rows: 4),
           error: (e, _) => DhenuEmptyState(
-              icon: DhenuIcons.cloudOff, title: 'Could not load cycle', subtitle: '$e'),
+              icon: DhenuIcons.cloudOff, title: l.cycleCouldNotLoad, subtitle: '$e'),
           data: (c) => c == null
-              ? const DhenuEmptyState(icon: DhenuIcons.error, title: 'Cycle not found')
+              ? DhenuEmptyState(icon: DhenuIcons.error, title: l.cycleNotFound)
               : _body(t, c, farmerById),
         ),
       ),
@@ -143,6 +147,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
   }
 
   Widget _body(DhenuTokens t, MpPayoutCycle c, Map<String, MpFarmer> farmerById) {
+    final l = AppLocalizations.of(context);
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
@@ -151,19 +156,19 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         Row(children: [
           Text(c.cycleNo, style: DhenuText.title.copyWith(color: t.ink)),
           const Spacer(),
-          _statusChip(t, c.status),
+          _statusChip(t, c.status, l),
         ]),
         Text('${prettyDate(c.periodStart)} – ${prettyDate(c.periodEnd)}',
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
         const SizedBox(height: DhenuSpacing.md),
-        _progressCard(t, c),
+        _progressCard(t, c, l),
         const SizedBox(height: DhenuSpacing.xl),
         if (c.lines.isEmpty)
-          const DhenuEmptyState(icon: DhenuIcons.users, title: 'No lines in this cycle')
+          DhenuEmptyState(icon: DhenuIcons.users, title: l.cycleNoLines)
         else ...[
-          _controls(t, c),
+          _controls(t, c, l),
           const SizedBox(height: DhenuSpacing.md),
-          _lines(t, c, farmerById),
+          _lines(t, c, farmerById, l),
         ],
       ],
     );
@@ -171,14 +176,14 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
 
   /// Net payable + a paid/pending disbursement progress bar driven by the
   /// per-farmer flags (optimistic overrides included).
-  Widget _progressCard(DhenuTokens t, MpPayoutCycle c) {
-    final net = c.lines.fold<double>(0, (a, l) => a + l.netAmount);
-    final paidSum = c.lines.where(_isPaid).fold<double>(0, (a, l) => a + l.netAmount);
+  Widget _progressCard(DhenuTokens t, MpPayoutCycle c, AppLocalizations l) {
+    final net = c.lines.fold<double>(0, (a, ln) => a + ln.netAmount);
+    final paidSum = c.lines.where(_isPaid).fold<double>(0, (a, ln) => a + ln.netAmount);
     final pending = (net - paidSum).clamp(0, double.infinity).toDouble();
     final paidCount = c.lines.where(_isPaid).length;
     return DhenuCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('NET PAYABLE', style: DhenuText.caption.copyWith(
+        Text(l.cycleNetPayable, style: DhenuText.caption.copyWith(
             color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
         const SizedBox(height: DhenuSpacing.xs),
         Text(rupees(net), style: DhenuText.number(size: 32, color: t.ink)),
@@ -190,12 +195,13 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         const SizedBox(height: DhenuSpacing.sm),
         Row(children: [
           _legendDot(t.gradeA),
-          Text('${rupees(paidSum)} paid · $paidCount/${c.lines.length}',
+          Text(l.cyclePaidLegend(rupees(paidSum), paidCount, c.lines.length),
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const Spacer(),
           if (pending > 0) ...[
             _legendDot(t.gradeB),
-            Text('${rupees(pending)} pending', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            Text(l.paymentsAmountPending(rupees(pending)),
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
           ],
         ]),
       ]),
@@ -207,22 +213,22 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         child: Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
       );
 
-  Widget _controls(DhenuTokens t, MpPayoutCycle c) {
+  Widget _controls(DhenuTokens t, MpPayoutCycle c, AppLocalizations l) {
     final allPaid = c.lines.isNotEmpty && c.lines.every(_isPaid);
     return Column(children: [
       Row(children: [
-        Text('${c.lines.length} farmers', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.paymentsFarmerCount(c.lines.length), style: DhenuText.title.copyWith(color: t.ink)),
         const Spacer(),
         if (c.status != 'reversed')
           TextButton(
             onPressed: _busy ? null : () => _markAll(!allPaid),
-            child: Text(allPaid ? 'Mark all unpaid' : 'Mark all paid'),
+            child: Text(allPaid ? l.cycleMarkAllUnpaid : l.cycleMarkAllPaid),
           ),
       ]),
       const SizedBox(height: DhenuSpacing.xs),
       Row(children: [
         for (final f in _PaidFilter.values) ...[
-          _filterChip(t, f),
+          _filterChip(t, f, l),
           const SizedBox(width: DhenuSpacing.sm),
         ],
       ]),
@@ -232,7 +238,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         textCapitalization: TextCapitalization.words,
         style: DhenuText.body.copyWith(color: t.ink),
         decoration: InputDecoration(
-          hintText: 'Search farmer',
+          hintText: l.historySearchFarmer,
           isDense: true,
           prefixIcon: Icon(DhenuIcons.search, color: t.inkSoft),
           filled: true,
@@ -246,12 +252,12 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     ]);
   }
 
-  Widget _filterChip(DhenuTokens t, _PaidFilter f) {
+  Widget _filterChip(DhenuTokens t, _PaidFilter f, AppLocalizations l) {
     final selected = _filter == f;
     final label = switch (f) {
-      _PaidFilter.all => 'All',
-      _PaidFilter.unpaid => 'Unpaid',
-      _PaidFilter.paid => 'Paid',
+      _PaidFilter.all => l.cycleFilterAll,
+      _PaidFilter.unpaid => l.cycleFilterUnpaid,
+      _PaidFilter.paid => l.cycleFilterPaid,
     };
     return GestureDetector(
       onTap: () => setState(() => _filter = f),
@@ -267,20 +273,20 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     );
   }
 
-  Widget _lines(DhenuTokens t, MpPayoutCycle c, Map<String, MpFarmer> farmerById) {
+  Widget _lines(DhenuTokens t, MpPayoutCycle c, Map<String, MpFarmer> farmerById, AppLocalizations l) {
     final lines = [
-      for (final l in c.lines)
-        if (_matchesFilter(l) && _matchesQuery(l, farmerById)) l,
+      for (final ln in c.lines)
+        if (_matchesFilter(ln) && _matchesQuery(ln, farmerById)) ln,
     ];
     if (lines.isEmpty) {
-      return const DhenuEmptyState(icon: DhenuIcons.filterOff, title: 'No farmers match');
+      return DhenuEmptyState(icon: DhenuIcons.filterOff, title: l.cycleNoFarmersMatch);
     }
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(children: [
         for (var i = 0; i < lines.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _lineRow(t, c, lines[i], farmerById[lines[i].farmerId]),
+          _lineRow(t, c, lines[i], farmerById[lines[i].farmerId], l),
         ],
       ]),
     );
@@ -299,20 +305,22 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     return f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query);
   }
 
-  Widget _lineRow(DhenuTokens t, MpPayoutCycle c, MpPayoutLine l, MpFarmer? farmer) {
-    final paid = _isPaid(l);
-    final hasDed = l.deductionTotal > 0;
+  Widget _lineRow(DhenuTokens t, MpPayoutCycle c, MpPayoutLine ln, MpFarmer? farmer, AppLocalizations l) {
+    final paid = _isPaid(ln);
+    final hasDed = ln.deductionTotal > 0;
     final toggleable = c.status != 'reversed';
+    final display = farmer != null ? farmerName(context, farmer) : l.historyFarmerFallback;
     return SourceRow(
-      title: farmer?.name ?? 'Farmer',
+      title: display,
+      subtitle: (farmer != null && display != farmer.name) ? farmer.name : null,
       leadingInitials: farmer?.initials,
-      litres: litres(l.qtyLitres, unit: true),
-      amount: rupees(l.netAmount),
+      litres: litres(ln.qtyLitres, unit: true),
+      amount: rupees(ln.netAmount),
       amountFirst: true,
-      onTap: toggleable ? () => _togglePaid(l) : null,
+      onTap: toggleable ? () => _togglePaid(ln) : null,
       trailingStatus: Row(mainAxisSize: MainAxisSize.min, children: [
         if (hasDed) ...[
-          Text('− ${rupees(l.deductionTotal)}', style: DhenuText.caption.copyWith(color: t.gradeC)),
+          Text('− ${rupees(ln.deductionTotal)}', style: DhenuText.caption.copyWith(color: t.gradeC)),
           const SizedBox(width: DhenuSpacing.sm),
         ],
         _paidToggle(t, paid),
@@ -332,12 +340,12 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         child: Icon(DhenuIcons.check, size: 16, color: paid ? Colors.white : t.hairline),
       );
 
-  Widget _statusChip(DhenuTokens t, String status) {
+  Widget _statusChip(DhenuTokens t, String status, AppLocalizations l) {
     final (label, color) = switch (status) {
-      'open' => ('Open', t.gradeB),
-      'locked' => ('Locked', t.brand),
-      'paid' => ('Paid', t.gradeA),
-      _ => ('Reversed', t.inkSoft),
+      'open' => (l.paymentsCycleStatusOpen, t.gradeB),
+      'locked' => (l.paymentsCycleStatusLocked, t.brand),
+      'paid' => (l.paymentsCycleStatusPaid, t.gradeA),
+      _ => (l.paymentsCycleStatusReversed, t.inkSoft),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
@@ -350,9 +358,10 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
   }
 
   Widget? _actionBar(DhenuTokens t, MpPayoutCycle c) {
+    final l = AppLocalizations.of(context);
     final (label, icon, action) = switch (c.status) {
-      'open' => ('Lock cycle', DhenuIcons.lock, 'lock'),
-      'locked' => ('Pay cycle', DhenuIcons.payments, 'pay'),
+      'open' => (l.cycleLockCycle, DhenuIcons.lock, 'lock'),
+      'locked' => (l.cyclePayCycle, DhenuIcons.payments, 'pay'),
       _ => (null, null, null),
     };
     if (action == null) return null;

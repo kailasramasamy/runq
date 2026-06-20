@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -56,6 +58,7 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final farmersAsync = ref.watch(nodeFarmersProvider(widget.node.id));
     final farmer = farmersAsync.maybeWhen(
       data: _resolve,
@@ -65,11 +68,11 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(
-        title: Text(farmer.name, style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(farmerName(context, farmer), style: DhenuText.h2.copyWith(color: t.ink)),
         actions: [
           IconButton(
             icon: Icon(DhenuIcons.edit, color: t.brand),
-            tooltip: 'Edit farmer',
+            tooltip: l.farmerDetailEditTooltip,
             onPressed: () => _openEdit(farmer),
           ),
         ],
@@ -80,10 +83,10 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
           unselectedLabelColor: t.inkSoft,
           labelStyle: DhenuText.label,
           unselectedLabelStyle: DhenuText.label,
-          tabs: const [
-            Tab(text: 'Details'),
-            Tab(text: 'Pours'),
-            Tab(text: 'Payments'),
+          tabs: [
+            Tab(text: l.farmerDetailTabDetails),
+            Tab(text: l.farmerDetailTabPours),
+            Tab(text: l.farmerDetailTabPayments),
           ],
         ),
       ),
@@ -106,15 +109,10 @@ class _FarmerDetailsTab extends StatelessWidget {
 
   final MpFarmer farmer;
 
-  String _milkTypeLabel(MilkType m) => switch (m) {
-    MilkType.cow => 'Cow',
-    MilkType.buffalo => 'Buffalo',
-    MilkType.mixed => 'Mixed',
-  };
-
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
@@ -124,22 +122,24 @@ class _FarmerDetailsTab extends StatelessWidget {
         DhenuSpacing.x4,
       ),
       children: [
-        _avatarBlock(t),
+        _avatarBlock(context, t, l),
         const SizedBox(height: DhenuSpacing.lg),
-        _contactSection(t),
+        _contactSection(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        _locationSection(t),
+        _locationSection(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        _herdSection(t),
+        _herdSection(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        _identitySection(t),
+        _identitySection(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        _paymentSection(t),
+        _paymentSection(t, l),
       ],
     );
   }
 
-  Widget _avatarBlock(DhenuTokens t) {
+  Widget _avatarBlock(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final display = farmerName(context, farmer);
+    final showLatinBelow = display != farmer.name;
     return DhenuCard(
       child: Row(
         children: [
@@ -157,24 +157,30 @@ class _FarmerDetailsTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  farmer.name,
+                  display,
                   style: DhenuText.title.copyWith(color: t.ink),
                 ),
                 const SizedBox(height: DhenuSpacing.xs),
-                Text(
-                  farmer.code,
-                  style: DhenuText.caption.copyWith(color: t.inkSoft),
-                ),
+                if (showLatinBelow)
+                  Text(
+                    farmer.name,
+                    style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  )
+                else
+                  Text(
+                    farmer.code,
+                    style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  ),
               ],
             ),
           ),
-          _statusChip(t),
+          _statusChip(t, l),
         ],
       ),
     );
   }
 
-  Widget _statusChip(DhenuTokens t) {
+  Widget _statusChip(DhenuTokens t, AppLocalizations l) {
     final active = farmer.isActive;
     final color = active ? t.gradeA : t.inkSoft;
     return Container(
@@ -187,84 +193,89 @@ class _FarmerDetailsTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Text(
-        active ? 'Active' : 'Inactive',
+        active ? l.farmerDetailStatusActive : l.farmerDetailStatusInactive,
         style: DhenuText.caption.copyWith(color: color),
       ),
     );
   }
 
-  Widget _contactSection(DhenuTokens t) {
-    final rows = [_row(t, 'Phone', farmer.phone)];
+  Widget _contactSection(DhenuTokens t, AppLocalizations l) {
+    final rows = [_row(t, l.farmerDetailPhone, farmer.phone)];
     return _section(
       t,
+      l,
       icon: DhenuIcons.user,
-      title: 'Contact',
+      title: l.farmerDetailContact,
       rows: rows,
     );
   }
 
-  Widget _locationSection(DhenuTokens t) {
+  Widget _locationSection(DhenuTokens t, AppLocalizations l) {
     final hasGps = farmer.lat != null && farmer.lng != null;
     final rows = [
-      _row(t, 'Village', farmer.village),
-      _row(t, 'Address', farmer.address),
+      _row(t, l.farmerDetailVillage, farmer.village),
+      _row(t, l.farmerDetailAddress, farmer.address),
       if (hasGps)
         _row(
           t,
-          'GPS',
+          l.farmerDetailGps,
           '${farmer.lat!.toStringAsFixed(5)}, ${farmer.lng!.toStringAsFixed(5)}',
         ),
     ];
     return _section(
       t,
+      l,
       icon: DhenuIcons.mapPin,
-      title: 'Location',
+      title: l.farmerDetailLocation,
       rows: rows,
     );
   }
 
-  Widget _herdSection(DhenuTokens t) {
+  Widget _herdSection(DhenuTokens t, AppLocalizations l) {
     final totalCattle =
         farmer.cattleCount ??
         farmer.cattleBreeds.fold<int>(0, (s, b) => s + b.count);
     final rows = [
-      _row(t, 'Milk type', _milkTypeLabel(farmer.defaultMilkType)),
+      _row(t, l.commonMilkType, milkTypeL10n(l, farmer.defaultMilkType)),
       for (final b in farmer.cattleBreeds)
         _row(t, breedLabel(b.breed), '${b.count}'),
-      if (totalCattle > 0) _row(t, 'Total cattle', '$totalCattle'),
+      if (totalCattle > 0) _row(t, l.farmerDetailTotalCattle, '$totalCattle'),
       if (farmer.inMilkCount != null)
-        _row(t, 'Currently milking', '${farmer.inMilkCount}'),
+        _row(t, l.farmerDetailCurrentlyMilking, '${farmer.inMilkCount}'),
     ];
-    return _section(t, icon: DhenuIcons.pets, title: 'Herd', rows: rows);
+    return _section(t, l, icon: DhenuIcons.pets, title: l.farmerDetailHerd, rows: rows);
   }
 
-  Widget _identitySection(DhenuTokens t) {
-    final rows = [_row(t, 'Aadhaar', farmer.aadhaar)];
+  Widget _identitySection(DhenuTokens t, AppLocalizations l) {
+    final rows = [_row(t, l.farmerDetailAadhaar, farmer.aadhaar)];
     return _section(
       t,
+      l,
       icon: DhenuIcons.idCard,
-      title: 'Identity',
+      title: l.farmerDetailIdentity,
       rows: rows,
     );
   }
 
-  Widget _paymentSection(DhenuTokens t) {
+  Widget _paymentSection(DhenuTokens t, AppLocalizations l) {
     final rows = [
-      _row(t, 'Bank name', farmer.bankName),
-      _row(t, 'Account number', farmer.bankAccountNumber),
-      _row(t, 'IFSC', farmer.bankIfsc),
-      _row(t, 'UPI ID', farmer.upiId),
+      _row(t, l.farmerDetailBankName, farmer.bankName),
+      _row(t, l.farmerDetailAccountNumber, farmer.bankAccountNumber),
+      _row(t, l.farmerDetailIfsc, farmer.bankIfsc),
+      _row(t, l.farmerDetailUpiId, farmer.upiId),
     ];
     return _section(
       t,
+      l,
       icon: DhenuIcons.payments,
-      title: 'Payment',
+      title: l.farmerDetailPayment,
       rows: rows,
     );
   }
 
   Widget _section(
-    DhenuTokens t, {
+    DhenuTokens t,
+    AppLocalizations l, {
     required IconData icon,
     required String title,
     required List<Widget?> rows,
@@ -274,7 +285,7 @@ class _FarmerDetailsTab extends StatelessWidget {
         ? visible
         : [
             Text(
-              'Not provided',
+              l.farmerDetailNotProvided,
               style: DhenuText.body.copyWith(color: t.inkSoft),
             ),
           ];

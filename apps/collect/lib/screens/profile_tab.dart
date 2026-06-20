@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/farmer_providers.dart';
 import '../providers/locale_provider.dart';
@@ -32,6 +33,7 @@ class ProfileTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final user = ref.watch(authProvider).user;
     final mode = ref.watch(themeModeProvider);
 
@@ -69,13 +71,13 @@ class ProfileTab extends ConsumerWidget {
       children: [
         _avatarHero(context, t, user, farmer?.code, opName),
         const SizedBox(height: DhenuSpacing.lg),
-        _statRow(context, t, memberSince, centre),
+        _statRow(context, t, l, memberSince, centre),
         const SizedBox(height: DhenuSpacing.lg),
-        _settingsCard(context, ref, t, user),
+        _settingsCard(context, ref, t, l, user),
         const SizedBox(height: DhenuSpacing.lg),
-        _appearanceCard(context, ref, t, mode),
+        _appearanceCard(context, ref, t, l, mode),
         const SizedBox(height: DhenuSpacing.lg),
-        _logoutButton(context, ref, t),
+        _logoutButton(context, ref, t, l),
       ],
     );
   }
@@ -151,20 +153,20 @@ class ProfileTab extends ConsumerWidget {
   }
 
   // ── Stat row ───────────────────────────────────────────────────────────────
-  Widget _statRow(BuildContext context, DhenuTokens t, String memberSince, String centre) {
+  Widget _statRow(BuildContext context, DhenuTokens t, AppLocalizations l, String memberSince, String centre) {
     return Row(
       children: [
         Expanded(
           child: DhenuCard(
             padding: const EdgeInsets.all(DhenuSpacing.lg),
-            child: _statCell(t, label: 'Member since', value: memberSince),
+            child: _statCell(t, label: l.profileMemberSince, value: memberSince),
           ),
         ),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(
           child: DhenuCard(
             padding: const EdgeInsets.all(DhenuSpacing.lg),
-            child: _statCell(t, label: 'Collection centre', value: centre),
+            child: _statCell(t, label: l.profileCollectionCentre, value: centre),
           ),
         ),
       ],
@@ -184,7 +186,7 @@ class ProfileTab extends ConsumerWidget {
   }
 
   // ── Settings card ──────────────────────────────────────────────────────────
-  Widget _settingsCard(BuildContext context, WidgetRef ref, DhenuTokens t, AuthUser? user) {
+  Widget _settingsCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, AuthUser? user) {
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -193,7 +195,7 @@ class ProfileTab extends ConsumerWidget {
           _settingsRow(
             context, t,
             icon: DhenuIcons.bank,
-            label: 'Bank & payout',
+            label: l.profileBankPayout,
             onTap: () => _push(context, const BankPayoutScreen()),
           ),
           _divider(t),
@@ -207,21 +209,21 @@ class ProfileTab extends ConsumerWidget {
           _settingsRow(
             context, t,
             icon: DhenuIcons.bell,
-            label: 'Notifications',
+            label: l.profileNotifications,
             onTap: () => _push(context, const NotificationsScreen()),
           ),
           _divider(t),
           _settingsRow(
             context, t,
             icon: DhenuIcons.help,
-            label: 'Help & support',
+            label: l.profileHelpSupport,
             onTap: () => _push(context, const HelpSupportScreen()),
           ),
           _divider(t),
           _settingsRow(
             context, t,
             icon: DhenuIcons.about,
-            label: 'About',
+            label: l.profileAbout,
             onTap: () => _push(context, const AboutScreen()),
             isLast: true,
           ),
@@ -282,7 +284,7 @@ class ProfileTab extends ConsumerWidget {
       );
 
   // ── Appearance card ────────────────────────────────────────────────────────
-  Widget _appearanceCard(BuildContext context, WidgetRef ref, DhenuTokens t, ThemeMode mode) {
+  Widget _appearanceCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, ThemeMode mode) {
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -294,15 +296,15 @@ class ProfileTab extends ConsumerWidget {
               DhenuSpacing.lg, DhenuSpacing.md, DhenuSpacing.lg, DhenuSpacing.sm,
             ),
             child: Text(
-              'APPEARANCE',
+              l.profileAppearance,
               style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.8),
             ),
           ),
-          _themeTile(ref, t, mode, ThemeMode.system, 'System default', DhenuIcons.sunMoon),
+          _themeTile(ref, t, mode, ThemeMode.system, l.profileThemeSystem, DhenuIcons.sunMoon),
           _divider(t),
-          _themeTile(ref, t, mode, ThemeMode.light, 'Light', DhenuIcons.sun),
+          _themeTile(ref, t, mode, ThemeMode.light, l.profileThemeLight, DhenuIcons.sun),
           _divider(t),
-          _themeTile(ref, t, mode, ThemeMode.dark, 'Dark', DhenuIcons.moon, isLast: true),
+          _themeTile(ref, t, mode, ThemeMode.dark, l.profileThemeDark, DhenuIcons.moon, isLast: true),
         ],
       ),
     );
@@ -355,11 +357,11 @@ class ProfileTab extends ConsumerWidget {
   }
 
   // ── Log out ────────────────────────────────────────────────────────────────
-  Widget _logoutButton(BuildContext context, WidgetRef ref, DhenuTokens t) {
+  Widget _logoutButton(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
     return OutlinedButton.icon(
       onPressed: () => ref.read(authProvider.notifier).logout(),
       icon: Icon(DhenuIcons.logout, size: 18, color: t.gradeC),
-      label: Text('Log out', style: DhenuText.button.copyWith(color: t.gradeC)),
+      label: Text(l.profileLogOut, style: DhenuText.button.copyWith(color: t.gradeC)),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
         side: BorderSide(color: t.gradeC.withValues(alpha: 0.36)),
