@@ -121,16 +121,28 @@ export class NodeOperatorService {
 
   async create(input: CreateNodeOperatorInput): Promise<OperatorRow> {
     return this.db.transaction(async (tx) => {
-      // Latest term supersedes: close any open active term for this node+role so
-      // only the newest comp arrangement is counted by the commission calculator.
-      await tx.update(mpNodeOperators)
-        .set({ isActive: false, effectiveTo: input.effectiveFrom, updatedAt: new Date() })
-        .where(and(
-          eq(mpNodeOperators.tenantId, this.tenantId),
-          eq(mpNodeOperators.nodeId, input.nodeId),
-          eq(mpNodeOperators.role, input.role),
-          eq(mpNodeOperators.isActive, true),
-        ));
+      // A node may carry several operators. "Latest term supersedes" applies only
+      // within the SAME operator (matched by linked user, else login phone) + role,
+      // so re-adding one person closes their prior comp term while distinct
+      // operators on the node coexist. With no user/phone to key on, supersede
+      // nothing — just add the operator.
+      const phoneDigits = input.loginPhone?.replace(/\D/g, '') || null;
+      const samePerson = input.userId
+        ? eq(mpNodeOperators.userId, input.userId)
+        : phoneDigits
+          ? sql`regexp_replace(coalesce(${mpNodeOperators.phone}, ''), '\\D', '', 'g') IN (${phoneDigits}, ${'91' + phoneDigits})`
+          : null;
+      if (samePerson) {
+        await tx.update(mpNodeOperators)
+          .set({ isActive: false, effectiveTo: input.effectiveFrom, updatedAt: new Date() })
+          .where(and(
+            eq(mpNodeOperators.tenantId, this.tenantId),
+            eq(mpNodeOperators.nodeId, input.nodeId),
+            eq(mpNodeOperators.role, input.role),
+            eq(mpNodeOperators.isActive, true),
+            samePerson,
+          ));
+      }
       const [row] = await tx.insert(mpNodeOperators).values({
         tenantId: this.tenantId,
         nodeId: input.nodeId,
