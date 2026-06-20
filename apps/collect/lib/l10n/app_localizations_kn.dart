@@ -1009,4 +1009,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get addFarmerScanBackHint => 'ವಿಳಾಸ';
+
+  @override
+  String get photoSourceTitle => 'ಫೋಟೋ ಸೇರಿಸಿ';
 }

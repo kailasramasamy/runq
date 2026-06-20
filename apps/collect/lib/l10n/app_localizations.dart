@@ -1983,6 +1983,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Address'**
   String get addFarmerScanBackHint;
+
+  /// No description provided for @photoSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photo'**
+  String get photoSourceTitle;
 }
 
 class _AppLocalizationsDelegate

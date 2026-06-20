@@ -1014,4 +1014,7 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get addFarmerScanBackHint => 'முகவரி';
+
+  @override
+  String get photoSourceTitle => 'புகைப்படம் சேர்க்கவும்';
 }

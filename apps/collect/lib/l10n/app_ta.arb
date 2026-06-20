@@ -313,5 +313,6 @@
   "addFarmerScanFront": "முன் பக்கம்",
   "addFarmerScanFrontHint": "பெயர், பிறந்த தேதி, எண்",
   "addFarmerScanBack": "பின் பக்கம்",
-  "addFarmerScanBackHint": "முகவரி"
+  "addFarmerScanBackHint": "முகவரி",
+  "photoSourceTitle": "புகைப்படம் சேர்க்கவும்"
 }

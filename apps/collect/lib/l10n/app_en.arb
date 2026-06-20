@@ -451,5 +451,6 @@
   "addFarmerScanFront": "Front side",
   "addFarmerScanFrontHint": "Name, DOB, number",
   "addFarmerScanBack": "Back side",
-  "addFarmerScanBackHint": "Address"
+  "addFarmerScanBackHint": "Address",
+  "photoSourceTitle": "Add photo"
 }

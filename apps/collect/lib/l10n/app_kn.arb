@@ -313,5 +313,6 @@
   "addFarmerScanFront": "ಮುಂಭಾಗ",
   "addFarmerScanFrontHint": "ಹೆಸರು, ಜನ್ಮ ದಿನಾಂಕ, ಸಂಖ್ಯೆ",
   "addFarmerScanBack": "ಹಿಂಭಾಗ",
-  "addFarmerScanBackHint": "ವಿಳಾಸ"
+  "addFarmerScanBackHint": "ವಿಳಾಸ",
+  "photoSourceTitle": "ಫೋಟೋ ಸೇರಿಸಿ"
 }

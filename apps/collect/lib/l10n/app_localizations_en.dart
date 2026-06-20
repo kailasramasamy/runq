@@ -1007,4 +1007,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addFarmerScanBackHint => 'Address';
+
+  @override
+  String get photoSourceTitle => 'Add photo';
 }

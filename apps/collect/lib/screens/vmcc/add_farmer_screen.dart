@@ -14,6 +14,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
+import '../../widgets/sheet_grabber.dart';
 import '../../widgets/primary_action.dart';
 import 'add_farmer_form_sections.dart';
 import 'add_farmer_herd_section.dart';
@@ -224,27 +225,49 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     final l = AppLocalizations.of(context);
     return showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: t.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(DhenuRadii.sheet),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
         ),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(DhenuIcons.camera),
-              title: Text(l.addFarmerCamera),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(DhenuIcons.images),
-              title: Text(l.addFarmerGallery),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SheetGrabber(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: DhenuSpacing.lg),
+                child: Text(l.photoSourceTitle,
+                    style: DhenuText.title.copyWith(color: t.ink)),
+              ),
+              Row(children: [
+                Expanded(
+                  child: _SourceTile(
+                    icon: DhenuIcons.camera,
+                    label: l.addFarmerCamera,
+                    onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                  ),
+                ),
+                const SizedBox(width: DhenuSpacing.md),
+                Expanded(
+                  child: _SourceTile(
+                    icon: DhenuIcons.images,
+                    label: l.addFarmerGallery,
+                    onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: DhenuSpacing.sm),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l.commonCancel,
+                    style: DhenuText.label.copyWith(color: t.inkSoft)),
+              ),
+            ]),
+          ),
         ),
       ),
     );
@@ -650,6 +673,42 @@ class _SideTile extends StatelessWidget {
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
             ]),
           ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// A large camera/gallery choice tile for the image-source sheet.
+class _SourceTile extends StatelessWidget {
+  const _SourceTile({required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(DhenuRadii.card),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
+        decoration: BoxDecoration(
+          color: t.inputFill,
+          borderRadius: BorderRadius.circular(DhenuRadii.card),
+          border: Border.all(color: t.hairline),
+        ),
+        child: Column(children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: t.brandSubtle, shape: BoxShape.circle),
+            child: Icon(icon, color: t.brand, size: 24),
+          ),
+          const SizedBox(height: DhenuSpacing.sm),
+          Text(label, style: DhenuText.label.copyWith(color: t.ink)),
         ]),
       ),
     );
