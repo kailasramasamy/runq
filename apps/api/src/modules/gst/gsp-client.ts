@@ -507,7 +507,7 @@ export class WhiteBooksGspClient implements GspClient {
     // ITC drained to discharge the liability (pditc only when credit covers
     // it — full adjustment, no pdcash, per WhiteBooks' note), plus the
     // mandatory nettaxpay.
-    const offsetBody = buildRetoffsetBody(gstin, period, preOffset, data);
+    const offsetBody = buildRetoffsetBody(gstin, period, preOffset);
     console.log(`${tag} offset PUT body=${JSON.stringify(offsetBody)}`);
     const offRes = await fetch(withEmail('/gstr3b/retoffset'), { method: 'PUT', headers: bodyHeaders, body: JSON.stringify(offsetBody) });
     const offJson = await offRes.json().catch(() => ({}));
@@ -1056,86 +1056,29 @@ export class WhiteBooksGspClient implements GspClient {
   }
 }
 
-/** Collect every value stored under `key` anywhere in a nested object/array. */
-function deepCollect(obj: unknown, key: string, out: unknown[] = []): unknown[] {
-  if (obj && typeof obj === 'object') {
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      if (k === key) out.push(v);
-      deepCollect(v, key, out);
-    }
-  }
-  return out;
-}
-
 /**
- * Build the /gstr3b/retoffset payload, per WhiteBooks' workflow doc:
- * "prepare the payload of retoffset with the data you got in Get GSTR3B
- * Summary." So the real GSTN-generated `liab_ldg_id` is pulled from the
- * saved-return summary (NOT 0 — that was the old RT-3BAS1070 bug).
+ * Build the /gstr3b/retoffset payload. GSTN PRE-COMPUTES the entire offset
+ * allocation — Rule-88A ITC utilization, the real `liab_ldg_id`, and the
+ * cash/ITC split — and returns it in the retsum response's `tx_pmt` block.
+ * Per WhiteBooks' workflow doc ("prepare the offset payload from the Get
+ * GSTR3B Summary response") we forward that block verbatim instead of
+ * recomputing it.
  *
- * ITC is drained to discharge the liability per Rule 88A (IGST credit first
- * → IGST, CGST, SGST; then own-head). When credit fully covers the
- * liability we send `pditc` ONLY and omit `pdcash` (full adjustment — per
- * WhiteBooks' note); `nettaxpay` (mandatory) is the residual cash.
- *
- * Liability + ITC amounts fall back to our generator's computed figures
- * (`computed.table61` / `table4.netItc`); the raw summary is logged at the
- * call site so the first live run can finalise the exact field mapping.
+ * Recomputing was the RT-3BAS1070 bug: a live Vrindavan retsum shows GSTN
+ * puts the IGST-credit→CGST/SGST utilization in `c_pdi`/`s_pdi` (both 7763),
+ * NOT `i_pdc`/`i_pds`, and uses a real `liab_ldg_id` (1039820722) — our
+ * hand-rolled `pditc` had the heads inverted and `liab_ldg_id: 0`, so it
+ * never matched GSTN's computed liability.
  */
-function buildRetoffsetBody(gstin: string, period: string, summary: Record<string, unknown>, computed?: Gstr3bData) {
-  const r = (n: number) => Math.round(n || 0);
-  // Real liability-ledger id GSTN created on save (deep-find — its nesting
-  // in the summary varies by GSP wrapper version). Fall back to 0 if absent.
-  const liabIds = deepCollect(summary, 'liab_ldg_id').map(Number).filter((n) => Number.isFinite(n) && n > 0);
-  const liabId = liabIds[0] ?? 0;
-
-  const t6 = computed?.table61;
-  const itc = computed?.table4.netItc ?? { igst: 0, cgst: 0, sgst: 0, cess: 0 };
-  const payable = {
-    igst: t6?.igst.payable ?? 0, cgst: t6?.cgst.payable ?? 0,
-    sgst: t6?.sgst.payable ?? 0, cess: t6?.cess.payable ?? 0,
-  };
-
-  // Rule 88A: drain IGST credit first (IGST→CGST→SGST), then own-head credit.
-  let ig = itc.igst;
-  const i_pdi = Math.min(ig, payable.igst); ig -= i_pdi;
-  const i_pdc = Math.min(ig, payable.cgst); ig -= i_pdc;
-  const i_pds = Math.min(ig, payable.sgst); ig -= i_pds;
-  const c_pdc = Math.min(itc.cgst, Math.max(0, payable.cgst - i_pdc));
-  const s_pds = Math.min(itc.sgst, Math.max(0, payable.sgst - i_pds));
-  const cs_pdcs = Math.min(itc.cess, payable.cess);
-
-  // Cash covers whatever ITC could not.
-  const cash = {
-    igst: Math.max(0, payable.igst - i_pdi),
-    cgst: Math.max(0, payable.cgst - i_pdc - c_pdc),
-    sgst: Math.max(0, payable.sgst - i_pds - s_pds),
-    cess: Math.max(0, payable.cess - cs_pdcs),
-  };
-  const cashTotal = cash.igst + cash.cgst + cash.sgst + cash.cess;
-
-  const body: Record<string, unknown> = {
-    gstin,
-    ret_period: period,
-    nettaxpay: r(cashTotal),  // mandatory per WhiteBooks doc
-    pditc: {
-      liab_ldg_id: liabId,
-      trans_typ: 30002,
-      i_pdi: r(i_pdi), i_pdc: r(i_pdc), i_pds: r(i_pds),
-      c_pdc: r(c_pdc), c_pdi: 0,
-      s_pds: r(s_pds), s_pdi: 0,
-      cs_pdcs: r(cs_pdcs),
-    },
-  };
-  // Full adjustment through ITC → omit pdcash entirely (WhiteBooks' note).
-  if (cashTotal > 0) {
-    body.pdcash = [{
-      liab_ldg_id: liabId,
-      trans_typ: 30002,
-      ipd: r(cash.igst), cpd: r(cash.cgst), spd: r(cash.sgst), cspd: r(cash.cess),
-      i_intrpd: 0, c_intrpd: 0, s_intrpd: 0, cs_intrpd: 0, c_lfeepd: 0, s_lfeepd: 0,
-    }];
-  }
+function buildRetoffsetBody(gstin: string, period: string, summary: Record<string, unknown>) {
+  const tx = (summary?.tx_pmt ?? {}) as Record<string, unknown>;
+  const body: Record<string, unknown> = { gstin, ret_period: period };
+  // Forward GSTN's own computed allocation. pditc is always present; pdcash /
+  // pdnls only when non-empty; net_tax_pay → the mandatory nettaxpay field.
+  if (tx.pditc) body.pditc = tx.pditc;
+  if (Array.isArray(tx.pdcash) && tx.pdcash.length > 0) body.pdcash = tx.pdcash;
+  if (Array.isArray(tx.pdnls) && tx.pdnls.length > 0) body.pdnls = tx.pdnls;
+  if (tx.net_tax_pay) body.nettaxpay = tx.net_tax_pay;
   return body;
 }
 
