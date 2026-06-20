@@ -148,7 +148,6 @@ class _FarmerDetailsTab extends StatelessWidget {
           FarmerAvatar(
             farmer: farmer,
             radius: 28,
-            heroTag: 'farmer-photo-${farmer.id}',
             onTap: farmer.hasPhoto
                 ? () => showFarmerPhoto(context, farmer)
                 : null,

@@ -44,27 +44,26 @@ class _FarmerPhotoPage extends StatelessWidget {
       body: GestureDetector(
         onTap: () => Navigator.of(context).pop(),
         child: Center(
-          child: Hero(
-            tag: 'farmer-photo-${farmer.id}',
-            child: InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 6.0,
-              child: Image.network(
-                url,
-                headers:
-                    token != null ? {'Authorization': 'Bearer $token'} : const {},
-                fit: BoxFit.contain,
-                loadingBuilder: (_, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  );
-                },
-                errorBuilder: (context2, error, stackTrace) => const Icon(
-                  Icons.broken_image_outlined,
-                  color: Colors.white54,
-                  size: 64,
-                ),
+          // No Hero here: a Hero flight around an unsized network image inside an
+          // InteractiveViewer asserts during layout. The fade transition suffices.
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 6.0,
+            child: Image.network(
+              url,
+              headers:
+                  token != null ? {'Authorization': 'Bearer $token'} : const {},
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              },
+              errorBuilder: (context2, error, stackTrace) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white54,
+                size: 64,
               ),
             ),
           ),
