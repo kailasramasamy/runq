@@ -49,6 +49,8 @@ dependencies:
   # Deep-link to the app's Settings page when mic permission is denied.
   permission_handler: ^11.3.1
   flutter_lucide: ^1.11.0
+  # Renders the milk-drop splash icon (vector).
+  flutter_svg: ^2.0.10
 
   # Add Farmer — camera/gallery photo pick and GPS location capture.
   image_picker: ^1.1.2
