@@ -392,7 +392,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           const SizedBox(height: DhenuSpacing.md),
           _farmerField(t),
           const SizedBox(height: DhenuSpacing.lg),
-          ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s)),
+          ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s), expand: true),
           const SizedBox(height: DhenuSpacing.lg),
           _milkTypePicker(t),
           const SizedBox(height: DhenuSpacing.lg),

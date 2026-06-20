@@ -12,10 +12,17 @@ class ShiftToggle extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.expand = false,
   });
 
   final Shift value;
   final ValueChanged<Shift> onChanged;
+
+  /// Fill the available width (segments split 50/50). Only safe where width is
+  /// bounded; leave false inside a Row/horizontal scroll, where it shrink-wraps.
+  final bool expand;
+
+  Widget _wrap(Widget segment) => expand ? Expanded(child: segment) : segment;
 
   @override
   Widget build(BuildContext context) {
@@ -28,29 +35,26 @@ class ShiftToggle extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(3),
       child: Row(
+        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Expanded(
-            child: _Segment(
-              emoji: '☀️',
-              label: l.shiftAm,
-              selected: value == Shift.am,
-              selectedColor: t.am,
-              inkSoft: t.inkSoft,
-              ink: t.ink,
-              onTap: () => onChanged(Shift.am),
-            ),
-          ),
-          Expanded(
-            child: _Segment(
-              emoji: '🌙',
-              label: l.shiftPm,
-              selected: value == Shift.pm,
-              selectedColor: t.pm,
-              inkSoft: t.inkSoft,
-              ink: t.ink,
-              onTap: () => onChanged(Shift.pm),
-            ),
-          ),
+          _wrap(_Segment(
+            emoji: '☀️',
+            label: l.shiftAm,
+            selected: value == Shift.am,
+            selectedColor: t.am,
+            inkSoft: t.inkSoft,
+            ink: t.ink,
+            onTap: () => onChanged(Shift.am),
+          )),
+          _wrap(_Segment(
+            emoji: '🌙',
+            label: l.shiftPm,
+            selected: value == Shift.pm,
+            selectedColor: t.pm,
+            inkSoft: t.inkSoft,
+            ink: t.ink,
+            onTap: () => onChanged(Shift.pm),
+          )),
         ],
       ),
     );
@@ -84,7 +88,7 @@ class _Segment extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-        constraints: const BoxConstraints(minHeight: DhenuSpacing.minTap),
+        constraints: const BoxConstraints(minWidth: 80, minHeight: DhenuSpacing.minTap),
         decoration: BoxDecoration(
           color: selected ? selectedColor.withValues(alpha: 0.18) : Colors.transparent,
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
