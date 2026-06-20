@@ -483,115 +483,74 @@ export class WhiteBooksGspClient implements GspClient {
     // filing attempt across all three steps.
     const tag = `[GST 3B file ${gstin}/${period}]`;
 
-    // Step 1: Offset liability (computes cash + ITC utilization for the
-    // saved 3B).
-    //
-    // **KNOWN BROKEN** — Vrindavan Apr 042026 testing (May 17 2026)
-    // proved WhiteBooks' /gstr3b/retoffset returns RT-3BAS1070
-    // ("PARTIAL/EXCESS payment") regardless of payload values. Six
-    // variants tested including the Rule-88A-correct allocation that
-    // GSTN's portal performs internally (drain IGST credit first across
-    // both CGST + SGST liabilities). Same error each time. Auth chain
-    // proven healthy via retsave + retsum working in the same session.
-    //
-    // The actual GSTN endpoint the portal hits is dead simple:
-    //   GET /returns/auth/api/gstr3b/offsetliab?rtn_prd=042026
-    //   → {"status":1,"data":"{\"status_cd\":1}"}
-    // Bare GET, NO body. GSTN computes offset server-side from saved
-    // 3B + ITC + cash ledger. WhiteBooks needs to expose an equivalent
-    // (likely `/gstr3b/offsetliab` or similar) or fix `/retoffset`.
-    //
-    // The Rule 88A allocation GSTN actually performs (from portal
-    // DevTools capture, Vrindavan Apr 042026):
-    //   IGST credit → CGST liability: full amount (₹6,184)
-    //   IGST credit → SGST liability: full amount (₹6,184)
-    //   own CGST/SGST credits: untouched
-    // i.e. drain IGST first across both, only then own-head credits,
-    // only then cash. `liab_id` is OUTPUT of offset, not input.
-    //
-    // Until WhiteBooks confirms the right endpoint, send the Rule-88A
-    // correct pdcash + pditc body anyway — closest to what GSTN does
-    // internally. May start working if WhiteBooks fixes their wrapper
-    // without us redeploying. Falls back to legacy minimal body if
-    // `data` isn't available (e.g. older call sites).
-    const submitHeaders = { ...commonHeaders(username, stateCode, token.txn), gstin, ret_period: period };
-    const submitBody: Record<string, unknown> = data
-      ? buildRetoffsetBody(gstin, period, data)
-      : { gstin, ret_period: period };
-    console.log(`${tag} step1 retoffset PUT body=${JSON.stringify(submitBody)}`);
-    const submitRes = await fetch(withEmail('/gstr3b/retoffset'), {
-      method: 'PUT',
-      headers: submitHeaders,
-      body: JSON.stringify(submitBody),
-    });
-    const submitData = await submitRes.json();
-    console.log(`${tag} step1 retoffset http=${submitRes.status} resp=${JSON.stringify(submitData)}`);
-    const offsetOk = submitData?.status_cd === '1' || submitData?.status === 1
-      // Some GSPs return a refid+ackno on async accept — treat as OK and rely on retsum.
-      || !!submitData?.data?.reference_id || !!submitData?.data?.refid;
-    if (!offsetOk && submitData?.error) {
-      const err = submitData.error;
-      console.error(`${tag} step1 retoffset FAILED`, JSON.stringify(submitData));
+    // WhiteBooks GSTR-3B file flow (per their official workflow doc):
+    //   retsum → retoffset(payload built FROM the summary) → retsum again
+    //   → retevcfile(the summary's `data` object verbatim).
+    // The old code built the offset from our own table61/netItc with
+    // liab_ldg_id=0 and filed only a {chksum} stub — both rejected by GSTN
+    // (RT-3BAS1070). This now follows the documented sequence.
+    const authHeaders = commonHeaders(username, stateCode, token.txn);
+    const bodyHeaders = { ...authHeaders, gstin, ret_period: period };
+    const retsum = async (label: string): Promise<Record<string, unknown>> => {
+      const res = await fetch(withEmail('/gstr3b/retsum', { gstin, retperiod: period }), { method: 'GET', headers: authHeaders });
+      const json = await res.json().catch(() => ({}));
+      console.log(`${tag} ${label} retsum http=${res.status} resp=${JSON.stringify(json)}`);
+      return (json?.data ?? json ?? {}) as Record<string, unknown>;
+    };
+
+    // Step 1: pre-offset summary. GSTN generates the liability ledger on
+    // save; this carries the real liab_ldg_id(s) + computed liability that
+    // the offset must reference and match exactly.
+    const preOffset = await retsum('pre-offset');
+
+    // Step 2: offset liability — built FROM the summary: real liab_ldg_id,
+    // ITC drained to discharge the liability (pditc only when credit covers
+    // it — full adjustment, no pdcash, per WhiteBooks' note), plus the
+    // mandatory nettaxpay.
+    const offsetBody = buildRetoffsetBody(gstin, period, preOffset, data);
+    console.log(`${tag} offset PUT body=${JSON.stringify(offsetBody)}`);
+    const offRes = await fetch(withEmail('/gstr3b/retoffset'), { method: 'PUT', headers: bodyHeaders, body: JSON.stringify(offsetBody) });
+    const offJson = await offRes.json().catch(() => ({}));
+    console.log(`${tag} offset http=${offRes.status} resp=${JSON.stringify(offJson)}`);
+    const offsetOk = offJson?.status_cd === '1' || offJson?.status === 1
+      || !!offJson?.data?.reference_id || !!offJson?.data?.refid;
+    if (!offsetOk) {
+      const err = offJson?.error ?? {};
+      console.error(`${tag} offset FAILED`, JSON.stringify(offJson));
       const code = err.error_cd || err.code || 'OFFSET_FAILED';
-      // Known GSTN error codes: rewrite to a clearer, single-line
-      // message. The raw text is preserved in server logs above.
       const friendly: Record<string, string> = {
-        'RT-3BGC-9017': 'GSTN saved-3B is out of sync with the offset pipeline (RT-3BGC-9017). Auto-healing by re-saving and retrying — if you still see this after one retry, wait 2 minutes and try again.',
+        'RT-3BGC-9017': 'GSTN saved-3B is out of sync with the offset pipeline (RT-3BGC-9017). Re-save and retry; if it persists wait ~2 minutes.',
+        'RT-3BAS1070': 'GSTN rejected the offset (RT-3BAS1070 partial/excess). The pdcash/pditc must equal GSTN’s computed liability exactly.',
       };
       return {
         success: false,
         errors: [{
           code,
           message: friendly[code]
-            || (err.message || err.error_msg || 'Liability offset failed — payment may be pending. Check cash ledger and retry.').trim().replace(/\s+/g, ' '),
+            || (err.message || err.error_msg || 'Liability offset failed — check the cash/credit ledger and retry.').trim().replace(/\s+/g, ' '),
         }],
       };
     }
 
-    // Step 2: Fetch the GSTN summary for the chksum needed by retevcfile.
-    // WhiteBooks has wrapped the chksum under different keys across
-    // versions; try the known locations before giving up.
-    const sumUrl = withEmail('/gstr3b/retsum', { gstin, retperiod: period });
-    const sumRes = await fetch(sumUrl, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
-    const sumData = await sumRes.json();
-    console.log(`${tag} step2 retsum http=${sumRes.status} resp=${JSON.stringify(sumData)}`);
-    const chksum = sumData?.data?.chksum
-      ?? sumData?.chksum
-      ?? sumData?.data?.summary?.chksum
-      ?? sumData?.data?.gstr3b?.chksum
-      ?? sumData?.data?.data?.chksum;
-    if (!chksum) {
-      console.error(`${tag} step2 retsum NO_CHKSUM`, JSON.stringify(sumData));
-      const apiErr = sumData?.error?.message || sumData?.error?.error_msg;
+    // Step 3: post-offset summary. Per WhiteBooks, the `data` object of THIS
+    // response IS the retevcfile payload (we used to file just a {chksum}).
+    const filePayload = await retsum('post-offset');
+    if (!filePayload || Object.keys(filePayload).length === 0) {
       return {
         success: false,
-        errors: [{
-          code: 'NO_CHKSUM',
-          message: apiErr
-            ? `GSTN summary error: ${apiErr}`
-            : 'Could not fetch GSTR-3B checksum from GSTN summary. Liability offset may not have completed — wait a minute and retry, or re-upload the draft.',
-        }],
+        errors: [{ code: 'NO_SUMMARY', message: 'Could not fetch the post-offset GSTR-3B summary needed to file. The offset may not have completed — wait a minute and retry.' }],
       };
     }
 
-    const url = withEmail('/gstr3b/retevcfile', { pan, evcotp: '***' });
-    const headers = {
-      ...commonHeaders(username, stateCode, token.txn),
-      'gstin': gstin,
-      'ret_period': period,
-    };
-
-    const fileBody = { gstin, ret_period: period, chksum, isnil: 'N' };
-    console.log(`${tag} step3 retevcfile POST url=${url.replace(/evcotp=\*\*\*/, 'evcotp=<6digits>')} body=${JSON.stringify(fileBody)}`);
-    const res = await fetch(withEmail('/gstr3b/retevcfile', { pan, evcotp: evc }), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(fileBody),
-    });
-    const result = await res.json();
-    console.log(`${tag} step3 retevcfile http=${res.status} resp=${JSON.stringify(result)}`);
+    // Step 4: file with EVC. Body = the retsum `data` object (per WhiteBooks
+    // doc); pan + evc go in the query string (same as GSTR-1 retevcfile).
+    const fileUrl = withEmail('/gstr3b/retevcfile', { pan, evcotp: evc });
+    console.log(`${tag} file POST url=${fileUrl.replace(/evcotp=\d+/, 'evcotp=<otp>')} payloadKeys=${Object.keys(filePayload).join(',')}`);
+    const res = await fetch(fileUrl, { method: 'POST', headers: bodyHeaders, body: JSON.stringify(filePayload) });
+    const result = await res.json().catch(() => ({}));
+    console.log(`${tag} file http=${res.status} resp=${JSON.stringify(result)}`);
     if (!(result.status_cd === '1' || result.status === 1)) {
-      console.error(`${tag} step3 retevcfile FAILED`, JSON.stringify(result));
+      console.error(`${tag} file FAILED`, JSON.stringify(result));
     }
 
     return {
@@ -1097,67 +1056,87 @@ export class WhiteBooksGspClient implements GspClient {
   }
 }
 
+/** Collect every value stored under `key` anywhere in a nested object/array. */
+function deepCollect(obj: unknown, key: string, out: unknown[] = []): unknown[] {
+  if (obj && typeof obj === 'object') {
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (k === key) out.push(v);
+      deepCollect(v, key, out);
+    }
+  }
+  return out;
+}
+
 /**
- * Build the pdcash + pditc body for /gstr3b/retoffset.
+ * Build the /gstr3b/retoffset payload, per WhiteBooks' workflow doc:
+ * "prepare the payload of retoffset with the data you got in Get GSTR3B
+ * Summary." So the real GSTN-generated `liab_ldg_id` is pulled from the
+ * saved-return summary (NOT 0 — that was the old RT-3BAS1070 bug).
  *
- * Implements Rule 88A: IGST credit MUST be exhausted first — against
- * IGST liability, then against CGST, then against SGST. Only after IGST
- * is fully drained do we use own-head CGST/SGST credits. Anything still
- * unpaid hits the cash ledger. Confirmed via portal DevTools capture
- * (Vrindavan Apr 042026) — GSTN's own algorithm follows this exact
- * sequence and rejects any other allocation with RT-3BAS1070.
+ * ITC is drained to discharge the liability per Rule 88A (IGST credit first
+ * → IGST, CGST, SGST; then own-head). When credit fully covers the
+ * liability we send `pditc` ONLY and omit `pdcash` (full adjustment — per
+ * WhiteBooks' note); `nettaxpay` (mandatory) is the residual cash.
  *
- * Liability values are taken from data.table61 (post-88A compute by our
- * generator) and ITC availability from data.table4.netItc. All values
- * rounded to integer rupees (matches what GSTN's tx_pmt returns).
+ * Liability + ITC amounts fall back to our generator's computed figures
+ * (`computed.table61` / `table4.netItc`); the raw summary is logged at the
+ * call site so the first live run can finalise the exact field mapping.
  */
-function buildRetoffsetBody(gstin: string, period: string, data: Gstr3bData) {
+function buildRetoffsetBody(gstin: string, period: string, summary: Record<string, unknown>, computed?: Gstr3bData) {
   const r = (n: number) => Math.round(n || 0);
-  const t6 = data.table61;
-  const itc = data.table4.netItc;
+  // Real liability-ledger id GSTN created on save (deep-find — its nesting
+  // in the summary varies by GSP wrapper version). Fall back to 0 if absent.
+  const liabIds = deepCollect(summary, 'liab_ldg_id').map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  const liabId = liabIds[0] ?? 0;
 
-  // IGST credit cascade per Rule 88A.
-  let igstRemain = itc.igst;
-  const igstToIgst = Math.min(igstRemain, t6.igst.payable);
-  igstRemain -= igstToIgst;
-  const igstToCgst = Math.min(igstRemain, t6.cgst.payable);
-  igstRemain -= igstToCgst;
-  const igstToSgst = Math.min(igstRemain, t6.sgst.payable);
-  // (any igstRemain left over carries forward as unutilized ITC)
+  const t6 = computed?.table61;
+  const itc = computed?.table4.netItc ?? { igst: 0, cgst: 0, sgst: 0, cess: 0 };
+  const payable = {
+    igst: t6?.igst.payable ?? 0, cgst: t6?.cgst.payable ?? 0,
+    sgst: t6?.sgst.payable ?? 0, cess: t6?.cess.payable ?? 0,
+  };
 
-  // Own-head credit covers whatever IGST didn't.
-  const cgstOwnUsed = Math.min(itc.cgst, t6.cgst.payable - igstToCgst);
-  const sgstOwnUsed = Math.min(itc.sgst, t6.sgst.payable - igstToSgst);
-  const cessUsed = Math.min(itc.cess, t6.cess.payable);
+  // Rule 88A: drain IGST credit first (IGST→CGST→SGST), then own-head credit.
+  let ig = itc.igst;
+  const i_pdi = Math.min(ig, payable.igst); ig -= i_pdi;
+  const i_pdc = Math.min(ig, payable.cgst); ig -= i_pdc;
+  const i_pds = Math.min(ig, payable.sgst); ig -= i_pds;
+  const c_pdc = Math.min(itc.cgst, Math.max(0, payable.cgst - i_pdc));
+  const s_pds = Math.min(itc.sgst, Math.max(0, payable.sgst - i_pds));
+  const cs_pdcs = Math.min(itc.cess, payable.cess);
 
-  return {
+  // Cash covers whatever ITC could not.
+  const cash = {
+    igst: Math.max(0, payable.igst - i_pdi),
+    cgst: Math.max(0, payable.cgst - i_pdc - c_pdc),
+    sgst: Math.max(0, payable.sgst - i_pds - s_pds),
+    cess: Math.max(0, payable.cess - cs_pdcs),
+  };
+  const cashTotal = cash.igst + cash.cgst + cash.sgst + cash.cess;
+
+  const body: Record<string, unknown> = {
     gstin,
     ret_period: period,
-    pdcash: [{
-      // liab_ldg_id is OUTPUT not INPUT — GSTN generates it post-offset.
-      // Sending 0 is correct per Vrindavan Apr 042026 test.
-      liab_ldg_id: 0,
-      trans_typ: 30002,
-      ipd: r(t6.igst.cashPaid),
-      cpd: r(t6.cgst.cashPaid),
-      spd: r(t6.sgst.cashPaid),
-      cspd: r(t6.cess.cashPaid),
-      c_intrpd: 0, c_lfeepd: 0, cs_intrpd: 0,
-      i_intrpd: 0, s_intrpd: 0, s_lfeepd: 0,
-    }],
+    nettaxpay: r(cashTotal),  // mandatory per WhiteBooks doc
     pditc: {
-      liab_ldg_id: 0,
+      liab_ldg_id: liabId,
       trans_typ: 30002,
-      i_pdi: r(igstToIgst),
-      i_pdc: r(igstToCgst),
-      i_pds: r(igstToSgst),
-      c_pdc: r(cgstOwnUsed),
-      c_pdi: 0,                         // CGST → IGST not allowed (one-way)
-      s_pdi: 0,                         // SGST → IGST not allowed
-      s_pds: r(sgstOwnUsed),
-      cs_pdcs: r(cessUsed),
+      i_pdi: r(i_pdi), i_pdc: r(i_pdc), i_pds: r(i_pds),
+      c_pdc: r(c_pdc), c_pdi: 0,
+      s_pds: r(s_pds), s_pdi: 0,
+      cs_pdcs: r(cs_pdcs),
     },
   };
+  // Full adjustment through ITC → omit pdcash entirely (WhiteBooks' note).
+  if (cashTotal > 0) {
+    body.pdcash = [{
+      liab_ldg_id: liabId,
+      trans_typ: 30002,
+      ipd: r(cash.igst), cpd: r(cash.cgst), spd: r(cash.sgst), cspd: r(cash.cess),
+      i_intrpd: 0, c_intrpd: 0, s_intrpd: 0, cs_intrpd: 0, c_lfeepd: 0, s_lfeepd: 0,
+    }];
+  }
+  return body;
 }
 
 // ── Factory ────────────────────────────────────────────────────────────
