@@ -35,6 +35,9 @@ const zeroTax = (): TaxTotals => ({ igst: 0, cgst: 0, sgst: 0, cess: 0 });
 const addTax = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
   igst: a.igst + b.igst, cgst: a.cgst + b.cgst, sgst: a.sgst + b.sgst, cess: a.cess + b.cess,
 });
+const subTax = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
+  igst: a.igst - b.igst, cgst: a.cgst - b.cgst, sgst: a.sgst - b.sgst, cess: a.cess - b.cess,
+});
 
 export type Itc2bEntry = {
   supplierGstin: string;
@@ -46,16 +49,32 @@ export type Itc2bEntry = {
   cessAmount: number;
 };
 
+// A 2B credit/debit note. Amounts are the ITC REDUCTION (positive for a credit
+// note, negative for a debit note), so they always subtract from ITC available
+// — mirroring how GSTN nets `cdnr` against `b2b` in its 2B `itcsumm`.
+export type Itc2bCreditNote = {
+  supplierGstin: string;
+  reverseCharge: boolean;
+  igstAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  cessAmount: number;
+};
+
 /**
- * Build GSTR-3B Table 4 from parsed 2B entries. The full 2B is claimed into
- * 4(A) (GSTN auto-populates it the same way); lines the tenant flagged
- * ineligible — looked up via the caller's normalized key — are reversed in
- * 4(B): sec_17_5/personal → 4(B)(1) (rules 38/42/43 & §17(5)), not_our_supply/
- * other → 4(B)(2). Net ITC (4C) = available − reversed, so blocked/personal/
- * not-our-supply credits are excluded. Pure & deterministic — no DB, no rounding.
+ * Build GSTR-3B Table 4 from parsed 2B entries. The full 2B B2B ITC is claimed
+ * into 4(A), then **credit notes (cdnr) are netted off** — exactly as GSTN does
+ * in its 2B `itcsumm` (nonrevsup.b2b − othersup.cdnr) — so 4(A) matches GSTN's
+ * auto-population. Lines the tenant flagged ineligible (looked up via the
+ * caller's normalized key) are reversed in 4(B): sec_17_5/personal → 4(B)(1)
+ * (rules 38/42/43 & §17(5)), not_our_supply/other → 4(B)(2). A credit note from
+ * a supplier whose supplies are flagged ineligible also reduces that reversal,
+ * so a fully-ineligible supplier still nets to zero. Net ITC (4C) = available −
+ * reversed. Pure & deterministic — no DB, no rounding.
  */
 export function buildItcTable4(
   entries: Itc2bEntry[],
+  creditNotes: Itc2bCreditNote[],
   ineligibleReasonByKey: Map<string, ItcIneligReason>,
   keyOf: (gstin: string, invoiceNumber: string) => string,
 ): Gstr3bData['table4'] {
@@ -64,15 +83,28 @@ export function buildItcTable4(
   const rule4243 = zeroTax();   // 4(B)(1)
   const others = zeroTax();     // 4(B)(2)
 
+  // Supplier-level ineligibility, so a credit note (which has its own doc no)
+  // can be matched to a flagged supplier. A supplier is ineligible if any of
+  // its invoices is flagged; its CN inherits the same reason/bucket.
+  const reasonByGstin = new Map<string, ItcIneligReason>();
+  for (const [k, r] of ineligibleReasonByKey) reasonByGstin.set(k.split('|')[0], r);
+  const bucketFor = (reason: ItcIneligReason) =>
+    reason === 'sec_17_5' || reason === 'personal' ? rule4243 : others;
+
   for (const e of entries) {
     const tax: TaxTotals = { igst: e.igstAmount, cgst: e.cgstAmount, sgst: e.sgstAmount, cess: e.cessAmount };
     if (e.reverseCharge) Object.assign(rcm, addTax(rcm, tax));
     else Object.assign(allOther, addTax(allOther, tax));
     const reason = ineligibleReasonByKey.get(keyOf(e.supplierGstin, e.invoiceNumber));
-    if (reason) {
-      const bucket = reason === 'sec_17_5' || reason === 'personal' ? rule4243 : others;
-      Object.assign(bucket, addTax(bucket, tax));
-    }
+    if (reason) Object.assign(bucketFor(reason), addTax(bucketFor(reason), tax));
+  }
+
+  for (const c of creditNotes) {
+    const tax: TaxTotals = { igst: c.igstAmount, cgst: c.cgstAmount, sgst: c.sgstAmount, cess: c.cessAmount };
+    if (c.reverseCharge) Object.assign(rcm, subTax(rcm, tax));
+    else Object.assign(allOther, subTax(allOther, tax));
+    const reason = reasonByGstin.get(c.supplierGstin);
+    if (reason) Object.assign(bucketFor(reason), subTax(bucketFor(reason), tax));
   }
 
   const available = addTax(rcm, allOther);
@@ -149,7 +181,8 @@ export class Gstr2bReconciliationService {
     if (!stored) return null;
 
     const entries = this.parse2bEntries(stored.data);
-    if (entries.length === 0) return null;
+    const creditNotes = this.parseCreditNotes2b(stored.data);
+    if (entries.length === 0 && creditNotes.length === 0) return null;
 
     // Tenant-flagged ineligible lines → reversed in Table 4(B). Keyed by the
     // same normalized (gstin|invoice) key reconciliation uses, so the lookup
@@ -158,7 +191,7 @@ export class Gstr2bReconciliationService {
     const ineligibleReasonByKey = new Map<string, ItcIneligReason>(
       decisions.map((d) => [this.matchKey(d.supplierGstin, d.docNo), d.reason as ItcIneligReason]),
     );
-    return buildItcTable4(entries, ineligibleReasonByKey, (g, i) => this.matchKey(g, i));
+    return buildItcTable4(entries, creditNotes, ineligibleReasonByKey, (g, i) => this.matchKey(g, i));
   }
 
   // ── ITC eligibility decisions ────────────────────────────────────────
@@ -785,6 +818,53 @@ export class Gstr2bReconciliationService {
     }
 
     return entries;
+  }
+
+  /**
+   * Parse 2B credit/debit notes (`docdata.cdnr`). Amounts are returned as the
+   * ITC REDUCTION: a credit note (typ 'C') reduces ITC (positive), a debit note
+   * (typ 'D') increases it (negative), so buildItcTable4 can subtract them
+   * uniformly — matching GSTN's `itcsumm` which nets cdnr against b2b.
+   */
+  private parseCreditNotes2b(rawData: unknown): Itc2bCreditNote[] {
+    const root = rawData as any;
+    const l1 = root?.data ?? root;
+    const l2 = l1?.data ?? l1;
+    const docdata = l2?.docdata ?? l2;
+    const cdnrDocs = docdata?.cdnr ?? [];
+    const notes: Itc2bCreditNote[] = [];
+
+    for (const supplier of cdnrDocs) {
+      const gstin = supplier.ctin || supplier.supplierGstin || '';
+      for (const nt of (supplier.nt || supplier.notes || [])) {
+        // Debit notes add ITC; credit notes reduce it. Sign so the result is
+        // always a reduction that buildItcTable4 subtracts.
+        const sign = (nt.typ === 'D' || nt.ntty === 'D') ? -1 : 1;
+        const items = nt.itms || nt.items || [];
+        let igst = 0, cgst = 0, sgst = 0, cess = 0;
+        if (items.length > 0) {
+          for (const item of items) {
+            const det = item.itm_det || item;
+            igst += det.iamt || det.igstAmount || 0;
+            cgst += det.camt || det.cgstAmount || 0;
+            sgst += det.samt || det.sgstAmount || 0;
+            cess += det.csamt || det.cessAmount || 0;
+          }
+        } else {
+          igst = nt.igst || 0; cgst = nt.cgst || 0; sgst = nt.sgst || 0; cess = nt.cess || 0;
+        }
+        notes.push({
+          supplierGstin: gstin,
+          reverseCharge: (nt.rchrg === 'Y' || nt.reverseCharge === true),
+          igstAmount: sign * igst,
+          cgstAmount: sign * cgst,
+          sgstAmount: sign * sgst,
+          cessAmount: sign * cess,
+        });
+      }
+    }
+
+    return notes;
   }
 
   private periodToDateRange(period: string): { periodStart: string; periodEnd: string } {

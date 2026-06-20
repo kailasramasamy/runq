@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildItcTable4, type Itc2bEntry, type ItcIneligReason } from './gstr2b-reconciliation';
+import { buildItcTable4, type Itc2bEntry, type Itc2bCreditNote, type ItcIneligReason } from './gstr2b-reconciliation';
 
 // Mirror the service's normalization closely enough for the test: strip
 // separators + lowercase. buildItcTable4 only requires the SAME keyer be used
@@ -33,7 +33,7 @@ const ALL = [...ELIGIBLE, ...INELIGIBLE];
 
 describe('buildItcTable4', () => {
   it('claims the full 2B and reverses nothing when no line is flagged', () => {
-    const t4 = buildItcTable4(ALL, new Map(), keyOf);
+    const t4 = buildItcTable4(ALL, [], new Map(), keyOf);
     // 4(A)(5) = full 2B
     expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(2417.61, 2);
     expect(t4.itcAvailable.allOtherItc.sgst).toBeCloseTo(2417.61, 2);
@@ -49,7 +49,7 @@ describe('buildItcTable4', () => {
     const flagged = new Map<string, ItcIneligReason>(
       INELIGIBLE.map((e) => [keyOf(e.supplierGstin, e.invoiceNumber), 'not_our_supply']),
     );
-    const t4 = buildItcTable4(ALL, flagged, keyOf);
+    const t4 = buildItcTable4(ALL, [], flagged, keyOf);
     // 4(A)(5) still the full 2B (matches GSTN auto-population)
     expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(2417.61, 2);
     // not_our_supply routes to 4(B)(2) others, not 4(B)(1)
@@ -69,7 +69,7 @@ describe('buildItcTable4', () => {
       [keyOf('29AAJCC9783E1Z3', 'SBLZ-64762'), 'personal'],   // cgst/sgst 7.55
       [keyOf('06AAVCA5575G1Z7', 'XNXW-10257'), 'other'],      // igst 167.03
     ]);
-    const t4 = buildItcTable4(ALL, flagged, keyOf);
+    const t4 = buildItcTable4(ALL, [], flagged, keyOf);
     // 4(B)(1) = sec_17_5 + personal
     expect(t4.itcReversed.rule4243.cgst).toBeCloseTo(588.05, 2);
     expect(t4.itcReversed.rule4243.sgst).toBeCloseTo(588.05, 2);
@@ -84,10 +84,54 @@ describe('buildItcTable4', () => {
     const flagged = new Map<string, ItcIneligReason>([
       [keyOf(rcmEntry.supplierGstin, rcmEntry.invoiceNumber), 'sec_17_5'],
     ]);
-    const t4 = buildItcTable4([rcmEntry], flagged, keyOf);
+    const t4 = buildItcTable4([rcmEntry], [], flagged, keyOf);
     expect(t4.itcAvailable.inwardReverseCharge.igst).toBeCloseTo(100, 2);
     expect(t4.itcAvailable.allOtherItc.igst).toBeCloseTo(0, 2);
     expect(t4.itcReversed.rule4243.igst).toBeCloseTo(100, 2);
     expect(t4.netItc.igst).toBeCloseTo(0, 2);
+  });
+
+  it('nets a credit note from an ELIGIBLE supplier off 4(A) and net, not the reversal (real Sanathana case)', () => {
+    // Sanathana (eligible) issued a CN of 110.59 cgst/sgst — GSTN nets it against b2b.
+    const cn: Itc2bCreditNote[] = [
+      { supplierGstin: '29ABDCS3593F1Z1', reverseCharge: false, igstAmount: 0, cgstAmount: 110.59, sgstAmount: 110.59, cessAmount: 0 },
+    ];
+    const flagged = new Map<string, ItcIneligReason>(
+      INELIGIBLE.map((e) => [keyOf(e.supplierGstin, e.invoiceNumber), 'not_our_supply']),
+    );
+    const t4 = buildItcTable4(ALL, cn, flagged, keyOf);
+    // 4(A) = b2b − cdnr = 2417.61 − 110.59 = 2307.02 (matches GSTN itcsumm)
+    expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(2307.02, 2);
+    expect(t4.itcAvailable.allOtherItc.sgst).toBeCloseTo(2307.02, 2);
+    // reversal unchanged — CN is from an eligible supplier
+    expect(t4.itcReversed.others.cgst).toBeCloseTo(639.00, 2);
+    // net = 2307.02 − 639 = 1668.02 (the correct eligible figure)
+    expect(t4.netItc.cgst).toBeCloseTo(1668.02, 2);
+    expect(t4.netItc.sgst).toBeCloseTo(1668.02, 2);
+    expect(t4.netItc.igst).toBeCloseTo(0, 2);
+  });
+
+  it('a credit note from an INELIGIBLE supplier reduces the reversal too, so the supplier nets to zero', () => {
+    const supplier = '29ZZINELIG0Z1Z9';
+    const entries: Itc2bEntry[] = [entry({ supplierGstin: supplier, invoiceNumber: 'INV-1', cgstAmount: 100, sgstAmount: 100 })];
+    const cn: Itc2bCreditNote[] = [
+      { supplierGstin: supplier, reverseCharge: false, igstAmount: 0, cgstAmount: 20, sgstAmount: 20, cessAmount: 0 },
+    ];
+    const flagged = new Map<string, ItcIneligReason>([[keyOf(supplier, 'INV-1'), 'not_our_supply']]);
+    const t4 = buildItcTable4(entries, cn, flagged, keyOf);
+    // available 100−20=80, reversal 100−20=80 → net 0
+    expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(80, 2);
+    expect(t4.itcReversed.others.cgst).toBeCloseTo(80, 2);
+    expect(t4.netItc.cgst).toBeCloseTo(0, 2);
+  });
+
+  it('a debit note (typ D, passed as negative amounts) increases ITC', () => {
+    const cn: Itc2bCreditNote[] = [
+      { supplierGstin: '29AANCR6717K1ZN', reverseCharge: false, igstAmount: 0, cgstAmount: -50, sgstAmount: -50, cessAmount: 0 },
+    ];
+    const t4 = buildItcTable4(ELIGIBLE, cn, new Map(), keyOf);
+    // 1778.61 + 50 = 1828.61
+    expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(1828.61, 2);
+    expect(t4.netItc.cgst).toBeCloseTo(1828.61, 2);
   });
 });
