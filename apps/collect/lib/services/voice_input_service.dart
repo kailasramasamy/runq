@@ -70,7 +70,7 @@ class VoiceInputService {
   /// [onSoundLevel] streams the mic level (~0..10) for a "hearing you" animation.
   Future<void> listen({
     required String localeId,
-    required void Function(String) onResult,
+    required void Function(String words, bool isFinal) onResult,
     void Function(String)? onStatus,
     void Function(double)? onSoundLevel,
   }) async {
@@ -80,7 +80,7 @@ class VoiceInputService {
     resolvedLocale = use ?? '(default)';
     try {
       await _stt.listen(
-        onResult: (r) => onResult(r.recognizedWords),
+        onResult: (r) => onResult(r.recognizedWords, r.finalResult),
         onSoundLevelChange: onSoundLevel,
         listenOptions: SpeechListenOptions(
           localeId: use,

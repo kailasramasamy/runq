@@ -21,9 +21,9 @@ export async function transliterateNames(names: string[], lang: string): Promise
   if (names.length === 0) return [];
   const target = SCRIPTS[lang];
   if (!target) return names.map(() => null);
-  const system = `Transliterate these Indian personal names into ${target} script, `
+  const system = `Transliterate these Indian names and place names into ${target} script, `
     + 'PHONETICALLY by pronunciation — never translate the meaning. '
-    + 'Return ONLY a JSON array of strings, one per input name, in the same order. No commentary.';
+    + 'Return ONLY a JSON array of strings, one per input, in the same order. No commentary.';
   const out = await analyze(system, JSON.stringify(names), 2048);
   if (!out) return names.map(() => null);
   const parsed = parseJsonArray(out);

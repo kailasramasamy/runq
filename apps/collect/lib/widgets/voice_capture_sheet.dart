@@ -31,9 +31,12 @@ class _VoiceCaptureSheet extends StatefulWidget {
 }
 
 class _VoiceCaptureSheetState extends State<_VoiceCaptureSheet> {
-  String _text = '';
+  String _committed = ''; // finalised segments (iOS re-segments on pauses)
+  String _partial = ''; // the segment currently being recognised
   double _level = 0; // mic sound level, ~0..10
   bool _listening = false;
+
+  String get _text => '$_committed $_partial'.trim();
 
   @override
   void initState() {
@@ -51,8 +54,16 @@ class _VoiceCaptureSheetState extends State<_VoiceCaptureSheet> {
     setState(() => _listening = true);
     await VoiceInputService.instance.listen(
       localeId: widget.localeId,
-      onResult: (txt) {
-        if (mounted) setState(() => _text = txt);
+      onResult: (words, isFinal) {
+        if (!mounted) return;
+        setState(() {
+          if (isFinal) {
+            _committed = '$_committed $words'.trim();
+            _partial = '';
+          } else {
+            _partial = words;
+          }
+        });
       },
       onSoundLevel: (lvl) {
         if (mounted) setState(() => _level = lvl);

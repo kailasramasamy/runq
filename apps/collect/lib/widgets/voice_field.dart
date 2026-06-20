@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dhenu/l10n/app_localizations.dart';
+import '../api/mp_repo.dart';
 import '../services/tts_service.dart';
 import '../services/voice_input_service.dart';
 import '../theme/dhenu_theme.dart';
@@ -25,6 +26,7 @@ class VoiceField extends StatefulWidget {
     this.textInputAction = TextInputAction.next,
     this.onChanged,
     this.onResult,
+    this.transliterateToAppScript = false,
   });
 
   final TextEditingController controller;
@@ -35,6 +37,12 @@ class VoiceField extends StatefulWidget {
   final TextInputAction textInputAction;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onResult;
+
+  /// When the speech engine falls back to a different script than the app's
+  /// language (e.g. iOS has no Tamil STT → en-IN), transliterate the captured
+  /// Latin text into the app's script before filling. Off for fields that want
+  /// the Latin form (e.g. the English full-name field).
+  final bool transliterateToAppScript;
 
   @override
   State<VoiceField> createState() => _VoiceFieldState();
@@ -63,10 +71,29 @@ class _VoiceFieldState extends State<VoiceField> {
       title: widget.labelText,
     );
     if (!mounted || text == null || text.isEmpty) return;
-    widget.controller.text = text;
-    widget.controller.selection = TextSelection.collapsed(offset: text.length);
-    widget.onChanged?.call(text);
-    widget.onResult?.call(text);
+    final out = await _toAppScript(text);
+    if (!mounted) return;
+    widget.controller.text = out;
+    widget.controller.selection = TextSelection.collapsed(offset: out.length);
+    widget.onChanged?.call(out);
+    widget.onResult?.call(out);
+  }
+
+  /// If the engine transcribed in a different script than the app language
+  /// (Latin fallback for Tamil/Kannada), convert it to the app's script.
+  Future<String> _toAppScript(String text) async {
+    final appLang = Localizations.localeOf(context).languageCode;
+    final sttLang = (VoiceInputService.instance.resolvedLocale ?? '')
+        .split(RegExp('[-_]'))
+        .first
+        .toLowerCase();
+    if (!widget.transliterateToAppScript || appLang == 'en' || sttLang == appLang) {
+      return text;
+    }
+    setState(() => _busy = true);
+    final t = await mpRepo.transliterateName(text, appLang);
+    if (mounted) setState(() => _busy = false);
+    return (t != null && t.trim().isNotEmpty) ? t.trim() : text;
   }
 
   /// Shown when the mic is unavailable (usually denied permission): explains

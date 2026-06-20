@@ -129,6 +129,7 @@ class FarmerBasicsSection extends StatelessWidget {
             textInputAction: TextInputAction.next,
             onChanged: onNativeNameChanged,
             onResult: onNativeVoiceResult,
+            transliterateToAppScript: true,
           ),
         ],
         const SizedBox(height: DhenuSpacing.md),
@@ -210,6 +211,7 @@ class FarmerLocationSection extends StatelessWidget {
           textCapitalization: TextCapitalization.sentences,
           labelText: l.addFarmerFieldVillage,
           textInputAction: TextInputAction.next,
+          transliterateToAppScript: true,
         ),
         const SizedBox(height: DhenuSpacing.md),
         VoiceField(
@@ -218,6 +220,7 @@ class FarmerLocationSection extends StatelessWidget {
           labelText: l.addFarmerFieldAddress,
           maxLines: 2,
           textInputAction: TextInputAction.newline,
+          transliterateToAppScript: true,
         ),
         const SizedBox(height: DhenuSpacing.md),
         OutlinedButton.icon(
