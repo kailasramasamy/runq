@@ -32,6 +32,12 @@ export function MpOperatorsPage() {
   const nodes = nodesData?.data ?? [];
   const operators = data?.data ?? [];
   const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? id.slice(0, 8);
+  const nodeType = (id: string) => nodes.find((n) => n.id === id)?.nodeType;
+  // Group a node's operators together (now that a node can have several), then
+  // by person — keeps the list readable instead of insertion order.
+  const sortedOperators = [...operators].sort(
+    (a, b) => nodeName(a.nodeId).localeCompare(nodeName(b.nodeId)) || (a.name ?? '').localeCompare(b.name ?? ''),
+  );
   const today = new Date().toISOString().slice(0, 10);
   const duplicate = (o: MpOperator) => setDupInitial({
     nodeId: o.nodeId, name: o.name ?? '', role: o.role, compType: o.compType,
@@ -54,16 +60,17 @@ export function MpOperatorsPage() {
         <CardHeader>Operators</CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><Th>Node</Th><Th>Person</Th><Th>Role</Th><Th>Comp</Th><Th align="right">Rate/Salary</Th><Th align="right">Rent</Th><Th>Status</Th><Th align="right">Actions</Th></TableRow></TableHeader>
+            <TableHeader><TableRow><Th>Node</Th><Th>Type</Th><Th>Person</Th><Th>Role</Th><Th>Comp</Th><Th align="right">Rate/Salary</Th><Th align="right">Rent</Th><Th>Status</Th><Th align="right">Actions</Th></TableRow></TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={4} cols={8} />
+                <TableSkeleton rows={4} cols={9} />
               ) : operators.length === 0 ? (
-                <TableEmpty colSpan={8} message="No operators yet." />
+                <TableEmpty colSpan={9} message="No operators yet." />
               ) : (
-                operators.map((o) => (
+                sortedOperators.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>{nodeName(o.nodeId)}</TableCell>
+                    <TableCell>{nodeType(o.nodeId) ? <Badge>{nodeType(o.nodeId)!.toUpperCase()}</Badge> : '—'}</TableCell>
                     <TableCell className="text-zinc-500">
                       {o.name || o.phone ? <span>{o.name ?? '—'}{o.phone ? ` · ${o.phone}` : ''}</span> : '—'}
                     </TableCell>
