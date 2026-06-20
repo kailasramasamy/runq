@@ -113,6 +113,26 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data });
   });
 
+  // Stream a farmer's profile photo (node-scoped). Lets operators/farmers see
+  // photos the generic attachment download (owner/accountant only) won't serve.
+  app.get('/:id/photo', { preHandler: [rbacHook([...LIST_ROLES])] }, async (request, reply) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'farmer' && principal.farmerId !== id) {
+      throw new ForbiddenError('Not allowed for this farmer');
+    }
+    if (principal.kind === 'operator') {
+      await assertFarmerAtNode(request.server.db, request.tenantId, principal, id);
+    }
+    const farmer = await new FarmerService(request.server.db, request.tenantId).getById(id);
+    if (!farmer.photoDocId) throw new AppError(404, 'No profile photo');
+    const attachments = new AttachmentService(request.server.db, request.tenantId, getStorageProvider());
+    const att = await attachments.getById(farmer.photoDocId);
+    const stream = await getStorageProvider().getStream(att.storageKey);
+    reply.header('Content-Type', att.mimeType).header('Cache-Control', 'private, max-age=3600');
+    return reply.send(stream);
+  });
+
   // Per-cycle milk collection statement (PDF by default, ?format=html to debug).
   // Shared by mobile share-sheet and web download — one document, both surfaces.
   app.get('/:id/pour-statement', { preHandler: [rbacHook([...LIST_ROLES])] }, async (request, reply) => {
