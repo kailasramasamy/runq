@@ -2,24 +2,27 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 /// Singleton STT wrapper for low-literacy VMCC operator voice input.
 ///
-/// Maps the app's language code to an IN-locale BCP-47 tag (ta→ta-IN etc.)
-/// and delegates everything to the speech_to_text plugin. Failure is always
-/// silent — a missing mic or denied permission downgrades the VoiceField to
-/// text-only without crashing.
+/// Maps the app's language code to an IN-locale BCP-47 tag (ta→ta-IN etc.).
+/// [init] is lazy and retried until it succeeds, so granting the mic permission
+/// on the first tap (or later) takes effect without restarting the app.
 class VoiceInputService {
   VoiceInputService._();
   static final VoiceInputService instance = VoiceInputService._();
 
   final SpeechToText _stt = SpeechToText();
   bool _available = false;
-  bool _initialised = false;
+  void Function(String status)? _onStatus;
 
-  /// Idempotent: safe to call on every screen open.
+  /// Requests mic + speech-recognition permission on first call. Returns whether
+  /// recognition is usable; retries while unavailable (don't cache a failure —
+  /// the operator may grant permission after the first prompt).
   Future<bool> init() async {
-    if (_initialised) return _available;
-    _initialised = true;
+    if (_available) return true;
     try {
-      _available = await _stt.initialize(onError: (_) {});
+      _available = await _stt.initialize(
+        onError: (_) => _onStatus?.call('notListening'),
+        onStatus: (s) => _onStatus?.call(s),
+      );
     } catch (_) {
       _available = false;
     }
@@ -36,19 +39,23 @@ class VoiceInputService {
         'ml' => 'ml-IN',
         'te' => 'te-IN',
         'mr' => 'mr-IN',
+        'gu' => 'gu-IN',
+        'bn' => 'bn-IN',
         _ => 'en-IN',
       };
 
+  /// Start listening. [onStatus] fires with the engine status ('listening',
+  /// 'notListening', 'done') so callers can reset their UI when speech ends.
   Future<void> listen({
     required String localeId,
     required void Function(String) onResult,
-    void Function(bool)? onListeningChange,
+    void Function(String)? onStatus,
   }) async {
     if (!_available) return;
+    _onStatus = onStatus;
     try {
       await _stt.listen(
         onResult: (r) => onResult(r.recognizedWords),
-        onSoundLevelChange: null,
         listenOptions: SpeechListenOptions(
           localeId: localeId,
           listenFor: const Duration(seconds: 30),
@@ -56,14 +63,12 @@ class VoiceInputService {
           partialResults: true,
         ),
       );
-      onListeningChange?.call(true);
     } catch (_) {
-      onListeningChange?.call(false);
+      _onStatus?.call('notListening');
     }
   }
 
   Future<void> stop() async {
-    if (!_available) return;
     try {
       await _stt.stop();
     } catch (_) {}
