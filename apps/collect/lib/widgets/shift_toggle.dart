@@ -28,25 +28,28 @@ class ShiftToggle extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(3),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          _Segment(
-            emoji: '☀️',
-            label: l.shiftAm,
-            selected: value == Shift.am,
-            selectedColor: t.am,
-            inkSoft: t.inkSoft,
-            ink: t.ink,
-            onTap: () => onChanged(Shift.am),
+          Expanded(
+            child: _Segment(
+              emoji: '☀️',
+              label: l.shiftAm,
+              selected: value == Shift.am,
+              selectedColor: t.am,
+              inkSoft: t.inkSoft,
+              ink: t.ink,
+              onTap: () => onChanged(Shift.am),
+            ),
           ),
-          _Segment(
-            emoji: '🌙',
-            label: l.shiftPm,
-            selected: value == Shift.pm,
-            selectedColor: t.pm,
-            inkSoft: t.inkSoft,
-            ink: t.ink,
-            onTap: () => onChanged(Shift.pm),
+          Expanded(
+            child: _Segment(
+              emoji: '🌙',
+              label: l.shiftPm,
+              selected: value == Shift.pm,
+              selectedColor: t.pm,
+              inkSoft: t.inkSoft,
+              ink: t.ink,
+              onTap: () => onChanged(Shift.pm),
+            ),
           ),
         ],
       ),
@@ -81,10 +84,7 @@ class _Segment extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-        constraints: const BoxConstraints(
-          minWidth: 80,
-          minHeight: DhenuSpacing.minTap,
-        ),
+        constraints: const BoxConstraints(minHeight: DhenuSpacing.minTap),
         decoration: BoxDecoration(
           color: selected ? selectedColor.withValues(alpha: 0.18) : Colors.transparent,
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
