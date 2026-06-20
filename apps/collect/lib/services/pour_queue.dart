@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../api/api_client.dart';
 import '../api/mp_repo.dart';
 
 /// Offline-first write queue for milk-collection pours — the critical capture
@@ -83,7 +84,16 @@ class PourQueue {
     try {
       await mpRepo.recordPour(jsonDecode(entry.bodyJson) as Map<String, dynamic>);
       return true;
+    } on ApiException catch (e) {
+      // A 4xx (bad data / no rate chart / not permitted) will never succeed on
+      // retry — surface it so the operator can fix it, instead of silently
+      // parking the pour in the queue where it never appears or syncs.
+      if (e.statusCode >= 400 && e.statusCode < 500) rethrow;
+      await box.put(entry.key, entry.toBox()); // 5xx: transient — queue + retry
+      _bump();
+      return false;
     } catch (_) {
+      // Genuine offline / network failure — queue and retry later.
       await box.put(entry.key, entry.toBox());
       _bump();
       return false;

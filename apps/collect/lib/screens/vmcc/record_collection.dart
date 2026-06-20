@@ -234,7 +234,18 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       else ...{'fat': _fatVal, 'snf': _snfVal},
       'asNewLot': asNewLot,
     };
-    final sentNow = await PourQueue.instance.record(body);
+    final bool sentNow;
+    try {
+      sentNow = await PourQueue.instance.record(body);
+    } catch (e) {
+      // A server rejection (e.g. no active rate chart for this milk type) is not
+      // queued — surface it so the operator can fix it instead of losing the pour.
+      if (mounted) {
+        setState(() => _saving = false);
+        showDhenuToast(context, '$e', type: DhenuToastType.error);
+      }
+      return;
+    }
     if (!mounted) return;
     ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
     ref.invalidate(nodeTodayPoursProvider(widget.node.id));
