@@ -1002,4 +1002,16 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get addFarmerScanFailed =>
       'அட்டையைப் படிக்க முடியவில்லை — தெளிவான படத்தை முயற்சிக்கவும்';
+
+  @override
+  String get addFarmerScanFront => 'முன் பக்கம்';
+
+  @override
+  String get addFarmerScanFrontHint => 'பெயர், பிறந்த தேதி, எண்';
+
+  @override
+  String get addFarmerScanBack => 'பின் பக்கம்';
+
+  @override
+  String get addFarmerScanBackHint => 'முகவரி';
 }

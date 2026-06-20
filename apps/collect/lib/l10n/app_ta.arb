@@ -309,5 +309,9 @@
   "addFarmerScanAadhaar": "விவரங்களை தானாக நிரப்ப ஆதார் ஸ்கேன் செய்யவும்",
   "addFarmerScanning": "ஆதார் படிக்கிறது…",
   "addFarmerScanFilled": "விவரங்கள் நிரப்பப்பட்டன — சரிபார்க்கவும்",
-  "addFarmerScanFailed": "அட்டையைப் படிக்க முடியவில்லை — தெளிவான படத்தை முயற்சிக்கவும்"
+  "addFarmerScanFailed": "அட்டையைப் படிக்க முடியவில்லை — தெளிவான படத்தை முயற்சிக்கவும்",
+  "addFarmerScanFront": "முன் பக்கம்",
+  "addFarmerScanFrontHint": "பெயர், பிறந்த தேதி, எண்",
+  "addFarmerScanBack": "பின் பக்கம்",
+  "addFarmerScanBackHint": "முகவரி"
 }

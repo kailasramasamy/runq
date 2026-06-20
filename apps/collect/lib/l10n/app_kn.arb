@@ -309,5 +309,9 @@
   "addFarmerScanAadhaar": "ವಿವರಗಳನ್ನು ಸ್ವಯಂ ತುಂಬಲು ಆಧಾರ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
   "addFarmerScanning": "ಆಧಾರ್ ಓದಲಾಗುತ್ತಿದೆ…",
   "addFarmerScanFilled": "ವಿವರಗಳನ್ನು ತುಂಬಲಾಗಿದೆ — ಪರಿಶೀಲಿಸಿ",
-  "addFarmerScanFailed": "ಕಾರ್ಡ್ ಓದಲಾಗಲಿಲ್ಲ — ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ"
+  "addFarmerScanFailed": "ಕಾರ್ಡ್ ಓದಲಾಗಲಿಲ್ಲ — ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ",
+  "addFarmerScanFront": "ಮುಂಭಾಗ",
+  "addFarmerScanFrontHint": "ಹೆಸರು, ಜನ್ಮ ದಿನಾಂಕ, ಸಂಖ್ಯೆ",
+  "addFarmerScanBack": "ಹಿಂಭಾಗ",
+  "addFarmerScanBackHint": "ವಿಳಾಸ"
 }

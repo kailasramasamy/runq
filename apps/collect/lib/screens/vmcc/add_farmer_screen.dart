@@ -70,7 +70,9 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   final _upiIdCtrl = TextEditingController();
 
   bool _saving = false;
-  bool _scanning = false;
+  String? _scanningSide; // 'front' | 'back' | null
+  bool _frontScanned = false;
+  bool _backScanned = false;
   String? _nameError;
 
   @override
@@ -248,14 +250,16 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     );
   }
 
-  Future<void> _scanAadhaar() async {
+  // Aadhaar is two-sided: front carries name/DOB/sex/number, back the address.
+  // Each scan overlays only the fields it finds, so the sides merge cleanly.
+  Future<void> _scanAadhaar({required bool isBack}) async {
     final src = await _showImageSourceSheet();
     if (src == null || !mounted) return;
     final picker = ImagePicker();
     final xf = await picker.pickImage(source: src, imageQuality: 90);
     if (xf == null || !mounted) return;
     final l = AppLocalizations.of(context);
-    setState(() => _scanning = true);
+    setState(() => _scanningSide = isBack ? 'back' : 'front');
     try {
       final data = await mpRepo.extractAadhaar(File(xf.path));
       if (!mounted) return;
@@ -297,10 +301,15 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
         if (address is String && address.trim().isNotEmpty) {
           _addressCtrl.text = address.trim();
         }
+        if (isBack) {
+          _backScanned = true;
+        } else {
+          _frontScanned = true;
+        }
       });
       showDhenuToast(context, l.addFarmerScanFilled, type: DhenuToastType.success);
     } finally {
-      if (mounted) setState(() => _scanning = false);
+      if (mounted) setState(() => _scanningSide = null);
     }
   }
 
@@ -448,7 +457,13 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
         DhenuSpacing.xl + MediaQuery.of(context).viewInsets.bottom,
       ),
       children: [
-        _ScanAadhaarBanner(scanning: _scanning, onTap: _scanning ? null : _scanAadhaar),
+        _ScanAadhaarBanner(
+          scanningSide: _scanningSide,
+          frontScanned: _frontScanned,
+          backScanned: _backScanned,
+          onScanFront: _scanningSide != null ? null : () => _scanAadhaar(isBack: false),
+          onScanBack: _scanningSide != null ? null : () => _scanAadhaar(isBack: true),
+        ),
         const SizedBox(height: DhenuSpacing.lg),
         FarmerBasicsSection(
           nameCtrl: _nameCtrl,
@@ -532,61 +547,110 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
 // ── Scan Aadhaar banner ───────────────────────────────────────────────────────
 
 class _ScanAadhaarBanner extends StatelessWidget {
-  const _ScanAadhaarBanner({required this.scanning, required this.onTap});
-  final bool scanning;
-  final VoidCallback? onTap;
+  const _ScanAadhaarBanner({
+    required this.scanningSide,
+    required this.frontScanned,
+    required this.backScanned,
+    required this.onScanFront,
+    required this.onScanBack,
+  });
+  final String? scanningSide; // 'front' | 'back' | null
+  final bool frontScanned;
+  final bool backScanned;
+  final VoidCallback? onScanFront;
+  final VoidCallback? onScanBack;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     return DhenuCard(
-      onTap: onTap,
       padding: const EdgeInsets.symmetric(
         horizontal: DhenuSpacing.lg,
         vertical: DhenuSpacing.md,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: t.brandSubtle,
-              borderRadius: BorderRadius.circular(DhenuRadii.input),
-            ),
-            child: scanning
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: t.brand,
-                    ),
-                  )
-                : Icon(DhenuIcons.scanDoc, size: 20, color: t.brand),
-          ),
-          const SizedBox(width: DhenuSpacing.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(DhenuIcons.scanDoc, size: 18, color: t.brand),
+          const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  scanning ? l.addFarmerScanning : l.addFarmerScanAadhaar,
-                  style: DhenuText.label.copyWith(color: t.ink),
-                ),
-                if (!scanning)
-                  Text(
-                    l.addFarmerFieldAadhaar,
-                    style: DhenuText.caption.copyWith(color: t.inkSoft),
-                  ),
-              ],
+            child: Text(l.addFarmerScanAadhaar,
+                style: DhenuText.label.copyWith(color: t.ink)),
+          ),
+        ]),
+        const SizedBox(height: DhenuSpacing.md),
+        Row(children: [
+          Expanded(
+            child: _SideTile(
+              label: l.addFarmerScanFront,
+              hint: l.addFarmerScanFrontHint,
+              done: frontScanned,
+              busy: scanningSide == 'front',
+              onTap: onScanFront,
             ),
           ),
-          if (!scanning)
-            Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
-        ],
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(
+            child: _SideTile(
+              label: l.addFarmerScanBack,
+              hint: l.addFarmerScanBackHint,
+              done: backScanned,
+              busy: scanningSide == 'back',
+              onTap: onScanBack,
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _SideTile extends StatelessWidget {
+  const _SideTile({
+    required this.label,
+    required this.hint,
+    required this.done,
+    required this.busy,
+    required this.onTap,
+  });
+  final String label, hint;
+  final bool done, busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(DhenuRadii.input),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
+        decoration: BoxDecoration(
+          color: done ? t.brandSubtle : Colors.transparent,
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+          border: Border.all(color: done ? t.brand : t.hairline),
+        ),
+        child: Row(children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: busy
+                ? CircularProgressIndicator(strokeWidth: 2, color: t.brand)
+                : Icon(done ? Icons.check_circle : Icons.camera_alt_outlined,
+                    size: 20, color: t.brand),
+          ),
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: DhenuText.label.copyWith(color: t.ink)),
+              Text(hint,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ]),
+          ),
+        ]),
       ),
     );
   }

@@ -1959,6 +1959,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t read the card — try a clearer photo'**
   String get addFarmerScanFailed;
+
+  /// No description provided for @addFarmerScanFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Front side'**
+  String get addFarmerScanFront;
+
+  /// No description provided for @addFarmerScanFrontHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, DOB, number'**
+  String get addFarmerScanFrontHint;
+
+  /// No description provided for @addFarmerScanBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back side'**
+  String get addFarmerScanBack;
+
+  /// No description provided for @addFarmerScanBackHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get addFarmerScanBackHint;
 }
 
 class _AppLocalizationsDelegate

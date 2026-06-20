@@ -997,4 +997,16 @@ class AppLocalizationsKn extends AppLocalizations {
   @override
   String get addFarmerScanFailed =>
       'ಕಾರ್ಡ್ ಓದಲಾಗಲಿಲ್ಲ — ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ';
+
+  @override
+  String get addFarmerScanFront => 'ಮುಂಭಾಗ';
+
+  @override
+  String get addFarmerScanFrontHint => 'ಹೆಸರು, ಜನ್ಮ ದಿನಾಂಕ, ಸಂಖ್ಯೆ';
+
+  @override
+  String get addFarmerScanBack => 'ಹಿಂಭಾಗ';
+
+  @override
+  String get addFarmerScanBackHint => 'ವಿಳಾಸ';
 }

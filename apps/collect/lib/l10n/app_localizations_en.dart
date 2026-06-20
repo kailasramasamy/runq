@@ -995,4 +995,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get addFarmerScanFailed =>
       'Couldn\'t read the card — try a clearer photo';
+
+  @override
+  String get addFarmerScanFront => 'Front side';
+
+  @override
+  String get addFarmerScanFrontHint => 'Name, DOB, number';
+
+  @override
+  String get addFarmerScanBack => 'Back side';
+
+  @override
+  String get addFarmerScanBackHint => 'Address';
 }
