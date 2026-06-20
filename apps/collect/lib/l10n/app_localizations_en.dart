@@ -957,4 +957,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get addFarmerNativeNameHint =>
       'Auto-filled from the name above — edit if needed';
+
+  @override
+  String get voiceMicNeededTitle => 'Microphone access needed';
+
+  @override
+  String get voiceMicNeededBody =>
+      'To dictate by voice, allow Microphone and Speech Recognition for this app, then come back and tap the mic again.';
+
+  @override
+  String get voiceOpenSettings => 'Open Settings';
 }

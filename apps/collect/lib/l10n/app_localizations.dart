@@ -1887,6 +1887,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Auto-filled from the name above — edit if needed'**
   String get addFarmerNativeNameHint;
+
+  /// No description provided for @voiceMicNeededTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone access needed'**
+  String get voiceMicNeededTitle;
+
+  /// No description provided for @voiceMicNeededBody.
+  ///
+  /// In en, this message translates to:
+  /// **'To dictate by voice, allow Microphone and Speech Recognition for this app, then come back and tap the mic again.'**
+  String get voiceMicNeededBody;
+
+  /// No description provided for @voiceOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get voiceOpenSettings;
 }
 
 class _AppLocalizationsDelegate

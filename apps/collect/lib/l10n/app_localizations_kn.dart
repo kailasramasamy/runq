@@ -958,4 +958,14 @@ class AppLocalizationsKn extends AppLocalizations {
   @override
   String get addFarmerNativeNameHint =>
       'ಮೇಲಿನ ಹೆಸರಿನಿಂದ ಸ್ವಯಂ ತುಂಬಲಾಗಿದೆ — ಅಗತ್ಯವಿದ್ದರೆ ಸಂಪಾದಿಸಿ';
+
+  @override
+  String get voiceMicNeededTitle => 'ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿ ಅಗತ್ಯವಿದೆ';
+
+  @override
+  String get voiceMicNeededBody =>
+      'ಧ್ವನಿಯ ಮೂಲಕ ಹೇಳಲು, ಈ ಆ್ಯಪ್‌ಗೆ ಮೈಕ್ರೊಫೋನ್ ಮತ್ತು ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆಯನ್ನು ಅನುಮತಿಸಿ, ನಂತರ ಹಿಂತಿರುಗಿ ಮತ್ತೆ ಮೈಕ್ ಟ್ಯಾಪ್ ಮಾಡಿ.';
+
+  @override
+  String get voiceOpenSettings => 'ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ತೆರೆಯಿರಿ';
 }

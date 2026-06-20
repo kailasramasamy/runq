@@ -962,4 +962,14 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get addFarmerNativeNameHint =>
       'மேலே உள்ள பெயரிலிருந்து தானாக நிரப்பப்பட்டது — தேவைப்பட்டால் திருத்தவும்';
+
+  @override
+  String get voiceMicNeededTitle => 'மைக்ரோஃபோன் அணுகல் தேவை';
+
+  @override
+  String get voiceMicNeededBody =>
+      'குரல் மூலம் சொல்ல, இந்த ஆப்பிற்கு மைக்ரோஃபோன் மற்றும் பேச்சு அங்கீகாரத்தை அனுமதிக்கவும், பின்னர் திரும்பி வந்து மீண்டும் மைக்கைத் தட்டவும்.';
+
+  @override
+  String get voiceOpenSettings => 'அமைப்புகளைத் திற';
 }

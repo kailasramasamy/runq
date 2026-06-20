@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:dhenu/l10n/app_localizations.dart';
 import '../services/tts_service.dart';
 import '../services/voice_input_service.dart';
+import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
-import 'dhenu_toast.dart';
+import 'sheet_grabber.dart';
 
 /// A TextField with mic (dictate) + speaker (read-back) suffix icons.
 ///
@@ -75,9 +78,7 @@ class _VoiceFieldState extends State<VoiceField>
     if (!mounted) return;
     setState(() => _busy = false);
     if (!ok) {
-      showDhenuToast(context,
-          'Microphone unavailable — enable mic & speech permission in Settings',
-          type: DhenuToastType.info);
+      await _showMicPermissionSheet();
       return;
     }
     await VoiceInputService.instance.listen(
@@ -97,6 +98,67 @@ class _VoiceFieldState extends State<VoiceField>
       },
     );
     if (mounted) setState(() => _listening = true);
+  }
+
+  /// Shown when the mic is unavailable (usually denied permission): explains
+  /// what's needed and deep-links to the app's Settings page. After granting,
+  /// the operator returns and taps the mic again — init() retries and succeeds.
+  Future<void> _showMicPermissionSheet() {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
+        ),
+        child: SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SheetGrabber(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.mic_none, color: t.brand),
+                  const SizedBox(width: DhenuSpacing.sm),
+                  Expanded(
+                    child: Text(l.voiceMicNeededTitle,
+                        style: DhenuText.title.copyWith(color: t.ink)),
+                  ),
+                ]),
+                const SizedBox(height: DhenuSpacing.sm),
+                Text(l.voiceMicNeededBody,
+                    style: DhenuText.body.copyWith(color: t.inkSoft)),
+                const SizedBox(height: DhenuSpacing.lg),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(l.commonCancel),
+                    ),
+                  ),
+                  const SizedBox(width: DhenuSpacing.md),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        openAppSettings();
+                      },
+                      icon: const Icon(Icons.settings_outlined, size: 18),
+                      label: Text(l.voiceOpenSettings),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   Future<void> _speak() async {
