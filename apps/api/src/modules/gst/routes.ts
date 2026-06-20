@@ -262,6 +262,21 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(status).send({ data: result });
   });
 
+  // Classify a 2B line's ITC as eligible or ineligible. Ineligible lines are
+  // auto-reversed in GSTR-3B Table 4(B) (sec_17_5/personal → 4B1, others →
+  // 4B2), so the filed net ITC excludes blocked credits, personal-use, and
+  // not-our-supply (shared-GSTIN) items without anyone hand-editing the return.
+  app.patch('/2b/matches/:matchId/eligibility', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { matchId } = z.object({ matchId: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      eligible: z.boolean(),
+      reason: z.enum(['sec_17_5', 'personal', 'not_our_supply', 'other']).optional(),
+      note: z.string().max(500).optional(),
+    }).parse(request.body ?? {});
+    const svc = new Gstr2bReconciliationService(request.server.db, request.tenantId);
+    return { data: await svc.setEligibility(matchId, body) };
+  });
+
   // ─── GST Readiness (dashboard widget) ──────────────────────────────
 
   app.get('/readiness', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

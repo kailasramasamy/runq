@@ -207,6 +207,8 @@ export function useAutoPopulated3b(id: string, enabled: boolean) {
 
 // ── GSTR-2B Reconciliation ─────────────────────────────────────────
 
+export type ItcIneligibleReason = 'sec_17_5' | 'personal' | 'not_our_supply' | 'other';
+
 export interface Gstr2bMatch {
   id: string;
   supplierGstin: string;
@@ -225,6 +227,8 @@ export interface Gstr2bMatch {
   sgstBooks: string | null;
   matchStatus: 'matched' | 'mismatched' | 'not_in_books' | 'not_in_2b';
   valueDiff: string | null;
+  itcEligibility: 'eligible' | 'ineligible';
+  ineligibleReason: ItcIneligibleReason | null;
 }
 
 export interface ReconSummary {
@@ -234,6 +238,7 @@ export interface ReconSummary {
   notIn2b: { count: number; taxableValue: number };
   totalItcAvailable: number;
   totalItcClaimable: number;
+  ineligibleItc: number;
 }
 
 const RECON_KEYS = {
@@ -318,6 +323,22 @@ export function useBookFromMatch() {
         qc.invalidateQueries({ queryKey: ['gst-2b'] });
         qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
       }
+    },
+  });
+}
+
+export type SetItcEligibilityPayload =
+  | { matchId: string; eligible: true; note?: string }
+  | { matchId: string; eligible: false; reason: ItcIneligibleReason; note?: string };
+
+export function useSetItcEligibility() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ matchId, ...body }: SetItcEligibilityPayload) =>
+      api.patch<ApiSuccess<{ eligible: boolean; reason?: string }>>(`/gst/2b/matches/${matchId}/eligibility`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gst-2b', 'matches'] });
+      qc.invalidateQueries({ queryKey: ['gst-2b', 'summary'] });
     },
   });
 }

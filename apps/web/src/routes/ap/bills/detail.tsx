@@ -184,13 +184,24 @@ function BillDetailContent({ invoice, navigate, router }: ContentProps) {
             onSuccess: () => { setShowDeleteDialog(false); navigate({ to: '/finance/ap/bills' }); },
           })
         }
-        title={invoice.status === 'draft' ? 'Delete Bill' : 'Cancel Bill'}
+        title={
+          invoice.status === 'draft' ||
+          ((invoice.status === 'matched' || invoice.status === 'approved') && Number(invoice.amountPaid) === 0)
+            ? 'Delete Bill'
+            : 'Cancel Bill'
+        }
         description={
-          invoice.status === 'draft'
-            ? `Permanently delete bill ${invoice.invoiceNumber}? Line items and attachments will be removed.`
+          invoice.status === 'draft' ||
+          ((invoice.status === 'matched' || invoice.status === 'approved') && Number(invoice.amountPaid) === 0)
+            ? `Permanently delete bill ${invoice.invoiceNumber}? Line items, attachments, and its ledger posting will be removed.`
             : `Cancel bill ${invoice.invoiceNumber}?`
         }
-        confirmLabel={invoice.status === 'draft' ? 'Delete Bill' : 'Cancel Bill'}
+        confirmLabel={
+          invoice.status === 'draft' ||
+          ((invoice.status === 'matched' || invoice.status === 'approved') && Number(invoice.amountPaid) === 0)
+            ? 'Delete Bill'
+            : 'Cancel Bill'
+        }
         variant="danger"
         loading={deleteMutation.isPending}
       />

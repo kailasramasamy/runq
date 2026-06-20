@@ -412,11 +412,13 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TaxRow label="Import of goods" {...(d?.table4?.itcAvailable?.importGoods ?? {})} />
-              <TaxRow label="Import of services" {...(d?.table4?.itcAvailable?.importServices ?? {})} />
-              <TaxRow label="Inward (reverse charge)" {...(d?.table4?.itcAvailable?.inwardReverseCharge ?? {})} />
-              <TaxRow label="ISD" {...(d?.table4?.itcAvailable?.isd ?? {})} />
-              <TaxRow label="All other ITC" {...(d?.table4?.itcAvailable?.allOtherItc ?? {})} />
+              <TaxRow label="(A)(1) Import of goods" {...(d?.table4?.itcAvailable?.importGoods ?? {})} />
+              <TaxRow label="(A)(2) Import of services" {...(d?.table4?.itcAvailable?.importServices ?? {})} />
+              <TaxRow label="(A)(3) Inward (reverse charge)" {...(d?.table4?.itcAvailable?.inwardReverseCharge ?? {})} />
+              <TaxRow label="(A)(4) ISD" {...(d?.table4?.itcAvailable?.isd ?? {})} />
+              <TaxRow label="(A)(5) All other ITC" {...(d?.table4?.itcAvailable?.allOtherItc ?? {})} />
+              <TaxRow label="(B)(1) ITC Reversed — Rules 38/42/43 & Sec 17(5)" {...(d?.table4?.itcReversed?.rule4243 ?? {})} />
+              <TaxRow label="(B)(2) ITC Reversed — Others" {...(d?.table4?.itcReversed?.others ?? {})} />
               <TableRow className="bg-zinc-50 dark:bg-zinc-800/50 font-medium">
                 <TableCell>Net ITC Available</TableCell>
                 <TableCell className="text-right">{formatINR(d?.table4?.netItc?.igst ?? 0)}</TableCell>

@@ -323,3 +323,34 @@ export const gstr2bMatches = pgTable('gstr2b_matches', {
   index('idx_gstr2b_match_status').on(t.tenantId, t.matchStatus),
   index('idx_gstr2b_match_pi').on(t.purchaseInvoiceId),
 ]);
+
+// ── ITC eligibility decisions ──────────────────────────────────────────
+// Tenant assertions that a specific 2B inward supply is INELIGIBLE for ITC:
+// blocked under Sec 17(5), personal/non-business use, or not the tenant's
+// supply at all (e.g. a partner billed a shared GSTIN). Keyed by the STABLE
+// 2B identity (period + supplier GSTIN + doc no), NOT the match row id —
+// reconcile()/pull2b delete and re-insert match rows on every run, so a
+// decision stored on a match would be lost. Presence of a row = ineligible;
+// "mark eligible" deletes it. The 3B generator reverses these in Table 4(B).
+
+export const gstItcIneligReasonEnum = pgEnum('gst_itc_inelig_reason', [
+  'sec_17_5',        // blocked credit under Section 17(5) → Table 4(B)(1)
+  'personal',        // non-business / personal consumption → Table 4(B)(1)
+  'not_our_supply',  // wrong/shared GSTIN, supply not received by tenant → Table 4(B)(2)
+  'other',           // any other reversal → Table 4(B)(2)
+]);
+
+export const gstItcDecisions = pgTable('gst_itc_decisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  period: varchar('period', { length: 6 }).notNull(),          // MMYYYY
+  supplierGstin: varchar('supplier_gstin', { length: 15 }).notNull(),
+  docNo: varchar('doc_no', { length: 50 }).notNull(),          // 2B invoice number
+  reason: gstItcIneligReasonEnum('reason').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique('uq_itc_decision').on(t.tenantId, t.period, t.supplierGstin, t.docNo),
+  index('idx_itc_decision_tenant_period').on(t.tenantId, t.period),
+]);

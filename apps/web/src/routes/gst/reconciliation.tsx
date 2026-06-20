@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Info, CheckCircle2, ChevronDown } from 'lucide-react';
 import {
   usePull2b, useReconcile2b, use2bMatches, use2bSummary, use2bPeriods,
-  useRequestOtp, useVerifyOtp, useForceLogout, useBookFromMatch,
+  useRequestOtp, useVerifyOtp, useForceLogout, useBookFromMatch, useSetItcEligibility,
 } from '@/hooks/queries/use-gst-returns';
 import { useCompanySettings } from '@/hooks/queries/use-settings';
-import type { Gstr2bMatch, ReconSummary, VendorCandidate, BookFromMatchPayload } from '@/hooks/queries/use-gst-returns';
+import type { Gstr2bMatch, ReconSummary, VendorCandidate, BookFromMatchPayload, ItcIneligibleReason } from '@/hooks/queries/use-gst-returns';
 import { formatINR } from '@/lib/utils';
 import {
   Button, Card, CardContent, Badge, Combobox,
@@ -95,6 +95,79 @@ const STATUS_BADGE: Record<string, { variant: 'success' | 'warning' | 'danger' |
   not_in_2b: { variant: 'info', label: 'Not in 2B' },
 };
 
+const ITC_REASON_LABELS: Record<ItcIneligibleReason, string> = {
+  sec_17_5: 'Blocked credit (Sec 17(5))',
+  personal: 'Personal / non-business',
+  not_our_supply: 'Not our supply',
+  other: 'Other',
+};
+
+const ITC_REASON_OPTIONS: Array<{ value: ItcIneligibleReason; label: string }> = [
+  { value: 'sec_17_5', label: 'Blocked credit (Sec 17(5))' },
+  { value: 'personal', label: 'Personal / non-business' },
+  { value: 'not_our_supply', label: 'Not our supply' },
+  { value: 'other', label: 'Other' },
+];
+
+function ItcEligibilityControl({
+  match,
+  isPending,
+  onSet,
+}: {
+  match: Gstr2bMatch;
+  isPending: boolean;
+  onSet: (eligible: boolean, reason?: ItcIneligibleReason) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const isIneligible = match.itcEligibility === 'ineligible';
+
+  if (isIneligible) {
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          {match.ineligibleReason ? ITC_REASON_LABELS[match.ineligibleReason] : 'Ineligible'}
+        </span>
+        <button
+          disabled={isPending}
+          onClick={() => onSet(true)}
+          className="text-[10px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 underline disabled:opacity-40"
+        >
+          Undo
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        disabled={isPending}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-40"
+      >
+        Eligible <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full z-20 mt-1 w-52 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1"
+          onBlur={() => setOpen(false)}
+        >
+          <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Mark ineligible</div>
+          {ITC_REASON_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setOpen(false); onSet(false, opt.value); }}
+              className="w-full text-left px-2.5 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ReconciliationPage() {
   const { toast } = useToast();
   const [period, setPeriod] = useState('');
@@ -115,6 +188,7 @@ export function ReconciliationPage() {
   const pullMutation = usePull2b();
   const reconMutation = useReconcile2b();
   const bookMutation = useBookFromMatch();
+  const eligibilityMutation = useSetItcEligibility();
   const { data: periodsData } = use2bPeriods();
   const reconciledPeriods = periodsData?.data ?? [];
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -373,7 +447,7 @@ export function ReconciliationPage() {
 
       {/* Summary */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <Card className="cursor-pointer hover:ring-1 hover:ring-primary-500" onClick={() => setStatusFilter(undefined)}>
             <CardContent className="py-3">
               <p className="text-sm text-zinc-500">Total ITC Available (2B)</p>
@@ -395,6 +469,13 @@ export function ReconciliationPage() {
               <p className="text-sm text-zinc-500">Not in Books</p>
               <p className="text-xl font-bold text-red-500">{summary.notInBooks.count} invoices</p>
               <p className="text-xs text-zinc-400 mt-1">{formatINR(summary.notInBooks.taxableValue)} taxable</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-3">
+              <p className="text-sm text-zinc-500">Ineligible ITC (reversed in 3B)</p>
+              <p className="text-xl font-bold font-mono tabular-nums text-amber-600">{formatINR(summary.ineligibleItc ?? 0)}</p>
+              <p className="text-xs text-zinc-400 mt-1">Sec 17(5) &amp; other blocks</p>
             </CardContent>
           </Card>
         </div>
@@ -443,6 +524,7 @@ export function ReconciliationPage() {
                   <Th className="text-right">CGST</Th>
                   <Th className="text-right">SGST</Th>
                   <Th className="text-right">Total Tax</Th>
+                  <Th>ITC</Th>
                   <Th className="text-right">Action</Th>
                 </TableRow>
               </TableHeader>
@@ -455,6 +537,8 @@ export function ReconciliationPage() {
                   const totalTax = igst + cgst + sgst;
                   const canBook = m.matchStatus === 'not_in_books';
                   const isBookingThis = bookMutation.isPending && bookingId === m.id;
+                  const has2b = !!m.invoiceNumber2b;
+                  const isIneligible = m.itcEligibility === 'ineligible';
                   return (
                     <TableRow key={m.id}>
                       <TableCell>
@@ -471,6 +555,21 @@ export function ReconciliationPage() {
                       <TableCell align="right" numeric className="text-zinc-500">{cgst ? formatINR(cgst) : '—'}</TableCell>
                       <TableCell align="right" numeric className="text-zinc-500">{sgst ? formatINR(sgst) : '—'}</TableCell>
                       <TableCell align="right" numeric className="font-medium">{formatINR(totalTax)}</TableCell>
+                      <TableCell>
+                        {has2b && (
+                          <ItcEligibilityControl
+                            match={m}
+                            isPending={eligibilityMutation.isPending}
+                            onSet={(eligible, reason) => {
+                              if (eligible) {
+                                eligibilityMutation.mutate({ matchId: m.id, eligible: true });
+                              } else {
+                                eligibilityMutation.mutate({ matchId: m.id, eligible: false, reason: reason! });
+                              }
+                            }}
+                          />
+                        )}
+                      </TableCell>
                       <TableCell align="right">
                         {canBook && (
                           <Button

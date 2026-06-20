@@ -182,11 +182,18 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
-      // Drafts: hard-delete (bill + items + attachments + S3 files) — they
-      // were created in error or as duplicates and never had downstream
-      // GL/payment effects. Anything else: soft-cancel to preserve audit.
+      // Hard-delete (bill + items + attachments + S3 files, with the GL
+      // posting unwound) when nothing downstream depends on the bill: drafts,
+      // or an approved/matched bill with zero payment — e.g. a duplicate or a
+      // 2B-booked supply that turned out not to be ours. cancel() only flips
+      // status to 'cancelled' and does NOT unwind the GL, so using it on a
+      // posted bill would leave its journal entry dangling. Anything with a
+      // payment against it → soft-cancel to preserve the audit + payment trail.
       const existing = await service.getById(id);
-      if (existing.status === 'draft') {
+      const amountPaid = Number(existing.amountPaid ?? 0);
+      const canHardDelete = existing.status === 'draft'
+        || ((existing.status === 'approved' || existing.status === 'matched') && amountPaid === 0);
+      if (canHardDelete) {
         await service.hardDelete(id, getStorageProvider(), request.user.userId);
       } else {
         await service.cancel(id, request.user.userId);

@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, inArray, sql, desc } from 'drizzle-orm';
 import {
-  gstr2bData, gstr2bMatches, purchaseInvoices, vendors, tenants, gspAuthTokens,
+  gstr2bData, gstr2bMatches, gstItcDecisions, purchaseInvoices, vendors, tenants, gspAuthTokens,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Gstr2bEntry, Gstr3bData } from '@runq/db';
@@ -12,6 +12,11 @@ import { PurchaseInvoiceService } from '../ap/purchase-invoice.service';
 
 type Gstr2bDataRow = typeof gstr2bData.$inferSelect;
 type MatchRow = typeof gstr2bMatches.$inferSelect;
+export type ItcIneligReason = 'sec_17_5' | 'personal' | 'not_our_supply' | 'other';
+type EnrichedMatchRow = MatchRow & {
+  itcEligibility: 'eligible' | 'ineligible';
+  ineligibleReason: ItcIneligReason | null;
+};
 
 interface ReconciliationSummary {
   matched: { count: number; taxableValue: number };
@@ -20,9 +25,75 @@ interface ReconciliationSummary {
   notIn2b: { count: number; taxableValue: number };
   totalItcAvailable: number;
   totalItcClaimable: number;  // only matched
+  ineligibleItc: number;      // tenant-flagged ineligible, reversed in 3B Table 4(B)
 }
 
 const VALUE_TOLERANCE = 2; // Rs 2 tolerance for rounding differences
+
+type TaxTotals = { igst: number; cgst: number; sgst: number; cess: number };
+const zeroTax = (): TaxTotals => ({ igst: 0, cgst: 0, sgst: 0, cess: 0 });
+const addTax = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
+  igst: a.igst + b.igst, cgst: a.cgst + b.cgst, sgst: a.sgst + b.sgst, cess: a.cess + b.cess,
+});
+
+export type Itc2bEntry = {
+  supplierGstin: string;
+  invoiceNumber: string;
+  reverseCharge: boolean;
+  igstAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  cessAmount: number;
+};
+
+/**
+ * Build GSTR-3B Table 4 from parsed 2B entries. The full 2B is claimed into
+ * 4(A) (GSTN auto-populates it the same way); lines the tenant flagged
+ * ineligible — looked up via the caller's normalized key — are reversed in
+ * 4(B): sec_17_5/personal → 4(B)(1) (rules 38/42/43 & §17(5)), not_our_supply/
+ * other → 4(B)(2). Net ITC (4C) = available − reversed, so blocked/personal/
+ * not-our-supply credits are excluded. Pure & deterministic — no DB, no rounding.
+ */
+export function buildItcTable4(
+  entries: Itc2bEntry[],
+  ineligibleReasonByKey: Map<string, ItcIneligReason>,
+  keyOf: (gstin: string, invoiceNumber: string) => string,
+): Gstr3bData['table4'] {
+  const rcm = zeroTax();
+  const allOther = zeroTax();
+  const rule4243 = zeroTax();   // 4(B)(1)
+  const others = zeroTax();     // 4(B)(2)
+
+  for (const e of entries) {
+    const tax: TaxTotals = { igst: e.igstAmount, cgst: e.cgstAmount, sgst: e.sgstAmount, cess: e.cessAmount };
+    if (e.reverseCharge) Object.assign(rcm, addTax(rcm, tax));
+    else Object.assign(allOther, addTax(allOther, tax));
+    const reason = ineligibleReasonByKey.get(keyOf(e.supplierGstin, e.invoiceNumber));
+    if (reason) {
+      const bucket = reason === 'sec_17_5' || reason === 'personal' ? rule4243 : others;
+      Object.assign(bucket, addTax(bucket, tax));
+    }
+  }
+
+  const available = addTax(rcm, allOther);
+  const reversed = addTax(rule4243, others);
+  return {
+    itcAvailable: {
+      importGoods: zeroTax(),
+      importServices: zeroTax(),
+      inwardReverseCharge: rcm,
+      isd: zeroTax(),
+      allOtherItc: allOther,
+    },
+    itcReversed: { rule4243, others },
+    netItc: {
+      igst: available.igst - reversed.igst,
+      cgst: available.cgst - reversed.cgst,
+      sgst: available.sgst - reversed.sgst,
+      cess: available.cess - reversed.cess,
+    },
+  };
+}
 
 export class Gstr2bReconciliationService {
   constructor(
@@ -80,44 +151,77 @@ export class Gstr2bReconciliationService {
     const entries = this.parse2bEntries(stored.data);
     if (entries.length === 0) return null;
 
-    type TaxTotals = { igst: number; cgst: number; sgst: number; cess: number };
-    const zero = (): TaxTotals => ({ igst: 0, cgst: 0, sgst: 0, cess: 0 });
-    const add = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
-      igst: a.igst + b.igst, cgst: a.cgst + b.cgst,
-      sgst: a.sgst + b.sgst, cess: a.cess + b.cess,
-    });
+    // Tenant-flagged ineligible lines → reversed in Table 4(B). Keyed by the
+    // same normalized (gstin|invoice) key reconciliation uses, so the lookup
+    // is robust to invoice-number formatting differences.
+    const decisions = await this.getDecisions(period);
+    const ineligibleReasonByKey = new Map<string, ItcIneligReason>(
+      decisions.map((d) => [this.matchKey(d.supplierGstin, d.docNo), d.reason as ItcIneligReason]),
+    );
+    return buildItcTable4(entries, ineligibleReasonByKey, (g, i) => this.matchKey(g, i));
+  }
 
-    const rcm = zero();
-    const allOther = zero();
+  // ── ITC eligibility decisions ────────────────────────────────────────
 
-    for (const e of entries) {
-      const tax: TaxTotals = {
-        igst: e.igstAmount, cgst: e.cgstAmount,
-        sgst: e.sgstAmount, cess: e.cessAmount,
-      };
-      if (e.reverseCharge) {
-        Object.assign(rcm, add(rcm, tax));
-      } else {
-        Object.assign(allOther, add(allOther, tax));
-      }
+  /** All ineligible-ITC decisions the tenant has recorded for a period. */
+  async getDecisions(period: string): Promise<Array<typeof gstItcDecisions.$inferSelect>> {
+    return this.db
+      .select()
+      .from(gstItcDecisions)
+      .where(and(
+        eq(gstItcDecisions.tenantId, this.tenantId),
+        eq(gstItcDecisions.period, period),
+      ));
+  }
+
+  /**
+   * Classify a 2B line's ITC as eligible or ineligible. Resolves the match to
+   * its stable 2B identity (period + supplier GSTIN + doc no) and persists the
+   * decision there — so it survives the next pull/reconcile, which rebuilds
+   * match rows. `eligible` deletes any prior decision; ineligible upserts the
+   * reason. The 3B generator reverses ineligible lines in Table 4(B).
+   */
+  async setEligibility(
+    matchId: string,
+    input: { eligible: boolean; reason?: ItcIneligReason; note?: string | null },
+  ): Promise<{ eligible: boolean; reason?: ItcIneligReason }> {
+    const [match] = await this.db
+      .select()
+      .from(gstr2bMatches)
+      .where(and(eq(gstr2bMatches.id, matchId), eq(gstr2bMatches.tenantId, this.tenantId)))
+      .limit(1);
+    if (!match) throw new NotFoundError('GSTR-2B match');
+    if (!match.invoiceNumber2b) {
+      // not_in_2b rows aren't in GSTN's 2B, so there's no ITC to claim/reverse.
+      throw new ConflictError('Only supplies present in GSTR-2B can be classified for ITC');
     }
 
-    const totalAvailable = add(rcm, allOther);
-
-    return {
-      itcAvailable: {
-        importGoods: zero(),
-        importServices: zero(),
-        inwardReverseCharge: rcm,
-        isd: zero(),
-        allOtherItc: allOther,
-      },
-      itcReversed: {
-        rule4243: zero(),
-        others: zero(),
-      },
-      netItc: totalAvailable,
+    const key = {
+      tenantId: this.tenantId,
+      period: match.period,
+      supplierGstin: match.supplierGstin,
+      docNo: match.invoiceNumber2b,
     };
+
+    if (input.eligible) {
+      await this.db.delete(gstItcDecisions).where(and(
+        eq(gstItcDecisions.tenantId, key.tenantId),
+        eq(gstItcDecisions.period, key.period),
+        eq(gstItcDecisions.supplierGstin, key.supplierGstin),
+        eq(gstItcDecisions.docNo, key.docNo),
+      ));
+      return { eligible: true };
+    }
+
+    if (!input.reason) throw new ConflictError('A reason is required to mark ITC ineligible');
+    await this.db
+      .insert(gstItcDecisions)
+      .values({ ...key, reason: input.reason, note: input.note ?? null })
+      .onConflictDoUpdate({
+        target: [gstItcDecisions.tenantId, gstItcDecisions.period, gstItcDecisions.supplierGstin, gstItcDecisions.docNo],
+        set: { reason: input.reason, note: input.note ?? null, updatedAt: new Date() },
+      });
+    return { eligible: false, reason: input.reason };
   }
 
   // ── Get stored 2B data ───────────────────────────────────────────────
@@ -268,7 +372,7 @@ export class Gstr2bReconciliationService {
 
   // ── Get match results ────────────────────────────────────────────────
 
-  async getMatches(period: string, status?: string): Promise<MatchRow[]> {
+  async getMatches(period: string, status?: string): Promise<EnrichedMatchRow[]> {
     const conditions = [
       eq(gstr2bMatches.tenantId, this.tenantId),
       eq(gstr2bMatches.period, period),
@@ -277,17 +381,31 @@ export class Gstr2bReconciliationService {
       conditions.push(eq(gstr2bMatches.matchStatus, status as any));
     }
 
-    return this.db
+    const rows = await this.db
       .select()
       .from(gstr2bMatches)
       .where(and(...conditions));
+
+    const reasonByKey = new Map(
+      (await this.getDecisions(period)).map((d) => [this.matchKey(d.supplierGstin, d.docNo), d.reason]),
+    );
+    return rows.map((r) => {
+      const reason = r.invoiceNumber2b
+        ? reasonByKey.get(this.matchKey(r.supplierGstin, r.invoiceNumber2b)) ?? null
+        : null;
+      return { ...r, itcEligibility: reason ? 'ineligible' : 'eligible', ineligibleReason: reason };
+    });
   }
 
   // ── Get reconciliation summary ───────────────────────────────────────
 
   async getSummary(period: string): Promise<ReconciliationSummary> {
     const matches = await this.getMatches(period);
-    return this.computeSummary(matches as any);
+    const base = this.computeSummary(matches as any);
+    const ineligibleItc = matches
+      .filter((m) => m.itcEligibility === 'ineligible')
+      .reduce((s, m) => s + Number(m.igst2b) + Number(m.cgst2b) + Number(m.sgst2b), 0);
+    return { ...base, ineligibleItc };
   }
 
   /**
@@ -544,6 +662,7 @@ export class Gstr2bReconciliationService {
       notIn2b: { count: 0, taxableValue: 0 },
       totalItcAvailable: 0,
       totalItcClaimable: 0,
+      ineligibleItc: 0,
     };
 
     for (const m of matches) {
