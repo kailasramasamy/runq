@@ -17,6 +17,7 @@ import { getStorageProvider } from '../../utils/storage';
 import { AttachmentService } from '../common/attachment.service';
 import { FarmerService } from './farmer.service';
 import { transliterateName } from './transliteration.service';
+import { extractAadhaar, type ImageMime } from './aadhaar-extract.service';
 import { StatementService } from './statement.service';
 import { renderPourStatementHTML } from './statement-template';
 import { resolveMpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
@@ -41,6 +42,21 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
   app.post('/transliterate', { preHandler: [rbacHook([...FARMER_WRITE_ROLES])] }, async (request) => {
     const { name, lang } = transliterateNameSchema.parse(request.body);
     return { data: { nameNative: await transliterateName(name, lang) } };
+  });
+
+  // Scan an Aadhaar card (multipart image) → AI-extracted fields to prefill the
+  // add-farmer form. Does not store the image; operator reviews before saving.
+  app.post('/extract-aadhaar', { preHandler: [rbacHook([...FARMER_WRITE_ROLES])] }, async (request) => {
+    const file = await request.file();
+    if (!file) throw new AppError(400, 'No image uploaded');
+    const mime = file.mimetype;
+    if (mime !== 'image/jpeg' && mime !== 'image/png' && mime !== 'image/webp') {
+      throw new AppError(400, `Image type '${mime}' is not allowed. Use JPG, PNG, or WEBP`);
+    }
+    const buffer = await file.toBuffer();
+    if (buffer.length > MAX_FILE_SIZE) throw new AppError(400, 'Image size exceeds 10MB limit');
+    const fields = await extractAadhaar(buffer.toString('base64'), mime as ImageMime);
+    return { data: fields };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
