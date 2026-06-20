@@ -53,6 +53,9 @@ dependencies:
   # Add Farmer — camera/gallery photo pick and GPS location capture.
   image_picker: ^1.1.2
   geolocator: ^13.0.2
+  # On-device person cut-out for the farmer profile photo (offline, private).
+  google_mlkit_selfie_segmentation: ^0.10.1
+  image: ^4.3.0
   # Share a cycle's pour statement PDF via the native share sheet.
   printing: ^5.13.0
 

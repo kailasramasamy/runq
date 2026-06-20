@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../services/background_removal_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
@@ -199,7 +200,12 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     final src = await _showImageSourceSheet();
     if (src == null) return;
     final xf = await picker.pickImage(source: src, imageQuality: 85);
-    if (xf != null && mounted) setState(() => _photoFile = File(xf.path));
+    if (xf == null || !mounted) return;
+    // Show the raw photo immediately, then swap in the brand-fill cut-out once
+    // on-device segmentation finishes (best-effort — keeps the original on fail).
+    setState(() => _photoFile = File(xf.path));
+    final cut = await BackgroundRemovalService.personOnBrandFill(File(xf.path));
+    if (mounted) setState(() => _photoFile = cut);
   }
 
   Future<void> _pickKyc() async {
