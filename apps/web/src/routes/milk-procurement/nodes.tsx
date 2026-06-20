@@ -5,6 +5,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, useToast,
 } from '@/components/ui';
 import { TableSkeleton } from '@/components/ui';
+import { Tabs } from '@/components/ar/primitives';
 import {
   useNodes, useCreateNode, useUpdateNode, useDeactivateNode,
   useOperators, useCreateOperator,
@@ -125,11 +126,15 @@ export function MpNodesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editNode, setEditNode] = useState<MpNode | null>(null);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
-  const { data, isLoading } = useNodes({ nodeType: (typeFilter || undefined) as NodeType | undefined, limit: 200 });
+  const { data, isLoading } = useNodes({ limit: 300 });
   const { data: opsData } = useOperators({ limit: 200 });
   const deactivate = useDeactivateNode();
   const { toast } = useToast();
-  const nodes = data?.data ?? [];
+  // Fetch every node once; the tab filters client-side so tab counts are exact
+  // and the parent-node picker in the modals still sees all tiers.
+  const allNodes = data?.data ?? [];
+  const nodes = typeFilter ? allNodes.filter((n) => n.nodeType === typeFilter) : allNodes;
+  const typeCount = (t: string) => allNodes.filter((n) => n.nodeType === t).length;
   // Active operator per node — the responsible person shown in the table.
   const opByNode = new Map<string, MpOperator>();
   for (const o of opsData?.data ?? []) if (o.isActive) opByNode.set(o.nodeId, o);
@@ -143,10 +148,16 @@ export function MpNodesPage() {
         actions={<Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" />Add node</Button>}
       />
 
-      <div className="mb-3 w-56">
-        <Combobox value={typeFilter} onChange={setTypeFilter} placeholder="All types"
-          options={[{ value: '', label: 'All types' }, ...NODE_TYPES]} />
-      </div>
+      <Tabs
+        active={typeFilter || 'all'}
+        onChange={(id) => setTypeFilter(id === 'all' ? '' : id)}
+        tabs={[
+          { id: 'all', label: 'All', count: allNodes.length },
+          { id: 'vmcc', label: 'VMCC', count: typeCount('vmcc') },
+          { id: 'cc', label: 'Chilling Centres', count: typeCount('cc') },
+          { id: 'pp', label: 'Processing Plants', count: typeCount('pp') },
+        ]}
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -196,8 +207,8 @@ export function MpNodesPage() {
         </CardContent>
       </Card>
 
-      {showCreate && <CreateNodeModal nodes={nodes} onClose={() => setShowCreate(false)} />}
-      {editNode && <EditNodeModal node={editNode} nodes={nodes} operator={opByNode.get(editNode.id) ?? null} onClose={() => setEditNode(null)} />}
+      {showCreate && <CreateNodeModal nodes={allNodes} onClose={() => setShowCreate(false)} />}
+      {editNode && <EditNodeModal node={editNode} nodes={allNodes} operator={opByNode.get(editNode.id) ?? null} onClose={() => setEditNode(null)} />}
 
       <ConfirmationDialog
         open={!!deactivateId}
