@@ -982,4 +982,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceDone => 'Done';
+
+  @override
+  String get addFarmerScanAadhaar => 'Scan Aadhaar to auto-fill';
+
+  @override
+  String get addFarmerScanning => 'Reading Aadhaar…';
+
+  @override
+  String get addFarmerScanFilled => 'Details filled — please review';
+
+  @override
+  String get addFarmerScanFailed =>
+      'Couldn\'t read the card — try a clearer photo';
 }

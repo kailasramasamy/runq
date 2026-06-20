@@ -983,4 +983,18 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get voiceDone => 'ಮುಗಿದಿದೆ';
+
+  @override
+  String get addFarmerScanAadhaar =>
+      'ವಿವರಗಳನ್ನು ಸ್ವಯಂ ತುಂಬಲು ಆಧಾರ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ';
+
+  @override
+  String get addFarmerScanning => 'ಆಧಾರ್ ಓದಲಾಗುತ್ತಿದೆ…';
+
+  @override
+  String get addFarmerScanFilled => 'ವಿವರಗಳನ್ನು ತುಂಬಲಾಗಿದೆ — ಪರಿಶೀಲಿಸಿ';
+
+  @override
+  String get addFarmerScanFailed =>
+      'ಕಾರ್ಡ್ ಓದಲಾಗಲಿಲ್ಲ — ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ';
 }

@@ -115,4 +115,5 @@ abstract final class DhenuIcons {
   static const circleUser = LucideIcons.circle_user;
   static const apple = LucideIcons.apple;
   static const outbound = LucideIcons.send;
+  static const scanDoc = LucideIcons.file_scan;
 }

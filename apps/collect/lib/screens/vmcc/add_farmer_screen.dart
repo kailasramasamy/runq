@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
 import 'add_farmer_form_sections.dart';
@@ -68,6 +69,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   final _upiIdCtrl = TextEditingController();
 
   bool _saving = false;
+  bool _scanning = false;
   String? _nameError;
 
   @override
@@ -240,6 +242,62 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     );
   }
 
+  Future<void> _scanAadhaar() async {
+    final src = await _showImageSourceSheet();
+    if (src == null || !mounted) return;
+    final picker = ImagePicker();
+    final xf = await picker.pickImage(source: src, imageQuality: 90);
+    if (xf == null || !mounted) return;
+    final l = AppLocalizations.of(context);
+    setState(() => _scanning = true);
+    try {
+      final data = await mpRepo.extractAadhaar(File(xf.path));
+      if (!mounted) return;
+      final allNull = data == null ||
+          (data['name'] == null &&
+              data['nameNative'] == null &&
+              data['aadhaarNumber'] == null &&
+              data['dob'] == null &&
+              data['village'] == null &&
+              data['address'] == null);
+      if (allNull) {
+        showDhenuToast(context, l.addFarmerScanFailed, type: DhenuToastType.error);
+        return;
+      }
+      setState(() {
+        final name = data['name'];
+        if (name is String && name.trim().isNotEmpty) {
+          _nameCtrl.text = name.trim();
+        }
+        final nameNative = data['nameNative'];
+        if (nameNative is String && nameNative.trim().isNotEmpty) {
+          _nameNativeCtrl.text = nameNative.trim();
+          _nativeEdited = true;
+        }
+        final aadhaar = data['aadhaarNumber'];
+        if (aadhaar is String && aadhaar.trim().isNotEmpty) {
+          _aadhaarCtrl.text = aadhaar.replaceAll(RegExp(r'\D'), '');
+        }
+        final dobStr = data['dob'];
+        if (dobStr is String) {
+          final parsed = DateTime.tryParse(dobStr);
+          if (parsed != null) _dob = parsed;
+        }
+        final village = data['village'];
+        if (village is String && village.trim().isNotEmpty) {
+          _villageCtrl.text = village.trim();
+        }
+        final address = data['address'];
+        if (address is String && address.trim().isNotEmpty) {
+          _addressCtrl.text = address.trim();
+        }
+      });
+      showDhenuToast(context, l.addFarmerScanFilled, type: DhenuToastType.success);
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
   bool _validate() {
     final l = AppLocalizations.of(context);
     if (_nameCtrl.text.trim().isEmpty) {
@@ -384,6 +442,8 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
         DhenuSpacing.xl + MediaQuery.of(context).viewInsets.bottom,
       ),
       children: [
+        _ScanAadhaarBanner(scanning: _scanning, onTap: _scanning ? null : _scanAadhaar),
+        const SizedBox(height: DhenuSpacing.lg),
         FarmerBasicsSection(
           nameCtrl: _nameCtrl,
           nameNativeCtrl: _nameNativeCtrl,
@@ -458,6 +518,69 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
           loading: _saving,
           onPressed: _saving ? null : _save,
         ),
+      ),
+    );
+  }
+}
+
+// ── Scan Aadhaar banner ───────────────────────────────────────────────────────
+
+class _ScanAadhaarBanner extends StatelessWidget {
+  const _ScanAadhaarBanner({required this.scanning, required this.onTap});
+  final bool scanning;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return DhenuCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: DhenuSpacing.lg,
+        vertical: DhenuSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: t.brandSubtle,
+              borderRadius: BorderRadius.circular(DhenuRadii.input),
+            ),
+            child: scanning
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: t.brand,
+                    ),
+                  )
+                : Icon(DhenuIcons.scanDoc, size: 20, color: t.brand),
+          ),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  scanning ? l.addFarmerScanning : l.addFarmerScanAadhaar,
+                  style: DhenuText.label.copyWith(color: t.ink),
+                ),
+                if (!scanning)
+                  Text(
+                    l.addFarmerFieldAadhaar,
+                    style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  ),
+              ],
+            ),
+          ),
+          if (!scanning)
+            Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
+        ],
       ),
     );
   }

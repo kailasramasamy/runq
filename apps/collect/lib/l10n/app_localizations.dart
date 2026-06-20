@@ -1935,6 +1935,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Done'**
   String get voiceDone;
+
+  /// No description provided for @addFarmerScanAadhaar.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Aadhaar to auto-fill'**
+  String get addFarmerScanAadhaar;
+
+  /// No description provided for @addFarmerScanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading Aadhaar…'**
+  String get addFarmerScanning;
+
+  /// No description provided for @addFarmerScanFilled.
+  ///
+  /// In en, this message translates to:
+  /// **'Details filled — please review'**
+  String get addFarmerScanFilled;
+
+  /// No description provided for @addFarmerScanFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read the card — try a clearer photo'**
+  String get addFarmerScanFailed;
 }
 
 class _AppLocalizationsDelegate

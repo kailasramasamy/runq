@@ -443,5 +443,9 @@
   "voiceListening": "Listening…",
   "voiceTapToSpeak": "Tap the mic and speak",
   "voiceNoSpeech": "Didn't catch that — tap the mic to try again",
-  "voiceDone": "Done"
+  "voiceDone": "Done",
+  "addFarmerScanAadhaar": "Scan Aadhaar to auto-fill",
+  "addFarmerScanning": "Reading Aadhaar…",
+  "addFarmerScanFilled": "Details filled — please review",
+  "addFarmerScanFailed": "Couldn't read the card — try a clearer photo"
 }

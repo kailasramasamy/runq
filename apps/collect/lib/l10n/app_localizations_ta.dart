@@ -988,4 +988,18 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get voiceDone => 'முடிந்தது';
+
+  @override
+  String get addFarmerScanAadhaar =>
+      'விவரங்களை தானாக நிரப்ப ஆதார் ஸ்கேன் செய்யவும்';
+
+  @override
+  String get addFarmerScanning => 'ஆதார் படிக்கிறது…';
+
+  @override
+  String get addFarmerScanFilled => 'விவரங்கள் நிரப்பப்பட்டன — சரிபார்க்கவும்';
+
+  @override
+  String get addFarmerScanFailed =>
+      'அட்டையைப் படிக்க முடியவில்லை — தெளிவான படத்தை முயற்சிக்கவும்';
 }

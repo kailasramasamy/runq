@@ -305,5 +305,9 @@
   "voiceListening": "ಆಲಿಸಲಾಗುತ್ತಿದೆ…",
   "voiceTapToSpeak": "ಮೈಕ್ ಟ್ಯಾಪ್ ಮಾಡಿ ಮಾತನಾಡಿ",
   "voiceNoSpeech": "ಕೇಳಿಸಲಿಲ್ಲ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲು ಮೈಕ್ ಟ್ಯಾಪ್ ಮಾಡಿ",
-  "voiceDone": "ಮುಗಿದಿದೆ"
+  "voiceDone": "ಮುಗಿದಿದೆ",
+  "addFarmerScanAadhaar": "ವಿವರಗಳನ್ನು ಸ್ವಯಂ ತುಂಬಲು ಆಧಾರ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
+  "addFarmerScanning": "ಆಧಾರ್ ಓದಲಾಗುತ್ತಿದೆ…",
+  "addFarmerScanFilled": "ವಿವರಗಳನ್ನು ತುಂಬಲಾಗಿದೆ — ಪರಿಶೀಲಿಸಿ",
+  "addFarmerScanFailed": "ಕಾರ್ಡ್ ಓದಲಾಗಲಿಲ್ಲ — ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ"
 }

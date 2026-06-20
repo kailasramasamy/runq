@@ -96,6 +96,28 @@ class MpRepo {
     return Uint8List.fromList(bytes);
   }
 
+  /// Extract Aadhaar card fields from [image] via AI OCR.
+  /// Returns the `data` map on success, or null if the request fails.
+  Future<Map<String, dynamic>?> extractAadhaar(File image) async {
+    final ext = image.path.split('.').last.toLowerCase();
+    final mimeType = switch (ext) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    try {
+      final res = await _api.upload(
+        '$_base/farmers/extract-aadhaar',
+        image,
+        fileField: 'file',
+        mimeType: mimeType,
+      );
+      return _one(res);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> uploadFarmerDoc(
     String farmerId,
     File file, {
