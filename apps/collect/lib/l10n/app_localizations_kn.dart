@@ -102,6 +102,38 @@ class AppLocalizationsKn extends AppLocalizations {
   String get collectSaveAndNext => 'ಉಳಿಸಿ & ಮುಂದೆ';
 
   @override
+  String collectCloseShift(String shift) {
+    return 'Close $shift collection';
+  }
+
+  @override
+  String get collectCloseDay => 'Close today\'s collection';
+
+  @override
+  String collectClosedBanner(String shift) {
+    return '$shift collection is closed — ready to dispatch.';
+  }
+
+  @override
+  String get collectDayClosedBanner =>
+      'Today\'s collection is closed — ready to dispatch.';
+
+  @override
+  String get collectReopen => 'Reopen';
+
+  @override
+  String get collectCloseBlockedPending =>
+      'Some pours haven\'t synced yet — wait for sync, then close.';
+
+  @override
+  String get dispatchCloseFirst =>
+      'Close collection for this shift before dispatching.';
+
+  @override
+  String get dispatchCloseFirstDay =>
+      'Close today\'s collection before dispatching.';
+
+  @override
   String get historyLoadError => 'ಇತಿಹಾಸ ಲೋಡ್ ಆಗಲಿಲ್ಲ';
 
   @override

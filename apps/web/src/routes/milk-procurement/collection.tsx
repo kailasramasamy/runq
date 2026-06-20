@@ -7,6 +7,7 @@ import {
 import { Tabs } from '@/components/ar/primitives';
 import {
   useNodes, useFarmers, usePours, useRecordPour, useRateCharts, milkTypeLabel,
+  useShiftStatus, useCloseShift, useReopenShift,
   type MilkType, type MpRateChart, type MeasurementMode,
 } from '@/hooks/queries/use-milk-procurement';
 import { CollectionHistoryView } from './collection-history';
@@ -68,6 +69,7 @@ function RecordTab() {
           <RecordPourCard
             key={nodeId}
             nodeId={nodeId} today={today}
+            hasBmc={active?.hasBmc ?? false}
             measurementMode={active?.measurementMode ?? 'analyzer'}
             allowedMilkTypes={active?.allowedMilkTypes ?? null}
             defaultMilkType={active?.defaultMilkType ?? null}
@@ -80,11 +82,11 @@ function RecordTab() {
 }
 
 type RecordPourCardProps = {
-  nodeId: string; today: string; measurementMode: MeasurementMode;
+  nodeId: string; today: string; hasBmc: boolean; measurementMode: MeasurementMode;
   allowedMilkTypes: MilkType[] | null; defaultMilkType: MilkType | null;
 };
 
-function RecordPourCard({ nodeId, today, measurementMode, allowedMilkTypes, defaultMilkType }: RecordPourCardProps) {
+function RecordPourCard({ nodeId, today, hasBmc, measurementMode, allowedMilkTypes, defaultMilkType }: RecordPourCardProps) {
   const record = useRecordPour();
   const { toast } = useToast();
   const { data: farmersData } = useFarmers({ nodeId, limit: 500 });
@@ -97,6 +99,14 @@ function RecordPourCard({ nodeId, today, measurementMode, allowedMilkTypes, defa
   const [f, setF] = useState({ farmerId: '', collectionDate: today, shift: 'am', milkType: initialMilkType, qtyLitres: '', fat: '', snf: '', clr: '' });
   const isLactometer = measurementMode === 'lactometer';
   const activeChart = pickActiveChart(chartsData?.data ?? [], f.milkType, nodeId, f.collectionDate, measurementMode);
+  // Per-slot close: a BMC node closes the whole day (both shifts), no-BMC closes
+  // the selected shift. A closed slot freezes the form (and gates dispatch).
+  const { data: statusData } = useShiftStatus(nodeId, f.collectionDate);
+  const st = statusData?.data;
+  const shiftClosed = hasBmc ? !!(st?.am && st?.pm) : !!st?.[f.shift as 'am' | 'pm'];
+  const closePayload = hasBmc
+    ? { nodeId, collectionDate: f.collectionDate }
+    : { nodeId, collectionDate: f.collectionDate, shift: f.shift as 'am' | 'pm' };
 
   const submit = () => {
     // lactometer VMCCs price on CLR alone; analyzer VMCCs on fat+SNF.
@@ -164,9 +174,42 @@ function RecordPourCard({ nodeId, today, measurementMode, allowedMilkTypes, defa
             No active {milkTypeLabel(f.milkType as MilkType)} rate chart for {f.collectionDate} — recording will fail. Add one in Rate charts.
           </p>
         )}
-        <Button className="w-full" onClick={submit} loading={record.isPending} disabled={!valid}>Record pour</Button>
+        <Button className="w-full" onClick={submit} loading={record.isPending} disabled={!valid || shiftClosed}>Record pour</Button>
+        <ShiftCloseBar closed={shiftClosed} hasBmc={hasBmc} shift={f.shift as 'am' | 'pm'} payload={closePayload} />
       </CardContent>
     </Card>
+  );
+}
+
+/** Close / reopen the collection slot. Closing freezes pours and lets dispatch
+ * proceed; reopen is blocked server-side once any dispatch exists. */
+function ShiftCloseBar({ closed, hasBmc, shift, payload }: {
+  closed: boolean; hasBmc: boolean; shift: 'am' | 'pm';
+  payload: { nodeId: string; collectionDate: string; shift?: 'am' | 'pm' };
+}) {
+  const { toast } = useToast();
+  const close = useCloseShift();
+  const reopen = useReopenShift();
+  const scope = hasBmc ? 'the day' : `the ${shift.toUpperCase()} shift`;
+  const busy = close.isPending || reopen.isPending;
+  const onErr = (e: any) => toast(e?.message ?? 'Action failed', 'error');
+
+  if (closed) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/15 dark:text-amber-400">
+        <span>Collection for {scope} is closed — ready to dispatch.</span>
+        <Button size="sm" variant="ghost" loading={busy}
+          onClick={() => reopen.mutate(payload, { onSuccess: () => toast('Reopened', 'success'), onError: onErr })}>
+          Reopen
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button className="w-full" variant="secondary" loading={busy}
+      onClick={() => close.mutate(payload, { onSuccess: () => toast(`Closed ${scope}`, 'success'), onError: onErr })}>
+      Close collection for {scope}
+    </Button>
   );
 }
 

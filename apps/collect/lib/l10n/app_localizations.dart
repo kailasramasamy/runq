@@ -274,6 +274,54 @@ abstract class AppLocalizations {
   /// **'Save & next'**
   String get collectSaveAndNext;
 
+  /// No description provided for @collectCloseShift.
+  ///
+  /// In en, this message translates to:
+  /// **'Close {shift} collection'**
+  String collectCloseShift(String shift);
+
+  /// No description provided for @collectCloseDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Close today\'s collection'**
+  String get collectCloseDay;
+
+  /// No description provided for @collectClosedBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{shift} collection is closed — ready to dispatch.'**
+  String collectClosedBanner(String shift);
+
+  /// No description provided for @collectDayClosedBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s collection is closed — ready to dispatch.'**
+  String get collectDayClosedBanner;
+
+  /// No description provided for @collectReopen.
+  ///
+  /// In en, this message translates to:
+  /// **'Reopen'**
+  String get collectReopen;
+
+  /// No description provided for @collectCloseBlockedPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Some pours haven\'t synced yet — wait for sync, then close.'**
+  String get collectCloseBlockedPending;
+
+  /// No description provided for @dispatchCloseFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Close collection for this shift before dispatching.'**
+  String get dispatchCloseFirst;
+
+  /// No description provided for @dispatchCloseFirstDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Close today\'s collection before dispatching.'**
+  String get dispatchCloseFirstDay;
+
   /// No description provided for @historyLoadError.
   ///
   /// In en, this message translates to:

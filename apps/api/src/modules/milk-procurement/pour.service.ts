@@ -6,6 +6,7 @@ import type { PaginationMeta } from '@runq/types';
 import type { RecordPourInput, PourFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { RateChartService } from './rate-chart.service';
+import { isShiftClosed } from './shift-closure.queries';
 import { MpPrincipal, scopePours, assertNodeAccess } from './access-scope';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -68,6 +69,14 @@ export class PourService {
         ));
         if (dup) return dup;
       }
+      // once the slot is closed for collection, no new pours or corrections —
+      // covers both the insert below and the implicit prior-reversal.
+      if (await isShiftClosed(tx, {
+        tenantId: this.tenantId, nodeId: input.nodeId,
+        collectionDate: input.collectionDate, shift: input.shift,
+      })) {
+        throw new ConflictError('Shift is closed for collection');
+      }
       // last-write-wins: a repeat for the same (farmer, date, shift, milk type)
       // reverses ALL prior readings for that slot (a "Replace" is one corrected
       // reading) — unless the operator deliberately adds a lot.
@@ -114,6 +123,12 @@ export class PourService {
   async reverse(id: string, principal: MpPrincipal): Promise<MpPourRow> {
     const row = await this.getById(id, principal);
     if (row.status !== 'recorded') throw new ConflictError('Pour is not active');
+    if (await isShiftClosed(this.db, {
+      tenantId: this.tenantId, nodeId: row.nodeId,
+      collectionDate: row.collectionDate, shift: row.shift,
+    })) {
+      throw new ConflictError('Shift is closed — reopen it to edit pours');
+    }
     const [updated] = await this.db.update(mpPours)
       .set({ status: 'reversed' })
       .where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.id, id))).returning();

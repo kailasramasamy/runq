@@ -86,6 +86,7 @@ export * from './milk-procurement/node.schema';
 export * from './milk-procurement/farmer.schema';
 export * from './milk-procurement/rate-chart.schema';
 export * from './milk-procurement/pour.schema';
+export * from './milk-procurement/shift-closure.schema';
 export * from './milk-procurement/consignment.schema';
 export * from './milk-procurement/qc-test.schema';
 export * from './milk-procurement/payout.schema';

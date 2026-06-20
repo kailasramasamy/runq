@@ -8,6 +8,7 @@ import '../../api/mp_models.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../api/mp_repo.dart';
 import '../../providers/mp_context_provider.dart';
+import '../../providers/transfer_providers.dart';
 import '../../services/pour_queue.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -51,6 +52,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   MpRateResolution? _rate;
   bool _resolving = false;
   bool _saving = false;
+  bool _closingBusy = false;
 
   /// Types the operator may select at this node. Falls back to the four
   /// non-legacy defaults when the node has no restriction.
@@ -374,10 +376,59 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     });
   }
 
+  // ── shift close ─────────────────────────────────────────────────────────────
+  // BMC nodes pool the whole day → close both shifts; no-BMC closes the selected
+  // shift. A closed slot freezes recording here and gates dispatch downstream.
+  bool _slotClosed(MpShiftStatus? st) {
+    if (st == null) return false;
+    return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
+  }
+
+  /// Don't close while unsynced pours for this slot sit in the offline queue —
+  /// they'd otherwise land after the close and slip past the guard on sync.
+  bool _hasPendingForClose() {
+    final pending = PourQueue.instance.pendingFor(widget.node.id);
+    if (widget.node.hasBmc) return pending.isNotEmpty;
+    return pending.any((p) => p.shift == _shift.name);
+  }
+
+  String? get _closeShiftArg => widget.node.hasBmc ? null : _shift.name;
+
+  Future<void> _closeShift() async {
+    if (_hasPendingForClose()) {
+      showDhenuToast(context, AppLocalizations.of(context).collectCloseBlockedPending,
+          type: DhenuToastType.error);
+      return;
+    }
+    await _runClose(() => mpRepo.closeShift(widget.node.id, todayIso(), shift: _closeShiftArg));
+  }
+
+  Future<void> _reopenShift() async =>
+      _runClose(() => mpRepo.reopenShift(widget.node.id, todayIso(), shift: _closeShiftArg));
+
+  Future<void> _runClose(Future<MpShiftStatus> Function() action) async {
+    setState(() => _closingBusy = true);
+    try {
+      await action();
+      if (!mounted) return;
+      ref.invalidate(shiftStatusProvider(widget.node.id));
+      ref.invalidate(nodeTodayPoursProvider(widget.node.id));
+      ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
+      ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: _shift.name)));
+      ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: null)));
+    } catch (e) {
+      if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+    } finally {
+      if (mounted) setState(() => _closingBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
+    final shiftStatus = ref.watch(shiftStatusProvider(widget.node.id)).asData?.value;
+    final closed = _slotClosed(shiftStatus);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.seedPour != null ? l.editCollectionTitle : l.recordCollectionTitle,
@@ -389,6 +440,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, 120),
         children: [
           _dateBar(t),
+          if (closed) ...[
+            const SizedBox(height: DhenuSpacing.md),
+            _closedBanner(t),
+          ],
           const SizedBox(height: DhenuSpacing.md),
           _farmerField(t),
           const SizedBox(height: DhenuSpacing.lg),
@@ -415,6 +470,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           _ratePreview(t),
           const SizedBox(height: DhenuSpacing.xl),
           _recentToday(t),
+          if (!_isEdit && !closed) ...[
+            const SizedBox(height: DhenuSpacing.lg),
+            _closeButton(t),
+          ],
         ],
       ),
       bottomSheet: Padding(
@@ -423,8 +482,50 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           label: _canSave ? l.collectSaveAndNext : l.commonNext,
           icon: _canSave ? DhenuIcons.check : DhenuIcons.arrowRight,
           loading: _saving,
-          onPressed: _saving ? null : _onPrimary,
+          onPressed: (_saving || closed) ? null : _onPrimary,
         ),
+      ),
+    );
+  }
+
+  String get _shiftLabel => _shift == Shift.am ? 'AM' : 'PM';
+
+  /// Amber banner shown when the slot is closed: collection is frozen, with a
+  /// Reopen affordance (server rejects reopen once anything has been dispatched).
+  Widget _closedBanner(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
+    final msg = widget.node.hasBmc ? l.collectDayClosedBanner : l.collectClosedBanner(_shiftLabel);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      decoration: BoxDecoration(
+        color: t.am.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.input),
+        border: Border.all(color: t.am.withValues(alpha: 0.4)),
+      ),
+      child: Row(children: [
+        Icon(DhenuIcons.lock, size: 18, color: t.amText),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: Text(msg, style: DhenuText.label.copyWith(color: t.ink))),
+        TextButton(
+          onPressed: _closingBusy ? null : _reopenShift,
+          child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),
+        ),
+      ]),
+    );
+  }
+
+  /// "Close collection" once the operator is done — freezes the slot and unlocks
+  /// dispatch. Disabled while unsynced pours for the slot are still queued.
+  Widget _closeButton(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
+    final label = widget.node.hasBmc ? l.collectCloseDay : l.collectCloseShift(_shiftLabel);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _closingBusy ? null : _closeShift,
+        icon: Icon(DhenuIcons.lock, size: 18, color: t.brand),
+        label: Text(label, style: DhenuText.label.copyWith(color: t.brand)),
       ),
     );
   }

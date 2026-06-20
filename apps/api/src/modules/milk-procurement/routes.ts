@@ -3,6 +3,7 @@ import { nodeRoutes } from './node.routes';
 import { farmerRoutes } from './farmer.routes';
 import { rateChartRoutes } from './rate-chart.routes';
 import { pourRoutes } from './pour.routes';
+import { shiftClosureRoutes } from './shift-closure.routes';
 import { consignmentRoutes } from './consignment.routes';
 import { qcTestRoutes } from './qc-test.routes';
 import { payoutRoutes } from './payout.routes';
@@ -23,6 +24,7 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(farmerRoutes, { prefix: '/farmers' });
   await app.register(rateChartRoutes, { prefix: '/rate-charts' });
   await app.register(pourRoutes, { prefix: '/pours' });
+  await app.register(shiftClosureRoutes, { prefix: '/shifts' });
   await app.register(consignmentRoutes, { prefix: '/consignments' });
   await app.register(qcTestRoutes, { prefix: '/qc-tests' });
   await app.register(payoutRoutes, { prefix: '/payouts' });

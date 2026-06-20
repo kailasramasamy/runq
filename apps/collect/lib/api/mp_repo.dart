@@ -209,6 +209,43 @@ class MpRepo {
     return m == null ? null : MpPour.fromJson(m);
   }
 
+  // ── shift close (per-slot collection close + dispatch gate) ─────────────────
+  /// Which shifts are closed for a node on a date. BMC nodes report both shifts.
+  Future<MpShiftStatus> shiftStatus(String nodeId, String date) async {
+    final res = await _api.get(
+      '$_base/shifts/status${_qs({'nodeId': nodeId, 'date': date})}',
+    );
+    return MpShiftStatus.fromJson(_one(res) ?? const {});
+  }
+
+  /// Close collection for a slot. Omit [shift] for a BMC node (closes the day).
+  Future<MpShiftStatus> closeShift(
+    String nodeId,
+    String collectionDate, {
+    String? shift,
+  }) async {
+    final res = await _api.post('$_base/shifts/close', {
+      'nodeId': nodeId,
+      'collectionDate': collectionDate,
+      'shift': ?shift,
+    });
+    return MpShiftStatus.fromJson(_one(res) ?? const {});
+  }
+
+  /// Reopen a closed slot — rejected server-side once any dispatch exists.
+  Future<MpShiftStatus> reopenShift(
+    String nodeId,
+    String collectionDate, {
+    String? shift,
+  }) async {
+    final res = await _api.post('$_base/shifts/reopen', {
+      'nodeId': nodeId,
+      'collectionDate': collectionDate,
+      'shift': ?shift,
+    });
+    return MpShiftStatus.fromJson(_one(res) ?? const {});
+  }
+
   // ── config ────────────────────────────────────────────────────────────────
   /// Tenant collection/payout cadence (farmer/operator readable).
   Future<MpCycleConfig> cycleConfig() async {

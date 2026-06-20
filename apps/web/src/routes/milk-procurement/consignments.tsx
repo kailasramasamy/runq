@@ -7,6 +7,7 @@ import {
 import { Tabs } from '@/components/ar/primitives';
 import {
   useNodes, useConsignments, useDispatchConsignment, useReceiveConsignment, useNodeAvailability,
+  useShiftStatus,
   type MpNode, type MpConsignment, type NodeType, type MpAvailability,
 } from '@/hooks/queries/use-milk-procurement';
 import { ConsignmentHistoryView } from './consignment-history';
@@ -84,8 +85,13 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
   const sources = nodes.filter((n) => n.nodeType === leg.from);
   const dests = nodes.filter((n) => n.nodeType === leg.to && n.id !== f.fromNodeId);
   // No-BMC source nodes dispatch each shift separately; BMC nodes pool the whole day.
-  const perShift = !!f.fromNodeId && nodes.find((n) => n.id === f.fromNodeId)?.hasBmc === false;
+  const fromBmc = !!f.fromNodeId && nodes.find((n) => n.id === f.fromNodeId)?.hasBmc === true;
+  const perShift = !!f.fromNodeId && !fromBmc;
   const avail = useNodeAvailability(f.fromNodeId, f.collectionDate, perShift ? f.shift : undefined).data?.data;
+  // Hard gate: collection must be closed before dispatch. BMC needs both shifts.
+  const sst = useShiftStatus(f.fromNodeId, f.collectionDate).data?.data;
+  const slotClosed = fromBmc ? !!(sst?.am && sst?.pm) : !!sst?.[f.shift];
+  const needsClose = !!f.fromNodeId && !slotClosed;
 
   // Default dispatch QC to the source's volume-weighted average; operator edits after lab-testing the blend.
   useEffect(() => {
@@ -155,9 +161,14 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
         {avail && (avail.avgFat != null || avail.avgSnf != null) && (
           <p className="-mt-1 text-xs text-zinc-400">FAT/SNF prefilled with source average — edit after testing the blend.</p>
         )}
+        {needsClose && (
+          <p className="-mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-700 dark:bg-amber-900/15 dark:text-amber-400">
+            Close collection for {fromBmc ? 'the day' : `the ${f.shift.toUpperCase()} shift`} before dispatching — do it from the Collection page.
+          </p>
+        )}
         <Button className="w-full" onClick={submit} loading={dispatch.isPending}
-          disabled={!f.fromNodeId || !f.toNodeId || !f.dispatchQty || (!!avail && (avail.available <= 0 || Number(f.dispatchQty) > avail.available))}>
-          {avail && avail.available <= 0 ? 'Nothing left to dispatch' : 'Dispatch'}
+          disabled={needsClose || !f.fromNodeId || !f.toNodeId || !f.dispatchQty || (!!avail && (avail.available <= 0 || Number(f.dispatchQty) > avail.available))}>
+          {needsClose ? 'Close collection first' : avail && avail.available <= 0 ? 'Nothing left to dispatch' : 'Dispatch'}
         </Button>
       </CardContent>
     </Card>

@@ -548,6 +548,17 @@ class MpAvailability {
   );
 }
 
+/// Which shifts have collection closed for a node on a date. A BMC node (pools
+/// the whole day) is "day closed" only when both are true.
+class MpShiftStatus {
+  final bool am, pm;
+  const MpShiftStatus({required this.am, required this.pm});
+  factory MpShiftStatus.fromJson(Map<String, dynamic> j) =>
+      MpShiftStatus(am: j['am'] == true, pm: j['pm'] == true);
+  bool closedFor(String shift) => shift == 'am' ? am : pm;
+  bool get dayClosed => am && pm;
+}
+
 class MpPayoutDeduction {
   final String id, deductionType;
   final double amount;

@@ -6,6 +6,7 @@ import type {
   CreateRateChartInput, RecordPourInput, CreateLedgerEntryInput,
   CreateConsignmentInput, ReceiveConsignmentInput, CreatePayoutCycleInput,
   CreateNodeOperatorInput, UpsertGlSettingsInput, CreateOperatorPayoutInput,
+  CloseShiftInput, ReopenShiftInput,
 } from '@runq/validators';
 
 const BASE = '/milk-procurement';
@@ -241,6 +242,35 @@ export function useRecordPour() {
   return useMutation({
     mutationFn: (d: RecordPourInput) => api.post<ApiSuccess<MpPour>>(`${BASE}/pours`, d),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'pours'] }),
+  });
+}
+
+// ── shift close (per-slot collection close + dispatch gate) ──────────────────
+export interface MpShiftStatus { am: boolean; pm: boolean }
+function invalidateAfterClose(c: ReturnType<typeof useQueryClient>) {
+  c.invalidateQueries({ queryKey: ['mp', 'pours'] });
+  c.invalidateQueries({ queryKey: ['mp', 'shift-status'] });
+  c.invalidateQueries({ queryKey: ['mp', 'consignments', 'available'] });
+}
+export function useShiftStatus(nodeId: string, date: string) {
+  return useQuery({
+    queryKey: ['mp', 'shift-status', nodeId, date],
+    queryFn: () => api.get<ApiSuccess<MpShiftStatus>>(`${BASE}/shifts/status${qs({ nodeId, date })}`),
+    enabled: !!nodeId && !!date,
+  });
+}
+export function useCloseShift() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: CloseShiftInput) => api.post<ApiSuccess<MpShiftStatus>>(`${BASE}/shifts/close`, d),
+    onSuccess: () => invalidateAfterClose(c),
+  });
+}
+export function useReopenShift() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: ReopenShiftInput) => api.post<ApiSuccess<MpShiftStatus>>(`${BASE}/shifts/reopen`, d),
+    onSuccess: () => invalidateAfterClose(c),
   });
 }
 

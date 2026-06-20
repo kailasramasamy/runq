@@ -9,7 +9,7 @@
     <!-- Microphone for voice dictation in add-farmer (speech_to_text). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
-        android:label="dhenu"
+        android:label="Dhenu"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

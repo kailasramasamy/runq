@@ -112,6 +112,7 @@ export * from './milk-procurement/nodes';
 export * from './milk-procurement/farmers';
 export * from './milk-procurement/rate-charts';
 export * from './milk-procurement/pours';
+export * from './milk-procurement/shift-closures';
 export * from './milk-procurement/consignments';
 export * from './milk-procurement/qc-tests';
 export * from './milk-procurement/payouts';

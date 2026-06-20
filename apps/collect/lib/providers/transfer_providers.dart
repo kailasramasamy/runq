@@ -27,6 +27,13 @@ final nodeAvailabilityProvider =
   return mpRepo.availability(args.nodeId, todayIso(), shift: args.shift);
 });
 
+/// Which shifts are closed for collection at a node today. Drives the close
+/// banner on Record Collection and the hard dispatch gate. Key: nodeId.
+final shiftStatusProvider =
+    FutureProvider.family<MpShiftStatus, String>((ref, nodeId) async {
+  return mpRepo.shiftStatus(nodeId, todayIso());
+});
+
 /// All active nodes of a given nodeType ('vmcc' | 'cc' | 'pp').
 final nodesByTypeProvider =
     FutureProvider.family<List<MpNode>, String>((ref, nodeType) async {

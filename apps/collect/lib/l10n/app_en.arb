@@ -53,6 +53,28 @@
     }
   },
   "collectSaveAndNext": "Save & next",
+  "collectCloseShift": "Close {shift} collection",
+  "@collectCloseShift": {
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      }
+    }
+  },
+  "collectCloseDay": "Close today's collection",
+  "collectClosedBanner": "{shift} collection is closed — ready to dispatch.",
+  "@collectClosedBanner": {
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      }
+    }
+  },
+  "collectDayClosedBanner": "Today's collection is closed — ready to dispatch.",
+  "collectReopen": "Reopen",
+  "collectCloseBlockedPending": "Some pours haven't synced yet — wait for sync, then close.",
+  "dispatchCloseFirst": "Close collection for this shift before dispatching.",
+  "dispatchCloseFirstDay": "Close today's collection before dispatching.",
   "historyLoadError": "Could not load history",
   "historyByDay": "By day",
   "historyByFarmer": "By farmer",

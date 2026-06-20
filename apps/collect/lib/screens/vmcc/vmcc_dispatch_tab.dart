@@ -41,6 +41,13 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   AvailabilityArgs get _availArgs =>
       (nodeId: widget.node.id, shift: _perShift ? _shift.name : null);
 
+  // Hard gate: collection must be closed before dispatch. BMC pools the whole
+  // day (both shifts closed); no-BMC needs just the selected shift.
+  bool _slotClosed(MpShiftStatus? st) {
+    if (st == null) return false;
+    return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
+  }
+
   void _onShiftChanged(Shift s) {
     // re-prefill qty/fat/snf from the newly selected shift's availability
     _qtyCtrl.clear();
@@ -100,6 +107,10 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       setState(() => _error = l.dispatchErrorNoDestination);
       return;
     }
+    if (!_slotClosed(ref.read(shiftStatusProvider(widget.node.id)).asData?.value)) {
+      setState(() => _error = widget.node.hasBmc ? l.dispatchCloseFirstDay : l.dispatchCloseFirst);
+      return;
+    }
     final qty = double.tryParse(_qtyCtrl.text);
     final fat = double.tryParse(_fatCtrl.text);
     final snf = double.tryParse(_snfCtrl.text);
@@ -147,6 +158,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     final outboundAsync = ref.watch(nodeOutboundConsignmentsProvider(widget.node.id));
     availAsync.whenData(_prefillFromAvailability);
     final canDispatch = (availAsync.asData?.value?.available ?? 0) > 0;
+    final closeRequired = !_slotClosed(ref.watch(shiftStatusProvider(widget.node.id)).asData?.value);
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -199,6 +211,10 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(hintText: l.dispatchContainerHint),
         ),
+        if (closeRequired) ...[
+          const SizedBox(height: DhenuSpacing.md),
+          _closeGateBanner(t, l),
+        ],
         if (_error != null) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
@@ -207,7 +223,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         PrimaryAction(
           label: l.dispatchTankerButton,
           icon: DhenuIcons.truck,
-          onPressed: _dispatch,
+          onPressed: (_saving || closeRequired) ? null : _dispatch,
           loading: _saving,
         ),
         ] else ...[
@@ -269,6 +285,28 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 style: DhenuText.number(size: 16, color: t.ink)),
           ]),
         ],
+      ]),
+    );
+  }
+
+  /// Hard-gate notice: dispatch stays disabled until collection is closed
+  /// (done from the Collection screen).
+  Widget _closeGateBanner(DhenuTokens t, AppLocalizations l) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      decoration: BoxDecoration(
+        color: t.am.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.input),
+        border: Border.all(color: t.am.withValues(alpha: 0.4)),
+      ),
+      child: Row(children: [
+        Icon(DhenuIcons.lock, size: 18, color: t.amText),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: Text(
+          widget.node.hasBmc ? l.dispatchCloseFirstDay : l.dispatchCloseFirst,
+          style: DhenuText.label.copyWith(color: t.ink),
+        )),
       ]),
     );
   }

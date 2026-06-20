@@ -9,6 +9,7 @@ import type {
 } from '@runq/validators';
 import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors';
 import { nextDocNo } from './numbering';
+import { isShiftClosed } from './shift-closure.queries';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 
 /** Milk on hand at a source node on a date: what it took in minus what it already sent on. */
@@ -61,6 +62,16 @@ export class ConsignmentService {
       throw new ValidationError('This node has no BMC — select a shift (AM/PM) to dispatch.');
     }
     const shift = from.hasBmc ? null : input.shift ?? null;
+    // Hard gate: collection must be closed before milk leaves. BMC pools the
+    // whole day, so both shifts must be closed; no-BMC needs just the one.
+    const mustBeClosed: ('am' | 'pm')[] = from.hasBmc ? ['am', 'pm'] : [input.shift!];
+    for (const s of mustBeClosed) {
+      const closed = await isShiftClosed(this.db, {
+        tenantId: this.tenantId, nodeId: input.fromNodeId,
+        collectionDate: input.collectionDate, shift: s,
+      });
+      if (!closed) throw new ValidationError('Close collection for this shift before dispatching.');
+    }
     // Never let dispatches exceed what's on hand for this node/date/shift —
     // otherwise availability goes negative (e.g. dispatching an already-sent shift).
     const available = await this.availableToDispatch(input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined);
