@@ -10,6 +10,13 @@ import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
 
+// Store links live in the app (not config) — they never change for a listing
+// and the app already knows its platform. Mirrors apps/mobile's
+// app_version_service.dart. iOS is empty until the App Store listing exists.
+const String _androidStoreUrl =
+    'https://play.google.com/store/apps/details?id=com.quartex.dhenu';
+const String _iosStoreUrl = '';
+
 /// Full-screen, non-dismissable gate shown when the running build is below
 /// the server's `dhenu.minVersion`. The only way forward is the store.
 class UpdateRequiredScreen extends StatelessWidget {
@@ -70,7 +77,7 @@ class UpdateRequiredScreen extends StatelessWidget {
   }
 
   Future<void> _openStore(BuildContext context) async {
-    final url = Platform.isIOS ? config.iosStoreUrl : config.androidStoreUrl;
+    final url = Platform.isIOS ? _iosStoreUrl : _androidStoreUrl;
     var ok = false;
     if (url.isNotEmpty) {
       ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);

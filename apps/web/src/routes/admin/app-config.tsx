@@ -34,8 +34,6 @@ const FIELDS: Array<{
   { key: 'dhenu.currentVersion', label: 'Current version', description: 'The latest Dhenu version on the stores (reserved for a future "update available" prompt).', group: 'dhenu', type: 'string' },
   { key: 'dhenu.minVersion', label: 'Minimum version', description: 'Below this, Dhenu hard-blocks and forces an update. Bump this to force all old clients to update.', group: 'dhenu', type: 'string' },
   { key: 'dhenu.forceUpdateMessage', label: 'Force-update message', description: 'Shown on the Dhenu blocking screen.', group: 'dhenu', type: 'multiline' },
-  { key: 'dhenu.androidStoreUrl', label: 'Android store URL', description: 'Play Store link opened by the "Update Now" button on Android.', group: 'dhenu', type: 'string' },
-  { key: 'dhenu.iosStoreUrl', label: 'iOS store URL', description: 'App Store link opened by the "Update Now" button on iOS.', group: 'dhenu', type: 'string' },
   { key: 'platform.maintenance.enabled', label: 'Maintenance mode', description: 'When ON, all clients show the maintenance message and writes are blocked.', group: 'maintenance', type: 'boolean' },
   { key: 'platform.maintenance.message', label: 'Maintenance message', description: 'Banner shown to all users when maintenance is on.', group: 'maintenance', type: 'multiline' },
 ];
@@ -112,7 +110,7 @@ export function AdminAppConfigPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-base font-semibold">Mobile app</h2>
+            <h2 className="text-base font-semibold">runQ app</h2>
           </div>
           <p className="text-xs text-zinc-500">Pushed to clients via /api/v1/public/app-config (60s redis cache).</p>
         </CardHeader>

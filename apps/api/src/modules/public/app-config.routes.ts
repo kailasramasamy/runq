@@ -19,8 +19,6 @@ interface DhenuConfig {
   currentVersion: string;
   minVersion: string;
   forceUpdateMessage: string;
-  androidStoreUrl: string;
-  iosStoreUrl: string;
 }
 
 interface PublicConfig {
@@ -41,8 +39,6 @@ const DEFAULTS: PublicConfig = {
     currentVersion: '1.0.0',
     minVersion: '1.0.0',
     forceUpdateMessage: 'Please update to the latest version of Dhenu.',
-    androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.quartex.dhenu',
-    iosStoreUrl: 'https://apps.apple.com/app/dhenu/idTBD',
   },
 };
 
@@ -68,8 +64,6 @@ export const appConfigRoutes: FastifyPluginAsync = async (app) => {
         currentVersion: (map.get('dhenu.currentVersion') as string) ?? DEFAULTS.dhenu.currentVersion,
         minVersion: (map.get('dhenu.minVersion') as string) ?? DEFAULTS.dhenu.minVersion,
         forceUpdateMessage: (map.get('dhenu.forceUpdateMessage') as string) ?? DEFAULTS.dhenu.forceUpdateMessage,
-        androidStoreUrl: (map.get('dhenu.androidStoreUrl') as string) ?? DEFAULTS.dhenu.androidStoreUrl,
-        iosStoreUrl: (map.get('dhenu.iosStoreUrl') as string) ?? DEFAULTS.dhenu.iosStoreUrl,
       },
     };
 

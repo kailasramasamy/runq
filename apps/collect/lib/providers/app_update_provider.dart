@@ -10,23 +10,17 @@ class AppUpdateConfig {
     required this.minVersion,
     required this.currentVersion,
     required this.forceUpdateMessage,
-    required this.androidStoreUrl,
-    required this.iosStoreUrl,
   });
 
   final String minVersion;
   final String currentVersion;
   final String forceUpdateMessage;
-  final String androidStoreUrl;
-  final String iosStoreUrl;
 
   factory AppUpdateConfig.fromJson(Map<String, dynamic> j) => AppUpdateConfig(
         minVersion: (j['minVersion'] as String?) ?? '0.0.0',
         currentVersion: (j['currentVersion'] as String?) ?? '0.0.0',
         forceUpdateMessage: (j['forceUpdateMessage'] as String?) ??
             'Please update to the latest version of Dhenu.',
-        androidStoreUrl: (j['androidStoreUrl'] as String?) ?? '',
-        iosStoreUrl: (j['iosStoreUrl'] as String?) ?? '',
       );
 }
 
