@@ -26,6 +26,9 @@ dependencies:
   http_parser: ^4.0.2
   shared_preferences: ^2.3.4
   url_launcher: ^6.3.1
+  # Reads the running build's version to compare against the server's
+  # dhenu.minVersion for the force-update gate.
+  package_info_plus: ^8.1.1
 
   # Auth — Google/Apple via Firebase + phone-DOB fallback (reused from apps/mobile).
   firebase_core: ^3.8.0

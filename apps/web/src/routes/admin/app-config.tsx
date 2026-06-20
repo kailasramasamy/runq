@@ -25,12 +25,17 @@ const FIELDS: Array<{
   key: string;
   label: string;
   description: string;
-  group: 'mobile' | 'maintenance';
+  group: 'mobile' | 'dhenu' | 'maintenance';
   type: 'string' | 'multiline' | 'boolean';
 }> = [
   { key: 'mobile.currentVersion', label: 'Current version', description: 'The latest version on the stores. Older clients see a soft "update available" prompt.', group: 'mobile', type: 'string' },
   { key: 'mobile.minVersion', label: 'Minimum version', description: 'Below this, the app blocks usage and forces an update.', group: 'mobile', type: 'string' },
   { key: 'mobile.forceUpdateMessage', label: 'Force-update message', description: 'Shown in the blocking dialog.', group: 'mobile', type: 'multiline' },
+  { key: 'dhenu.currentVersion', label: 'Current version', description: 'The latest Dhenu version on the stores (reserved for a future "update available" prompt).', group: 'dhenu', type: 'string' },
+  { key: 'dhenu.minVersion', label: 'Minimum version', description: 'Below this, Dhenu hard-blocks and forces an update. Bump this to force all old clients to update.', group: 'dhenu', type: 'string' },
+  { key: 'dhenu.forceUpdateMessage', label: 'Force-update message', description: 'Shown on the Dhenu blocking screen.', group: 'dhenu', type: 'multiline' },
+  { key: 'dhenu.androidStoreUrl', label: 'Android store URL', description: 'Play Store link opened by the "Update Now" button on Android.', group: 'dhenu', type: 'string' },
+  { key: 'dhenu.iosStoreUrl', label: 'iOS store URL', description: 'App Store link opened by the "Update Now" button on iOS.', group: 'dhenu', type: 'string' },
   { key: 'platform.maintenance.enabled', label: 'Maintenance mode', description: 'When ON, all clients show the maintenance message and writes are blocked.', group: 'maintenance', type: 'boolean' },
   { key: 'platform.maintenance.message', label: 'Maintenance message', description: 'Banner shown to all users when maintenance is on.', group: 'maintenance', type: 'multiline' },
 ];
@@ -113,6 +118,30 @@ export function AdminAppConfigPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           {FIELDS.filter((f) => f.group === 'mobile').map((f) => (
+            <ConfigField
+              key={f.key}
+              field={f}
+              value={f.key in edits ? edits[f.key] : valueMap.get(f.key)}
+              onChange={(v) => setEdit(f.key, v)}
+              dirty={f.key in edits}
+              saving={saving === f.key}
+              onSave={() => save(f.key)}
+              row={rows.find((r) => r.key === f.key)}
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-emerald-500" />
+            <h2 className="text-base font-semibold">Dhenu app</h2>
+          </div>
+          <p className="text-xs text-zinc-500">Milk-procurement app (separate store listing). Bump minimum version to force users to update.</p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {FIELDS.filter((f) => f.group === 'dhenu').map((f) => (
             <ConfigField
               key={f.key}
               field={f}

@@ -11,6 +11,7 @@ import 'router.dart';
 import 'services/pour_queue.dart';
 import 'services/push_service.dart';
 import 'theme/dhenu_theme.dart';
+import 'widgets/app_update_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +53,9 @@ class DhenuApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (ctx, child) => _SystemChromeSync(child: child ?? const SizedBox()),
+      builder: (ctx, child) => _SystemChromeSync(
+        child: AppUpdateGate(child: child ?? const SizedBox()),
+      ),
       routerConfig: ref.watch(routerProvider),
     );
   }
