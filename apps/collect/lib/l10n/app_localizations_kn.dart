@@ -968,4 +968,19 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get voiceOpenSettings => 'ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ತೆರೆಯಿರಿ';
+
+  @override
+  String get voiceSpeakNow => 'ಈಗ ಮಾತನಾಡಿ';
+
+  @override
+  String get voiceListening => 'ಆಲಿಸಲಾಗುತ್ತಿದೆ…';
+
+  @override
+  String get voiceTapToSpeak => 'ಮೈಕ್ ಟ್ಯಾಪ್ ಮಾಡಿ ಮಾತನಾಡಿ';
+
+  @override
+  String get voiceNoSpeech => 'ಕೇಳಿಸಲಿಲ್ಲ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲು ಮೈಕ್ ಟ್ಯಾಪ್ ಮಾಡಿ';
+
+  @override
+  String get voiceDone => 'ಮುಗಿದಿದೆ';
 }

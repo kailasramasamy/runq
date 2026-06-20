@@ -6,13 +6,12 @@ import '../services/voice_input_service.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import 'sheet_grabber.dart';
+import 'voice_capture_sheet.dart';
 
 /// A TextField with mic (dictate) + speaker (read-back) suffix icons.
 ///
-/// Mic: lazily initialises STT (asking mic permission on first tap), then
-/// dictates in the current app locale (ta-IN etc.) — recognised text streams
-/// into [controller]. While listening the mic pulses in the brand colour.
-///
+/// Mic: opens a full voice-capture sheet (big animated mic, live transcript,
+/// explicit Done) in the current app locale. Recognised text fills [controller].
 /// Speaker: reads [controller.text] back via TtsService for non-reading VMCC
 /// operators to confirm what was captured.
 class VoiceField extends StatefulWidget {
@@ -41,37 +40,14 @@ class VoiceField extends StatefulWidget {
   State<VoiceField> createState() => _VoiceFieldState();
 }
 
-class _VoiceFieldState extends State<VoiceField>
-    with SingleTickerProviderStateMixin {
-  bool _listening = false;
+class _VoiceFieldState extends State<VoiceField> {
   bool _busy = false;
-  late final AnimationController _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
 
   String get _localeId =>
       VoiceInputService.localeId(Localizations.localeOf(context).languageCode);
 
-  Future<void> _toggleMic() async {
+  Future<void> _startVoice() async {
     if (_busy) return;
-    if (_listening) {
-      await VoiceInputService.instance.stop();
-      if (mounted) setState(() => _listening = false);
-      return;
-    }
     setState(() => _busy = true);
     // Lazy init — this is where iOS/Android prompt for the mic permission.
     final ok = await VoiceInputService.instance.init();
@@ -81,28 +57,20 @@ class _VoiceFieldState extends State<VoiceField>
       await _showMicPermissionSheet();
       return;
     }
-    await VoiceInputService.instance.listen(
+    final text = await showVoiceCaptureSheet(
+      context,
       localeId: _localeId,
-      onResult: (text) {
-        if (!mounted) return;
-        widget.controller.text = text;
-        widget.controller.selection =
-            TextSelection.collapsed(offset: text.length);
-        widget.onChanged?.call(text);
-        widget.onResult?.call(text);
-      },
-      onStatus: (s) {
-        if (mounted && (s == 'notListening' || s == 'done')) {
-          setState(() => _listening = false);
-        }
-      },
+      title: widget.labelText,
     );
-    if (mounted) setState(() => _listening = true);
+    if (!mounted || text == null || text.isEmpty) return;
+    widget.controller.text = text;
+    widget.controller.selection = TextSelection.collapsed(offset: text.length);
+    widget.onChanged?.call(text);
+    widget.onResult?.call(text);
   }
 
   /// Shown when the mic is unavailable (usually denied permission): explains
-  /// what's needed and deep-links to the app's Settings page. After granting,
-  /// the operator returns and taps the mic again — init() retries and succeeds.
+  /// what's needed and deep-links to the app's Settings page.
   Future<void> _showMicPermissionSheet() {
     final t = DT(context);
     final l = AppLocalizations.of(context);
@@ -183,18 +151,16 @@ class _VoiceFieldState extends State<VoiceField>
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (ctx, child) => IconButton(
-                icon: Icon(
-                  _listening ? Icons.mic : Icons.mic_none,
-                  color: _listening
-                      ? Color.lerp(t.brand, t.brandPressed, _pulse.value)
-                      : t.inkSoft,
-                ),
-                onPressed: _toggleMic,
-                tooltip: _listening ? 'Stop dictation' : 'Dictate',
-              ),
+            IconButton(
+              icon: _busy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: t.brand))
+                  : Icon(Icons.mic_none, color: t.brand),
+              onPressed: _busy ? null : _startVoice,
+              tooltip: 'Dictate',
             ),
             IconButton(
               icon: Icon(Icons.volume_up_outlined, color: t.inkSoft),

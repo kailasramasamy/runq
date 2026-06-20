@@ -1905,6 +1905,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open Settings'**
   String get voiceOpenSettings;
+
+  /// No description provided for @voiceSpeakNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Speak now'**
+  String get voiceSpeakNow;
+
+  /// No description provided for @voiceListening.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening…'**
+  String get voiceListening;
+
+  /// No description provided for @voiceTapToSpeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the mic and speak'**
+  String get voiceTapToSpeak;
+
+  /// No description provided for @voiceNoSpeech.
+  ///
+  /// In en, this message translates to:
+  /// **'Didn\'t catch that — tap the mic to try again'**
+  String get voiceNoSpeech;
+
+  /// No description provided for @voiceDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get voiceDone;
 }
 
 class _AppLocalizationsDelegate

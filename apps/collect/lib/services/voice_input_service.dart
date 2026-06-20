@@ -46,20 +46,23 @@ class VoiceInputService {
 
   /// Start listening. [onStatus] fires with the engine status ('listening',
   /// 'notListening', 'done') so callers can reset their UI when speech ends.
+  /// [onSoundLevel] streams the mic level (~0..10) for a "hearing you" animation.
   Future<void> listen({
     required String localeId,
     required void Function(String) onResult,
     void Function(String)? onStatus,
+    void Function(double)? onSoundLevel,
   }) async {
     if (!_available) return;
     _onStatus = onStatus;
     try {
       await _stt.listen(
         onResult: (r) => onResult(r.recognizedWords),
+        onSoundLevelChange: onSoundLevel,
         listenOptions: SpeechListenOptions(
           localeId: localeId,
           listenFor: const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 3),
+          pauseFor: const Duration(seconds: 4),
           partialResults: true,
         ),
       );

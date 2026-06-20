@@ -972,4 +972,20 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get voiceOpenSettings => 'அமைப்புகளைத் திற';
+
+  @override
+  String get voiceSpeakNow => 'இப்போது பேசவும்';
+
+  @override
+  String get voiceListening => 'கேட்கிறது…';
+
+  @override
+  String get voiceTapToSpeak => 'மைக்கைத் தட்டி பேசவும்';
+
+  @override
+  String get voiceNoSpeech =>
+      'கேட்கவில்லை — மீண்டும் முயற்சிக்க மைக்கைத் தட்டவும்';
+
+  @override
+  String get voiceDone => 'முடிந்தது';
 }
