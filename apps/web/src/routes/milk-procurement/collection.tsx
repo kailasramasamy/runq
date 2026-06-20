@@ -6,22 +6,26 @@ import {
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import {
-  useNodes, useFarmers, usePours, useRecordPour, useRateCharts,
-  type MilkType, type MpRateChart,
+  useNodes, useFarmers, usePours, useRecordPour, useRateCharts, milkTypeLabel,
+  type MilkType, type MpRateChart, type MeasurementMode,
 } from '@/hooks/queries/use-milk-procurement';
 import { CollectionHistoryView } from './collection-history';
 
 /** Mirror of the server's chart selection: milk type + active + effective on the
- * pour date, node-scoped preferred over tenant-wide, latest effective wins. */
-function pickActiveChart(charts: MpRateChart[], milkType: string, nodeId: string, onDate: string): MpRateChart | null {
+ * pour date, mode-matched (lactometer→clr, analyzer→matrix/flat), node-scoped
+ * preferred over tenant-wide, latest effective wins. */
+function pickActiveChart(
+  charts: MpRateChart[], milkType: string, nodeId: string, onDate: string, mode: MeasurementMode,
+): MpRateChart | null {
   const cands = charts
-    .filter((c) => c.isActive && c.milkType === milkType && c.effectiveFrom <= onDate && (!c.effectiveTo || c.effectiveTo >= onDate))
+    .filter((c) => c.isActive && c.milkType === milkType && c.effectiveFrom <= onDate && (!c.effectiveTo || c.effectiveTo >= onDate)
+      && (mode === 'lactometer' ? c.pricingMode === 'clr' : c.pricingMode !== 'clr'))
     .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
   return cands.find((c) => c.scopeNodeId === nodeId) ?? cands.find((c) => c.scopeNodeId === null) ?? null;
 }
 
 const SHIFTS = [{ value: 'am', label: 'Morning (AM)' }, { value: 'pm', label: 'Evening (PM)' }];
-const MILK = [{ value: 'cow', label: 'Cow' }, { value: 'buffalo', label: 'Buffalo' }, { value: 'mixed', label: 'Mixed' }];
+const ALL_MILK_TYPES: MilkType[] = ['cow_a1', 'cow_a2', 'buffalo', 'mixed'];
 
 export function MpCollectionPage({ tab }: { tab: 'record' | 'history' }) {
   const navigate = useNavigate();
@@ -61,7 +65,13 @@ function RecordTab() {
         <Card><CardContent className="py-10 text-center text-sm text-zinc-500">Pick a VMCC to start recording collection.</CardContent></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          <RecordPourCard nodeId={nodeId} today={today} />
+          <RecordPourCard
+            key={nodeId}
+            nodeId={nodeId} today={today}
+            measurementMode={active?.measurementMode ?? 'analyzer'}
+            allowedMilkTypes={active?.allowedMilkTypes ?? null}
+            defaultMilkType={active?.defaultMilkType ?? null}
+          />
           <TodayPoursCard nodeId={nodeId} today={today} />
         </div>
       )}
@@ -69,34 +79,47 @@ function RecordTab() {
   );
 }
 
-function RecordPourCard({ nodeId, today }: { nodeId: string; today: string }) {
+type RecordPourCardProps = {
+  nodeId: string; today: string; measurementMode: MeasurementMode;
+  allowedMilkTypes: MilkType[] | null; defaultMilkType: MilkType | null;
+};
+
+function RecordPourCard({ nodeId, today, measurementMode, allowedMilkTypes, defaultMilkType }: RecordPourCardProps) {
   const record = useRecordPour();
   const { toast } = useToast();
   const { data: farmersData } = useFarmers({ nodeId, limit: 500 });
   const farmers = farmersData?.data ?? [];
   const { data: chartsData } = useRateCharts({ limit: 200 });
-  const [f, setF] = useState({ farmerId: '', collectionDate: today, shift: 'am', milkType: 'cow', qtyLitres: '', fat: '', snf: '' });
-  const activeChart = pickActiveChart(chartsData?.data ?? [], f.milkType, nodeId, f.collectionDate);
+  // Effective list: use node's allowed types when set, else all four.
+  const effectiveTypes = allowedMilkTypes && allowedMilkTypes.length > 0 ? allowedMilkTypes : ALL_MILK_TYPES;
+  const initialMilkType = defaultMilkType ?? effectiveTypes[0] ?? 'cow_a1';
+  const isSingleType = effectiveTypes.length === 1;
+  const [f, setF] = useState({ farmerId: '', collectionDate: today, shift: 'am', milkType: initialMilkType, qtyLitres: '', fat: '', snf: '', clr: '' });
+  const isLactometer = measurementMode === 'lactometer';
+  const activeChart = pickActiveChart(chartsData?.data ?? [], f.milkType, nodeId, f.collectionDate, measurementMode);
 
   const submit = () => {
+    // lactometer VMCCs price on CLR alone; analyzer VMCCs on fat+SNF.
+    const quality = isLactometer ? { clr: Number(f.clr) } : { fat: Number(f.fat), snf: Number(f.snf) };
     record.mutate(
       {
         nodeId, farmerId: f.farmerId, collectionDate: f.collectionDate,
         shift: f.shift as 'am' | 'pm', milkType: f.milkType as MilkType,
-        qtyLitres: Number(f.qtyLitres), fat: Number(f.fat), snf: Number(f.snf),
-        captureSource: 'manual',
+        qtyLitres: Number(f.qtyLitres), ...quality,
+        captureSource: 'manual', asNewLot: false,
       },
       {
         onSuccess: (res) => {
           const p = res.data;
-          toast(`Recorded ${p.qtyLitres}L · grade ${p.qualityGrade?.toUpperCase()} · ₹${p.lineAmount}`, 'success');
-          setF((prev) => ({ ...prev, farmerId: '', qtyLitres: '', fat: '', snf: '' }));
+          const grade = p.qualityGrade ? ` · grade ${p.qualityGrade.toUpperCase()}` : '';
+          toast(`Recorded ${p.qtyLitres}L${grade} · ₹${p.lineAmount}`, 'success');
+          setF((prev) => ({ ...prev, farmerId: '', qtyLitres: '', fat: '', snf: '', clr: '' }));
         },
         onError: () => toast('Failed — is there an active rate chart for this milk type?', 'error'),
       },
     );
   };
-  const valid = f.farmerId && f.qtyLitres && f.fat && f.snf;
+  const valid = f.farmerId && f.qtyLitres && (isLactometer ? f.clr : f.fat && f.snf);
 
   return (
     <Card>
@@ -108,12 +131,26 @@ function RecordPourCard({ nodeId, today }: { nodeId: string; today: string }) {
           <Input label="Date" type="date" value={f.collectionDate} onChange={(e) => setF({ ...f, collectionDate: e.target.value })} />
           <Combobox label="Shift" value={f.shift} onChange={(v) => setF({ ...f, shift: v })} options={SHIFTS} />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <Input label="Qty (L)" type="number" value={f.qtyLitres} onChange={(e) => setF({ ...f, qtyLitres: e.target.value })} />
-          <Input label="FAT %" type="number" value={f.fat} onChange={(e) => setF({ ...f, fat: e.target.value })} />
-          <Input label="SNF %" type="number" value={f.snf} onChange={(e) => setF({ ...f, snf: e.target.value })} />
-        </div>
-        <Combobox label="Milk" value={f.milkType} onChange={(v) => setF({ ...f, milkType: v })} options={MILK} />
+        {isLactometer ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Qty (L)" type="number" value={f.qtyLitres} onChange={(e) => setF({ ...f, qtyLitres: e.target.value })} />
+            <Input label="CLR" type="number" value={f.clr} onChange={(e) => setF({ ...f, clr: e.target.value })} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <Input label="Qty (L)" type="number" value={f.qtyLitres} onChange={(e) => setF({ ...f, qtyLitres: e.target.value })} />
+            <Input label="FAT %" type="number" value={f.fat} onChange={(e) => setF({ ...f, fat: e.target.value })} />
+            <Input label="SNF %" type="number" value={f.snf} onChange={(e) => setF({ ...f, snf: e.target.value })} />
+          </div>
+        )}
+        {isSingleType ? (
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Milk: <span className="font-medium">{milkTypeLabel(f.milkType as MilkType)}</span>
+          </p>
+        ) : (
+          <Combobox label="Milk" value={f.milkType} onChange={(v) => setF({ ...f, milkType: v as MilkType })}
+            options={effectiveTypes.map((t) => ({ value: t, label: milkTypeLabel(t) }))} />
+        )}
         {activeChart ? (
           <p className="rounded-md bg-emerald-50/60 px-2 py-1.5 text-xs text-zinc-600 dark:bg-emerald-900/10 dark:text-zinc-400">
             Rate chart:{' '}
@@ -124,7 +161,7 @@ function RecordPourCard({ nodeId, today }: { nodeId: string; today: string }) {
           </p>
         ) : (
           <p className="rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-600 dark:bg-red-900/10 dark:text-red-400">
-            No active {f.milkType} rate chart for {f.collectionDate} — recording will fail. Add one in Rate charts.
+            No active {milkTypeLabel(f.milkType as MilkType)} rate chart for {f.collectionDate} — recording will fail. Add one in Rate charts.
           </p>
         )}
         <Button className="w-full" onClick={submit} loading={record.isPending} disabled={!valid}>Record pour</Button>

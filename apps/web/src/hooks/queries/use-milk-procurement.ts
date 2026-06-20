@@ -11,14 +11,30 @@ import type {
 const BASE = '/milk-procurement';
 
 // ── row shapes (API JSON; web doesn't import @runq/db) ────────────────────
-export type MilkType = 'cow' | 'buffalo' | 'mixed';
+export type MilkType = 'cow' | 'buffalo' | 'mixed' | 'cow_a1' | 'cow_a2';
+
+export function milkTypeLabel(t: MilkType): string {
+  switch (t) {
+    case 'cow_a1': return 'Cow A1 (regular)';
+    case 'cow_a2': return 'Cow A2 (desi)';
+    case 'buffalo': return 'Buffalo';
+    case 'mixed': return 'Mixed';
+    case 'cow': return 'Cow (legacy)';
+  }
+}
+
 export type NodeType = 'vmcc' | 'cc' | 'pp';
 export type PayoutMode = 'direct_to_farmer' | 'via_vmcc';
+
+export type MeasurementMode = 'analyzer' | 'lactometer';
 
 export interface MpNode {
   id: string; code: string; name: string; nodeType: NodeType;
   parentNodeId: string | null; hasBmc: boolean; capacityLitres: string | null;
   payoutMode: PayoutMode | null; payeeVendorId: string | null;
+  measurementMode: MeasurementMode;
+  allowedMilkTypes: MilkType[] | null;
+  defaultMilkType: MilkType | null;
   city: string | null; state: string | null; isActive: boolean;
 }
 export type CattleBreed = 'desi_natti' | 'crossbred' | 'jersey' | 'hf' | 'gir' | 'sahiwal' | 'murrah' | 'other';
@@ -37,11 +53,15 @@ export interface MpFarmer {
   profilePhotoUrl?: string | null;
 }
 export interface MpRateChart {
-  id: string; name: string; milkType: MilkType; pricingMode: 'matrix' | 'flat';
+  id: string; name: string; milkType: MilkType; pricingMode: 'matrix' | 'flat' | 'clr';
   flatRatePerLitre: string | null; scopeNodeId: string | null; season: string | null;
   effectiveFrom: string; effectiveTo: string | null; isActive: boolean;
 }
-export interface MpRateCell { id: string; fat: string; snf: string; ratePerLitre: string }
+export interface MpRateCell {
+  id: string;
+  fat: string | null; snf: string | null; clr: string | null;
+  ratePerLitre: string;
+}
 export interface MpRateRule {
   id: string; ruleType: 'quality_bonus' | 'volume_slab'; grade: string | null;
   minQty: string | null; maxQty: string | null; bonusPerLitre: string;
@@ -49,7 +69,7 @@ export interface MpRateRule {
 export interface MpRateChartDetail extends MpRateChart { cells: MpRateCell[]; rules: MpRateRule[] }
 export interface MpRateResolution {
   rateChartId: string; baseRatePerLitre: number; bonusPerLitre: number;
-  ratePerLitre: number; grade: 'a' | 'b' | 'c';
+  ratePerLitre: number; grade: 'a' | 'b' | 'c' | null;
 }
 export interface MpPour {
   id: string; nodeId: string; farmerId: string; collectionDate: string;
@@ -72,6 +92,7 @@ export const MP_KEYS = {
   farmers: (f?: unknown) => ['mp', 'farmers', f] as const,
   rateCharts: (f?: unknown) => ['mp', 'rate-charts', f] as const,
   rateChart: (id: string) => ['mp', 'rate-charts', id] as const,
+  resolveRate: (f?: unknown) => ['mp', 'rate-charts', 'resolve', f] as const,
   pours: (f?: unknown) => ['mp', 'pours', f] as const,
   ledger: (farmerId?: string) => ['mp', 'ledger', farmerId] as const,
   collection: (f?: unknown) => ['mp', 'reports', 'collection', f] as const,
@@ -192,6 +213,16 @@ export function useDeactivateRateChart() {
   return useMutation({
     mutationFn: (id: string) => api.post<ApiSuccess<MpRateChart>>(`${BASE}/rate-charts/${id}/deactivate`, {}),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'rate-charts'] }),
+  });
+}
+export function useResolveRate(params: {
+  milkType: MilkType; fat?: number; snf?: number; clr?: number;
+  cycleQtyLitres?: number; scopeNodeId?: string; onDate?: string;
+} | null) {
+  return useQuery({
+    queryKey: MP_KEYS.resolveRate(params),
+    queryFn: () => api.get<ApiSuccess<MpRateResolution>>(`${BASE}/rate-charts/resolve${qs({ ...params! })}`),
+    enabled: !!params,
   });
 }
 

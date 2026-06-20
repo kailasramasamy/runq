@@ -8,7 +8,8 @@ import { TableSkeleton } from '@/components/ui';
 import {
   useNodes, useCreateNode, useUpdateNode, useDeactivateNode,
   useOperators, useCreateOperator,
-  type NodeType, type MpNode, type MpOperator,
+  milkTypeLabel,
+  type NodeType, type MeasurementMode, type MilkType, type MpNode, type MpOperator,
 } from '@/hooks/queries/use-milk-procurement';
 import type { CreateNodeOperatorInput } from '@runq/validators';
 
@@ -26,6 +27,48 @@ const COMP_TYPES = [
   { value: 'per_litre_commission', label: 'Per-litre commission' },
   { value: 'fixed_salary', label: 'Fixed salary' },
 ];
+const MEASUREMENT_MODES = [
+  { value: 'analyzer', label: 'Analyzer (fat/SNF)' },
+  { value: 'lactometer', label: 'Lactometer (CLR only)' },
+];
+
+// The four types operators can actually select; 'cow' is legacy-only.
+const SELECTABLE_MILK_TYPES: MilkType[] = ['cow_a1', 'cow_a2', 'buffalo', 'mixed'];
+
+/** Checkbox group + default picker for VMCC milk-type configuration. */
+function VmccMilkTypeFields({
+  allowed, defaultType, onAllowedChange, onDefaultChange,
+}: {
+  allowed: MilkType[]; defaultType: string;
+  onAllowedChange: (v: MilkType[]) => void; onDefaultChange: (v: string) => void;
+}) {
+  const toggle = (t: MilkType) => {
+    const next = allowed.includes(t) ? allowed.filter((x) => x !== t) : [...allowed, t];
+    onAllowedChange(next);
+    // Reset default if it was just unchecked.
+    if (!next.includes(defaultType as MilkType)) onDefaultChange('');
+  };
+  const defaultOptions = allowed.length > 0
+    ? allowed.map((t) => ({ value: t, label: milkTypeLabel(t) }))
+    : SELECTABLE_MILK_TYPES.map((t) => ({ value: t, label: milkTypeLabel(t) }));
+
+  return (
+    <div className="space-y-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+      <p className="text-sm font-medium">Accepted milk types</p>
+      <p className="text-xs text-zinc-500">Leave all unchecked to allow all types (legacy behaviour).</p>
+      <div className="grid grid-cols-2 gap-1">
+        {SELECTABLE_MILK_TYPES.map((t) => (
+          <label key={t} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input type="checkbox" checked={allowed.includes(t)} onChange={() => toggle(t)} />
+            {milkTypeLabel(t)}
+          </label>
+        ))}
+      </div>
+      <Combobox label="Default milk type" value={defaultType} onChange={onDefaultChange}
+        options={[{ value: '', label: 'First accepted' }, ...defaultOptions]} placeholder="First accepted" />
+    </div>
+  );
+}
 
 // ── responsible-person (operator) form ───────────────────────────────────────
 type PersonForm = {
@@ -181,8 +224,11 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
   const createOp = useCreateOperator();
   const { toast } = useToast();
   const [f, setF] = useState({
-    code: '', name: '', nodeType: 'vmcc', parentNodeId: '', hasBmc: false, capacityLitres: '', payoutMode: '',
+    code: '', name: '', nodeType: 'vmcc', parentNodeId: '', hasBmc: false,
+    measurementMode: 'analyzer', capacityLitres: '', payoutMode: '',
   });
+  const [allowedMilkTypes, setAllowedMilkTypes] = useState<MilkType[]>([]);
+  const [defaultMilkType, setDefaultMilkType] = useState('');
   const [p, setP] = useState<PersonForm>(EMPTY_PERSON);
   const parentOptions = [
     { value: '', label: 'None' },
@@ -190,12 +236,16 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
   ];
 
   const submit = () => {
+    const isVmcc = f.nodeType === 'vmcc';
     create.mutate(
       {
         code: f.code, name: f.name, nodeType: f.nodeType as NodeType,
         parentNodeId: f.parentNodeId || null, hasBmc: f.hasBmc,
+        measurementMode: (isVmcc ? f.measurementMode : 'analyzer') as MeasurementMode,
         capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
         payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
+        allowedMilkTypes: isVmcc && allowedMilkTypes.length > 0 ? allowedMilkTypes : null,
+        defaultMilkType: isVmcc && defaultMilkType ? defaultMilkType as MilkType : null,
       },
       {
         onSuccess: (res) => finishNodeSave(res.data.id, p, createOp, toast, onClose, 'Node created'),
@@ -217,6 +267,15 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
           <input type="checkbox" checked={f.hasBmc} onChange={(e) => setF({ ...f, hasBmc: e.target.checked })} />
           Has integrated BMC (bulk-milk cooler)
         </label>
+        {f.nodeType === 'vmcc' && (
+          <>
+            <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v })} options={MEASUREMENT_MODES} />
+            <VmccMilkTypeFields
+              allowed={allowedMilkTypes} defaultType={defaultMilkType}
+              onAllowedChange={setAllowedMilkTypes} onDefaultChange={setDefaultMilkType}
+            />
+          </>
+        )}
         <PersonFields p={p} setP={setP} />
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -234,8 +293,14 @@ function EditNodeModal({ node, nodes, operator, onClose }:
   const { toast } = useToast();
   const [f, setF] = useState({
     name: node.name, nodeType: node.nodeType as string, parentNodeId: node.parentNodeId ?? '',
-    hasBmc: node.hasBmc, capacityLitres: node.capacityLitres ?? '', payoutMode: node.payoutMode ?? '',
+    hasBmc: node.hasBmc, measurementMode: node.measurementMode ?? 'analyzer',
+    capacityLitres: node.capacityLitres ?? '', payoutMode: node.payoutMode ?? '',
   });
+  // Initialise from node's existing milk-type config (null = all).
+  const [allowedMilkTypes, setAllowedMilkTypes] = useState<MilkType[]>(
+    (node.allowedMilkTypes ?? []).filter((t) => SELECTABLE_MILK_TYPES.includes(t)),
+  );
+  const [defaultMilkType, setDefaultMilkType] = useState(node.defaultMilkType ?? '');
   const [p, setP] = useState<PersonForm>(EMPTY_PERSON);
   // Prefill the responsible person from the node's active operator, including
   // the login DOB so it round-trips on edit.
@@ -254,13 +319,18 @@ function EditNodeModal({ node, nodes, operator, onClose }:
   ];
 
   const submit = () => {
+    const isVmcc = f.nodeType === 'vmcc';
     update.mutate(
       {
         id: node.id,
         data: {
           name: f.name, nodeType: f.nodeType as NodeType, parentNodeId: f.parentNodeId || null,
-          hasBmc: f.hasBmc, capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
+          hasBmc: f.hasBmc,
+          measurementMode: isVmcc ? (f.measurementMode as MeasurementMode) : undefined,
+          capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
           payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
+          allowedMilkTypes: isVmcc && allowedMilkTypes.length > 0 ? allowedMilkTypes : null,
+          defaultMilkType: isVmcc && defaultMilkType ? defaultMilkType as MilkType : null,
         },
       },
       {
@@ -283,6 +353,15 @@ function EditNodeModal({ node, nodes, operator, onClose }:
           <input type="checkbox" checked={f.hasBmc} onChange={(e) => setF({ ...f, hasBmc: e.target.checked })} />
           Has integrated BMC (bulk-milk cooler)
         </label>
+        {f.nodeType === 'vmcc' && (
+          <>
+            <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v as MeasurementMode })} options={MEASUREMENT_MODES} />
+            <VmccMilkTypeFields
+              allowed={allowedMilkTypes} defaultType={defaultMilkType}
+              onAllowedChange={setAllowedMilkTypes} onDefaultChange={setDefaultMilkType}
+            />
+          </>
+        )}
         <PersonFields p={p} setP={setP} />
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

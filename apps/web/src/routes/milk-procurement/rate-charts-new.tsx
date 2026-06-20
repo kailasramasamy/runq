@@ -8,13 +8,15 @@ import { useCreateRateChart, useRateChart, useNodes, type MilkType } from '@/hoo
 import type { CreateRateChartInput } from '@runq/validators';
 
 const MILK_TYPES = [
-  { value: 'cow', label: 'Cow' },
+  { value: 'cow_a1', label: 'Cow A1 (regular)' },
+  { value: 'cow_a2', label: 'Cow A2 (desi)' },
   { value: 'buffalo', label: 'Buffalo' },
   { value: 'mixed', label: 'Mixed' },
 ];
 const PRICING_MODES = [
   { value: 'matrix', label: 'Matrix (FAT × SNF grid)' },
   { value: 'flat', label: 'Flat per-litre' },
+  { value: 'clr', label: 'CLR breakpoints (lactometer)' },
 ];
 
 const gkey = (fat: number, snf: number) => `${fat.toFixed(1)}|${snf.toFixed(1)}`;
@@ -35,7 +37,7 @@ export function MpRateChartNewPage() {
   const back = () => navigate({ to: '/milk-procurement/rate-charts' });
 
   const [name, setName] = useState('');
-  const [milkType, setMilkType] = useState('cow');
+  const [milkType, setMilkType] = useState('cow_a1');
   const [pricingMode, setPricingMode] = useState('matrix');
   const [flatRate, setFlatRate] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(today);
@@ -48,6 +50,8 @@ export function MpRateChartNewPage() {
   const [snfs, setSnfs] = useState<number[]>([]);
   const [rates, setRates] = useState<Record<string, string>>({});
   const [g, setG] = useState({ fatLo: '3.2', fatHi: '5.0', snfLo: '6.5', snfHi: '9.0', priceLo: '35', priceHi: '52', step: '0.1' });
+  // CLR breakpoints: sorted by clr ascending
+  const [clrRows, setClrRows] = useState<{ clr: string; rate: string }[]>([{ clr: '', rate: '' }]);
 
   // duplicate: prefill from a source chart
   const { data: srcData } = useRateChart(from ?? '');
@@ -61,11 +65,19 @@ export function MpRateChartNewPage() {
     setScopeNodeId(ch.scopeNodeId ?? '');
     const bonus = ch.rules.find((r) => r.ruleType === 'quality_bonus' && r.grade === 'a');
     setGradeABonus(bonus ? bonus.bonusPerLitre : '');
-    const fs = [...new Set(ch.cells.map((c) => Number(c.fat)))].sort((a, b) => a - b);
-    const ss = [...new Set(ch.cells.map((c) => Number(c.snf)))].sort((a, b) => a - b);
-    const r: Record<string, string> = {};
-    for (const c of ch.cells) r[gkey(Number(c.fat), Number(c.snf))] = String(Number(c.ratePerLitre));
-    setFats(fs); setSnfs(ss); setRates(r);
+    if (ch.pricingMode === 'clr') {
+      const rows = ch.cells
+        .filter((c) => c.clr != null)
+        .sort((a, b) => Number(a.clr) - Number(b.clr))
+        .map((c) => ({ clr: String(Number(c.clr)), rate: String(Number(c.ratePerLitre)) }));
+      setClrRows(rows.length ? rows : [{ clr: '', rate: '' }]);
+    } else {
+      const fs = [...new Set(ch.cells.map((c) => Number(c.fat)))].sort((a, b) => a - b);
+      const ss = [...new Set(ch.cells.map((c) => Number(c.snf)))].sort((a, b) => a - b);
+      const r: Record<string, string> = {};
+      for (const c of ch.cells) r[gkey(Number(c.fat), Number(c.snf))] = String(Number(c.ratePerLitre));
+      setFats(fs); setSnfs(ss); setRates(r);
+    }
   }, [srcData]);
 
   const generate = () => {
@@ -88,27 +100,35 @@ export function MpRateChartNewPage() {
 
   const setRate = (fat: number, snf: number, v: string) => setRates((prev) => ({ ...prev, [gkey(fat, snf)]: v }));
 
-  const cells: { fat: number; snf: number; ratePerLitre: number }[] = [];
+  const matrixCells: { fat: number; snf: number; ratePerLitre: number }[] = [];
   for (const fat of fats) for (const snf of snfs) {
     const v = rates[gkey(fat, snf)];
-    if (v !== undefined && v !== '' && !Number.isNaN(Number(v))) cells.push({ fat, snf, ratePerLitre: Number(v) });
+    if (v !== undefined && v !== '' && !Number.isNaN(Number(v))) matrixCells.push({ fat, snf, ratePerLitre: Number(v) });
   }
+  const clrCells = clrRows.filter((r) => r.clr !== '' && r.rate !== '' && !Number.isNaN(Number(r.clr)) && !Number.isNaN(Number(r.rate)));
 
-  const valid = !!name && (pricingMode === 'flat' ? Number(flatRate) > 0 : cells.length > 0);
+  const valid = !!name && (
+    pricingMode === 'flat' ? Number(flatRate) > 0
+    : pricingMode === 'clr' ? clrCells.length > 0
+    : matrixCells.length > 0
+  );
 
   const save = () => {
     const rules = gradeABonus && Number(gradeABonus) > 0
       ? [{ ruleType: 'quality_bonus' as const, grade: 'a' as const, bonusPerLitre: Number(gradeABonus) }]
       : [];
+    let cells: CreateRateChartInput['cells'] = [];
+    if (pricingMode === 'matrix') cells = matrixCells;
+    else if (pricingMode === 'clr') cells = clrCells.map((r) => ({ clr: Number(r.clr), ratePerLitre: Number(r.rate) }));
     const payload: CreateRateChartInput = {
-      name, milkType: milkType as MilkType, pricingMode: pricingMode as 'matrix' | 'flat',
+      name, milkType: milkType as MilkType, pricingMode: pricingMode as 'matrix' | 'flat' | 'clr',
       flatRatePerLitre: pricingMode === 'flat' ? Number(flatRate) : null,
       scopeNodeId: scopeNodeId || null,
-      effectiveFrom, cells: pricingMode === 'matrix' ? cells : [], rules,
+      effectiveFrom, cells, rules,
     };
     create.mutate(payload, {
       onSuccess: () => { toast('Rate chart created', 'success'); back(); },
-      onError: () => toast('Failed — matrix needs ≥1 cell, flat needs a rate', 'error'),
+      onError: () => toast('Failed — matrix needs ≥1 cell, flat needs a rate, CLR needs ≥1 row', 'error'),
     });
   };
 
@@ -116,7 +136,7 @@ export function MpRateChartNewPage() {
     <div>
       <PageHeader
         title={from ? 'Duplicate rate chart' : 'New rate chart'}
-        description="Effective-dated FAT/SNF matrix or flat per-litre rate."
+        description="Effective-dated FAT/SNF matrix, CLR breakpoints, or flat per-litre rate."
         fullWidth
         actions={<Button variant="ghost" onClick={back}><ArrowLeft className="h-4 w-4" />Back</Button>}
       />
@@ -148,6 +168,13 @@ export function MpRateChartNewPage() {
 
         {pricingMode === 'flat' ? (
           <Card><CardContent className="py-4"><Input label="Flat rate (₹/L)" type="number" value={flatRate} onChange={(e) => setFlatRate(e.target.value)} /></CardContent></Card>
+        ) : pricingMode === 'clr' ? (
+          <Card>
+            <CardHeader>CLR breakpoints (₹/L) — sorted by CLR ascending</CardHeader>
+            <CardContent className="py-4">
+              <ClrEditor rows={clrRows} onChange={setClrRows} />
+            </CardContent>
+          </Card>
         ) : (
           <>
             <Card>
@@ -171,7 +198,7 @@ export function MpRateChartNewPage() {
             </Card>
 
             <Card>
-              <CardHeader>Rate matrix (₹/L) — editable · {cells.length} cells</CardHeader>
+              <CardHeader>Rate matrix (₹/L) — editable · {matrixCells.length} cells</CardHeader>
               <CardContent className="p-3">
                 <GridEditor fats={fats} snfs={snfs} rates={rates} onRate={setRate} />
               </CardContent>
@@ -181,7 +208,9 @@ export function MpRateChartNewPage() {
 
         <Card>
           <CardHeader>Test a reading</CardHeader>
-          <CardContent><TestBox cells={cells} pricingMode={pricingMode} flatRate={flatRate} gradeABonus={gradeABonus} /></CardContent>
+          <CardContent>
+            <TestBox matrixCells={matrixCells} clrRows={clrRows} pricingMode={pricingMode} flatRate={flatRate} gradeABonus={gradeABonus} />
+          </CardContent>
         </Card>
 
         <div className="flex justify-end gap-2 pb-8">
@@ -189,6 +218,51 @@ export function MpRateChartNewPage() {
           <Button onClick={save} loading={create.isPending} disabled={!valid}>Create rate chart</Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ClrEditor({ rows, onChange }: {
+  rows: { clr: string; rate: string }[];
+  onChange: (rows: { clr: string; rate: string }[]) => void;
+}) {
+  const addRow = () => onChange([...rows, { clr: '', rate: '' }]);
+  const removeRow = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const setRow = (i: number, field: 'clr' | 'rate', v: string) =>
+    onChange(rows.map((r, idx) => idx === i ? { ...r, [field]: v } : r));
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <span>CLR (corrected lactometer reading)</span>
+        <span>₹ / litre</span>
+        <span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+          <input
+            type="number"
+            placeholder="e.g. 28"
+            value={r.clr}
+            onChange={(e) => setRow(i, 'clr', e.target.value)}
+            className="rounded border border-zinc-200 bg-transparent px-2 py-1.5 text-sm tabular-nums focus:border-emerald-400 focus:outline-none dark:border-zinc-700 dark:text-zinc-100"
+          />
+          <input
+            type="number"
+            placeholder="e.g. 38"
+            value={r.rate}
+            onChange={(e) => setRow(i, 'rate', e.target.value)}
+            className="rounded border border-zinc-200 bg-transparent px-2 py-1.5 text-sm tabular-nums focus:border-emerald-400 focus:outline-none dark:border-zinc-700 dark:text-zinc-100"
+          />
+          <Button variant="ghost" size="sm" type="button" onClick={() => removeRow(i)} disabled={rows.length === 1}>
+            ×
+          </Button>
+        </div>
+      ))}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Each row is a floor: pour gets the rate of the highest CLR row it meets or exceeds. Top row acts as a skimming cap.
+      </p>
+      <Button variant="ghost" size="sm" type="button" onClick={addRow}>+ Add row</Button>
     </div>
   );
 }
@@ -233,11 +307,35 @@ function GridEditor({ fats, snfs, rates, onRate }: {
   );
 }
 
-function TestBox({ cells, pricingMode, flatRate, gradeABonus }: {
-  cells: { fat: number; snf: number; ratePerLitre: number }[];
+function TestBox({ matrixCells, clrRows, pricingMode, flatRate, gradeABonus }: {
+  matrixCells: { fat: number; snf: number; ratePerLitre: number }[];
+  clrRows: { clr: string; rate: string }[];
   pricingMode: string; flatRate: string; gradeABonus: string;
 }) {
-  const [t, setT] = useState({ fat: '', snf: '' });
+  const [t, setT] = useState({ fat: '', snf: '', clr: '' });
+
+  if (pricingMode === 'clr') {
+    const tc = Number(t.clr);
+    const ready = t.clr !== '' && !Number.isNaN(tc);
+    let result: { ok: boolean; text: string } | null = null;
+    if (ready) {
+      const sorted = clrRows
+        .filter((r) => r.clr !== '' && r.rate !== '' && !Number.isNaN(Number(r.clr)))
+        .sort((a, b) => Number(a.clr) - Number(b.clr));
+      const match = [...sorted].reverse().find((r) => tc >= Number(r.clr));
+      if (!match) result = { ok: false, text: 'Below the lowest CLR breakpoint — would be rejected.' };
+      else result = { ok: true, text: `CLR ${tc} → breakpoint ≥${match.clr} → ₹${match.rate}/L` };
+    }
+    return (
+      <div className="flex items-end gap-2">
+        <div className="w-28"><Input label="CLR reading" type="number" value={t.clr} onChange={(e) => setT({ ...t, clr: e.target.value })} /></div>
+        <div className={`flex-1 pb-2 text-sm ${result && !result.ok ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+          {result ? result.text : <span className="text-zinc-400">Enter CLR to preview the rate</span>}
+        </div>
+      </div>
+    );
+  }
+
   const tf = Number(t.fat), ts = Number(t.snf);
   const ready = t.fat !== '' && t.snf !== '' && !Number.isNaN(tf) && !Number.isNaN(ts);
   let result: { ok: boolean; text: string } | null = null;
@@ -245,7 +343,7 @@ function TestBox({ cells, pricingMode, flatRate, gradeABonus }: {
     let base: number | null = null, label = '';
     if (pricingMode === 'flat') { base = Number(flatRate) || null; label = 'flat'; }
     else {
-      const m = cells.filter((c) => c.fat <= tf && c.snf <= ts).sort((a, b) => b.fat - a.fat || b.snf - a.snf)[0];
+      const m = matrixCells.filter((c) => c.fat <= tf && c.snf <= ts).sort((a, b) => b.fat - a.fat || b.snf - a.snf)[0];
       if (m) { base = m.ratePerLitre; label = `${m.fat} × ${m.snf}`; }
     }
     if (base == null) result = { ok: false, text: 'Below the lowest cell — would be rejected.' };

@@ -5,7 +5,7 @@ import {
   PageHeader, Card, CardContent, Button, Badge, Modal, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
-import { useRateCharts, useRateChart, useDeactivateRateChart, useNodes } from '@/hooks/queries/use-milk-procurement';
+import { useRateCharts, useRateChart, useDeactivateRateChart, useNodes, milkTypeLabel } from '@/hooks/queries/use-milk-procurement';
 
 export function MpRateChartsPage() {
   const navigate = useNavigate();
@@ -48,9 +48,13 @@ export function MpRateChartsPage() {
                 charts.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.milkType}</TableCell>
+                    <TableCell>{milkTypeLabel(c.milkType)}</TableCell>
                     <TableCell className="text-zinc-500">{scopeLabel(c.scopeNodeId)}</TableCell>
-                    <TableCell>{c.pricingMode === 'flat' ? `Flat ₹${c.flatRatePerLitre}/L` : 'Matrix'}</TableCell>
+                    <TableCell>
+                      {c.pricingMode === 'flat' ? `Flat ₹${c.flatRatePerLitre}/L`
+                        : c.pricingMode === 'clr' ? 'CLR (lactometer)'
+                        : 'Matrix'}
+                    </TableCell>
                     <TableCell>{c.effectiveFrom}</TableCell>
                     <TableCell>{c.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
                     <TableCell className="text-right">
@@ -105,7 +109,7 @@ function ViewRateChart({ id, onClose }: { id: string; onClose: () => void }) {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
-            <Meta label="Milk" value={chart.milkType} />
+            <Meta label="Milk" value={milkTypeLabel(chart.milkType)} />
             <Meta label="Scope" value={scope} />
             <Meta label="Mode" value={chart.pricingMode} />
             <Meta label="Effective" value={`${chart.effectiveFrom}${chart.effectiveTo ? ` → ${chart.effectiveTo}` : ''}`} />
@@ -115,6 +119,11 @@ function ViewRateChart({ id, onClose }: { id: string; onClose: () => void }) {
           {chart.pricingMode === 'flat' ? (
             <div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800/40">
               Flat rate: <span className="font-semibold">₹{chart.flatRatePerLitre}/L</span>
+            </div>
+          ) : chart.pricingMode === 'clr' ? (
+            <div>
+              <div className="mb-1 text-xs font-medium text-zinc-500">CLR breakpoints (₹/L) — highest matching row wins</div>
+              <ClrTable cells={chart.cells} />
             </div>
           ) : (
             <div>
@@ -145,11 +154,39 @@ function ViewRateChart({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-function MatrixGrid({ cells }: { cells: { fat: string; snf: string; ratePerLitre: string }[] }) {
-  const fats = [...new Set(cells.map((c) => c.fat))].sort((a, b) => Number(a) - Number(b));
-  const snfs = [...new Set(cells.map((c) => c.snf))].sort((a, b) => Number(a) - Number(b));
-  const rateAt = (fat: string, snf: string) => cells.find((c) => c.fat === fat && c.snf === snf)?.ratePerLitre;
-  if (!cells.length) return <p className="text-sm text-zinc-500">No cells.</p>;
+function ClrTable({ cells }: { cells: { clr: string | null; ratePerLitre: string }[] }) {
+  const rows = cells
+    .filter((c) => c.clr != null)
+    .sort((a, b) => Number(a.clr) - Number(b.clr));
+  if (!rows.length) return <p className="text-sm text-zinc-500">No CLR breakpoints.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+      <table className="w-full text-sm">
+        <thead className="bg-zinc-50 dark:bg-zinc-800/50">
+          <tr>
+            <th className="px-3 py-1.5 text-left text-xs font-medium text-zinc-500">CLR (min)</th>
+            <th className="px-3 py-1.5 text-right text-xs font-medium text-zinc-500">₹ / litre</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
+              <td className="px-3 py-1.5 tabular-nums">{r.clr}</td>
+              <td className="px-3 py-1.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">{r.ratePerLitre}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MatrixGrid({ cells }: { cells: { fat: string | null; snf: string | null; ratePerLitre: string }[] }) {
+  const matrixCells = cells.filter((c) => c.fat != null && c.snf != null) as { fat: string; snf: string; ratePerLitre: string }[];
+  const fats = [...new Set(matrixCells.map((c) => c.fat))].sort((a, b) => Number(a) - Number(b));
+  const snfs = [...new Set(matrixCells.map((c) => c.snf))].sort((a, b) => Number(a) - Number(b));
+  const rateAt = (fat: string, snf: string) => matrixCells.find((c) => c.fat === fat && c.snf === snf)?.ratePerLitre;
+  if (!matrixCells.length) return <p className="text-sm text-zinc-500">No cells.</p>;
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
       <table className="w-full text-sm">

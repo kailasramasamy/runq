@@ -5,14 +5,15 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import {
-  useFarmers, useCreateFarmer, useUpdateFarmer, useDeactivateFarmer, useNodes,
+  useFarmers, useCreateFarmer, useUpdateFarmer, useDeactivateFarmer, useNodes, milkTypeLabel,
   type MilkType, type MpFarmer, type CattleBreedCount,
 } from '@/hooks/queries/use-milk-procurement';
 import { BreedCountEditor } from '@/components/milk-procurement/breed-count-editor';
 import { FarmerPhotoUpload } from '@/components/milk-procurement/farmer-photo-upload';
 
 const MILK_TYPES = [
-  { value: 'cow', label: 'Cow' },
+  { value: 'cow_a1', label: 'Cow A1 (regular)' },
+  { value: 'cow_a2', label: 'Cow A2 (desi)' },
   { value: 'buffalo', label: 'Buffalo' },
   { value: 'mixed', label: 'Mixed' },
 ];
@@ -68,7 +69,7 @@ export function MpFarmersPage() {
                     <TableCell>{f.name}</TableCell>
                     <TableCell className="text-zinc-500">{f.phone ?? '—'}</TableCell>
                     <TableCell className="text-zinc-500">{f.village ?? '—'}</TableCell>
-                    <TableCell>{f.defaultMilkType}</TableCell>
+                    <TableCell>{milkTypeLabel(f.defaultMilkType)}</TableCell>
                     <TableCell>{f.isSociety ? <Badge>Society</Badge> : 'Farmer'}</TableCell>
                     <TableCell>{f.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
                     <TableCell className="text-right">
@@ -124,7 +125,7 @@ function initForm(f?: MpFarmer): FarmerFormState {
     phone: f?.phone ?? '',
     dateOfBirth: '',
     isSociety: f?.isSociety ?? false,
-    defaultMilkType: f?.defaultMilkType ?? 'cow',
+    defaultMilkType: f?.defaultMilkType ?? 'cow_a1',
     village: f?.village ?? '',
     address: f?.address ?? '',
     aadhaar: f?.aadhaar ?? '',
