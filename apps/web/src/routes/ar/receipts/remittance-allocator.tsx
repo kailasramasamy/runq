@@ -18,10 +18,13 @@ function parseRemittance(text: string): ParsedLine[] {
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (!line) continue;
-    const parts = line.split(/[\t,]|\s{2,}|\s+/).filter(Boolean);
-    if (parts.length < 2) continue;
-    const number = parts[0]!.trim();
-    const amount = Number(parts[parts.length - 1]!.replace(/[₹,]/g, ''));
+    // Split only at the first separator: the invoice number is the first token,
+    // the amount is the rest. This preserves thousands-separator commas inside
+    // the amount (e.g. "5,058.83") instead of splitting them into columns.
+    const sep = line.search(/[,\s]/);
+    if (sep < 0) continue;
+    const number = line.slice(0, sep).trim();
+    const amount = Number(line.slice(sep).replace(/[₹,\s]/g, ''));
     if (!number || !Number.isFinite(amount) || amount <= 0) continue;
     out.push({ number, amount });
   }
