@@ -12,11 +12,15 @@ class RoleShell extends StatefulWidget {
     required this.pages,
     this.initialIndex = 0,
     this.tabActions = const {},
+    this.header,
   });
 
   final List<DhenuNavItem> items;
   final List<Widget> pages;
   final int initialIndex;
+
+  /// Optional bar pinned above the tab pages (e.g. the admin centre-switcher).
+  final Widget? header;
 
   /// Indices whose tap fires an action (e.g. push the capture screen) instead
   /// of switching tabs — the §4.3 centre "➕" action. Pass a placeholder page
@@ -46,7 +50,10 @@ class _RoleShellState extends State<RoleShell> {
       backgroundColor: DT(context).surface,
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(index: _index, children: widget.pages),
+        child: Column(children: [
+          ?widget.header,
+          Expanded(child: IndexedStack(index: _index, children: widget.pages)),
+        ]),
       ),
       bottomNavigationBar: AppBottomNav(
         items: widget.items,

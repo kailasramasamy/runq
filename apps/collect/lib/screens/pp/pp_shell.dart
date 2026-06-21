@@ -10,8 +10,11 @@ import 'pp_tankers_tab.dart';
 
 /// PP operator shell — Home / ➕ Receive / Tankers / Profile.
 class PpShell extends StatelessWidget {
-  const PpShell({super.key, required this.node});
+  const PpShell({super.key, required this.node, this.header});
   final MpNode node;
+
+  /// Optional bar pinned above the tabs — the admin centre-switcher.
+  final Widget? header;
 
   static const _items = [
     DhenuNavItem(icon: DhenuIcons.home, label: 'Home'),
@@ -24,6 +27,7 @@ class PpShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return RoleShell(
       items: _items,
+      header: header,
       pages: [
         PpHome(node: node),
         PpReceiveTab(node: node),

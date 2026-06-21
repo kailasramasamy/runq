@@ -12,8 +12,11 @@ import 'cc_receive_tab.dart';
 /// Home / ➕ Receive / Dispatch / Profile. (Payments are handled by the tenant
 /// owner on web — the CC operator isn't involved.)
 class CcShell extends StatelessWidget {
-  const CcShell({super.key, required this.node});
+  const CcShell({super.key, required this.node, this.header});
   final MpNode node;
+
+  /// Optional bar pinned above the tabs — the admin centre-switcher.
+  final Widget? header;
 
   static const _items = [
     DhenuNavItem(icon: DhenuIcons.home, label: 'Home'),
@@ -26,6 +29,7 @@ class CcShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return RoleShell(
       items: _items,
+      header: header,
       pages: [
         CcHome(node: node),
         CcReceiveTab(node: node),

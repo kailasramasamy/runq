@@ -14,8 +14,11 @@ import 'vmcc_payments_tab.dart';
 /// Home / ➕ Collect / Dispatch / Payments / Profile. Farmers & Reports are
 /// reached as quick-links from Home (today-summary lives on Home now).
 class VmccShell extends StatelessWidget {
-  const VmccShell({super.key, required this.node});
+  const VmccShell({super.key, required this.node, this.header});
   final MpNode node;
+
+  /// Optional bar pinned above the tabs — the admin centre-switcher.
+  final Widget? header;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +32,7 @@ class VmccShell extends StatelessWidget {
     ];
     return RoleShell(
       items: items,
+      header: header,
       tabActions: {
         1: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),

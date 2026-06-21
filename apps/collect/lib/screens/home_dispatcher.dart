@@ -6,10 +6,11 @@ import '../providers/auth_provider.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
+import '../widgets/centre_switcher.dart';
 import '../widgets/dhenu_states.dart';
+import 'admin/centre_picker_screen.dart';
 import 'auth/splash_screen.dart';
 import 'no_access_screen.dart';
-import 'persona_stub_home.dart';
 import 'vmcc/vmcc_shell.dart';
 import 'cc/cc_shell.dart';
 import 'pp/pp_shell.dart';
@@ -31,14 +32,26 @@ class HomeDispatcher extends ConsumerWidget {
       case Persona.operator:
         return const _OperatorHome();
       case Persona.admin:
-        return const PersonaStubHome(
-          title: 'Dhenu Admin',
-          icon: DhenuIcons.dashboard,
-          message: 'View-as persona tools land here.',
-        );
+        return const _AdminHome();
       case Persona.unknown:
         return const NoAccessScreen();
     }
+  }
+}
+
+/// Owner/accountant/viewer: pick a centre, then operate the app as that node's
+/// VMCC/CC/PP. A switcher bar lets them hop between centres without logging out.
+class _AdminHome extends ConsumerWidget {
+  const _AdminHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final node = ref.watch(mpActiveNodeProvider);
+    if (node == null) return const CentrePickerScreen();
+    final header = CentreSwitcherBar(node: node);
+    if (node.isPp) return PpShell(node: node, header: header);
+    if (node.isCc) return CcShell(node: node, header: header);
+    return VmccShell(node: node, header: header);
   }
 }
 

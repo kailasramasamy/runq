@@ -4,6 +4,11 @@ import '../api/mp_repo.dart';
 import '../utils/format.dart';
 import 'auth_provider.dart';
 
+/// The centre an admin (owner/accountant/viewer) is currently operating as.
+/// Null → show the centre picker. Field-operators never use this — their node
+/// resolves from their assignment, not a manual pick.
+final mpActiveNodeProvider = StateProvider<MpNode?>((ref) => null);
+
 /// The operator's assigned nodes. For a `field_operator` the API scopes
 /// `GET /nodes` to just the nodes they run (via `mp_node_operators.user_id`),
 /// so this returns exactly their VMCC(s)/CC(s)/PP(s). An admin (owner etc) gets

@@ -7,6 +7,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../widgets/node_picker.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
 
@@ -24,6 +25,7 @@ class ManualReceiveScreen extends ConsumerStatefulWidget {
 
 class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   late String _vmccId = widget.vmccs.first.id;
+  DateTime _date = DateTime.now();
   Shift _shift = DateTime.now().hour < 12 ? Shift.am : Shift.pm;
   final _qty = TextEditingController();
   final _fat = TextEditingController();
@@ -50,7 +52,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
       await mpRepo.directReceive({
         'fromNodeId': _vmccId,
         'toNodeId': widget.ccNodeId,
-        'collectionDate': todayIso(),
+        'collectionDate': isoDate(_date),
         'shift': _shift.name,
         'qty': qty,
         if (double.tryParse(_fat.text) != null) 'fat': double.parse(_fat.text),
@@ -93,14 +95,9 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
               DhenuCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('MEASURED AT CC', style: DhenuText.label.copyWith(color: t.brand)),
                 const SizedBox(height: DhenuSpacing.md),
-                DropdownButtonFormField<String>(
-                  initialValue: _vmccId,
-                  decoration: const InputDecoration(labelText: 'From VMCC'),
-                  items: [
-                    for (final v in widget.vmccs) DropdownMenuItem(value: v.id, child: Text(v.name)),
-                  ],
-                  onChanged: (v) => setState(() => _vmccId = v ?? _vmccId),
-                ),
+                _vmccField(t),
+                const SizedBox(height: DhenuSpacing.md),
+                _dateField(t),
                 const SizedBox(height: DhenuSpacing.md),
                 Row(children: [
                   Text('Shift', style: DhenuText.label.copyWith(color: t.inkSoft)),
@@ -129,6 +126,50 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
         ]),
       ),
     );
+  }
+
+  Widget _vmccField(DhenuTokens t) {
+    final selected = widget.vmccs.firstWhere((v) => v.id == _vmccId, orElse: () => widget.vmccs.first);
+    return InkWell(
+      onTap: _pickVmcc,
+      borderRadius: BorderRadius.circular(DhenuRadii.input),
+      child: InputDecorator(
+        decoration: const InputDecoration(labelText: 'From VMCC'),
+        child: Row(children: [
+          Expanded(child: Text(selected.name, style: DhenuText.body.copyWith(color: t.ink))),
+          Icon(DhenuIcons.chevronDown, color: t.inkSoft),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _pickVmcc() async {
+    final picked = await showNodePicker(context,
+        nodes: widget.vmccs, selectedId: _vmccId, title: 'From VMCC');
+    if (picked != null) setState(() => _vmccId = picked.id);
+  }
+
+  Widget _dateField(DhenuTokens t) => InkWell(
+        onTap: _pickDate,
+        borderRadius: BorderRadius.circular(DhenuRadii.input),
+        child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Collection date'),
+          child: Row(children: [
+            Expanded(child: Text(prettyDate(isoDate(_date)), style: DhenuText.body.copyWith(color: t.ink))),
+            Icon(DhenuIcons.calendar, size: 18, color: t.inkSoft),
+          ]),
+        ),
+      );
+
+  // Backfill only: today is the latest selectable date, no future entries.
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _date = picked);
   }
 
   Widget _field(TextEditingController ctrl, String hint) => TextField(

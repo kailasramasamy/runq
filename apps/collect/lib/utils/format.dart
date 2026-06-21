@@ -3,6 +3,9 @@ import 'package:intl/intl.dart';
 /// Today's date as an ISO `yyyy-MM-dd` string (the API's collectionDate format).
 String todayIso() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
+/// ISO `yyyy-MM-dd` for a specific date (the API's collectionDate format).
+String isoDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+
 /// ISO `yyyy-MM-dd` for N days before today (history range starts).
 String isoDaysAgo(int days) =>
     DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: days)));
