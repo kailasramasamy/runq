@@ -299,6 +299,69 @@ export class GLService {
   }
 
   /**
+   * Round off the sub-rupee gap when a remittance settles invoices in full but
+   * the customer paid whole rupees. Dr Round Off, Cr Accounts Receivable.
+   * Idempotent per receipt: clears any prior round-off posting before re-posting,
+   * so a receipt can be re-allocated freely. A near-zero amount just clears the
+   * stale posting and books nothing.
+   */
+  async postReceiptRoundOff(r: { receiptId: string; amount: number; date: string; customerName: string }): Promise<void> {
+    await this.deletePostingsFor('receipt_roundoff', r.receiptId);
+    if (Math.abs(r.amount) < 0.005) return;
+    await this.ensureRoundOffAccount();
+    await this.createJournalEntry({
+      date: r.date,
+      description: `Round off on receipt from ${r.customerName}`,
+      sourceType: 'receipt_roundoff',
+      sourceId: r.receiptId,
+      lines: [
+        { accountCode: '5606', debit: r.amount },
+        { accountCode: '1103', credit: r.amount },
+      ],
+    });
+  }
+
+  /**
+   * Write off a sub-rupee residual left on an invoice — e.g. a customer who paid
+   * whole rupees against a paise invoice before Round Off existed. Dr Round Off,
+   * Cr Accounts Receivable. Idempotent per invoice.
+   */
+  async postInvoiceRoundOff(r: { invoiceId: string; amount: number; date: string; reference: string }): Promise<void> {
+    await this.deletePostingsFor('invoice_roundoff', r.invoiceId);
+    if (Math.abs(r.amount) < 0.005) return;
+    await this.ensureRoundOffAccount();
+    await this.createJournalEntry({
+      date: r.date,
+      description: `Round off on invoice ${r.reference}`,
+      sourceType: 'invoice_roundoff',
+      sourceId: r.invoiceId,
+      lines: [
+        { accountCode: '5606', debit: r.amount },
+        { accountCode: '1103', credit: r.amount },
+      ],
+    });
+  }
+
+  /** Create the system Round Off ledger (5606) for this tenant if it's missing. */
+  private async ensureRoundOffAccount(): Promise<void> {
+    const [existing] = await this.db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.tenantId, this.tenantId), eq(accounts.code, '5606')))
+      .limit(1);
+    if (existing) return;
+    const [parent] = await this.db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.tenantId, this.tenantId), eq(accounts.code, '5600')))
+      .limit(1);
+    await this.db
+      .insert(accounts)
+      .values({ tenantId: this.tenantId, code: '5606', name: 'Round Off', type: 'expense', parentId: parent?.id ?? null, isSystemAccount: true })
+      .onConflictDoNothing();
+  }
+
+  /**
    * Wallet receipt — settles AR against the customer-wallet liability
    * (2102 Advance from Customers) instead of cash. Used for prepaid /
    * stored-value purchases where the bank credit was already booked

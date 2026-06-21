@@ -13,6 +13,10 @@ import { sendEmail } from '../../utils/email';
 import { receiptConfirmation } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
 
+/** Max sub-rupee gap auto-absorbed into Round Off when a line settles an invoice in full. */
+const ROUND_OFF_MAX = 1;
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 export interface ReceiptListParams {
   page: number;
   limit: number;
@@ -204,12 +208,19 @@ export class ReceiptService {
    * on-account. Returns the refreshed receipt.
    */
   async reallocate(receiptId: string, lines: { invoiceId: string; amount: number }[]): Promise<ReceiptWithAllocations> {
-    const receipt = await this.getById(receiptId); // throws NotFound; gives current allocations
-    const oldByInv = new Map(receipt.allocations.map((a) => [a.invoiceId, a.amount]));
-    const newByInv = await this.validateReallocation(receipt, lines, oldByInv);
+    const receipt = await this.getById(receiptId); // throws NotFound
+    // Prior settlement = cash + round-off this receipt already applied to each
+    // invoice's amount_received; used to free headroom and to compute deltas.
+    const oldRows = await this.db
+      .select({ invoiceId: receiptAllocations.invoiceId, amount: receiptAllocations.amount, roundOff: receiptAllocations.roundOffAmount })
+      .from(receiptAllocations)
+      .where(and(eq(receiptAllocations.tenantId, this.tenantId), eq(receiptAllocations.receiptId, receiptId)));
+    const oldSettledByInv = new Map(oldRows.map((r) => [r.invoiceId, toNumber(r.amount) + toNumber(r.roundOff)]));
+
+    const { settled, roundOffByInv, roundOffTotal } = await this.validateReallocation(receipt, lines, oldSettledByInv);
 
     await this.db.transaction(async (tx) => {
-      const affected = new Set<string>([...oldByInv.keys(), ...newByInv.keys()]);
+      const affected = new Set<string>([...oldSettledByInv.keys(), ...settled.keys()]);
       for (const invId of affected) {
         await tx.execute(sql`SELECT id FROM sales_invoices WHERE id = ${invId} FOR UPDATE`);
       }
@@ -217,12 +228,13 @@ export class ReceiptService {
       await tx.delete(receiptAllocations).where(eq(receiptAllocations.receiptId, receiptId));
       if (lines.length > 0) {
         await tx.insert(receiptAllocations).values(lines.map((l) => ({
-          tenantId: this.tenantId, receiptId, invoiceId: l.invoiceId, amount: l.amount.toFixed(2),
+          tenantId: this.tenantId, receiptId, invoiceId: l.invoiceId,
+          amount: l.amount.toFixed(2), roundOffAmount: (roundOffByInv.get(l.invoiceId) ?? 0).toFixed(2),
         })));
       }
 
       for (const invId of affected) {
-        const delta = (newByInv.get(invId) ?? 0) - (oldByInv.get(invId) ?? 0);
+        const delta = (settled.get(invId) ?? 0) - (oldSettledByInv.get(invId) ?? 0);
         await tx.execute(sql`
           UPDATE sales_invoices SET
             amount_received = ROUND(amount_received::numeric + ${delta}, 2),
@@ -236,6 +248,10 @@ export class ReceiptService {
       }
     });
 
+    // Book the consolidated round-off to GL (idempotent per receipt).
+    const gl = new GLService(this.db, this.tenantId);
+    await gl.postReceiptRoundOff({ receiptId, amount: roundOffTotal, date: receipt.receiptDate, customerName: receipt.customerName });
+
     return this.getById(receiptId);
   }
 
@@ -243,8 +259,8 @@ export class ReceiptService {
   private async validateReallocation(
     receipt: ReceiptWithAllocations,
     lines: { invoiceId: string; amount: number }[],
-    oldByInv: Map<string, number>,
-  ): Promise<Map<string, number>> {
+    oldSettledByInv: Map<string, number>,
+  ): Promise<{ settled: Map<string, number>; roundOffByInv: Map<string, number>; roundOffTotal: number }> {
     const newByInv = new Map<string, number>();
     for (const l of lines) {
       if (l.amount <= 0) throw new ConflictError('Allocation amounts must be positive');
@@ -264,18 +280,31 @@ export class ReceiptService {
       .where(and(eq(salesInvoices.tenantId, this.tenantId), inArray(salesInvoices.id, ids)));
     const invById = new Map(invs.map((i) => [i.id, i]));
 
+    const settled = new Map<string, number>();
+    const roundOffByInv = new Map<string, number>();
+    let roundOffTotal = 0;
     for (const [invId, amount] of newByInv) {
       const inv = invById.get(invId);
       if (!inv) throw new NotFoundError(`Invoice ${invId}`);
       if (inv.customerId !== receipt.customerId) throw new ConflictError(`Invoice ${inv.number} belongs to a different customer`);
-      // Headroom = current balance + whatever this receipt already put on it
-      // (that prior allocation is about to be removed).
-      const headroom = toNumber(inv.balanceDue) + (oldByInv.get(invId) ?? 0);
+      // Headroom = current balance + whatever this receipt already settled on it
+      // (that prior settlement is about to be removed).
+      const headroom = toNumber(inv.balanceDue) + (oldSettledByInv.get(invId) ?? 0);
       if (amount - headroom > 0.01) {
         throw new ConflictError(`Allocation ₹${amount.toFixed(2)} exceeds available ₹${headroom.toFixed(2)} on invoice ${inv.number}`);
       }
+      // Whole-rupee payment against a paise invoice: clear it in full within ₹1
+      // and book the gap to Round Off; otherwise settle exactly what was paid.
+      const gap = round2(headroom - amount);
+      if (gap > 0.005 && gap <= ROUND_OFF_MAX) {
+        settled.set(invId, round2(headroom));
+        roundOffByInv.set(invId, gap);
+        roundOffTotal += gap;
+      } else {
+        settled.set(invId, amount);
+      }
     }
-    return newByInv;
+    return { settled, roundOffByInv, roundOffTotal: round2(roundOffTotal) };
   }
 
   private async sendReceiptEmail(receipt: ReceiptWithAllocations): Promise<void> {
