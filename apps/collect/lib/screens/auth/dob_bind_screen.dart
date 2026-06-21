@@ -39,7 +39,7 @@ class _DobBindScreenState extends ConsumerState<DobBindScreen> {
     });
     try {
       await ref.read(authProvider.notifier).bindWithDob(_phone.text, _dob.text);
-      if (mounted) context.go('/');
+      if (mounted) context.go('/home');
     } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
