@@ -4,13 +4,30 @@ import 'package:flutter/services.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 
-/// OTP-style 6-box input for the DDMMYY date-of-birth login code. Backed by the
-/// supplied [controller] (a hidden field captures keystrokes; the boxes render
-/// the value). Grouped as DD · MM · YY with a subtle hint.
+/// OTP-style 6-box input for the 6-digit login code. Backed by the supplied
+/// [controller] (a hidden field captures keystrokes; the boxes render the
+/// value).
+///
+/// By default it presents the code as a date of birth (cake icon, `DD MM YY`
+/// hints) — used for the one-time account-binding ownership check. Pass
+/// [label], [icon] and `dateHints: false` to present the same 6 digits as a
+/// neutral "secret code" (e.g. on the phone login screen), with no DOB framing.
 class DobOtpField extends StatefulWidget {
-  const DobOtpField({super.key, required this.controller, this.onCompleted});
+  const DobOtpField({
+    super.key,
+    required this.controller,
+    this.onCompleted,
+    this.label = 'Date of birth',
+    this.icon = DhenuIcons.cake,
+    this.dateHints = true,
+  });
   final TextEditingController controller;
   final VoidCallback? onCompleted;
+  final String label;
+  final IconData icon;
+
+  /// When true, show `DD MM YY` framing; when false, render neutral code dots.
+  final bool dateHints;
 
   @override
   State<DobOtpField> createState() => _DobOtpFieldState();
@@ -47,12 +64,13 @@ class _DobOtpFieldState extends State<DobOtpField> {
     final text = widget.controller.text;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(DhenuIcons.cake, size: 16, color: t.inkSoft),
+        Icon(widget.icon, size: 16, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.xs),
-        Text('Date of birth', style: DhenuText.label.copyWith(color: t.inkSoft)),
+        Text(widget.label, style: DhenuText.label.copyWith(color: t.inkSoft)),
         const Spacer(),
-        Text('DD  MM  YY',
-            style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.55), letterSpacing: 1.5)),
+        if (widget.dateHints)
+          Text('DD  MM  YY',
+              style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.55), letterSpacing: 1.5)),
       ]),
       const SizedBox(height: DhenuSpacing.sm),
       GestureDetector(
@@ -91,7 +109,7 @@ class _DobOtpFieldState extends State<DobOtpField> {
   }
 
   Widget _box(DhenuTokens t, int i, String text) {
-    const hints = ['D', 'D', 'M', 'M', 'Y', 'Y'];
+    final hints = widget.dateHints ? const ['D', 'D', 'M', 'M', 'Y', 'Y'] : const ['•', '•', '•', '•', '•', '•'];
     final filled = i < text.length;
     final active = _focus.hasFocus && i == text.length;
     return Expanded(

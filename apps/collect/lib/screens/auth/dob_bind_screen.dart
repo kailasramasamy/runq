@@ -65,36 +65,54 @@ class _DobBindScreenState extends ConsumerState<DobBindScreen> {
             style: DhenuText.body.copyWith(color: t.inkSoft),
           ),
           const SizedBox(height: DhenuSpacing.xl),
-          if (_error != null) ...[
-            Container(
-              padding: const EdgeInsets.all(DhenuSpacing.md),
-              decoration: BoxDecoration(
-                color: t.gradeC.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(DhenuRadii.input),
-              ),
-              child: Text(_error!, style: DhenuText.body.copyWith(color: t.gradeC)),
-            ),
-            const SizedBox(height: DhenuSpacing.lg),
-          ],
-          TextField(
-            controller: _phone,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-            decoration: const InputDecoration(
-              labelText: 'Phone number',
-              prefixIcon: Icon(DhenuIcons.phone),
-            ),
-          ),
-          const SizedBox(height: DhenuSpacing.lg),
-          DobOtpField(controller: _dob),
-          const SizedBox(height: DhenuSpacing.xl),
-          FilledButton(onPressed: _busy ? null : _bind, child: const Text('Link account')),
-          if (_busy) const Padding(
-            padding: EdgeInsets.only(top: DhenuSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          ),
+          _bindSection(t),
         ],
       ),
     );
   }
+
+  /// Bind controls in their own card, set apart from the explanatory copy above
+  /// so the action area reads as a distinct, focused section.
+  Widget _bindSection(DhenuTokens t) => Container(
+        padding: const EdgeInsets.all(DhenuSpacing.xl),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(DhenuRadii.cardLg),
+          border: Border.all(color: t.hairline),
+          boxShadow: DhenuShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_error != null) ...[
+              Container(
+                padding: const EdgeInsets.all(DhenuSpacing.md),
+                decoration: BoxDecoration(
+                  color: t.gradeC.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(DhenuRadii.input),
+                ),
+                child: Text(_error!, style: DhenuText.body.copyWith(color: t.gradeC)),
+              ),
+              const SizedBox(height: DhenuSpacing.lg),
+            ],
+            TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+              decoration: const InputDecoration(
+                labelText: 'Phone number',
+                prefixIcon: Icon(DhenuIcons.phone),
+              ),
+            ),
+            const SizedBox(height: DhenuSpacing.lg),
+            DobOtpField(controller: _dob),
+            const SizedBox(height: DhenuSpacing.xl),
+            FilledButton(onPressed: _busy ? null : _bind, child: const Text('Link account')),
+            if (_busy) const Padding(
+              padding: EdgeInsets.only(top: DhenuSpacing.lg),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+        ),
+      );
 }

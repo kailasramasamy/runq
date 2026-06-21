@@ -85,13 +85,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: DhenuSpacing.xs),
             Center(child: Text('Milk procurement, made fair', style: DhenuText.body.copyWith(color: t.inkSoft))),
             const SizedBox(height: DhenuSpacing.x4),
-            if (_error != null) _errorBox(t),
-            if (_phoneMode) ..._phoneForm(t) else ..._socialButtons(t),
+            _loginSection(t),
           ],
         ),
       ),
     );
   }
+
+  /// Login controls live in their own card, set apart from the branding above
+  /// so the action area reads as a distinct, focused section.
+  Widget _loginSection(DhenuTokens t) => Container(
+        padding: const EdgeInsets.all(DhenuSpacing.xl),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(DhenuRadii.cardLg),
+          border: Border.all(color: t.hairline),
+          boxShadow: DhenuShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_error != null) _errorBox(t),
+            if (_phoneMode) ..._phoneForm(t) else ..._socialButtons(t),
+          ],
+        ),
+      );
 
   Widget _logo() => Center(
         child: Container(
@@ -130,10 +148,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             label: const Text('Continue with Apple'),
           ),
         ],
-        const SizedBox(height: DhenuSpacing.lg),
-        TextButton(
+        const SizedBox(height: DhenuSpacing.md),
+        OutlinedButton.icon(
           onPressed: _busy ? null : () => setState(() => _phoneMode = true),
-          child: Text('Sign in with phone number', style: DhenuText.label.copyWith(color: t.brand)),
+          icon: Icon(DhenuIcons.phone, color: t.brand),
+          label: Text('Sign in with phone number', style: DhenuText.label.copyWith(color: t.brand)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
+            side: BorderSide(color: t.brand),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.button)),
+          ),
         ),
         if (_busy) const Padding(
           padding: EdgeInsets.only(top: DhenuSpacing.lg),
@@ -153,7 +177,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         const SizedBox(height: DhenuSpacing.lg),
-        DobOtpField(controller: _dob),
+        DobOtpField(
+          controller: _dob,
+          label: 'Secret code',
+          icon: DhenuIcons.lock,
+          dateHints: false,
+        ),
         const SizedBox(height: DhenuSpacing.lg),
         FilledButton(onPressed: _busy ? null : _phoneLogin, child: const Text('Sign in')),
         const SizedBox(height: DhenuSpacing.sm),
