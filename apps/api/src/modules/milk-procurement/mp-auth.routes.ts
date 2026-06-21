@@ -40,6 +40,9 @@ async function verifyCredentialByDob(
   db: FastifyInstance['db'],
   phoneRaw: string,
   dob: string,
+  // What the DDMMYY code is called to the user: 'date of birth' on the one-time
+  // social bind, 'secret code' on the standalone phone login.
+  codeLabel = 'date of birth',
 ): Promise<MpCredentialRow> {
   const phone = normalisePhone(phoneRaw);
   if (phone.length < 10) throw new UnauthorizedError('Invalid phone');
@@ -57,7 +60,7 @@ async function verifyCredentialByDob(
     const left = MAX_BIND_ATTEMPTS - attempts;
     throw new UnauthorizedError(
       left > 0
-        ? `Incorrect date of birth — ${left} attempt${left === 1 ? '' : 's'} left`
+        ? `Incorrect ${codeLabel} — ${left} attempt${left === 1 ? '' : 's'} left`
         : 'Too many attempts — ask your admin to reset your login',
     );
   }
@@ -171,7 +174,7 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
   // bind Google later. Same 5-try lockout as the bind.
   app.post('/mp/phone-dob/login', async (request, reply) => {
     const { phone, dob } = mpPhoneDobLoginSchema.parse(request.body);
-    const cred = await verifyCredentialByDob(app.db, phone, dob);
+    const cred = await verifyCredentialByDob(app.db, phone, dob, 'secret code');
     const user = await resolveOrProvisionUser(app, cred);
     await app.db.update(mpCredentials).set({ bindAttempts: 0 }).where(eq(mpCredentials.id, cred.id));
     return reply.send({ data: await issueSession(app, user) });
