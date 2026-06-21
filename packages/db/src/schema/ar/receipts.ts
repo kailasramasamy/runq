@@ -32,5 +32,9 @@ export const receiptAllocations = pgTable('receipt_allocations', {
   receiptId: uuid('receipt_id').notNull().references(() => paymentReceipts.id),
   invoiceId: uuid('invoice_id').notNull().references(() => salesInvoices.id),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+  // Sub-rupee gap booked to Round Off when this line settles a paise invoice in
+  // full but the customer paid whole rupees. `amount` stays the actual cash;
+  // settled = amount + roundOffAmount. Stored so re-allocation stays idempotent.
+  roundOffAmount: decimal('round_off_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

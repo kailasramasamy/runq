@@ -57,8 +57,8 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
 
   // A remittance advice can sum to a few paise more than the cash actually
   // banked. Rather than reject the paste, shave that sub-rupee overshoot off the
-  // largest line so allocations tie to the receipt; that invoice keeps a paise
-  // residual balance — which reflects what was genuinely paid.
+  // largest line so allocations tie to the receipt; the server then rounds that
+  // line off too, closing the invoice in full.
   const { lines, rounding } = useMemo(() => {
     const overBy = round2(resolved.reduce((s, r) => s + r.amount, 0) - receipt.amount);
     if (overBy <= 0.01 || overBy > ROUNDING_TOLERANCE) return { lines: resolved, rounding: null };
@@ -74,6 +74,14 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
   const hasErrors = lines.some((r) => !r.ok);
   const overReceipt = allocSum - receipt.amount > 0.01;
   const canApply = lines.length > 0 && !hasErrors && !overReceipt;
+
+  // Lines within ₹1 of clearing an invoice settle it in full server-side, with
+  // the paise booked to Round Off. Preview the total so fully-paid invoices
+  // (no lingering paise) aren't a surprise.
+  const closeRoundOff = round2(lines.reduce((s, r) => {
+    const gap = r.ok && r.headroom != null ? round2(r.headroom - r.amount) : 0;
+    return gap > 0.005 && gap <= ROUNDING_TOLERANCE ? s + gap : s;
+  }, 0));
 
   function apply() {
     const allocations = lines.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: r.amount }));
@@ -131,6 +139,7 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
                   {lines.length} line(s) · Allocated <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">{formatINR(allocSum)}</span> of {formatINR(receipt.amount)}
                   {remainder > 0.01 && <span className="ml-1 text-amber-600 dark:text-amber-400">· {formatINR(remainder)} stays on-account</span>}
                   {rounding && <span className="ml-1 text-blue-600 dark:text-blue-400">· trimmed {formatINR(rounding.amount)} off #{rounding.number} to match deposit</span>}
+                  {closeRoundOff > 0.005 && <span className="ml-1 text-blue-600 dark:text-blue-400">· {formatINR(closeRoundOff)} rounded off to fully close paise balances</span>}
                   {overReceipt && <span className="ml-1 text-red-600 dark:text-red-400">· exceeds receipt</span>}
                 </span>
                 <Button size="sm" onClick={apply} loading={update.isPending} disabled={!canApply}>Apply allocations</Button>

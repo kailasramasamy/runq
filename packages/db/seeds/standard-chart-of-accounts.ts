@@ -215,6 +215,9 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5603', name: 'Payment Gateway Charges', type: 'expense', parent: '5600' },
   { code: '5604', name: 'Foreign Exchange Loss', type: 'expense', parent: '5600' },
   { code: '5605', name: 'Late Payment Interest', type: 'expense', parent: '5600' },
+  // Round-off on receipt settlement — single leaf for both loss (Dr) and gain (Cr)
+  // when a customer pays whole rupees against a paise invoice.
+  { code: '5606', name: 'Round Off', type: 'expense', parent: '5600', system: true },
 
   // Transport & Logistics
   { code: '5700', name: 'Transport & Logistics', type: 'expense', parent: '5000' },
