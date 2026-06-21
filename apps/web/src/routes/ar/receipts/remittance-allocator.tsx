@@ -12,6 +12,10 @@ import {
 interface ParsedLine { number: string; amount: number }
 interface ResolvedLine extends ParsedLine { invoiceId?: string; headroom?: number; ok: boolean; reason?: string }
 
+/** ₹ tolerance for absorbing sub-rupee remittance-advice vs deposit rounding gaps. */
+const ROUNDING_TOLERANCE = 1;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /** Parse pasted rows: "<invoice no> <amount>" separated by tab, comma, or spaces. */
 function parseRemittance(text: string): ParsedLine[] {
   const out: ParsedLine[] = [];
@@ -51,13 +55,28 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
     });
   }, [text, invData, receipt.allocations]);
 
-  const allocSum = resolved.reduce((s, r) => s + r.amount, 0);
-  const hasErrors = resolved.some((r) => !r.ok);
+  // A remittance advice can sum to a few paise more than the cash actually
+  // banked. Rather than reject the paste, shave that sub-rupee overshoot off the
+  // largest line so allocations tie to the receipt; that invoice keeps a paise
+  // residual balance — which reflects what was genuinely paid.
+  const { lines, rounding } = useMemo(() => {
+    const overBy = round2(resolved.reduce((s, r) => s + r.amount, 0) - receipt.amount);
+    if (overBy <= 0.01 || overBy > ROUNDING_TOLERANCE) return { lines: resolved, rounding: null };
+    const target = resolved.filter((r) => r.ok).reduce<ResolvedLine | null>((a, b) => (b.amount > (a?.amount ?? 0) ? b : a), null);
+    if (!target) return { lines: resolved, rounding: null };
+    return {
+      lines: resolved.map((r) => (r === target ? { ...r, amount: round2(r.amount - overBy) } : r)),
+      rounding: { number: target.number, amount: overBy },
+    };
+  }, [resolved, receipt.amount]);
+
+  const allocSum = lines.reduce((s, r) => s + r.amount, 0);
+  const hasErrors = lines.some((r) => !r.ok);
   const overReceipt = allocSum - receipt.amount > 0.01;
-  const canApply = resolved.length > 0 && !hasErrors && !overReceipt;
+  const canApply = lines.length > 0 && !hasErrors && !overReceipt;
 
   function apply() {
-    const allocations = resolved.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: r.amount }));
+    const allocations = lines.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: r.amount }));
     update.mutate(allocations, {
       onSuccess: () => { toast(`Allocated to ${allocations.length} invoice(s).`, 'success'); setText(''); setOpen(false); },
       onError: (e) => toast(e instanceof Error ? e.message : 'Failed to allocate.', 'error'),
@@ -86,7 +105,7 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
             placeholder={'260459\t3919.69\n260460\t9896.24'}
             className="font-mono text-xs"
           />
-          {resolved.length > 0 && (
+          {lines.length > 0 && (
             <>
               <div className="overflow-x-auto">
                 <Table>
@@ -94,7 +113,7 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
                     <tr><Th>Invoice #</Th><Th align="right">Amount</Th><Th align="right">Available</Th><Th>Status</Th></tr>
                   </TableHeader>
                   <TableBody>
-                    {resolved.map((r, i) => (
+                    {lines.map((r, i) => (
                       <TableRow key={`${r.number}-${i}`}>
                         <TableCell className="font-mono text-xs">{r.number}</TableCell>
                         <TableCell align="right" numeric>{formatINR(r.amount)}</TableCell>
@@ -109,8 +128,9 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  {resolved.length} line(s) · Allocated <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">{formatINR(allocSum)}</span> of {formatINR(receipt.amount)}
+                  {lines.length} line(s) · Allocated <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">{formatINR(allocSum)}</span> of {formatINR(receipt.amount)}
                   {remainder > 0.01 && <span className="ml-1 text-amber-600 dark:text-amber-400">· {formatINR(remainder)} stays on-account</span>}
+                  {rounding && <span className="ml-1 text-blue-600 dark:text-blue-400">· trimmed {formatINR(rounding.amount)} off #{rounding.number} to match deposit</span>}
                   {overReceipt && <span className="ml-1 text-red-600 dark:text-red-400">· exceeds receipt</span>}
                 </span>
                 <Button size="sm" onClick={apply} loading={update.isPending} disabled={!canApply}>Apply allocations</Button>
