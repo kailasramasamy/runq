@@ -319,6 +319,32 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
     }
   }
 
+  /// Delete this manually-entered receipt (server rejects unless it's a direct
+  /// receive that isn't yet locked for dispatch).
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Delete receipt?'),
+        content: Text('${widget.vmcc.name} · '
+            '${prettyDate(isoDate(widget.date))} '
+            '${widget.shift == Shift.am ? 'AM' : 'PM'} will be removed.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() { _saving = true; _error = null; });
+    try {
+      await mpRepo.deleteReceipt(widget.existing!.id);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() { _saving = false; _error = '$e'; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
@@ -359,12 +385,22 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
           )),
           Padding(
             padding: const EdgeInsets.all(DhenuSpacing.screen),
-            child: PrimaryAction(
-              label: _ready ? (widget.existing != null ? 'Save changes' : 'Mark received') : 'Next',
-              icon: _ready ? DhenuIcons.check : DhenuIcons.chevronRight,
-              onPressed: _ready ? _save : _focusNext,
-              loading: _saving,
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              PrimaryAction(
+                label: _ready ? (widget.existing != null ? 'Save changes' : 'Mark received') : 'Next',
+                icon: _ready ? DhenuIcons.check : DhenuIcons.chevronRight,
+                onPressed: _ready ? _save : _focusNext,
+                loading: _saving,
+              ),
+              if (widget.existing?.directReceive ?? false) ...[
+                const SizedBox(height: DhenuSpacing.sm),
+                TextButton.icon(
+                  onPressed: _saving ? null : _delete,
+                  icon: Icon(DhenuIcons.trash, size: 18, color: t.gradeC),
+                  label: Text('Delete receipt', style: DhenuText.label.copyWith(color: t.gradeC)),
+                ),
+              ],
+            ]),
           ),
         ]),
       ),
