@@ -1,5 +1,5 @@
 import { and, eq, desc, sql, inArray, gte, lte } from 'drizzle-orm';
-import { mpConsignments, mpNodes, mpPours } from '@runq/db';
+import { mpConsignments, mpNodes, mpPours, mpGlSettings, mpRawMilkItems, stockLedger } from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -8,9 +8,13 @@ import type {
   DirectReceiveConsignmentInput,
 } from '@runq/validators';
 import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors';
+import { StockLedgerService } from '../inventory/stock-ledger.service';
 import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+type MilkType = NonNullable<MpConsignmentRow['milkType']>;
 
 /** Milk on hand at a source node on a date: what it took in minus what it already sent on. */
 export interface ConsignmentAvailability {
@@ -79,6 +83,7 @@ export class ConsignmentService {
       const scope = shift ? `${shift.toUpperCase()} ` : '';
       throw new ValidationError(`Only ${available} L of ${scope}milk available to dispatch from this node.`);
     }
+    const milkType = await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
     return this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
@@ -89,6 +94,7 @@ export class ConsignmentService {
         toNodeId: input.toNodeId,
         collectionDate: input.collectionDate,
         shift,
+        milkType,
         containerNo: input.containerNo ?? null,
         dispatchQty: String(input.dispatchQty),
         dispatchFat: numOrNull(input.dispatchFat),
@@ -109,20 +115,22 @@ export class ConsignmentService {
     const dispatched = Number(c.dispatchQty ?? 0);
     const varianceQty = round3(Number(input.receiptQty) - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
-    // NOTE: PP raw-milk → stock_ledger posting deferred until the inventory
-    // item/warehouse mapping is decided (tracker A4 / schema-spec §9.4).
-    const [row] = await this.db.update(mpConsignments).set({
-      receiptQty: String(input.receiptQty),
-      receiptFat: numOrNull(input.receiptFat),
-      receiptSnf: numOrNull(input.receiptSnf),
-      receivedAt: new Date(),
-      receivedBy: userId ?? null,
-      varianceQty: String(varianceQty),
-      variancePct: String(variancePct),
-      status: 'received',
-      updatedAt: new Date(),
-    }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
-    return row!;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.update(mpConsignments).set({
+        receiptQty: String(input.receiptQty),
+        receiptFat: numOrNull(input.receiptFat),
+        receiptSnf: numOrNull(input.receiptSnf),
+        receivedAt: new Date(),
+        receivedBy: userId ?? null,
+        varianceQty: String(varianceQty),
+        variancePct: String(variancePct),
+        status: 'received',
+        updatedAt: new Date(),
+      }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+      // PP intake posts a raw-milk batch into stock_ledger (best-effort).
+      const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
+      return stockLedgerId ? { ...row!, stockLedgerId } : row!;
+    });
   }
 
   /**
@@ -144,6 +152,7 @@ export class ConsignmentService {
     const kind = from.nodeType === 'cc' ? 'cc_to_pp' : 'vmcc_to_cc';
     const shift = from.hasBmc ? null : input.shift ?? null;
     const qty = String(input.qty);
+    const milkType = await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
     return this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
@@ -154,6 +163,7 @@ export class ConsignmentService {
         toNodeId: input.toNodeId,
         collectionDate: input.collectionDate,
         shift,
+        milkType,
         dispatchQty: qty,
         dispatchFat: numOrNull(input.fat),
         dispatchSnf: numOrNull(input.snf),
@@ -168,7 +178,8 @@ export class ConsignmentService {
         variancePct: '0',
         status: 'received',
       }).returning();
-      return row!;
+      const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
+      return stockLedgerId ? { ...row!, stockLedgerId } : row!;
     });
   }
 
@@ -183,25 +194,38 @@ export class ConsignmentService {
     const dispatched = Number(c.dispatchQty ?? 0);
     const varianceQty = round3(Number(input.receiptQty) - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
-    const [row] = await this.db.update(mpConsignments).set({
-      receiptQty: String(input.receiptQty),
-      receiptFat: numOrNull(input.receiptFat),
-      receiptSnf: numOrNull(input.receiptSnf),
-      receivedAt: new Date(),
-      receivedBy: userId ?? null,
-      varianceQty: String(varianceQty),
-      variancePct: String(variancePct),
-      updatedAt: new Date(),
-    }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
-    return row!;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.update(mpConsignments).set({
+        receiptQty: String(input.receiptQty),
+        receiptFat: numOrNull(input.receiptFat),
+        receiptSnf: numOrNull(input.receiptSnf),
+        receivedAt: new Date(),
+        receivedBy: userId ?? null,
+        varianceQty: String(varianceQty),
+        variancePct: String(variancePct),
+        updatedAt: new Date(),
+      }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+      // Keep posted stock in lockstep with the corrected receipt qty.
+      const delta = round3(Number(input.receiptQty) - Number(c.receiptQty ?? 0));
+      if (c.stockLedgerId && Math.abs(delta) > 1e-6) {
+        await this.adjustRawMilkStock(tx, c.stockLedgerId, row!.id, delta, userId);
+      }
+      return row!;
+    });
   }
 
   async reverse(id: string, principal: MpPrincipal): Promise<MpConsignmentRow> {
-    await this.getById(id, principal);
-    const [row] = await this.db.update(mpConsignments)
-      .set({ status: 'reversed', updatedAt: new Date() })
-      .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
-    return row!;
+    const c = await this.getById(id, principal);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.update(mpConsignments)
+        .set({ status: 'reversed', updatedAt: new Date() })
+        .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+      // Back out the raw-milk batch posted on receipt.
+      if (c.stockLedgerId) {
+        await this.adjustRawMilkStock(tx, c.stockLedgerId, row!.id, -Number(c.receiptQty ?? 0), undefined);
+      }
+      return row!;
+    });
   }
 
   /** Available-to-dispatch at a node: VMCC counts its pours, CC/PP count milk received in.
@@ -261,6 +285,73 @@ export class ConsignmentService {
         eq(mpConsignments.collectionDate, date), inArray(mpConsignments.status, ['in_transit', 'received']),
         ...(shift ? [eq(mpConsignments.shift, shift)] : [])));
     return Number(r?.q ?? 0);
+  }
+
+  /** Single milk type of the source's real composition for the day/shift, or
+   *  null when mixed — drives which raw-milk item a PP receipt posts to. */
+  private async deriveMilkType(
+    db: Db | Tx, fromNodeId: string, fromNodeType: string,
+    date: string, shift: 'am' | 'pm' | null,
+  ): Promise<MilkType | null> {
+    if (fromNodeType === 'vmcc') {
+      const rows = await db.selectDistinct({ t: mpPours.milkType }).from(mpPours)
+        .where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.nodeId, fromNodeId),
+          eq(mpPours.collectionDate, date), eq(mpPours.status, 'recorded'),
+          ...(shift ? [eq(mpPours.shift, shift)] : [])));
+      return rows.length === 1 ? rows[0]!.t : null;
+    }
+    // CC source: the milk it received in (VMCC→CC consignments) that day.
+    const rows = await db.selectDistinct({ t: mpConsignments.milkType }).from(mpConsignments)
+      .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.toNodeId, fromNodeId),
+        eq(mpConsignments.collectionDate, date), eq(mpConsignments.status, 'received')));
+    return rows.length === 1 ? (rows[0]!.t ?? null) : null;
+  }
+
+  /** PP intake → raw-milk stock_ledger batch. Best-effort: needs the warehouse +
+   *  a milk-type item mapped, else skipped. Valued at zero — real valuation + GL
+   *  arrive with P1.1 at payout lock. Returns the ledger id or null. */
+  private async postRawMilkReceipt(
+    tx: Tx, c: MpConsignmentRow, userId: string | undefined,
+  ): Promise<string | null> {
+    const qty = Number(c.receiptQty ?? 0);
+    if (qty <= 0) return null;
+    const [toNode] = await tx.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, c.toNodeId)));
+    if (toNode?.nodeType !== 'pp') return null; // only PP intake hits raw-milk stock
+    const [settings] = await tx.select({ wh: mpGlSettings.rawMilkWarehouseId }).from(mpGlSettings)
+      .where(eq(mpGlSettings.tenantId, this.tenantId));
+    if (!settings?.wh) return null;
+    const [map] = await tx.select({ itemId: mpRawMilkItems.itemId }).from(mpRawMilkItems)
+      .where(and(eq(mpRawMilkItems.tenantId, this.tenantId),
+        eq(mpRawMilkItems.milkType, c.milkType ?? 'mixed')));
+    if (!map) return null;
+    const { ledgerId } = await new StockLedgerService(this.tenantId).recordMovement(tx, {
+      itemId: map.itemId, warehouseId: settings.wh, batchNo: c.consignmentNo,
+      movementType: 'grn', sourceType: 'mp_receipt', sourceId: c.id,
+      qtyDelta: qty, unitCost: 0, movedAt: new Date(`${c.collectionDate}T00:00:00Z`),
+      postedBy: userId ?? null,
+    });
+    await tx.update(mpConsignments).set({ stockLedgerId: ledgerId, updatedAt: new Date() })
+      .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, c.id)));
+    return ledgerId;
+  }
+
+  /** Follow-on movement against an already-posted raw-milk batch (receipt
+   *  correction or reversal), mirroring the original item/warehouse/batch. */
+  private async adjustRawMilkStock(
+    tx: Tx, stockLedgerId: string, sourceId: string, qtyDelta: number, userId: string | undefined,
+  ): Promise<void> {
+    if (Math.abs(qtyDelta) <= 1e-6) return;
+    const [orig] = await tx.select({
+      itemId: stockLedger.itemId, warehouseId: stockLedger.warehouseId, batchNo: stockLedger.batchNo,
+    }).from(stockLedger).where(and(eq(stockLedger.tenantId, this.tenantId), eq(stockLedger.id, stockLedgerId)));
+    if (!orig) return;
+    await new StockLedgerService(this.tenantId).recordMovement(tx, {
+      itemId: orig.itemId, warehouseId: orig.warehouseId, batchNo: orig.batchNo,
+      movementType: qtyDelta > 0 ? 'adjustment_in' : 'adjustment_out',
+      sourceType: 'mp_receipt_adjustment', sourceId, qtyDelta, unitCost: 0,
+      movedAt: new Date(), postedBy: userId ?? null,
+    });
   }
 
   private buildWhere(filters: ConsignmentFilter, principal: MpPrincipal) {

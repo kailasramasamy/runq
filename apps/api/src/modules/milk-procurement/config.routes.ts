@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { upsertGlSettingsSchema } from '@runq/validators';
+import { upsertGlSettingsSchema, upsertRawMilkItemsSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ConfigService } from './config.service';
 
@@ -35,5 +35,17 @@ export const configRoutes: FastifyPluginAsync = async (app) => {
   app.get('/sequences', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const service = new ConfigService(request.server.db, request.tenantId);
     return { data: await service.listSequences() };
+  });
+
+  // Per-milk-type → inventory item map for PP raw-milk receipts (P1.2).
+  app.get('/raw-milk-items', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const service = new ConfigService(request.server.db, request.tenantId);
+    return { data: await service.getRawMilkItems() };
+  });
+
+  app.put('/raw-milk-items', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = upsertRawMilkItemsSchema.parse(request.body);
+    const service = new ConfigService(request.server.db, request.tenantId);
+    return { data: await service.upsertRawMilkItems(input) };
   });
 };

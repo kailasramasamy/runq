@@ -5,8 +5,10 @@ import { tenants } from '../tenant';
 import { users } from '../user';
 import { vendors } from '../ap/vendors';
 import { accounts } from '../gl/accounts';
+import { warehouses } from '../inventory/warehouses';
+import { items } from '../masters/items';
 import { mpNodes } from './nodes';
-import { mpOperatorRole, mpCompType, mpPayoutMode } from './enums';
+import { mpOperatorRole, mpCompType, mpPayoutMode, mpMilkType } from './enums';
 
 /**
  * Who runs a node + their comp TERMS only. Actual operator/rent payouts flow
@@ -69,6 +71,8 @@ export const mpGlSettings = pgTable('mp_gl_settings', {
   advanceAccountId: uuid('advance_account_id').references(() => accounts.id),
   feedLoanAccountId: uuid('feed_loan_account_id').references(() => accounts.id),
   rawMilkInventoryAccountId: uuid('raw_milk_inventory_account_id').references(() => accounts.id),
+  // Single warehouse all PP raw-milk receipts post into (P1.2, §9.4).
+  rawMilkWarehouseId: uuid('raw_milk_warehouse_id').references(() => warehouses.id),
   varianceAccountId: uuid('variance_account_id').references(() => accounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -108,3 +112,22 @@ export const mpOperatorPayouts = pgTable('mp_operator_payouts', {
 
 export type MpOperatorPayoutRow = typeof mpOperatorPayouts.$inferSelect;
 export type NewMpOperatorPayoutRow = typeof mpOperatorPayouts.$inferInsert;
+
+/**
+ * Maps each milk type to the inventory item a PP raw-milk receipt posts into
+ * (P1.2, §9.4). One item per type so manufacturing can consume cow vs buffalo
+ * separately. Unmapped type → the PP receipt skips stock posting (best-effort).
+ */
+export const mpRawMilkItems = pgTable('mp_raw_milk_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  milkType: mpMilkType('milk_type').notNull(),
+  itemId: uuid('item_id').notNull().references(() => items.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('uq_mp_raw_milk_items').on(t.tenantId, t.milkType),
+]);
+
+export type MpRawMilkItemRow = typeof mpRawMilkItems.$inferSelect;
+export type NewMpRawMilkItemRow = typeof mpRawMilkItems.$inferInsert;

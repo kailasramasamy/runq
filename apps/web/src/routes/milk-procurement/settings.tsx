@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { PageHeader, Card, CardContent, CardHeader, Button, Input, Combobox, useToast } from '@/components/ui';
 import {
   useGlSettings, useUpsertGlSettings, useNodes, useUpdateNode,
-  type MpGlSettings, type MpNode,
+  useRawMilkItems, useUpsertRawMilkItems,
+  type MpGlSettings, type MpNode, type MpMilkType,
 } from '@/hooks/queries/use-milk-procurement';
+import { useItems } from '@/hooks/queries/use-items';
+import { useWarehouses } from '@/hooks/queries/use-inventory';
 
 const PAYOUT_MODES = [
   { value: 'direct_to_farmer', label: 'Direct to farmer' },
@@ -21,6 +24,13 @@ const AUTO_MODES = [
   { value: 'off', label: 'Manual — generate cycles myself' },
   { value: 'on', label: 'Auto — generate each cycle when its period closes' },
 ];
+const MILK_TYPES: { value: MpMilkType; label: string }[] = [
+  { value: 'cow_a1', label: 'Cow (A1 / crossbred)' },
+  { value: 'cow_a2', label: 'Cow (A2 / desi)' },
+  { value: 'buffalo', label: 'Buffalo' },
+  { value: 'mixed', label: 'Mixed / unsegregated' },
+  { value: 'cow', label: 'Cow (legacy)' },
+];
 
 export function MpSettingsPage() {
   const { data } = useGlSettings();
@@ -31,6 +41,7 @@ export function MpSettingsPage() {
         <PayoutCard settings={data?.data ?? null} />
         <VmccPayoutOverridesCard />
         <CycleCard settings={data?.data ?? null} />
+        <RawMilkInventoryCard settings={data?.data ?? null} />
         <SupportCard settings={data?.data ?? null} />
       </div>
     </div>
@@ -143,6 +154,59 @@ function CycleCard({ settings }: { settings: MpGlSettings | null }) {
           manually any time.
         </p>
         <Button onClick={save} loading={upsert.isPending}>Save</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RawMilkInventoryCard({ settings }: { settings: MpGlSettings | null }) {
+  const upsertGl = useUpsertGlSettings();
+  const upsertItems = useUpsertRawMilkItems();
+  const { toast } = useToast();
+  const { data: whData } = useWarehouses();
+  const { data: itemData } = useItems({ type: 'product', status: 'active', itemClassGroup: 'inputs', limit: 200 });
+  const { data: mapData } = useRawMilkItems();
+
+  const [warehouseId, setWarehouseId] = useState('');
+  const [items, setItems] = useState<Record<string, string>>({});
+
+  useEffect(() => { setWarehouseId(settings?.rawMilkWarehouseId ?? ''); }, [settings]);
+  useEffect(() => {
+    const m: Record<string, string> = {};
+    for (const row of mapData?.data ?? []) m[row.milkType] = row.itemId;
+    setItems(m);
+  }, [mapData]);
+
+  const whOptions = [{ value: '', label: '— none —' },
+    ...(whData ?? []).map((w) => ({ value: w.id, label: w.name }))];
+  const itemOptions = [{ value: '', label: '— not mapped —' },
+    ...(itemData?.data ?? []).map((i) => ({ value: i.id, label: i.name }))];
+
+  const save = async () => {
+    const mappings = MILK_TYPES.filter((t) => items[t.value])
+      .map((t) => ({ milkType: t.value, itemId: items[t.value]! }));
+    try {
+      await upsertGl.mutateAsync({ rawMilkWarehouseId: warehouseId || null });
+      await upsertItems.mutateAsync(mappings);
+      toast('Raw-milk inventory settings saved', 'success');
+    } catch { toast('Failed to save', 'error'); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>Raw-milk inventory</CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-zinc-500">
+          When a tanker is received at a processing plant, Dhenu posts the milk into inventory so it
+          feeds manufacturing. Pick the warehouse and the item per milk type; unmapped types are
+          skipped. Valuation is zero for now — it's posted to the books at payout lock.
+        </p>
+        <Combobox label="Raw-milk warehouse" value={warehouseId} onChange={setWarehouseId} options={whOptions} />
+        {MILK_TYPES.map((t) => (
+          <Combobox key={t.value} label={t.label} value={items[t.value] ?? ''}
+            onChange={(v) => setItems((p) => ({ ...p, [t.value]: v }))} options={itemOptions} />
+        ))}
+        <Button onClick={save} loading={upsertGl.isPending || upsertItems.isPending}>Save</Button>
       </CardContent>
     </Card>
   );

@@ -11,6 +11,7 @@ import type {
 } from '@runq/validators';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
 import { nextDocNo } from './numbering';
+import { MpGlPoster } from './gl-poster';
 import { MpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
 
 type LedgerRow = typeof mpFarmerLedger.$inferSelect;
@@ -34,8 +35,9 @@ export type CycleListRow = MpPayoutCycleRow & CycleLineAgg;
 /**
  * Payout — farmer ledger (advances/feed-loans), cycle generation from pours,
  * deductions, lock (posts repayment ledger entries), and pay (direct/via-VMCC).
- * GL posting on lock is deferred to CoA sign-off (tracker C3) — journal_entry_id
- * stays null for now.
+ * GL (expense-basis, P1.1) via MpGlPoster: advance/feed grants → cash JE;
+ * lock → Dr Milk Purchases / Cr Payable + recoveries (cycle.journalEntryId);
+ * pay → Dr Farmer Payable / Cr Bank.
  */
 export class PayoutService {
   constructor(
@@ -65,6 +67,13 @@ export class PayoutService {
         occurredOn: input.occurredOn,
         createdBy: userId ?? null,
       }).returning();
+      // Cash leaving for a new advance/feed-loan creates the farmer receivable.
+      if (input.entryType === 'advance_given' || input.entryType === 'feed_loan_given') {
+        await new MpGlPoster(this.tenantId, userId).postGrant(tx, {
+          ledgerId: row!.id, date: input.occurredOn, amount: input.amount,
+          kind: input.entryType === 'feed_loan_given' ? 'feed_loan' : 'advance',
+        });
+      }
       return row!;
     });
   }
@@ -245,9 +254,14 @@ export class PayoutService {
       ded: a.ded + Number(l.deductionTotal), net: a.net + Number(l.netAmount),
     }), { qty: 0, gross: 0, ded: 0, net: 0 });
     return this.db.transaction(async (tx) => {
-      await this.postRepayments(tx, cycle, lines);
+      const recovered = await this.postRepayments(tx, cycle, lines);
+      // Accrue the milk cost: Dr Milk Purchases / Cr Payable + Cr recovered advances/loans.
+      const journalEntryId = await new MpGlPoster(this.tenantId).postAccrual(tx, {
+        cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
+        net: totals.net, advance: recovered.advance, feedLoan: recovered.feedLoan,
+      });
       const [updated] = await tx.update(mpPayoutCycles).set({
-        status: 'locked', lockedAt: new Date(),
+        status: 'locked', lockedAt: new Date(), journalEntryId,
         totalQty: String(round3(totals.qty)), totalGross: String(round2(totals.gross)),
         totalDeductions: String(round2(totals.ded)), totalNet: String(round2(totals.net)),
         updatedAt: new Date(),
@@ -265,9 +279,14 @@ export class PayoutService {
     }).from(mpPayoutLines).innerJoin(mpFarmers, eq(mpFarmers.id, mpPayoutLines.farmerId))
       .where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, id)));
     const mode = await this.resolvePayoutMode(cycle.scopeNodeId);
+    const paidTotal = lines.reduce((s, l) => s + Math.max(0, Number(l.netAmount)), 0);
     return this.db.transaction(async (tx) => {
       if (mode === 'via_vmcc') await this.payViaVmcc(tx, cycle, lines);
       else await this.payDirect(tx, cycle, lines);
+      // Cash out settles the payable accrued at lock: Dr Farmer Payable / Cr Bank.
+      await new MpGlPoster(this.tenantId, userId).postPayment(tx, {
+        cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd, amount: paidTotal,
+      });
       // Paying the cycle disburses everyone — mark any still-unticked line paid so
       // the per-farmer checklist matches reality.
       await tx.update(mpPayoutLines).set({ paidAt: new Date(), paidBy: userId ?? null })
@@ -352,21 +371,29 @@ export class PayoutService {
     }
   }
 
-  private async postRepayments(tx: Tx, cycle: MpPayoutCycleRow, lines: MpPayoutLineRow[]) {
+  /** Post the repayment ledger entries and return total ₹ recovered by type
+   *  (drives the credit legs of the lock accrual JE). */
+  private async postRepayments(
+    tx: Tx, cycle: MpPayoutCycleRow, lines: MpPayoutLineRow[],
+  ): Promise<{ advance: number; feedLoan: number }> {
+    const recovered = { advance: 0, feedLoan: 0 };
     const lineIds = lines.map((l) => l.id);
-    if (!lineIds.length) return;
+    if (!lineIds.length) return recovered;
     const deds = await tx.select().from(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, lineIds));
     const farmerByLine = new Map(lines.map((l) => [l.id, l.farmerId]));
     for (const d of deds) {
       const farmerId = farmerByLine.get(d.payoutLineId)!;
       const prev = await this.balanceTx(tx, farmerId);
+      const isFeed = d.deductionType === 'cattle_feed_loan';
+      if (isFeed) recovered.feedLoan += Number(d.amount); else recovered.advance += Number(d.amount);
       await tx.insert(mpFarmerLedger).values({
         tenantId: this.tenantId, farmerId, entryType: 'repayment', amount: d.amount,
         balanceAfter: String(round2(prev - Number(d.amount))),
-        refType: d.deductionType === 'cattle_feed_loan' ? 'cattle_feed_loan' : 'advance',
+        refType: isFeed ? 'cattle_feed_loan' : 'advance',
         refId: d.payoutLineId, occurredOn: cycle.periodEnd,
       });
     }
+    return recovered;
   }
 
   private async payDirect(

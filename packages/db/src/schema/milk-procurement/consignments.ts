@@ -5,7 +5,7 @@ import { tenants } from '../tenant';
 import { users } from '../user';
 import { stockLedger } from '../inventory/stock-ledger';
 import { mpNodes } from './nodes';
-import { mpConsignmentKind, mpConsignmentStatus, mpShift } from './enums';
+import { mpConsignmentKind, mpConsignmentStatus, mpShift, mpMilkType } from './enums';
 
 /**
  * Tier-to-tier movement (VMCC→CC, CC→PP). Carries dispatch QC + receipt QC so
@@ -21,6 +21,10 @@ export const mpConsignments = pgTable('mp_consignments', {
   toNodeId: uuid('to_node_id').notNull().references(() => mpNodes.id),
   collectionDate: date('collection_date').notNull(),
   shift: mpShift('shift'),
+  // Milk type of this movement, derived from the source's actual composition on
+  // dispatch (single-type source → that type; mixed → null). Drives which
+  // raw-milk item the PP receipt posts to (mp_raw_milk_items).
+  milkType: mpMilkType('milk_type'),
   containerNo: varchar('container_no', { length: 40 }),
   dispatchQty: decimal('dispatch_qty', { precision: 12, scale: 3 }),
   dispatchFat: decimal('dispatch_fat', { precision: 5, scale: 2 }),

@@ -55,6 +55,9 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '1114', name: 'Short-Term Investments', type: 'asset', parent: '1100' },
   { code: '1115', name: 'Accrued Revenue', type: 'asset', parent: '1100' },
   { code: '1116', name: 'Bank Suspense', type: 'asset', parent: '1100', system: true },
+  // Milk procurement (Dhenu) — farmer receivables recovered via payout deductions.
+  { code: '1150', name: 'Farmer Advances', type: 'asset', parent: '1100' },
+  { code: '1151', name: 'Cattle-Feed Loans', type: 'asset', parent: '1100' },
 
   // Fixed Assets
   { code: '1200', name: 'Fixed Assets', type: 'asset', parent: '1000' },
@@ -100,6 +103,8 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '2112', name: 'Provision for Income Tax', type: 'liability', parent: '2100' },
   { code: '2113', name: 'Other Current Liabilities', type: 'liability', parent: '2100' },
   { code: '2114', name: 'Employee Rewards Payable', type: 'liability', parent: '2100' },
+  // Milk procurement (Dhenu) — net amount owed to farmers, accrued at cycle lock.
+  { code: '2150', name: 'Farmer Payable', type: 'liability', parent: '2100' },
   // Inventory: GR/IR Clearing sits between goods receipt (Dr Inventory)
   // and bill posting (Cr AP). Net zero once both are posted — used to
   // spot received-not-invoiced and invoiced-not-received gaps.
@@ -164,6 +169,8 @@ const STANDARD_COA: CoaEntry[] = [
   // Posted by Work Order close when actual output ≠ planned output.
   { code: '5105', name: 'Production Yield Variance', type: 'expense', parent: '5100', system: true },
   { code: '5006', name: 'Purchase Returns', type: 'expense', parent: '5100' },
+  // Milk procurement (Dhenu) — farmer milk cost, expensed at payout cycle lock.
+  { code: '5050', name: 'Milk Purchases', type: 'expense', parent: '5100' },
 
   // Employee Costs
   { code: '5200', name: 'Employee Costs', type: 'expense', parent: '5000' },

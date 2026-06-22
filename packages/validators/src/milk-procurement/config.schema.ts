@@ -22,6 +22,8 @@ export const upsertGlSettingsSchema = z.object({
   advanceAccountId: z.string().uuid().nullish(),
   feedLoanAccountId: z.string().uuid().nullish(),
   rawMilkInventoryAccountId: z.string().uuid().nullish(),
+  // Single warehouse all PP raw-milk receipts post into (P1.2).
+  rawMilkWarehouseId: z.string().uuid().nullish(),
   varianceAccountId: z.string().uuid().nullish(),
 }).superRefine((v, ctx) => {
   // Auto-roll needs a defined cadence to compute period boundaries.
@@ -35,3 +37,15 @@ export const upsertGlSettingsSchema = z.object({
 });
 
 export type UpsertGlSettingsInput = z.infer<typeof upsertGlSettingsSchema>;
+
+const milkTypeEnum = z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']);
+
+/** Replace the per-milk-type → inventory item map (P1.2). */
+export const upsertRawMilkItemsSchema = z.object({
+  mappings: z.array(z.object({
+    milkType: milkTypeEnum,
+    itemId: z.string().uuid(),
+  })).max(5),
+});
+
+export type UpsertRawMilkItemsInput = z.infer<typeof upsertRawMilkItemsSchema>;

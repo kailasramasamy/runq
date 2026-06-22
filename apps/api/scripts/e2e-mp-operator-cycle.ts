@@ -14,6 +14,7 @@ import {
   createDb, mpNodes, mpFarmers, mpFarmerMemberships, mpPours, mpPayoutCycles,
   mpPayoutLines, mpPayoutDeductions, mpFarmerLedger, mpNodeOperators,
   mpCredentials, users, userTenants, vendors, payments,
+  journalEntries, journalLines,
 } from '@runq/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../src/app';
@@ -46,6 +47,33 @@ async function cleanup(db: any): Promise<void> {
     .where(and(eq(mpFarmers.tenantId, TENANT_ID), eq(mpFarmers.code, FARMER_CODE)));
   const farmerIds = farmers.map((f: any) => f.id);
 
+  // GL entries posted by the payout flow (P1.1) reference created_by users, so
+  // they must be removed before the user — keyed by cycle id / farmer-ledger id.
+  const cyc = nodeIds.length
+    ? await db.select({ id: mpPayoutCycles.id }).from(mpPayoutCycles).where(inArray(mpPayoutCycles.scopeNodeId, nodeIds))
+    : [];
+  const led = farmerIds.length
+    ? await db.select({ id: mpFarmerLedger.id }).from(mpFarmerLedger).where(inArray(mpFarmerLedger.farmerId, farmerIds))
+    : [];
+  const srcIds = [...cyc.map((c: any) => c.id), ...led.map((l: any) => l.id)];
+  if (srcIds.length) {
+    const jes = await db.select({ id: journalEntries.id }).from(journalEntries).where(and(
+      eq(journalEntries.tenantId, TENANT_ID),
+      inArray(journalEntries.sourceType, ['mp_payout_cycle', 'mp_payout_payment', 'mp_farmer_ledger']),
+      inArray(journalEntries.sourceId, srcIds),
+    ));
+    const jeIds = jes.map((j: any) => j.id);
+    if (jeIds.length) {
+      // Break the cycle→JE FK before deleting the accrual JE.
+      if (cyc.length) {
+        await db.update(mpPayoutCycles).set({ journalEntryId: null })
+          .where(inArray(mpPayoutCycles.id, cyc.map((c: any) => c.id)));
+      }
+      await db.delete(journalLines).where(inArray(journalLines.journalEntryId, jeIds));
+      await db.delete(journalEntries).where(inArray(journalEntries.id, jeIds));
+    }
+  }
+
   if (nodeIds.length) {
     const cycles = await db.select({ id: mpPayoutCycles.id }).from(mpPayoutCycles)
       .where(inArray(mpPayoutCycles.scopeNodeId, nodeIds));
@@ -72,6 +100,13 @@ async function cleanup(db: any): Promise<void> {
   if (nodeIds.length) await db.delete(mpNodes).where(inArray(mpNodes.id, nodeIds));
   const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, SYNTH_EMAIL)).limit(1);
   if (u) {
+    // Drop any JEs this user authored (incl. orphans from earlier failed runs).
+    const jes = await db.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.createdBy, u.id));
+    const jeIds = jes.map((j: any) => j.id);
+    if (jeIds.length) {
+      await db.delete(journalLines).where(inArray(journalLines.journalEntryId, jeIds));
+      await db.delete(journalEntries).where(inArray(journalEntries.id, jeIds));
+    }
     await db.delete(userTenants).where(eq(userTenants.userId, u.id));
     await db.update(mpCredentials).set({ userId: null }).where(eq(mpCredentials.userId, u.id));
   }

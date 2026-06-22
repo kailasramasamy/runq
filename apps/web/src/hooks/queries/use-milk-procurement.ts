@@ -464,7 +464,11 @@ export interface MpGlSettings {
   cycleDays: number | null; cycleAnchorDate: string | null; autoGenerateCycle: boolean;
   supportPhone: string | null; supportEmail: string | null; supportWhatsapp: string | null;
   milkPurchaseAccountId: string | null; farmerPayableAccountId: string | null;
+  rawMilkWarehouseId: string | null;
 }
+
+export type MpMilkType = 'cow' | 'buffalo' | 'mixed' | 'cow_a1' | 'cow_a2';
+export interface MpRawMilkItem { id: string; milkType: MpMilkType; itemId: string; }
 export function useGlSettings() {
   return useQuery({
     queryKey: ['mp', 'gl-settings'],
@@ -476,5 +480,21 @@ export function useUpsertGlSettings() {
   return useMutation({
     mutationFn: (d: UpsertGlSettingsInput) => api.put<ApiSuccess<MpGlSettings>>(`${BASE}/config/gl-settings`, d),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'gl-settings'] }),
+  });
+}
+
+// ── raw-milk inventory mapping (P1.2) ────────────────────────────────────────
+export function useRawMilkItems() {
+  return useQuery({
+    queryKey: ['mp', 'raw-milk-items'],
+    queryFn: () => api.get<ApiSuccess<MpRawMilkItem[]>>(`${BASE}/config/raw-milk-items`),
+  });
+}
+export function useUpsertRawMilkItems() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (mappings: { milkType: MpMilkType; itemId: string }[]) =>
+      api.put<ApiSuccess<MpRawMilkItem[]>>(`${BASE}/config/raw-milk-items`, { mappings }),
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'raw-milk-items'] }),
   });
 }

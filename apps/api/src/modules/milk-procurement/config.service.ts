@@ -1,10 +1,11 @@
 import { and, eq, desc } from 'drizzle-orm';
-import { mpGlSettings, mpSequences } from '@runq/db';
+import { mpGlSettings, mpSequences, mpRawMilkItems } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { UpsertGlSettingsInput } from '@runq/validators';
+import type { UpsertGlSettingsInput, UpsertRawMilkItemsInput } from '@runq/validators';
 
 type GlSettingsRow = typeof mpGlSettings.$inferSelect;
 type SequenceRow = typeof mpSequences.$inferSelect;
+type RawMilkItemRow = typeof mpRawMilkItems.$inferSelect;
 
 /** Tenant Dhenu config — GL account mapping + default payout mode, sequences. */
 export class ConfigService {
@@ -69,9 +70,30 @@ export class ConfigService {
       advanceAccountId: input.advanceAccountId ?? null,
       feedLoanAccountId: input.feedLoanAccountId ?? null,
       rawMilkInventoryAccountId: input.rawMilkInventoryAccountId ?? null,
+      rawMilkWarehouseId: input.rawMilkWarehouseId ?? null,
       varianceAccountId: input.varianceAccountId ?? null,
     }).returning();
     return row!;
+  }
+
+  /** Per-milk-type → inventory item map for PP raw-milk receipts (P1.2). */
+  async getRawMilkItems(): Promise<RawMilkItemRow[]> {
+    return this.db.select().from(mpRawMilkItems)
+      .where(eq(mpRawMilkItems.tenantId, this.tenantId))
+      .orderBy(mpRawMilkItems.milkType);
+  }
+
+  /** Replace the whole map (delete-then-insert) inside one transaction. */
+  async upsertRawMilkItems(input: UpsertRawMilkItemsInput): Promise<RawMilkItemRow[]> {
+    return this.db.transaction(async (tx) => {
+      await tx.delete(mpRawMilkItems).where(eq(mpRawMilkItems.tenantId, this.tenantId));
+      if (input.mappings.length === 0) return [];
+      return tx.insert(mpRawMilkItems).values(
+        input.mappings.map((m) => ({
+          tenantId: this.tenantId, milkType: m.milkType, itemId: m.itemId,
+        })),
+      ).returning();
+    });
   }
 
   async listSequences(): Promise<SequenceRow[]> {
