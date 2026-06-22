@@ -102,7 +102,7 @@ class _PourDetailSheet extends ConsumerWidget {
               ]),
               if (pour.fat != null) ...[
                 const SizedBox(height: DhenuSpacing.md),
-                QualityPills(fat: pour.fat, snf: pour.snf, grade: pour.qualityGrade),
+                QualityPills(fat: pour.fat, snf: pour.snf, water: pour.water, grade: pour.qualityGrade),
               ],
               const SizedBox(height: DhenuSpacing.lg),
               Divider(height: 1, color: t.hairline),

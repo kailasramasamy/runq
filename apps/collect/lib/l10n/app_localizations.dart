@@ -1630,6 +1630,12 @@ abstract class AppLocalizations {
   /// **'Avg SNF'**
   String get reportsStatAvgSnf;
 
+  /// No description provided for @reportsStatAvgWater.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg Water %'**
+  String get reportsStatAvgWater;
+
   /// No description provided for @reportsStatFarmers.
   ///
   /// In en, this message translates to:
@@ -2037,6 +2043,618 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add photo'**
   String get photoSourceTitle;
+
+  /// Toast after a farmer sets/changes their own profile photo
+  ///
+  /// In en, this message translates to:
+  /// **'Profile photo updated'**
+  String get farmerPhotoUpdated;
+
+  /// Toast when a farmer's profile-photo upload fails
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update photo. Please try again.'**
+  String get farmerPhotoFailed;
+
+  /// Farmer bottom-nav: collections tab
+  ///
+  /// In en, this message translates to:
+  /// **'Collections'**
+  String get navCollections;
+
+  /// Farmer bottom-nav: services tab
+  ///
+  /// In en, this message translates to:
+  /// **'Services'**
+  String get navServices;
+
+  /// Farmer home greeting for morning hours
+  ///
+  /// In en, this message translates to:
+  /// **'Good morning'**
+  String get farmerHomeGoodMorning;
+
+  /// Farmer home greeting for afternoon hours
+  ///
+  /// In en, this message translates to:
+  /// **'Good afternoon'**
+  String get farmerHomeGoodAfternoon;
+
+  /// Farmer home greeting for evening hours
+  ///
+  /// In en, this message translates to:
+  /// **'Good evening'**
+  String get farmerHomeGoodEvening;
+
+  /// Toast shown when bell icon is tapped with no notifications
+  ///
+  /// In en, this message translates to:
+  /// **'No new notifications'**
+  String get farmerHomeNoNotifications;
+
+  /// Farmer home hero card cycle label when no period label
+  ///
+  /// In en, this message translates to:
+  /// **'THIS CYCLE'**
+  String get farmerHomeThisCycle;
+
+  /// Farmer home hero card pour count
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} pour} other{{count} pours}}'**
+  String farmerHomeHeroPours(int count);
+
+  /// TTS speak string for the cycle hero AudioPlay button
+  ///
+  /// In en, this message translates to:
+  /// **'This cycle, {litres} litres, {rupees} rupees'**
+  String farmerHomeHeroListenSpeak(String litres, String rupees);
+
+  /// Accessibility label for the AudioPlay listen button in the hero card
+  ///
+  /// In en, this message translates to:
+  /// **'Listen'**
+  String get farmerHomeHeroListenLabel;
+
+  /// Farmer home run-rate projection label
+  ///
+  /// In en, this message translates to:
+  /// **'On track for ~{amount} this cycle'**
+  String farmerHomeProjection(String amount);
+
+  /// Farmer home empty state title when no pours this cycle
+  ///
+  /// In en, this message translates to:
+  /// **'No pours yet this cycle'**
+  String get farmerHomeEmptyTitle;
+
+  /// Farmer home empty state subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Your collections will appear here once recorded at the centre.'**
+  String get farmerHomeEmptySubtitle;
+
+  /// Refresh button label on farmer home empty and error states
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get farmerHomeRefresh;
+
+  /// Today section subtitle showing total litres collected
+  ///
+  /// In en, this message translates to:
+  /// **'{litres} L collected'**
+  String farmerHomeTodayCollected(String litres);
+
+  /// Quality nudge reason text when metric improved
+  ///
+  /// In en, this message translates to:
+  /// **'Great work — keep the feed and routine going.'**
+  String get farmerHomeNudgeImproved;
+
+  /// Quality nudge reason text when FAT has dropped
+  ///
+  /// In en, this message translates to:
+  /// **'Often feed quality or late lactation. Check feed and clean water, or ask your vet.'**
+  String get farmerHomeNudgeFatDown;
+
+  /// Quality nudge reason text when SNF has dropped
+  ///
+  /// In en, this message translates to:
+  /// **'Often nutrition or water. Check feed and clean water, or ask your vet.'**
+  String get farmerHomeNudgeSnfDown;
+
+  /// Quality nudge card title with metric, direction and delta value
+  ///
+  /// In en, this message translates to:
+  /// **'{metric} {direction} {delta} this week'**
+  String farmerHomeNudgeTitle(String metric, String direction, String delta);
+
+  /// Direction word for improved metric in quality nudge title
+  ///
+  /// In en, this message translates to:
+  /// **'up'**
+  String get farmerHomeNudgeUp;
+
+  /// Direction word for dropped metric in quality nudge title
+  ///
+  /// In en, this message translates to:
+  /// **'down'**
+  String get farmerHomeNudgeDown;
+
+  /// Streak nudge card title
+  ///
+  /// In en, this message translates to:
+  /// **'{streak, plural, one{{streak}-day quality streak} other{{streak}-day quality streak}}'**
+  String farmerHomeStreakTitle(int streak);
+
+  /// Streak nudge subtitle when bonus is already unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Bonus unlocked — keep it going!'**
+  String get farmerHomeStreakBonusUnlocked;
+
+  /// Streak nudge subtitle showing days remaining to unlock bonus
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining, plural, one{{remaining} more Grade-A day to unlock a bonus} other{{remaining} more Grade-A days to unlock a bonus}}'**
+  String farmerHomeStreakRemaining(int remaining);
+
+  /// Quick link label for rate chart
+  ///
+  /// In en, this message translates to:
+  /// **'Rate Chart'**
+  String get farmerHomeRateChart;
+
+  /// Quick link label for rewards
+  ///
+  /// In en, this message translates to:
+  /// **'Rewards'**
+  String get farmerHomeRewards;
+
+  /// Collections tab sticky header title
+  ///
+  /// In en, this message translates to:
+  /// **'Collections'**
+  String get farmerCollectionsTitle;
+
+  /// Collections tab sticky header subtitle with cycle scope and pour count
+  ///
+  /// In en, this message translates to:
+  /// **'{scope} · {count, plural, one{{count} pour} other{{count} pours}}'**
+  String farmerCollectionsCyclePours(String scope, int count);
+
+  /// Chart card label for daily volume
+  ///
+  /// In en, this message translates to:
+  /// **'Daily volume'**
+  String get farmerCollectionsDailyVolume;
+
+  /// Chart card average per day label
+  ///
+  /// In en, this message translates to:
+  /// **'{litres} L/day avg'**
+  String farmerCollectionsAvgPerDay(String litres);
+
+  /// Section label for current cycle collections
+  ///
+  /// In en, this message translates to:
+  /// **'THIS CYCLE'**
+  String get farmerCollectionsThisCycle;
+
+  /// Section label for past cycle collections
+  ///
+  /// In en, this message translates to:
+  /// **'PAST CYCLES'**
+  String get farmerCollectionsPastCycles;
+
+  /// Empty state title when no collections exist this cycle
+  ///
+  /// In en, this message translates to:
+  /// **'No collections this cycle'**
+  String get farmerCollectionsEmptyTitle;
+
+  /// Empty state subtitle for collections tab
+  ///
+  /// In en, this message translates to:
+  /// **'Your daily pours will appear here once recorded.'**
+  String get farmerCollectionsEmptySubtitle;
+
+  /// Past cycle summary row subtitle with litres and pour count
+  ///
+  /// In en, this message translates to:
+  /// **'{litres} L · {count, plural, one{{count} pour} other{{count} pours}}'**
+  String farmerCollectionsPastCycleSummary(String litres, int count);
+
+  /// Eyebrow label for total litres in collection detail summary card
+  ///
+  /// In en, this message translates to:
+  /// **'TOTAL'**
+  String get farmerCollectionDetailTotal;
+
+  /// Eyebrow label for gross amount in collection detail summary card
+  ///
+  /// In en, this message translates to:
+  /// **'GROSS'**
+  String get farmerCollectionDetailGross;
+
+  /// Label shown in shift section when no collection was recorded for that shift
+  ///
+  /// In en, this message translates to:
+  /// **'No collection recorded'**
+  String get farmerCollectionDetailNoCollection;
+
+  /// Label appended after AM/PM in shift section heading
+  ///
+  /// In en, this message translates to:
+  /// **'Shift'**
+  String get farmerCollectionDetailShift;
+
+  /// Rate per litre label in pour row
+  ///
+  /// In en, this message translates to:
+  /// **'@ {rate}/L'**
+  String farmerCollectionDetailRatePerLitre(String rate);
+
+  /// Payments tab main title
+  ///
+  /// In en, this message translates to:
+  /// **'Payments'**
+  String get farmerPaymentsTitle;
+
+  /// Payments tab subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Transparent, every rupee accounted'**
+  String get farmerPaymentsSubtitle;
+
+  /// Net payable card eyebrow label with cycle name
+  ///
+  /// In en, this message translates to:
+  /// **'NET PAYABLE · {cycle}'**
+  String farmerPaymentsNetPayable(String cycle);
+
+  /// TTS speak string for payments AudioPlay button
+  ///
+  /// In en, this message translates to:
+  /// **'Net payable this cycle, {rupees} rupees'**
+  String farmerPaymentsListenSpeak(String rupees);
+
+  /// Payments tab run-rate projection label
+  ///
+  /// In en, this message translates to:
+  /// **'On track for ~{amount} this cycle'**
+  String farmerPaymentsProjection(String amount);
+
+  /// Payments breakdown row label for gross milk amount
+  ///
+  /// In en, this message translates to:
+  /// **'Gross milk'**
+  String get farmerPaymentsGrossMilk;
+
+  /// Payments breakdown row label for quality bonus
+  ///
+  /// In en, this message translates to:
+  /// **'Quality bonus'**
+  String get farmerPaymentsQualityBonus;
+
+  /// Outstanding advance chip label
+  ///
+  /// In en, this message translates to:
+  /// **'Outstanding advance: {amount}'**
+  String farmerPaymentsOutstandingAdvance(String amount);
+
+  /// Payment history section header label
+  ///
+  /// In en, this message translates to:
+  /// **'PAYMENT HISTORY'**
+  String get farmerPaymentsHistoryHeader;
+
+  /// Paid chip label on payment history row
+  ///
+  /// In en, this message translates to:
+  /// **'PAID'**
+  String get farmerPaymentsPaid;
+
+  /// Deduction label for cattle feed loan
+  ///
+  /// In en, this message translates to:
+  /// **'Cattle-feed loan'**
+  String get farmerPaymentsDeductCattleFeedLoan;
+
+  /// Deduction label for advance
+  ///
+  /// In en, this message translates to:
+  /// **'Advance'**
+  String get farmerPaymentsDeductAdvance;
+
+  /// Deduction label for medicine deduction
+  ///
+  /// In en, this message translates to:
+  /// **'Medicine'**
+  String get farmerPaymentsDeductMedicine;
+
+  /// Deduction label for insurance deduction
+  ///
+  /// In en, this message translates to:
+  /// **'Insurance'**
+  String get farmerPaymentsDeductInsurance;
+
+  /// Payment history row subtitle with litres and pour count
+  ///
+  /// In en, this message translates to:
+  /// **'{litres} L · {count, plural, one{{count} pour} other{{count} pours}}'**
+  String farmerPaymentsHistorySummary(String litres, int count);
+
+  /// Rate chart screen app bar title fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Rate Chart'**
+  String get farmerRateChartTitle;
+
+  /// TTS speak string for rate chart when no rate is known
+  ///
+  /// In en, this message translates to:
+  /// **'Your milk rate chart'**
+  String get farmerRateListenSpeak;
+
+  /// TTS speak string for rate chart when rate is known
+  ///
+  /// In en, this message translates to:
+  /// **'Your rate is {rate} rupees per litre'**
+  String farmerRateListenSpeakWithRate(String rate);
+
+  /// Rate chart empty state title
+  ///
+  /// In en, this message translates to:
+  /// **'No rate chart active'**
+  String get farmerRateEmptyTitle;
+
+  /// Rate chart empty state subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Contact your milk collection centre'**
+  String get farmerRateEmptySubtitle;
+
+  /// Last pour card label in rate chart
+  ///
+  /// In en, this message translates to:
+  /// **'Your last pour'**
+  String get farmerRateLastPourLabel;
+
+  /// Section title above the FAT×SNF rate matrix
+  ///
+  /// In en, this message translates to:
+  /// **'Rate Matrix (₹/L)'**
+  String get farmerRateMatrixTitle;
+
+  /// Section title for rate rules/bonus slabs
+  ///
+  /// In en, this message translates to:
+  /// **'Bonuses & Slabs'**
+  String get farmerRateBonusSlabsTitle;
+
+  /// Label above flat rate value
+  ///
+  /// In en, this message translates to:
+  /// **'FLAT RATE'**
+  String get farmerRateFlatRateLabel;
+
+  /// Coaching strip header in rate chart
+  ///
+  /// In en, this message translates to:
+  /// **'Earn more per litre'**
+  String get farmerRateEarnMore;
+
+  /// Coaching line label to raise SNF
+  ///
+  /// In en, this message translates to:
+  /// **'Raise SNF to {value}'**
+  String farmerRateRaiseSnf(String value);
+
+  /// Coaching line label to raise FAT
+  ///
+  /// In en, this message translates to:
+  /// **'Raise FAT to {value}'**
+  String farmerRateRaiseFat(String value);
+
+  /// Shown in RateMatrix widget when cells list is empty
+  ///
+  /// In en, this message translates to:
+  /// **'No matrix data'**
+  String get farmerRateNoMatrixData;
+
+  /// Rate rule tile label for grade bonus rules
+  ///
+  /// In en, this message translates to:
+  /// **'Grade-{grade} bonus'**
+  String farmerRateRuleGradeBonus(String grade);
+
+  /// Rate rule tile label for volume range slab
+  ///
+  /// In en, this message translates to:
+  /// **'Volume {min}–{max} L'**
+  String farmerRateRuleVolumeRange(String min, String max);
+
+  /// Rate rule tile label for volume minimum slab
+  ///
+  /// In en, this message translates to:
+  /// **'Volume > {min} L'**
+  String farmerRateRuleVolumeMin(String min);
+
+  /// Rewards screen app bar title
+  ///
+  /// In en, this message translates to:
+  /// **'Rewards'**
+  String get farmerRewardsTitle;
+
+  /// Badges section title in rewards screen
+  ///
+  /// In en, this message translates to:
+  /// **'Badges'**
+  String get farmerRewardsBadgesSection;
+
+  /// Streak card heading label in rewards screen
+  ///
+  /// In en, this message translates to:
+  /// **'Quality Streak'**
+  String get farmerRewardsQualityStreak;
+
+  /// Streak ring inner days label
+  ///
+  /// In en, this message translates to:
+  /// **'/ {target} days'**
+  String farmerRewardsStreakDays(int target);
+
+  /// Streak text when bonus is already unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Bonus unlocked — keep it going!'**
+  String get farmerRewardsBonusUnlocked;
+
+  /// Streak text showing remaining days to unlock bonus
+  ///
+  /// In en, this message translates to:
+  /// **'{remaining} more to unlock a ₹500 bonus'**
+  String farmerRewardsStreakRemaining(int remaining);
+
+  /// Badge tile status label when unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'UNLOCKED'**
+  String get farmerRewardsBadgeUnlocked;
+
+  /// Badge tile status label when locked
+  ///
+  /// In en, this message translates to:
+  /// **'LOCKED'**
+  String get farmerRewardsBadgeLocked;
+
+  /// Badge name for consistent quality badge
+  ///
+  /// In en, this message translates to:
+  /// **'Consistent'**
+  String get farmerRewardsBadgeConsistent;
+
+  /// Badge name for 100-day club badge
+  ///
+  /// In en, this message translates to:
+  /// **'100-Day Club'**
+  String get farmerRewardsBadge100Day;
+
+  /// Badge name for top FAT badge
+  ///
+  /// In en, this message translates to:
+  /// **'Top FAT'**
+  String get farmerRewardsBadgeTopFat;
+
+  /// Badge name for referrer badge
+  ///
+  /// In en, this message translates to:
+  /// **'Referrer'**
+  String get farmerRewardsBadgeReferrer;
+
+  /// Referral card title in rewards screen
+  ///
+  /// In en, this message translates to:
+  /// **'Refer a farmer'**
+  String get farmerRewardsReferTitle;
+
+  /// Referral card body text
+  ///
+  /// In en, this message translates to:
+  /// **'Earn ₹100 for every farmer who joins'**
+  String get farmerRewardsReferBody;
+
+  /// Share invite button label
+  ///
+  /// In en, this message translates to:
+  /// **'Share invite'**
+  String get farmerRewardsShareInvite;
+
+  /// Toast shown when share invite is tapped
+  ///
+  /// In en, this message translates to:
+  /// **'Referral invite coming soon!'**
+  String get farmerRewardsReferralComingSoon;
+
+  /// Services stub screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Services'**
+  String get farmerServicesTitle;
+
+  /// Services stub screen subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Farmer services are on their way — stay tuned.'**
+  String get farmerServicesSubtitle;
+
+  /// Soon chip label on service cards
+  ///
+  /// In en, this message translates to:
+  /// **'SOON'**
+  String get farmerServicesSoon;
+
+  /// Notify button label on services stub
+  ///
+  /// In en, this message translates to:
+  /// **'Notify me when live'**
+  String get farmerServicesNotifyMe;
+
+  /// Toast shown when notify button is tapped
+  ///
+  /// In en, this message translates to:
+  /// **'We\'ll notify you when services go live!'**
+  String get farmerServicesNotifyToast;
+
+  /// Service card name for cattle feed
+  ///
+  /// In en, this message translates to:
+  /// **'Cattle Feed'**
+  String get farmerServicesCattleFeedName;
+
+  /// Service card description for cattle feed
+  ///
+  /// In en, this message translates to:
+  /// **'Quality fodder & supplements delivered to your farm.'**
+  String get farmerServicesCattleFeedDesc;
+
+  /// Service card name for veterinary care
+  ///
+  /// In en, this message translates to:
+  /// **'Veterinary Care'**
+  String get farmerServicesVetName;
+
+  /// Service card description for veterinary care
+  ///
+  /// In en, this message translates to:
+  /// **'Doorstep vet visits, health check-ups & vaccinations.'**
+  String get farmerServicesVetDesc;
+
+  /// Service card name for insurance
+  ///
+  /// In en, this message translates to:
+  /// **'Insurance'**
+  String get farmerServicesInsuranceName;
+
+  /// Service card description for insurance
+  ///
+  /// In en, this message translates to:
+  /// **'Cattle insurance to protect your herd & livelihood.'**
+  String get farmerServicesInsuranceDesc;
+
+  /// Service card name for loans and advances
+  ///
+  /// In en, this message translates to:
+  /// **'Loans & Advances'**
+  String get farmerServicesLoansName;
+
+  /// Service card description for loans and advances
+  ///
+  /// In en, this message translates to:
+  /// **'Instant advances against your milk supply earnings.'**
+  String get farmerServicesLoansDesc;
 }
 
 class _AppLocalizationsDelegate

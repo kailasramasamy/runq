@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -10,10 +11,12 @@ import '../../utils/format.dart';
 import '../../widgets/audio_play.dart';
 import '../../widgets/dhenu_charts.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/farmer_avatar.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/gradient_hero_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/shift_accent_card.dart';
+import 'farmer_insights.dart';
 import 'farmer_rate_chart.dart';
 import 'farmer_rewards.dart';
 
@@ -28,6 +31,7 @@ class FarmerHome extends ConsumerWidget {
     ref.invalidate(farmerCyclePeriodsProvider);
     ref.invalidate(farmerCyclePoursProvider);
     ref.invalidate(farmerTodayPoursProvider);
+    ref.invalidate(farmerRecentPoursProvider);
     await Future.wait([
       ref.read(farmerCurrentCyclePoursProvider.future),
       ref.read(farmerTodayPoursProvider.future),
@@ -37,9 +41,11 @@ class FarmerHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final user = ref.watch(authProvider).user;
+    final farmer = ref.watch(farmerSelfProvider).asData?.value;
     final cyclePours = ref.watch(farmerCurrentCyclePoursProvider);
-    final cycleLabel = ref.watch(farmerCurrentCyclePeriodProvider).asData?.value?.label ?? '';
+    final period = ref.watch(farmerCurrentCyclePeriodProvider).asData?.value;
     final firstName = (user?.name ?? 'Farmer').split(' ').first;
 
     return RefreshIndicator(
@@ -50,7 +56,7 @@ class FarmerHome extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          _greeting(context, t, firstName),
+          _greeting(context, t, l, firstName, farmer),
           const SizedBox(height: DhenuSpacing.lg),
           ...cyclePours.when(
             loading: () => const [_HomeSkeleton()],
@@ -63,13 +69,15 @@ class FarmerHome extends ConsumerWidget {
                       height: 360,
                       child: DhenuEmptyState(
                         icon: DhenuIcons.drop,
-                        title: 'No pours yet this cycle',
-                        subtitle: 'Your collections will appear here once recorded at the centre.',
-                        action: FilledButton(onPressed: () => _refresh(ref), child: const Text('Refresh')),
+                        title: l.farmerHomeEmptyTitle,
+                        subtitle: l.farmerHomeEmptySubtitle,
+                        action: FilledButton(
+                            onPressed: () => _refresh(ref),
+                            child: Text(l.farmerHomeRefresh)),
                       ),
                     ),
                   ]
-                : _content(context, ref, t, pours, cycleLabel),
+                : _content(context, ref, t, l, pours, period),
           ),
         ],
       ),
@@ -77,32 +85,49 @@ class FarmerHome extends ConsumerWidget {
   }
 
   List<Widget> _content(
-      BuildContext context, WidgetRef ref, DhenuTokens t, List<MpPour> pours, String cycleLabel) {
+      BuildContext context,
+      WidgetRef ref,
+      DhenuTokens t,
+      AppLocalizations l,
+      List<MpPour> pours,
+      MpCyclePeriod? period) {
     final todayPours = ref.watch(farmerTodayPoursProvider);
+    final recentPours = ref.watch(farmerRecentPoursProvider).asData?.value ?? const [];
+    final nudge = detectQualityNudge(pours: recentPours, today: DateTime.now());
     return [
-      _hero(context, t, pours, cycleLabel),
+      _hero(context, t, l, pours, period),
+      if (nudge != null) ...[
+        const SizedBox(height: DhenuSpacing.lg),
+        _qualityNudge(context, t, l, nudge),
+      ],
       const SizedBox(height: DhenuSpacing.lg),
-      _today(context, t, todayPours),
+      _today(context, t, l, todayPours),
       const SizedBox(height: DhenuSpacing.lg),
-      _streakNudge(context, t, pours),
-      _quickLinks(context, t),
+      _streakNudge(context, t, l, pours),
+      _quickLinks(context, t, l),
     ];
   }
 
   // ── Greeting ──────────────────────────────────────────────────────────────
-  Widget _greeting(BuildContext context, DhenuTokens t, String name) {
+  Widget _greeting(BuildContext context, DhenuTokens t, AppLocalizations l, String name, MpFarmer? farmer) {
     final hour = DateTime.now().hour;
-    final part = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+    final part = hour < 12
+        ? l.farmerHomeGoodMorning
+        : (hour < 17 ? l.farmerHomeGoodAfternoon : l.farmerHomeGoodEvening);
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'F';
     return Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: t.brandSubtle, shape: BoxShape.circle),
-          child: Text(initial, style: DhenuText.title.copyWith(color: t.brand)),
-        ),
+        // Profile photo (initials fallback) once the farmer record loads.
+        if (farmer != null)
+          FarmerAvatar(farmer: farmer, radius: 21)
+        else
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: t.brandSubtle, shape: BoxShape.circle),
+            child: Text(initial, style: DhenuText.title.copyWith(color: t.brand)),
+          ),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(
           child: Column(
@@ -114,13 +139,13 @@ class FarmerHome extends ConsumerWidget {
             ],
           ),
         ),
-        _bell(context, t),
+        _bell(context, t, l),
       ],
     );
   }
 
-  Widget _bell(BuildContext context, DhenuTokens t) => GestureDetector(
-        onTap: () => showDhenuToast(context, 'No new notifications',
+  Widget _bell(BuildContext context, DhenuTokens t, AppLocalizations l) => GestureDetector(
+        onTap: () => showDhenuToast(context, l.farmerHomeNoNotifications,
             type: DhenuToastType.info, duration: const Duration(seconds: 1)),
         child: SizedBox(
           width: 42,
@@ -153,12 +178,21 @@ class FarmerHome extends ConsumerWidget {
       );
 
   // ── Hero ──────────────────────────────────────────────────────────────────
-  Widget _hero(BuildContext context, DhenuTokens t, List<MpPour> pours, String cycleLabel) {
+  Widget _hero(BuildContext context, DhenuTokens t, AppLocalizations l,
+      List<MpPour> pours, MpCyclePeriod? period) {
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
     final series = _dailySeries(pours, 14);
     final trend = _trendPct(series);
-    final headline = cycleLabel.isEmpty ? 'THIS CYCLE' : 'THIS CYCLE · ${cycleLabel.toUpperCase()}';
+    final cycleLabel = period?.label ?? '';
+    final headline = cycleLabel.isEmpty
+        ? l.farmerHomeThisCycle
+        : '${l.farmerHomeThisCycle} · ${cycleLabel.toUpperCase()}';
+    final proj = period == null
+        ? null
+        : projectCycleEarnings(
+            pours: pours, windowStart: period.start, windowEnd: period.end, today: DateTime.now());
+    final showProj = proj != null && proj.isProjectable && proj.projectedGross > totalRs + 1;
     const white = Colors.white;
     final white80 = Colors.white.withValues(alpha: 0.8);
 
@@ -170,7 +204,8 @@ class FarmerHome extends ConsumerWidget {
           Row(
             children: [
               Text(headline,
-                  style: DhenuText.caption.copyWith(color: white80, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+                  style: DhenuText.caption.copyWith(
+                      color: white80, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
               const Spacer(),
               if (trend != null) _trendPill(trend),
             ],
@@ -180,9 +215,11 @@ class FarmerHome extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(litres(totalL), style: DhenuText.number(size: 46, w: FontWeight.w800).copyWith(color: white)),
+              Text(litres(totalL),
+                  style: DhenuText.number(size: 46, w: FontWeight.w800).copyWith(color: white)),
               const SizedBox(width: DhenuSpacing.xs),
-              Text('L', style: DhenuText.number(size: 20, w: FontWeight.w700).copyWith(color: white80)),
+              Text('L',
+                  style: DhenuText.number(size: 20, w: FontWeight.w700).copyWith(color: white80)),
             ],
           ),
           const SizedBox(height: DhenuSpacing.md),
@@ -199,19 +236,35 @@ class FarmerHome extends ConsumerWidget {
                   children: [
                     Text(rupees(totalRs),
                         style: DhenuText.number(size: 24, w: FontWeight.w800).copyWith(color: white)),
-                    Text('${pours.length} pours', style: DhenuText.caption.copyWith(color: white80)),
+                    Text(l.farmerHomeHeroPours(pours.length),
+                        style: DhenuText.caption.copyWith(color: white80)),
                   ],
                 ),
               ),
               AudioPlay(
-                speak: 'This cycle, ${litres(totalL)} litres, ${totalRs.toStringAsFixed(0)} rupees',
-                label: 'Listen',
+                speak: l.farmerHomeHeroListenSpeak(litres(totalL), totalRs.toStringAsFixed(0)),
+                label: l.farmerHomeHeroListenLabel,
                 size: 16,
                 iconColor: white,
                 fillColor: Colors.white.withValues(alpha: 0.18),
               ),
             ],
           ),
+          if (showProj) ...[
+            const SizedBox(height: DhenuSpacing.sm),
+            Row(
+              children: [
+                Icon(DhenuIcons.trendingUp, size: 14, color: white80),
+                const SizedBox(width: DhenuSpacing.xs),
+                Expanded(
+                  child: Text(
+                    l.farmerHomeProjection(rupees(proj.projectedGross)),
+                    style: DhenuText.caption.copyWith(color: white80, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -236,8 +289,57 @@ class FarmerHome extends ConsumerWidget {
     );
   }
 
+  // ── Quality nudge (P3.1) ──────────────────────────────────────────────────
+  Widget _qualityNudge(BuildContext context, DhenuTokens t, AppLocalizations l, QualityNudge n) {
+    final tint = n.improved ? t.gradeA : (n.delta.abs() >= 0.4 ? t.gradeC : t.gradeB);
+    final icon = n.improved ? DhenuIcons.trendingUp : DhenuIcons.trendingDown;
+    final direction = n.improved ? l.farmerHomeNudgeUp : l.farmerHomeNudgeDown;
+    final title = l.farmerHomeNudgeTitle(n.metric, direction, oneDp(n.delta.abs()));
+    return Container(
+      padding: const EdgeInsets.all(DhenuSpacing.lg),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(DhenuRadii.card),
+        border: Border.all(color: tint.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(DhenuRadii.input),
+            ),
+            child: Icon(icon, size: 20, color: tint),
+          ),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: DhenuText.label.copyWith(color: tint)),
+                const SizedBox(height: 2),
+                Text(_nudgeReason(l, n), style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _nudgeReason(AppLocalizations l, QualityNudge n) {
+    if (n.improved) return l.farmerHomeNudgeImproved;
+    return n.metric == 'FAT' ? l.farmerHomeNudgeFatDown : l.farmerHomeNudgeSnfDown;
+  }
+
   // ── Today ───────────────────────────────────────────────────────────────
-  Widget _today(BuildContext context, DhenuTokens t, AsyncValue<List<MpPour>> todayPours) {
+  Widget _today(BuildContext context, DhenuTokens t, AppLocalizations l,
+      AsyncValue<List<MpPour>> todayPours) {
     return todayPours.when(
       loading: () => const DhenuLoadingList(rows: 1),
       error: (e, s) => const SizedBox.shrink(),
@@ -251,9 +353,11 @@ class FarmerHome extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Text('Today', style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+                Text(l.commonToday,
+                    style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
                 const Spacer(),
-                Text('${litres(todayL)} L collected', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                Text(l.farmerHomeTodayCollected(litres(todayL)),
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ],
             ),
             const SizedBox(height: DhenuSpacing.sm),
@@ -279,18 +383,20 @@ class FarmerHome extends ConsumerWidget {
         : Grade.unknown;
     final fats = pours.where((p) => p.fat != null).map((p) => p.fat!).toList();
     final snfs = pours.where((p) => p.snf != null).map((p) => p.snf!).toList();
+    final waters = pours.where((p) => p.water != null).map((p) => p.water!).toList();
     final avgFat = fats.isEmpty ? null : fats.reduce((a, b) => a + b) / fats.length;
     final avgSnf = snfs.isEmpty ? null : snfs.reduce((a, b) => a + b) / snfs.length;
+    final avgWater = waters.isEmpty ? null : waters.reduce((a, b) => a + b) / waters.length;
     return ShiftAccentCard(
       isAm: isAm,
       empty: !has,
       litresLabel: litres(totalL, unit: true),
-      quality: has ? QualityBadge(fat: avgFat, snf: avgSnf, grade: grade, format: QualityFormat.valueLabel) : null,
+      quality: has ? QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: grade, format: QualityFormat.valueLabel) : null,
     );
   }
 
   // ── Streak ────────────────────────────────────────────────────────────────
-  Widget _streakNudge(BuildContext context, DhenuTokens t, List<MpPour> pours) {
+  Widget _streakNudge(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPour> pours) {
     final streak = _computeStreak(pours);
     if (streak == 0) return const SizedBox.shrink();
     final remaining = (10 - streak).clamp(0, 10);
@@ -320,13 +426,13 @@ class FarmerHome extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('$streak-day quality streak',
+                    Text(l.farmerHomeStreakTitle(streak),
                         style: DhenuText.label.copyWith(color: t.gradeA)),
                     const SizedBox(height: 2),
                     Text(
                       remaining == 0
-                          ? 'Bonus unlocked — keep it going!'
-                          : '$remaining more Grade-A ${remaining == 1 ? 'day' : 'days'} to unlock a bonus',
+                          ? l.farmerHomeStreakBonusUnlocked
+                          : l.farmerHomeStreakRemaining(remaining),
                       style: DhenuText.caption.copyWith(color: t.inkSoft),
                     ),
                   ],
@@ -341,21 +447,22 @@ class FarmerHome extends ConsumerWidget {
   }
 
   // ── Quick links ─────────────────────────────────────────────────────────
-  Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(
         children: [
           Expanded(
-            child: _link(context, t, DhenuIcons.grid, t.brand, 'Rate Chart',
+            child: _link(context, t, DhenuIcons.grid, t.brand, l.farmerHomeRateChart,
                 () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRateChart()))),
           ),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(
-            child: _link(context, t, DhenuIcons.trophy, t.gradeB, 'Rewards',
+            child: _link(context, t, DhenuIcons.trophy, t.gradeB, l.farmerHomeRewards,
                 () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRewards()))),
           ),
         ],
       );
 
-  Widget _link(BuildContext context, DhenuTokens t, IconData icon, Color tint, String label, VoidCallback onTap) {
+  Widget _link(BuildContext context, DhenuTokens t, IconData icon, Color tint, String label,
+      VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -431,8 +538,7 @@ class FarmerHome extends ConsumerWidget {
   }
 }
 
-/// Loading placeholder shaped like the real home: hero card, the "Today"
-/// AM/PM shift cards, the streak nudge, and the two quick-link tiles.
+/// Loading placeholder shaped like the real home.
 class _HomeSkeleton extends StatelessWidget {
   const _HomeSkeleton();
 
@@ -447,9 +553,9 @@ class _HomeSkeleton extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        block(196, DhenuRadii.cardLg), // hero
+        block(196, DhenuRadii.cardLg),
         const SizedBox(height: DhenuSpacing.lg),
-        SizedBox(width: 90, child: block(14, DhenuRadii.pill)), // "Today" label
+        SizedBox(width: 90, child: block(14, DhenuRadii.pill)),
         const SizedBox(height: DhenuSpacing.sm),
         Row(children: [
           Expanded(child: block(96, DhenuRadii.card)),
@@ -457,13 +563,13 @@ class _HomeSkeleton extends StatelessWidget {
           Expanded(child: block(96, DhenuRadii.card)),
         ]),
         const SizedBox(height: DhenuSpacing.lg),
-        block(72, DhenuRadii.card), // streak nudge
+        block(72, DhenuRadii.card),
         const SizedBox(height: DhenuSpacing.lg),
         Row(children: [
           Expanded(child: block(60, 18)),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(child: block(60, 18)),
-        ]), // quick links
+        ]),
       ],
     );
   }

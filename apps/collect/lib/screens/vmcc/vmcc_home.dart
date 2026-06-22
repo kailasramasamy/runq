@@ -143,7 +143,9 @@ class VmccHome extends ConsumerWidget {
                   Text(l.homeFarmerCount(s.farmerCount),
                       style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
                   const Spacer(),
-                  Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
+                  Text(
+                      'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
+                      '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
                       style: DhenuText.caption.copyWith(color: Colors.white)),
                 ]),
         );

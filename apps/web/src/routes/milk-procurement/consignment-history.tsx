@@ -56,14 +56,14 @@ export function ConsignmentHistoryView() {
             <TableHeader>
               <TableRow>
                 <Th>Date</Th><Th>No.</Th><Th>Leg</Th><Th>Shift</Th><Th>From → To</Th><Th>Container</Th>
-                <Th align="right">Disp.</Th><Th align="right">Rcpt.</Th><Th align="right">Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Status</Th>
+                <Th align="right">Disp.</Th><Th align="right">Rcpt.</Th><Th align="right">Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Water Δ</Th><Th>Status</Th>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={8} cols={12} />
+                <TableSkeleton rows={8} cols={13} />
               ) : rows.length === 0 ? (
-                <TableEmpty colSpan={12} message="No consignments for these filters." />
+                <TableEmpty colSpan={13} message="No consignments for these filters." />
               ) : (
                 rows.map((c) => (
                   <TableRow key={c.id}>
@@ -78,6 +78,7 @@ export function ConsignmentHistoryView() {
                     <TableCell className={`text-right tabular-nums ${Number(c.varianceQty) < 0 ? 'text-red-600' : ''}`}>{c.varianceQty ?? '—'}</TableCell>
                     <DeltaCell receipt={c.receiptFat} dispatch={c.dispatchFat} />
                     <DeltaCell receipt={c.receiptSnf} dispatch={c.dispatchSnf} />
+                    <DeltaCell receipt={c.receiptWater != null ? String(c.receiptWater) : null} dispatch={c.dispatchWater != null ? String(c.dispatchWater) : null} />
                     <TableCell><StatusBadge status={c.status} /></TableCell>
                   </TableRow>
                 ))

@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, decimal, date, timestamp, index, uniqueIndex,
+  pgTable, uuid, varchar, decimal, date, timestamp, index, uniqueIndex, boolean,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { users } from '../user';
@@ -29,16 +29,21 @@ export const mpConsignments = pgTable('mp_consignments', {
   dispatchQty: decimal('dispatch_qty', { precision: 12, scale: 3 }),
   dispatchFat: decimal('dispatch_fat', { precision: 5, scale: 2 }),
   dispatchSnf: decimal('dispatch_snf', { precision: 5, scale: 2 }),
+  dispatchWater: decimal('dispatch_water', { precision: 5, scale: 2 }),
   dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
   dispatchedBy: uuid('dispatched_by').references(() => users.id),
   receiptQty: decimal('receipt_qty', { precision: 12, scale: 3 }),
   receiptFat: decimal('receipt_fat', { precision: 5, scale: 2 }),
   receiptSnf: decimal('receipt_snf', { precision: 5, scale: 2 }),
+  receiptWater: decimal('receipt_water', { precision: 5, scale: 2 }),
   receivedAt: timestamp('received_at', { withTimezone: true }),
   receivedBy: uuid('received_by').references(() => users.id),
   varianceQty: decimal('variance_qty', { precision: 12, scale: 3 }),
   variancePct: decimal('variance_pct', { precision: 6, scale: 3 }),
   stockLedgerId: uuid('stock_ledger_id').references(() => stockLedger.id),
+  // True for ad-hoc receipts entered at the destination with no upstream
+  // dispatch (directReceive). Gates the deletable-mis-entry path.
+  directReceive: boolean('direct_receive').notNull().default(false),
   status: mpConsignmentStatus('status').notNull().default('in_transit'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -344,10 +344,12 @@ class MpRepo {
     String? fromNodeId,
     String? status,
     String? collectionDate,
+    String? from,
+    String? to,
     int limit = 100,
   }) async {
     final res = await _api.get(
-      '$_base/consignments${_qs({'kind': kind, 'toNodeId': toNodeId, 'fromNodeId': fromNodeId, 'status': status, 'collectionDate': collectionDate, 'limit': limit})}',
+      '$_base/consignments${_qs({'kind': kind, 'toNodeId': toNodeId, 'fromNodeId': fromNodeId, 'status': status, 'collectionDate': collectionDate, 'from': from, 'to': to, 'limit': limit})}',
     );
     return _list(res).map(MpConsignment.fromJson).toList();
   }
@@ -394,6 +396,10 @@ class MpRepo {
     final m = _one(res);
     return m == null ? null : MpConsignment.fromJson(m);
   }
+
+  /// Delete a manually-entered receipt (server rejects unless it's a direct
+  /// receive that isn't yet locked for dispatch).
+  Future<void> deleteReceipt(String id) => _api.delete('$_base/consignments/$id');
 
   // ── QC tests ──────────────────────────────────────────────────────────────
   Future<List<MpQcTest>> qcTests({

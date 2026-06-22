@@ -76,7 +76,7 @@ export function MpConsignmentsPage({ view }: { view: 'operate' | 'history' }) {
 }
 
 const clockShift = (): 'am' | 'pm' => (new Date().getHours() < 12 ? 'am' : 'pm');
-const EMPTY_DISPATCH = { fromNodeId: '', toNodeId: '', containerNo: '', dispatchQty: '', dispatchFat: '', dispatchSnf: '', shift: 'am' as 'am' | 'pm' };
+const EMPTY_DISPATCH = { fromNodeId: '', toNodeId: '', containerNo: '', dispatchQty: '', dispatchFat: '', dispatchSnf: '', dispatchWater: '', shift: 'am' as 'am' | 'pm' };
 
 function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today: string }) {
   const dispatch = useDispatchConsignment();
@@ -100,6 +100,7 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
       ...p,
       dispatchFat: p.dispatchFat === '' && avail.avgFat != null ? String(avail.avgFat) : p.dispatchFat,
       dispatchSnf: p.dispatchSnf === '' && avail.avgSnf != null ? String(avail.avgSnf) : p.dispatchSnf,
+      dispatchWater: p.dispatchWater === '' && avail.avgWater != null ? String(avail.avgWater) : p.dispatchWater,
     }));
   }, [avail]);
 
@@ -108,6 +109,7 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
     dispatchQty: avail ? String(avail.available) : p.dispatchQty,
     dispatchFat: avail?.avgFat != null ? String(avail.avgFat) : p.dispatchFat,
     dispatchSnf: avail?.avgSnf != null ? String(avail.avgSnf) : p.dispatchSnf,
+    dispatchWater: avail?.avgWater != null ? String(avail.avgWater) : p.dispatchWater,
   }));
 
   const submit = () => {
@@ -119,6 +121,7 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
         dispatchQty: Number(f.dispatchQty),
         dispatchFat: f.dispatchFat ? Number(f.dispatchFat) : null,
         dispatchSnf: f.dispatchSnf ? Number(f.dispatchSnf) : null,
+        dispatchWater: f.dispatchWater ? Number(f.dispatchWater) : null,
       },
       {
         onSuccess: (res) => { toast(`Dispatched ${res.data.consignmentNo}`, 'success'); setF((p) => ({ ...EMPTY_DISPATCH, collectionDate: p.collectionDate })); },
@@ -137,11 +140,11 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
             // CC→its PP); operator can still pick a different one.
             const parent = nodes.find((n) => n.id === v)?.parentNodeId ?? '';
             const defaultTo = nodes.some((n) => n.id === parent && n.nodeType === leg.to) ? parent : '';
-            setF({ ...f, fromNodeId: v, toNodeId: defaultTo, dispatchQty: '', dispatchFat: '', dispatchSnf: '' });
+            setF({ ...f, fromNodeId: v, toNodeId: defaultTo, dispatchQty: '', dispatchFat: '', dispatchSnf: '', dispatchWater: '' });
           }}
           options={sources.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))} placeholder={`Source ${leg.from.toUpperCase()}…`} required />
         {perShift && (
-          <ShiftSelect value={f.shift} onChange={(s) => setF({ ...f, shift: s, dispatchQty: '', dispatchFat: '', dispatchSnf: '' })} />
+          <ShiftSelect value={f.shift} onChange={(s) => setF({ ...f, shift: s, dispatchQty: '', dispatchFat: '', dispatchSnf: '', dispatchWater: '' })} />
         )}
         <AvailabilityHint avail={avail} qty={f.dispatchQty} onUseAll={useAll} />
         <Combobox label={`To (${leg.to.toUpperCase()})`} value={f.toNodeId} onChange={(v) => setF({ ...f, toNodeId: v })}
@@ -153,13 +156,14 @@ function DispatchCard({ leg, nodes, today }: { leg: Leg; nodes: MpNode[]; today:
           <Input label="Date" type="date" value={f.collectionDate} onChange={(e) => setF({ ...f, collectionDate: e.target.value })} />
           <Input label="Container / tanker no." value={f.containerNo} onChange={(e) => setF({ ...f, containerNo: e.target.value })} />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <Input label="Qty (L)" type="number" value={f.dispatchQty} onChange={(e) => setF({ ...f, dispatchQty: e.target.value })} />
           <Input label="FAT %" type="number" value={f.dispatchFat} onChange={(e) => setF({ ...f, dispatchFat: e.target.value })} />
           <Input label="SNF %" type="number" value={f.dispatchSnf} onChange={(e) => setF({ ...f, dispatchSnf: e.target.value })} />
+          <Input label="Water %" type="number" value={f.dispatchWater} onChange={(e) => setF({ ...f, dispatchWater: e.target.value })} />
         </div>
-        {avail && (avail.avgFat != null || avail.avgSnf != null) && (
-          <p className="-mt-1 text-xs text-zinc-400">FAT/SNF prefilled with source average — edit after testing the blend.</p>
+        {avail && (avail.avgFat != null || avail.avgSnf != null || avail.avgWater != null) && (
+          <p className="-mt-1 text-xs text-zinc-400">FAT/SNF/Water prefilled with source average — edit after testing the blend.</p>
         )}
         {needsClose && (
           <p className="-mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-700 dark:bg-amber-900/15 dark:text-amber-400">
@@ -249,11 +253,11 @@ function InboundCard({ leg, query, nodeMap }: { leg: Leg; query: ReturnType<type
 function ReceiveModal({ consignment, onClose }: { consignment: MpConsignment; onClose: () => void }) {
   const receive = useReceiveConsignment();
   const { toast } = useToast();
-  const [f, setF] = useState({ receiptQty: consignment.dispatchQty ?? '', receiptFat: '', receiptSnf: '' });
+  const [f, setF] = useState({ receiptQty: consignment.dispatchQty ?? '', receiptFat: '', receiptSnf: '', receiptWater: '' });
 
   const submit = () => {
     receive.mutate(
-      { id: consignment.id, data: { receiptQty: Number(f.receiptQty), receiptFat: f.receiptFat ? Number(f.receiptFat) : null, receiptSnf: f.receiptSnf ? Number(f.receiptSnf) : null } },
+      { id: consignment.id, data: { receiptQty: Number(f.receiptQty), receiptFat: f.receiptFat ? Number(f.receiptFat) : null, receiptSnf: f.receiptSnf ? Number(f.receiptSnf) : null, receiptWater: f.receiptWater ? Number(f.receiptWater) : null } },
       {
         onSuccess: (res) => { toast(`Received · variance ${res.data.varianceQty} L`, 'success'); onClose(); },
         onError: () => toast('Failed to receive', 'error'),
@@ -265,10 +269,11 @@ function ReceiveModal({ consignment, onClose }: { consignment: MpConsignment; on
     <Modal open onClose={onClose} title={`Receive ${consignment.consignmentNo}`}>
       <div className="space-y-3">
         <p className="text-sm text-zinc-500">Dispatched: {consignment.dispatchQty} L</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <Input label="Received (L)" type="number" value={String(f.receiptQty)} onChange={(e) => setF({ ...f, receiptQty: e.target.value })} />
           <Input label="FAT %" type="number" value={f.receiptFat} onChange={(e) => setF({ ...f, receiptFat: e.target.value })} />
           <Input label="SNF %" type="number" value={f.receiptSnf} onChange={(e) => setF({ ...f, receiptSnf: e.target.value })} />
+          <Input label="Water %" type="number" value={f.receiptWater} onChange={(e) => setF({ ...f, receiptWater: e.target.value })} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -296,10 +301,10 @@ function RecentList({ kind, nodeMap }: { kind: LegKind; nodeMap: Map<string, MpN
       <CardHeader>Recent consignments</CardHeader>
       <CardContent className="p-0">
         <Table>
-          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Qty</Th><Th>Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Status</Th></TableRow></TableHeader>
+          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Qty</Th><Th>Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Water Δ</Th><Th>Status</Th></TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableEmpty colSpan={7} message="No consignments yet." />
+              <TableEmpty colSpan={8} message="No consignments yet." />
             ) : (
               rows.map((c) => (
                 <TableRow key={c.id}>
@@ -309,6 +314,7 @@ function RecentList({ kind, nodeMap }: { kind: LegKind; nodeMap: Map<string, MpN
                   <TableCell className={Number(c.varianceQty) < 0 ? 'text-red-600' : ''}>{c.varianceQty ?? '—'}</TableCell>
                   <DeltaCell receipt={c.receiptFat} dispatch={c.dispatchFat} />
                   <DeltaCell receipt={c.receiptSnf} dispatch={c.dispatchSnf} />
+                  <DeltaCell receipt={c.receiptWater != null ? String(c.receiptWater) : null} dispatch={c.dispatchWater != null ? String(c.dispatchWater) : null} />
                   <TableCell><Badge variant={c.status === 'received' ? 'success' : 'default'}>{c.status}</Badge></TableCell>
                 </TableRow>
               ))

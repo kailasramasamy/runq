@@ -57,14 +57,14 @@ export function CollectionHistoryView() {
             <TableHeader>
               <TableRow>
                 <Th>Date</Th><Th>Receipt</Th><Th>VMCC</Th><Th>Farmer</Th><Th>Shift</Th>
-                <Th align="right">Qty</Th><Th>FAT/SNF</Th><Th>Grade</Th><Th align="right">₹/L</Th><Th align="right">₹</Th><Th>Status</Th>
+                <Th align="right">Qty</Th><Th>FAT/SNF</Th><Th>Water %</Th><Th>Grade</Th><Th align="right">₹/L</Th><Th align="right">₹</Th><Th>Status</Th>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={8} cols={11} />
+                <TableSkeleton rows={8} cols={12} />
               ) : pours.length === 0 ? (
-                <TableEmpty colSpan={11} message="No pours for these filters." />
+                <TableEmpty colSpan={12} message="No pours for these filters." />
               ) : (
                 pours.map((p) => (
                   <TableRow key={p.id}>
@@ -75,6 +75,7 @@ export function CollectionHistoryView() {
                     <TableCell>{p.shift.toUpperCase()}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.qtyLitres}</TableCell>
                     <TableCell className="tabular-nums">{p.fat}/{p.snf}</TableCell>
+                    <TableCell className="tabular-nums">{p.water ?? '—'}</TableCell>
                     <TableCell><Badge variant={p.qualityGrade === 'a' ? 'success' : 'default'}>{p.qualityGrade?.toUpperCase()}</Badge></TableCell>
                     <TableCell className="text-right tabular-nums">{p.ratePerLitre}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.lineAmount}</TableCell>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -9,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/audio_play.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import 'farmer_insights.dart';
 
 /// Rate chart screen — FAT×SNF matrix or flat rate, with the farmer's last
 /// pour cell highlighted (spec §6.1).
@@ -18,6 +20,7 @@ class FarmerRateChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final detailAsync = ref.watch(activeRateChartDetailProvider);
     final monthPours = ref.watch(farmerMonthPoursProvider).asData?.value ?? [];
     final lastRate = ref.watch(farmerLastRateResolutionProvider).asData?.value;
@@ -38,18 +41,19 @@ class FarmerRateChart extends ConsumerWidget {
         ),
         title: detailAsync.maybeWhen(
           data: (detail) => Text(
-            detail?.chart.name ?? 'Rate Chart',
+            detail?.chart.name ?? l.farmerRateChartTitle,
             style: DhenuText.h2.copyWith(color: t.ink),
           ),
-          orElse: () => Text('Rate Chart', style: DhenuText.h2.copyWith(color: t.ink)),
+          orElse: () => Text(l.farmerRateChartTitle, style: DhenuText.h2.copyWith(color: t.ink)),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: DhenuSpacing.md),
             child: AudioPlay(
               speak: lastRate == null
-                  ? 'Your milk rate chart'
-                  : 'Your rate is ${lastRate.ratePerLitre.toStringAsFixed(1)} rupees per litre',
+                  ? l.farmerRateListenSpeak
+                  : l.farmerRateListenSpeakWithRate(
+                      lastRate.ratePerLitre.toStringAsFixed(1)),
               size: 22,
             ),
           ),
@@ -62,16 +66,17 @@ class FarmerRateChart extends ConsumerWidget {
         ),
         data: (detail) {
           if (detail == null) {
-            return const DhenuEmptyState(
+            return DhenuEmptyState(
               icon: DhenuIcons.grid,
-              title: 'No rate chart active',
-              subtitle: 'Contact your milk collection centre',
+              title: l.farmerRateEmptyTitle,
+              subtitle: l.farmerRateEmptySubtitle,
             );
           }
           return _RateChartBody(
             detail: detail,
             lastPour: lastPour,
             lastRate: lastRate,
+            dailyQty: averageDailyQty(monthPours),
           );
         },
       ),
@@ -84,15 +89,18 @@ class _RateChartBody extends StatelessWidget {
     required this.detail,
     required this.lastPour,
     required this.lastRate,
+    required this.dailyQty,
   });
 
   final MpRateChartDetail detail;
   final MpPour? lastPour;
   final MpRateResolution? lastRate;
+  final double dailyQty;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final chart = detail.chart;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -106,25 +114,26 @@ class _RateChartBody extends StatelessWidget {
         _header(context, t, chart),
         const SizedBox(height: DhenuSpacing.lg),
         if (lastPour != null && lastRate != null) ...[
-          _lastPourCard(context, t),
+          _lastPourCard(context, t, l),
           const SizedBox(height: DhenuSpacing.lg),
         ],
         if (chart.pricingMode == 'flat')
-          _flatRate(t, chart)
+          _flatRate(t, l, chart)
         else ...[
-          Text('Rate Matrix (₹/L)', style: DhenuText.title.copyWith(color: t.ink)),
+          Text(l.farmerRateMatrixTitle, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
           RateMatrix(
             cells: detail.cells,
             lastFat: lastPour?.fat,
             lastSnf: lastPour?.snf,
           ),
+          _coachingStrip(context, t, l),
         ],
         if (detail.rules.isNotEmpty) ...[
           const SizedBox(height: DhenuSpacing.xxl),
-          Text('Bonuses & Slabs', style: DhenuText.title.copyWith(color: t.ink)),
+          Text(l.farmerRateBonusSlabsTitle, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          ...detail.rules.map((r) => _ruleTile(context, t, r)),
+          ...detail.rules.map((r) => _ruleTile(context, t, l, r)),
         ],
       ],
     );
@@ -155,7 +164,7 @@ class _RateChartBody extends StatelessWidget {
     );
   }
 
-  Widget _lastPourCard(BuildContext context, DhenuTokens t) {
+  Widget _lastPourCard(BuildContext context, DhenuTokens t, AppLocalizations l) {
     return DhenuCard(
       padding: const EdgeInsets.all(DhenuSpacing.lg),
       child: Container(
@@ -183,7 +192,7 @@ class _RateChartBody extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Your last pour',
+                    l.farmerRateLastPourLabel,
                     style: DhenuText.label.copyWith(color: t.brand),
                   ),
                   const SizedBox(height: DhenuSpacing.xs),
@@ -202,7 +211,71 @@ class _RateChartBody extends StatelessWidget {
     );
   }
 
-  Widget _flatRate(DhenuTokens t, MpRateChart chart) {
+  Widget _coachingStrip(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final fat = lastPour?.fat, snf = lastPour?.snf;
+    if (fat == null || snf == null) return const SizedBox.shrink();
+    final c = computeRateCoaching(
+        cells: detail.cells, curFat: fat, curSnf: snf, dailyQty: dailyQty);
+    if (c == null || !c.hasAny) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: DhenuSpacing.lg),
+      child: Container(
+        padding: const EdgeInsets.all(DhenuSpacing.lg),
+        decoration: BoxDecoration(
+          color: t.gradeA.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(DhenuRadii.card),
+          border: Border.all(color: t.gradeA.withValues(alpha: 0.24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(DhenuIcons.trendingUp, size: 18, color: t.gradeA),
+                const SizedBox(width: DhenuSpacing.sm),
+                Text(l.farmerRateEarnMore, style: DhenuText.label.copyWith(color: t.gradeA)),
+              ],
+            ),
+            const SizedBox(height: DhenuSpacing.sm),
+            if (c.snfDeltaPerLitre != null)
+              _coachLine(t, l.farmerRateRaiseSnf(oneDp(c.nextSnf!)),
+                  c.snfDeltaPerLitre!, c.snfDailyGain),
+            if (c.fatDeltaPerLitre != null)
+              _coachLine(t, l.farmerRateRaiseFat(oneDp(c.nextFat!)),
+                  c.fatDeltaPerLitre!, c.fatDailyGain),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _coachLine(DhenuTokens t, String label, double perL, double? perDay) {
+    final hasDaily = perDay != null && perDay > 0.01;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(label, style: DhenuText.body.copyWith(color: t.ink))),
+          const SizedBox(width: DhenuSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('+ ${rupees(perL, paise: true)}/L',
+                  style: DhenuText.label.copyWith(color: t.gradeA)),
+              if (hasDaily)
+                Text('~${rupees(perDay)}/day',
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _flatRate(DhenuTokens t, AppLocalizations l, MpRateChart chart) {
     return DhenuCard(
       padding: const EdgeInsets.all(DhenuSpacing.xl),
       elevated: true,
@@ -210,7 +283,7 @@ class _RateChartBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('FLAT RATE', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Text(l.farmerRateFlatRateLabel, style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(height: DhenuSpacing.sm),
           Text(
             '${rupees(chart.flatRatePerLitre ?? 0, paise: true)} / L',
@@ -221,8 +294,8 @@ class _RateChartBody extends StatelessWidget {
     );
   }
 
-  Widget _ruleTile(BuildContext context, DhenuTokens t, MpRateRule rule) {
-    final label = _ruleLabel(rule);
+  Widget _ruleTile(BuildContext context, DhenuTokens t, AppLocalizations l, MpRateRule rule) {
+    final label = _ruleLabel(l, rule);
     return Padding(
       padding: const EdgeInsets.only(bottom: DhenuSpacing.sm),
       child: Row(
@@ -239,21 +312,22 @@ class _RateChartBody extends StatelessWidget {
     );
   }
 
-  String _ruleLabel(MpRateRule rule) {
+  String _ruleLabel(AppLocalizations l, MpRateRule rule) {
     if (rule.ruleType == 'grade' && rule.grade != null) {
-      return 'Grade-${rule.grade!.toUpperCase()} bonus';
+      return l.farmerRateRuleGradeBonus(rule.grade!.toUpperCase());
     }
     if (rule.ruleType == 'volume') {
       final min = rule.minQty?.toStringAsFixed(0) ?? '0';
       final max = rule.maxQty?.toStringAsFixed(0);
-      return max != null ? 'Volume $min–$max L' : 'Volume > $min L';
+      return max != null
+          ? l.farmerRateRuleVolumeRange(min, max)
+          : l.farmerRateRuleVolumeMin(min);
     }
     return rule.ruleType;
   }
 }
 
 /// FAT × SNF rate matrix — highlights the cell closest to [lastFat]/[lastSnf].
-/// Extracted to keep FarmerRateChart under 500 lines.
 class RateMatrix extends StatelessWidget {
   const RateMatrix({
     super.key,
@@ -269,8 +343,9 @@ class RateMatrix extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     if (cells.isEmpty) {
-      return Text('No matrix data', style: DhenuText.body.copyWith(color: t.inkSoft));
+      return Text(l.farmerRateNoMatrixData, style: DhenuText.body.copyWith(color: t.inkSoft));
     }
     final fatVals = cells.map((c) => c.fat).toSet().toList()..sort();
     final snfVals = cells.map((c) => c.snf).toSet().toList()..sort();
@@ -282,12 +357,10 @@ class RateMatrix extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // SNF header row
           Row(children: [
             _headerCell(t, 'FAT↓ SNF→'),
             ...snfVals.map((s) => _headerCell(t, oneDp(s))),
           ]),
-          // FAT rows
           ...fatVals.map((f) {
             return Row(children: [
               _headerCell(t, oneDp(f)),

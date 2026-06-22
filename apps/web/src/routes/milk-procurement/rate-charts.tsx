@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, Copy, Power, Eye } from 'lucide-react';
+import { Plus, Copy, Power, Eye, Download } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Button, Badge, Modal, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import { useRateCharts, useRateChart, useDeactivateRateChart, useNodes, milkTypeLabel } from '@/hooks/queries/use-milk-procurement';
+import { sharePdf } from '@/lib/share-pdf';
+
+/** Fetch the rate-chart PDF and share/download it. */
+function downloadRateChartPdf(id: string, name: string): Promise<void> {
+  const slug = name.replace(/[^\w.\-]/g, '-');
+  return sharePdf({
+    path: `/milk-procurement/rate-charts/${id}/print`,
+    params: {},
+    filename: `rate-chart-${slug}.pdf`,
+    title: `Rate chart — ${name}`,
+  });
+}
 
 export function MpRateChartsPage() {
   const navigate = useNavigate();
@@ -59,6 +71,12 @@ export function MpRateChartsPage() {
                     <TableCell>{c.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => setViewId(c.id)} title="View"><Eye className="h-4 w-4" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Download PDF"
+                        onClick={() => downloadRateChartPdf(c.id, c.name).catch(() => toast('Failed to download PDF', 'error'))}
+                      ><Download className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/milk-procurement/rate-charts/new', search: { from: c.id } })} title="Duplicate (supersede)"><Copy className="h-4 w-4" /></Button>
                       {c.isActive && (
                         <Button variant="ghost" size="sm" onClick={() => setDeactivateId(c.id)} title="Deactivate"><Power className="h-4 w-4" /></Button>
@@ -98,6 +116,7 @@ export function MpRateChartsPage() {
 function ViewRateChart({ id, onClose }: { id: string; onClose: () => void }) {
   const { data, isLoading } = useRateChart(id);
   const { data: nodesData } = useNodes({ limit: 300 });
+  const { toast } = useToast();
   const chart = data?.data;
   const scope = chart?.scopeNodeId
     ? ((nodesData?.data ?? []).find((n) => n.id === chart.scopeNodeId)?.name ?? 'VMCC')
@@ -147,7 +166,12 @@ function ViewRateChart({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
           )}
 
-          <div className="flex justify-end pt-1"><Button variant="ghost" onClick={onClose}>Close</Button></div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => downloadRateChartPdf(chart.id, chart.name).catch(() => toast('Failed to download PDF', 'error'))}>
+              <Download className="h-4 w-4" />Download PDF
+            </Button>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </div>
         </div>
       )}
     </Modal>

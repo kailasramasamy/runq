@@ -15,6 +15,7 @@ export interface CollectionSummary {
   farmerCount: number;
   avgFat: number;
   avgSnf: number;
+  avgWater: number;
   grossAmount: number;
 }
 
@@ -43,6 +44,7 @@ export class ReportService {
       farmerCount: sql<number>`count(distinct ${mpPours.farmerId})::int`,
       avgFat: sql<string>`coalesce(round(avg(${mpPours.fat}), 2), 0)`,
       avgSnf: sql<string>`coalesce(round(avg(${mpPours.snf}), 2), 0)`,
+      avgWater: sql<string>`coalesce(round(avg(${mpPours.water}), 2), 0)`,
       grossAmount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
     }).from(mpPours).where(and(...conds));
     return {
@@ -54,6 +56,7 @@ export class ReportService {
       farmerCount: r?.farmerCount ?? 0,
       avgFat: Number(r?.avgFat ?? 0),
       avgSnf: Number(r?.avgSnf ?? 0),
+      avgWater: Number(r?.avgWater ?? 0),
       grossAmount: Number(r?.grossAmount ?? 0),
     };
   }

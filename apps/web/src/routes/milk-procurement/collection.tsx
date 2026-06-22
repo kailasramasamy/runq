@@ -96,7 +96,7 @@ function RecordPourCard({ nodeId, today, hasBmc, measurementMode, allowedMilkTyp
   const effectiveTypes = allowedMilkTypes && allowedMilkTypes.length > 0 ? allowedMilkTypes : ALL_MILK_TYPES;
   const initialMilkType = defaultMilkType ?? effectiveTypes[0] ?? 'cow_a1';
   const isSingleType = effectiveTypes.length === 1;
-  const [f, setF] = useState({ farmerId: '', collectionDate: today, shift: 'am', milkType: initialMilkType, qtyLitres: '', fat: '', snf: '', clr: '' });
+  const [f, setF] = useState({ farmerId: '', collectionDate: today, shift: 'am', milkType: initialMilkType, qtyLitres: '', fat: '', snf: '', clr: '', water: '' });
   const isLactometer = measurementMode === 'lactometer';
   const activeChart = pickActiveChart(chartsData?.data ?? [], f.milkType, nodeId, f.collectionDate, measurementMode);
   // Per-slot close: a BMC node closes the whole day (both shifts), no-BMC closes
@@ -116,6 +116,7 @@ function RecordPourCard({ nodeId, today, hasBmc, measurementMode, allowedMilkTyp
         nodeId, farmerId: f.farmerId, collectionDate: f.collectionDate,
         shift: f.shift as 'am' | 'pm', milkType: f.milkType as MilkType,
         qtyLitres: Number(f.qtyLitres), ...quality,
+        water: f.water ? Number(f.water) : null,
         captureSource: 'manual', asNewLot: false,
       },
       {
@@ -123,7 +124,7 @@ function RecordPourCard({ nodeId, today, hasBmc, measurementMode, allowedMilkTyp
           const p = res.data;
           const grade = p.qualityGrade ? ` · grade ${p.qualityGrade.toUpperCase()}` : '';
           toast(`Recorded ${p.qtyLitres}L${grade} · ₹${p.lineAmount}`, 'success');
-          setF((prev) => ({ ...prev, farmerId: '', qtyLitres: '', fat: '', snf: '', clr: '' }));
+          setF((prev) => ({ ...prev, farmerId: '', qtyLitres: '', fat: '', snf: '', clr: '', water: '' }));
         },
         onError: () => toast('Failed — is there an active rate chart for this milk type?', 'error'),
       },
@@ -147,10 +148,11 @@ function RecordPourCard({ nodeId, today, hasBmc, measurementMode, allowedMilkTyp
             <Input label="CLR" type="number" value={f.clr} onChange={(e) => setF({ ...f, clr: e.target.value })} />
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <Input label="Qty (L)" type="number" value={f.qtyLitres} onChange={(e) => setF({ ...f, qtyLitres: e.target.value })} />
             <Input label="FAT %" type="number" value={f.fat} onChange={(e) => setF({ ...f, fat: e.target.value })} />
             <Input label="SNF %" type="number" value={f.snf} onChange={(e) => setF({ ...f, snf: e.target.value })} />
+            <Input label="Water %" type="number" value={f.water} onChange={(e) => setF({ ...f, water: e.target.value })} />
           </div>
         )}
         {isSingleType ? (
@@ -236,13 +238,13 @@ function TodayPoursCard({ nodeId, today }: { nodeId: string; today: string }) {
       <CardContent className="p-0">
         <Table>
           <TableHeader>
-            <TableRow><Th>Receipt</Th><Th>Shift</Th><Th>Qty</Th><Th>FAT/SNF</Th><Th>Grade</Th><Th align="right">₹/L</Th><Th align="right">₹</Th></TableRow>
+            <TableRow><Th>Receipt</Th><Th>Shift</Th><Th>Qty</Th><Th>FAT/SNF</Th><Th>Water %</Th><Th>Grade</Th><Th align="right">₹/L</Th><Th align="right">₹</Th></TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={4} cols={7} />
+              <TableSkeleton rows={4} cols={8} />
             ) : pours.length === 0 ? (
-              <TableEmpty colSpan={7} message="No pours yet today." />
+              <TableEmpty colSpan={8} message="No pours yet today." />
             ) : (
               pours.map((p) => (
                 <TableRow key={p.id}>
@@ -250,6 +252,7 @@ function TodayPoursCard({ nodeId, today }: { nodeId: string; today: string }) {
                   <TableCell>{p.shift.toUpperCase()}</TableCell>
                   <TableCell>{p.qtyLitres}</TableCell>
                   <TableCell>{p.fat}/{p.snf}</TableCell>
+                  <TableCell className="tabular-nums">{p.water ?? '—'}</TableCell>
                   <TableCell><Badge variant={p.qualityGrade === 'a' ? 'success' : 'default'}>{p.qualityGrade?.toUpperCase()}</Badge></TableCell>
                   <TableCell className="text-right tabular-nums">{p.ratePerLitre}</TableCell>
                   <TableCell className="text-right tabular-nums">{p.lineAmount}</TableCell>

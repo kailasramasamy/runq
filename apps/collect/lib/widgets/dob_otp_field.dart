@@ -50,6 +50,14 @@ class _DobOtpFieldState extends State<DobOtpField> {
 
   void _onFocus() => setState(() {});
 
+  /// Tapping a cell moves the cursor there (so that cell highlights) and opens
+  /// the keypad. Clamped to one past the last typed digit.
+  void _selectCell(int i) {
+    final pos = i.clamp(0, widget.controller.text.length);
+    widget.controller.selection = TextSelection.collapsed(offset: pos);
+    _focus.requestFocus();
+  }
+
   @override
   void dispose() {
     widget.controller.removeListener(_onChange);
@@ -73,61 +81,66 @@ class _DobOtpFieldState extends State<DobOtpField> {
               style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.55), letterSpacing: 1.5)),
       ]),
       const SizedBox(height: DhenuSpacing.sm),
-      GestureDetector(
-        onTap: () => _focus.requestFocus(),
-        behavior: HitTestBehavior.opaque,
-        child: Stack(children: [
-          Row(children: [
-            for (var i = 0; i < 6; i++) ...[
-              _box(t, i, text),
-              if (i == 1 || i == 3)
-                const SizedBox(width: DhenuSpacing.md)
-              else if (i < 5)
-                const SizedBox(width: DhenuSpacing.sm),
-            ],
-          ]),
-          // Transparent field that actually captures input — sized to the boxes.
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0,
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focus,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                showCursor: false,
-                decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
-              ),
+      Stack(children: [
+        // Transparent field that actually captures input — sits behind the
+        // boxes so per-box taps win; keyboard focus is driven programmatically.
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0,
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _focus,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              showCursor: false,
+              decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
             ),
           ),
+        ),
+        Row(children: [
+          for (var i = 0; i < 6; i++) ...[
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _selectCell(i),
+                child: _box(t, i, text),
+              ),
+            ),
+            if (i == 1 || i == 3)
+              const SizedBox(width: DhenuSpacing.md)
+            else if (i < 5)
+              const SizedBox(width: DhenuSpacing.sm),
+          ],
         ]),
-      ),
+      ]),
     ]);
   }
 
   Widget _box(DhenuTokens t, int i, String text) {
     final hints = widget.dateHints ? const ['D', 'D', 'M', 'M', 'Y', 'Y'] : const ['•', '•', '•', '•', '•', '•'];
     final filled = i < text.length;
-    final active = _focus.hasFocus && i == text.length;
-    return Expanded(
-      child: Container(
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: t.card,
-          borderRadius: BorderRadius.circular(DhenuRadii.input),
-          border: Border.all(
-            color: active ? t.brand : (filled ? t.brand.withValues(alpha: 0.35) : t.hairline),
-            width: active ? 2 : 1,
-          ),
+    // Highlight the cell at the cursor: the next empty cell while typing, or the
+    // specific cell the user tapped.
+    final cursor = widget.controller.selection.baseOffset;
+    final activeIndex = cursor < 0 ? text.length : cursor.clamp(0, 5);
+    final active = _focus.hasFocus && i == activeIndex;
+    return Container(
+      height: 56,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.card,
+        borderRadius: BorderRadius.circular(DhenuRadii.input),
+        border: Border.all(
+          color: active ? t.brand : (filled ? t.brand.withValues(alpha: 0.35) : t.hairline),
+          width: active ? 2 : 1,
         ),
-        child: Text(
-          filled ? text[i] : hints[i],
-          style: DhenuText.number(size: 20, color: filled ? t.ink : t.inkSoft.withValues(alpha: 0.30)),
-        ),
+      ),
+      child: Text(
+        filled ? text[i] : hints[i],
+        style: DhenuText.number(size: 20, color: filled ? t.ink : t.inkSoft.withValues(alpha: 0.30)),
       ),
     );
   }

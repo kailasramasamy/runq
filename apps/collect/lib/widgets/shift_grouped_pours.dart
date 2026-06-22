@@ -105,7 +105,7 @@ class ShiftGroupedPours extends StatelessWidget {
       litres: litres(p.qtyLitres, unit: true),
       quality: p.fat == null
           ? null
-          : QualityPills(fat: p.fat, snf: p.snf, grade: p.qualityGrade),
+          : QualityPills(fat: p.fat, snf: p.snf, water: p.water, grade: p.qualityGrade),
       amount: rupees(p.lineAmount),
       onTap: () => onTapPour(p, farmer),
     );

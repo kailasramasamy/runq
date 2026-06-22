@@ -85,6 +85,7 @@ class VmccReportsTab extends ConsumerWidget {
         _statCard(t, l.reportsStatPmLabel, litres(s.pmQty, unit: true), t.pm),
         _statCard(t, l.reportsStatAvgFat, '${oneDp(s.avgFat)} %', t.brand),
         _statCard(t, l.reportsStatAvgSnf, '${oneDp(s.avgSnf)} %', t.brand),
+        if (s.avgWater > 0) _statCard(t, l.reportsStatAvgWater, '${oneDp(s.avgWater)} %', t.brand),
         _statCard(t, l.reportsStatFarmers, '${s.farmerCount}', t.ink),
         _statCard(t, l.reportsStatGross, rupees(s.grossAmount), t.gradeA),
       ],

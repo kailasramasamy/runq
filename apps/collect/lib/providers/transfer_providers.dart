@@ -11,6 +11,29 @@ final nodeInboundConsignmentsProvider =
   return mpRepo.consignments(toNodeId: nodeId, collectionDate: todayIso(), limit: 200);
 });
 
+/// Inbound consignments to a node for a specific date (all statuses). Used by
+/// manual receive, where the operator may backfill a past date and the
+/// already-received markers must follow the chosen date.
+typedef InboundByDateArgs = ({String nodeId, String date});
+
+final nodeInboundByDateProvider =
+    FutureProvider.family<List<MpConsignment>, InboundByDateArgs>((ref, args) async {
+  return mpRepo.consignments(toNodeId: args.nodeId, collectionDate: args.date, limit: 200);
+});
+
+/// Received inbound consignments (vmcc→cc) at a node over the last [days],
+/// newest first. Powers the CC receive-history page and the aggregated QC
+/// report. Keyed by (nodeId, days) so 7/14/30-day windows cache separately.
+typedef ReceivedRangeArgs = ({String nodeId, int days});
+
+final nodeReceivedRangeProvider =
+    FutureProvider.family<List<MpConsignment>, ReceivedRangeArgs>((ref, args) async {
+  return mpRepo.consignments(
+    toNodeId: args.nodeId, kind: 'vmcc_to_cc', status: 'received',
+    from: isoDaysAgo(args.days - 1), to: todayIso(), limit: 500,
+  );
+});
+
 /// Today's outbound consignments from a node (all statuses, all kinds).
 final nodeOutboundConsignmentsProvider =
     FutureProvider.family<List<MpConsignment>, String>((ref, nodeId) async {

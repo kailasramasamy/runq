@@ -30,6 +30,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   final _qtyCtrl = TextEditingController();
   final _fatCtrl = TextEditingController();
   final _snfCtrl = TextEditingController();
+  final _waterCtrl = TextEditingController();
   final _containerCtrl = TextEditingController();
   MpNode? _destCc;
   bool _saving = false;
@@ -49,10 +50,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   }
 
   void _onShiftChanged(Shift s) {
-    // re-prefill qty/fat/snf from the newly selected shift's availability
+    // re-prefill qty/fat/snf/water from the newly selected shift's availability
     _qtyCtrl.clear();
     _fatCtrl.clear();
     _snfCtrl.clear();
+    _waterCtrl.clear();
     setState(() => _shift = s);
   }
 
@@ -79,6 +81,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     _qtyCtrl.dispose();
     _fatCtrl.dispose();
     _snfCtrl.dispose();
+    _waterCtrl.dispose();
     _containerCtrl.dispose();
     super.dispose();
   }
@@ -88,6 +91,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     if (_qtyCtrl.text.isEmpty) _qtyCtrl.text = avail.available.toStringAsFixed(1);
     if (_fatCtrl.text.isEmpty && avail.avgFat != null) _fatCtrl.text = avail.avgFat!.toStringAsFixed(1);
     if (_snfCtrl.text.isEmpty && avail.avgSnf != null) _snfCtrl.text = avail.avgSnf!.toStringAsFixed(1);
+    if (_waterCtrl.text.isEmpty && avail.avgWater != null) _waterCtrl.text = avail.avgWater!.toStringAsFixed(1);
   }
 
   Future<void> _pickCc() async {
@@ -114,6 +118,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     final qty = double.tryParse(_qtyCtrl.text);
     final fat = double.tryParse(_fatCtrl.text);
     final snf = double.tryParse(_snfCtrl.text);
+    final water = double.tryParse(_waterCtrl.text);
     if (qty == null || qty <= 0) {
       setState(() => _error = l.dispatchErrorInvalidQty);
       return;
@@ -134,11 +139,13 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         'dispatchQty': qty,
         'dispatchFat': ?fat,
         'dispatchSnf': ?snf,
+        'dispatchWater': ?water,
         if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
       });
       _qtyCtrl.clear();
       _fatCtrl.clear();
       _snfCtrl.clear();
+      _waterCtrl.clear();
       _containerCtrl.clear();
       setState(() => _saving = false);
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
@@ -205,6 +212,13 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
             decoration: const InputDecoration(hintText: 'SNF %'),
           )),
         ]),
+        const SizedBox(height: DhenuSpacing.md),
+        TextField(
+          controller: _waterCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textCapitalization: TextCapitalization.none,
+          decoration: const InputDecoration(hintText: 'Water % (optional)'),
+        ),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: _containerCtrl,

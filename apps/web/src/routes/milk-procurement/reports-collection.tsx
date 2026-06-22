@@ -31,6 +31,7 @@ export function MpCollectionReportPage() {
         <StatsCard title="Gross value" value={s?.grossAmount ?? 0} icon={Coins} />
         <StatsCard title="Avg FAT" value={s?.avgFat ?? 0} icon={FlaskConical} formatValue={(v) => v.toFixed(2)} />
         <StatsCard title="Avg SNF" value={s?.avgSnf ?? 0} icon={FlaskConical} formatValue={(v) => v.toFixed(2)} />
+        <StatsCard title="Avg Water %" value={s?.avgWater ?? 0} icon={FlaskConical} formatValue={(v) => v > 0 ? v.toFixed(2) : '—'} />
         <StatsCard title="Pours" value={s?.pourCount ?? 0} formatValue={(v) => String(v)} />
       </div>
     </div>

@@ -830,6 +830,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportsStatAvgSnf => 'Avg SNF';
 
   @override
+  String get reportsStatAvgWater => 'Avg Water %';
+
+  @override
   String get reportsStatFarmers => 'Farmers';
 
   @override
@@ -1042,4 +1045,405 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoSourceTitle => 'Add photo';
+
+  @override
+  String get farmerPhotoUpdated => 'Profile photo updated';
+
+  @override
+  String get farmerPhotoFailed => 'Couldn\'t update photo. Please try again.';
+
+  @override
+  String get navCollections => 'Collections';
+
+  @override
+  String get navServices => 'Services';
+
+  @override
+  String get farmerHomeGoodMorning => 'Good morning';
+
+  @override
+  String get farmerHomeGoodAfternoon => 'Good afternoon';
+
+  @override
+  String get farmerHomeGoodEvening => 'Good evening';
+
+  @override
+  String get farmerHomeNoNotifications => 'No new notifications';
+
+  @override
+  String get farmerHomeThisCycle => 'THIS CYCLE';
+
+  @override
+  String farmerHomeHeroPours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pours',
+      one: '$count pour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String farmerHomeHeroListenSpeak(String litres, String rupees) {
+    return 'This cycle, $litres litres, $rupees rupees';
+  }
+
+  @override
+  String get farmerHomeHeroListenLabel => 'Listen';
+
+  @override
+  String farmerHomeProjection(String amount) {
+    return 'On track for ~$amount this cycle';
+  }
+
+  @override
+  String get farmerHomeEmptyTitle => 'No pours yet this cycle';
+
+  @override
+  String get farmerHomeEmptySubtitle =>
+      'Your collections will appear here once recorded at the centre.';
+
+  @override
+  String get farmerHomeRefresh => 'Refresh';
+
+  @override
+  String farmerHomeTodayCollected(String litres) {
+    return '$litres L collected';
+  }
+
+  @override
+  String get farmerHomeNudgeImproved =>
+      'Great work — keep the feed and routine going.';
+
+  @override
+  String get farmerHomeNudgeFatDown =>
+      'Often feed quality or late lactation. Check feed and clean water, or ask your vet.';
+
+  @override
+  String get farmerHomeNudgeSnfDown =>
+      'Often nutrition or water. Check feed and clean water, or ask your vet.';
+
+  @override
+  String farmerHomeNudgeTitle(String metric, String direction, String delta) {
+    return '$metric $direction $delta this week';
+  }
+
+  @override
+  String get farmerHomeNudgeUp => 'up';
+
+  @override
+  String get farmerHomeNudgeDown => 'down';
+
+  @override
+  String farmerHomeStreakTitle(int streak) {
+    String _temp0 = intl.Intl.pluralLogic(
+      streak,
+      locale: localeName,
+      other: '$streak-day quality streak',
+      one: '$streak-day quality streak',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeStreakBonusUnlocked => 'Bonus unlocked — keep it going!';
+
+  @override
+  String farmerHomeStreakRemaining(int remaining) {
+    String _temp0 = intl.Intl.pluralLogic(
+      remaining,
+      locale: localeName,
+      other: '$remaining more Grade-A days to unlock a bonus',
+      one: '$remaining more Grade-A day to unlock a bonus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeRateChart => 'Rate Chart';
+
+  @override
+  String get farmerHomeRewards => 'Rewards';
+
+  @override
+  String get farmerCollectionsTitle => 'Collections';
+
+  @override
+  String farmerCollectionsCyclePours(String scope, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pours',
+      one: '$count pour',
+    );
+    return '$scope · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionsDailyVolume => 'Daily volume';
+
+  @override
+  String farmerCollectionsAvgPerDay(String litres) {
+    return '$litres L/day avg';
+  }
+
+  @override
+  String get farmerCollectionsThisCycle => 'THIS CYCLE';
+
+  @override
+  String get farmerCollectionsPastCycles => 'PAST CYCLES';
+
+  @override
+  String get farmerCollectionsEmptyTitle => 'No collections this cycle';
+
+  @override
+  String get farmerCollectionsEmptySubtitle =>
+      'Your daily pours will appear here once recorded.';
+
+  @override
+  String farmerCollectionsPastCycleSummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pours',
+      one: '$count pour',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionDetailTotal => 'TOTAL';
+
+  @override
+  String get farmerCollectionDetailGross => 'GROSS';
+
+  @override
+  String get farmerCollectionDetailNoCollection => 'No collection recorded';
+
+  @override
+  String get farmerCollectionDetailShift => 'Shift';
+
+  @override
+  String farmerCollectionDetailRatePerLitre(String rate) {
+    return '@ $rate/L';
+  }
+
+  @override
+  String get farmerPaymentsTitle => 'Payments';
+
+  @override
+  String get farmerPaymentsSubtitle => 'Transparent, every rupee accounted';
+
+  @override
+  String farmerPaymentsNetPayable(String cycle) {
+    return 'NET PAYABLE · $cycle';
+  }
+
+  @override
+  String farmerPaymentsListenSpeak(String rupees) {
+    return 'Net payable this cycle, $rupees rupees';
+  }
+
+  @override
+  String farmerPaymentsProjection(String amount) {
+    return 'On track for ~$amount this cycle';
+  }
+
+  @override
+  String get farmerPaymentsGrossMilk => 'Gross milk';
+
+  @override
+  String get farmerPaymentsQualityBonus => 'Quality bonus';
+
+  @override
+  String farmerPaymentsOutstandingAdvance(String amount) {
+    return 'Outstanding advance: $amount';
+  }
+
+  @override
+  String get farmerPaymentsHistoryHeader => 'PAYMENT HISTORY';
+
+  @override
+  String get farmerPaymentsPaid => 'PAID';
+
+  @override
+  String get farmerPaymentsDeductCattleFeedLoan => 'Cattle-feed loan';
+
+  @override
+  String get farmerPaymentsDeductAdvance => 'Advance';
+
+  @override
+  String get farmerPaymentsDeductMedicine => 'Medicine';
+
+  @override
+  String get farmerPaymentsDeductInsurance => 'Insurance';
+
+  @override
+  String farmerPaymentsHistorySummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pours',
+      one: '$count pour',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerRateChartTitle => 'Rate Chart';
+
+  @override
+  String get farmerRateListenSpeak => 'Your milk rate chart';
+
+  @override
+  String farmerRateListenSpeakWithRate(String rate) {
+    return 'Your rate is $rate rupees per litre';
+  }
+
+  @override
+  String get farmerRateEmptyTitle => 'No rate chart active';
+
+  @override
+  String get farmerRateEmptySubtitle => 'Contact your milk collection centre';
+
+  @override
+  String get farmerRateLastPourLabel => 'Your last pour';
+
+  @override
+  String get farmerRateMatrixTitle => 'Rate Matrix (₹/L)';
+
+  @override
+  String get farmerRateBonusSlabsTitle => 'Bonuses & Slabs';
+
+  @override
+  String get farmerRateFlatRateLabel => 'FLAT RATE';
+
+  @override
+  String get farmerRateEarnMore => 'Earn more per litre';
+
+  @override
+  String farmerRateRaiseSnf(String value) {
+    return 'Raise SNF to $value';
+  }
+
+  @override
+  String farmerRateRaiseFat(String value) {
+    return 'Raise FAT to $value';
+  }
+
+  @override
+  String get farmerRateNoMatrixData => 'No matrix data';
+
+  @override
+  String farmerRateRuleGradeBonus(String grade) {
+    return 'Grade-$grade bonus';
+  }
+
+  @override
+  String farmerRateRuleVolumeRange(String min, String max) {
+    return 'Volume $min–$max L';
+  }
+
+  @override
+  String farmerRateRuleVolumeMin(String min) {
+    return 'Volume > $min L';
+  }
+
+  @override
+  String get farmerRewardsTitle => 'Rewards';
+
+  @override
+  String get farmerRewardsBadgesSection => 'Badges';
+
+  @override
+  String get farmerRewardsQualityStreak => 'Quality Streak';
+
+  @override
+  String farmerRewardsStreakDays(int target) {
+    return '/ $target days';
+  }
+
+  @override
+  String get farmerRewardsBonusUnlocked => 'Bonus unlocked — keep it going!';
+
+  @override
+  String farmerRewardsStreakRemaining(int remaining) {
+    return '$remaining more to unlock a ₹500 bonus';
+  }
+
+  @override
+  String get farmerRewardsBadgeUnlocked => 'UNLOCKED';
+
+  @override
+  String get farmerRewardsBadgeLocked => 'LOCKED';
+
+  @override
+  String get farmerRewardsBadgeConsistent => 'Consistent';
+
+  @override
+  String get farmerRewardsBadge100Day => '100-Day Club';
+
+  @override
+  String get farmerRewardsBadgeTopFat => 'Top FAT';
+
+  @override
+  String get farmerRewardsBadgeReferrer => 'Referrer';
+
+  @override
+  String get farmerRewardsReferTitle => 'Refer a farmer';
+
+  @override
+  String get farmerRewardsReferBody => 'Earn ₹100 for every farmer who joins';
+
+  @override
+  String get farmerRewardsShareInvite => 'Share invite';
+
+  @override
+  String get farmerRewardsReferralComingSoon => 'Referral invite coming soon!';
+
+  @override
+  String get farmerServicesTitle => 'Services';
+
+  @override
+  String get farmerServicesSubtitle =>
+      'Farmer services are on their way — stay tuned.';
+
+  @override
+  String get farmerServicesSoon => 'SOON';
+
+  @override
+  String get farmerServicesNotifyMe => 'Notify me when live';
+
+  @override
+  String get farmerServicesNotifyToast =>
+      'We\'ll notify you when services go live!';
+
+  @override
+  String get farmerServicesCattleFeedName => 'Cattle Feed';
+
+  @override
+  String get farmerServicesCattleFeedDesc =>
+      'Quality fodder & supplements delivered to your farm.';
+
+  @override
+  String get farmerServicesVetName => 'Veterinary Care';
+
+  @override
+  String get farmerServicesVetDesc =>
+      'Doorstep vet visits, health check-ups & vaccinations.';
+
+  @override
+  String get farmerServicesInsuranceName => 'Insurance';
+
+  @override
+  String get farmerServicesInsuranceDesc =>
+      'Cattle insurance to protect your herd & livelihood.';
+
+  @override
+  String get farmerServicesLoansName => 'Loans & Advances';
+
+  @override
+  String get farmerServicesLoansDesc =>
+      'Instant advances against your milk supply earnings.';
 }

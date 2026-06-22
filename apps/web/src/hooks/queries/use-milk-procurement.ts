@@ -75,13 +75,14 @@ export interface MpRateResolution {
 export interface MpPour {
   id: string; nodeId: string; farmerId: string; collectionDate: string;
   shift: 'am' | 'pm'; milkType: MilkType; qtyLitres: string; fat: string | null; snf: string | null;
+  water: number | null;
   qualityGrade: string | null; ratePerLitre: string; lineAmount: string; receiptNo: string | null;
   status: 'recorded' | 'reversed';
 }
 export interface MpCollectionSummary {
   from: string; to: string; nodeId: string | null;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
-  farmerCount: number; avgFat: number; avgSnf: number; grossAmount: number;
+  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number | null; grossAmount: number;
 }
 export interface MpLedgerEntry {
   id: string; farmerId: string; entryType: string; amount: string;
@@ -304,8 +305,8 @@ export interface MpConsignment {
   id: string; consignmentNo: string; kind: 'vmcc_to_cc' | 'cc_to_pp';
   fromNodeId: string; toNodeId: string; collectionDate: string; shift: 'am' | 'pm' | null;
   containerNo: string | null; dispatchQty: string | null; receiptQty: string | null;
-  dispatchFat: string | null; dispatchSnf: string | null;
-  receiptFat: string | null; receiptSnf: string | null;
+  dispatchFat: string | null; dispatchSnf: string | null; dispatchWater: number | null;
+  receiptFat: string | null; receiptSnf: string | null; receiptWater: number | null;
   varianceQty: string | null; variancePct: string | null;
   status: 'in_transit' | 'received' | 'reversed';
 }
@@ -336,7 +337,7 @@ export function useReceiveConsignment() {
 export interface MpAvailability {
   nodeId: string; collectionDate: string; nodeType: NodeType;
   collected: number; dispatched: number; available: number;
-  avgFat: number | null; avgSnf: number | null;
+  avgFat: number | null; avgSnf: number | null; avgWater: number | null;
 }
 export function useNodeAvailability(nodeId: string, collectionDate: string, shift?: 'am' | 'pm') {
   return useQuery({

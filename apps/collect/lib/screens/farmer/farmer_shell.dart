@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 import '../../screens/profile_tab.dart';
 import '../../screens/role_shell.dart';
 import '../../theme/dhenu_icons.dart';
@@ -14,18 +15,18 @@ import 'farmer_services_stub.dart';
 class FarmerShell extends ConsumerWidget {
   const FarmerShell({super.key});
 
-  static const _items = [
-    DhenuNavItem(icon: DhenuIcons.home, label: 'Home'),
-    DhenuNavItem(icon: DhenuIcons.collections, label: 'Collections'),
-    DhenuNavItem(icon: DhenuIcons.payments, label: 'Payments'),
-    DhenuNavItem(icon: DhenuIcons.services, label: 'Services'),
-    DhenuNavItem(icon: DhenuIcons.profile, label: 'Profile'),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final items = [
+      DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
+      DhenuNavItem(icon: DhenuIcons.collections, label: l.navCollections),
+      DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
+      DhenuNavItem(icon: DhenuIcons.services, label: l.navServices),
+      DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
+    ];
     return RoleShell(
-      items: _items,
+      items: items,
       pages: const [
         FarmerHome(),
         FarmerCollectionsTab(),

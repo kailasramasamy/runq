@@ -59,7 +59,10 @@ class _PhotoAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final diameter = radius * 2;
     final token = apiClient.token;
-    final url = '${ApiConfig.baseUrl}/milk-procurement/farmers/${farmer.id}/photo';
+    // Cache-bust by photoDocId so a re-uploaded photo replaces the cached image
+    // (the path is otherwise stable across uploads).
+    final url = '${ApiConfig.baseUrl}/milk-procurement/farmers/${farmer.id}/photo'
+        '?v=${farmer.photoDocId}';
 
     Widget image = Image.network(
       url,

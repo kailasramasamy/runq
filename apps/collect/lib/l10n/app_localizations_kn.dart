@@ -103,35 +103,33 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String collectCloseShift(String shift) {
-    return 'Close $shift collection';
+    return '$shift ಸಂಗ್ರಹ ಮುಚ್ಚಿ';
   }
 
   @override
-  String get collectCloseDay => 'Close today\'s collection';
+  String get collectCloseDay => 'ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಿ';
 
   @override
   String collectClosedBanner(String shift) {
-    return '$shift collection is closed — ready to dispatch.';
+    return '$shift ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ — ರವಾನೆಗೆ ಸಿದ್ಧ.';
   }
 
   @override
   String get collectDayClosedBanner =>
-      'Today\'s collection is closed — ready to dispatch.';
+      'ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ — ರವಾನೆಗೆ ಸಿದ್ಧ.';
 
   @override
-  String get collectReopen => 'Reopen';
+  String get collectReopen => 'ಮರು ತೆರೆಯಿರಿ';
 
   @override
   String get collectCloseBlockedPending =>
-      'Some pours haven\'t synced yet — wait for sync, then close.';
+      'ಕೆಲವು ಸುರಿತಗಳು ಇನ್ನೂ ಸಿಂಕ್ ಆಗಿಲ್ಲ — ಸಿಂಕ್ ನಂತರ ಮುಚ್ಚಿ.';
 
   @override
-  String get dispatchCloseFirst =>
-      'Close collection for this shift before dispatching.';
+  String get dispatchCloseFirst => 'ರವಾನಿಸುವ ಮೊದಲು ಈ ಪಾಳಿಯ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.';
 
   @override
-  String get dispatchCloseFirstDay =>
-      'Close today\'s collection before dispatching.';
+  String get dispatchCloseFirstDay => 'ರವಾನಿಸುವ ಮೊದಲು ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.';
 
   @override
   String get historyLoadError => 'ಇತಿಹಾಸ ಲೋಡ್ ಆಗಲಿಲ್ಲ';
@@ -831,6 +829,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get reportsStatAvgSnf => 'ಸರಾಸರಿ SNF';
 
   @override
+  String get reportsStatAvgWater => 'ಸರಾಸರಿ Water %';
+
+  @override
   String get reportsStatFarmers => 'ರೈತರು';
 
   @override
@@ -1044,4 +1045,407 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get photoSourceTitle => 'ಫೋಟೋ ಸೇರಿಸಿ';
+
+  @override
+  String get farmerPhotoUpdated => 'ಪ್ರೊಫೈಲ್ ಫೋಟೋ ನವೀಕರಿಸಲಾಗಿದೆ';
+
+  @override
+  String get farmerPhotoFailed =>
+      'ಫೋಟೋ ನವೀಕರಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get navCollections => 'ಸಂಗ್ರಹಗಳು';
+
+  @override
+  String get navServices => 'ಸೇವೆಗಳು';
+
+  @override
+  String get farmerHomeGoodMorning => 'ಶುಭ ಬೆಳಗು';
+
+  @override
+  String get farmerHomeGoodAfternoon => 'ಶುಭ ಮಧ್ಯಾಹ್ನ';
+
+  @override
+  String get farmerHomeGoodEvening => 'ಶುಭ ಸಂಜೆ';
+
+  @override
+  String get farmerHomeNoNotifications => 'ಹೊಸ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ';
+
+  @override
+  String get farmerHomeThisCycle => 'ಈ ಚಕ್ರ';
+
+  @override
+  String farmerHomeHeroPours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಸುರಿತಗಳು',
+      one: '$count ಸುರಿತ',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String farmerHomeHeroListenSpeak(String litres, String rupees) {
+    return 'ಈ ಚಕ್ರ, $litres ಲೀಟರ್, $rupees ರೂಪಾಯಿ';
+  }
+
+  @override
+  String get farmerHomeHeroListenLabel => 'ಕೇಳಿ';
+
+  @override
+  String farmerHomeProjection(String amount) {
+    return 'ಈ ಚಕ್ರಕ್ಕೆ ~$amount ನಿರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ';
+  }
+
+  @override
+  String get farmerHomeEmptyTitle => 'ಈ ಚಕ್ರದಲ್ಲಿ ಇನ್ನೂ ಸುರಿತಗಳಿಲ್ಲ';
+
+  @override
+  String get farmerHomeEmptySubtitle =>
+      'ಕೇಂದ್ರದಲ್ಲಿ ದಾಖಲಾದ ನಂತರ ನಿಮ್ಮ ಸಂಗ್ರಹಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ.';
+
+  @override
+  String get farmerHomeRefresh => 'ರಿಫ್ರೆಶ್ ಮಾಡಿ';
+
+  @override
+  String farmerHomeTodayCollected(String litres) {
+    return '$litres L ಸಂಗ್ರಹಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String get farmerHomeNudgeImproved =>
+      'ಒಳ್ಳೆಯ ಕೆಲಸ — ಆಹಾರ ಮತ್ತು ದಿನಚರಿ ಮುಂದುವರಿಸಿ.';
+
+  @override
+  String get farmerHomeNudgeFatDown =>
+      'ಸಾಮಾನ್ಯವಾಗಿ ಆಹಾರ ಗುಣಮಟ್ಟ ಅಥವಾ ತಡ ಹಾಲು ಕರೆಯುವಿಕೆ. ಆಹಾರ ಮತ್ತು ಸ್ವಚ್ಛ ನೀರು ಪರಿಶೀಲಿಸಿ, ಅಥವಾ ನಿಮ್ಮ ಪಶು ವೈದ್ಯರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get farmerHomeNudgeSnfDown =>
+      'ಸಾಮಾನ್ಯವಾಗಿ ಪೋಷಣೆ ಅಥವಾ ನೀರು. ಆಹಾರ ಮತ್ತು ಸ್ವಚ್ಛ ನೀರು ಪರಿಶೀಲಿಸಿ, ಅಥವಾ ನಿಮ್ಮ ಪಶು ವೈದ್ಯರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String farmerHomeNudgeTitle(String metric, String direction, String delta) {
+    return '$metric ಈ ವಾರ $delta $direction';
+  }
+
+  @override
+  String get farmerHomeNudgeUp => 'ಹೆಚ್ಚಿದೆ';
+
+  @override
+  String get farmerHomeNudgeDown => 'ಕಡಿಮೆಯಾಗಿದೆ';
+
+  @override
+  String farmerHomeStreakTitle(int streak) {
+    String _temp0 = intl.Intl.pluralLogic(
+      streak,
+      locale: localeName,
+      other: '$streak ದಿನ ಗುಣಮಟ್ಟ ಸ್ಟ್ರೀಕ್',
+      one: '$streak ದಿನ ಗುಣಮಟ್ಟ ಸ್ಟ್ರೀಕ್',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeStreakBonusUnlocked =>
+      'ಬೋನಸ್ ಅನ್‌ಲಾಕ್ ಆಗಿದೆ — ಮುಂದುವರಿಸಿ!';
+
+  @override
+  String farmerHomeStreakRemaining(int remaining) {
+    String _temp0 = intl.Intl.pluralLogic(
+      remaining,
+      locale: localeName,
+      other: '$remaining Grade-A ದಿನಗಳು ಬೋನಸ್ ಅನ್‌ಲಾಕ್ ಮಾಡಲು',
+      one: '$remaining Grade-A ದಿನ ಬೋನಸ್ ಅನ್‌ಲಾಕ್ ಮಾಡಲು',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeRateChart => 'ದರ ಚಾರ್ಟ್';
+
+  @override
+  String get farmerHomeRewards => 'ಬಹುಮಾನಗಳು';
+
+  @override
+  String get farmerCollectionsTitle => 'ಸಂಗ್ರಹಗಳು';
+
+  @override
+  String farmerCollectionsCyclePours(String scope, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಸುರಿತಗಳು',
+      one: '$count ಸುರಿತ',
+    );
+    return '$scope · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionsDailyVolume => 'ದೈನಂದಿನ ಪ್ರಮಾಣ';
+
+  @override
+  String farmerCollectionsAvgPerDay(String litres) {
+    return '$litres L/ದಿನ ಸರಾಸರಿ';
+  }
+
+  @override
+  String get farmerCollectionsThisCycle => 'ಈ ಚಕ್ರ';
+
+  @override
+  String get farmerCollectionsPastCycles => 'ಹಿಂದಿನ ಚಕ್ರಗಳು';
+
+  @override
+  String get farmerCollectionsEmptyTitle => 'ಈ ಚಕ್ರದಲ್ಲಿ ಸಂಗ್ರಹಗಳಿಲ್ಲ';
+
+  @override
+  String get farmerCollectionsEmptySubtitle =>
+      'ದಾಖಲಾದ ನಂತರ ನಿಮ್ಮ ದೈನಂದಿನ ಸುರಿತಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ.';
+
+  @override
+  String farmerCollectionsPastCycleSummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಸುರಿತಗಳು',
+      one: '$count ಸುರಿತ',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionDetailTotal => 'ಒಟ್ಟು';
+
+  @override
+  String get farmerCollectionDetailGross => 'ಒಟ್ಟು ಮೊತ್ತ';
+
+  @override
+  String get farmerCollectionDetailNoCollection => 'ಯಾವುದೇ ಸಂಗ್ರಹ ದಾಖಲಾಗಿಲ್ಲ';
+
+  @override
+  String get farmerCollectionDetailShift => 'ಶಿಫ್ಟ್';
+
+  @override
+  String farmerCollectionDetailRatePerLitre(String rate) {
+    return '@ $rate/L';
+  }
+
+  @override
+  String get farmerPaymentsTitle => 'ಪಾವತಿಗಳು';
+
+  @override
+  String get farmerPaymentsSubtitle => 'ಪಾರದರ್ಶಕ, ಪ್ರತಿ ರೂಪಾಯಿ ಲೆಕ್ಕ ಸೇರಿದೆ';
+
+  @override
+  String farmerPaymentsNetPayable(String cycle) {
+    return 'ನಿವ್ವಳ ಪಾವತಿ · $cycle';
+  }
+
+  @override
+  String farmerPaymentsListenSpeak(String rupees) {
+    return 'ಈ ಚಕ್ರ ನಿವ್ವಳ ಪಾವತಿ, $rupees ರೂಪಾಯಿ';
+  }
+
+  @override
+  String farmerPaymentsProjection(String amount) {
+    return 'ಈ ಚಕ್ರಕ್ಕೆ ~$amount ನಿರೀಕ್ಷಿಸಲಾಗುತ್ತಿದೆ';
+  }
+
+  @override
+  String get farmerPaymentsGrossMilk => 'ಒಟ್ಟು ಹಾಲು';
+
+  @override
+  String get farmerPaymentsQualityBonus => 'ಗುಣಮಟ್ಟ ಬೋನಸ್';
+
+  @override
+  String farmerPaymentsOutstandingAdvance(String amount) {
+    return 'ಬಾಕಿ ಮುಂಗಡ: $amount';
+  }
+
+  @override
+  String get farmerPaymentsHistoryHeader => 'ಪಾವತಿ ಇತಿಹಾಸ';
+
+  @override
+  String get farmerPaymentsPaid => 'ಪಾವತಿಸಲಾಗಿದೆ';
+
+  @override
+  String get farmerPaymentsDeductCattleFeedLoan => 'ದನದ ಮೇವಿನ ಸಾಲ';
+
+  @override
+  String get farmerPaymentsDeductAdvance => 'ಮುಂಗಡ';
+
+  @override
+  String get farmerPaymentsDeductMedicine => 'ಔಷಧ';
+
+  @override
+  String get farmerPaymentsDeductInsurance => 'ವಿಮೆ';
+
+  @override
+  String farmerPaymentsHistorySummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಸುರಿತಗಳು',
+      one: '$count ಸುರಿತ',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerRateChartTitle => 'ದರ ಚಾರ್ಟ್';
+
+  @override
+  String get farmerRateListenSpeak => 'ನಿಮ್ಮ ಹಾಲಿನ ದರ ಚಾರ್ಟ್';
+
+  @override
+  String farmerRateListenSpeakWithRate(String rate) {
+    return 'ನಿಮ್ಮ ದರ ಲೀಟರ್‌ಗೆ $rate ರೂಪಾಯಿ';
+  }
+
+  @override
+  String get farmerRateEmptyTitle => 'ಯಾವುದೇ ದರ ಚಾರ್ಟ್ ಸಕ್ರಿಯವಾಗಿಲ್ಲ';
+
+  @override
+  String get farmerRateEmptySubtitle =>
+      'ನಿಮ್ಮ ಹಾಲು ಸಂಗ್ರಹ ಕೇಂದ್ರವನ್ನು ಸಂಪರ್ಕಿಸಿ';
+
+  @override
+  String get farmerRateLastPourLabel => 'ನಿಮ್ಮ ಕೊನೆಯ ಸುರಿತ';
+
+  @override
+  String get farmerRateMatrixTitle => 'ದರ ಮ್ಯಾಟ್ರಿಕ್ಸ್ (₹/L)';
+
+  @override
+  String get farmerRateBonusSlabsTitle => 'ಬೋನಸ್ & ಸ್ಲ್ಯಾಬ್‌ಗಳು';
+
+  @override
+  String get farmerRateFlatRateLabel => 'ಫ್ಲಾಟ್ ರೇಟ್';
+
+  @override
+  String get farmerRateEarnMore => 'ಲೀಟರ್‌ಗೆ ಹೆಚ್ಚು ಗಳಿಸಿ';
+
+  @override
+  String farmerRateRaiseSnf(String value) {
+    return 'SNF ಅನ್ನು $value ಕ್ಕೆ ಹೆಚ್ಚಿಸಿ';
+  }
+
+  @override
+  String farmerRateRaiseFat(String value) {
+    return 'FAT ಅನ್ನು $value ಕ್ಕೆ ಹೆಚ್ಚಿಸಿ';
+  }
+
+  @override
+  String get farmerRateNoMatrixData => 'ಮ್ಯಾಟ್ರಿಕ್ಸ್ ಮಾಹಿತಿ ಇಲ್ಲ';
+
+  @override
+  String farmerRateRuleGradeBonus(String grade) {
+    return 'Grade-$grade ಬೋನಸ್';
+  }
+
+  @override
+  String farmerRateRuleVolumeRange(String min, String max) {
+    return 'ಪ್ರಮಾಣ $min–$max L';
+  }
+
+  @override
+  String farmerRateRuleVolumeMin(String min) {
+    return 'ಪ್ರಮಾಣ > $min L';
+  }
+
+  @override
+  String get farmerRewardsTitle => 'ಬಹುಮಾನಗಳು';
+
+  @override
+  String get farmerRewardsBadgesSection => 'ಬ್ಯಾಡ್ಜ್‌ಗಳು';
+
+  @override
+  String get farmerRewardsQualityStreak => 'ಗುಣಮಟ್ಟ ಸ್ಟ್ರೀಕ್';
+
+  @override
+  String farmerRewardsStreakDays(int target) {
+    return '/ $target ದಿನಗಳು';
+  }
+
+  @override
+  String get farmerRewardsBonusUnlocked => 'ಬೋನಸ್ ಅನ್‌ಲಾಕ್ ಆಗಿದೆ — ಮುಂದುವರಿಸಿ!';
+
+  @override
+  String farmerRewardsStreakRemaining(int remaining) {
+    return '₹500 ಬೋನಸ್ ಅನ್‌ಲಾಕ್ ಮಾಡಲು $remaining ದಿನಗಳು ಬಾಕಿ';
+  }
+
+  @override
+  String get farmerRewardsBadgeUnlocked => 'ಅನ್‌ಲಾಕ್ ಆಗಿದೆ';
+
+  @override
+  String get farmerRewardsBadgeLocked => 'ಲಾಕ್ ಆಗಿದೆ';
+
+  @override
+  String get farmerRewardsBadgeConsistent => 'ಸ್ಥಿರ';
+
+  @override
+  String get farmerRewardsBadge100Day => '100 ದಿನ ಕ್ಲಬ್';
+
+  @override
+  String get farmerRewardsBadgeTopFat => 'ಅತ್ಯುತ್ತಮ FAT';
+
+  @override
+  String get farmerRewardsBadgeReferrer => 'ರೆಫರ್ ಮಾಡಿದವರು';
+
+  @override
+  String get farmerRewardsReferTitle => 'ರೈತರನ್ನು ರೆಫರ್ ಮಾಡಿ';
+
+  @override
+  String get farmerRewardsReferBody => 'ಪ್ರತಿ ಸೇರ್ಪಡೆ ರೈತರಿಗೆ ₹100 ಗಳಿಸಿ';
+
+  @override
+  String get farmerRewardsShareInvite => 'ಆಮಂತ್ರಣ ಹಂಚಿ';
+
+  @override
+  String get farmerRewardsReferralComingSoon =>
+      'ರೆಫರಲ್ ಆಮಂತ್ರಣ ಶೀಘ್ರದಲ್ಲಿ ಬರಲಿದೆ!';
+
+  @override
+  String get farmerServicesTitle => 'ಸೇವೆಗಳು';
+
+  @override
+  String get farmerServicesSubtitle => 'ರೈತ ಸೇವೆಗಳು ಬರಲಿವೆ — ಕಾಯಿರಿ.';
+
+  @override
+  String get farmerServicesSoon => 'ಶೀಘ್ರದಲ್ಲಿ';
+
+  @override
+  String get farmerServicesNotifyMe => 'ಲೈವ್ ಆದಾಗ ತಿಳಿಸಿ';
+
+  @override
+  String get farmerServicesNotifyToast =>
+      'ಸೇವೆಗಳು ಲೈವ್ ಆದಾಗ ನಿಮಗೆ ತಿಳಿಸುತ್ತೇವೆ!';
+
+  @override
+  String get farmerServicesCattleFeedName => 'ದನದ ಮೇವು';
+
+  @override
+  String get farmerServicesCattleFeedDesc =>
+      'ಗುಣಮಟ್ಟದ ಮೇವು & ಪೂರಕಗಳು ನಿಮ್ಮ ಫಾರ್ಮ್‌ಗೆ ತಲುಪಿಸಲಾಗುತ್ತದೆ.';
+
+  @override
+  String get farmerServicesVetName => 'ಪಶು ವೈದ್ಯಕೀಯ ಸೇವೆ';
+
+  @override
+  String get farmerServicesVetDesc =>
+      'ಮನೆ ಬಾಗಿಲಿಗೆ ಪಶು ವೈದ್ಯ ಭೇಟಿ, ಆರೋಗ್ಯ ತಪಾಸಣೆ & ಲಸಿಕೆ.';
+
+  @override
+  String get farmerServicesInsuranceName => 'ವಿಮೆ';
+
+  @override
+  String get farmerServicesInsuranceDesc =>
+      'ನಿಮ್ಮ ಹಿಂಡು & ಜೀವನೋಪಾಯ ರಕ್ಷಿಸಲು ಜಾನುವಾರು ವಿಮೆ.';
+
+  @override
+  String get farmerServicesLoansName => 'ಸಾಲ & ಮುಂಗಡ';
+
+  @override
+  String get farmerServicesLoansDesc => 'ನಿಮ್ಮ ಹಾಲು ಆದಾಯದ ವಿರುದ್ಧ ತಕ್ಷಣ ಮುಂಗಡ.';
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -8,8 +9,6 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/quality_badge.dart';
 
 /// Day detail — AM and PM pours for one day with FAT/SNF and line values.
-///
-/// Constructor is unchanged (date + pours passed by the caller).
 class FarmerCollectionDetail extends StatelessWidget {
   const FarmerCollectionDetail({
     super.key,
@@ -23,6 +22,7 @@ class FarmerCollectionDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final am = pours.where((p) => p.shift == Shift.am).toList();
     final pm = pours.where((p) => p.shift == Shift.pm).toList();
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
@@ -48,19 +48,19 @@ class FarmerCollectionDetail extends StatelessWidget {
           DhenuSpacing.x4,
         ),
         children: [
-          _summaryCard(context, t, totalL, totalRs),
+          _summaryCard(context, t, l, totalL, totalRs),
           const SizedBox(height: DhenuSpacing.xxl),
-          _shiftSection(context, t, isAm: true, pours: am),
+          _shiftSection(context, t, l, isAm: true, pours: am),
           const SizedBox(height: DhenuSpacing.lg),
-          _shiftSection(context, t, isAm: false, pours: pm),
+          _shiftSection(context, t, l, isAm: false, pours: pm),
         ],
       ),
     );
   }
 
-  // ── Summary card (cardLg radius, two columns) ───────────────────────────
+  // ── Summary card ────────────────────────────────────────────────────────
   Widget _summaryCard(
-      BuildContext context, DhenuTokens t, double totalL, double totalRs) {
+      BuildContext context, DhenuTokens t, AppLocalizations l, double totalL, double totalRs) {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: DhenuSpacing.xl,
@@ -74,9 +74,12 @@ class FarmerCollectionDetail extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: _summaryColumn(t, 'TOTAL', '${litres(totalL)} L', t.ink)),
+          Expanded(
+              child: _summaryColumn(t, l.farmerCollectionDetailTotal, '${litres(totalL)} L', t.ink)),
           Container(width: 1, height: 52, color: t.hairline),
-          Expanded(child: _summaryColumn(t, 'GROSS', rupees(totalRs), t.gradeA, right: true)),
+          Expanded(
+              child: _summaryColumn(t, l.farmerCollectionDetailGross, rupees(totalRs), t.gradeA,
+                  right: true)),
         ],
       ),
     );
@@ -108,19 +111,19 @@ class FarmerCollectionDetail extends StatelessWidget {
   }
 
   // ── Shift section ────────────────────────────────────────────────────────
-  Widget _shiftSection(BuildContext context, DhenuTokens t,
+  Widget _shiftSection(BuildContext context, DhenuTokens t, AppLocalizations l,
       {required bool isAm, required List<MpPour> pours}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _shiftHeading(t, isAm: isAm),
+        _shiftHeading(t, l, isAm: isAm),
         const SizedBox(height: DhenuSpacing.sm),
         if (pours.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
             child: Text(
-              'No collection recorded',
+              l.farmerCollectionDetailNoCollection,
               style: DhenuText.body.copyWith(color: t.inkSoft),
             ),
           )
@@ -132,7 +135,7 @@ class FarmerCollectionDetail extends StatelessWidget {
               children: [
                 for (var i = 0; i < pours.length; i++) ...[
                   if (i > 0) Divider(height: 1, color: t.hairline),
-                  _pourRow(t, pours[i]),
+                  _pourRow(t, l, pours[i]),
                 ],
               ],
             ),
@@ -141,11 +144,11 @@ class FarmerCollectionDetail extends StatelessWidget {
     );
   }
 
-  Widget _shiftHeading(DhenuTokens t, {required bool isAm}) {
+  Widget _shiftHeading(DhenuTokens t, AppLocalizations l, {required bool isAm}) {
     final color = isAm ? t.amText : t.pm;
     final fillColor = isAm ? t.am.withValues(alpha: 0.12) : t.pm.withValues(alpha: 0.10);
     final icon = isAm ? DhenuIcons.sun : DhenuIcons.moon;
-    final label = isAm ? 'AM' : 'PM';
+    final shiftLabel = isAm ? l.shiftAm : l.shiftPm;
 
     return Row(
       children: [
@@ -161,12 +164,12 @@ class FarmerCollectionDetail extends StatelessWidget {
         ),
         const SizedBox(width: DhenuSpacing.sm),
         Text(
-          label,
+          shiftLabel,
           style: DhenuText.label.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
         const SizedBox(width: DhenuSpacing.xs),
         Text(
-          'Shift',
+          l.farmerCollectionDetailShift,
           style: DhenuText.label.copyWith(color: t.inkSoft),
         ),
       ],
@@ -174,7 +177,7 @@ class FarmerCollectionDetail extends StatelessWidget {
   }
 
   // ── Pour row ─────────────────────────────────────────────────────────────
-  Widget _pourRow(DhenuTokens t, MpPour p) {
+  Widget _pourRow(DhenuTokens t, AppLocalizations l, MpPour p) {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: DhenuSpacing.lg,
@@ -185,7 +188,7 @@ class FarmerCollectionDetail extends StatelessWidget {
         children: [
           Expanded(child: _pourLeft(t, p)),
           const SizedBox(width: DhenuSpacing.md),
-          _pourRight(t, p),
+          _pourRight(t, l, p),
         ],
       ),
     );
@@ -201,12 +204,12 @@ class FarmerCollectionDetail extends StatelessWidget {
           style: DhenuText.number(size: 18, w: FontWeight.w700, color: t.ink),
         ),
         const SizedBox(height: DhenuSpacing.xs),
-        QualityBadge(fat: p.fat, snf: p.snf, grade: p.qualityGrade),
+        QualityBadge(fat: p.fat, snf: p.snf, water: p.water, grade: p.qualityGrade),
       ],
     );
   }
 
-  Widget _pourRight(DhenuTokens t, MpPour p) {
+  Widget _pourRight(DhenuTokens t, AppLocalizations l, MpPour p) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -217,7 +220,7 @@ class FarmerCollectionDetail extends StatelessWidget {
         ),
         const SizedBox(height: DhenuSpacing.xs),
         Text(
-          '@ ${rupees(p.ratePerLitre, paise: true)}/L',
+          l.farmerCollectionDetailRatePerLitre(rupees(p.ratePerLitre, paise: true)),
           style: DhenuText.caption.copyWith(color: t.inkSoft),
         ),
       ],

@@ -51,6 +51,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
   final _qty = TextEditingController();
   final _fat = TextEditingController();
   final _snf = TextEditingController();
+  final _water = TextEditingController();
   bool _saving = false;
   String? _error;
 
@@ -70,6 +71,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       _qty.text = (c.receiptQty ?? 0).toStringAsFixed(1);
       if (c.receiptFat != null) _fat.text = c.receiptFat!.toStringAsFixed(1);
       if (c.receiptSnf != null) _snf.text = c.receiptSnf!.toStringAsFixed(1);
+      if (c.receiptWater != null) _water.text = c.receiptWater!.toStringAsFixed(1);
     }
   }
 
@@ -78,6 +80,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
     _qty.dispose();
     _fat.dispose();
     _snf.dispose();
+    _water.dispose();
     super.dispose();
   }
 
@@ -86,6 +89,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       _qty.text = (c.dispatchQty ?? 0).toStringAsFixed(1);
       if (c.dispatchFat != null) _fat.text = c.dispatchFat!.toStringAsFixed(1);
       if (c.dispatchSnf != null) _snf.text = c.dispatchSnf!.toStringAsFixed(1);
+      if (c.dispatchWater != null) _water.text = c.dispatchWater!.toStringAsFixed(1);
     });
   }
 
@@ -102,6 +106,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       'receiptQty': qty,
       if (double.tryParse(_fat.text) != null) 'receiptFat': double.parse(_fat.text),
       if (double.tryParse(_snf.text) != null) 'receiptSnf': double.parse(_snf.text),
+      if (double.tryParse(_water.text) != null) 'receiptWater': double.parse(_water.text),
     };
     try {
       if (_isEdit) {
@@ -182,6 +187,8 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
             _readTile(t, 'Quantity', litres(c.dispatchQty ?? 0, unit: true)),
             _readTile(t, 'FAT', c.dispatchFat?.toStringAsFixed(1) ?? '—'),
             _readTile(t, 'SNF', c.dispatchSnf?.toStringAsFixed(1) ?? '—'),
+            if (c.dispatchWater != null)
+              _readTile(t, 'Water %', c.dispatchWater!.toStringAsFixed(1)),
           ]),
         ]),
       );
@@ -215,6 +222,8 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
               _readTile(t, 'Quantity', litres(c.receiptQty ?? 0, unit: true)),
               _readTile(t, 'FAT', c.receiptFat?.toStringAsFixed(1) ?? '—'),
               _readTile(t, 'SNF', c.receiptSnf?.toStringAsFixed(1) ?? '—'),
+              if (c.receiptWater != null)
+                _readTile(t, 'Water %', c.receiptWater!.toStringAsFixed(1)),
             ])
           else ...[
             _field(_qty, 'Received quantity (L)', onChanged: () => setState(() {})),
@@ -224,6 +233,8 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
               const SizedBox(width: DhenuSpacing.md),
               Expanded(child: _field(_snf, 'SNF %')),
             ]),
+            const SizedBox(height: DhenuSpacing.md),
+            _field(_water, 'Water % (optional)'),
           ],
         ]),
       );

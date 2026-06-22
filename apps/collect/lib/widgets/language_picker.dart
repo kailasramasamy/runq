@@ -48,15 +48,25 @@ class _LanguageSheet extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: DhenuSpacing.lg),
                 children: [
                   for (final lang in dhenuLanguages)
-                    ListTile(
-                      onTap: () {
-                        ref.read(localeProvider.notifier).set(lang.code);
-                        Navigator.of(context).pop();
-                      },
-                      title: Text(lang.nativeLabel, style: DhenuText.body.copyWith(color: t.ink)),
-                      subtitle: Text(lang.englishLabel, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-                      trailing: current == lang.code ? Icon(DhenuIcons.check, color: t.brand) : null,
-                    ),
+                    lang.supported
+                        ? ListTile(
+                            onTap: () {
+                              ref.read(localeProvider.notifier).set(lang.code);
+                              Navigator.of(context).pop();
+                            },
+                            title: Text(lang.nativeLabel, style: DhenuText.body.copyWith(color: t.ink)),
+                            subtitle: Text(lang.englishLabel, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                            trailing: current == lang.code ? Icon(DhenuIcons.check, color: t.brand) : null,
+                          )
+                        : ListTile(
+                            enabled: false,
+                            title: Text(lang.nativeLabel,
+                                style: DhenuText.body.copyWith(color: t.inkSoft.withValues(alpha: 0.5))),
+                            subtitle: Text(lang.englishLabel,
+                                style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.5))),
+                            trailing: Text('Coming soon',
+                                style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.7))),
+                          ),
                 ],
               ),
             ),

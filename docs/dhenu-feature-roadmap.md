@@ -39,9 +39,9 @@ Make farmers open the app daily, not twice. All data (FAT/SNF/CLR per pour) alre
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| P3.1 | **Quality nudges** | ⬜ | "Your FAT dropped 0.3 this week — here's why / talk to a vet." |
-| P3.2 | **Earnings projection** | ⬜ | "On track for ₹X this cycle." Daily-open hook. |
-| P3.3 | **Best-rate coaching** | ⬜ | Make the you-are-here FAT×SNF matrix actionable: "+1 point SNF = ₹Y more." |
+| P3.1 | **Quality nudges** | ✅ | Done 2026-06-22. Home card: week-over-week FAT/SNF shift (last 7 days vs prior 7, ≥2 readings each side, ±0.2 threshold) → "FAT down 0.3 this week" + reason hint. Client-side (`detectQualityNudge` over rolling-14-day pours); CLR-only nodes yield nothing. Vet CTA is informational (booking = P2.5); proactive push = P3.4. |
+| P3.2 | **Earnings projection** | ✅ | Done 2026-06-22. Run-rate "On track for ~₹X this cycle" on the farmer Home hero (gross) + Payments net-payable card (net). Pure client-side over cycle pours + period (no new API). |
+| P3.3 | **Best-rate coaching** | ✅ | Done 2026-06-22. "Earn more per litre" strip under the FAT×SNF matrix: next FAT/SNF breakpoint → +₹/L and ~₹/day. Client-side over the matrix cells (nearest-floor, mirrors server pricing); matrix charts only. |
 | P3.4 | **In-app notifications** | ⬜ | Foundational infra that powers P3.1/P3.2 nudges, P2.1 referral, payout-ready alerts ("cycle locked, ₹X paid"), shift reminders. Dhenu has its own auth/personas — reuse the FCM stack from `apps/mobile` (`project_fcm_push`) but wire a Dhenu-specific notifier; persona-scoped (farmer vs operator). In-app feed/inbox + push. |
 
 ---

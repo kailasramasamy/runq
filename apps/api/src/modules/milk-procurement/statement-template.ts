@@ -9,6 +9,7 @@ export interface StatementPour {
   qtyLitres: number;
   fat: number | null;
   snf: number | null;
+  water: number | null;
   ratePerLitre: number;
   lineAmount: number;
   receiptNo?: string | null;
@@ -26,7 +27,8 @@ export interface PourStatementData {
   pours: StatementPour[];
   totals: {
     litres: number; amount: number; count: number;
-    amLitres: number; pmLitres: number; avgFat: number | null; avgSnf: number | null;
+    amLitres: number; pmLitres: number;
+    avgFat: number | null; avgSnf: number | null; avgWater: number | null;
   };
   generatedAt: string; // ISO
 }
@@ -64,6 +66,7 @@ function pourRow(p: StatementPour): string {
     <td class="right">${num(p.qtyLitres, 1)}</td>
     <td class="right">${num(p.fat, 1)}</td>
     <td class="right">${num(p.snf, 1)}</td>
+    <td class="right">${num(p.water, 1)}</td>
     <td class="right">${num(p.ratePerLitre, 2)}</td>
     <td class="right">${inr(p.lineAmount)}</td>
   </tr>`;
@@ -103,20 +106,21 @@ export function renderPourStatementHTML(d: PourStatementData): string {
       ${summaryCard('Pours', String(d.totals.count))}
       ${summaryCard('AM / PM', `${num(d.totals.amLitres, 1)} / ${num(d.totals.pmLitres, 1)} L`)}
       ${summaryCard('Avg FAT / SNF', `${num(d.totals.avgFat, 1)} / ${num(d.totals.avgSnf, 1)}`)}
+      ${summaryCard('Avg Water %', num(d.totals.avgWater, 1))}
     </div>
     <table>
       <thead><tr>
         <th>Date</th><th class="center">Shift</th><th class="center">Type</th>
-        <th class="right">Qty (L)</th><th class="right">FAT</th><th class="right">SNF</th>
+        <th class="right">Qty (L)</th><th class="right">FAT</th><th class="right">SNF</th><th class="right">Water</th>
         <th class="right">Rate ₹/L</th><th class="right">Amount</th>
       </tr></thead>
       <tbody>
-        ${d.pours.length ? d.pours.map(pourRow).join('') : '<tr><td colspan="8" class="empty">No pours in this period.</td></tr>'}
+        ${d.pours.length ? d.pours.map(pourRow).join('') : '<tr><td colspan="9" class="empty">No pours in this period.</td></tr>'}
       </tbody>
       <tfoot><tr>
         <td colspan="3" class="tfoot-label">Total</td>
         <td class="right">${num(d.totals.litres, 1)}</td>
-        <td colspan="2"></td>
+        <td colspan="3"></td>
         <td class="right tfoot-label">Net</td>
         <td class="right grand">${inr(d.totals.amount)}</td>
       </tr></tfoot>

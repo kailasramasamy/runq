@@ -9,7 +9,7 @@ Scope: VMCC operator screens (operator-facing chrome). Data values
 acronyms (FAT, SNF, CLR, IFSC, UPI, GPS, KYC, BMC) and unit symbols (L, %, ₹, kg)
 are intentionally left in Latin.
 
-296 translatable keys, all with kn + ta values. Review each group, then tick.
+423 translatable keys, all with kn + ta values. Review each group, then tick.
 
 | Key group (prefix) | Screens | kn reviewed | ta reviewed |
 |--------------------|---------|:-----------:|:-----------:|
@@ -29,6 +29,13 @@ are intentionally left in Latin.
 | cycle*             | cycle_detail_screen | ☐ | ☐ |
 | farmerHistory*     | vmcc_farmer_history | ☐ | ☐ |
 | ledger*, statement*, picker* | ledger / statement / farmer picker | ☐ | ☐ |
+| farmerHome*        | farmer_home (greeting, hero, nudge, streak, quick links) | ☐ | ☐ |
+| farmerCollections* | farmer_collections_tab + farmer_collection_detail | ☐ | ☐ |
+| farmerPayments*    | farmer_payments_tab (net payable, breakdown, history) | ☐ | ☐ |
+| farmerRate*        | farmer_rate_chart (matrix, coaching, flat rate, rules) | ☐ | ☐ |
+| farmerRewards*     | farmer_rewards (streak, badges, referral) | ☐ | ☐ |
+| farmerServices*    | farmer_services_stub (service cards, notify CTA) | ☐ | ☐ |
+| navCollections, navServices | farmer_shell bottom-nav tabs | ☐ | ☐ |
 
 Note: Hindi/Telugu/etc. appear in the language picker but have no .arb yet — they
 fall back to English until translated (no crash; see main.dart supportedLocales).

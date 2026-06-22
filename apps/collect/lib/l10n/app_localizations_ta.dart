@@ -105,35 +105,35 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String collectCloseShift(String shift) {
-    return 'Close $shift collection';
+    return '$shift சேகரிப்பை மூடு';
   }
 
   @override
-  String get collectCloseDay => 'Close today\'s collection';
+  String get collectCloseDay => 'இன்றைய சேகரிப்பை மூடு';
 
   @override
   String collectClosedBanner(String shift) {
-    return '$shift collection is closed — ready to dispatch.';
+    return '$shift சேகரிப்பு மூடப்பட்டது — அனுப்புவதற்கு தயார்.';
   }
 
   @override
   String get collectDayClosedBanner =>
-      'Today\'s collection is closed — ready to dispatch.';
+      'இன்றைய சேகரிப்பு மூடப்பட்டது — அனுப்புவதற்கு தயார்.';
 
   @override
-  String get collectReopen => 'Reopen';
+  String get collectReopen => 'மீண்டும் திற';
 
   @override
   String get collectCloseBlockedPending =>
-      'Some pours haven\'t synced yet — wait for sync, then close.';
+      'சில ஊற்றுகள் இன்னும் ஒத்திசைக்கவில்லை — ஒத்திசைத்த பின் மூடவும்.';
 
   @override
   String get dispatchCloseFirst =>
-      'Close collection for this shift before dispatching.';
+      'அனுப்புவதற்கு முன் இந்த ஷிப்ட் சேகரிப்பை மூடவும்.';
 
   @override
   String get dispatchCloseFirstDay =>
-      'Close today\'s collection before dispatching.';
+      'அனுப்புவதற்கு முன் இன்றைய சேகரிப்பை மூடவும்.';
 
   @override
   String get historyLoadError => 'வரலாற்றை ஏற்ற முடியவில்லை';
@@ -835,6 +835,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get reportsStatAvgSnf => 'சராசரி SNF';
 
   @override
+  String get reportsStatAvgWater => 'சராசரி Water %';
+
+  @override
   String get reportsStatFarmers => 'விவசாயிகள்';
 
   @override
@@ -1049,4 +1052,413 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get photoSourceTitle => 'புகைப்படம் சேர்க்கவும்';
+
+  @override
+  String get farmerPhotoUpdated => 'சுயவிவரப் படம் புதுப்பிக்கப்பட்டது';
+
+  @override
+  String get farmerPhotoFailed =>
+      'படத்தைப் புதுப்பிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get navCollections => 'சேகரிப்புகள்';
+
+  @override
+  String get navServices => 'சேவைகள்';
+
+  @override
+  String get farmerHomeGoodMorning => 'காலை வணக்கம்';
+
+  @override
+  String get farmerHomeGoodAfternoon => 'மதிய வணக்கம்';
+
+  @override
+  String get farmerHomeGoodEvening => 'மாலை வணக்கம்';
+
+  @override
+  String get farmerHomeNoNotifications => 'புதிய அறிவிப்புகள் இல்லை';
+
+  @override
+  String get farmerHomeThisCycle => 'இந்த சுழற்சி';
+
+  @override
+  String farmerHomeHeroPours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ஊற்றுகள்',
+      one: '$count ஊற்று',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String farmerHomeHeroListenSpeak(String litres, String rupees) {
+    return 'இந்த சுழற்சி, $litres லிட்டர், $rupees ரூபாய்';
+  }
+
+  @override
+  String get farmerHomeHeroListenLabel => 'கேளுங்கள்';
+
+  @override
+  String farmerHomeProjection(String amount) {
+    return 'இந்த சுழற்சிக்கு ~$amount எதிர்பார்க்கப்படுகிறது';
+  }
+
+  @override
+  String get farmerHomeEmptyTitle => 'இந்த சுழற்சியில் இன்னும் ஊற்றுகள் இல்லை';
+
+  @override
+  String get farmerHomeEmptySubtitle =>
+      'மையத்தில் பதிவு செய்யப்பட்ட பிறகு உங்கள் சேகரிப்புகள் இங்கே தோன்றும்.';
+
+  @override
+  String get farmerHomeRefresh => 'புதுப்பிக்கவும்';
+
+  @override
+  String farmerHomeTodayCollected(String litres) {
+    return '$litres L சேகரிக்கப்பட்டது';
+  }
+
+  @override
+  String get farmerHomeNudgeImproved =>
+      'சிறப்பான வேலை — தீவன மற்றும் வழக்கத்தை தொடருங்கள்.';
+
+  @override
+  String get farmerHomeNudgeFatDown =>
+      'பொதுவாக தீவன தரம் அல்லது தாமதமான பால் கறவை. தீவனம் மற்றும் சுத்தமான தண்ணீர் சரிபார்க்கவும், அல்லது உங்கள் கால்நடை மருத்துவரை கேளுங்கள்.';
+
+  @override
+  String get farmerHomeNudgeSnfDown =>
+      'பொதுவாக ஊட்டச்சத்து அல்லது தண்ணீர். தீவனம் மற்றும் சுத்தமான தண்ணீர் சரிபார்க்கவும், அல்லது உங்கள் கால்நடை மருத்துவரை கேளுங்கள்.';
+
+  @override
+  String farmerHomeNudgeTitle(String metric, String direction, String delta) {
+    return '$metric இந்த வாரம் $delta $direction';
+  }
+
+  @override
+  String get farmerHomeNudgeUp => 'அதிகரித்தது';
+
+  @override
+  String get farmerHomeNudgeDown => 'குறைந்தது';
+
+  @override
+  String farmerHomeStreakTitle(int streak) {
+    String _temp0 = intl.Intl.pluralLogic(
+      streak,
+      locale: localeName,
+      other: '$streak நாள் தர வரிசை',
+      one: '$streak நாள் தர வரிசை',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeStreakBonusUnlocked =>
+      'போனஸ் திறக்கப்பட்டது — தொடருங்கள்!';
+
+  @override
+  String farmerHomeStreakRemaining(int remaining) {
+    String _temp0 = intl.Intl.pluralLogic(
+      remaining,
+      locale: localeName,
+      other: 'போனஸ் திறக்க $remaining Grade-A நாட்கள் மேலும்',
+      one: 'போனஸ் திறக்க $remaining Grade-A நாள் மேலும்',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get farmerHomeRateChart => 'விலை அட்டவணை';
+
+  @override
+  String get farmerHomeRewards => 'வெகுமதிகள்';
+
+  @override
+  String get farmerCollectionsTitle => 'சேகரிப்புகள்';
+
+  @override
+  String farmerCollectionsCyclePours(String scope, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ஊற்றுகள்',
+      one: '$count ஊற்று',
+    );
+    return '$scope · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionsDailyVolume => 'தினசரி அளவு';
+
+  @override
+  String farmerCollectionsAvgPerDay(String litres) {
+    return '$litres L/நாள் சராசரி';
+  }
+
+  @override
+  String get farmerCollectionsThisCycle => 'இந்த சுழற்சி';
+
+  @override
+  String get farmerCollectionsPastCycles => 'கடந்த சுழற்சிகள்';
+
+  @override
+  String get farmerCollectionsEmptyTitle =>
+      'இந்த சுழற்சியில் சேகரிப்புகள் இல்லை';
+
+  @override
+  String get farmerCollectionsEmptySubtitle =>
+      'பதிவு செய்யப்பட்ட பிறகு உங்கள் தினசரி ஊற்றுகள் இங்கே தோன்றும்.';
+
+  @override
+  String farmerCollectionsPastCycleSummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ஊற்றுகள்',
+      one: '$count ஊற்று',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerCollectionDetailTotal => 'மொத்தம்';
+
+  @override
+  String get farmerCollectionDetailGross => 'மொத்த தொகை';
+
+  @override
+  String get farmerCollectionDetailNoCollection =>
+      'எந்த சேகரிப்பும் பதிவு செய்யப்படவில்லை';
+
+  @override
+  String get farmerCollectionDetailShift => 'ஷிப்ட்';
+
+  @override
+  String farmerCollectionDetailRatePerLitre(String rate) {
+    return '@ $rate/L';
+  }
+
+  @override
+  String get farmerPaymentsTitle => 'கொடுப்பனவுகள்';
+
+  @override
+  String get farmerPaymentsSubtitle =>
+      'வெளிப்படையானது, ஒவ்வொரு ரூபாயும் கணக்கிடப்பட்டது';
+
+  @override
+  String farmerPaymentsNetPayable(String cycle) {
+    return 'நிகர செலுத்த வேண்டியது · $cycle';
+  }
+
+  @override
+  String farmerPaymentsListenSpeak(String rupees) {
+    return 'இந்த சுழற்சி நிகர செலுத்த வேண்டியது, $rupees ரூபாய்';
+  }
+
+  @override
+  String farmerPaymentsProjection(String amount) {
+    return 'இந்த சுழற்சிக்கு ~$amount எதிர்பார்க்கப்படுகிறது';
+  }
+
+  @override
+  String get farmerPaymentsGrossMilk => 'மொத்த பால்';
+
+  @override
+  String get farmerPaymentsQualityBonus => 'தர போனஸ்';
+
+  @override
+  String farmerPaymentsOutstandingAdvance(String amount) {
+    return 'நிலுவை முன்பணம்: $amount';
+  }
+
+  @override
+  String get farmerPaymentsHistoryHeader => 'கொடுப்பனவு வரலாறு';
+
+  @override
+  String get farmerPaymentsPaid => 'செலுத்தப்பட்டது';
+
+  @override
+  String get farmerPaymentsDeductCattleFeedLoan => 'கால்நடை தீவன கடன்';
+
+  @override
+  String get farmerPaymentsDeductAdvance => 'முன்பணம்';
+
+  @override
+  String get farmerPaymentsDeductMedicine => 'மருந்து';
+
+  @override
+  String get farmerPaymentsDeductInsurance => 'காப்பீடு';
+
+  @override
+  String farmerPaymentsHistorySummary(String litres, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ஊற்றுகள்',
+      one: '$count ஊற்று',
+    );
+    return '$litres L · $_temp0';
+  }
+
+  @override
+  String get farmerRateChartTitle => 'விலை அட்டவணை';
+
+  @override
+  String get farmerRateListenSpeak => 'உங்கள் பால் விலை அட்டவணை';
+
+  @override
+  String farmerRateListenSpeakWithRate(String rate) {
+    return 'உங்கள் விலை லிட்டருக்கு $rate ரூபாய்';
+  }
+
+  @override
+  String get farmerRateEmptyTitle => 'செயலில் விலை அட்டவணை இல்லை';
+
+  @override
+  String get farmerRateEmptySubtitle =>
+      'உங்கள் பால் சேகரிப்பு மையத்தை தொடர்பு கொள்ளுங்கள்';
+
+  @override
+  String get farmerRateLastPourLabel => 'உங்கள் கடைசி ஊற்று';
+
+  @override
+  String get farmerRateMatrixTitle => 'விலை அட்டவணை (₹/L)';
+
+  @override
+  String get farmerRateBonusSlabsTitle => 'போனஸ் & அடுக்குகள்';
+
+  @override
+  String get farmerRateFlatRateLabel => 'நிலையான விலை';
+
+  @override
+  String get farmerRateEarnMore => 'லிட்டருக்கு அதிகமாக சம்பாதிக்கவும்';
+
+  @override
+  String farmerRateRaiseSnf(String value) {
+    return 'SNF ஐ $value ஆக உயர்த்தவும்';
+  }
+
+  @override
+  String farmerRateRaiseFat(String value) {
+    return 'FAT ஐ $value ஆக உயர்த்தவும்';
+  }
+
+  @override
+  String get farmerRateNoMatrixData => 'அட்டவணை தரவு இல்லை';
+
+  @override
+  String farmerRateRuleGradeBonus(String grade) {
+    return 'Grade-$grade போனஸ்';
+  }
+
+  @override
+  String farmerRateRuleVolumeRange(String min, String max) {
+    return 'அளவு $min–$max L';
+  }
+
+  @override
+  String farmerRateRuleVolumeMin(String min) {
+    return 'அளவு > $min L';
+  }
+
+  @override
+  String get farmerRewardsTitle => 'வெகுமதிகள்';
+
+  @override
+  String get farmerRewardsBadgesSection => 'பதக்கங்கள்';
+
+  @override
+  String get farmerRewardsQualityStreak => 'தர வரிசை';
+
+  @override
+  String farmerRewardsStreakDays(int target) {
+    return '/ $target நாட்கள்';
+  }
+
+  @override
+  String get farmerRewardsBonusUnlocked => 'போனஸ் திறக்கப்பட்டது — தொடருங்கள்!';
+
+  @override
+  String farmerRewardsStreakRemaining(int remaining) {
+    return '₹500 போனஸ் திறக்க $remaining நாட்கள் மேலும்';
+  }
+
+  @override
+  String get farmerRewardsBadgeUnlocked => 'திறக்கப்பட்டது';
+
+  @override
+  String get farmerRewardsBadgeLocked => 'பூட்டப்பட்டது';
+
+  @override
+  String get farmerRewardsBadgeConsistent => 'நிலையான';
+
+  @override
+  String get farmerRewardsBadge100Day => '100 நாள் கிளப்';
+
+  @override
+  String get farmerRewardsBadgeTopFat => 'சிறந்த FAT';
+
+  @override
+  String get farmerRewardsBadgeReferrer => 'பரிந்துரைத்தவர்';
+
+  @override
+  String get farmerRewardsReferTitle => 'விவசாயியை பரிந்துரைக்கவும்';
+
+  @override
+  String get farmerRewardsReferBody =>
+      'சேரும் ஒவ்வொரு விவசாயிக்கும் ₹100 சம்பாதிக்கவும்';
+
+  @override
+  String get farmerRewardsShareInvite => 'அழைப்பை பகிர்';
+
+  @override
+  String get farmerRewardsReferralComingSoon =>
+      'பரிந்துரை அழைப்பு விரைவில் வருகிறது!';
+
+  @override
+  String get farmerServicesTitle => 'சேவைகள்';
+
+  @override
+  String get farmerServicesSubtitle =>
+      'விவசாயி சேவைகள் வருகின்றன — காத்திருங்கள்.';
+
+  @override
+  String get farmerServicesSoon => 'விரைவில்';
+
+  @override
+  String get farmerServicesNotifyMe => 'நேரடியாக வரும்போது தெரிவிக்கவும்';
+
+  @override
+  String get farmerServicesNotifyToast =>
+      'சேவைகள் நேரடியாக வரும்போது உங்களுக்கு தெரிவிக்கிறோம்!';
+
+  @override
+  String get farmerServicesCattleFeedName => 'கால்நடை தீவனம்';
+
+  @override
+  String get farmerServicesCattleFeedDesc =>
+      'தரமான புல் & சத்துக்கள் உங்கள் பண்ணைக்கு வழங்கப்படும்.';
+
+  @override
+  String get farmerServicesVetName => 'கால்நடை மருத்துவ சேவை';
+
+  @override
+  String get farmerServicesVetDesc =>
+      'வீட்டு வாசலில் கால்நடை மருத்துவர் வருகை, உடல்நல பரிசோதனை & தடுப்பூசி.';
+
+  @override
+  String get farmerServicesInsuranceName => 'காப்பீடு';
+
+  @override
+  String get farmerServicesInsuranceDesc =>
+      'உங்கள் கால்நடை & வாழ்வாதாரத்தை பாதுகாக்க கால்நடை காப்பீடு.';
+
+  @override
+  String get farmerServicesLoansName => 'கடன் & முன்பணம்';
+
+  @override
+  String get farmerServicesLoansDesc =>
+      'உங்கள் பால் வருமானத்திற்கு எதிராக உடனடி முன்பணம்.';
 }

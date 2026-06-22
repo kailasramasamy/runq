@@ -21,18 +21,46 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingObserver {
   bool _busy = false;
   bool _phoneMode = false;
   String? _error;
   final _phone = TextEditingController();
   final _dob = TextEditingController();
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _phone.dispose();
     _dob.dispose();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  /// When the keyboard opens, scroll the form to the end so the phone field,
+  /// secret code, and Sign-in button all clear the keypad.
+  @override
+  void didChangeMetrics() {
+    if (!_phoneMode) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      // Stop a little short of the very bottom so the form sits just above the
+      // keypad rather than scrolling the whole bottom padding into view.
+      final target = (_scroll.position.maxScrollExtent - DhenuSpacing.x4)
+          .clamp(0.0, _scroll.position.maxScrollExtent);
+      _scroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -75,6 +103,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: ListView(
+          controller: _scroll,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.xl, vertical: DhenuSpacing.x4),
           children: [

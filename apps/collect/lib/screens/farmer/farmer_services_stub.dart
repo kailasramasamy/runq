@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -13,66 +14,67 @@ class FarmerServicesStub extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
-        _header(t),
+        _header(t, l),
         const SizedBox(height: DhenuSpacing.xxl),
         _ServiceCard(
           icon: DhenuIcons.feed,
           tint: t.gradeB,
-          name: 'Cattle Feed',
-          description: 'Quality fodder & supplements delivered to your farm.',
+          name: l.farmerServicesCattleFeedName,
+          description: l.farmerServicesCattleFeedDesc,
         ),
         const SizedBox(height: DhenuSpacing.md),
         _ServiceCard(
           icon: DhenuIcons.vet,
           tint: t.brand,
-          name: 'Veterinary Care',
-          description: 'Doorstep vet visits, health check-ups & vaccinations.',
+          name: l.farmerServicesVetName,
+          description: l.farmerServicesVetDesc,
         ),
         const SizedBox(height: DhenuSpacing.md),
         _ServiceCard(
           icon: DhenuIcons.insurance,
           tint: t.pm,
-          name: 'Insurance',
-          description: 'Cattle insurance to protect your herd & livelihood.',
+          name: l.farmerServicesInsuranceName,
+          description: l.farmerServicesInsuranceDesc,
         ),
         const SizedBox(height: DhenuSpacing.md),
         _ServiceCard(
           icon: DhenuIcons.loans,
           tint: t.gradeA,
-          name: 'Loans & Advances',
-          description: 'Instant advances against your milk supply earnings.',
+          name: l.farmerServicesLoansName,
+          description: l.farmerServicesLoansDesc,
         ),
         const SizedBox(height: DhenuSpacing.xxl),
-        _notifyButton(context, t),
+        _notifyButton(context, t, l),
       ],
     );
   }
 
-  Widget _header(DhenuTokens t) => Column(
+  Widget _header(DhenuTokens t, AppLocalizations l) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Services', style: DhenuText.h2.copyWith(color: t.ink)),
+          Text(l.farmerServicesTitle, style: DhenuText.h2.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.xs),
           Text(
-            'Farmer services are on their way — stay tuned.',
+            l.farmerServicesSubtitle,
             style: DhenuText.body.copyWith(color: t.inkSoft),
           ),
         ],
       );
 
-  Widget _notifyButton(BuildContext context, DhenuTokens t) => SizedBox(
+  Widget _notifyButton(BuildContext context, DhenuTokens t, AppLocalizations l) => SizedBox(
         height: DhenuSpacing.minTap,
         child: OutlinedButton.icon(
-          onPressed: () => showDhenuToast(
-              context, "We'll notify you when services go live!", type: DhenuToastType.info),
+          onPressed: () => showDhenuToast(context, l.farmerServicesNotifyToast,
+              type: DhenuToastType.info),
           icon: Icon(DhenuIcons.bell, size: 18, color: t.brand),
-          label: const Text('Notify me when live'),
+          label: Text(l.farmerServicesNotifyMe),
           style: OutlinedButton.styleFrom(
             foregroundColor: t.brand,
             side: BorderSide(color: t.brand),
@@ -100,6 +102,7 @@ class _ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return DhenuCard(
       elevated: true,
       child: Row(
@@ -109,7 +112,7 @@ class _ServiceCard extends StatelessWidget {
           const SizedBox(width: DhenuSpacing.md),
           Expanded(child: _labels(t)),
           const SizedBox(width: DhenuSpacing.sm),
-          _soonChip(t),
+          _soonChip(t, l),
         ],
       ),
     );
@@ -141,7 +144,7 @@ class _ServiceCard extends StatelessWidget {
         ],
       );
 
-  Widget _soonChip(DhenuTokens t) => Container(
+  Widget _soonChip(DhenuTokens t, AppLocalizations l) => Container(
         padding: const EdgeInsets.symmetric(
             horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
         decoration: BoxDecoration(
@@ -149,7 +152,7 @@ class _ServiceCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
         ),
         child: Text(
-          'SOON',
+          l.farmerServicesSoon,
           style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.6),
         ),
       );

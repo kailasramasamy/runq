@@ -116,6 +116,7 @@ class PpHome extends ConsumerWidget {
             : 0.0;
         final avgFat = _weightedAvg(received, (c) => c.receiptFat ?? 0, (c) => c.receiptQty ?? 0);
         final avgSnf = _weightedAvg(received, (c) => c.receiptSnf ?? 0, (c) => c.receiptQty ?? 0);
+        final avgWater = _weightedAvg(received, (c) => c.receiptWater ?? 0, (c) => c.receiptQty ?? 0);
         final vLabel = variance >= 0
             ? '+${variance.toStringAsFixed(1)}% vs disp.'
             : '${variance.toStringAsFixed(1)}% vs disp.';
@@ -136,7 +137,9 @@ class PpHome extends ConsumerWidget {
                 style: DhenuText.body.copyWith(color: onHeroSoft)),
             const Spacer(),
             if (avgFat > 0)
-              Text('FAT ${avgFat.toStringAsFixed(1)} · SNF ${avgSnf.toStringAsFixed(1)}',
+              Text(
+                  'FAT ${avgFat.toStringAsFixed(1)} · SNF ${avgSnf.toStringAsFixed(1)}'
+                  '${avgWater > 0 ? ' · W ${avgWater.toStringAsFixed(1)}' : ''}',
                   style: DhenuText.caption.copyWith(color: onHero)),
           ]),
         );
@@ -302,7 +305,7 @@ class PpHome extends ConsumerWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             if (c.receiptFat != null)
-              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, grade: Grade.unknown),
+              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater, grade: Grade.unknown),
           ]),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

@@ -34,6 +34,22 @@ export const rateChartRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.getById(id) };
   });
 
+  // Printable rate chart (PDF by default, ?format=html to debug).
+  app.get('/:id/print', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const format = (request.query as { format?: string }).format;
+    const service = new RateChartService(request.server.db, request.tenantId);
+    const data = await service.getPrintData(id, new Date().toISOString());
+    const { renderRateChartHTML } = await import('./rate-chart-template');
+    const html = renderRateChartHTML(data);
+    if (format === 'html') return reply.type('text/html').send(html);
+    const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
+    const pdf = await renderHtmlToPdf(html);
+    const fname = `rate-chart-${data.chart.name}-${data.chart.effectiveFrom}.pdf`.replace(/[^\w.\-]/g, '-');
+    return reply.type('application/pdf')
+      .header('Content-Disposition', `inline; filename="${fname}"`).send(pdf);
+  });
+
   app.post('/', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
     const input = createRateChartSchema.parse(request.body);
     const service = new RateChartService(request.server.db, request.tenantId);

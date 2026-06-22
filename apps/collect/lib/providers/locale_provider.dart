@@ -9,22 +9,31 @@ const _prefKey = 'dhenu-locale';
 /// language's own script; [ttsTag] is the BCP-47 tag for read-aloud.
 class DhenuLanguage {
   final String code, englishLabel, nativeLabel, ttsTag, shortLabel;
-  const DhenuLanguage(this.code, this.englishLabel, this.nativeLabel, this.ttsTag, this.shortLabel);
+
+  /// Whether the UI strings are actually translated and shippable. Unsupported
+  /// languages are shown in the picker as "Coming soon" and can't be selected.
+  final bool supported;
+  const DhenuLanguage(this.code, this.englishLabel, this.nativeLabel, this.ttsTag, this.shortLabel,
+      {this.supported = false});
   Locale get locale => Locale(code);
 }
 
-/// The languages targeted by Dhenu (spec §2.2 / §7). English ships fully;
-/// the Indic UI-string translations are a follow-on pass needing native input.
+/// The languages targeted by Dhenu (spec §2.2 / §7). Supported languages
+/// (those with generated l10n) come first; the rest are listed as "Coming soon"
+/// until their Indic UI-string translations land.
 const dhenuLanguages = <DhenuLanguage>[
-  DhenuLanguage('en', 'English', 'English', 'en-IN', 'EN'),
+  DhenuLanguage('en', 'English', 'English', 'en-IN', 'EN', supported: true),
+  DhenuLanguage('kn', 'Kannada', 'ಕನ್ನಡ', 'kn-IN', 'ಕ', supported: true),
+  DhenuLanguage('ta', 'Tamil', 'தமிழ்', 'ta-IN', 'த', supported: true),
   DhenuLanguage('hi', 'Hindi', 'हिन्दी', 'hi-IN', 'हि'),
-  DhenuLanguage('ta', 'Tamil', 'தமிழ்', 'ta-IN', 'த'),
   DhenuLanguage('te', 'Telugu', 'తెలుగు', 'te-IN', 'తె'),
-  DhenuLanguage('kn', 'Kannada', 'ಕನ್ನಡ', 'kn-IN', 'ಕ'),
   DhenuLanguage('ml', 'Malayalam', 'മലയാളം', 'ml-IN', 'മ'),
   DhenuLanguage('gu', 'Gujarati', 'ગુજરાતી', 'gu-IN', 'ગુ'),
   DhenuLanguage('bn', 'Bengali', 'বাংলা', 'bn-IN', 'বাং'),
 ];
+
+/// Languages whose UI is fully translated and selectable today.
+List<DhenuLanguage> get supportedLanguages => dhenuLanguages.where((l) => l.supported).toList();
 
 DhenuLanguage languageForCode(String code) =>
     dhenuLanguages.firstWhere((l) => l.code == code, orElse: () => dhenuLanguages.first);

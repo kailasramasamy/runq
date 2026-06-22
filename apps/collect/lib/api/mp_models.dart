@@ -360,7 +360,7 @@ class MpPour {
   final Shift shift;
   final MilkType milkType;
   final double qtyLitres, ratePerLitre, lineAmount;
-  final double? fat, snf, clr;
+  final double? fat, snf, clr, water;
   final Grade qualityGrade;
   final String? receiptNo;
   final String status; // recorded | reversed
@@ -378,6 +378,7 @@ class MpPour {
     this.fat,
     this.snf,
     this.clr,
+    this.water,
     this.qualityGrade = Grade.unknown,
     this.receiptNo,
     this.status = 'recorded',
@@ -396,6 +397,7 @@ class MpPour {
     fat: _dn(j['fat']),
     snf: _dn(j['snf']),
     clr: _dn(j['clr']),
+    water: _dn(j['water']),
     qualityGrade: gradeFrom(j['qualityGrade'] as String?),
     receiptNo: _sn(j['receiptNo']),
     status: _s(j['status']),
@@ -405,7 +407,7 @@ class MpPour {
 class MpCollectionSummary {
   final String? nodeId;
   final String from, to;
-  final double totalQty, amQty, pmQty, avgFat, avgSnf, grossAmount;
+  final double totalQty, amQty, pmQty, avgFat, avgSnf, avgWater, grossAmount;
   final int pourCount, farmerCount;
 
   MpCollectionSummary({
@@ -417,6 +419,7 @@ class MpCollectionSummary {
     required this.pmQty,
     required this.avgFat,
     required this.avgSnf,
+    required this.avgWater,
     required this.grossAmount,
     required this.pourCount,
     required this.farmerCount,
@@ -432,6 +435,7 @@ class MpCollectionSummary {
         pmQty: _d(j['pmQty']),
         avgFat: _d(j['avgFat']),
         avgSnf: _d(j['avgSnf']),
+        avgWater: _d(j['avgWater']),
         grossAmount: _d(j['grossAmount']),
         pourCount: _i(j['pourCount']),
         farmerCount: _i(j['farmerCount']),
@@ -473,10 +477,13 @@ class MpConsignment {
       receiptQty,
       dispatchFat,
       dispatchSnf,
+      dispatchWater,
       receiptFat,
       receiptSnf,
+      receiptWater,
       varianceQty,
       variancePct;
+  final bool directReceive;
 
   MpConsignment({
     required this.id,
@@ -492,10 +499,13 @@ class MpConsignment {
     this.receiptQty,
     this.dispatchFat,
     this.dispatchSnf,
+    this.dispatchWater,
     this.receiptFat,
     this.receiptSnf,
+    this.receiptWater,
     this.varianceQty,
     this.variancePct,
+    this.directReceive = false,
   });
 
   bool get inTransit => status == 'in_transit';
@@ -515,17 +525,20 @@ class MpConsignment {
     receiptQty: _dn(j['receiptQty']),
     dispatchFat: _dn(j['dispatchFat']),
     dispatchSnf: _dn(j['dispatchSnf']),
+    dispatchWater: _dn(j['dispatchWater']),
     receiptFat: _dn(j['receiptFat']),
     receiptSnf: _dn(j['receiptSnf']),
+    receiptWater: _dn(j['receiptWater']),
     varianceQty: _dn(j['varianceQty']),
     variancePct: _dn(j['variancePct']),
+    directReceive: j['directReceive'] == true,
   );
 }
 
 class MpAvailability {
   final String nodeId, collectionDate, nodeType;
   final double collected, dispatched, available;
-  final double? avgFat, avgSnf;
+  final double? avgFat, avgSnf, avgWater;
   MpAvailability({
     required this.nodeId,
     required this.collectionDate,
@@ -535,6 +548,7 @@ class MpAvailability {
     required this.available,
     this.avgFat,
     this.avgSnf,
+    this.avgWater,
   });
   factory MpAvailability.fromJson(Map<String, dynamic> j) => MpAvailability(
     nodeId: _s(j['nodeId']),
@@ -545,6 +559,7 @@ class MpAvailability {
     available: _d(j['available']),
     avgFat: _dn(j['avgFat']),
     avgSnf: _dn(j['avgSnf']),
+    avgWater: _dn(j['avgWater']),
   );
 }
 

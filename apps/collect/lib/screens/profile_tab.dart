@@ -17,6 +17,7 @@ import '../utils/format.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/dhenu_card.dart';
+import '../widgets/farmer_profile_photo.dart';
 import '../widgets/gradient_hero_card.dart';
 import '../widgets/language_picker.dart';
 
@@ -69,7 +70,7 @@ class ProfileTab extends ConsumerWidget {
         DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4,
       ),
       children: [
-        _avatarHero(context, t, user, farmer?.code, opName),
+        _avatarHero(context, t, user, farmer, opName),
         const SizedBox(height: DhenuSpacing.lg),
         _statRow(context, t, l, memberSince, centre),
         const SizedBox(height: DhenuSpacing.lg),
@@ -96,11 +97,11 @@ class ProfileTab extends ConsumerWidget {
   }
 
   // ── Avatar hero ────────────────────────────────────────────────────────────
-  Widget _avatarHero(BuildContext context, DhenuTokens t, AuthUser? user, String? farmerCode,
+  Widget _avatarHero(BuildContext context, DhenuTokens t, AuthUser? user, MpFarmer? farmer,
       String? displayName) {
     final name = (displayName != null && displayName.isNotEmpty) ? displayName : (user?.name ?? 'Dhenu User');
     final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
-    final captionParts = _captionParts(user, farmerCode);
+    final captionParts = _captionParts(user, farmer?.code);
 
     return GradientHeroCard(
       padding: const EdgeInsets.symmetric(
@@ -109,21 +110,25 @@ class ProfileTab extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 64px gradient avatar: white circle over the hero gradient
-          Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
+          // Farmers get a tappable photo (add/change); other personas keep the
+          // plain 64px initials circle over the hero gradient.
+          if (farmer != null)
+            FarmerProfilePhoto(farmer: farmer, initial: initial)
+          else
+            Container(
+              width: 64,
+              height: 64,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
+              ),
+              child: Text(
+                initial,
+                style: DhenuText.h2.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+              ),
             ),
-            child: Text(
-              initial,
-              style: DhenuText.h2.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-          ),
           const SizedBox(height: DhenuSpacing.md),
           Text(name, style: DhenuText.h2.copyWith(color: Colors.white)),
           if (subtitle != null) ...[

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../api/mp_repo.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -9,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
+import '../../widgets/sheet_grabber.dart';
 import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
 
@@ -31,30 +33,50 @@ class CcReceiveTab extends ConsumerWidget {
     final allVmccs = ref.watch(nodesByTypeProvider('vmcc')).value ?? const <MpNode>[];
     final names = {for (final n in allVmccs) n.id: n.name};
     final children = allVmccs.where((n) => n.parentNodeId == node.id).toList();
+    final shiftStatus = ref.watch(shiftStatusProvider(node.id)).asData?.value;
     return Scaffold(
       backgroundColor: t.surface,
-      appBar: AppBar(title: const Text('Receive'), actions: [
-        IconButton(
-          tooltip: 'Manual receive',
-          icon: const Icon(DhenuIcons.add),
-          onPressed: () => _openManualReceive(context, ref, children),
-        ),
-      ]),
-      body: RefreshIndicator(
-        onRefresh: () => _refresh(ref),
-        child: consAsync.when(
-          loading: () => const DhenuLoadingList(),
-          error: (e, _) => DhenuEmptyState(
-            icon: DhenuIcons.cloudOff,
-            title: 'Could not load consignments',
-            subtitle: '$e',
+      appBar: AppBar(title: const Text('Receive')),
+      body: Column(children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => _refresh(ref),
+            child: consAsync.when(
+              loading: () => const DhenuLoadingList(),
+              error: (e, _) => DhenuEmptyState(
+                icon: DhenuIcons.cloudOff,
+                title: 'Could not load consignments',
+                subtitle: '$e',
+              ),
+              data: (all) {
+                final inTransit = all.where((c) => c.kind == 'vmcc_to_cc' && c.inTransit).toList();
+                // Newest first by consignment no. (monotonic) so a just-added
+                // receipt — AM or PM — always surfaces at the top.
+                final received = all.where((c) => c.kind == 'vmcc_to_cc' && c.received).toList()
+                  ..sort((a, b) => b.consignmentNo.compareTo(a.consignmentNo));
+                return _list(context, ref, t, inTransit, received, names, shiftStatus);
+              },
+            ),
           ),
-          data: (all) {
-            final inTransit = all.where((c) => c.kind == 'vmcc_to_cc' && c.inTransit).toList();
-            final received =
-                all.where((c) => c.kind == 'vmcc_to_cc' && c.received).toList().reversed.toList();
-            return _list(context, ref, t, inTransit, received, names, children);
-          },
+        ),
+        _manualReceiveBar(context, ref, t, children),
+      ]),
+    );
+  }
+
+  /// Bottom-anchored entry to the manual (no-dispatch) receive flow.
+  Widget _manualReceiveBar(
+      BuildContext context, WidgetRef ref, DhenuTokens t, List<MpNode> children) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, DhenuSpacing.sm),
+        child: OutlinedButton.icon(
+          onPressed: () => _openManualReceive(context, ref, children),
+          icon: const Icon(DhenuIcons.listAdd, size: 18),
+          label: const Text('Manual receive'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ),
     );
@@ -62,19 +84,12 @@ class CcReceiveTab extends ConsumerWidget {
 
   Widget _list(BuildContext context, WidgetRef ref, DhenuTokens t,
       List<MpConsignment> inTransit, List<MpConsignment> received,
-      Map<String, String> names, List<MpNode> children) {
+      Map<String, String> names, MpShiftStatus? shiftStatus) {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.bottomGap),
       children: [
-        OutlinedButton.icon(
-          onPressed: () => _openManualReceive(context, ref, children),
-          icon: const Icon(DhenuIcons.listAdd, size: 18),
-          label: const Text('Receive without dispatch entry'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
-        ),
-        const SizedBox(height: DhenuSpacing.lg),
         _sectionTitle(t, 'In transit', inTransit.length),
         const SizedBox(height: DhenuSpacing.sm),
         if (inTransit.isEmpty)
@@ -98,9 +113,9 @@ class CcReceiveTab extends ConsumerWidget {
             subtitle: 'Milk you receive from VMCCs shows here',
           )
         else
-          for (var i = 0; i < received.length && i < 10; i++) ...[
+          for (var i = 0; i < received.length; i++) ...[
             _receivedCard(context, ref, t, received[i],
-                names[received[i].fromNodeId] ?? 'VMCC', editable: i == 0),
+                names[received[i].fromNodeId] ?? 'VMCC', shiftStatus),
             const SizedBox(height: DhenuSpacing.sm),
           ],
       ],
@@ -141,14 +156,15 @@ class CcReceiveTab extends ConsumerWidget {
   }
 
   Widget _receivedCard(BuildContext context, WidgetRef ref, DhenuTokens t,
-      MpConsignment c, String name, {bool editable = false}) {
+      MpConsignment c, String name, MpShiftStatus? shiftStatus) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
     final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️' : '🌙'} · ';
+    final canDelete = c.directReceive && !_lockedForDispatch(shiftStatus, c);
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      onTap: () => _openReceive(context, ref, c, name, editable: editable),
+      onTap: () => _openActions(context, ref, t, c, name, canDelete),
       child: Row(children: [
         Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
         const SizedBox(width: DhenuSpacing.md),
@@ -166,12 +182,121 @@ class CcReceiveTab extends ConsumerWidget {
           Text('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}% var',
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
-        if (editable) ...[
-          const SizedBox(width: DhenuSpacing.sm),
-          Icon(DhenuIcons.edit, size: 16, color: t.brand),
-        ],
+        const SizedBox(width: DhenuSpacing.sm),
+        Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
       ]),
     );
+  }
+
+  /// A manual receipt's CC slot is locked once receiving is closed for dispatch
+  /// (BMC pools the whole day; no-BMC locks per shift). Status not yet resolved →
+  /// not locked; the server re-checks and rejects a genuinely-locked delete.
+  bool _lockedForDispatch(MpShiftStatus? st, MpConsignment c) {
+    if (st == null) return false;
+    if (node.hasBmc) return st.dayClosed;
+    return c.shift != null && st.closedFor(c.shift!.name);
+  }
+
+  /// Edit / Delete sheet for a receipt. Delete shows only for an unlocked manual
+  /// receipt; a locked manual receipt shows why it can't be removed.
+  Future<void> _openActions(BuildContext context, WidgetRef ref, DhenuTokens t,
+      MpConsignment c, String name, bool canDelete) {
+    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️ AM' : '🌙 PM'} · ';
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(child: SheetGrabber()),
+                Text(name, style: DhenuText.title.copyWith(color: t.ink)),
+                const SizedBox(height: 2),
+                Text('$shift${litres(c.receiptQty ?? 0, unit: true)} · ${prettyDate(c.collectionDate)}',
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                const SizedBox(height: DhenuSpacing.lg),
+                _actionRow(t, DhenuIcons.edit, 'Edit receipt', t.brand, () {
+                  Navigator.pop(ctx);
+                  _openReceive(context, ref, c, name, editable: true);
+                }),
+                if (canDelete) ...[
+                  const SizedBox(height: DhenuSpacing.sm),
+                  _actionRow(t, DhenuIcons.trash, 'Delete receipt', t.gradeC, () {
+                    Navigator.pop(ctx);
+                    _confirmDelete(context, ref, c, name);
+                  }),
+                ] else if (c.directReceive) ...[
+                  const SizedBox(height: DhenuSpacing.md),
+                  Row(children: [
+                    Icon(DhenuIcons.lock, size: 15, color: t.inkSoft),
+                    const SizedBox(width: DhenuSpacing.sm),
+                    Expanded(child: Text('Locked — receiving closed for dispatch',
+                        style: DhenuText.caption.copyWith(color: t.inkSoft))),
+                  ]),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionRow(DhenuTokens t, IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(DhenuRadii.card),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        decoration: BoxDecoration(
+          color: t.inputFill,
+          borderRadius: BorderRadius.circular(DhenuRadii.card),
+          border: Border.all(color: t.hairline),
+        ),
+        child: Row(children: [
+          Container(
+            width: 38, height: 38, alignment: Alignment.center,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: DhenuSpacing.md),
+          Text(label, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, WidgetRef ref, MpConsignment c, String name) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Delete receipt?'),
+        content: Text('$name · ${litres(c.receiptQty ?? 0, unit: true)} will be removed.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await mpRepo.deleteReceipt(c.id);
+      ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+      if (context.mounted) showDhenuToast(context, 'Receipt deleted', type: DhenuToastType.success);
+    } catch (e) {
+      if (context.mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+    }
   }
 
   Widget _cardHeader(DhenuTokens t, MpConsignment c, String name) => Row(children: [

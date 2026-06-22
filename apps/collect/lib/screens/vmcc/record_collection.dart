@@ -42,10 +42,12 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   final _qty = TextEditingController();
   final _fat = TextEditingController();
   final _snf = TextEditingController();
+  final _water = TextEditingController();
   final _clr = TextEditingController();
   final _qtyFocus = FocusNode();
   final _fatFocus = FocusNode();
   final _snfFocus = FocusNode();
+  final _waterFocus = FocusNode();
   final _clrFocus = FocusNode();
 
   Timer? _debounce;
@@ -53,6 +55,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   bool _resolving = false;
   bool _saving = false;
   bool _closingBusy = false;
+  // Water (analyzer) is optional, but the operator is routed through it before
+  // save so it isn't silently skipped — gates "Save & next" in analyzer mode.
+  bool _waterVisited = false;
 
   /// Types the operator may select at this node. Falls back to the four
   /// non-legacy defaults when the node has no restriction.
@@ -87,13 +92,19 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       } else {
         if (seed.fat != null) _fat.text = _trimNum(seed.fat!);
         if (seed.snf != null) _snf.text = _trimNum(seed.snf!);
+        if (seed.water != null) _water.text = _trimNum(seed.water!);
       }
+      // Editing a prior pour is a correction — don't re-route through water.
+      _waterVisited = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _resolveRate();
       });
     } else {
       _milkType = _nodeDefaultMilkType;
     }
+    _waterFocus.addListener(() {
+      if (_waterFocus.hasFocus && !_waterVisited) setState(() => _waterVisited = true);
+    });
   }
 
   String _trimNum(double n) =>
@@ -105,10 +116,12 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     _qty.dispose();
     _fat.dispose();
     _snf.dispose();
+    _water.dispose();
     _clr.dispose();
     _qtyFocus.dispose();
     _fatFocus.dispose();
     _snfFocus.dispose();
+    _waterFocus.dispose();
     _clrFocus.dispose();
     super.dispose();
   }
@@ -116,12 +129,15 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   double get _qtyVal => double.tryParse(_qty.text) ?? 0;
   double? get _fatVal => double.tryParse(_fat.text);
   double? get _snfVal => double.tryParse(_snf.text);
+  double? get _waterVal => double.tryParse(_water.text);
   double? get _clrVal => double.tryParse(_clr.text);
   bool get _isEdit => widget.seedPour != null;
   // edits keep the original collection date; fresh entries are for today
   String get _collectionDate => widget.seedPour?.collectionDate ?? todayIso();
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
-      (widget.node.isLactometer ? _clrVal != null : _fatVal != null && _snfVal != null);
+      (widget.node.isLactometer
+          ? _clrVal != null
+          : _fatVal != null && _snfVal != null && _waterVisited);
 
   void _onFieldChanged() {
     setState(() {});
@@ -191,6 +207,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       if (_fatVal == null) { _fatFocus.requestFocus(); return; }
       if (_snfVal == null) { _snfFocus.requestFocus(); return; }
+      if (!_waterVisited) { _waterFocus.requestFocus(); return; }
     }
     _save();
   }
@@ -233,7 +250,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       'milkType': milkTypeToApi(_milkType),
       'qtyLitres': _qtyVal,
       if (widget.node.isLactometer) 'clr': _clrVal
-      else ...{'fat': _fatVal, 'snf': _snfVal},
+      else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
       'asNewLot': asNewLot,
     };
     final bool sentNow;
@@ -274,7 +291,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         'milkType': milkTypeToApi(_milkType),
         'qtyLitres': _qtyVal,
         if (widget.node.isLactometer) 'clr': _clrVal
-        else ...{'fat': _fatVal, 'snf': _snfVal},
+        else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
         'asNewLot': true,
       });
       if (!mounted) return;
@@ -336,8 +353,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                     ),
                     if (existing.fat != null)
                       QualityBadge(
-                        fat: existing.fat, snf: existing.snf, grade: existing.qualityGrade,
-                        format: QualityFormat.valueLabel),
+                        fat: existing.fat, snf: existing.snf, water: existing.water,
+                        grade: existing.qualityGrade, format: QualityFormat.valueLabel),
                   ]),
                 ),
                 const SizedBox(height: DhenuSpacing.lg),
@@ -370,6 +387,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       _qty.clear();
       _fat.clear();
       _snf.clear();
+      _water.clear();
       _clr.clear();
       _rate = null;
       _saving = false;
@@ -463,8 +481,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
               const SizedBox(width: DhenuSpacing.md),
               Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
               const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, null)),
+              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
             ]),
+            const SizedBox(height: DhenuSpacing.md),
+            _numberField(_water, 'Water % (optional)', '%', _waterFocus, null),
           ],
           const SizedBox(height: DhenuSpacing.lg),
           _ratePreview(t),
@@ -701,7 +721,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           if (widget.node.isLactometer)
             QualityBadge(fat: null, snf: null, grade: r.grade ?? Grade.unknown)
           else
-            QualityBadge(fat: _fatVal, snf: _snfVal, grade: r.grade ?? Grade.unknown),
+            QualityBadge(fat: _fatVal, snf: _snfVal, water: _waterVal, grade: r.grade ?? Grade.unknown),
           const Spacer(),
           Text(rupees(r.ratePerLitre, paise: true), style: DhenuText.number(size: 22, color: t.brand)),
           Text(' /L', style: DhenuText.caption.copyWith(color: t.inkSoft)),

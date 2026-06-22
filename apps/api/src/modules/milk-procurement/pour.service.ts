@@ -101,6 +101,7 @@ export class PourService {
         fat: numOrNull(input.fat),
         snf: numOrNull(input.snf),
         clr: numOrNull(input.clr),
+        water: numOrNull(input.water),
         tempC: numOrNull(input.tempC),
         qualityGrade: res.grade,
         rateChartId: res.rateChartId,

@@ -395,6 +395,7 @@
   "reportsStatPmLabel": "🌙 PM",
   "reportsStatAvgFat": "Avg FAT",
   "reportsStatAvgSnf": "Avg SNF",
+  "reportsStatAvgWater": "Avg Water %",
   "reportsStatFarmers": "Farmers",
   "reportsStatGross": "Gross",
   "cycleCycle": "Cycle",
@@ -474,5 +475,554 @@
   "addFarmerScanFrontHint": "Name, DOB, number",
   "addFarmerScanBack": "Back side",
   "addFarmerScanBackHint": "Address",
-  "photoSourceTitle": "Add photo"
+  "photoSourceTitle": "Add photo",
+  "farmerPhotoUpdated": "Profile photo updated",
+  "@farmerPhotoUpdated": {
+    "description": "Toast after a farmer sets/changes their own profile photo"
+  },
+  "farmerPhotoFailed": "Couldn't update photo. Please try again.",
+  "@farmerPhotoFailed": {
+    "description": "Toast when a farmer's profile-photo upload fails"
+  },
+  "navCollections": "Collections",
+  "@navCollections": {
+    "description": "Farmer bottom-nav: collections tab"
+  },
+  "navServices": "Services",
+  "@navServices": {
+    "description": "Farmer bottom-nav: services tab"
+  },
+  "farmerHomeGoodMorning": "Good morning",
+  "@farmerHomeGoodMorning": {
+    "description": "Farmer home greeting for morning hours"
+  },
+  "farmerHomeGoodAfternoon": "Good afternoon",
+  "@farmerHomeGoodAfternoon": {
+    "description": "Farmer home greeting for afternoon hours"
+  },
+  "farmerHomeGoodEvening": "Good evening",
+  "@farmerHomeGoodEvening": {
+    "description": "Farmer home greeting for evening hours"
+  },
+  "farmerHomeNoNotifications": "No new notifications",
+  "@farmerHomeNoNotifications": {
+    "description": "Toast shown when bell icon is tapped with no notifications"
+  },
+  "farmerHomeThisCycle": "THIS CYCLE",
+  "@farmerHomeThisCycle": {
+    "description": "Farmer home hero card cycle label when no period label"
+  },
+  "farmerHomeHeroPours": "{count, plural, one{{count} pour} other{{count} pours}}",
+  "@farmerHomeHeroPours": {
+    "description": "Farmer home hero card pour count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerHomeHeroListenSpeak": "This cycle, {litres} litres, {rupees} rupees",
+  "@farmerHomeHeroListenSpeak": {
+    "description": "TTS speak string for the cycle hero AudioPlay button",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      },
+      "rupees": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerHomeHeroListenLabel": "Listen",
+  "@farmerHomeHeroListenLabel": {
+    "description": "Accessibility label for the AudioPlay listen button in the hero card"
+  },
+  "farmerHomeProjection": "On track for ~{amount} this cycle",
+  "@farmerHomeProjection": {
+    "description": "Farmer home run-rate projection label",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerHomeEmptyTitle": "No pours yet this cycle",
+  "@farmerHomeEmptyTitle": {
+    "description": "Farmer home empty state title when no pours this cycle"
+  },
+  "farmerHomeEmptySubtitle": "Your collections will appear here once recorded at the centre.",
+  "@farmerHomeEmptySubtitle": {
+    "description": "Farmer home empty state subtitle"
+  },
+  "farmerHomeRefresh": "Refresh",
+  "@farmerHomeRefresh": {
+    "description": "Refresh button label on farmer home empty and error states"
+  },
+  "farmerHomeTodayCollected": "{litres} L collected",
+  "@farmerHomeTodayCollected": {
+    "description": "Today section subtitle showing total litres collected",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerHomeNudgeImproved": "Great work — keep the feed and routine going.",
+  "@farmerHomeNudgeImproved": {
+    "description": "Quality nudge reason text when metric improved"
+  },
+  "farmerHomeNudgeFatDown": "Often feed quality or late lactation. Check feed and clean water, or ask your vet.",
+  "@farmerHomeNudgeFatDown": {
+    "description": "Quality nudge reason text when FAT has dropped"
+  },
+  "farmerHomeNudgeSnfDown": "Often nutrition or water. Check feed and clean water, or ask your vet.",
+  "@farmerHomeNudgeSnfDown": {
+    "description": "Quality nudge reason text when SNF has dropped"
+  },
+  "farmerHomeNudgeTitle": "{metric} {direction} {delta} this week",
+  "@farmerHomeNudgeTitle": {
+    "description": "Quality nudge card title with metric, direction and delta value",
+    "placeholders": {
+      "metric": {
+        "type": "String"
+      },
+      "direction": {
+        "type": "String"
+      },
+      "delta": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerHomeNudgeUp": "up",
+  "@farmerHomeNudgeUp": {
+    "description": "Direction word for improved metric in quality nudge title"
+  },
+  "farmerHomeNudgeDown": "down",
+  "@farmerHomeNudgeDown": {
+    "description": "Direction word for dropped metric in quality nudge title"
+  },
+  "farmerHomeStreakTitle": "{streak, plural, one{{streak}-day quality streak} other{{streak}-day quality streak}}",
+  "@farmerHomeStreakTitle": {
+    "description": "Streak nudge card title",
+    "placeholders": {
+      "streak": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerHomeStreakBonusUnlocked": "Bonus unlocked — keep it going!",
+  "@farmerHomeStreakBonusUnlocked": {
+    "description": "Streak nudge subtitle when bonus is already unlocked"
+  },
+  "farmerHomeStreakRemaining": "{remaining, plural, one{{remaining} more Grade-A day to unlock a bonus} other{{remaining} more Grade-A days to unlock a bonus}}",
+  "@farmerHomeStreakRemaining": {
+    "description": "Streak nudge subtitle showing days remaining to unlock bonus",
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerHomeRateChart": "Rate Chart",
+  "@farmerHomeRateChart": {
+    "description": "Quick link label for rate chart"
+  },
+  "farmerHomeRewards": "Rewards",
+  "@farmerHomeRewards": {
+    "description": "Quick link label for rewards"
+  },
+  "farmerCollectionsTitle": "Collections",
+  "@farmerCollectionsTitle": {
+    "description": "Collections tab sticky header title"
+  },
+  "farmerCollectionsCyclePours": "{scope} · {count, plural, one{{count} pour} other{{count} pours}}",
+  "@farmerCollectionsCyclePours": {
+    "description": "Collections tab sticky header subtitle with cycle scope and pour count",
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerCollectionsDailyVolume": "Daily volume",
+  "@farmerCollectionsDailyVolume": {
+    "description": "Chart card label for daily volume"
+  },
+  "farmerCollectionsAvgPerDay": "{litres} L/day avg",
+  "@farmerCollectionsAvgPerDay": {
+    "description": "Chart card average per day label",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerCollectionsThisCycle": "THIS CYCLE",
+  "@farmerCollectionsThisCycle": {
+    "description": "Section label for current cycle collections"
+  },
+  "farmerCollectionsPastCycles": "PAST CYCLES",
+  "@farmerCollectionsPastCycles": {
+    "description": "Section label for past cycle collections"
+  },
+  "farmerCollectionsEmptyTitle": "No collections this cycle",
+  "@farmerCollectionsEmptyTitle": {
+    "description": "Empty state title when no collections exist this cycle"
+  },
+  "farmerCollectionsEmptySubtitle": "Your daily pours will appear here once recorded.",
+  "@farmerCollectionsEmptySubtitle": {
+    "description": "Empty state subtitle for collections tab"
+  },
+  "farmerCollectionsPastCycleSummary": "{litres} L · {count, plural, one{{count} pour} other{{count} pours}}",
+  "@farmerCollectionsPastCycleSummary": {
+    "description": "Past cycle summary row subtitle with litres and pour count",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerCollectionDetailTotal": "TOTAL",
+  "@farmerCollectionDetailTotal": {
+    "description": "Eyebrow label for total litres in collection detail summary card"
+  },
+  "farmerCollectionDetailGross": "GROSS",
+  "@farmerCollectionDetailGross": {
+    "description": "Eyebrow label for gross amount in collection detail summary card"
+  },
+  "farmerCollectionDetailNoCollection": "No collection recorded",
+  "@farmerCollectionDetailNoCollection": {
+    "description": "Label shown in shift section when no collection was recorded for that shift"
+  },
+  "farmerCollectionDetailShift": "Shift",
+  "@farmerCollectionDetailShift": {
+    "description": "Label appended after AM/PM in shift section heading"
+  },
+  "farmerCollectionDetailRatePerLitre": "@ {rate}/L",
+  "@farmerCollectionDetailRatePerLitre": {
+    "description": "Rate per litre label in pour row",
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsTitle": "Payments",
+  "@farmerPaymentsTitle": {
+    "description": "Payments tab main title"
+  },
+  "farmerPaymentsSubtitle": "Transparent, every rupee accounted",
+  "@farmerPaymentsSubtitle": {
+    "description": "Payments tab subtitle"
+  },
+  "farmerPaymentsNetPayable": "NET PAYABLE · {cycle}",
+  "@farmerPaymentsNetPayable": {
+    "description": "Net payable card eyebrow label with cycle name",
+    "placeholders": {
+      "cycle": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsListenSpeak": "Net payable this cycle, {rupees} rupees",
+  "@farmerPaymentsListenSpeak": {
+    "description": "TTS speak string for payments AudioPlay button",
+    "placeholders": {
+      "rupees": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsProjection": "On track for ~{amount} this cycle",
+  "@farmerPaymentsProjection": {
+    "description": "Payments tab run-rate projection label",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsGrossMilk": "Gross milk",
+  "@farmerPaymentsGrossMilk": {
+    "description": "Payments breakdown row label for gross milk amount"
+  },
+  "farmerPaymentsQualityBonus": "Quality bonus",
+  "@farmerPaymentsQualityBonus": {
+    "description": "Payments breakdown row label for quality bonus"
+  },
+  "farmerPaymentsOutstandingAdvance": "Outstanding advance: {amount}",
+  "@farmerPaymentsOutstandingAdvance": {
+    "description": "Outstanding advance chip label",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsHistoryHeader": "PAYMENT HISTORY",
+  "@farmerPaymentsHistoryHeader": {
+    "description": "Payment history section header label"
+  },
+  "farmerPaymentsPaid": "PAID",
+  "@farmerPaymentsPaid": {
+    "description": "Paid chip label on payment history row"
+  },
+  "farmerPaymentsDeductCattleFeedLoan": "Cattle-feed loan",
+  "@farmerPaymentsDeductCattleFeedLoan": {
+    "description": "Deduction label for cattle feed loan"
+  },
+  "farmerPaymentsDeductAdvance": "Advance",
+  "@farmerPaymentsDeductAdvance": {
+    "description": "Deduction label for advance"
+  },
+  "farmerPaymentsDeductMedicine": "Medicine",
+  "@farmerPaymentsDeductMedicine": {
+    "description": "Deduction label for medicine deduction"
+  },
+  "farmerPaymentsDeductInsurance": "Insurance",
+  "@farmerPaymentsDeductInsurance": {
+    "description": "Deduction label for insurance deduction"
+  },
+  "farmerPaymentsHistorySummary": "{litres} L · {count, plural, one{{count} pour} other{{count} pours}}",
+  "@farmerPaymentsHistorySummary": {
+    "description": "Payment history row subtitle with litres and pour count",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerRateChartTitle": "Rate Chart",
+  "@farmerRateChartTitle": {
+    "description": "Rate chart screen app bar title fallback"
+  },
+  "farmerRateListenSpeak": "Your milk rate chart",
+  "@farmerRateListenSpeak": {
+    "description": "TTS speak string for rate chart when no rate is known"
+  },
+  "farmerRateListenSpeakWithRate": "Your rate is {rate} rupees per litre",
+  "@farmerRateListenSpeakWithRate": {
+    "description": "TTS speak string for rate chart when rate is known",
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRateEmptyTitle": "No rate chart active",
+  "@farmerRateEmptyTitle": {
+    "description": "Rate chart empty state title"
+  },
+  "farmerRateEmptySubtitle": "Contact your milk collection centre",
+  "@farmerRateEmptySubtitle": {
+    "description": "Rate chart empty state subtitle"
+  },
+  "farmerRateLastPourLabel": "Your last pour",
+  "@farmerRateLastPourLabel": {
+    "description": "Last pour card label in rate chart"
+  },
+  "farmerRateMatrixTitle": "Rate Matrix (₹/L)",
+  "@farmerRateMatrixTitle": {
+    "description": "Section title above the FAT×SNF rate matrix"
+  },
+  "farmerRateBonusSlabsTitle": "Bonuses & Slabs",
+  "@farmerRateBonusSlabsTitle": {
+    "description": "Section title for rate rules/bonus slabs"
+  },
+  "farmerRateFlatRateLabel": "FLAT RATE",
+  "@farmerRateFlatRateLabel": {
+    "description": "Label above flat rate value"
+  },
+  "farmerRateEarnMore": "Earn more per litre",
+  "@farmerRateEarnMore": {
+    "description": "Coaching strip header in rate chart"
+  },
+  "farmerRateRaiseSnf": "Raise SNF to {value}",
+  "@farmerRateRaiseSnf": {
+    "description": "Coaching line label to raise SNF",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRateRaiseFat": "Raise FAT to {value}",
+  "@farmerRateRaiseFat": {
+    "description": "Coaching line label to raise FAT",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRateNoMatrixData": "No matrix data",
+  "@farmerRateNoMatrixData": {
+    "description": "Shown in RateMatrix widget when cells list is empty"
+  },
+  "farmerRateRuleGradeBonus": "Grade-{grade} bonus",
+  "@farmerRateRuleGradeBonus": {
+    "description": "Rate rule tile label for grade bonus rules",
+    "placeholders": {
+      "grade": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRateRuleVolumeRange": "Volume {min}–{max} L",
+  "@farmerRateRuleVolumeRange": {
+    "description": "Rate rule tile label for volume range slab",
+    "placeholders": {
+      "min": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRateRuleVolumeMin": "Volume > {min} L",
+  "@farmerRateRuleVolumeMin": {
+    "description": "Rate rule tile label for volume minimum slab",
+    "placeholders": {
+      "min": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerRewardsTitle": "Rewards",
+  "@farmerRewardsTitle": {
+    "description": "Rewards screen app bar title"
+  },
+  "farmerRewardsBadgesSection": "Badges",
+  "@farmerRewardsBadgesSection": {
+    "description": "Badges section title in rewards screen"
+  },
+  "farmerRewardsQualityStreak": "Quality Streak",
+  "@farmerRewardsQualityStreak": {
+    "description": "Streak card heading label in rewards screen"
+  },
+  "farmerRewardsStreakDays": "/ {target} days",
+  "@farmerRewardsStreakDays": {
+    "description": "Streak ring inner days label",
+    "placeholders": {
+      "target": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerRewardsBonusUnlocked": "Bonus unlocked — keep it going!",
+  "@farmerRewardsBonusUnlocked": {
+    "description": "Streak text when bonus is already unlocked"
+  },
+  "farmerRewardsStreakRemaining": "{remaining} more to unlock a ₹500 bonus",
+  "@farmerRewardsStreakRemaining": {
+    "description": "Streak text showing remaining days to unlock bonus",
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerRewardsBadgeUnlocked": "UNLOCKED",
+  "@farmerRewardsBadgeUnlocked": {
+    "description": "Badge tile status label when unlocked"
+  },
+  "farmerRewardsBadgeLocked": "LOCKED",
+  "@farmerRewardsBadgeLocked": {
+    "description": "Badge tile status label when locked"
+  },
+  "farmerRewardsBadgeConsistent": "Consistent",
+  "@farmerRewardsBadgeConsistent": {
+    "description": "Badge name for consistent quality badge"
+  },
+  "farmerRewardsBadge100Day": "100-Day Club",
+  "@farmerRewardsBadge100Day": {
+    "description": "Badge name for 100-day club badge"
+  },
+  "farmerRewardsBadgeTopFat": "Top FAT",
+  "@farmerRewardsBadgeTopFat": {
+    "description": "Badge name for top FAT badge"
+  },
+  "farmerRewardsBadgeReferrer": "Referrer",
+  "@farmerRewardsBadgeReferrer": {
+    "description": "Badge name for referrer badge"
+  },
+  "farmerRewardsReferTitle": "Refer a farmer",
+  "@farmerRewardsReferTitle": {
+    "description": "Referral card title in rewards screen"
+  },
+  "farmerRewardsReferBody": "Earn ₹100 for every farmer who joins",
+  "@farmerRewardsReferBody": {
+    "description": "Referral card body text"
+  },
+  "farmerRewardsShareInvite": "Share invite",
+  "@farmerRewardsShareInvite": {
+    "description": "Share invite button label"
+  },
+  "farmerRewardsReferralComingSoon": "Referral invite coming soon!",
+  "@farmerRewardsReferralComingSoon": {
+    "description": "Toast shown when share invite is tapped"
+  },
+  "farmerServicesTitle": "Services",
+  "@farmerServicesTitle": {
+    "description": "Services stub screen title"
+  },
+  "farmerServicesSubtitle": "Farmer services are on their way — stay tuned.",
+  "@farmerServicesSubtitle": {
+    "description": "Services stub screen subtitle"
+  },
+  "farmerServicesSoon": "SOON",
+  "@farmerServicesSoon": {
+    "description": "Soon chip label on service cards"
+  },
+  "farmerServicesNotifyMe": "Notify me when live",
+  "@farmerServicesNotifyMe": {
+    "description": "Notify button label on services stub"
+  },
+  "farmerServicesNotifyToast": "We'll notify you when services go live!",
+  "@farmerServicesNotifyToast": {
+    "description": "Toast shown when notify button is tapped"
+  },
+  "farmerServicesCattleFeedName": "Cattle Feed",
+  "@farmerServicesCattleFeedName": {
+    "description": "Service card name for cattle feed"
+  },
+  "farmerServicesCattleFeedDesc": "Quality fodder & supplements delivered to your farm.",
+  "@farmerServicesCattleFeedDesc": {
+    "description": "Service card description for cattle feed"
+  },
+  "farmerServicesVetName": "Veterinary Care",
+  "@farmerServicesVetName": {
+    "description": "Service card name for veterinary care"
+  },
+  "farmerServicesVetDesc": "Doorstep vet visits, health check-ups & vaccinations.",
+  "@farmerServicesVetDesc": {
+    "description": "Service card description for veterinary care"
+  },
+  "farmerServicesInsuranceName": "Insurance",
+  "@farmerServicesInsuranceName": {
+    "description": "Service card name for insurance"
+  },
+  "farmerServicesInsuranceDesc": "Cattle insurance to protect your herd & livelihood.",
+  "@farmerServicesInsuranceDesc": {
+    "description": "Service card description for insurance"
+  },
+  "farmerServicesLoansName": "Loans & Advances",
+  "@farmerServicesLoansName": {
+    "description": "Service card name for loans and advances"
+  },
+  "farmerServicesLoansDesc": "Instant advances against your milk supply earnings.",
+  "@farmerServicesLoansDesc": {
+    "description": "Service card description for loans and advances"
+  }
 }

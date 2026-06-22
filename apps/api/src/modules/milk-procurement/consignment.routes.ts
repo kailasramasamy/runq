@@ -77,4 +77,12 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const service = new ConsignmentService(request.server.db, request.tenantId);
     return { data: await service.reverse(id, principal) };
   });
+
+  // Delete a manually-entered receipt mis-entry (only while not locked for dispatch).
+  app.delete('/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ConsignmentService(request.server.db, request.tenantId);
+    return { data: await service.deleteManualReceipt(id, principal) };
+  });
 };

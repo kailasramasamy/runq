@@ -9,6 +9,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
@@ -27,9 +28,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   final _qtyCtrl = TextEditingController();
   final _fatCtrl = TextEditingController();
   final _snfCtrl = TextEditingController();
+  final _waterCtrl = TextEditingController();
   final _containerCtrl = TextEditingController();
   MpNode? _destPp;
   bool _saving = false;
+  bool _closingBusy = false;
   String? _error;
   // No-BMC nodes dispatch each shift separately; BMC nodes pool the whole day.
   Shift _shift = shiftFrom(currentShift());
@@ -46,14 +49,38 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   String get _closeFirstMsg => widget.node.hasBmc
-      ? "Close today's collection before dispatching."
-      : 'Close collection for this shift before dispatching.';
+      ? "Close today's receiving before dispatching."
+      : 'Close receiving for this shift before dispatching.';
+
+  // Whole-day close for BMC nodes (shift: null), else the selected shift.
+  String? get _closeArg => _perShift ? _shift.name : null;
+
+  Future<void> _closeReceiving() =>
+      _runClose(() => mpRepo.closeShift(widget.node.id, todayIso(), shift: _closeArg));
+
+  Future<void> _reopenReceiving() =>
+      _runClose(() => mpRepo.reopenShift(widget.node.id, todayIso(), shift: _closeArg));
+
+  Future<void> _runClose(Future<MpShiftStatus> Function() action) async {
+    setState(() => _closingBusy = true);
+    try {
+      await action();
+      if (!mounted) return;
+      ref.invalidate(shiftStatusProvider(widget.node.id));
+      ref.invalidate(nodeAvailabilityProvider(_availArgs));
+    } catch (e) {
+      if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+    } finally {
+      if (mounted) setState(() => _closingBusy = false);
+    }
+  }
 
   void _onShiftChanged(Shift s) {
-    // re-prefill qty/fat/snf from the newly selected shift's availability
+    // re-prefill qty/fat/snf/water from the newly selected shift's availability
     _qtyCtrl.clear();
     _fatCtrl.clear();
     _snfCtrl.clear();
+    _waterCtrl.clear();
     setState(() => _shift = s);
   }
 
@@ -80,6 +107,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     _qtyCtrl.dispose();
     _fatCtrl.dispose();
     _snfCtrl.dispose();
+    _waterCtrl.dispose();
     _containerCtrl.dispose();
     super.dispose();
   }
@@ -94,6 +122,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     }
     if (_snfCtrl.text.isEmpty && avail.avgSnf != null) {
       _snfCtrl.text = avail.avgSnf!.toStringAsFixed(1);
+    }
+    if (_waterCtrl.text.isEmpty && avail.avgWater != null) {
+      _waterCtrl.text = avail.avgWater!.toStringAsFixed(1);
     }
   }
 
@@ -123,6 +154,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     final qty = double.tryParse(_qtyCtrl.text);
     final fat = double.tryParse(_fatCtrl.text);
     final snf = double.tryParse(_snfCtrl.text);
+    final water = double.tryParse(_waterCtrl.text);
     if (qty == null || fat == null || snf == null) {
       setState(() => _error = 'Enter valid numbers');
       return;
@@ -143,12 +175,14 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         'dispatchQty': qty,
         'dispatchFat': fat,
         'dispatchSnf': snf,
+        'dispatchWater': ?water,
         if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
       });
       setState(() { _saving = false; });
       _qtyCtrl.clear();
       _fatCtrl.clear();
       _snfCtrl.clear();
+      _waterCtrl.clear();
       _containerCtrl.clear();
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider(_availArgs));
@@ -187,6 +221,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         ]),
         const SizedBox(height: DhenuSpacing.sm),
         _availCard(t, availAsync),
+        _closeControl(t, availAsync, closeRequired),
         const SizedBox(height: DhenuSpacing.xl),
         if (canDispatch) ...[
         Text('Dispatch to Plant', style: DhenuText.title.copyWith(color: t.ink)),
@@ -221,14 +256,17 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         ]),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
+          controller: _waterCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textCapitalization: TextCapitalization.none,
+          decoration: const InputDecoration(hintText: 'Water % (optional)'),
+        ),
+        const SizedBox(height: DhenuSpacing.md),
+        TextField(
           controller: _containerCtrl,
           textCapitalization: TextCapitalization.characters,
           decoration: const InputDecoration(hintText: 'Container No. (optional)'),
         ),
-        if (closeRequired) ...[
-          const SizedBox(height: DhenuSpacing.md),
-          _closeGateBanner(t),
-        ],
         if (_error != null) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
@@ -302,22 +340,63 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  /// Hard-gate notice: dispatch stays disabled until collection is closed
-  /// (done from the Collection screen).
-  Widget _closeGateBanner(DhenuTokens t) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      decoration: BoxDecoration(
-        color: t.am.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(DhenuRadii.input),
-        border: Border.all(color: t.am.withValues(alpha: 0.4)),
-      ),
-      child: Row(children: [
-        Icon(DhenuIcons.lock, size: 18, color: t.amText),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Text(_closeFirstMsg, style: DhenuText.label.copyWith(color: t.ink))),
+  String get _slotLabel => _perShift ? (_shift == Shift.am ? 'AM' : 'PM') : 'today';
+
+  /// Receiving-close control gating onward dispatch. Open → an action button
+  /// that closes the slot and unlocks dispatch; closed → a confirmation with a
+  /// Reopen affordance (the server rejects reopen once anything's dispatched).
+  Widget _closeControl(DhenuTokens t, AsyncValue<MpAvailability?> availAsync, bool closeRequired) {
+    if (!closeRequired) return _closedBanner(t);
+    // Nothing received yet for this slot → nothing to close.
+    if ((availAsync.asData?.value?.collected ?? 0) <= 0) return const SizedBox.shrink();
+    final label = _perShift ? 'Close $_slotLabel receiving' : "Close today's receiving";
+    return Padding(
+      padding: const EdgeInsets.only(top: DhenuSpacing.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        OutlinedButton.icon(
+          onPressed: _closingBusy ? null : _closeReceiving,
+          icon: _closingBusy
+              ? SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: t.brand))
+              : Icon(DhenuIcons.lock, size: 18, color: t.brand),
+          label: Text(label, style: DhenuText.label.copyWith(color: t.brand, fontWeight: FontWeight.w600)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            side: BorderSide(color: t.brand.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.input)),
+          ),
+        ),
+        const SizedBox(height: DhenuSpacing.xs),
+        Text('Unlocks dispatch to the plant for $_slotLabel.',
+            textAlign: TextAlign.center,
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
       ]),
+    );
+  }
+
+  Widget _closedBanner(DhenuTokens t) {
+    return Padding(
+      padding: const EdgeInsets.only(top: DhenuSpacing.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        decoration: BoxDecoration(
+          color: t.gradeA.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+          border: Border.all(color: t.gradeA.withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: Text('Receiving closed for $_slotLabel · ready for dispatch',
+              style: DhenuText.label.copyWith(color: t.ink))),
+          TextButton(
+            onPressed: _closingBusy ? null : _reopenReceiving,
+            child: Text('Reopen', style: DhenuText.label.copyWith(color: t.brand)),
+          ),
+        ]),
+      ),
     );
   }
 

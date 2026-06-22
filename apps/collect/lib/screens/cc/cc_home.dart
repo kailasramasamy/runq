@@ -10,17 +10,20 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
-import '../../widgets/quality_badge.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
+import 'cc_qc_report.dart';
+import 'cc_receive_history.dart';
 
 /// Per-VMCC inbound-to-this-CC tally derived from today's consignments.
-typedef _Flow = ({double transit, double received});
+/// [amRecv]/[pmRecv] split the received total by the consignment's shift so the
+/// row can show per-shift quantities and AM/PM receipt ticks.
+typedef _Flow = ({double transit, double received, double amRecv, double pmRecv});
 
 /// CC operator home — a live view of the VMCC network feeding this chilling
 /// centre: how much each VMCC has collected today (even before dispatch), what's
-/// in transit, what's been received, recent receipts, and onward-dispatch room.
+/// in transit, what's been received, and onward-dispatch room.
 class CcHome extends ConsumerWidget {
   const CcHome({super.key, required this.node});
   final MpNode node;
@@ -48,7 +51,6 @@ class CcHome extends ConsumerWidget {
     final flow = _flowByNode(cons);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
-    final names = {for (final r in vmccsAsync.asData?.value ?? const <VmccCollection>[]) r.vmcc.id: r.vmcc.name};
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -62,7 +64,7 @@ class CcHome extends ConsumerWidget {
             onTap: () => ref.read(syncProvider.notifier).forceSync(),
           )),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, vmccsAsync, inTransit),
+          _hero(t, vmccsAsync, flow, inTransit),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
@@ -70,39 +72,62 @@ class CcHome extends ConsumerWidget {
             const SizedBox(height: DhenuSpacing.md),
           ],
           _statsRow(t, inTransit, ready),
-          const SizedBox(height: DhenuSpacing.lg),
+          const SizedBox(height: DhenuSpacing.md),
+          _quickLinks(context, t),
+          const SizedBox(height: DhenuSpacing.x3),
           Text('VMCCs · today', style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
           _vmccList(t, vmccsAsync, flow),
-          const SizedBox(height: DhenuSpacing.lg),
-          Text('Recent receives', style: DhenuText.title.copyWith(color: t.ink)),
-          const SizedBox(height: DhenuSpacing.sm),
-          _recentReceives(t, cons, names),
         ],
       ),
     );
+  }
+
+  /// Headline qty for a VMCC row: its in-app collection when it logged any,
+  /// else the milk received at the CC (manual receive — the VMCC never logged
+  /// a pour), else what's still in transit. Without this fallback a manual
+  /// receive shows 0.0 L even though milk physically arrived.
+  double _shownQty(VmccCollection vc, _Flow? f) {
+    if (vc.collected > 0) return vc.collected;
+    if (f != null && f.received > 0) return f.received;
+    return f?.transit ?? 0;
   }
 
   /// Group today's inbound consignments by source VMCC → (in-transit, received).
   Map<String, _Flow> _flowByNode(List<MpConsignment> cons) {
     final m = <String, _Flow>{};
     for (final c in cons.where((c) => c.kind == 'vmcc_to_cc')) {
-      final cur = m[c.fromNodeId] ?? (transit: 0.0, received: 0.0);
-      m[c.fromNodeId] = c.received
-          ? (transit: cur.transit, received: cur.received + (c.receiptQty ?? 0))
-          : (transit: cur.transit + (c.dispatchQty ?? 0), received: cur.received);
+      final cur = m[c.fromNodeId] ?? (transit: 0.0, received: 0.0, amRecv: 0.0, pmRecv: 0.0);
+      if (c.received) {
+        final q = c.receiptQty ?? 0;
+        m[c.fromNodeId] = (
+          transit: cur.transit,
+          received: cur.received + q,
+          amRecv: cur.amRecv + (c.shift == Shift.am ? q : 0),
+          pmRecv: cur.pmRecv + (c.shift == Shift.pm ? q : 0),
+        );
+      } else {
+        m[c.fromNodeId] = (
+          transit: cur.transit + (c.dispatchQty ?? 0),
+          received: cur.received, amRecv: cur.amRecv, pmRecv: cur.pmRecv,
+        );
+      }
     }
     return m;
   }
 
-  Widget _hero(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync, double inTransit) {
+  Widget _hero(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
+      Map<String, _Flow> flow, double inTransit) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(label: 'ACROSS VMCCs', primaryValue: '—',
           footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
       data: (rows) {
-        final collected = rows.fold<double>(0, (a, b) => a + b.collected);
-        final active = rows.where((r) => r.collected > 0).length;
+        // Sum the per-VMCC shown qty (in-app pour, else received, else transit)
+        // so manually-received milk counts even when no pour was logged.
+        final collected =
+            rows.fold<double>(0, (a, r) => a + _shownQty(r, flow[r.vmcc.id]));
+        final active = rows.where((r) => _shownQty(r, flow[r.vmcc.id]) > 0).length;
         return HeroNumberCard(
           label: 'COLLECTED ACROSS VMCCs · TODAY',
           primaryValue: litres(collected, unit: true),
@@ -119,6 +144,31 @@ class CcHome extends ConsumerWidget {
       },
     );
   }
+
+  Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
+        Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
+            CcReceiveHistory(node: node))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, 'QC report',
+            CcQcReport(node: node))),
+      ]);
+
+  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
+      DhenuCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: page,
+          ),
+        )),
+        child: Column(children: [
+          Icon(icon, color: t.brand),
+          const SizedBox(height: DhenuSpacing.sm),
+          Text(label, style: DhenuText.label.copyWith(color: t.ink)),
+        ]),
+      );
 
   Widget _statsRow(DhenuTokens t, double inTransit, double ready) => Row(children: [
         Expanded(child: _miniStat(t, 'In transit', litres(inTransit, unit: true),
@@ -156,7 +206,8 @@ class CcHome extends ConsumerWidget {
             subtitle: 'Assign VMCCs to this CC in the web admin',
           );
         }
-        rows.sort((a, b) => b.collected.compareTo(a.collected));
+        rows.sort((a, b) =>
+            _shownQty(b, flow[b.vmcc.id]).compareTo(_shownQty(a, flow[a.vmcc.id])));
         return DhenuCard(
           padding: EdgeInsets.zero,
           child: Column(children: [
@@ -184,85 +235,46 @@ class CcHome extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(vc.vmcc.name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text('☀️ ${litres(vc.amQty)} · 🌙 ${litres(vc.pmQty)}',
+          Text('☀️ ${litres(_amShown(vc, f))} · 🌙 ${litres(_pmShown(vc, f))}',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(height: 1),
           Text('${vc.farmers} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(vc.collected, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 4),
-          _flowChip(t, vc, f),
+          Text(litres(_shownQty(vc, f), unit: true), style: DhenuText.number(size: 16, color: t.ink)),
+          const SizedBox(height: 6),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
+            const SizedBox(width: 4),
+            _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
+          ]),
         ]),
       ]),
     );
   }
 
-  Widget _flowChip(DhenuTokens t, VmccCollection vc, _Flow? f) {
-    final (label, color) = switch (f) {
-      _ when f != null && f.transit > 0 => ('⏳ ${litres(f.transit)} transit', t.gradeB),
-      _ when f != null && f.received > 0 => ('✓ ${litres(f.received)} received', t.gradeA),
-      _ when vc.collected > 0 => ('at VMCC', t.inkSoft),
-      _ => ('—', t.inkSoft),
-    };
+  /// Per-shift headline qty: the VMCC's in-app pour for the slot, else the milk
+  /// received at the CC for that shift (manual receive logged no pour).
+  double _amShown(VmccCollection vc, _Flow? f) => vc.amQty > 0 ? vc.amQty : (f?.amRecv ?? 0);
+  double _pmShown(VmccCollection vc, _Flow? f) => vc.pmQty > 0 ? vc.pmQty : (f?.pmRecv ?? 0);
+
+  /// Receipt tick for one shift: green check when that shift's milk is in, a
+  /// greyed check otherwise.
+  Widget _shiftTick(DhenuTokens t, String glyph, bool received) {
+    final color = received ? t.gradeA : t.inkSoft;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: received ? 0.14 : 0.06),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
-      child: Text(label, style: DhenuText.caption.copyWith(color: color)),
-    );
-  }
-
-  Widget _recentReceives(DhenuTokens t, List<MpConsignment> cons, Map<String, String> names) {
-    final received = cons.where((c) => c.kind == 'vmcc_to_cc' && c.received).toList().reversed.toList();
-    if (received.isEmpty) {
-      return const DhenuEmptyState(
-        icon: DhenuIcons.package,
-        title: 'No receipts yet',
-        subtitle: 'Milk you receive from VMCCs shows here',
-      );
-    }
-    final show = received.take(5).toList();
-    return DhenuCard(
-      padding: EdgeInsets.zero,
-      child: Column(children: [
-        for (var i = 0; i < show.length; i++) ...[
-          if (i > 0) Divider(height: 1, color: t.hairline),
-          _receiveRow(t, show[i], names),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(glyph, style: DhenuText.caption),
+        if (received) ...[
+          const SizedBox(width: 3),
+          Icon(DhenuIcons.check, size: 11, color: color),
         ],
-      ]),
-    );
-  }
-
-  Widget _receiveRow(DhenuTokens t, MpConsignment c, Map<String, String> names) {
-    final v = c.variancePct ?? 0;
-    final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      child: Row(children: [
-        Icon(DhenuIcons.package, size: 18, color: t.brand),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(names[c.fromNodeId] ?? 'VMCC',
-              style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Row(children: [
-            Text('${c.shift == Shift.am ? '☀️ AM' : c.shift == Shift.pm ? '🌙 PM' : 'Day'} · ',
-                style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            if (c.receiptFat != null)
-              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, grade: Grade.unknown),
-          ]),
-        ])),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 2),
-          Text('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}% var',
-              style: DhenuText.caption.copyWith(color: vColor)),
-        ]),
       ]),
     );
   }

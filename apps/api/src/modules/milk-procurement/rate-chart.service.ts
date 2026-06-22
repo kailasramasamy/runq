@@ -1,10 +1,11 @@
 import { and, eq, desc, sql, lte, gte, isNull, or } from 'drizzle-orm';
-import { mpRateCharts, mpRateChartCells, mpRateChartRules } from '@runq/db';
+import { mpRateCharts, mpRateChartCells, mpRateChartRules, mpNodes, tenants } from '@runq/db';
 import type { Db, MpRateChartRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateRateChartInput, RateChartFilter, ResolveRateInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+import type { RateChartPrintData } from './rate-chart-template';
 
 type Cell = typeof mpRateChartCells.$inferSelect;
 type Rule = typeof mpRateChartRules.$inferSelect;
@@ -60,6 +61,28 @@ export class RateChartService {
       this.db.select().from(mpRateChartRules).where(eq(mpRateChartRules.rateChartId, id)),
     ]);
     return { ...chart, cells, rules };
+  }
+
+  /** Assemble the data the PDF/print template needs: chart + tenant + scope names. */
+  async getPrintData(id: string, generatedAt: string): Promise<RateChartPrintData> {
+    const chart = await this.getById(id);
+    const [[t], scopeNode] = await Promise.all([
+      this.db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, this.tenantId)).limit(1),
+      chart.scopeNodeId
+        ? this.db.select({ name: mpNodes.name }).from(mpNodes).where(eq(mpNodes.id, chart.scopeNodeId)).limit(1)
+        : Promise.resolve([] as { name: string }[]),
+    ]);
+    return {
+      tenantName: t?.name ?? 'Dhenu',
+      chart: {
+        name: chart.name, milkType: chart.milkType, pricingMode: chart.pricingMode,
+        flatRatePerLitre: chart.flatRatePerLitre, season: chart.season,
+        effectiveFrom: chart.effectiveFrom, effectiveTo: chart.effectiveTo, isActive: chart.isActive,
+      },
+      scopeName: chart.scopeNodeId ? (scopeNode[0]?.name ?? 'VMCC') : 'Tenant-wide',
+      cells: chart.cells, rules: chart.rules,
+      generatedAt,
+    };
   }
 
   async create(input: CreateRateChartInput): Promise<RateChartDetail> {

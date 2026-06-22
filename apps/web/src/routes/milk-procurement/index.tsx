@@ -26,9 +26,10 @@ export function MilkProcurementHomePage() {
         <StatsCard title="Gross payable" value={s?.grossAmount ?? 0} icon={Coins} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatsCard title="Avg FAT" value={s?.avgFat ?? 0} icon={FlaskConical} formatValue={(v) => v.toFixed(2)} />
         <StatsCard title="Avg SNF" value={s?.avgSnf ?? 0} icon={FlaskConical} formatValue={(v) => v.toFixed(2)} />
+        <StatsCard title="Avg Water %" value={s?.avgWater ?? 0} icon={FlaskConical} formatValue={(v) => v > 0 ? v.toFixed(2) : '—'} />
         <StatsCard title="Pours today" value={s?.pourCount ?? 0} formatValue={(v) => String(v)} />
       </div>
 

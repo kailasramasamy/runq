@@ -16,6 +16,11 @@ final farmerTodayPoursProvider = FutureProvider<List<MpPour>>((ref) async {
   return mpRepo.pours(collectionDate: todayIso(), status: 'recorded', limit: 10);
 });
 
+/// Rolling 14-day pours — drives the week-over-week quality nudge (P3.1).
+final farmerRecentPoursProvider = FutureProvider<List<MpPour>>((ref) async {
+  return mpRepo.pours(from: isoDaysAgo(13), to: todayIso(), status: 'recorded', limit: 500);
+});
+
 /// Ledger for the signed-in farmer (balance + all entries).
 final farmerLedgerProvider =
     FutureProvider<({double balance, List<MpLedgerEntry> entries})>((ref) async {

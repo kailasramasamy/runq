@@ -4,18 +4,19 @@ import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
 /// How a [QualityBadge] renders its label.
-///  - full       → "FAT 4.2 · SNF 8.6 · A"
+///  - full       → "FAT 4.2 · SNF 8.6 · W 2.0 · A"
 ///  - compact     → "4.2 · A"
 ///  - valueLabel → "4.2 FAT, 8.6 SNF · A"
 enum QualityFormat { full, compact, valueLabel }
 
-/// Pill badge showing FAT · SNF · Grade, coloured by grade. Pass [format], or
-/// the legacy [compact] shortcut.
+/// Pill badge showing FAT · SNF · Water · Grade, coloured by grade. Pass
+/// [format], or the legacy [compact] shortcut. Water % is omitted when null.
 class QualityBadge extends StatelessWidget {
   const QualityBadge({
     super.key,
     this.fat,
     this.snf,
+    this.water,
     required this.grade,
     this.compact = false,
     this.format,
@@ -23,6 +24,7 @@ class QualityBadge extends StatelessWidget {
 
   final double? fat;
   final double? snf;
+  final double? water;
   final Grade grade;
   final bool compact;
   final QualityFormat? format;
@@ -57,14 +59,16 @@ class QualityBadge extends StatelessWidget {
     final g = hasGrade ? ' · ${_gradeLetter(grade)}' : '';
     final fatStr = fat != null ? fat!.toStringAsFixed(1) : '—';
     final snfStr = snf != null ? snf!.toStringAsFixed(1) : '—';
+    final w = water != null ? ' · W ${water!.toStringAsFixed(1)}' : '';
+    final wLabel = water != null ? ', ${water!.toStringAsFixed(1)} W' : '';
     final fmt = format ?? (compact ? QualityFormat.compact : QualityFormat.full);
     switch (fmt) {
       case QualityFormat.compact:
         return hasGrade ? '$fatStr$g' : fatStr;
       case QualityFormat.valueLabel:
-        return '$fatStr FAT, $snfStr SNF$g';
+        return '$fatStr FAT, $snfStr SNF$wLabel$g';
       case QualityFormat.full:
-        return 'FAT $fatStr · SNF $snfStr$g';
+        return 'FAT $fatStr · SNF $snfStr$w$g';
     }
   }
 
@@ -102,10 +106,11 @@ class QualityBadge extends StatelessWidget {
 /// [QualityBadge] pill). Used in dense entry rows where each metric reads on its
 /// own. Wraps to a second line on narrow rows.
 class QualityPills extends StatelessWidget {
-  const QualityPills({super.key, this.fat, this.snf, required this.grade});
+  const QualityPills({super.key, this.fat, this.snf, this.water, required this.grade});
 
   final double? fat;
   final double? snf;
+  final double? water;
   final Grade grade;
 
   @override
@@ -120,6 +125,7 @@ class QualityPills extends StatelessWidget {
       children: [
         if (fat != null) _pill('FAT ${fat!.toStringAsFixed(1)}', gc, border, fill),
         if (snf != null) _pill('SNF ${snf!.toStringAsFixed(1)}', gc, border, fill),
+        if (water != null) _pill('W ${water!.toStringAsFixed(1)}', gc, border, fill),
         if (grade != Grade.unknown) _pill(QualityBadge.gradeLetter(grade), gc, border, fill),
       ],
     );

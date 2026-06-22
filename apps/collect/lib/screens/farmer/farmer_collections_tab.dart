@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -81,6 +82,7 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final grouped = _groupPoursByDate(pours);
     final dates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     final hasCurrent = dates.isNotEmpty;
@@ -93,7 +95,7 @@ class _Body extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.screen),
           sliver: SliverToBoxAdapter(
-            child: _ChartCard(pours: pours, period: period, t: t),
+            child: _ChartCard(pours: pours, period: period, t: t, l: l),
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: DhenuSpacing.lg)),
@@ -101,16 +103,17 @@ class _Body extends StatelessWidget {
           SliverFillRemaining(
             child: DhenuEmptyState(
               icon: DhenuIcons.drop,
-              title: 'No collections this cycle',
-              subtitle: 'Your daily pours will appear here once recorded.',
-              action: FilledButton(onPressed: onRefresh, child: const Text('Refresh')),
+              title: l.farmerCollectionsEmptyTitle,
+              subtitle: l.farmerCollectionsEmptySubtitle,
+              action: FilledButton(onPressed: onRefresh, child: Text(l.farmerHomeRefresh)),
             ),
           )
         else ...[
           if (hasCurrent) ...[
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.screen),
-              sliver: SliverToBoxAdapter(child: _SectionLabel(t: t, label: 'THIS CYCLE')),
+              sliver: SliverToBoxAdapter(
+                  child: _SectionLabel(t: t, label: l.farmerCollectionsThisCycle)),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -125,7 +128,8 @@ class _Body extends StatelessWidget {
           if (pastPeriods.isNotEmpty) ...[
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.screen),
-              sliver: SliverToBoxAdapter(child: _SectionLabel(t: t, label: 'PAST CYCLES')),
+              sliver: SliverToBoxAdapter(
+                  child: _SectionLabel(t: t, label: l.farmerCollectionsPastCycles)),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -154,7 +158,8 @@ class _StickyHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final scope = period?.label ?? 'This cycle';
+    final l = AppLocalizations.of(context);
+    final scope = period?.label ?? l.farmerCollectionsThisCycle;
     final pourCount = pours.length;
 
     return Container(
@@ -166,12 +171,12 @@ class _StickyHeader extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Collections',
+            l.farmerCollectionsTitle,
             style: DhenuText.number(size: 24, w: FontWeight.w800).copyWith(color: t.ink),
           ),
           const SizedBox(height: DhenuSpacing.xs),
           Text(
-            '$scope · $pourCount pours',
+            l.farmerCollectionsCyclePours(scope, pourCount),
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ],
@@ -183,11 +188,13 @@ class _StickyHeader extends StatelessWidget {
 // ── Cycle chart card ──────────────────────────────────────────────────────────
 
 class _ChartCard extends StatelessWidget {
-  const _ChartCard({required this.pours, required this.period, required this.t});
+  const _ChartCard(
+      {required this.pours, required this.period, required this.t, required this.l});
 
   final List<MpPour> pours;
   final MpCyclePeriod? period;
   final DhenuTokens t;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -206,10 +213,11 @@ class _ChartCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text('Daily volume', style: DhenuText.label.copyWith(color: t.inkSoft)),
+                child: Text(l.farmerCollectionsDailyVolume,
+                    style: DhenuText.label.copyWith(color: t.inkSoft)),
               ),
               Text(
-                '${litres(avgL)} L/day avg',
+                l.farmerCollectionsAvgPerDay(litres(avgL)),
                 style: DhenuText.number(size: 22, w: FontWeight.w800).copyWith(color: t.ink),
               ),
             ],
@@ -225,15 +233,11 @@ class _ChartCard extends StatelessWidget {
     );
   }
 
-  /// One bar per day across the cycle window (start→end), so days still to come
-  /// in an in-progress cycle render as faint sentinels. Falls back to a 30-day
-  /// rolling window when no cadence has resolved.
   List<BarDatum> _buildBars(BuildContext context) {
     final byDate = <String, _DaySummary>{};
     for (final p in pours) {
       final s = byDate.putIfAbsent(p.collectionDate, () => _DaySummary());
       s.qty += p.qtyLitres;
-      // track best grade (lowest index = best)
       if (p.qualityGrade.index < s.bestGrade.index) {
         s.bestGrade = p.qualityGrade;
       }
@@ -243,7 +247,7 @@ class _ChartCard extends StatelessWidget {
     return List.generate(days.length, (i) {
       final summary = byDate[_iso(days[i])];
       if (summary == null || summary.qty <= 0) {
-        return BarDatum(0.1, t.hairline); // faint sentinel bar for zero days
+        return BarDatum(0.1, t.hairline);
       }
       final color = summary.bestGrade == Grade.a ? t.gradeA : t.gradeB;
       return BarDatum(summary.qty, color);
@@ -261,7 +265,6 @@ class _ChartCard extends StatelessWidget {
     return total / byDate.length;
   }
 
-  /// 3 labels spaced across the span: first, middle, last day.
   List<String> _axisLabels() {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -270,8 +273,6 @@ class _ChartCard extends StatelessWidget {
     return [fmt(days.first), fmt(days[days.length ~/ 2]), fmt(days.last)];
   }
 
-  /// Ordered list of dates covered by the chart — the cycle window, or the
-  /// trailing 30 days when no cadence is configured.
   List<DateTime> _spanDays() {
     if (period != null) {
       final start = DateTime.parse(period!.start);
@@ -375,7 +376,6 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
   Widget build(BuildContext context) {
     final poursAsync = ref.watch(farmerCyclePoursProvider(widget.period));
     final pours = poursAsync.asData?.value ?? const <MpPour>[];
-    // Hide cycles with no recorded collections (and while still loading).
     if (pours.isEmpty) return const SizedBox.shrink();
 
     final grouped = _groupPoursByDate(pours);
@@ -396,6 +396,7 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
 
   Widget _summaryCard(BuildContext context, List<MpPour> pours) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
 
@@ -414,7 +415,7 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
                 Text(widget.period.label,
                     style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
                 const SizedBox(height: DhenuSpacing.xs),
-                Text('${litres(totalL)} L · ${pours.length} pours',
+                Text(l.farmerCollectionsPastCycleSummary(litres(totalL), pours.length),
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ],
             ),
@@ -449,6 +450,7 @@ class _DayRow extends StatelessWidget {
     final bestGrade = pours.map((p) => p.qualityGrade).reduce((a, b) => a.index < b.index ? a : b);
     final avgFat = _avgField((p) => p.fat);
     final avgSnf = _avgField((p) => p.snf);
+    final avgWater = _avgField((p) => p.water);
     final d = DateTime.tryParse(date);
     final dayNum = d?.day.toString() ?? '--';
     final monthAbbr = d == null ? '' : _monthAbbr(d.month);
@@ -463,7 +465,6 @@ class _DayRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Date block
           SizedBox(
             width: 44,
             child: Column(
@@ -478,14 +479,12 @@ class _DayRow extends StatelessWidget {
               ],
             ),
           ),
-          // Hairline divider
           Container(
             width: 1,
             height: 36,
             color: t.hairline,
             margin: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md),
           ),
-          // Volume + quality
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,11 +492,10 @@ class _DayRow extends StatelessWidget {
               children: [
                 Text(litres(totalL, unit: true), style: DhenuText.label.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.xs),
-                QualityBadge(fat: avgFat, snf: avgSnf, grade: bestGrade, compact: true),
+                QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: bestGrade, compact: true),
               ],
             ),
           ),
-          // Amount + chevron
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,

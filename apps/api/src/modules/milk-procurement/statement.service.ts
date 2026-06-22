@@ -11,18 +11,20 @@ const r1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Weighted (by litres) totals + AM/PM split for a farmer's cycle pours. */
 function computeTotals(pours: StatementPour[]): PourStatementData['totals'] {
-  let litres = 0, amount = 0, am = 0, pm = 0, fatSum = 0, fatL = 0, snfSum = 0, snfL = 0;
+  let litres = 0, amount = 0, am = 0, pm = 0, fatSum = 0, fatL = 0, snfSum = 0, snfL = 0, waterSum = 0, waterL = 0;
   for (const p of pours) {
     litres += p.qtyLitres;
     amount += p.lineAmount;
     if (p.shift === 'am') am += p.qtyLitres; else pm += p.qtyLitres;
     if (p.fat != null) { fatSum += p.fat * p.qtyLitres; fatL += p.qtyLitres; }
     if (p.snf != null) { snfSum += p.snf * p.qtyLitres; snfL += p.qtyLitres; }
+    if (p.water != null) { waterSum += p.water * p.qtyLitres; waterL += p.qtyLitres; }
   }
   return {
     litres: r2(litres), amount: r2(amount), count: pours.length,
     amLitres: r2(am), pmLitres: r2(pm),
     avgFat: fatL ? r1(fatSum / fatL) : null, avgSnf: snfL ? r1(snfSum / snfL) : null,
+    avgWater: waterL ? r1(waterSum / waterL) : null,
   };
 }
 
@@ -48,6 +50,7 @@ export class StatementService {
         qtyLitres: Number(r.qtyLitres),
         fat: r.fat == null ? null : Number(r.fat),
         snf: r.snf == null ? null : Number(r.snf),
+        water: r.water == null ? null : Number(r.water),
         ratePerLitre: Number(r.ratePerLitre),
         lineAmount: Number(r.lineAmount),
         receiptNo: r.receiptNo,

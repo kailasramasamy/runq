@@ -16,12 +16,14 @@ export const createConsignmentSchema = z.object({
   dispatchQty: z.number().positive(),
   dispatchFat: z.number().min(0).max(15).nullish(),
   dispatchSnf: z.number().min(0).max(15).nullish(),
+  dispatchWater: z.number().min(0).max(100).nullish(),
 });
 
 export const receiveConsignmentSchema = z.object({
   receiptQty: z.number().nonnegative(),
   receiptFat: z.number().min(0).max(15).nullish(),
   receiptSnf: z.number().min(0).max(15).nullish(),
+  receiptWater: z.number().min(0).max(100).nullish(),
 });
 
 /** Ad-hoc receive at the destination for milk that physically arrived without a
@@ -35,6 +37,7 @@ export const directReceiveConsignmentSchema = z.object({
   qty: z.number().positive(),
   fat: z.number().min(0).max(15).nullish(),
   snf: z.number().min(0).max(15).nullish(),
+  water: z.number().min(0).max(100).nullish(),
 });
 
 export const consignmentFilterSchema = z.object({

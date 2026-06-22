@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -17,6 +18,7 @@ class FarmerRewards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final pours = ref.watch(farmerMonthPoursProvider).asData?.value ?? [];
     final streak = _computeStreak(pours);
 
@@ -27,7 +29,7 @@ class FarmerRewards extends ConsumerWidget {
           icon: Icon(DhenuIcons.chevronLeft, color: t.ink),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text('Rewards', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.farmerRewardsTitle, style: DhenuText.h2.copyWith(color: t.ink)),
         backgroundColor: t.surface,
         foregroundColor: t.ink,
       ),
@@ -35,13 +37,14 @@ class FarmerRewards extends ConsumerWidget {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(DhenuSpacing.screen),
         children: [
-          _streakCard(context, t, streak),
+          _streakCard(context, t, l, streak),
           const SizedBox(height: DhenuSpacing.xxl),
-          Text('Badges', style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+          Text(l.farmerRewardsBadgesSection,
+              style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
           const SizedBox(height: DhenuSpacing.md),
-          _badgesGrid(t, streak, pours),
+          _badgesGrid(t, l, streak, pours),
           const SizedBox(height: DhenuSpacing.xxl),
-          _referralCard(context),
+          _referralCard(context, l),
           const SizedBox(height: DhenuSpacing.x4),
         ],
       ),
@@ -49,7 +52,7 @@ class FarmerRewards extends ConsumerWidget {
   }
 
   // ── Streak card ──────────────────────────────────────────────────────────
-  Widget _streakCard(BuildContext context, DhenuTokens t, int streak) {
+  Widget _streakCard(BuildContext context, DhenuTokens t, AppLocalizations l, int streak) {
     const target = 10;
     final remaining = (target - streak).clamp(0, target);
 
@@ -59,15 +62,15 @@ class FarmerRewards extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _streakRing(t, streak, target),
+          _streakRing(t, l, streak, target),
           const SizedBox(width: DhenuSpacing.lg),
-          Expanded(child: _streakText(t, streak, remaining)),
+          Expanded(child: _streakText(t, l, streak, remaining)),
         ],
       ),
     );
   }
 
-  Widget _streakRing(DhenuTokens t, int streak, int target) {
+  Widget _streakRing(DhenuTokens t, AppLocalizations l, int streak, int target) {
     return ProgressRing(
       progress: streak / target,
       color: t.gradeA,
@@ -81,23 +84,22 @@ class FarmerRewards extends ConsumerWidget {
             '$streak',
             style: DhenuText.number(size: 28, w: FontWeight.w800, color: t.gradeA),
           ),
-          Text('/ $target days', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Text(l.farmerRewardsStreakDays(target),
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ],
       ),
     );
   }
 
-  Widget _streakText(DhenuTokens t, int streak, int remaining) {
+  Widget _streakText(DhenuTokens t, AppLocalizations l, int streak, int remaining) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Quality Streak', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.farmerRewardsQualityStreak, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.xs),
         Text(
-          remaining == 0
-              ? 'Bonus unlocked — keep it going!'
-              : '$remaining more to unlock a ₹500 bonus',
+          remaining == 0 ? l.farmerRewardsBonusUnlocked : l.farmerRewardsStreakRemaining(remaining),
           style: DhenuText.caption.copyWith(color: t.inkSoft),
         ),
       ],
@@ -105,8 +107,8 @@ class FarmerRewards extends ConsumerWidget {
   }
 
   // ── Badges grid ──────────────────────────────────────────────────────────
-  Widget _badgesGrid(DhenuTokens t, int streak, List<MpPour> pours) {
-    final badges = _buildBadges(streak, pours);
+  Widget _badgesGrid(DhenuTokens t, AppLocalizations l, int streak, List<MpPour> pours) {
+    final badges = _buildBadges(l, streak, pours);
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: DhenuSpacing.md,
@@ -114,34 +116,34 @@ class FarmerRewards extends ConsumerWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.1,
-      children: badges.map((b) => _badgeTile(t, b)).toList(),
+      children: badges.map((b) => _badgeTile(t, l, b)).toList(),
     );
   }
 
-  List<_BadgeData> _buildBadges(int streak, List<MpPour> pours) => [
+  List<_BadgeData> _buildBadges(AppLocalizations l, int streak, List<MpPour> pours) => [
         _BadgeData(
           icon: DhenuIcons.medal,
-          name: 'Consistent',
+          name: l.farmerRewardsBadgeConsistent,
           unlocked: streak >= 7,
         ),
         _BadgeData(
           icon: DhenuIcons.calendar,
-          name: '100-Day Club',
+          name: l.farmerRewardsBadge100Day,
           unlocked: false,
         ),
         _BadgeData(
           icon: DhenuIcons.beaker,
-          name: 'Top FAT',
+          name: l.farmerRewardsBadgeTopFat,
           unlocked: _hasTopFat(pours),
         ),
         _BadgeData(
           icon: DhenuIcons.userPlus,
-          name: 'Referrer',
+          name: l.farmerRewardsBadgeReferrer,
           unlocked: false,
         ),
       ];
 
-  Widget _badgeTile(DhenuTokens t, _BadgeData badge) {
+  Widget _badgeTile(DhenuTokens t, AppLocalizations l, _BadgeData badge) {
     final chip = Container(
       padding: const EdgeInsets.all(DhenuSpacing.md),
       decoration: BoxDecoration(
@@ -156,8 +158,8 @@ class FarmerRewards extends ConsumerWidget {
       ),
     );
 
-    final label = Text(
-      badge.unlocked ? 'UNLOCKED' : 'LOCKED',
+    final statusLabel = Text(
+      badge.unlocked ? l.farmerRewardsBadgeUnlocked : l.farmerRewardsBadgeLocked,
       style: DhenuText.caption.copyWith(
         color: badge.unlocked ? t.gradeA : t.inkSoft,
         fontWeight: FontWeight.w700,
@@ -180,7 +182,7 @@ class FarmerRewards extends ConsumerWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: DhenuSpacing.xs),
-          label,
+          statusLabel,
         ],
       ),
     );
@@ -190,7 +192,7 @@ class FarmerRewards extends ConsumerWidget {
   }
 
   // ── Referral card ────────────────────────────────────────────────────────
-  Widget _referralCard(BuildContext context) {
+  Widget _referralCard(BuildContext context, AppLocalizations l) {
     const white = Colors.white;
     final white80 = Colors.white.withValues(alpha: 0.8);
 
@@ -199,17 +201,17 @@ class FarmerRewards extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Refer a farmer', style: DhenuText.title.copyWith(color: white)),
+          Text(l.farmerRewardsReferTitle, style: DhenuText.title.copyWith(color: white)),
           const SizedBox(height: DhenuSpacing.xs),
           Text(
-            'Earn ₹100 for every farmer who joins',
+            l.farmerRewardsReferBody,
             style: DhenuText.body.copyWith(color: white80),
           ),
           const SizedBox(height: DhenuSpacing.lg),
           FilledButton.icon(
-            onPressed: () => _share(context),
+            onPressed: () => _share(context, l),
             icon: const Icon(DhenuIcons.share, size: 18),
-            label: const Text('Share invite'),
+            label: Text(l.farmerRewardsShareInvite),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: DhenuColors.brand,
@@ -225,8 +227,8 @@ class FarmerRewards extends ConsumerWidget {
     );
   }
 
-  void _share(BuildContext context) {
-    showDhenuToast(context, 'Referral invite coming soon!', type: DhenuToastType.info);
+  void _share(BuildContext context, AppLocalizations l) {
+    showDhenuToast(context, l.farmerRewardsReferralComingSoon, type: DhenuToastType.info);
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

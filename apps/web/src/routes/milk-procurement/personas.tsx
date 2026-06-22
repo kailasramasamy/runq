@@ -70,10 +70,10 @@ function FarmerView({ farmerId }: { farmerId: string }) {
         <CardHeader>Recent pours</CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><Th>Date</Th><Th>Shift</Th><Th>Qty</Th><Th>FAT/SNF</Th><Th>Grade</Th><Th align="right">₹</Th></TableRow></TableHeader>
+            <TableHeader><TableRow><Th>Date</Th><Th>Shift</Th><Th>Qty</Th><Th>FAT/SNF</Th><Th>Water %</Th><Th>Grade</Th><Th align="right">₹</Th></TableRow></TableHeader>
             <TableBody>
               {pours.length === 0 ? (
-                <TableEmpty colSpan={6} message="No pours yet." />
+                <TableEmpty colSpan={7} message="No pours yet." />
               ) : (
                 pours.map((p) => (
                   <TableRow key={p.id}>
@@ -81,6 +81,7 @@ function FarmerView({ farmerId }: { farmerId: string }) {
                     <TableCell>{p.shift.toUpperCase()}</TableCell>
                     <TableCell>{p.qtyLitres}</TableCell>
                     <TableCell>{p.fat}/{p.snf}</TableCell>
+                    <TableCell className="tabular-nums">{p.water ?? '—'}</TableCell>
                     <TableCell><Badge variant={p.qualityGrade === 'a' ? 'success' : 'default'}>{p.qualityGrade?.toUpperCase()}</Badge></TableCell>
                     <TableCell className="text-right">{p.lineAmount}</TableCell>
                   </TableRow>

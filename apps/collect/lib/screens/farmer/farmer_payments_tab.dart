@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -27,6 +28,7 @@ import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/section_header.dart';
+import 'farmer_insights.dart';
 
 /// Payments tab — transparent month payout breakdown + history (spec §6.3).
 class FarmerPaymentsTab extends ConsumerWidget {
@@ -45,6 +47,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final periodsAsync = ref.watch(farmerCyclePeriodsProvider);
     final ledgerAsync = ref.watch(farmerLedgerProvider);
     final periods = periodsAsync.asData?.value ?? const <MpCyclePeriod>[];
@@ -61,11 +64,11 @@ class FarmerPaymentsTab extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          _stickyHeader(t),
+          _stickyHeader(t, l),
           const SizedBox(height: DhenuSpacing.lg),
-          _netPayableCard(context, t, cyclePoursAsync, ledgerAsync, current?.label ?? ''),
+          _netPayableCard(context, t, l, cyclePoursAsync, ledgerAsync, current),
           const SizedBox(height: DhenuSpacing.xl),
-          _historyHeader(t),
+          _historyHeader(t, l),
           const SizedBox(height: DhenuSpacing.sm),
           _historyList(periods.skip(1).toList()),
         ],
@@ -74,32 +77,35 @@ class FarmerPaymentsTab extends ConsumerWidget {
   }
 
   // ── Sticky-ish title ────────────────────────────────────────────────────────
-  Widget _stickyHeader(DhenuTokens t) => Column(
+  Widget _stickyHeader(DhenuTokens t, AppLocalizations l) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          DhenuSectionHeader('Payments'),
+          DhenuSectionHeader(l.farmerPaymentsTitle),
           const SizedBox(height: DhenuSpacing.xs),
           Text(
-            'Transparent, every rupee accounted',
+            l.farmerPaymentsSubtitle,
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ],
       );
 
-  Widget _historyHeader(DhenuTokens t) => Text(
-        'PAYMENT HISTORY',
-        style: DhenuText.caption.copyWith(color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1),
+  Widget _historyHeader(DhenuTokens t, AppLocalizations l) => Text(
+        l.farmerPaymentsHistoryHeader,
+        style: DhenuText.caption.copyWith(
+            color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1),
       );
 
   // ── Net-payable card ────────────────────────────────────────────────────────
   Widget _netPayableCard(
     BuildContext context,
     DhenuTokens t,
+    AppLocalizations l,
     AsyncValue<List<MpPour>> cyclePoursAsync,
     AsyncValue<({double balance, List<MpLedgerEntry> entries})> ledgerAsync,
-    String periodLabel,
+    MpCyclePeriod? period,
   ) {
+    final periodLabel = period?.label ?? '';
     if (cyclePoursAsync.isLoading || ledgerAsync.isLoading) {
       return const DhenuLoadingList(rows: 5);
     }
@@ -111,14 +117,10 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final ledger = ledgerAsync.asData?.value;
 
     final grossMilk = pours.fold<double>(0, (s, p) => s + p.qtyLitres * p.ratePerLitre);
-    // Bonus: lineAmount already includes the per-pour final amount; ratePerLitre
-    // on the pour is the full blended rate so bonus is approximately zero in
-    // the current server implementation. We still compute it for completeness.
     final qualityBonus = pours.fold<double>(
         0, (s, p) => s + (p.lineAmount - p.qtyLitres * p.ratePerLitre));
     final hasBonus = qualityBonus > 0.01;
 
-    // Deductions from ledger: negative-amount entries bucketed by entryType.
     final deductionMap = <String, double>{};
     if (ledger != null) {
       for (final e in ledger.entries) {
@@ -130,7 +132,14 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final totalDeductions = deductionMap.values.fold<double>(0, (s, v) => s + v);
     final netPayable = grossMilk + (hasBonus ? qualityBonus : 0) - totalDeductions;
     final balance = ledger?.balance ?? 0;
-    final cycleLabel = periodLabel.isEmpty ? 'THIS CYCLE' : periodLabel.toUpperCase();
+    final cycleLabel = periodLabel.isEmpty ? l.farmerHomeThisCycle : periodLabel.toUpperCase();
+
+    final proj = period == null
+        ? null
+        : projectCycleEarnings(
+            pours: pours, windowStart: period.start, windowEnd: period.end, today: DateTime.now());
+    final projectedNet = proj == null ? 0.0 : (proj.projectedGross - totalDeductions);
+    final showProj = proj != null && proj.isProjectable && projectedNet > netPayable + 1;
 
     return Container(
       decoration: BoxDecoration(
@@ -144,9 +153,8 @@ class FarmerPaymentsTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Eyebrow + net amount row
           Text(
-            'NET PAYABLE · $cycleLabel',
+            l.farmerPaymentsNetPayable(cycleLabel),
             style: DhenuText.caption.copyWith(
                 color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1),
           ),
@@ -161,16 +169,29 @@ class FarmerPaymentsTab extends ConsumerWidget {
                 ),
               ),
               AudioPlay(
-                speak: 'Net payable this cycle, ${netPayable.toStringAsFixed(0)} rupees',
-                label: 'Listen',
+                speak: l.farmerPaymentsListenSpeak(netPayable.toStringAsFixed(0)),
+                label: l.farmerHomeHeroListenLabel,
                 size: 16,
                 iconColor: t.inkSoft,
                 fillColor: t.hairline,
               ),
             ],
           ),
+          if (showProj) ...[
+            const SizedBox(height: DhenuSpacing.xs),
+            Row(
+              children: [
+                Icon(DhenuIcons.trendingUp, size: 14, color: t.gradeA),
+                const SizedBox(width: DhenuSpacing.xs),
+                Text(
+                  l.farmerPaymentsProjection(rupees(projectedNet)),
+                  style:
+                      DhenuText.caption.copyWith(color: t.inkSoft, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: DhenuSpacing.lg),
-          // BreakdownBar
           BreakdownBar(
             height: 10,
             segments: [
@@ -180,11 +201,10 @@ class FarmerPaymentsTab extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: DhenuSpacing.lg),
-          // Itemized rows
-          _itemRow(t, t.gradeA, 'Gross milk', rupees(grossMilk), t.ink),
+          _itemRow(t, t.gradeA, l.farmerPaymentsGrossMilk, rupees(grossMilk), t.ink),
           if (hasBonus) ...[
             _hairline(t),
-            _itemRow(t, const Color(0xFF3DDC97), 'Quality bonus',
+            _itemRow(t, const Color(0xFF3DDC97), l.farmerPaymentsQualityBonus,
                 '+ ${rupees(qualityBonus)}', t.gradeA),
           ],
           if (deductionMap.isNotEmpty) ...[
@@ -196,16 +216,15 @@ class FarmerPaymentsTab extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (i > 0) _hairline(t),
-                  _itemRow(t, t.gradeC, _deductionLabel(e.key),
+                  _itemRow(t, t.gradeC, _deductionLabel(l, e.key),
                       '− ${rupees(e.value)}', t.gradeC),
                 ],
               );
             }),
           ],
-          // Outstanding advance chip
           if (balance < 0) ...[
             const SizedBox(height: DhenuSpacing.md),
-            _advanceChip(t, balance),
+            _advanceChip(t, l, balance),
           ],
         ],
       ),
@@ -237,7 +256,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
   Widget _hairline(DhenuTokens t) =>
       Divider(height: 1, thickness: 1, color: t.hairline);
 
-  Widget _advanceChip(DhenuTokens t, double balance) {
+  Widget _advanceChip(DhenuTokens t, AppLocalizations l, double balance) {
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
@@ -252,7 +271,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
           Icon(DhenuIcons.warning, size: 14, color: t.gradeC),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
-            'Outstanding advance: ${rupees(balance.abs())}',
+            l.farmerPaymentsOutstandingAdvance(rupees(balance.abs())),
             style: DhenuText.label.copyWith(color: t.gradeC),
           ),
         ],
@@ -269,16 +288,16 @@ class FarmerPaymentsTab extends ConsumerWidget {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
-  String _deductionLabel(String type) {
+  String _deductionLabel(AppLocalizations l, String type) {
     switch (type) {
       case 'cattle_feed_loan':
-        return 'Cattle-feed loan';
+        return l.farmerPaymentsDeductCattleFeedLoan;
       case 'advance':
-        return 'Advance';
+        return l.farmerPaymentsDeductAdvance;
       case 'medicine':
-        return 'Medicine';
+        return l.farmerPaymentsDeductMedicine;
       case 'insurance':
-        return 'Insurance';
+        return l.farmerPaymentsDeductInsurance;
       default:
         return type.replaceAll('_', ' ');
     }
@@ -293,6 +312,7 @@ class _HistoryRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(farmerCyclePoursProvider(period));
 
     if (poursAsync.isLoading) return const SizedBox.shrink();
@@ -314,17 +334,18 @@ class _HistoryRow extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(label,
-                      style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+                      style:
+                          DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
                   const SizedBox(height: DhenuSpacing.xs),
                   Text(
-                    '${litres(totalL)} L · ${pours.length} pours',
+                    l.farmerPaymentsHistorySummary(litres(totalL), pours.length),
                     style: DhenuText.caption.copyWith(color: t.inkSoft),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: DhenuSpacing.md),
-            _PaidChip(t: t),
+            _PaidChip(t: t, l: l),
             const SizedBox(width: DhenuSpacing.sm),
             Text(
               rupees(totalRs),
@@ -338,8 +359,9 @@ class _HistoryRow extends ConsumerWidget {
 }
 
 class _PaidChip extends StatelessWidget {
-  const _PaidChip({required this.t});
+  const _PaidChip({required this.t, required this.l});
   final DhenuTokens t;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -351,8 +373,9 @@ class _PaidChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Text(
-        'PAID',
-        style: DhenuText.caption.copyWith(color: t.gradeA, fontWeight: FontWeight.w700, letterSpacing: 0.8),
+        l.farmerPaymentsPaid,
+        style: DhenuText.caption
+            .copyWith(color: t.gradeA, fontWeight: FontWeight.w700, letterSpacing: 0.8),
       ),
     );
   }

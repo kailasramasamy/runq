@@ -23,6 +23,8 @@ export const recordPourSchema = z
     fat: z.number().min(0).max(15).nullish(),
     snf: z.number().min(0).max(15).nullish(),
     clr: z.number().min(0).max(40).nullish(),
+    // added-water %, analyzer-reported; record/display only (not priced)
+    water: z.number().min(0).max(100).nullish(),
     tempC: z.number().min(-5).max(60).nullish(),
     captureSource: z.enum(['manual', 'device']).default('manual'),
     // mobile offline-queue replay dedupe (idempotency key)

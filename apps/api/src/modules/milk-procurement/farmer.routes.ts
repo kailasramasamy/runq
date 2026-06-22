@@ -88,10 +88,14 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
 
   // Profile photo / KYC / Aadhaar scan upload (multipart). Operators are
   // limited to farmers at their own node; the photo/KYC ref is set on success.
-  app.post('/:id/attachments', { preHandler: [rbacHook([...FARMER_WRITE_ROLES])] }, async (request, reply) => {
+  // A farmer may also upload their OWN profile photo (only) from the app.
+  app.post('/:id/attachments', { preHandler: [rbacHook([...FARMER_WRITE_ROLES, 'farmer'])] }, async (request, reply) => {
     const { id } = uuidParamSchema.parse(request.params);
     const principal = await resolveMpPrincipal(request);
-    await assertFarmerAtNode(request.server.db, request.tenantId, principal, id);
+    // Reject cross-farmer access early; operator/owner node scope checked below.
+    if (principal.kind === 'farmer' && principal.farmerId !== id) {
+      throw new ForbiddenError('Not allowed for this farmer');
+    }
 
     const file = await request.file();
     if (!file) throw new AppError(400, 'No file uploaded');
@@ -103,6 +107,13 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
 
     const rawKind = (file.fields as Record<string, { value?: string } | undefined>)?.kind?.value;
     const kind = farmerDocumentKindSchema.parse(rawKind ?? 'other');
+
+    // A farmer can only set their profile photo — never KYC/other docs.
+    if (principal.kind === 'farmer') {
+      if (kind !== 'profile_photo') throw new ForbiddenError('Farmers may only upload a profile photo');
+    } else {
+      await assertFarmerAtNode(request.server.db, request.tenantId, principal, id);
+    }
 
     const attachments = new AttachmentService(request.server.db, request.tenantId, getStorageProvider());
     const data = await attachments.upload({

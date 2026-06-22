@@ -27,6 +27,7 @@ export const mpPours = pgTable('mp_pours', {
   fat: decimal('fat', { precision: 5, scale: 2 }),
   snf: decimal('snf', { precision: 5, scale: 2 }),
   clr: decimal('clr', { precision: 5, scale: 2 }),
+  water: decimal('water', { precision: 5, scale: 2 }),
   tempC: decimal('temp_c', { precision: 4, scale: 1 }),
   qualityGrade: mpGrade('quality_grade'),
   rateChartId: uuid('rate_chart_id').references(() => mpRateCharts.id),

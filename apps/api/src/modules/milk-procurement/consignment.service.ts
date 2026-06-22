@@ -20,7 +20,7 @@ type MilkType = NonNullable<MpConsignmentRow['milkType']>;
 export interface ConsignmentAvailability {
   nodeId: string; collectionDate: string; nodeType: string;
   collected: number; dispatched: number; available: number;
-  avgFat: number | null; avgSnf: number | null;
+  avgFat: number | null; avgSnf: number | null; avgWater: number | null;
 }
 
 /** Tier-to-tier consignments (VMCC→CC, CC→PP) with dispatch+receipt QC + variance. */
@@ -99,6 +99,7 @@ export class ConsignmentService {
         dispatchQty: String(input.dispatchQty),
         dispatchFat: numOrNull(input.dispatchFat),
         dispatchSnf: numOrNull(input.dispatchSnf),
+        dispatchWater: numOrNull(input.dispatchWater),
         dispatchedAt: new Date(),
         dispatchedBy: userId ?? null,
         status: 'in_transit',
@@ -120,6 +121,7 @@ export class ConsignmentService {
         receiptQty: String(input.receiptQty),
         receiptFat: numOrNull(input.receiptFat),
         receiptSnf: numOrNull(input.receiptSnf),
+        receiptWater: numOrNull(input.receiptWater),
         receivedAt: new Date(),
         receivedBy: userId ?? null,
         varianceQty: String(varianceQty),
@@ -167,15 +169,18 @@ export class ConsignmentService {
         dispatchQty: qty,
         dispatchFat: numOrNull(input.fat),
         dispatchSnf: numOrNull(input.snf),
+        dispatchWater: numOrNull(input.water),
         dispatchedAt: new Date(),
         dispatchedBy: userId ?? null,
         receiptQty: qty,
         receiptFat: numOrNull(input.fat),
         receiptSnf: numOrNull(input.snf),
+        receiptWater: numOrNull(input.water),
         receivedAt: new Date(),
         receivedBy: userId ?? null,
         varianceQty: '0',
         variancePct: '0',
+        directReceive: true,
         status: 'received',
       }).returning();
       const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
@@ -199,6 +204,7 @@ export class ConsignmentService {
         receiptQty: String(input.receiptQty),
         receiptFat: numOrNull(input.receiptFat),
         receiptSnf: numOrNull(input.receiptSnf),
+        receiptWater: numOrNull(input.receiptWater),
         receivedAt: new Date(),
         receivedBy: userId ?? null,
         varianceQty: String(varianceQty),
@@ -228,6 +234,43 @@ export class ConsignmentService {
     });
   }
 
+  /** Delete a manually-entered (directReceive) mis-entry. Only a manual receipt
+   * that hasn't been locked for dispatch (its CC slot still open) can go —
+   * a dispatched consignment would erase the source's dispatch, and onward
+   * dispatch is itself gated on the close, so the close check covers both. */
+  async deleteManualReceipt(id: string, principal: MpPrincipal): Promise<MpConsignmentRow> {
+    const c = await this.getById(id, principal);
+    assertNodeAccess(principal, c.toNodeId);
+    if (!c.directReceive) throw new ConflictError('Only a manually-entered receipt can be deleted');
+    if (c.status !== 'received') throw new ConflictError('Only a received receipt can be deleted');
+    await this.assertReceiptUnlocked(c);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.update(mpConsignments)
+        .set({ status: 'reversed', updatedAt: new Date() })
+        .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+      if (c.stockLedgerId) {
+        await this.adjustRawMilkStock(tx, c.stockLedgerId, row!.id, -Number(c.receiptQty ?? 0), undefined);
+      }
+      return row!;
+    });
+  }
+
+  /** Reject if the destination CC's slot for this receipt is closed — a BMC CC
+   * locks once the whole day is closed; a no-BMC CC once that shift is. */
+  private async assertReceiptUnlocked(c: MpConsignmentRow): Promise<void> {
+    const [to] = await this.db.select({ hasBmc: mpNodes.hasBmc }).from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, c.toNodeId)));
+    const closed = (shift: 'am' | 'pm') => isShiftClosed(this.db,
+      { tenantId: this.tenantId, nodeId: c.toNodeId, collectionDate: c.collectionDate, shift });
+    if (to?.hasBmc) {
+      if ((await closed('am')) && (await closed('pm'))) {
+        throw new ConflictError('Receipt is locked — dispatch closed for the day');
+      }
+    } else if (c.shift && (await closed(c.shift))) {
+      throw new ConflictError('Receipt is locked — dispatch closed for this shift');
+    }
+  }
+
   /** Available-to-dispatch at a node: VMCC counts its pours, CC/PP count milk received in.
    * When `shift` is given, every figure is scoped to that shift (no-BMC, per-shift dispatch). */
   async availability(nodeId: string, collectionDate: string, principal: MpPrincipal, shift?: 'am' | 'pm'): Promise<ConsignmentAvailability> {
@@ -242,7 +285,7 @@ export class ConsignmentService {
     return {
       nodeId, collectionDate, nodeType: node.nodeType,
       collected: src.qty, dispatched, available: round3(src.qty - dispatched),
-      avgFat: src.fat, avgSnf: src.snf,
+      avgFat: src.fat, avgSnf: src.snf, avgWater: src.water,
     };
   }
 
@@ -261,10 +304,11 @@ export class ConsignmentService {
       qty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
       fat: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.fat}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.fat} is not null), 0), 2)`,
       snf: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.snf}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.snf} is not null), 0), 2)`,
+      water: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.water}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.water} is not null), 0), 2)`,
     }).from(mpPours).where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.nodeId, nodeId),
       eq(mpPours.collectionDate, date), eq(mpPours.status, 'recorded'),
       ...(shift ? [eq(mpPours.shift, shift)] : [])));
-    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf) };
+    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
   }
 
   /** Qty + volume-weighted FAT/SNF of milk received in at a CC/PP. */
@@ -273,10 +317,11 @@ export class ConsignmentService {
       qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
       fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
       snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
+      water: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptWater}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptWater} is not null), 0), 2)`,
     }).from(mpConsignments).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.toNodeId, nodeId),
       eq(mpConsignments.collectionDate, date), eq(mpConsignments.status, 'received'),
       ...(shift ? [eq(mpConsignments.shift, shift)] : [])));
-    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf) };
+    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
   }
 
   private async sumDispatched(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<number> {
@@ -370,7 +415,7 @@ export class ConsignmentService {
   }
 }
 
-interface SourceAgg { qty: number; fat: number | null; snf: number | null }
+interface SourceAgg { qty: number; fat: number | null; snf: number | null; water: number | null }
 
 function numOrNull(v: number | null | undefined): string | null {
   return v != null ? String(v) : null;
