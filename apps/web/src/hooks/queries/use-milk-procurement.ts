@@ -34,6 +34,7 @@ export interface MpNode {
   parentNodeId: string | null; hasBmc: boolean; overnightPooling: boolean; capacityLitres: string | null;
   payoutMode: PayoutMode | null; payeeVendorId: string | null;
   measurementMode: MeasurementMode;
+  collectionShifts: 'both' | 'am' | 'pm';
   allowedMilkTypes: MilkType[] | null;
   defaultMilkType: MilkType | null;
   city: string | null; state: string | null; isActive: boolean;

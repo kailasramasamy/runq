@@ -73,6 +73,8 @@ class MpNode {
   final DateTime? createdAt;
   /// `'analyzer'` (default, fat+SNF) or `'lactometer'` (CLR-only).
   final String measurementMode;
+  /// Which shifts this VMCC collects in: `'both'` (default) | `'am'` | `'pm'`.
+  final String collectionShifts;
   /// Null = legacy / all types allowed. Otherwise restricts selectable types.
   final List<MilkType>? allowedMilkTypes;
   /// Node-level default milk type for new pours. Null = no preference.
@@ -94,6 +96,7 @@ class MpNode {
     this.capacityLitres,
     this.createdAt,
     this.measurementMode = 'analyzer',
+    this.collectionShifts = 'both',
     this.allowedMilkTypes,
     this.defaultMilkType,
   });
@@ -102,6 +105,9 @@ class MpNode {
   bool get isCc => nodeType == 'cc';
   bool get isPp => nodeType == 'pp';
   bool get isLactometer => measurementMode == 'lactometer';
+
+  /// Whether this VMCC collects in the given shift ('am' | 'pm').
+  bool collectsShift(String shift) => collectionShifts == 'both' || collectionShifts == shift;
 
   factory MpNode.fromJson(Map<String, dynamic> j) => MpNode(
     id: _s(j['id']),
@@ -121,6 +127,7 @@ class MpNode {
         ? null
         : DateTime.tryParse(j['createdAt'].toString()),
     measurementMode: j['measurementMode'] == 'lactometer' ? 'lactometer' : 'analyzer',
+    collectionShifts: switch (j['collectionShifts']) { 'am' => 'am', 'pm' => 'pm', _ => 'both' },
     allowedMilkTypes: (j['allowedMilkTypes'] as List?)
         ?.map((e) => milkTypeFrom(e as String?))
         .toList(),

@@ -54,6 +54,7 @@ export class NodeService {
       hasBmc: input.hasBmc,
       overnightPooling: input.overnightPooling,
       measurementMode: input.measurementMode,
+      collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes ?? null,
       defaultMilkType: input.defaultMilkType ?? null,
       capacityLitres: num(input.capacityLitres),
@@ -78,7 +79,7 @@ export class NodeService {
     assignDefined(patch, {
       name: input.name, nodeType: input.nodeType, hasBmc: input.hasBmc,
       overnightPooling: input.overnightPooling,
-      measurementMode: input.measurementMode,
+      measurementMode: input.measurementMode, collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,
       payoutMode: input.payoutMode, payeeVendorId: input.payeeVendorId,
       parentNodeId: input.parentNodeId, addressLine1: input.addressLine1,

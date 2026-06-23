@@ -33,6 +33,12 @@ const MEASUREMENT_MODES = [
   { value: 'lactometer', label: 'Lactometer (CLR only)' },
 ];
 
+const COLLECTION_SHIFTS = [
+  { value: 'both', label: 'Both shifts (AM + PM)' },
+  { value: 'am', label: 'AM only' },
+  { value: 'pm', label: 'PM only' },
+];
+
 // The four types operators can actually select; 'cow' is legacy-only.
 const SELECTABLE_MILK_TYPES: MilkType[] = ['cow_a1', 'cow_a2', 'buffalo', 'mixed'];
 
@@ -237,7 +243,7 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
   const [f, setF] = useState({
     code: '', name: '', nodeType: 'vmcc', parentNodeId: '', hasBmc: false,
     overnightPooling: false,
-    measurementMode: 'analyzer', capacityLitres: '', payoutMode: '',
+    measurementMode: 'analyzer', collectionShifts: 'both', capacityLitres: '', payoutMode: '',
   });
   const [allowedMilkTypes, setAllowedMilkTypes] = useState<MilkType[]>([]);
   const [defaultMilkType, setDefaultMilkType] = useState('');
@@ -255,6 +261,7 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
         parentNodeId: f.parentNodeId || null, hasBmc: f.hasBmc,
         overnightPooling: f.nodeType === 'cc' ? f.overnightPooling : false,
         measurementMode: (isVmcc ? f.measurementMode : 'analyzer') as MeasurementMode,
+        collectionShifts: (isVmcc ? f.collectionShifts : 'both') as 'both' | 'am' | 'pm',
         capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
         payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
         allowedMilkTypes: isVmcc && allowedMilkTypes.length > 0 ? allowedMilkTypes : null,
@@ -289,6 +296,7 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
         {f.nodeType === 'vmcc' && (
           <>
             <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v })} options={MEASUREMENT_MODES} />
+            <Combobox label="Collects shifts" value={f.collectionShifts} onChange={(v) => setF({ ...f, collectionShifts: v as 'both' | 'am' | 'pm' })} options={COLLECTION_SHIFTS} />
             <VmccMilkTypeFields
               allowed={allowedMilkTypes} defaultType={defaultMilkType}
               onAllowedChange={setAllowedMilkTypes} onDefaultChange={setDefaultMilkType}
@@ -314,6 +322,7 @@ function EditNodeModal({ node, nodes, operator, onClose }:
     name: node.name, nodeType: node.nodeType as string, parentNodeId: node.parentNodeId ?? '',
     hasBmc: node.hasBmc, overnightPooling: node.overnightPooling,
     measurementMode: node.measurementMode ?? 'analyzer',
+    collectionShifts: node.collectionShifts ?? 'both',
     capacityLitres: node.capacityLitres ?? '', payoutMode: node.payoutMode ?? '',
   });
   // Initialise from node's existing milk-type config (null = all).
@@ -348,6 +357,7 @@ function EditNodeModal({ node, nodes, operator, onClose }:
           hasBmc: f.hasBmc,
           overnightPooling: f.nodeType === 'cc' ? f.overnightPooling : false,
           measurementMode: isVmcc ? (f.measurementMode as MeasurementMode) : undefined,
+          collectionShifts: (isVmcc ? f.collectionShifts : 'both') as 'both' | 'am' | 'pm',
           capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
           payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
           allowedMilkTypes: isVmcc && allowedMilkTypes.length > 0 ? allowedMilkTypes : null,
@@ -383,6 +393,7 @@ function EditNodeModal({ node, nodes, operator, onClose }:
         {f.nodeType === 'vmcc' && (
           <>
             <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v as MeasurementMode })} options={MEASUREMENT_MODES} />
+            <Combobox label="Collects shifts" value={f.collectionShifts} onChange={(v) => setF({ ...f, collectionShifts: v as 'both' | 'am' | 'pm' })} options={COLLECTION_SHIFTS} />
             <VmccMilkTypeFields
               allowed={allowedMilkTypes} defaultType={defaultMilkType}
               onAllowedChange={setAllowedMilkTypes} onDefaultChange={setDefaultMilkType}

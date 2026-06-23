@@ -18,6 +18,9 @@ export const mpMeasurementMode = pgEnum('mp_measurement_mode', ['analyzer', 'lac
 export const mpGrade = pgEnum('mp_grade', ['a', 'b', 'c']);
 export const mpRateRule = pgEnum('mp_rate_rule', ['quality_bonus', 'volume_slab']);
 export const mpShift = pgEnum('mp_shift', ['am', 'pm']);
+// Which shifts a VMCC collects in. `both` (default) | `am` | `pm` — drives the
+// receive-screen VMCC list (only sources for the current shift are shown).
+export const mpCollectionShifts = pgEnum('mp_collection_shifts', ['both', 'am', 'pm']);
 export const mpCaptureSrc = pgEnum('mp_capture_src', ['manual', 'device']);
 export const mpPourStatus = pgEnum('mp_pour_status', ['recorded', 'reversed']);
 export const mpConsignmentKind = pgEnum('mp_consignment_kind', ['vmcc_to_cc', 'cc_to_pp']);

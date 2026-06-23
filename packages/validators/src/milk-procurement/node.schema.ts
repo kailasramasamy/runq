@@ -21,6 +21,8 @@ const nodeFields = z.object({
   overnightPooling: z.boolean().default(false),
   // analyzer = fat/SNF testing; lactometer = CLR-only (VMCC without an analyzer)
   measurementMode: z.enum(['analyzer', 'lactometer']).default('analyzer'),
+  // which shifts a VMCC collects in — both (default) | am | pm
+  collectionShifts: z.enum(['both', 'am', 'pm']).default('both'),
   // milk type(s) this VMCC collects; null = all (legacy). defaultMilkType
   // pre-selects the operator picker and must be within allowedMilkTypes.
   allowedMilkTypes: z.array(milkTypeEnum).min(1).nullish(),

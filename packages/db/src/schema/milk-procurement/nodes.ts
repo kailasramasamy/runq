@@ -3,7 +3,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from '../ap/vendors';
-import { mpNodeType, mpPayoutMode, mpMeasurementMode, mpMilkType } from './enums';
+import { mpNodeType, mpPayoutMode, mpMeasurementMode, mpMilkType, mpCollectionShifts } from './enums';
 
 /**
  * The collection network as a self-referencing tree: a VMCC's `parent` is its
@@ -25,6 +25,9 @@ export const mpNodes = pgTable('mp_nodes', {
   // milk-testing capability: `analyzer` (fat/SNF) or `lactometer` (CLR-only).
   // Only meaningful for VMCCs; CC/PP always test on an analyzer.
   measurementMode: mpMeasurementMode('measurement_mode').notNull().default('analyzer'),
+  // Which shifts this VMCC collects in (both | am | pm). Drives the CC
+  // receive-screen VMCC list. Only meaningful for VMCC nodes.
+  collectionShifts: mpCollectionShifts('collection_shifts').notNull().default('both'),
   // The milk type(s) this VMCC collects. null/empty = all types (legacy). The
   // operator entry picker is restricted to these and hidden when only one.
   allowedMilkTypes: mpMilkType('allowed_milk_types').array(),

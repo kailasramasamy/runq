@@ -69,6 +69,8 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     final inboundAsync =
         ref.watch(nodeInboundByDateProvider((nodeId: widget.ccNodeId, date: isoDate(_date))));
     final received = _receivedFor(inboundAsync.asData?.value ?? const []);
+    // Only VMCCs that collect in the selected shift can have milk to receive.
+    final shiftVmccs = widget.vmccs.where((v) => v.collectsShift(_shift.name)).toList();
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(title: const Text('Manual receive')),
@@ -107,18 +109,21 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
             const SizedBox(height: DhenuSpacing.lg),
             Text('SELECT VMCC', style: DhenuText.label.copyWith(color: t.inkSoft)),
             const SizedBox(height: DhenuSpacing.sm),
-            if (widget.vmccs.isEmpty)
+            if (shiftVmccs.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
-                child: Text('No VMCCs linked to this CC.',
+                child: Text(
+                    widget.vmccs.isEmpty
+                        ? 'No VMCCs linked to this CC.'
+                        : 'No VMCCs collect in the ${_shift == Shift.am ? 'AM' : 'PM'} shift.',
                     style: DhenuText.body.copyWith(color: t.inkSoft)),
               )
             else
               // Pending VMCCs first, already-received pushed to the bottom;
               // each group sorted alphabetically by name.
               for (final v in [
-                ..._byName(widget.vmccs.where((v) => !received.containsKey(v.id))),
-                ..._byName(widget.vmccs.where((v) => received.containsKey(v.id))),
+                ..._byName(shiftVmccs.where((v) => !received.containsKey(v.id))),
+                ..._byName(shiftVmccs.where((v) => received.containsKey(v.id))),
               ]) ...[
                 _vmccTile(t, v, received[v.id] ?? const []),
                 const SizedBox(height: DhenuSpacing.sm),
