@@ -34,6 +34,28 @@ final nodeReceivedRangeProvider =
   );
 });
 
+/// Per-day received rollup at a CC over the last [days] (newest first). Light
+/// list payload — one row per day; per-day detail is fetched lazily on expand
+/// via [nodeReceivedDayDetailProvider]. Keyed by (nodeId, days).
+final nodeReceivedDailyProvider =
+    FutureProvider.family<List<MpReceivedDay>, ReceivedRangeArgs>((ref, args) async {
+  return mpRepo.receivedDaily(
+    nodeId: args.nodeId, from: isoDaysAgo(args.days - 1), to: todayIso(),
+  );
+});
+
+/// Received consignment detail rows (vmcc→cc) at a node on one collection date.
+/// Fetched only when its day is expanded in the receive history.
+typedef ReceivedDayArgs = ({String nodeId, String date});
+
+final nodeReceivedDayDetailProvider =
+    FutureProvider.family<List<MpConsignment>, ReceivedDayArgs>((ref, args) async {
+  return mpRepo.consignments(
+    toNodeId: args.nodeId, kind: 'vmcc_to_cc', status: 'received',
+    collectionDate: args.date, limit: 200,
+  );
+});
+
 /// Today's outbound consignments from a node (all statuses, all kinds).
 final nodeOutboundConsignmentsProvider =
     FutureProvider.family<List<MpConsignment>, String>((ref, nodeId) async {

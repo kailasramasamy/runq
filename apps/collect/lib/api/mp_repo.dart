@@ -313,6 +313,18 @@ class MpRepo {
     return m == null ? null : MpCollectionSummary.fromJson(m);
   }
 
+  /// Per-day received rollup at a CC node (one row per collection date).
+  Future<List<MpReceivedDay>> receivedDaily({
+    required String nodeId,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _api.get(
+      '$_base/reports/received-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to})}',
+    );
+    return _list(res).map(MpReceivedDay.fromJson).toList();
+  }
+
   // ── farmer ledger ───────────────────────────────────────────────────────────
   Future<({double balance, List<MpLedgerEntry> entries})> farmerLedger({
     String? farmerId,

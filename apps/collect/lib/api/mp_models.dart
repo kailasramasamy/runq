@@ -454,6 +454,33 @@ class MpCollectionSummary {
       );
 }
 
+/// Per-day qty-weighted rollup of one CC's received milk — drives the receive
+/// history day list (detail rows fetched lazily when a day is expanded).
+class MpReceivedDay {
+  final String date;
+  final double totalQty;
+  final int vmccCount;
+  final double? fat, snf, water;
+
+  MpReceivedDay({
+    required this.date,
+    required this.totalQty,
+    required this.vmccCount,
+    this.fat,
+    this.snf,
+    this.water,
+  });
+
+  factory MpReceivedDay.fromJson(Map<String, dynamic> j) => MpReceivedDay(
+    date: _s(j['date']),
+    totalQty: _d(j['totalQty']),
+    vmccCount: _i(j['vmccCount']),
+    fat: _dn(j['fat']),
+    snf: _dn(j['snf']),
+    water: _dn(j['water']),
+  );
+}
+
 class MpLedgerEntry {
   final String id, farmerId, entryType, occurredOn;
   final double amount, balanceAfter;
