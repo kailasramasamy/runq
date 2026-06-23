@@ -28,12 +28,17 @@ export async function sharePdf({ path, params, filename, title }: SharePdfOption
   const blob = await res.blob();
 
   const file = new File([blob], filename, { type: 'application/pdf' });
-  if (navigator.canShare?.({ files: [file] })) {
+  // Offer the native share sheet only on touch devices (phones/tablets), where
+  // sharing a PDF to WhatsApp/Mail is the common action. On desktop the sheet
+  // (AirDrop/Mail/Messages…) is a nuisance — users expect a direct download to
+  // their Downloads folder, so fall straight through to the download path.
+  const isTouchDevice = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  if (isTouchDevice && navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], title });
     return;
   }
 
-  // Fallback: trigger a browser download
+  // Trigger a direct browser download
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
