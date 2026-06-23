@@ -23,6 +23,9 @@ class CcReceiveTab extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    if (node.overnightPooling) {
+      ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
+    }
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
   }
 
@@ -34,6 +37,11 @@ class CcReceiveTab extends ConsumerWidget {
     final names = {for (final n in allVmccs) n.id: n.name};
     final children = allVmccs.where((n) => n.parentNodeId == node.id).toList();
     final shiftStatus = ref.watch(shiftStatusProvider(node.id)).asData?.value;
+    // Overnight CC pools across yesterday + today, so the lists span both days.
+    final yest = node.overnightPooling
+        ? (ref.watch(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1)))).asData?.value ??
+            const <MpConsignment>[])
+        : const <MpConsignment>[];
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(title: const Text('Receive')),
@@ -48,7 +56,8 @@ class CcReceiveTab extends ConsumerWidget {
                 title: 'Could not load consignments',
                 subtitle: '$e',
               ),
-              data: (all) {
+              data: (today) {
+                final all = [...yest, ...today];
                 final inTransit = all.where((c) => c.kind == 'vmcc_to_cc' && c.inTransit).toList();
                 // Newest first by consignment no. (monotonic) so a just-added
                 // receipt — AM or PM — always surfaces at the top.

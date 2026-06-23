@@ -38,6 +38,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   Shift _shift = shiftFrom(currentShift());
 
   bool get _perShift => !widget.node.hasBmc;
+  bool get _overnight => widget.node.overnightPooling;
   AvailabilityArgs get _availArgs =>
       (nodeId: widget.node.id, shift: _perShift ? _shift.name : null);
 
@@ -48,9 +49,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
   }
 
-  String get _closeFirstMsg => widget.node.hasBmc
-      ? "Close today's receiving before dispatching."
-      : 'Close receiving for this shift before dispatching.';
+  String get _closeFirstMsg => _overnight
+      ? 'Close the pool (yesterday PM + today AM) before dispatching.'
+      : widget.node.hasBmc
+          ? "Close today's receiving before dispatching."
+          : 'Close receiving for this shift before dispatching.';
 
   // Whole-day close for BMC nodes (shift: null), else the selected shift.
   String? get _closeArg => _perShift ? _shift.name : null;
@@ -340,7 +343,8 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  String get _slotLabel => _perShift ? (_shift == Shift.am ? 'AM' : 'PM') : 'today';
+  String get _slotLabel =>
+      _overnight ? 'this pool' : (_perShift ? (_shift == Shift.am ? 'AM' : 'PM') : 'today');
 
   /// Receiving-close control gating onward dispatch. Open → an action button
   /// that closes the slot and unlocks dispatch; closed → a confirmation with a
@@ -349,7 +353,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     if (!closeRequired) return _closedBanner(t);
     // Nothing received yet for this slot → nothing to close.
     if ((availAsync.asData?.value?.collected ?? 0) <= 0) return const SizedBox.shrink();
-    final label = _perShift ? 'Close $_slotLabel receiving' : "Close today's receiving";
+    final label = _overnight
+        ? 'Close pool receiving'
+        : (_perShift ? 'Close $_slotLabel receiving' : "Close today's receiving");
     return Padding(
       padding: const EdgeInsets.only(top: DhenuSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

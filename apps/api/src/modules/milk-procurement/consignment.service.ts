@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, inArray, gte, lte } from 'drizzle-orm';
+import { and, eq, desc, sql, inArray, gte, lte, or } from 'drizzle-orm';
 import { mpConsignments, mpNodes, mpPours, mpGlSettings, mpRawMilkItems, stockLedger } from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -11,6 +11,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../../utils/error
 import { StockLedgerService } from '../inventory/stock-ledger.service';
 import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
+import { ccReceiveWindow, type Slot } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -59,26 +60,38 @@ export class ConsignmentService {
     assertNodeAccess(principal, input.fromNodeId);
     // BMC nodes pool the whole day (shift null); no-BMC nodes dispatch each shift
     // separately, so shift is required and scopes the consignment.
-    const [from] = await this.db.select({ hasBmc: mpNodes.hasBmc, nodeType: mpNodes.nodeType }).from(mpNodes)
-      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
+    const [from] = await this.db.select({
+      hasBmc: mpNodes.hasBmc, nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling,
+    }).from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
     if (!from.hasBmc && !input.shift) {
       throw new ValidationError('This node has no BMC — select a shift (AM/PM) to dispatch.');
     }
+    const overnight = from.nodeType === 'cc' && from.overnightPooling;
     const shift = from.hasBmc ? null : input.shift ?? null;
-    // Hard gate: collection must be closed before milk leaves. BMC pools the
-    // whole day, so both shifts must be closed; no-BMC needs just the one.
-    const mustBeClosed: ('am' | 'pm')[] = from.hasBmc ? ['am', 'pm'] : [input.shift!];
+    // Hard gate: collection must be closed before milk leaves. An overnight CC's
+    // pool spans yesterday-PM + today-AM; a BMC node pools the whole day (both
+    // shifts); no-BMC needs just the one.
+    const mustBeClosed: Slot[] = overnight
+      ? ccReceiveWindow(true, input.collectionDate)
+      : from.hasBmc
+        ? [{ date: input.collectionDate, shift: 'am' }, { date: input.collectionDate, shift: 'pm' }]
+        : [{ date: input.collectionDate, shift: input.shift! }];
     for (const s of mustBeClosed) {
       const closed = await isShiftClosed(this.db, {
-        tenantId: this.tenantId, nodeId: input.fromNodeId,
-        collectionDate: input.collectionDate, shift: s,
+        tenantId: this.tenantId, nodeId: input.fromNodeId, collectionDate: s.date, shift: s.shift,
       });
-      if (!closed) throw new ValidationError('Close collection for this shift before dispatching.');
+      if (!closed) {
+        throw new ValidationError(overnight
+          ? 'Close both pool slots (yesterday PM + today AM) before dispatching.'
+          : 'Close collection for this shift before dispatching.');
+      }
     }
-    // Never let dispatches exceed what's on hand for this node/date/shift —
-    // otherwise availability goes negative (e.g. dispatching an already-sent shift).
-    const available = await this.availableToDispatch(input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined);
+    // Never let dispatches exceed what's on hand — otherwise availability goes
+    // negative (e.g. dispatching an already-sent shift/pool).
+    const available = overnight
+      ? await this.ccPoolAvailable(input.fromNodeId, input.collectionDate)
+      : await this.availableToDispatch(input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined);
     if (input.dispatchQty - available > 1e-6) {
       const scope = shift ? `${shift.toUpperCase()} ` : '';
       throw new ValidationError(`Only ${available} L of ${scope}milk available to dispatch from this node.`);
@@ -275,13 +288,20 @@ export class ConsignmentService {
    * When `shift` is given, every figure is scoped to that shift (no-BMC, per-shift dispatch). */
   async availability(nodeId: string, collectionDate: string, principal: MpPrincipal, shift?: 'am' | 'pm'): Promise<ConsignmentAvailability> {
     assertNodeAccess(principal, nodeId);
-    const [node] = await this.db.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
-      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
+    const [node] = await this.db.select({ nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling })
+      .from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
     if (!node) throw new NotFoundError('Node not found');
+    const overnight = node.nodeType === 'cc' && node.overnightPooling;
     const src = node.nodeType === 'vmcc'
       ? await this.collectedFromPours(nodeId, collectionDate, shift)
-      : await this.collectedFromReceipts(nodeId, collectionDate, shift);
-    const dispatched = await this.sumDispatched(nodeId, collectionDate, shift);
+      : overnight
+        ? await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, collectionDate))
+        : await this.collectedFromReceipts(nodeId, collectionDate, shift);
+    // An overnight pool is dispatched as one tanker dated today (shift null), so
+    // the dispatched side stays anchored on today regardless of the shift filter.
+    const dispatched = overnight
+      ? await this.sumDispatched(nodeId, collectionDate)
+      : await this.sumDispatched(nodeId, collectionDate, shift);
     return {
       nodeId, collectionDate, nodeType: node.nodeType,
       collected: src.qty, dispatched, available: round3(src.qty - dispatched),
@@ -322,6 +342,28 @@ export class ConsignmentService {
       eq(mpConsignments.collectionDate, date), eq(mpConsignments.status, 'received'),
       ...(shift ? [eq(mpConsignments.shift, shift)] : [])));
     return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
+  }
+
+  /** Qty + weighted QC of milk received in over an explicit set of (date, shift)
+   * slots — an overnight CC's pool spans two calendar days. */
+  private async collectedFromReceiptsWindow(nodeId: string, slots: Slot[]): Promise<SourceAgg> {
+    const slotCond = or(...slots.map((s) =>
+      and(eq(mpConsignments.collectionDate, s.date), eq(mpConsignments.shift, s.shift))));
+    const [r] = await this.db.select({
+      qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
+      fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
+      snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
+      water: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptWater}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptWater} is not null), 0), 2)`,
+    }).from(mpConsignments).where(and(eq(mpConsignments.tenantId, this.tenantId),
+      eq(mpConsignments.toNodeId, nodeId), eq(mpConsignments.status, 'received'), slotCond));
+    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
+  }
+
+  /** Litres on hand for an overnight CC's pool (windowed receipts − today's dispatch). */
+  private async ccPoolAvailable(nodeId: string, anchorDate: string): Promise<number> {
+    const src = await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, anchorDate));
+    const dispatched = await this.sumDispatched(nodeId, anchorDate);
+    return round3(src.qty - dispatched);
   }
 
   private async sumDispatched(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<number> {

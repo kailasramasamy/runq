@@ -17,6 +17,8 @@ const nodeFields = z.object({
   nodeType: z.enum(['vmcc', 'cc', 'pp']),
   parentNodeId: z.string().uuid().nullish(),
   hasBmc: z.boolean().default(false),
+  // CC pooling: true → previous-day PM + today AM; false → same-day AM+PM.
+  overnightPooling: z.boolean().default(false),
   // analyzer = fat/SNF testing; lactometer = CLR-only (VMCC without an analyzer)
   measurementMode: z.enum(['analyzer', 'lactometer']).default('analyzer'),
   // milk type(s) this VMCC collects; null = all (legacy). defaultMilkType

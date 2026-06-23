@@ -236,6 +236,7 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
   const { toast } = useToast();
   const [f, setF] = useState({
     code: '', name: '', nodeType: 'vmcc', parentNodeId: '', hasBmc: false,
+    overnightPooling: false,
     measurementMode: 'analyzer', capacityLitres: '', payoutMode: '',
   });
   const [allowedMilkTypes, setAllowedMilkTypes] = useState<MilkType[]>([]);
@@ -252,6 +253,7 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
       {
         code: f.code, name: f.name, nodeType: f.nodeType as NodeType,
         parentNodeId: f.parentNodeId || null, hasBmc: f.hasBmc,
+        overnightPooling: f.nodeType === 'cc' ? f.overnightPooling : false,
         measurementMode: (isVmcc ? f.measurementMode : 'analyzer') as MeasurementMode,
         capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
         payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
@@ -278,6 +280,12 @@ function CreateNodeModal({ nodes, onClose }: { nodes: MpNode[]; onClose: () => v
           <input type="checkbox" checked={f.hasBmc} onChange={(e) => setF({ ...f, hasBmc: e.target.checked })} />
           Has integrated BMC (bulk-milk cooler)
         </label>
+        {f.nodeType === 'cc' && (
+          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input type="checkbox" checked={f.overnightPooling} onChange={(e) => setF({ ...f, overnightPooling: e.target.checked })} />
+            Overnight pooling (dispatch = previous-day PM + today AM)
+          </label>
+        )}
         {f.nodeType === 'vmcc' && (
           <>
             <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v })} options={MEASUREMENT_MODES} />
@@ -304,7 +312,8 @@ function EditNodeModal({ node, nodes, operator, onClose }:
   const { toast } = useToast();
   const [f, setF] = useState({
     name: node.name, nodeType: node.nodeType as string, parentNodeId: node.parentNodeId ?? '',
-    hasBmc: node.hasBmc, measurementMode: node.measurementMode ?? 'analyzer',
+    hasBmc: node.hasBmc, overnightPooling: node.overnightPooling,
+    measurementMode: node.measurementMode ?? 'analyzer',
     capacityLitres: node.capacityLitres ?? '', payoutMode: node.payoutMode ?? '',
   });
   // Initialise from node's existing milk-type config (null = all).
@@ -337,6 +346,7 @@ function EditNodeModal({ node, nodes, operator, onClose }:
         data: {
           name: f.name, nodeType: f.nodeType as NodeType, parentNodeId: f.parentNodeId || null,
           hasBmc: f.hasBmc,
+          overnightPooling: f.nodeType === 'cc' ? f.overnightPooling : false,
           measurementMode: isVmcc ? (f.measurementMode as MeasurementMode) : undefined,
           capacityLitres: f.capacityLitres ? Number(f.capacityLitres) : null,
           payoutMode: (f.payoutMode || null) as 'direct_to_farmer' | 'via_vmcc' | null,
@@ -364,6 +374,12 @@ function EditNodeModal({ node, nodes, operator, onClose }:
           <input type="checkbox" checked={f.hasBmc} onChange={(e) => setF({ ...f, hasBmc: e.target.checked })} />
           Has integrated BMC (bulk-milk cooler)
         </label>
+        {f.nodeType === 'cc' && (
+          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input type="checkbox" checked={f.overnightPooling} onChange={(e) => setF({ ...f, overnightPooling: e.target.checked })} />
+            Overnight pooling (dispatch = previous-day PM + today AM)
+          </label>
+        )}
         {f.nodeType === 'vmcc' && (
           <>
             <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v as MeasurementMode })} options={MEASUREMENT_MODES} />

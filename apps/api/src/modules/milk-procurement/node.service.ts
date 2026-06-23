@@ -52,6 +52,7 @@ export class NodeService {
       nodeType: input.nodeType,
       parentNodeId: input.parentNodeId ?? null,
       hasBmc: input.hasBmc,
+      overnightPooling: input.overnightPooling,
       measurementMode: input.measurementMode,
       allowedMilkTypes: input.allowedMilkTypes ?? null,
       defaultMilkType: input.defaultMilkType ?? null,
@@ -76,6 +77,7 @@ export class NodeService {
     // `null` (explicit clear) — so nullable fields clear correctly.
     assignDefined(patch, {
       name: input.name, nodeType: input.nodeType, hasBmc: input.hasBmc,
+      overnightPooling: input.overnightPooling,
       measurementMode: input.measurementMode,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,
       payoutMode: input.payoutMode, payeeVendorId: input.payeeVendorId,

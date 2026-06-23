@@ -18,6 +18,10 @@ export const mpNodes = pgTable('mp_nodes', {
   nodeType: mpNodeType('node_type').notNull(),
   parentNodeId: uuid('parent_node_id'),
   hasBmc: boolean('has_bmc').notNull().default(false),
+  // CC dispatch pooling: true → pool is previous-day PM + today AM (milk chilled
+  // overnight, sent with the next morning's collection); false → same-day AM+PM.
+  // Only meaningful for CC nodes.
+  overnightPooling: boolean('overnight_pooling').notNull().default(false),
   // milk-testing capability: `analyzer` (fat/SNF) or `lactometer` (CLR-only).
   // Only meaningful for VMCCs; CC/PP always test on an analyzer.
   measurementMode: mpMeasurementMode('measurement_mode').notNull().default('analyzer'),

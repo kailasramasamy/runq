@@ -32,6 +32,9 @@ class CcHome extends ConsumerWidget {
     ref.invalidate(ccVmccCollectionsProvider(node.id));
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
     ref.invalidate(nodeAvailabilityProvider);
+    if (node.overnightPooling) {
+      ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
+    }
     await Future.wait([
       ref.read(ccVmccCollectionsProvider(node.id).future),
       ref.read(nodeInboundConsignmentsProvider(node.id).future),
@@ -43,14 +46,32 @@ class CcHome extends ConsumerWidget {
     final t = DT(context);
     final sync = ref.watch(syncProvider);
     final vmccsAsync = ref.watch(ccVmccCollectionsProvider(node.id));
-    final cons = ref.watch(nodeInboundConsignmentsProvider(node.id)).asData?.value ??
+    final overnight = node.overnightPooling;
+    final todayCons = ref.watch(nodeInboundConsignmentsProvider(node.id)).asData?.value ??
         const <MpConsignment>[];
+    // Overnight CC: the pool is yesterday-PM + today-AM. Today's PM belongs to
+    // the next dispatch, so it's shown separately below.
+    final yestCons = overnight
+        ? (ref.watch(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1)))).asData?.value ??
+            const <MpConsignment>[])
+        : const <MpConsignment>[];
+    final cons = overnight
+        ? [
+            ...yestCons.where((c) => c.shift == Shift.pm),
+            ...todayCons.where((c) => c.shift == Shift.am),
+          ]
+        : todayCons;
     final ready =
         ref.watch(nodeAvailabilityProvider((nodeId: node.id, shift: null))).asData?.value?.available ??
             0;
     final flow = _flowByNode(cons);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
+    final nextPm = overnight
+        ? todayCons
+            .where((c) => c.kind == 'vmcc_to_cc' && c.received && c.shift == Shift.pm)
+            .fold<double>(0, (a, c) => a + (c.receiptQty ?? 0))
+        : 0.0;
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -64,7 +85,7 @@ class CcHome extends ConsumerWidget {
             onTap: () => ref.read(syncProvider.notifier).forceSync(),
           )),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, vmccsAsync, flow, inTransit),
+          _hero(t, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
@@ -72,12 +93,17 @@ class CcHome extends ConsumerWidget {
             const SizedBox(height: DhenuSpacing.md),
           ],
           _statsRow(t, inTransit, ready),
+          if (overnight && nextPm > 0.05) ...[
+            const SizedBox(height: DhenuSpacing.md),
+            _nextPoolNote(t, nextPm),
+          ],
           const SizedBox(height: DhenuSpacing.md),
           _quickLinks(context, t),
           const SizedBox(height: DhenuSpacing.x3),
-          Text('VMCCs · today', style: DhenuText.title.copyWith(color: t.ink)),
+          Text(overnight ? 'VMCCs · this pool' : 'VMCCs · today',
+              style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _vmccList(t, vmccsAsync, flow),
+          _vmccList(t, vmccsAsync, flow, overnight),
         ],
       ),
     );
@@ -87,8 +113,10 @@ class CcHome extends ConsumerWidget {
   /// else the milk received at the CC (manual receive — the VMCC never logged
   /// a pour), else what's still in transit. Without this fallback a manual
   /// receive shows 0.0 L even though milk physically arrived.
-  double _shownQty(VmccCollection vc, _Flow? f) {
-    if (vc.collected > 0) return vc.collected;
+  double _shownQty(VmccCollection vc, _Flow? f, bool overnight) {
+    // Overnight pools across two days, so the VMCC's same-day pour count doesn't
+    // apply — drive purely off the windowed receipts.
+    if (!overnight && vc.collected > 0) return vc.collected;
     if (f != null && f.received > 0) return f.received;
     return f?.transit ?? 0;
   }
@@ -117,7 +145,7 @@ class CcHome extends ConsumerWidget {
   }
 
   Widget _hero(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
-      Map<String, _Flow> flow, double inTransit) {
+      Map<String, _Flow> flow, double inTransit, bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(label: 'ACROSS VMCCs', primaryValue: '—',
@@ -126,10 +154,10 @@ class CcHome extends ConsumerWidget {
         // Sum the per-VMCC shown qty (in-app pour, else received, else transit)
         // so manually-received milk counts even when no pour was logged.
         final collected =
-            rows.fold<double>(0, (a, r) => a + _shownQty(r, flow[r.vmcc.id]));
-        final active = rows.where((r) => _shownQty(r, flow[r.vmcc.id]) > 0).length;
+            rows.fold<double>(0, (a, r) => a + _shownQty(r, flow[r.vmcc.id], overnight));
+        final active = rows.where((r) => _shownQty(r, flow[r.vmcc.id], overnight) > 0).length;
         return HeroNumberCard(
-          label: 'COLLECTED ACROSS VMCCs · TODAY',
+          label: overnight ? 'IN POOL · PREV PM + TODAY AM' : 'COLLECTED ACROSS VMCCs · TODAY',
           primaryValue: litres(collected, unit: true),
           gradient: const LinearGradient(
             colors: [DhenuColors.brand, DhenuColors.brandDark],
@@ -137,13 +165,26 @@ class CcHome extends ConsumerWidget {
             end: Alignment.bottomRight,
           ),
           footer: Text(
-            '$active of ${rows.length} VMCCs collecting · ${litres(inTransit, unit: true)} in transit',
+            '$active of ${rows.length} VMCCs · ${litres(inTransit, unit: true)} in transit',
             style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82)),
           ),
         );
       },
     );
   }
+
+  /// Overnight CCs: tonight's PM collection pools with tomorrow's AM, so it's
+  /// surfaced separately from the current dispatch pool.
+  Widget _nextPoolNote(DhenuTokens t, double nextPm) => DhenuCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        child: Row(children: [
+          Icon(DhenuIcons.clock, size: 16, color: t.inkSoft),
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(child: Text('🌙 ${litres(nextPm, unit: true)} collecting for next dispatch',
+              style: DhenuText.caption.copyWith(color: t.inkSoft))),
+        ]),
+      );
 
   Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
         Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
@@ -193,7 +234,7 @@ class CcHome extends ConsumerWidget {
       );
 
   Widget _vmccList(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
-      Map<String, _Flow> flow) {
+      Map<String, _Flow> flow, bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => DhenuEmptyState(
@@ -206,14 +247,14 @@ class CcHome extends ConsumerWidget {
             subtitle: 'Assign VMCCs to this CC in the web admin',
           );
         }
-        rows.sort((a, b) =>
-            _shownQty(b, flow[b.vmcc.id]).compareTo(_shownQty(a, flow[a.vmcc.id])));
+        rows.sort((a, b) => _shownQty(b, flow[b.vmcc.id], overnight)
+            .compareTo(_shownQty(a, flow[a.vmcc.id], overnight)));
         return DhenuCard(
           padding: EdgeInsets.zero,
           child: Column(children: [
             for (var i = 0; i < rows.length; i++) ...[
               if (i > 0) Divider(height: 1, color: t.hairline),
-              _vmccRow(t, rows[i], flow[rows[i].vmcc.id]),
+              _vmccRow(t, rows[i], flow[rows[i].vmcc.id], overnight),
             ],
           ]),
         );
@@ -221,7 +262,7 @@ class CcHome extends ConsumerWidget {
     );
   }
 
-  Widget _vmccRow(DhenuTokens t, VmccCollection vc, _Flow? f) {
+  Widget _vmccRow(DhenuTokens t, VmccCollection vc, _Flow? f, bool overnight) {
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
@@ -235,14 +276,15 @@ class CcHome extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(vc.vmcc.name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text('☀️ ${litres(_amShown(vc, f))} · 🌙 ${litres(_pmShown(vc, f))}',
+          Text('☀️ ${litres(_amShown(vc, f, overnight))} · 🌙 ${litres(_pmShown(vc, f, overnight))}',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(height: 1),
           Text('${vc.farmers} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(_shownQty(vc, f), unit: true), style: DhenuText.number(size: 16, color: t.ink)),
+          Text(litres(_shownQty(vc, f, overnight), unit: true),
+              style: DhenuText.number(size: 16, color: t.ink)),
           const SizedBox(height: 6),
           Row(mainAxisSize: MainAxisSize.min, children: [
             _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
@@ -256,8 +298,10 @@ class CcHome extends ConsumerWidget {
 
   /// Per-shift headline qty: the VMCC's in-app pour for the slot, else the milk
   /// received at the CC for that shift (manual receive logged no pour).
-  double _amShown(VmccCollection vc, _Flow? f) => vc.amQty > 0 ? vc.amQty : (f?.amRecv ?? 0);
-  double _pmShown(VmccCollection vc, _Flow? f) => vc.pmQty > 0 ? vc.pmQty : (f?.pmRecv ?? 0);
+  double _amShown(VmccCollection vc, _Flow? f, bool overnight) =>
+      (!overnight && vc.amQty > 0) ? vc.amQty : (f?.amRecv ?? 0);
+  double _pmShown(VmccCollection vc, _Flow? f, bool overnight) =>
+      (!overnight && vc.pmQty > 0) ? vc.pmQty : (f?.pmRecv ?? 0);
 
   /// Receipt tick for one shift: green check when that shift's milk is in, a
   /// greyed check otherwise.

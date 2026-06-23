@@ -66,6 +66,9 @@ class MpNode {
   final String id, code, name, nodeType;
   final String? parentNodeId, payeeVendorId, payoutMode, city, state;
   final bool hasBmc, isActive;
+  /// CC pooling: true → dispatch pool is previous-day PM + today AM; false →
+  /// same-day AM+PM. Only meaningful for CC nodes.
+  final bool overnightPooling;
   final double? capacityLitres;
   final DateTime? createdAt;
   /// `'analyzer'` (default, fat+SNF) or `'lactometer'` (CLR-only).
@@ -87,6 +90,7 @@ class MpNode {
     this.state,
     this.hasBmc = false,
     this.isActive = true,
+    this.overnightPooling = false,
     this.capacityLitres,
     this.createdAt,
     this.measurementMode = 'analyzer',
@@ -111,6 +115,7 @@ class MpNode {
     state: _sn(j['state']),
     hasBmc: _b(j['hasBmc']),
     isActive: j['isActive'] != false,
+    overnightPooling: _b(j['overnightPooling']),
     capacityLitres: _dn(j['capacityLitres']),
     createdAt: j['createdAt'] == null
         ? null
