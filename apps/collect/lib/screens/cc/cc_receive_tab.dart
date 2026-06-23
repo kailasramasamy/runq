@@ -168,7 +168,7 @@ class CcReceiveTab extends ConsumerWidget {
       MpConsignment c, String name, MpShiftStatus? shiftStatus) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️' : '🌙'} · ';
+    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️ AM' : '🌙 PM'} · ';
     final canDelete = c.directReceive && !_lockedForDispatch(shiftStatus, c);
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
@@ -180,7 +180,7 @@ class CcReceiveTab extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text('$shift${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
+          Text('$shift${prettyDate(c.collectionDate)}',
               style: DhenuText.caption.copyWith(color: t.inkSoft),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
@@ -232,6 +232,8 @@ class CcReceiveTab extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text('$shift${litres(c.receiptQty ?? 0, unit: true)} · ${prettyDate(c.collectionDate)}',
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                const SizedBox(height: 2),
+                Text(c.consignmentNo, style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 const SizedBox(height: DhenuSpacing.lg),
                 _actionRow(t, DhenuIcons.edit, 'Edit receipt', t.brand, () {
                   Navigator.pop(ctx);

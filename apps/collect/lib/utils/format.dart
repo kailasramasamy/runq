@@ -31,6 +31,12 @@ String rupees(num v, {bool paise = false}) => '₹ ${paise ? _rupees2.format(v) 
 /// FAT/SNF to one decimal.
 String oneDp(num v) => v.toStringAsFixed(1);
 
+/// "1 Jun" (no year) from an ISO date string — compact labels/legends.
+String shortDate(String iso) {
+  final d = DateTime.tryParse(iso);
+  return d == null ? iso : DateFormat('d MMM').format(d);
+}
+
 /// "1 Jun 2026" from an ISO date string.
 String prettyDate(String iso) {
   final d = DateTime.tryParse(iso);

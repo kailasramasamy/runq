@@ -102,6 +102,11 @@ class CcHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.x3),
           Text(overnight ? 'VMCCs · this pool' : 'VMCCs · today',
               style: DhenuText.title.copyWith(color: t.ink)),
+          if (overnight) ...[
+            const SizedBox(height: 2),
+            Text('🌙 ${shortDate(isoDaysAgo(1))} PM  ·  ☀️ ${shortDate(todayIso())} AM',
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ],
           const SizedBox(height: DhenuSpacing.sm),
           _vmccList(t, vmccsAsync, flow, overnight),
         ],
@@ -124,7 +129,9 @@ class CcHome extends ConsumerWidget {
   /// Group today's inbound consignments by source VMCC → (in-transit, received).
   Map<String, _Flow> _flowByNode(List<MpConsignment> cons) {
     final m = <String, _Flow>{};
-    for (final c in cons.where((c) => c.kind == 'vmcc_to_cc')) {
+    // Only live legs count — a reversed (deleted) receipt must not resurface as
+    // in-transit milk.
+    for (final c in cons.where((c) => c.kind == 'vmcc_to_cc' && (c.received || c.inTransit))) {
       final cur = m[c.fromNodeId] ?? (transit: 0.0, received: 0.0, amRecv: 0.0, pmRecv: 0.0);
       if (c.received) {
         final q = c.receiptQty ?? 0;
@@ -247,8 +254,7 @@ class CcHome extends ConsumerWidget {
             subtitle: 'Assign VMCCs to this CC in the web admin',
           );
         }
-        rows.sort((a, b) => _shownQty(b, flow[b.vmcc.id], overnight)
-            .compareTo(_shownQty(a, flow[a.vmcc.id], overnight)));
+        rows.sort((a, b) => a.vmcc.name.toLowerCase().compareTo(b.vmcc.name.toLowerCase()));
         return DhenuCard(
           padding: EdgeInsets.zero,
           child: Column(children: [
@@ -276,7 +282,10 @@ class CcHome extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(vc.vmcc.name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text('☀️ ${litres(_amShown(vc, f, overnight))} · 🌙 ${litres(_pmShown(vc, f, overnight))}',
+          Text(
+              overnight
+                  ? '🌙 ${litres(_pmShown(vc, f, overnight))} · ☀️ ${litres(_amShown(vc, f, overnight))}'
+                  : '☀️ ${litres(_amShown(vc, f, overnight))} · 🌙 ${litres(_pmShown(vc, f, overnight))}',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(height: 1),
           Text('${vc.farmers} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
@@ -286,11 +295,17 @@ class CcHome extends ConsumerWidget {
           Text(litres(_shownQty(vc, f, overnight), unit: true),
               style: DhenuText.number(size: 16, color: t.ink)),
           const SizedBox(height: 6),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
-            const SizedBox(width: 4),
-            _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
-          ]),
+          Row(mainAxisSize: MainAxisSize.min, children: overnight
+              ? [
+                  _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
+                  const SizedBox(width: 4),
+                  _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
+                ]
+              : [
+                  _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
+                  const SizedBox(width: 4),
+                  _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
+                ]),
         ]),
       ]),
     );
