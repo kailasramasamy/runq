@@ -137,25 +137,23 @@ class CentrePickerList extends ConsumerStatefulWidget {
 }
 
 class _CentrePickerListState extends ConsumerState<CentrePickerList> {
-  final Set<String> _open = {};
+  static const _kNoParent = '__no_parent__';
+  final Set<String> _open = {}; // expanded tiers, by node type
+  final Set<String> _openParent = {}; // expanded parent groups, by parent id
   bool _seeded = false;
 
-  /// On first load open the tier holding the current selection (switcher),
-  /// else the first non-empty tier — so the screen never opens fully collapsed.
-  void _seed(List<MpNode> active) {
+  /// On first load open the tier (and the parent group) holding the current
+  /// selection (the in-shell switcher), so the user sees their active centre
+  /// ticked. The first-run picker has no selection, so everything starts
+  /// collapsed down to the tier headers.
+  void _seed(List<MpNode> active, Map<String, MpNode> nodeById) {
     if (_seeded) return;
     _seeded = true;
     final cur = active.where((n) => n.id == widget.currentId);
-    if (cur.isNotEmpty) {
-      _open.add(cur.first.nodeType);
-    } else {
-      for (final type in const ['vmcc', 'cc', 'pp']) {
-        if (active.any((n) => n.nodeType == type)) {
-          _open.add(type);
-          break;
-        }
-      }
-    }
+    if (cur.isEmpty) return;
+    final n = cur.first;
+    _open.add(n.nodeType);
+    _openParent.add(nodeById.containsKey(n.parentNodeId) ? n.parentNodeId! : _kNoParent);
   }
 
   @override
@@ -174,7 +172,8 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
                 subtitle: 'Add VMCCs, chilling centres or plants in the web admin first',
               );
             }
-            _seed(active);
+            final nodeById = {for (final n in nodes) n.id: n};
+            _seed(active, nodeById);
             final types = [
               for (final type in const ['vmcc', 'cc', 'pp'])
                 if (active.any((n) => n.nodeType == type)) type,
@@ -184,14 +183,15 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
                   DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.lg),
               itemCount: types.length,
               separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.md),
-              itemBuilder: (_, i) => _tierCard(
-                  t, types[i], active.where((n) => n.nodeType == types[i]).toList()),
+              itemBuilder: (_, i) => _tierCard(t, types[i],
+                  active.where((n) => n.nodeType == types[i]).toList(), nodeById),
             );
           },
         );
   }
 
-  Widget _tierCard(DhenuTokens t, String type, List<MpNode> nodes) {
+  Widget _tierCard(
+      DhenuTokens t, String type, List<MpNode> nodes, Map<String, MpNode> nodeById) {
     final open = _open.contains(type);
     return DhenuCard(
       padding: EdgeInsets.zero,
@@ -204,15 +204,77 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
           child: open
               ? Column(children: [
                   Divider(height: 1, color: t.hairline),
-                  for (var i = 0; i < nodes.length; i++) ...[
-                    if (i > 0)
-                      Divider(height: 1, indent: DhenuSpacing.xxl, color: t.hairline),
-                    _nodeRow(t, nodes[i]),
-                  ],
+                  ..._tierBody(t, nodes, nodeById),
                 ])
               : const SizedBox(width: double.infinity),
         ),
       ]),
+    );
+  }
+
+  /// Expanded body: a second accordion level. Centres are grouped under their
+  /// parent node (e.g. VMCCs under their chilling centre); only the parent
+  /// names show until a parent is tapped to reveal its centres. Falls back to a
+  /// flat list when nothing in the tier has a parent (e.g. processing plants).
+  List<Widget> _tierBody(DhenuTokens t, List<MpNode> nodes, Map<String, MpNode> nodeById) {
+    final groups = <String?, List<MpNode>>{};
+    for (final n in nodes) {
+      final pid = nodeById.containsKey(n.parentNodeId) ? n.parentNodeId : null;
+      groups.putIfAbsent(pid, () => []).add(n);
+    }
+    if (groups.length == 1 && groups.containsKey(null)) return _rows(t, nodes);
+
+    final parents = groups.keys.whereType<String>().toList()
+      ..sort((a, b) => (nodeById[a]?.name ?? '').compareTo(nodeById[b]?.name ?? ''));
+    return [
+      for (final pid in parents) ..._parentGroup(t, pid, nodeById[pid], groups[pid]!),
+      if (groups.containsKey(null)) ..._parentGroup(t, _kNoParent, null, groups[null]!),
+    ];
+  }
+
+  List<Widget> _parentGroup(DhenuTokens t, String key, MpNode? parent, List<MpNode> nodes) {
+    final open = _openParent.contains(key);
+    return [
+      _groupHeader(t, key, parent, nodes.length, open),
+      if (open) ..._rows(t, nodes),
+    ];
+  }
+
+  List<Widget> _rows(DhenuTokens t, List<MpNode> nodes) => [
+        for (var i = 0; i < nodes.length; i++) ...[
+          if (i > 0) Divider(height: 1, indent: DhenuSpacing.xxl, color: t.hairline),
+          _nodeRow(t, nodes[i]),
+        ],
+      ];
+
+  Widget _groupHeader(DhenuTokens t, String key, MpNode? parent, int count, bool open) {
+    return Material(
+      color: t.brandSubtle,
+      child: InkWell(
+        onTap: () => setState(() => open ? _openParent.remove(key) : _openParent.add(key)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+          child: Row(children: [
+            Icon(parent != null ? _iconForType(parent.nodeType) : DhenuIcons.cloudOff,
+                size: 16, color: t.brand),
+            const SizedBox(width: DhenuSpacing.sm),
+            Expanded(
+              child: Text(parent?.name ?? 'Not linked to a chilling centre',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+            ),
+            Text('$count', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            const SizedBox(width: DhenuSpacing.sm),
+            AnimatedRotation(
+              turns: open ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Icon(DhenuIcons.chevronDown, size: 18, color: t.brand),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 

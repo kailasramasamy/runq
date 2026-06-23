@@ -6,6 +6,7 @@ import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/centre_switcher.dart';
+import '../../widgets/dhenu_card.dart';
 
 /// First screen an admin (owner/accountant/viewer) sees: pick a centre to
 /// operate the app as. Selecting one sets [mpActiveNodeProvider]; the home
@@ -29,17 +30,10 @@ class CentrePickerScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
                 DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                'Operate the app as any of your centres. Pick a category, then choose a centre to step into.',
-                style: DhenuText.body.copyWith(color: t.inkSoft),
-              ),
-              const SizedBox(height: DhenuSpacing.md),
-              const _TierLegend(),
-            ]),
+            child: _IntroSection(),
           ),
           Expanded(
             child: CentrePickerList(
@@ -52,45 +46,64 @@ class CentrePickerScreen extends ConsumerWidget {
   }
 }
 
-/// Compact key tying each tier icon to its meaning (VMCC / CC / PP).
-class _TierLegend extends StatelessWidget {
-  const _TierLegend();
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: DhenuSpacing.sm,
-      runSpacing: DhenuSpacing.sm,
-      children: const [
-        _LegendChip(icon: DhenuIcons.store, label: 'VMCC'),
-        _LegendChip(icon: DhenuIcons.snowflake, label: 'CC'),
-        _LegendChip(icon: DhenuIcons.tankers, label: 'PP'),
-      ],
-    );
-  }
-}
-
-class _LegendChip extends StatelessWidget {
-  const _LegendChip({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
+/// Intro card: a one-line guide plus a labelled key decoding the three tier
+/// icons/acronyms (VMCC / CC / PP) so an owner knows what each category means.
+class _IntroSection extends StatelessWidget {
+  const _IntroSection();
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
-      decoration: BoxDecoration(
-        color: t.brandSubtle,
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: t.brand),
-        const SizedBox(width: DhenuSpacing.xs),
-        Text(label,
-            style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700)),
+    return DhenuCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          'Operate the app as any of your centres. Pick a category below, then choose a centre to step into.',
+          style: DhenuText.body.copyWith(color: t.inkSoft),
+        ),
+        const SizedBox(height: DhenuSpacing.lg),
+        Divider(height: 1, color: t.hairline),
+        const SizedBox(height: DhenuSpacing.md),
+        Text('WHAT THE ICONS MEAN',
+            style: DhenuText.caption
+                .copyWith(color: t.inkSoft, letterSpacing: 0.6, fontWeight: FontWeight.w700)),
+        const SizedBox(height: DhenuSpacing.sm),
+        const _LegendRow(
+            icon: DhenuIcons.store, abbr: 'VMCC', meaning: 'Village collection centre'),
+        const SizedBox(height: DhenuSpacing.sm),
+        const _LegendRow(icon: DhenuIcons.snowflake, abbr: 'CC', meaning: 'Chilling centre'),
+        const SizedBox(height: DhenuSpacing.sm),
+        const _LegendRow(icon: DhenuIcons.tankers, abbr: 'PP', meaning: 'Processing plant'),
       ]),
     );
+  }
+}
+
+class _LegendRow extends StatelessWidget {
+  const _LegendRow({required this.icon, required this.abbr, required this.meaning});
+  final IconData icon;
+  final String abbr;
+  final String meaning;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return Row(children: [
+      Container(
+        width: 30,
+        height: 30,
+        decoration:
+            BoxDecoration(color: t.brand.withValues(alpha: 0.12), shape: BoxShape.circle),
+        child: Icon(icon, size: 16, color: t.brand),
+      ),
+      const SizedBox(width: DhenuSpacing.md),
+      SizedBox(
+        width: 56,
+        child: Text(abbr,
+            style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+      ),
+      Expanded(
+        child: Text(meaning, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+      ),
+    ]);
   }
 }
