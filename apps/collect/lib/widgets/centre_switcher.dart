@@ -160,7 +160,9 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
   Widget build(BuildContext context) {
     final t = DT(context);
     return ref.watch(operatorNodesProvider).when(
-          loading: () => const DhenuLoadingList(rows: 3),
+          // Scroll-wrapped so the fixed-height skeleton never overflows the
+          // bounded Expanded/Flexible this list always sits inside.
+          loading: () => const SingleChildScrollView(child: DhenuLoadingList(rows: 3)),
           error: (e, _) => DhenuEmptyState(
               icon: DhenuIcons.cloudOff, title: 'Could not load centres', subtitle: '$e'),
           data: (nodes) {
