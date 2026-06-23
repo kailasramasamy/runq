@@ -110,18 +110,59 @@ class _CentreSwitcherSheet extends ConsumerWidget {
   }
 }
 
-/// The grouped, tappable list of every centre — VMCC / CC / PP sections.
-/// Shared by the first-run picker screen and the in-shell switcher sheet.
-class CentrePickerList extends ConsumerWidget {
+/// Short tier abbreviation for a node type — shown in the tier meta line.
+String _abbrForType(String type) => type == 'pp' ? 'PP' : (type == 'cc' ? 'CC' : 'VMCC');
+
+/// Count label like "12 centres" / "3 chilling centres" / "1 plant" for a tier.
+String _countLabel(String type, int n) {
+  final unit = type == 'pp'
+      ? (n == 1 ? 'plant' : 'plants')
+      : type == 'cc'
+          ? (n == 1 ? 'chilling centre' : 'chilling centres')
+          : (n == 1 ? 'centre' : 'centres');
+  return '$n $unit';
+}
+
+/// The centre list as three collapsible tiers — Village Collection Centres /
+/// Chilling Centres / Processing Plants. Each tier is a card showing its count;
+/// tapping expands it to reveal the centres. Shared by the first-run picker
+/// screen and the in-shell switcher sheet.
+class CentrePickerList extends ConsumerStatefulWidget {
   const CentrePickerList({super.key, required this.onPick, this.currentId});
   final ValueChanged<MpNode> onPick;
   final String? currentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CentrePickerList> createState() => _CentrePickerListState();
+}
+
+class _CentrePickerListState extends ConsumerState<CentrePickerList> {
+  final Set<String> _open = {};
+  bool _seeded = false;
+
+  /// On first load open the tier holding the current selection (switcher),
+  /// else the first non-empty tier — so the screen never opens fully collapsed.
+  void _seed(List<MpNode> active) {
+    if (_seeded) return;
+    _seeded = true;
+    final cur = active.where((n) => n.id == widget.currentId);
+    if (cur.isNotEmpty) {
+      _open.add(cur.first.nodeType);
+    } else {
+      for (final type in const ['vmcc', 'cc', 'pp']) {
+        if (active.any((n) => n.nodeType == type)) {
+          _open.add(type);
+          break;
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = DT(context);
     return ref.watch(operatorNodesProvider).when(
-          loading: () => const DhenuLoadingList(rows: 4),
+          loading: () => const DhenuLoadingList(rows: 3),
           error: (e, _) => DhenuEmptyState(
               icon: DhenuIcons.cloudOff, title: 'Could not load centres', subtitle: '$e'),
           data: (nodes) {
@@ -133,60 +174,103 @@ class CentrePickerList extends ConsumerWidget {
                 subtitle: 'Add VMCCs, chilling centres or plants in the web admin first',
               );
             }
-            return ListView(
+            _seed(active);
+            final types = [
+              for (final type in const ['vmcc', 'cc', 'pp'])
+                if (active.any((n) => n.nodeType == type)) type,
+            ];
+            return ListView.separated(
               padding: const EdgeInsets.fromLTRB(
-                  DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.lg),
-              children: [
-                for (final type in const ['vmcc', 'cc', 'pp'])
-                  ..._section(t, type, active.where((n) => n.nodeType == type).toList()),
-              ],
+                  DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.lg),
+              itemCount: types.length,
+              separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.md),
+              itemBuilder: (_, i) => _tierCard(
+                  t, types[i], active.where((n) => n.nodeType == types[i]).toList()),
             );
           },
         );
   }
 
-  List<Widget> _section(DhenuTokens t, String type, List<MpNode> nodes) {
-    if (nodes.isEmpty) return const [];
-    return [
-      Padding(
-        padding: const EdgeInsets.only(top: DhenuSpacing.lg, bottom: DhenuSpacing.sm),
-        child: Text(_titleForType(type).toUpperCase(),
-            style: DhenuText.label.copyWith(color: t.inkSoft, letterSpacing: 0.5)),
-      ),
-      DhenuCard(
-        padding: EdgeInsets.zero,
-        child: Column(children: [
-          for (var i = 0; i < nodes.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: t.hairline),
-            _row(t, nodes[i]),
-          ],
-        ]),
-      ),
-    ];
+  Widget _tierCard(DhenuTokens t, String type, List<MpNode> nodes) {
+    final open = _open.contains(type);
+    return DhenuCard(
+      padding: EdgeInsets.zero,
+      child: Column(children: [
+        _tierHeader(t, type, nodes.length, open),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: open
+              ? Column(children: [
+                  Divider(height: 1, color: t.hairline),
+                  for (var i = 0; i < nodes.length; i++) ...[
+                    if (i > 0)
+                      Divider(height: 1, indent: DhenuSpacing.xxl, color: t.hairline),
+                    _nodeRow(t, nodes[i]),
+                  ],
+                ])
+              : const SizedBox(width: double.infinity),
+        ),
+      ]),
+    );
   }
 
-  Widget _row(DhenuTokens t, MpNode n) {
-    final selected = n.id == currentId;
+  Widget _tierHeader(DhenuTokens t, String type, int count, bool open) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => onPick(n),
+        onTap: () => setState(() => open ? _open.remove(type) : _open.add(type)),
+        borderRadius: BorderRadius.circular(DhenuRadii.card),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.lg),
           child: Row(children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 44,
+              height: 44,
               decoration:
-                  BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
-              child: Icon(_iconForType(n.nodeType), size: 20, color: t.brand),
+                  BoxDecoration(color: t.brand.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(_iconForType(type), size: 22, color: t.brand),
             ),
             const SizedBox(width: DhenuSpacing.md),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_titleForType(type),
+                    style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text('${_abbrForType(type)} · ${_countLabel(type, count)}',
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              ]),
+            ),
+            AnimatedRotation(
+              turns: open ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Icon(DhenuIcons.chevronDown, size: 22, color: t.brand),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _nodeRow(DhenuTokens t, MpNode n) {
+    final selected = n.id == widget.currentId;
+    return Material(
+      color: selected ? t.brand.withValues(alpha: 0.06) : Colors.transparent,
+      child: InkWell(
+        onTap: () => widget.onPick(n),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+          child: Row(children: [
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(n.name,
-                    style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+                    style: DhenuText.body.copyWith(
+                        color: t.ink,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(n.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ]),

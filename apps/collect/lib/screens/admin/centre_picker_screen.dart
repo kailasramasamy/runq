@@ -27,14 +27,19 @@ class CentrePickerScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
+        top: false,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, 0),
-            child: Text(
-              'Operate the app as any of your collection centres, chilling centres or plants.',
-              style: DhenuText.body.copyWith(color: t.inkSoft),
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'Operate the app as any of your centres. Pick a category, then choose a centre to step into.',
+                style: DhenuText.body.copyWith(color: t.inkSoft),
+              ),
+              const SizedBox(height: DhenuSpacing.md),
+              const _TierLegend(),
+            ]),
           ),
           Expanded(
             child: CentrePickerList(
@@ -43,6 +48,49 @@ class CentrePickerScreen extends ConsumerWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+/// Compact key tying each tier icon to its meaning (VMCC / CC / PP).
+class _TierLegend extends StatelessWidget {
+  const _TierLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: DhenuSpacing.sm,
+      runSpacing: DhenuSpacing.sm,
+      children: const [
+        _LegendChip(icon: DhenuIcons.store, label: 'VMCC'),
+        _LegendChip(icon: DhenuIcons.snowflake, label: 'CC'),
+        _LegendChip(icon: DhenuIcons.tankers, label: 'PP'),
+      ],
+    );
+  }
+}
+
+class _LegendChip extends StatelessWidget {
+  const _LegendChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
+      decoration: BoxDecoration(
+        color: t.brandSubtle,
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: t.brand),
+        const SizedBox(width: DhenuSpacing.xs),
+        Text(label,
+            style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700)),
+      ]),
     );
   }
 }
