@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, inArray, gte, lte, or } from 'drizzle-orm';
+import { and, eq, desc, sql, inArray, gte, lte, or, isNull } from 'drizzle-orm';
 import { mpConsignments, mpNodes, mpPours, mpGlSettings, mpRawMilkItems, stockLedger } from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -347,8 +347,17 @@ export class ConsignmentService {
   /** Qty + weighted QC of milk received in over an explicit set of (date, shift)
    * slots — an overnight CC's pool spans two calendar days. */
   private async collectedFromReceiptsWindow(nodeId: string, slots: Slot[]): Promise<SourceAgg> {
+    // A whole-day (null-shift) consignment maps to the AM slot, mirroring the
+    // app's shiftFrom(null) === 'am'. Without this, milk from BMC VMCCs — which
+    // dispatch whole-day with shift null — is dropped from an overnight CC's
+    // pool, so "ready for plant" undercounts vs the pooled total shown on home.
     const slotCond = or(...slots.map((s) =>
-      and(eq(mpConsignments.collectionDate, s.date), eq(mpConsignments.shift, s.shift))));
+      and(
+        eq(mpConsignments.collectionDate, s.date),
+        s.shift === 'am'
+          ? or(eq(mpConsignments.shift, 'am'), isNull(mpConsignments.shift))
+          : eq(mpConsignments.shift, s.shift),
+      )));
     const [r] = await this.db.select({
       qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
       fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,

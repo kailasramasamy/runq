@@ -231,7 +231,7 @@ class CcHome extends ConsumerWidget {
         Expanded(child: _miniStat(t, 'In transit', litres(inTransit, unit: true),
             DhenuIcons.truck, t.am)),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _miniStat(t, 'Ready for plant', litres(ready, unit: true),
+        Expanded(child: _miniStat(t, 'Plant-ready', litres(ready, unit: true),
             DhenuIcons.outbound, ready > 0.05 ? t.brand : t.inkSoft)),
       ]);
 
