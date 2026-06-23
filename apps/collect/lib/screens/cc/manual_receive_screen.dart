@@ -353,7 +353,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final shiftLabel = widget.shift == Shift.am ? '☀️ AM' : '🌙 PM';
+    final isAm = widget.shift == Shift.am;
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(title: Text(widget.vmcc.name)),
@@ -367,8 +367,11 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
                 Row(children: [
                   Text('MEASURED AT CC', style: DhenuText.label.copyWith(color: t.brand)),
                   const Spacer(),
-                  Text('${prettyDate(isoDate(widget.date))} · $shiftLabel',
+                  Text('${prettyDate(isoDate(widget.date))} · ',
                       style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                  Icon(isAm ? DhenuIcons.sun : DhenuIcons.moon, size: 12, color: t.inkSoft),
+                  const SizedBox(width: 4),
+                  Text(isAm ? 'AM' : 'PM', style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 ]),
                 const SizedBox(height: DhenuSpacing.md),
                 _field(_qty, 'Quantity (L)', focusNode: _qtyFocus, next: _fatFocus,

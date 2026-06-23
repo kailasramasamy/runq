@@ -148,27 +148,30 @@ class _PourDetailSheet extends ConsumerWidget {
   }
 
   List<Widget> _detailRows(DhenuTokens t, AppLocalizations l) {
-    final items = <(String, String, bool)>[
-      (l.pourDetailRatePerLitre, rupees(pour.ratePerLitre, paise: true), false),
-      (l.pourDetailQuantity, litres(pour.qtyLitres, unit: true), false),
-      (l.pourDetailMilkType, milkTypeL10n(l, pour.milkType), false),
-      (l.pourDetailShift, pour.shift == Shift.am ? '☀️ ${l.shiftAm}' : '🌙 ${l.shiftPm}', false),
-      (l.pourDetailDate, prettyDate(pour.collectionDate), false),
-      (l.pourDetailAmount, rupees(pour.lineAmount), true),
+    final items = <(String, String, bool, IconData?)>[
+      (l.pourDetailRatePerLitre, rupees(pour.ratePerLitre, paise: true), false, null),
+      (l.pourDetailQuantity, litres(pour.qtyLitres, unit: true), false, null),
+      (l.pourDetailMilkType, milkTypeL10n(l, pour.milkType), false, null),
+      (l.pourDetailShift, pour.shift == Shift.am ? l.shiftAm : l.shiftPm, false,
+          pour.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon),
+      (l.pourDetailDate, prettyDate(pour.collectionDate), false, null),
+      (l.pourDetailAmount, rupees(pour.lineAmount), true, null),
     ];
     final out = <Widget>[];
     for (var i = 0; i < items.length; i++) {
-      out.add(_row(t, items[i].$1, items[i].$2, strong: items[i].$3));
+      out.add(_row(t, items[i].$1, items[i].$2, strong: items[i].$3, icon: items[i].$4));
       if (i < items.length - 1) out.add(Divider(height: 1, color: t.hairline));
     }
     return out;
   }
 
-  Widget _row(DhenuTokens t, String label, String value, {bool strong = false}) => Padding(
+  Widget _row(DhenuTokens t, String label, String value, {bool strong = false, IconData? icon}) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
         child: Row(children: [
           Text(label, style: DhenuText.body.copyWith(color: t.inkSoft)),
           const Spacer(),
+          if (icon != null) ...[Icon(icon, size: 15, color: t.ink), const SizedBox(width: 5)],
           Text(value,
               style: strong
                   ? DhenuText.number(size: 16, color: t.brand)

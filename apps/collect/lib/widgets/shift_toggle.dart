@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
-/// Segmented ☀️ AM / 🌙 PM control.
+/// Segmented sun AM / moon PM control.
 /// AM selected → amber fill; PM selected → violet fill.
 /// Unselected → transparent with inkSoft label.
 class ShiftToggle extends StatelessWidget {
@@ -38,7 +39,7 @@ class ShiftToggle extends StatelessWidget {
         mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         children: [
           _wrap(_Segment(
-            emoji: '☀️',
+            icon: DhenuIcons.sun,
             label: l.shiftAm,
             selected: value == Shift.am,
             selectedColor: t.am,
@@ -47,7 +48,7 @@ class ShiftToggle extends StatelessWidget {
             onTap: () => onChanged(Shift.am),
           )),
           _wrap(_Segment(
-            emoji: '🌙',
+            icon: DhenuIcons.moon,
             label: l.shiftPm,
             selected: value == Shift.pm,
             selectedColor: t.pm,
@@ -63,7 +64,7 @@ class ShiftToggle extends StatelessWidget {
 
 class _Segment extends StatelessWidget {
   const _Segment({
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.selected,
     required this.selectedColor,
@@ -72,7 +73,7 @@ class _Segment extends StatelessWidget {
     required this.onTap,
   });
 
-  final String emoji;
+  final IconData icon;
   final String label;
   final bool selected;
   final Color selectedColor;
@@ -100,7 +101,7 @@ class _Segment extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: DhenuText.emoji),
+            Icon(icon, size: 16, color: selected ? selectedColor : textColor),
             const SizedBox(width: DhenuSpacing.xs),
             Text(
               label,

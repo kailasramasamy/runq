@@ -72,7 +72,6 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
       overall.add(c.receiptQty ?? 0, c.receiptFat, c.receiptSnf, c.receiptWater);
     }
     final hasData = days.any((d) => d.qty > 0);
-    final from = days.isEmpty ? '' : prettyDate(days.first.date);
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
@@ -91,15 +90,22 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           const DhenuEmptyState(
             icon: DhenuIcons.barChart,
             title: 'No receipts in this window',
-            subtitle: 'Receive milk from VMCCs to see quality trends',
+            subtitle: 'Receive milk from VMCCs to see the daily QC report',
           ),
         ] else ...[
+          const SizedBox(height: DhenuSpacing.lg),
+          Text('Quality trends', style: DhenuText.label.copyWith(color: t.inkSoft)),
+          const SizedBox(height: DhenuSpacing.sm),
+          _chartCard(t, 'FAT', '%', t.brand, days, (d) => d.fat),
           const SizedBox(height: DhenuSpacing.md),
-          _chartCard(t, 'FAT', '%', t.brand, days, overall.avgFat, (d) => d.fat, from),
+          _chartCard(t, 'SNF', '%', t.am, days, (d) => d.snf),
           const SizedBox(height: DhenuSpacing.md),
-          _chartCard(t, 'SNF', '%', t.am, days, overall.avgSnf, (d) => d.snf, from),
-          const SizedBox(height: DhenuSpacing.md),
-          _chartCard(t, 'Water', '%', t.pm, days, overall.avgWater, (d) => d.water, from),
+          _chartCard(t, 'Water', '%', t.pm, days, (d) => d.water),
+          const SizedBox(height: DhenuSpacing.lg),
+          Text('Daily quality · qty-weighted',
+              style: DhenuText.label.copyWith(color: t.inkSoft)),
+          const SizedBox(height: DhenuSpacing.sm),
+          _dailyTable(t, days),
         ],
       ],
     );
@@ -145,132 +151,135 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     );
   }
 
-  Widget _chartCard(DhenuTokens t, String title, String unit, Color color, List<_DayQc> days,
-      double? avg, double? Function(_DayQc) sel, String from) {
-    final values = days.map(sel).toList();
-    final present = values.whereType<double>().toList();
+  Widget _dailyTable(DhenuTokens t, List<_DayQc> days) {
+    final rows = days.where((d) => d.qty > 0).toList().reversed.toList();
     return DhenuCard(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: Text(title.toUpperCase(),
-              style: DhenuText.label.copyWith(color: t.inkSoft, letterSpacing: 0.8))),
-          if (avg != null) ...[
-            Text(oneDp(avg), style: DhenuText.number(size: 24, color: color)),
-            const SizedBox(width: 2),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text(unit, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            ),
-          ],
-        ]),
-        Text('$_days-day average', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        const SizedBox(height: DhenuSpacing.md),
-        if (present.length < 2)
-          SizedBox(
-            height: 120,
-            child: Center(child: Text('Not enough data to chart',
-                style: DhenuText.caption.copyWith(color: t.inkSoft))),
-          )
-        else ...[
-          SizedBox(
-            height: 150,
-            child: CustomPaint(
-              painter: _QcLinePainter(
-                values: values, color: color, grid: t.hairline, label: t.inkSoft, unit: unit),
-            ),
-          ),
-          const SizedBox(height: DhenuSpacing.xs),
-          Row(children: [
-            Text(from, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            const Spacer(),
-            Text('Today', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-          ]),
+      padding: EdgeInsets.zero,
+      child: Column(children: [
+        _tableHeader(t),
+        for (var i = 0; i < rows.length; i++) ...[
+          Divider(height: 1, color: t.hairline),
+          _dayRow(t, rows[i]),
         ],
       ]),
     );
   }
+
+  Widget _tableHeader(DhenuTokens t) {
+    final s = DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.6);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.sm),
+      child: Row(children: [
+        Expanded(flex: 4, child: Text('DATE', style: s)),
+        Expanded(flex: 3, child: Text('L', style: s, textAlign: TextAlign.right)),
+        Expanded(flex: 2, child: Text('FAT', style: s, textAlign: TextAlign.right)),
+        Expanded(flex: 2, child: Text('SNF', style: s, textAlign: TextAlign.right)),
+        Expanded(flex: 2, child: Text('W', style: s, textAlign: TextAlign.right)),
+      ]),
+    );
+  }
+
+  Widget _dayRow(DhenuTokens t, _DayQc d) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        child: Row(children: [
+          Expanded(flex: 4, child: Text(shortDate(d.date), style: DhenuText.body.copyWith(color: t.ink))),
+          Expanded(flex: 3, child: Text(litres(d.qty),
+              textAlign: TextAlign.right, style: DhenuText.number(size: 14, color: t.ink))),
+          Expanded(flex: 2, child: _qcCell(t, d.fat)),
+          Expanded(flex: 2, child: _qcCell(t, d.snf)),
+          Expanded(flex: 2, child: _qcCell(t, d.water)),
+        ]),
+      );
+
+  Widget _qcCell(DhenuTokens t, double? v) => Text(
+        v == null ? '—' : oneDp(v),
+        textAlign: TextAlign.right,
+        style: DhenuText.number(size: 14, color: v == null ? t.inkSoft : t.ink),
+      );
+
+  /// Per-day vertical bar chart of the metric's daily qty-weighted value.
+  Widget _chartCard(DhenuTokens t, String title, String unit, Color color,
+      List<_DayQc> days, double? Function(_DayQc) sel) {
+    final points = [for (final d in days) if (sel(d) != null) (_barLabel(d.date), sel(d)!)];
+    return DhenuCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('$title  ($unit)',
+            style: DhenuText.label.copyWith(color: color, letterSpacing: 0.6)),
+        const SizedBox(height: DhenuSpacing.md),
+        if (points.isEmpty)
+          SizedBox(
+            height: 100,
+            child: Center(child: Text('No readings in this window',
+                style: DhenuText.caption.copyWith(color: t.inkSoft))),
+          )
+        else
+          SizedBox(
+            height: 165,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _QcBarPainter(points: points, color: color, label: t.inkSoft),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  /// Compact bar label — the day-of-month number.
+  String _barLabel(String iso) {
+    final d = iso.length >= 10 ? iso.substring(8, 10) : iso;
+    return int.tryParse(d)?.toString() ?? d;
+  }
 }
 
-/// Single-metric trend line over the window: padded auto y-range, 3 value
-/// gridlines, area fill, per-day dots and a highlighted latest reading.
-class _QcLinePainter extends CustomPainter {
-  _QcLinePainter({
-    required this.values,
-    required this.color,
-    required this.grid,
-    required this.label,
-    required this.unit,
-  });
-  final List<double?> values;
-  final Color color, grid, label;
-  final String unit;
+/// Per-day vertical bars with the value on top and the day below. Scales to the
+/// window's max value with headroom; labels are dropped when bars get too thin.
+class _QcBarPainter extends CustomPainter {
+  _QcBarPainter({required this.points, required this.color, required this.label});
+  final List<(String, double)> points;
+  final Color color, label;
 
-  static const _gutter = 34.0, _top = 14.0, _bottom = 6.0;
+  static const _topPad = 16.0, _bottomPad = 16.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final present = values.whereType<double>().toList();
-    if (present.length < 2) return;
-    var lo = present.reduce(math.min), hi = present.reduce(math.max);
-    final pad = (hi - lo).abs() < 1e-6 ? math.max(hi.abs() * 0.05, 0.5) : (hi - lo) * 0.18;
-    lo -= pad; hi += pad;
-    final left = _gutter, right = size.width, bottom = size.height - _bottom;
-    final dx = (right - left) / (values.length - 1);
-    double yFor(double v) => bottom - (v - lo) / (hi - lo) * (bottom - _top);
-
-    _grid(canvas, left, right, lo, hi, yFor);
-    _line(canvas, left, dx, bottom, yFor);
-  }
-
-  void _grid(Canvas canvas, double left, double right, double lo, double hi, double Function(double) yFor) {
-    final p = Paint()..color = grid..strokeWidth = 1;
-    for (final f in const [0.0, 0.5, 1.0]) {
-      final v = lo + (hi - lo) * f, y = yFor(v);
-      canvas.drawLine(Offset(left, y), Offset(right, y), p);
-      _text(canvas, v.toStringAsFixed(1), Offset(0, y - 6), label);
+    if (points.isEmpty) return;
+    final maxV = points.map((p) => p.$2).reduce(math.max);
+    final denom = maxV <= 0 ? 1.0 : maxV * 1.18;
+    final n = points.length;
+    final showLabels = n <= 12;
+    final gap = n <= 14 ? 8.0 : 3.0;
+    var bw = (size.width - gap * (n - 1)) / n;
+    bw = math.min(bw, 40.0);
+    final totalW = bw * n + gap * (n - 1);
+    final startX = (size.width - totalW) / 2;
+    final radius = Radius.circular(math.min(bw * 0.3, 4));
+    final baseY = size.height - _bottomPad;
+    final usableH = baseY - _topPad;
+    final barPaint = Paint()..color = color.withValues(alpha: 0.85);
+    for (var i = 0; i < n; i++) {
+      final (dayLabel, v) = points[i];
+      final h = (v / denom) * usableH;
+      final x = startX + i * (bw + gap);
+      final rect = Rect.fromLTWH(x, baseY - h, bw, h);
+      canvas.drawRRect(
+          RRect.fromRectAndCorners(rect, topLeft: radius, topRight: radius), barPaint);
+      if (showLabels) {
+        _text(canvas, v.toStringAsFixed(1), x + bw / 2, baseY - h - 13, color, 10);
+        _text(canvas, dayLabel, x + bw / 2, baseY + 3, label, 9);
+      }
     }
   }
 
-  void _line(Canvas canvas, double left, double dx, double bottom, double Function(double) yFor) {
-    final pts = <Offset>[];
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i];
-      if (v != null) pts.add(Offset(left + i * dx, yFor(v)));
-    }
-    final line = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (final pt in pts.skip(1)) {
-      line.lineTo(pt.dx, pt.dy);
-    }
-    final area = Path.from(line)
-      ..lineTo(pts.last.dx, bottom)
-      ..lineTo(pts.first.dx, bottom)
-      ..close();
-    canvas.drawPath(area, Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.0)],
-      ).createShader(Rect.fromLTRB(left, _top, left + 1, bottom)));
-    canvas.drawPath(line, Paint()
-      ..color = color..style = PaintingStyle.stroke..strokeWidth = 2.4
-      ..strokeJoin = StrokeJoin.round..strokeCap = StrokeCap.round);
-    for (final pt in pts) {
-      canvas.drawCircle(pt, 2.6, Paint()..color = color);
-    }
-    canvas.drawCircle(pts.last, 4.2, Paint()..color = color);
-    _text(canvas, '${values.lastWhere((v) => v != null)!.toStringAsFixed(1)}$unit',
-        Offset(pts.last.dx - 22, pts.last.dy - 18), color);
-  }
-
-  void _text(Canvas canvas, String s, Offset at, Color col) {
+  void _text(Canvas canvas, String s, double cx, double y, Color col, double fontSize) {
     final tp = TextPainter(
       text: TextSpan(text: s,
-          style: TextStyle(color: col, fontSize: 10, fontWeight: FontWeight.w600)),
+          style: TextStyle(color: col, fontSize: fontSize, fontWeight: FontWeight.w600)),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, at);
+    tp.paint(canvas, Offset(cx - tp.width / 2, y));
   }
 
   @override
-  bool shouldRepaint(covariant _QcLinePainter old) =>
-      old.values != values || old.color != color;
+  bool shouldRepaint(covariant _QcBarPainter old) =>
+      old.points != points || old.color != color;
 }

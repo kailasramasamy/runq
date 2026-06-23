@@ -103,9 +103,18 @@ class CcHome extends ConsumerWidget {
           Text(overnight ? 'VMCCs · this pool' : 'VMCCs · today',
               style: DhenuText.title.copyWith(color: t.ink)),
           if (overnight) ...[
-            const SizedBox(height: 2),
-            Text('🌙 ${shortDate(isoDaysAgo(1))} PM  ·  ☀️ ${shortDate(todayIso())} AM',
-                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(DhenuIcons.moon, size: 12, color: t.inkSoft),
+              const SizedBox(width: 4),
+              Text('${shortDate(isoDaysAgo(1))} PM',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              Icon(DhenuIcons.sun, size: 12, color: t.inkSoft),
+              const SizedBox(width: 4),
+              Text('${shortDate(todayIso())} AM',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ]),
           ],
           const SizedBox(height: DhenuSpacing.sm),
           _vmccList(t, vmccsAsync, flow, overnight),
@@ -186,9 +195,9 @@ class CcHome extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(
             horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
         child: Row(children: [
-          Icon(DhenuIcons.clock, size: 16, color: t.inkSoft),
+          Icon(DhenuIcons.moon, size: 14, color: t.inkSoft),
           const SizedBox(width: DhenuSpacing.sm),
-          Expanded(child: Text('🌙 ${litres(nextPm, unit: true)} collecting for next dispatch',
+          Expanded(child: Text('${litres(nextPm, unit: true)} collecting for next dispatch',
               style: DhenuText.caption.copyWith(color: t.inkSoft))),
         ]),
       );
@@ -282,11 +291,17 @@ class CcHome extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(vc.vmcc.name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(
-              overnight
-                  ? '🌙 ${litres(_pmShown(vc, f, overnight))} · ☀️ ${litres(_amShown(vc, f, overnight))}'
-                  : '☀️ ${litres(_amShown(vc, f, overnight))} · 🌙 ${litres(_pmShown(vc, f, overnight))}',
-              style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Row(children: overnight
+              ? [
+                  _shiftQty(t, DhenuIcons.moon, _pmShown(vc, f, overnight)),
+                  Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                  _shiftQty(t, DhenuIcons.sun, _amShown(vc, f, overnight)),
+                ]
+              : [
+                  _shiftQty(t, DhenuIcons.sun, _amShown(vc, f, overnight)),
+                  Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                  _shiftQty(t, DhenuIcons.moon, _pmShown(vc, f, overnight)),
+                ]),
           const SizedBox(height: 1),
           Text('${vc.farmers} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
@@ -297,14 +312,14 @@ class CcHome extends ConsumerWidget {
           const SizedBox(height: 6),
           Row(mainAxisSize: MainAxisSize.min, children: overnight
               ? [
-                  _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
+                  _shiftTick(t, DhenuIcons.moon, (f?.pmRecv ?? 0) > 0),
                   const SizedBox(width: 4),
-                  _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
+                  _shiftTick(t, DhenuIcons.sun, (f?.amRecv ?? 0) > 0),
                 ]
               : [
-                  _shiftTick(t, '☀️', (f?.amRecv ?? 0) > 0),
+                  _shiftTick(t, DhenuIcons.sun, (f?.amRecv ?? 0) > 0),
                   const SizedBox(width: 4),
-                  _shiftTick(t, '🌙', (f?.pmRecv ?? 0) > 0),
+                  _shiftTick(t, DhenuIcons.moon, (f?.pmRecv ?? 0) > 0),
                 ]),
         ]),
       ]),
@@ -320,16 +335,16 @@ class CcHome extends ConsumerWidget {
 
   /// Receipt tick for one shift: green check when that shift's milk is in, a
   /// greyed check otherwise.
-  Widget _shiftTick(DhenuTokens t, String glyph, bool received) {
+  Widget _shiftTick(DhenuTokens t, IconData icon, bool received) {
     final color = received ? t.gradeA : t.inkSoft;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: received ? 0.14 : 0.06),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(glyph, style: DhenuText.caption),
+        Icon(icon, size: 12, color: color),
         if (received) ...[
           const SizedBox(width: 3),
           Icon(DhenuIcons.check, size: 11, color: color),
@@ -337,4 +352,12 @@ class CcHome extends ConsumerWidget {
       ]),
     );
   }
+
+  /// Inline "icon qty" for the per-VMCC AM/PM line.
+  Widget _shiftQty(DhenuTokens t, IconData icon, double v) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: t.inkSoft),
+        const SizedBox(width: 4),
+        Text(litres(v), style: DhenuText.caption.copyWith(color: t.inkSoft)),
+      ]);
 }

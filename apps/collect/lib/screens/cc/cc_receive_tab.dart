@@ -11,6 +11,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/sheet_grabber.dart';
+import 'cc_receive_history.dart';
 import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
 
@@ -121,15 +122,33 @@ class CcReceiveTab extends ConsumerWidget {
             title: 'No receipts yet',
             subtitle: 'Milk you receive from VMCCs shows here',
           )
-        else
-          for (var i = 0; i < received.length; i++) ...[
+        else ...[
+          for (var i = 0; i < received.length && i < 15; i++) ...[
             _receivedCard(context, ref, t, received[i],
                 names[received[i].fromNodeId] ?? 'VMCC', shiftStatus),
             const SizedBox(height: DhenuSpacing.sm),
           ],
+          _seeHistoryLink(context, t),
+        ],
       ],
     );
   }
+
+  Widget _seeHistoryLink(BuildContext context, DhenuTokens t) => Center(
+        child: TextButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: Text('Receive history', style: DhenuText.h2.copyWith(color: t.ink))),
+              body: CcReceiveHistory(node: node),
+            ),
+          )),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('See full history', style: DhenuText.label.copyWith(color: t.brand)),
+            const SizedBox(width: 4),
+            Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
+          ]),
+        ),
+      );
 
   Widget _sectionTitle(DhenuTokens t, String label, int count) => Row(children: [
         Text(label, style: DhenuText.title.copyWith(color: t.ink)),
@@ -168,7 +187,6 @@ class CcReceiveTab extends ConsumerWidget {
       MpConsignment c, String name, MpShiftStatus? shiftStatus) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️ AM' : '🌙 PM'} · ';
     final canDelete = c.directReceive && !_lockedForDispatch(shiftStatus, c);
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
@@ -180,9 +198,16 @@ class CcReceiveTab extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text('$shift${prettyDate(c.collectionDate)}',
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+          Row(children: [
+            if (c.shift != null) ...[
+              Icon(c.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon, size: 12, color: t.inkSoft),
+              const SizedBox(width: 4),
+            ],
+            Flexible(child: Text(
+                '${c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · '}${prettyDate(c.collectionDate)}',
+                style: DhenuText.caption.copyWith(color: t.inkSoft),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ]),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -210,7 +235,6 @@ class CcReceiveTab extends ConsumerWidget {
   /// receipt; a locked manual receipt shows why it can't be removed.
   Future<void> _openActions(BuildContext context, WidgetRef ref, DhenuTokens t,
       MpConsignment c, String name, bool canDelete) {
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️ AM' : '🌙 PM'} · ';
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -230,8 +254,17 @@ class CcReceiveTab extends ConsumerWidget {
                 const Center(child: SheetGrabber()),
                 Text(name, style: DhenuText.title.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
-                Text('$shift${litres(c.receiptQty ?? 0, unit: true)} · ${prettyDate(c.collectionDate)}',
-                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                Row(children: [
+                  if (c.shift != null) ...[
+                    Icon(c.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
+                        size: 12, color: t.inkSoft),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                      '${c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · '}'
+                      '${litres(c.receiptQty ?? 0, unit: true)} · ${prettyDate(c.collectionDate)}',
+                      style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                ]),
                 const SizedBox(height: 2),
                 Text(c.consignmentNo, style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 const SizedBox(height: DhenuSpacing.lg),
@@ -323,9 +356,12 @@ class CcReceiveTab extends ConsumerWidget {
           Text('${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
-        if (c.shift != null)
-          Text(c.shift == Shift.am ? '☀️ AM' : '🌙 PM',
+        if (c.shift != null) ...[
+          Icon(c.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon, size: 12, color: t.inkSoft),
+          const SizedBox(width: 4),
+          Text(c.shift == Shift.am ? 'AM' : 'PM',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        ],
       ]);
 
   Widget _pill(DhenuTokens t, String label, Color color) => Container(

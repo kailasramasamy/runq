@@ -85,7 +85,7 @@
   "historyNoFarmersMatchSubtitle": "Try another name",
   "historySearchFarmer": "Search farmer",
   "historyFarmerFallback": "Farmer",
-  "historyDaySubtitle": "{count} farmers · 🌙 {pm} · ☀️ {am}",
+  "historyDaySubtitle": "{count} farmers · ☾ {pm} · ☀️ {am}",
   "@historyDaySubtitle": {
     "placeholders": {
       "count": {
@@ -142,11 +142,11 @@
   "homeHistory": "History",
   "homeReports": "Reports",
   "homeAmShiftInProgress": "☀️ AM shift · in progress",
-  "homePmShiftInProgress": "🌙 PM shift · in progress",
+  "homePmShiftInProgress": "☾ PM shift · in progress",
   "homeJustNow": "just now",
   "homeHeroToday": "TODAY",
   "homeHeroTodayAm": "TODAY ☀️ AM",
-  "homeHeroTodayPm": "TODAY 🌙 PM",
+  "homeHeroTodayPm": "TODAY ☾ PM",
   "homeFarmerCount": "{count} farmers",
   "@homeFarmerCount": {
     "placeholders": {
@@ -208,7 +208,7 @@
   },
   "dispatchNoData": "No data",
   "dispatchShiftAm": "☀️ AM",
-  "dispatchShiftPm": "🌙 PM",
+  "dispatchShiftPm": "☾ PM",
   "paymentsCouldNotLoadCycles": "Could not load cycles",
   "paymentsStartNewCycle": "Start new cycle",
   "paymentsNoCyclesTitle": "No cycles yet",
@@ -392,7 +392,7 @@
     }
   },
   "reportsStatAmLabel": "☀️ AM",
-  "reportsStatPmLabel": "🌙 PM",
+  "reportsStatPmLabel": "☾ PM",
   "reportsStatAvgFat": "Avg FAT",
   "reportsStatAvgSnf": "Avg SNF",
   "reportsStatAvgWater": "Avg Water %",

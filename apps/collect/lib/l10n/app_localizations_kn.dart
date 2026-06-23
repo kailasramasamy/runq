@@ -164,7 +164,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String historyDaySubtitle(int count, String pm, String am) {
-    return '$count ರೈತರು · 🌙 $pm · ☀️ $am';
+    return '$count ರೈತರು · ☾ $pm · ☀️ $am';
   }
 
   @override
@@ -269,7 +269,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeAmShiftInProgress => '☀️ ಬೆಳಿಗ್ಗೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
 
   @override
-  String get homePmShiftInProgress => '🌙 ಸಂಜೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
+  String get homePmShiftInProgress => '☾ ಸಂಜೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
 
   @override
   String get homeJustNow => 'ಈಗಷ್ಟೇ';
@@ -281,7 +281,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeHeroTodayAm => 'ಇಂದು ☀️ ಬೆಳಿಗ್ಗೆ';
 
   @override
-  String get homeHeroTodayPm => 'ಇಂದು 🌙 ಸಂಜೆ';
+  String get homeHeroTodayPm => 'ಇಂದು ☾ ಸಂಜೆ';
 
   @override
   String homeFarmerCount(Object count) {
@@ -402,7 +402,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchShiftAm => '☀️ ಬೆಳಿಗ್ಗೆ';
 
   @override
-  String get dispatchShiftPm => '🌙 ಸಂಜೆ';
+  String get dispatchShiftPm => '☾ ಸಂಜೆ';
 
   @override
   String get paymentsCouldNotLoadCycles => 'ಚಕ್ರಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
@@ -820,7 +820,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get reportsStatAmLabel => '☀️ AM';
 
   @override
-  String get reportsStatPmLabel => '🌙 PM';
+  String get reportsStatPmLabel => '☾ PM';
 
   @override
   String get reportsStatAvgFat => 'ಸರಾಸರಿ FAT';

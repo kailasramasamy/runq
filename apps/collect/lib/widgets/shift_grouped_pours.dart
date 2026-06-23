@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
+import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../utils/format.dart';
@@ -68,8 +69,10 @@ class ShiftGroupedPours extends StatelessWidget {
         padding: const EdgeInsets.only(
             left: DhenuSpacing.xs, right: DhenuSpacing.xs, bottom: DhenuSpacing.xs),
         child: Row(children: [
+          Icon(isAm ? DhenuIcons.sun : DhenuIcons.moon, size: 14, color: t.inkSoft),
+          const SizedBox(width: 4),
           Text(
-              '${isAm ? '☀️ ${l.shiftAm}' : '🌙 ${l.shiftPm}'}'
+              '${isAm ? l.shiftAm : l.shiftPm}'
               '${showDate ? ' · ${prettyDate(shiftPours.first.collectionDate)}' : ''}'
               ' · ${shiftPours.length}',
               style: DhenuText.label.copyWith(color: t.inkSoft)),

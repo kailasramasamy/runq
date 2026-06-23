@@ -104,14 +104,14 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   Widget _controls(DhenuTokens t, AppLocalizations l) => Column(children: [
         _segment<_HistoryView>(t, _view, (v) => setState(() => _view = v), [
-          (_HistoryView.byDay, l.historyByDay),
-          (_HistoryView.byFarmer, l.historyByFarmer),
+          (_HistoryView.byDay, l.historyByDay, null),
+          (_HistoryView.byFarmer, l.historyByFarmer, null),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
         _segment<Shift?>(t, _shift, (v) => setState(() => _shift = v), [
-          (null, l.historyAll),
-          (Shift.pm, '🌙 ${l.shiftPm}'),
-          (Shift.am, '☀️ ${l.shiftAm}'),
+          (null, l.historyAll, null),
+          (Shift.pm, l.shiftPm, DhenuIcons.moon),
+          (Shift.am, l.shiftAm, DhenuIcons.sun),
         ]),
         if (_view == _HistoryView.byFarmer) ...[
           const SizedBox(height: DhenuSpacing.sm),
@@ -120,7 +120,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       ]);
 
   Widget _segment<E>(DhenuTokens t, E current, void Function(E) onSelect,
-      List<(E, String)> options) {
+      List<(E, String, IconData?)> options) {
     return Container(
       padding: const EdgeInsets.all(DhenuSpacing.xs),
       decoration: BoxDecoration(
@@ -128,13 +128,13 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
         borderRadius: BorderRadius.circular(DhenuRadii.input),
       ),
       child: Row(children: [
-        for (final (val, label) in options)
-          Expanded(child: _segmentItem(t, label, current == val, () => onSelect(val))),
+        for (final (val, label, icon) in options)
+          Expanded(child: _segmentItem(t, label, icon, current == val, () => onSelect(val))),
       ]),
     );
   }
 
-  Widget _segmentItem(DhenuTokens t, String label, bool selected, VoidCallback onTap) =>
+  Widget _segmentItem(DhenuTokens t, String label, IconData? icon, bool selected, VoidCallback onTap) =>
       GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
@@ -146,8 +146,13 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
             color: selected ? t.card : Colors.transparent,
             borderRadius: BorderRadius.circular(DhenuRadii.input - 2),
           ),
-          child: Text(label,
-              style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft)),
+          child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: selected ? t.brand : t.inkSoft),
+              const SizedBox(width: 4),
+            ],
+            Text(label, style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft)),
+          ]),
         ),
       );
 

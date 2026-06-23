@@ -385,7 +385,7 @@ abstract class AppLocalizations {
   /// No description provided for @historyDaySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'{count} farmers · 🌙 {pm} · ☀️ {am}'**
+  /// **'{count} farmers · ☾ {pm} · ☀️ {am}'**
   String historyDaySubtitle(int count, String pm, String am);
 
   /// No description provided for @pourDetailDeleteTitle.
@@ -589,7 +589,7 @@ abstract class AppLocalizations {
   /// No description provided for @homePmShiftInProgress.
   ///
   /// In en, this message translates to:
-  /// **'🌙 PM shift · in progress'**
+  /// **'☾ PM shift · in progress'**
   String get homePmShiftInProgress;
 
   /// No description provided for @homeJustNow.
@@ -613,7 +613,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeHeroTodayPm.
   ///
   /// In en, this message translates to:
-  /// **'TODAY 🌙 PM'**
+  /// **'TODAY ☾ PM'**
   String get homeHeroTodayPm;
 
   /// No description provided for @homeFarmerCount.
@@ -829,7 +829,7 @@ abstract class AppLocalizations {
   /// No description provided for @dispatchShiftPm.
   ///
   /// In en, this message translates to:
-  /// **'🌙 PM'**
+  /// **'☾ PM'**
   String get dispatchShiftPm;
 
   /// No description provided for @paymentsCouldNotLoadCycles.
@@ -1615,7 +1615,7 @@ abstract class AppLocalizations {
   /// No description provided for @reportsStatPmLabel.
   ///
   /// In en, this message translates to:
-  /// **'🌙 PM'**
+  /// **'☾ PM'**
   String get reportsStatPmLabel;
 
   /// No description provided for @reportsStatAvgFat.

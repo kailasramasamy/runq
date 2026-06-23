@@ -167,9 +167,24 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.sourceName ?? 'Source', style: DhenuText.h2.copyWith(color: t.ink)),
           const SizedBox(height: 2),
-          Text(
-            '${c.consignmentNo} · ${c.shift == Shift.am ? '☀️ AM' : c.shift == Shift.pm ? '🌙 PM' : 'Day'} · ${prettyDate(c.collectionDate)}',
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
+          Text.rich(
+            TextSpan(
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+              children: [
+                TextSpan(text: '${c.consignmentNo} · '),
+                if (c.shift != null)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: Icon(c.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
+                          size: 12, color: t.inkSoft),
+                    ),
+                  ),
+                TextSpan(text:
+                    '${c.shift == null ? 'Day' : c.shift == Shift.am ? 'AM' : 'PM'} · ${prettyDate(c.collectionDate)}'),
+              ],
+            ),
           ),
         ])),
       ]);

@@ -452,7 +452,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
 
   /// Consignment id + shift, shown small under the plant name.
   String _outboundSubtitle(MpConsignment c) {
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? '☀️ AM' : '🌙 PM'} · ';
+    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · ';
     return '$shift${c.consignmentNo}';
   }
 
