@@ -87,6 +87,18 @@ function matrixTable(cells: RateChartCell[]): string {
     </tbody></table>`;
 }
 
+function calcTip(d: RateChartPrintData): string {
+  const base = d.chart.pricingMode === 'flat'
+    ? 'Every litre is paid at the flat rate above, regardless of FAT/SNF or CLR.'
+    : d.chart.pricingMode === 'clr'
+      ? 'Your rate is the highest CLR breakpoint at or below your measured CLR. A reading above the top breakpoint is paid at the top rate.'
+      : 'Your rate is the cell at the highest FAT row and SNF column at or below your measured values (nearest-lower match — readings between rows/columns round down).';
+  const bonus = d.rules.length
+    ? ' Any applicable quality-grade and volume-slab bonuses listed above are then added per litre.'
+    : '';
+  return `<div class="tip"><span class="tip-k">How your rate is calculated</span>${esc(base + bonus)}</div>`;
+}
+
 function ruleLine(r: RateChartRule): string {
   const text = r.ruleType === 'quality_bonus'
     ? `Grade ${esc((r.grade ?? '').toUpperCase())} quality bonus: +₹${esc(r.bonusPerLitre)}/L`
@@ -115,6 +127,7 @@ export function renderRateChartHTML(d: RateChartPrintData): string {
     ${bodySection(d)}
     ${d.rules.length ? `<div class="section-label">Bonuses &amp; slabs</div>
       <ul class="rules">${d.rules.map(ruleLine).join('')}</ul>` : ''}
+    ${calcTip(d)}
     <div class="footer">Generated ${fmtDate(gen.toISOString().slice(0, 10))} · Powered by runq</div>
   </div></body></html>`;
 }
@@ -138,6 +151,7 @@ const STYLE = `<style>
   .flat-v { font-size: 18px; font-weight: 700; color: #0F7A5A; }
   table.grid { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 16px; }
   .grid thead th { background: #0F7A5A; color: #fff; font-weight: 600; padding: 7px 8px; text-align: left; }
+  .grid thead th.right { text-align: right; }
   .grid tbody td { padding: 6px 8px; border-bottom: 1px solid #EFEDE6; font-variant-numeric: tabular-nums; }
   .grid tbody tr:nth-child(even) td { background: #FBFAF6; }
   .grid .rowhead { font-weight: 600; }
@@ -145,5 +159,8 @@ const STYLE = `<style>
   .rules { list-style: none; font-size: 12px; }
   .rules li { padding: 4px 0; border-bottom: 1px dashed #EFEDE6; color: #14150F; }
   .muted { color: #5B635C; font-size: 12px; }
+  .tip { margin-top: 16px; padding: 10px 12px; background: #F1F7F4; border-left: 3px solid #0F7A5A;
+    border-radius: 4px; font-size: 11px; color: #14150F; line-height: 1.5; }
+  .tip-k { display: block; font-weight: 600; color: #0F7A5A; margin-bottom: 2px; }
   .footer { margin-top: 16px; font-size: 10px; color: #9aa29a; text-align: center; }
 </style>`;
