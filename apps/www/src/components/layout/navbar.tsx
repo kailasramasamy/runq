@@ -52,7 +52,7 @@ export function Navbar() {
         <NavLink to="/" className="flex items-center gap-2">
           <img src="/runq-dark.png" alt="runQ" className="h-6" />
           <span className="rounded border border-brand-500/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-600">
-            Finance
+            ERP
           </span>
         </NavLink>
 

@@ -56,7 +56,7 @@ export function Footer() {
             <NavLink to="/" className="inline-flex items-center gap-2">
               <img src="/runq-light.png" alt="runQ" className="h-7" />
               <span className="rounded border border-brand-400/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-300">
-                Finance
+                ERP
               </span>
             </NavLink>
             <p className="mt-4 max-w-xs text-sm text-zinc-500">
