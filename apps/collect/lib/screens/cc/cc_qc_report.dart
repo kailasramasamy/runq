@@ -59,9 +59,14 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
             ref.invalidate(nodesByTypeProvider('vmcc'));
           },
           child: rowsAsync.when(
-            loading: () => const DhenuLoadingList(),
-            error: (e, _) => DhenuEmptyState(
-                icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+            // Scrollable branches so the RefreshIndicator works and a short box
+            // never overflows the non-scrolling skeleton/empty.
+            loading: () => ListView(children: const [DhenuLoadingList()]),
+            error: (e, _) => ListView(children: [
+              const SizedBox(height: 72),
+              DhenuEmptyState(
+                  icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+            ]),
             data: (rows) => _content(rows, vmccs),
           ),
         ),
