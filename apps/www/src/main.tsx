@@ -12,8 +12,10 @@ import Contact from '@/routes/contact';
 import GetStarted from '@/routes/get-started';
 import Privacy from '@/routes/privacy';
 import Terms from '@/routes/terms';
+import Dhenu from '@/routes/dhenu';
 import DhenuDeleteAccount from '@/routes/dhenu-delete-account';
 import DhenuPrivacy from '@/routes/dhenu-privacy';
+import DhenuSupport from '@/routes/dhenu-support';
 import Security from '@/routes/security';
 import GstCompliance from '@/routes/gst-compliance';
 import NotFound from '@/routes/not-found';
@@ -74,6 +76,8 @@ function AppRoutes() {
   if (path.startsWith('/terms')) return <Terms />;
   if (path.startsWith('/dhenu/delete-account')) return <DhenuDeleteAccount />;
   if (path.startsWith('/dhenu/privacy')) return <DhenuPrivacy />;
+  if (path.startsWith('/dhenu/support')) return <DhenuSupport />;
+  if (path === '/dhenu' || path === '/dhenu/') return <Dhenu />;
   if (path.startsWith('/security')) return <Security />;
   if (path.startsWith('/gst-compliance')) return <GstCompliance />;
 

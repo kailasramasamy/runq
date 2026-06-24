@@ -58,9 +58,14 @@ class _VmccQcReportState extends ConsumerState<VmccQcReport> {
           child: _scope == _Scope.farmer && _farmer == null
               ? _prompt()
               : daysAsync.when(
-                  loading: () => const DhenuLoadingList(),
-                  error: (e, _) => DhenuEmptyState(
-                      icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+                  // Keep every branch scrollable so the RefreshIndicator works and
+                  // a short box never overflows the non-scrolling skeleton/empty.
+                  loading: () => ListView(children: const [DhenuLoadingList()]),
+                  error: (e, _) => ListView(children: [
+                    const SizedBox(height: 72),
+                    DhenuEmptyState(
+                        icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+                  ]),
                   data: (days) => _report(days),
                 ),
         ),
