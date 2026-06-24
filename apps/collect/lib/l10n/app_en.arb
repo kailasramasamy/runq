@@ -29,16 +29,24 @@
       }
     }
   },
-  "collectReplaceOrAdd": "Replace it (correction) or add another lot for {name}?",
-  "@collectReplaceOrAdd": {
+  "collectReplaceOrCombine": "Replace it (correction) or combine as another container for {name}?",
+  "@collectReplaceOrCombine": {
     "placeholders": {
       "name": {
         "type": "String"
       }
     }
   },
+  "collectCombineResult": "Combined total: {total}",
+  "@collectCombineResult": {
+    "placeholders": {
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "collectReplace": "Replace",
-  "collectAddLot": "Add lot",
+  "collectCombine": "Combine",
   "collectSavedOnDevice": "Saved on device · will sync",
   "collectComputingRate": "Computing rate…",
   "collectEnterClrPreview": "Enter CLR to preview the rate",
@@ -46,6 +54,14 @@
   "collectRateOnSync": "Rate computed on sync",
   "collectTodaysEntries": "Today's entries ({count})",
   "@collectTodaysEntries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "collectEntries": "Entries ({count})",
+  "@collectEntries": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -380,10 +396,11 @@
   "herdBreedSahiwal": "Sahiwal",
   "herdBreedMurrah": "Murrah",
   "herdBreedOther": "Other",
-  "reportsTodaysCollection": "Today's Collection",
   "reportsCouldNotLoadSummary": "Could not load summary",
-  "reportsNoCollectionToday": "No collection today",
+  "reportsNoCollectionToday": "No collection on this date",
   "reportsTotalCollected": "Total collected",
+  "reportsTabSummary": "Summary",
+  "reportsTabQc": "QC",
   "reportsFarmersPoursStat": "{farmerCount} farmers · {pourCount} pours",
   "@reportsFarmersPoursStat": {
     "placeholders": {
@@ -457,6 +474,7 @@
   "pickerSearchHint": "Search farmer by name or code",
   "pickerLoadError": "Could not load farmers",
   "pickerNoMatch": "No matching farmers",
+  "pickerRecorded": "Recorded",
   "addFarmerNativeNameLabel": "Name (regional script)",
   "addFarmerNativeNameHint": "Auto-filled from the name above — edit if needed",
   "voiceMicNeededTitle": "Microphone access needed",

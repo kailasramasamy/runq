@@ -21,3 +21,14 @@ export const receivedDailySchema = z.object({
 });
 
 export type ReceivedDailyQuery = z.infer<typeof receivedDailySchema>;
+
+/** Per-day qty-weighted QC rollup of recorded pours at a node, optionally
+ * filtered to one farmer — powers the VMCC QC trend chart. */
+export const poursDailySchema = z.object({
+  nodeId: z.string().uuid(),
+  farmerId: z.string().uuid().optional(),
+  from: z.string().date(),
+  to: z.string().date(),
+});
+
+export type PoursDailyQuery = z.infer<typeof poursDailySchema>;

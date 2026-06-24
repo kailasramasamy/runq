@@ -203,6 +203,7 @@ class VmccHome extends ConsumerWidget {
           pours: pours,
           farmersById: byId,
           showDate: true,
+          showAvatar: false,
           onTapPour: (p, farmer) => showPourDetailSheet(
             context,
             pour: p,

@@ -68,15 +68,20 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
-  String collectReplaceOrAdd(String name) {
-    return '$name க்கு அதை மாற்றவா (திருத்தம்) அல்லது மற்றொரு லாட் சேர்க்கவா?';
+  String collectReplaceOrCombine(String name) {
+    return '$name க்கு அதை மாற்றவா (திருத்தம்) அல்லது மற்றொரு கேனாக இணைக்கவா?';
+  }
+
+  @override
+  String collectCombineResult(String total) {
+    return 'மொத்த இணைப்பு: $total';
   }
 
   @override
   String get collectReplace => 'மாற்று';
 
   @override
-  String get collectAddLot => 'லாட் சேர்';
+  String get collectCombine => 'இணை';
 
   @override
   String get collectSavedOnDevice =>
@@ -98,6 +103,11 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String collectTodaysEntries(int count) {
     return 'இன்றைய பதிவுகள் ($count)';
+  }
+
+  @override
+  String collectEntries(int count) {
+    return 'பதிவுகள் ($count)';
   }
 
   @override
@@ -806,16 +816,19 @@ class AppLocalizationsTa extends AppLocalizations {
   String get herdBreedOther => 'மற்றவை';
 
   @override
-  String get reportsTodaysCollection => 'இன்றைய சேகரிப்பு';
-
-  @override
   String get reportsCouldNotLoadSummary => 'சுருக்கத்தை ஏற்ற முடியவில்லை';
 
   @override
-  String get reportsNoCollectionToday => 'இன்று சேகரிப்பு இல்லை';
+  String get reportsNoCollectionToday => 'இந்த தேதியில் சேகரிப்பு இல்லை';
 
   @override
   String get reportsTotalCollected => 'மொத்த சேகரிப்பு';
+
+  @override
+  String get reportsTabSummary => 'சுருக்கம்';
+
+  @override
+  String get reportsTabQc => 'தரம்';
 
   @override
   String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
@@ -990,6 +1003,9 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get pickerNoMatch => 'பொருத்தமான விவசாயிகள் இல்லை';
+
+  @override
+  String get pickerRecorded => 'பதிவு செய்யப்பட்டது';
 
   @override
   String get addFarmerNativeNameLabel => 'பெயர் (வட்டார எழுத்து)';

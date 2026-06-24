@@ -38,6 +38,8 @@ class RecordCollectionScreen extends ConsumerStatefulWidget {
 class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen> {
   MpFarmer? _farmer;
   Shift _shift = shiftFrom(currentShift());
+  // Collection date — defaults to today, operator may back-date (never future).
+  late String _date;
   late MilkType _milkType;
   final _qty = TextEditingController();
   final _fat = TextEditingController();
@@ -79,6 +81,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   @override
   void initState() {
     super.initState();
+    _date = widget.seedPour?.collectionDate ?? todayIso();
     final seed = widget.seedPour;
     if (seed != null) {
       _farmer = widget.seedFarmer;
@@ -132,8 +135,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   double? get _waterVal => double.tryParse(_water.text);
   double? get _clrVal => double.tryParse(_clr.text);
   bool get _isEdit => widget.seedPour != null;
-  // edits keep the original collection date; fresh entries are for today
-  String get _collectionDate => widget.seedPour?.collectionDate ?? todayIso();
+  // edits keep the original collection date; fresh entries default to today
+  // but can be back-dated via the date picker.
+  String get _collectionDate => _date;
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
@@ -180,8 +184,17 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     }
   }
 
+  /// Farmers already collected for the active (date, shift) slot — passed to the
+  /// picker so their rows read "Recorded". The entries list watches the same
+  /// date-scoped provider, so it's loaded by the time the picker opens.
+  Set<String> _recordedFarmerIdsForSlot() => {
+        for (final p in _poursForActiveDate())
+          if (p.shift == _shift) p.farmerId,
+      };
+
   Future<void> _pickFarmer() async {
-    final picked = await showFarmerPicker(context, ref, widget.node.id);
+    final picked = await showFarmerPicker(context, ref, widget.node.id,
+        recordedFarmerIds: _recordedFarmerIdsForSlot());
     if (picked != null) {
       setState(() {
         _farmer = picked;
@@ -212,15 +225,37 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     _save();
   }
 
-  /// The farmer's existing recorded pour for this exact slot (shift + milk
-  /// type), if any — drives the replace-or-add prompt. Today's list is already
-  /// recorded-only, so a hit means a real prior reading.
-  MpPour? _existingSlotPour() {
-    final pours = ref.read(nodeTodayPoursProvider(widget.node.id)).asData?.value ?? const <MpPour>[];
-    for (final p in pours) {
-      if (p.farmerId == _farmer!.id && p.shift == _shift && p.milkType == _milkType) return p;
+  /// Recorded pours at this node for the active entry date — today's list (kept
+  /// invalidated) or the date-scoped list for a back-dated entry.
+  List<MpPour> _poursForActiveDate() {
+    final async = _date == todayIso()
+        ? ref.read(nodeTodayPoursProvider(widget.node.id))
+        : ref.read(nodePoursForDateProvider((nodeId: widget.node.id, date: _date)));
+    return async.asData?.value ?? const <MpPour>[];
+  }
+
+  /// The farmer's existing recorded pour(s) for this exact slot (date + shift +
+  /// milk type). Drives the replace-or-combine prompt. The list is recorded-only,
+  /// so a hit means a real prior reading. Usually one, but legacy data may hold
+  /// several separate lots — combine merges them all.
+  List<MpPour> _existingSlotPours() => [
+        for (final p in _poursForActiveDate())
+          if (p.farmerId == _farmer!.id && p.shift == _shift && p.milkType == _milkType) p,
+      ];
+
+  /// Qty-weighted average of one quality field across readings, ignoring any that
+  /// lack the value (e.g. an optional water reading on one container only).
+  /// Rounded to one decimal to match how the field is measured/entered.
+  double? _weightedAvg(List<MpPour> existing, double newQty, double? newVal,
+      double? Function(MpPour) field) {
+    var weighted = 0.0, qty = 0.0;
+    if (newVal != null) { weighted += newVal * newQty; qty += newQty; }
+    for (final p in existing) {
+      final v = field(p);
+      if (v != null) { weighted += v * p.qtyLitres; qty += p.qtyLitres; }
     }
-    return null;
+    if (qty == 0) return null;
+    return (weighted / qty * 10).roundToDouble() / 10;
   }
 
   Future<void> _save() async {
@@ -229,29 +264,29 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     // focus to the last field and flash the keyboard back on.
     FocusScope.of(context).unfocus();
     if (_isEdit) return _saveEdit();
-    // A repeat for the same slot is a correction by default; adding a lot is
-    // deliberate. Ask, so an operator never silently double-pays a farmer.
-    // Capture name before any await so context is still synchronously accessible.
+    // A repeat for the same slot is a correction by default; combining a second
+    // container is deliberate. Ask, so an operator never silently double-pays a
+    // farmer. Capture name before any await so context stays synchronously usable.
     final name = farmerName(context, _farmer!);
-    final existing = _existingSlotPour();
-    var asNewLot = false;
-    if (existing != null) {
-      final choice = await _askReplaceOrAdd(existing);
+    final existing = _existingSlotPours();
+    if (existing.isNotEmpty) {
+      final choice = await _askReplaceOrCombine(existing);
       if (choice == null) return; // cancelled — keep the form as-is
-      asNewLot = choice;
+      if (choice) return _saveCombined(existing, name); // merge containers
+      // else: replace prior reading (correction) — falls through as a fresh record
     }
     final qtyLabel = litres(_qtyVal, unit: true);
     setState(() => _saving = true);
     final body = <String, dynamic>{
       'nodeId': widget.node.id,
       'farmerId': _farmer!.id,
-      'collectionDate': todayIso(),
+      'collectionDate': _date,
       'shift': _shift.name,
       'milkType': milkTypeToApi(_milkType),
       'qtyLitres': _qtyVal,
       if (widget.node.isLactometer) 'clr': _clrVal
       else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
-      'asNewLot': asNewLot,
+      'asNewLot': false,
     };
     final bool sentNow;
     try {
@@ -268,9 +303,58 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     if (!mounted) return;
     ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
     ref.invalidate(nodeTodayPoursProvider(widget.node.id));
+    // Back-dated entry: refresh the date-scoped list that the entries section
+    // and the picker's "Recorded" marks read from.
+    if (_date != todayIso()) {
+      ref.invalidate(nodePoursForDateProvider((nodeId: widget.node.id, date: _date)));
+    }
     FocusScope.of(context).unfocus(); // dismiss the keypad between farmers
     _showSavedSnack(name, qtyLabel, sentNow);
     _resetForNext();
+  }
+
+  /// Combine this container with the farmer's existing reading(s) for the slot:
+  /// quantities add up and FAT/SNF/Water/CLR are qty-weighted into one pour, then
+  /// the prior lots are reversed and the merged reading recorded. Online-only —
+  /// it depends on reversing server-side rows (mirrors [_saveEdit]).
+  Future<void> _saveCombined(List<MpPour> existing, String name) async {
+    final totalQty = _qtyVal + existing.fold<double>(0, (s, p) => s + p.qtyLitres);
+    final fat = _weightedAvg(existing, _qtyVal, _fatVal, (p) => p.fat);
+    final snf = _weightedAvg(existing, _qtyVal, _snfVal, (p) => p.snf);
+    final water = _weightedAvg(existing, _qtyVal, _waterVal, (p) => p.water);
+    final clr = _weightedAvg(existing, _qtyVal, _clrVal, (p) => p.clr);
+    final qtyLabel = litres(totalQty, unit: true);
+    setState(() => _saving = true);
+    try {
+      for (final p in existing) {
+        await mpRepo.reversePour(p.id);
+      }
+      await mpRepo.recordPour({
+        'nodeId': widget.node.id,
+        'farmerId': _farmer!.id,
+        'collectionDate': _date,
+        'shift': _shift.name,
+        'milkType': milkTypeToApi(_milkType),
+        'qtyLitres': totalQty,
+        if (widget.node.isLactometer) 'clr': clr
+        else ...{'fat': fat, 'snf': snf, 'water': ?water},
+        'asNewLot': false,
+      });
+      if (!mounted) return;
+      ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
+      ref.invalidate(nodeTodayPoursProvider(widget.node.id));
+      if (_date != todayIso()) {
+        ref.invalidate(nodePoursForDateProvider((nodeId: widget.node.id, date: _date)));
+      }
+      FocusScope.of(context).unfocus();
+      _showSavedSnack(name, qtyLabel, true);
+      _resetForNext();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showDhenuToast(context, '$e', type: DhenuToastType.error);
+      }
+    }
   }
 
   /// Edit an existing entry: reverse the original (targeted, by id) and re-record
@@ -298,6 +382,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       ref.invalidate(nodeTodayPoursProvider(widget.node.id));
       ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
       ref.invalidate(nodeHistoryPoursProvider(widget.node.id));
+      ref.invalidate(nodePoursForDateProvider((nodeId: widget.node.id, date: seed.collectionDate)));
+      ref.invalidate(farmerHistoryPoursProvider);
       _showSavedSnack(name, qtyLabel, true);
       Navigator.of(context).pop();
     } catch (e) {
@@ -315,13 +401,16 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         icon: sentNow ? null : DhenuIcons.cloud,
       );
 
-  /// Returns true = add another lot, false = replace prior, null = cancel.
-  Future<bool?> _askReplaceOrAdd(MpPour existing) {
+  /// Returns true = combine containers, false = replace prior, null = cancel.
+  Future<bool?> _askReplaceOrCombine(List<MpPour> existing) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final shiftLabel = _shift == Shift.am ? 'AM' : 'PM';
     // Capture now: _farmer is cleared on save while the sheet animates out.
     final capturedName = farmerName(context, _farmer!);
+    final priorQty = existing.fold<double>(0, (s, p) => s + p.qtyLitres);
+    final combinedQty = priorQty + _qtyVal;
+    final first = existing.first;
     return showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -340,23 +429,27 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                 Text(l.collectAlreadyRecorded(shiftLabel),
                     style: DhenuText.title.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.xs),
-                Text(l.collectReplaceOrAdd(capturedName),
+                Text(l.collectReplaceOrCombine(capturedName),
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 const SizedBox(height: DhenuSpacing.md),
                 DhenuCard(
-                  child: Row(children: [
-                    Expanded(
-                      child: Text(
-                        '${_milkLabel(existing.milkType)} · ${litres(existing.qtyLitres, unit: true)}',
-                        style: DhenuText.body.copyWith(color: t.ink),
-                      ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      '${_milkLabel(first.milkType)} · ${litres(priorQty, unit: true)}',
+                      style: DhenuText.body.copyWith(color: t.ink),
                     ),
-                    if (existing.fat != null)
+                    if (existing.length == 1 && first.fat != null) ...[
+                      const SizedBox(height: DhenuSpacing.sm),
                       QualityBadge(
-                        fat: existing.fat, snf: existing.snf, water: existing.water,
-                        grade: existing.qualityGrade, format: QualityFormat.valueLabel),
+                        fat: first.fat, snf: first.snf, water: first.water,
+                        grade: first.qualityGrade, format: QualityFormat.valueLabel),
+                    ],
                   ]),
                 ),
+                const SizedBox(height: DhenuSpacing.sm),
+                // What "Combine" will produce, so the operator confirms the total.
+                Text(l.collectCombineResult(litres(combinedQty, unit: true)),
+                    style: DhenuText.caption.copyWith(color: t.brand)),
                 const SizedBox(height: DhenuSpacing.lg),
                 Row(children: [
                   Expanded(child: OutlinedButton(
@@ -366,7 +459,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                   const SizedBox(width: DhenuSpacing.md),
                   Expanded(child: FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: Text(l.collectAddLot),
+                    child: Text(l.collectCombine),
                   )),
                 ]),
                 Center(child: TextButton(
@@ -452,20 +545,25 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         title: Text(widget.seedPour != null ? l.editCollectionTitle : l.recordCollectionTitle,
             style: DhenuText.h2.copyWith(color: t.ink)),
       ),
-      body: ListView(
+      // Column (not a floating bottomSheet) so the action button never overlaps
+      // the fields: the ListView viewport ends at the button, so the focused
+      // field always auto-scrolls to sit above it and above the keypad.
+      body: Column(children: [
+        Expanded(
+          child: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(
-            DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, 120),
+            DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.lg),
         children: [
-          _dateBar(t),
+          _datePicker(t),
           if (closed) ...[
             const SizedBox(height: DhenuSpacing.md),
             _closedBanner(t),
           ],
-          const SizedBox(height: DhenuSpacing.md),
-          _farmerField(t),
           const SizedBox(height: DhenuSpacing.lg),
           ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s), expand: true),
+          const SizedBox(height: DhenuSpacing.lg),
+          _farmerField(t),
           const SizedBox(height: DhenuSpacing.lg),
           _milkTypePicker(t),
           const SizedBox(height: DhenuSpacing.lg),
@@ -484,7 +582,15 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
               Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
             ]),
             const SizedBox(height: DhenuSpacing.md),
-            _numberField(_water, 'Water % (optional)', '%', _waterFocus, null),
+            // Same one-third width as the trio above (optional → left-aligned,
+            // two empty slots fill the row).
+            Row(children: [
+              Expanded(child: _numberField(_water, 'Water', '%', _waterFocus, null)),
+              const SizedBox(width: DhenuSpacing.md),
+              const Expanded(child: SizedBox.shrink()),
+              const SizedBox(width: DhenuSpacing.md),
+              const Expanded(child: SizedBox.shrink()),
+            ]),
           ],
           const SizedBox(height: DhenuSpacing.lg),
           _ratePreview(t),
@@ -495,16 +601,21 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             _closeButton(t),
           ],
         ],
-      ),
-      bottomSheet: Padding(
-        padding: const EdgeInsets.all(DhenuSpacing.screen),
-        child: PrimaryAction(
-          label: _canSave ? l.collectSaveAndNext : l.commonNext,
-          icon: _canSave ? DhenuIcons.check : DhenuIcons.arrowRight,
-          loading: _saving,
-          onPressed: (_saving || closed) ? null : _onPrimary,
+          ),
         ),
-      ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(DhenuSpacing.screen),
+            child: PrimaryAction(
+              label: _canSave ? l.collectSaveAndNext : l.commonNext,
+              icon: _canSave ? DhenuIcons.check : DhenuIcons.arrowRight,
+              loading: _saving,
+              onPressed: (_saving || closed) ? null : _onPrimary,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -550,32 +661,77 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     );
   }
 
-  Widget _dateBar(DhenuTokens t) => Row(children: [
-        Icon(DhenuIcons.calendar, size: 18, color: t.brand),
-        const SizedBox(width: DhenuSpacing.sm),
-        Text(
-          _collectionDate == todayIso()
-              ? '${prettyDate(_collectionDate)} · ${AppLocalizations.of(context).commonToday}'
-              : prettyDate(_collectionDate),
-          style: DhenuText.label.copyWith(color: t.inkSoft),
-        ),
-      ]);
+  /// Lets the operator back-date an entry (e.g. catching up on a missed slot).
+  /// Future dates are blocked — `lastDate` is today.
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.tryParse(_date) ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() => _date = isoDate(picked));
+    _onFieldChanged(); // re-resolve the rate against the new date's chart
+  }
 
-  /// Today's recorded pours at this node, live (invalidated on each save),
-  /// grouped into AM and PM shifts so morning and evening entries don't mix.
+  /// Date row, styled like the farmer field. Read-only while editing — an edit
+  /// keeps the original entry's collection date.
+  Widget _datePicker(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
+    final label = _date == todayIso()
+        ? '${prettyDate(_date)} · ${l.commonToday}'
+        : prettyDate(_date);
+    return InkWell(
+      onTap: _isEdit ? null : _pickDate,
+      borderRadius: BorderRadius.circular(DhenuRadii.input),
+      child: Container(
+        height: DhenuSpacing.minTap + 4,
+        padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg),
+        decoration: BoxDecoration(
+          color: t.inputFill,
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+          border: Border.all(color: t.hairline),
+        ),
+        child: Row(children: [
+          Icon(DhenuIcons.calendar, color: t.brand),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Text(label,
+                style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+          ),
+          if (!_isEdit) Icon(DhenuIcons.chevronRight, color: t.inkSoft),
+        ]),
+      ),
+    );
+  }
+
+  /// Recorded pours at this node for the selected date and shift, live
+  /// (invalidated on each save). Filtered to the active shift so the list mirrors
+  /// exactly the slot being entered.
   Widget _recentToday(DhenuTokens t) {
-    final pours = ref.watch(nodeTodayPoursProvider(widget.node.id)).asData?.value ?? const <MpPour>[];
+    final l = AppLocalizations.of(context);
+    final isToday = _date == todayIso();
+    final all = (isToday
+                ? ref.watch(nodeTodayPoursProvider(widget.node.id))
+                : ref.watch(nodePoursForDateProvider((nodeId: widget.node.id, date: _date))))
+            .asData?.value ??
+        const <MpPour>[];
+    final pours = [for (final p in all) if (p.shift == _shift) p];
     if (pours.isEmpty) return const SizedBox.shrink();
     final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(AppLocalizations.of(context).collectTodaysEntries(pours.length),
+      Text(isToday ? l.collectTodaysEntries(pours.length) : l.collectEntries(pours.length),
           style: DhenuText.title.copyWith(color: t.ink)),
       const SizedBox(height: DhenuSpacing.sm),
       ShiftGroupedPours(
         pours: pours,
         farmersById: byId,
         maxRowsPerShift: 8,
+        showAvatar: false,
+        showDate: !isToday,
         onTapPour: (p, farmer) => showPourDetailSheet(
           context,
           pour: p,
@@ -605,15 +761,23 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             Icon(DhenuIcons.userSearch, color: t.brand),
             const SizedBox(width: DhenuSpacing.md),
             Expanded(
-              child: Text(
-                _farmer != null ? farmerName(context, _farmer!) : AppLocalizations.of(context).commonSelectFarmer,
-                style: DhenuText.title.copyWith(
-                  color: _farmer == null ? t.inkSoft : t.ink,
-                  fontWeight: _farmer == null ? FontWeight.w400 : FontWeight.w600,
-                ),
-              ),
+              child: _farmer == null
+                  ? Text(
+                      AppLocalizations.of(context).commonSelectFarmer,
+                      style: DhenuText.title.copyWith(color: t.inkSoft, fontWeight: FontWeight.w400),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Name leads, id sits beneath in small caption text.
+                        Text(farmerName(context, _farmer!),
+                            style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w600),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(_farmer!.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                      ],
+                    ),
             ),
-            if (_farmer != null) Text(_farmer!.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
             const SizedBox(width: DhenuSpacing.sm),
             Icon(DhenuIcons.chevronRight, color: t.inkSoft),
           ]),

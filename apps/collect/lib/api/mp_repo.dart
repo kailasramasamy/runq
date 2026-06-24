@@ -325,6 +325,20 @@ class MpRepo {
     return _list(res).map(MpReceivedDay.fromJson).toList();
   }
 
+  /// Per-day qty-weighted QC rollup of recorded pours at a node, optionally
+  /// scoped to one farmer — backs the VMCC QC trend chart.
+  Future<List<MpPourDay>> poursDaily({
+    required String nodeId,
+    required String from,
+    required String to,
+    String? farmerId,
+  }) async {
+    final res = await _api.get(
+      '$_base/reports/pours-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to, 'farmerId': farmerId})}',
+    );
+    return _list(res).map(MpPourDay.fromJson).toList();
+  }
+
   // ── farmer ledger ───────────────────────────────────────────────────────────
   Future<({double balance, List<MpLedgerEntry> entries})> farmerLedger({
     String? farmerId,

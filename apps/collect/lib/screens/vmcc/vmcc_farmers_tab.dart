@@ -97,7 +97,7 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
   }
 
   Widget _list(DhenuTokens t, AppLocalizations l, List<MpFarmer> all) {
-    final farmers = _query.isEmpty
+    final filtered = _query.isEmpty
         ? all
         : all
               .where(
@@ -106,6 +106,12 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
                     f.code.toLowerCase().contains(_query),
               )
               .toList();
+    // Sort by displayed name (A→Z), case-insensitive — copy first so we never
+    // mutate the provider's cached list.
+    final farmers = [...filtered]
+      ..sort((a, b) => farmerName(context, a)
+          .toLowerCase()
+          .compareTo(farmerName(context, b).toLowerCase()));
 
     if (farmers.isEmpty) {
       return ListView(
@@ -138,9 +144,9 @@ class _VmccFarmersTabState extends ConsumerState<VmccFarmersTab> {
         final display = farmerName(context, f);
         return SourceRow(
           title: display,
-          subtitle: display != f.name ? f.name : null,
+          subtitle: f.code,
           farmer: f,
-          litres: f.code,
+          litres: '',
           trailingStatus: Icon(
             DhenuIcons.payments,
             size: 18,

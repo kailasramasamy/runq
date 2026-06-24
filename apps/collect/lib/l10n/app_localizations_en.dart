@@ -68,15 +68,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String collectReplaceOrAdd(String name) {
-    return 'Replace it (correction) or add another lot for $name?';
+  String collectReplaceOrCombine(String name) {
+    return 'Replace it (correction) or combine as another container for $name?';
+  }
+
+  @override
+  String collectCombineResult(String total) {
+    return 'Combined total: $total';
   }
 
   @override
   String get collectReplace => 'Replace';
 
   @override
-  String get collectAddLot => 'Add lot';
+  String get collectCombine => 'Combine';
 
   @override
   String get collectSavedOnDevice => 'Saved on device · will sync';
@@ -96,6 +101,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String collectTodaysEntries(int count) {
     return 'Today\'s entries ($count)';
+  }
+
+  @override
+  String collectEntries(int count) {
+    return 'Entries ($count)';
   }
 
   @override
@@ -801,16 +811,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get herdBreedOther => 'Other';
 
   @override
-  String get reportsTodaysCollection => 'Today\'s Collection';
-
-  @override
   String get reportsCouldNotLoadSummary => 'Could not load summary';
 
   @override
-  String get reportsNoCollectionToday => 'No collection today';
+  String get reportsNoCollectionToday => 'No collection on this date';
 
   @override
   String get reportsTotalCollected => 'Total collected';
+
+  @override
+  String get reportsTabSummary => 'Summary';
+
+  @override
+  String get reportsTabQc => 'QC';
 
   @override
   String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
@@ -985,6 +998,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pickerNoMatch => 'No matching farmers';
+
+  @override
+  String get pickerRecorded => 'Recorded';
 
   @override
   String get addFarmerNativeNameLabel => 'Name (regional script)';

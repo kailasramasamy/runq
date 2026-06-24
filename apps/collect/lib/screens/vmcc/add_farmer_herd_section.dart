@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../widgets/sheet_grabber.dart';
 import 'add_farmer_form_sections.dart';
 
 // ── Breed enum + helpers ─────────────────────────────────────────────────────
@@ -54,6 +55,88 @@ class BreedRow {
   final TextEditingController qtyCtrl = TextEditingController();
   int get count => int.tryParse(qtyCtrl.text) ?? 0;
   void dispose() => qtyCtrl.dispose();
+}
+
+/// Full-width bottom sheet to pick a cattle breed — replaces the cramped inline
+/// dropdown so the breed row has room for the Qty + remove controls. Returns the
+/// chosen breed key, or null if dismissed.
+Future<String?> showBreedPickerSheet(BuildContext context, String selected) {
+  final t = DT(context);
+  final l = AppLocalizations.of(context);
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SheetGrabber(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.sm),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(l.herdBreedLabel,
+                    style: DhenuText.title.copyWith(color: t.ink)),
+              ),
+            ),
+            for (final b in _breeds)
+              _BreedOption(
+                label: breedLabelL10n(l, b),
+                selected: b == selected,
+                onTap: () => Navigator.pop(ctx, b),
+              ),
+            const SizedBox(height: DhenuSpacing.sm),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _BreedOption extends StatelessWidget {
+  const _BreedOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: DhenuText.body.copyWith(
+                  color: selected ? t.brand : t.ink,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            if (selected)
+              Icon(DhenuIcons.checkCircle, size: 20, color: t.brand),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Herd section ─────────────────────────────────────────────────────────────
@@ -158,48 +241,57 @@ class _MilkTypePicker extends StatelessWidget {
     MilkType.cowA1, MilkType.cowA2, MilkType.buffalo, MilkType.mixed,
   ];
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _pill(BuildContext context, MilkType m) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    // IntrinsicHeight + stretch keeps all pills the same height as the tallest,
-    // so a longer (wrapped) regional-language label doesn't overflow its pill.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _selectableMilkTypes.map((m) {
-          final sel = m == value;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: DhenuSpacing.xs),
-              child: InkWell(
-                onTap: () => onChanged(m),
-                borderRadius: BorderRadius.circular(DhenuRadii.pill),
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 44),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: DhenuSpacing.xs, vertical: DhenuSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: sel ? t.brandSubtle : Colors.transparent,
-                    borderRadius: BorderRadius.circular(DhenuRadii.pill),
-                    border: Border.all(color: sel ? t.brand : t.hairline),
-                  ),
-                  child: Text(
-                    milkTypeL10n(l, m),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DhenuText.label.copyWith(
-                      color: sel ? t.brand : t.inkSoft,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
+    final sel = m == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () => onChanged(m),
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
+          decoration: BoxDecoration(
+            color: sel ? t.brandSubtle : Colors.transparent,
+            borderRadius: BorderRadius.circular(DhenuRadii.pill),
+            border: Border.all(color: sel ? t.brand : t.hairline),
+          ),
+          child: Text(
+            milkTypeL10n(l, m),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: DhenuText.label.copyWith(color: sel ? t.brand : t.inkSoft),
+          ),
+        ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 2×2 grid: two pills per row, full-width — gives each label room to breathe
+    // (e.g. "Cow A1 (regular)") instead of cramming four into one tight row.
+    // IntrinsicHeight + stretch keeps both pills in a row the same height.
+    Widget rowOf(MilkType a, MilkType b) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _pill(context, a),
+              const SizedBox(width: DhenuSpacing.sm),
+              _pill(context, b),
+            ],
+          ),
+        );
+    return Column(
+      children: [
+        rowOf(_selectableMilkTypes[0], _selectableMilkTypes[1]),
+        const SizedBox(height: DhenuSpacing.sm),
+        rowOf(_selectableMilkTypes[2], _selectableMilkTypes[3]),
+      ],
     );
   }
 }
@@ -225,19 +317,31 @@ class _BreedRowWidget extends StatelessWidget {
       children: [
         Expanded(
           flex: 3,
-          child: DropdownButtonFormField<String>(
-            initialValue: row.breed,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: l.herdBreedLabel,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            items: _breeds
-                .map((b) => DropdownMenuItem(value: b, child: Text(breedLabelL10n(l, b))))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) onBreedChanged(v);
+          child: InkWell(
+            onTap: () async {
+              final picked = await showBreedPickerSheet(context, row.breed);
+              if (picked != null) onBreedChanged(picked);
             },
+            borderRadius: BorderRadius.circular(DhenuRadii.input),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: l.herdBreedLabel,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      breedLabelL10n(l, row.breed),
+                      style: DhenuText.body.copyWith(color: t.ink),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(DhenuIcons.chevronDown, size: 20, color: t.inkSoft),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(width: DhenuSpacing.sm),

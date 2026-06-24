@@ -31,9 +31,39 @@ final nodeTodaySummaryProvider = FutureProvider.family<MpCollectionSummary?, Str
   return mpRepo.collectionSummary(from: today, to: today, nodeId: nodeId);
 });
 
+/// A node's collection summary for a single chosen date — backs the VMCC report
+/// screen's date picker. Keyed by (nodeId, date).
+final nodeSummaryForDateProvider =
+    FutureProvider.family<MpCollectionSummary?, NodeDateKey>((ref, key) async {
+  return mpRepo.collectionSummary(from: key.date, to: key.date, nodeId: key.nodeId);
+});
+
+/// Per-day qty-weighted QC rollup of a node's pours over the last [days],
+/// optionally scoped to one farmer — backs the VMCC QC trend chart. Keyed so
+/// each window + farmer scope caches separately.
+typedef PoursDailyKey = ({String nodeId, int days, String? farmerId});
+
+final nodePoursDailyProvider =
+    FutureProvider.family<List<MpPourDay>, PoursDailyKey>((ref, key) async {
+  return mpRepo.poursDaily(
+    nodeId: key.nodeId, farmerId: key.farmerId,
+    from: isoDaysAgo(key.days - 1), to: todayIso(),
+  );
+});
+
 /// Today's recorded pours at a node (recent entries list), newest first.
 final nodeTodayPoursProvider = FutureProvider.family<List<MpPour>, String>((ref, nodeId) async {
   return mpRepo.pours(nodeId: nodeId, collectionDate: todayIso(), status: 'recorded', limit: 100);
+});
+
+/// Recorded pours at a node for a specific collection date — backs Record
+/// Collection's entries list when the operator back-dates an entry. Today still
+/// uses [nodeTodayPoursProvider] (it stays invalidated for Home + the summary).
+typedef NodeDateKey = ({String nodeId, String date});
+
+final nodePoursForDateProvider =
+    FutureProvider.family<List<MpPour>, NodeDateKey>((ref, key) async {
+  return mpRepo.pours(nodeId: key.nodeId, collectionDate: key.date, status: 'recorded', limit: 100);
 });
 
 /// Recorded pours over the last 30 days at a node (collection history), newest
@@ -41,6 +71,24 @@ final nodeTodayPoursProvider = FutureProvider.family<List<MpPour>, String>((ref,
 final nodeHistoryPoursProvider = FutureProvider.family<List<MpPour>, String>((ref, nodeId) async {
   return mpRepo.pours(
       nodeId: nodeId, from: isoDaysAgo(30), to: todayIso(), status: 'recorded', limit: 500);
+});
+
+/// One farmer's recorded pours over the last 30 days at a node (the farmer
+/// detail "Pours" tab). Scoped to `farmerId` server-side so we never pull the
+/// whole node's history just to show a single farmer — keeps the payload small
+/// and the query indexed instead of choking the app / straining the server.
+typedef FarmerPoursKey = ({String nodeId, String farmerId});
+
+final farmerHistoryPoursProvider =
+    FutureProvider.family<List<MpPour>, FarmerPoursKey>((ref, key) async {
+  return mpRepo.pours(
+    nodeId: key.nodeId,
+    farmerId: key.farmerId,
+    from: isoDaysAgo(30),
+    to: todayIso(),
+    status: 'recorded',
+    limit: 100,
+  );
 });
 
 /// The signed-in operator's own comp terms + this month's earning (server

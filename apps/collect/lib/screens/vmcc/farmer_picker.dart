@@ -5,6 +5,7 @@ import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
+import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/sheet_grabber.dart';
@@ -12,18 +13,28 @@ import '../../widgets/source_row.dart';
 
 /// Searchable farmer picker (per feedback_searchable_dropdowns — Combobox, not
 /// a plain dropdown). Returns the chosen [MpFarmer], or null if dismissed.
-Future<MpFarmer?> showFarmerPicker(BuildContext context, WidgetRef ref, String nodeId) {
+///
+/// [recordedFarmerIds] are farmers who already have a recorded pour for the
+/// active (date, shift) slot — their rows show a "Recorded" tag so an operator
+/// doesn't unknowingly re-record the same farmer.
+Future<MpFarmer?> showFarmerPicker(
+  BuildContext context,
+  WidgetRef ref,
+  String nodeId, {
+  Set<String> recordedFarmerIds = const {},
+}) {
   return showModalBottomSheet<MpFarmer>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _FarmerPickerSheet(nodeId: nodeId),
+    builder: (_) => _FarmerPickerSheet(nodeId: nodeId, recordedFarmerIds: recordedFarmerIds),
   );
 }
 
 class _FarmerPickerSheet extends ConsumerStatefulWidget {
-  const _FarmerPickerSheet({required this.nodeId});
+  const _FarmerPickerSheet({required this.nodeId, required this.recordedFarmerIds});
   final String nodeId;
+  final Set<String> recordedFarmerIds;
   @override
   ConsumerState<_FarmerPickerSheet> createState() => _FarmerPickerSheetState();
 }
@@ -72,9 +83,11 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
         child: DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.pickerLoadError, subtitle: '$e'),
       ),
       data: (all) {
+        final sorted = [...all]
+          ..sort((a, b) => farmerName(context, a).toLowerCase().compareTo(farmerName(context, b).toLowerCase()));
         final farmers = _query.isEmpty
-            ? all
-            : all
+            ? sorted
+            : sorted
                 .where((f) => f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query))
                 .toList();
         if (farmers.isEmpty) {
@@ -90,12 +103,14 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
           separatorBuilder: (_, _) => Divider(height: 1, color: t.hairline),
           itemBuilder: (_, i) {
             final f = farmers[i];
-            final display = farmerName(context, f);
+            final recorded = widget.recordedFarmerIds.contains(f.id);
+            // Name leads, code sits beneath in small caption text.
             return SourceRow(
-              title: display,
-              subtitle: display != f.name ? f.name : null,
+              title: farmerName(context, f),
+              subtitle: f.code,
               farmer: f,
-              litres: f.code,
+              litres: '',
+              trailingStatus: recorded ? _recordedTag(t, l) : null,
               onTap: () => Navigator.of(context).pop(f),
             );
           },
@@ -103,4 +118,15 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
       },
     );
   }
+
+  /// Small green "✓ Recorded" chip shown on farmers already collected for the
+  /// active (date, shift) slot.
+  Widget _recordedTag(DhenuTokens t, AppLocalizations l) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(DhenuIcons.check, size: 14, color: t.gradeA),
+          const SizedBox(width: 2),
+          Text(l.pickerRecorded, style: DhenuText.caption.copyWith(color: t.gradeA)),
+        ],
+      );
 }

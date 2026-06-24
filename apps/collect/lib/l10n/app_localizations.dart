@@ -214,11 +214,17 @@ abstract class AppLocalizations {
   /// **'Already recorded this {shift} shift'**
   String collectAlreadyRecorded(String shift);
 
-  /// No description provided for @collectReplaceOrAdd.
+  /// No description provided for @collectReplaceOrCombine.
   ///
   /// In en, this message translates to:
-  /// **'Replace it (correction) or add another lot for {name}?'**
-  String collectReplaceOrAdd(String name);
+  /// **'Replace it (correction) or combine as another container for {name}?'**
+  String collectReplaceOrCombine(String name);
+
+  /// No description provided for @collectCombineResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Combined total: {total}'**
+  String collectCombineResult(String total);
 
   /// No description provided for @collectReplace.
   ///
@@ -226,11 +232,11 @@ abstract class AppLocalizations {
   /// **'Replace'**
   String get collectReplace;
 
-  /// No description provided for @collectAddLot.
+  /// No description provided for @collectCombine.
   ///
   /// In en, this message translates to:
-  /// **'Add lot'**
-  String get collectAddLot;
+  /// **'Combine'**
+  String get collectCombine;
 
   /// No description provided for @collectSavedOnDevice.
   ///
@@ -267,6 +273,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Today\'s entries ({count})'**
   String collectTodaysEntries(int count);
+
+  /// No description provided for @collectEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'Entries ({count})'**
+  String collectEntries(int count);
 
   /// No description provided for @collectSaveAndNext.
   ///
@@ -1576,12 +1588,6 @@ abstract class AppLocalizations {
   /// **'Other'**
   String get herdBreedOther;
 
-  /// No description provided for @reportsTodaysCollection.
-  ///
-  /// In en, this message translates to:
-  /// **'Today\'s Collection'**
-  String get reportsTodaysCollection;
-
   /// No description provided for @reportsCouldNotLoadSummary.
   ///
   /// In en, this message translates to:
@@ -1591,7 +1597,7 @@ abstract class AppLocalizations {
   /// No description provided for @reportsNoCollectionToday.
   ///
   /// In en, this message translates to:
-  /// **'No collection today'**
+  /// **'No collection on this date'**
   String get reportsNoCollectionToday;
 
   /// No description provided for @reportsTotalCollected.
@@ -1599,6 +1605,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Total collected'**
   String get reportsTotalCollected;
+
+  /// No description provided for @reportsTabSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Summary'**
+  String get reportsTabSummary;
+
+  /// No description provided for @reportsTabQc.
+  ///
+  /// In en, this message translates to:
+  /// **'QC'**
+  String get reportsTabQc;
 
   /// No description provided for @reportsFarmersPoursStat.
   ///
@@ -1929,6 +1947,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No matching farmers'**
   String get pickerNoMatch;
+
+  /// No description provided for @pickerRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded'**
+  String get pickerRecorded;
 
   /// No description provided for @addFarmerNativeNameLabel.
   ///

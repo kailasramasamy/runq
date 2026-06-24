@@ -68,15 +68,20 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
-  String collectReplaceOrAdd(String name) {
-    return '$name ಗಾಗಿ ಅದನ್ನು ಬದಲಾಯಿಸುವುದೇ (ತಿದ್ದುಪಡಿ) ಅಥವಾ ಇನ್ನೊಂದು ಲಾಟ್ ಸೇರಿಸುವುದೇ?';
+  String collectReplaceOrCombine(String name) {
+    return '$name ಗಾಗಿ ಅದನ್ನು ಬದಲಾಯಿಸುವುದೇ (ತಿದ್ದುಪಡಿ) ಅಥವಾ ಇನ್ನೊಂದು ಕ್ಯಾನ್ ಆಗಿ ಒಗ್ಗೂಡಿಸುವುದೇ?';
+  }
+
+  @override
+  String collectCombineResult(String total) {
+    return 'ಒಟ್ಟು ಸಂಯೋಜಿತ: $total';
   }
 
   @override
   String get collectReplace => 'ಬದಲಾಯಿಸಿ';
 
   @override
-  String get collectAddLot => 'ಲಾಟ್ ಸೇರಿಸಿ';
+  String get collectCombine => 'ಒಗ್ಗೂಡಿಸಿ';
 
   @override
   String get collectSavedOnDevice => 'ಸಾಧನದಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ · ಸಿಂಕ್ ಆಗುತ್ತದೆ';
@@ -96,6 +101,11 @@ class AppLocalizationsKn extends AppLocalizations {
   @override
   String collectTodaysEntries(int count) {
     return 'ಇಂದಿನ ನಮೂದುಗಳು ($count)';
+  }
+
+  @override
+  String collectEntries(int count) {
+    return 'ನಮೂದುಗಳು ($count)';
   }
 
   @override
@@ -800,16 +810,19 @@ class AppLocalizationsKn extends AppLocalizations {
   String get herdBreedOther => 'ಇತರ';
 
   @override
-  String get reportsTodaysCollection => 'ಇಂದಿನ ಸಂಗ್ರಹ';
-
-  @override
   String get reportsCouldNotLoadSummary => 'ಸಾರಾಂಶ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
 
   @override
-  String get reportsNoCollectionToday => 'ಇಂದು ಯಾವುದೇ ಸಂಗ್ರಹವಿಲ್ಲ';
+  String get reportsNoCollectionToday => 'ಈ ದಿನಾಂಕದಂದು ಯಾವುದೇ ಸಂಗ್ರಹವಿಲ್ಲ';
 
   @override
   String get reportsTotalCollected => 'ಒಟ್ಟು ಸಂಗ್ರಹ';
+
+  @override
+  String get reportsTabSummary => 'ಸಾರಾಂಶ';
+
+  @override
+  String get reportsTabQc => 'ಗುಣಮಟ್ಟ';
 
   @override
   String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
@@ -984,6 +997,9 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get pickerNoMatch => 'ಹೊಂದಾಣಿಕೆಯ ರೈತರು ಇಲ್ಲ';
+
+  @override
+  String get pickerRecorded => 'ದಾಖಲಾಗಿದೆ';
 
   @override
   String get addFarmerNativeNameLabel => 'ಹೆಸರು (ಪ್ರಾದೇಶಿಕ ಲಿಪಿ)';

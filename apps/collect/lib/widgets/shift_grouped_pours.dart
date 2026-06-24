@@ -23,6 +23,7 @@ class ShiftGroupedPours extends StatelessWidget {
     this.maxRowsPerShift,
     this.showDate = false,
     this.singleFarmer = false,
+    this.showAvatar = true,
   });
 
   final List<MpPour> pours;
@@ -43,6 +44,11 @@ class ShiftGroupedPours extends StatelessWidget {
   /// litres·amount subtotal that would just repeat the row below, and each row
   /// leads with its milk type rather than the (redundant) farmer name.
   final bool singleFarmer;
+
+  /// Drops the leading farmer avatar on each row. Used by Record Collection's
+  /// "Today's entries" where the farmer name already leads and the avatar adds
+  /// nothing. Ignored in [singleFarmer] mode (already avatar-less).
+  final bool showAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -99,12 +105,13 @@ class ShiftGroupedPours extends StatelessWidget {
   Widget _row(BuildContext context, DhenuTokens t, AppLocalizations l, MpPour p) {
     final farmer = farmersById[p.farmerId];
     final milkType = milkTypeL10n(l, p.milkType);
+    final noAvatar = singleFarmer || !showAvatar;
     return SourceRow(
       title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
-      // In single-farmer mode, the farmer avatar is not meaningful (milk type
-      // is the lead), so fall back to a plain initial.
-      leadingInitials: singleFarmer ? milkType.substring(0, 1) : null,
-      farmer: singleFarmer ? null : farmer,
+      // In single-farmer mode the farmer is implied by the screen, so drop the
+      // leading avatar entirely — milk type leads the row instead.
+      hideLeading: noAvatar,
+      farmer: noAvatar ? null : farmer,
       litres: litres(p.qtyLitres, unit: true),
       quality: p.fat == null
           ? null

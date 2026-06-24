@@ -114,7 +114,7 @@ class FarmerBasicsSection extends StatelessWidget {
       children: [
         VoiceField(
           controller: nameCtrl,
-          textCapitalization: TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.words,
           labelText: l.addFarmerFieldFullName,
           textInputAction: TextInputAction.next,
           onChanged: onNameChanged,
@@ -137,7 +137,9 @@ class FarmerBasicsSection extends StatelessWidget {
           controller: phoneCtrl,
           keyboardType: TextInputType.phone,
           textCapitalization: TextCapitalization.none,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: const [
+            _DigitsOnlyLastTen(),
+          ],
           decoration: InputDecoration(labelText: l.addFarmerFieldPhoneNumber),
           textInputAction: TextInputAction.next,
         ),
@@ -420,6 +422,23 @@ class _DocPickerRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Keeps only digits and trims to the last 10 — so a pasted `+91 98765 43210`
+/// (or a `0`-prefixed number) collapses to the bare 10-digit mobile number.
+class _DigitsOnlyLastTen extends TextInputFormatter {
+  const _DigitsOnlyLastTen();
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 10) digits = digits.substring(digits.length - 10);
+    return TextEditingValue(
+      text: digits,
+      selection: TextSelection.collapsed(offset: digits.length),
     );
   }
 }

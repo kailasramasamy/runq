@@ -2,13 +2,22 @@ import { and, eq, sql, gte, lte } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { mpPours, mpConsignments } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { CollectionReportQuery, ReceivedDailyQuery } from '@runq/validators';
+import type { CollectionReportQuery, ReceivedDailyQuery, PoursDailyQuery } from '@runq/validators';
 import { MpPrincipal, scopePours } from './access-scope';
 
 export interface ReceivedDay {
   date: string;
   totalQty: number;
   vmccCount: number;
+  fat: number | null;
+  snf: number | null;
+  water: number | null;
+}
+
+export interface PourDay {
+  date: string;
+  totalQty: number;
+  farmerCount: number;
   fat: number | null;
   snf: number | null;
   water: number | null;
@@ -97,6 +106,42 @@ export class ReportService {
       date: r.date,
       totalQty: Number(r.totalQty ?? 0),
       vmccCount: r.vmccCount ?? 0,
+      fat: numOrNull2(r.fat),
+      snf: numOrNull2(r.snf),
+      water: numOrNull2(r.water),
+    }));
+  }
+
+  /** One qty-weighted QC rollup row per collection_date of recorded pours at a
+   * node, newest day first — optionally scoped to a single farmer. Powers the
+   * VMCC QC trend chart without shipping every pour to the client. */
+  async poursDaily(q: PoursDailyQuery, principal?: MpPrincipal): Promise<PourDay[]> {
+    const wq = (col: AnyPgColumn) =>
+      sql<string | null>`round(sum(${mpPours.qtyLitres} * ${col}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${col} is not null), 0), 2)`;
+    const conds = [
+      eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
+      eq(mpPours.nodeId, q.nodeId),
+      gte(mpPours.collectionDate, q.from), lte(mpPours.collectionDate, q.to),
+    ];
+    if (q.farmerId) conds.push(eq(mpPours.farmerId, q.farmerId));
+    if (principal) {
+      const scope = scopePours(principal);
+      if (scope) conds.push(scope);
+    }
+    const rows = await this.db.select({
+      date: mpPours.collectionDate,
+      totalQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
+      farmerCount: sql<number>`count(distinct ${mpPours.farmerId})::int`,
+      fat: wq(mpPours.fat),
+      snf: wq(mpPours.snf),
+      water: wq(mpPours.water),
+    }).from(mpPours).where(and(...conds))
+      .groupBy(mpPours.collectionDate)
+      .orderBy(sql`${mpPours.collectionDate} desc`);
+    return rows.map((r) => ({
+      date: r.date,
+      totalQty: Number(r.totalQty ?? 0),
+      farmerCount: r.farmerCount ?? 0,
       fat: numOrNull2(r.fat),
       snf: numOrNull2(r.snf),
       water: numOrNull2(r.water),

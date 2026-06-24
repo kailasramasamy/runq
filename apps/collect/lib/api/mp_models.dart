@@ -481,6 +481,32 @@ class MpReceivedDay {
   );
 }
 
+/// Per-day qty-weighted QC rollup of recorded pours at a node (VMCC QC trend).
+class MpPourDay {
+  final String date;
+  final double totalQty;
+  final int farmerCount;
+  final double? fat, snf, water;
+
+  MpPourDay({
+    required this.date,
+    required this.totalQty,
+    required this.farmerCount,
+    this.fat,
+    this.snf,
+    this.water,
+  });
+
+  factory MpPourDay.fromJson(Map<String, dynamic> j) => MpPourDay(
+    date: _s(j['date']),
+    totalQty: _d(j['totalQty']),
+    farmerCount: _i(j['farmerCount']),
+    fat: _dn(j['fat']),
+    snf: _dn(j['snf']),
+    water: _dn(j['water']),
+  );
+}
+
 class MpLedgerEntry {
   final String id, farmerId, entryType, occurredOn;
   final double amount, balanceAfter;

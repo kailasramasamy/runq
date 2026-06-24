@@ -73,7 +73,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     switch (_scope) {
       case _Scope.all:
         return QcReportView(
-          rows: rows,
+          samples: _samples(rows),
           days: _days,
           heroLabel: 'RECEIVED · LAST $_days DAYS',
           heroFooter: 'Qty-weighted quality across all VMCC receipts',
@@ -91,7 +91,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
         final v = vmccs.firstWhere((n) => n.id == id, orElse: () => vmccs.first);
         final filtered = rows.where((c) => c.fromNodeId == id).toList();
         return QcReportView(
-          rows: filtered,
+          samples: _samples(filtered),
           days: _days,
           heroLabel: '${v.name.toUpperCase()} · LAST $_days DAYS',
           heroFooter: 'Qty-weighted quality received from this VMCC',
@@ -99,6 +99,13 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
         );
     }
   }
+
+  /// Map received consignments into QC samples for the shared report view.
+  List<QcSample> _samples(List<MpConsignment> rows) => [
+        for (final c in rows)
+          (date: c.collectionDate, qty: c.receiptQty ?? 0,
+           fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater),
+      ];
 
   Widget _scopeBar(DhenuTokens t) => Container(
         decoration: BoxDecoration(

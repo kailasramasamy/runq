@@ -15,6 +15,7 @@ import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import 'cc_qc_report.dart';
 import 'cc_receive_history.dart';
+import 'cc_report_tab.dart';
 
 /// Per-VMCC inbound-to-this-CC tally derived from today's consignments.
 /// [amRecv]/[pmRecv] split the received total by the consignment's shift so the
@@ -205,6 +206,9 @@ class CcHome extends ConsumerWidget {
   Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
         Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
             CcReceiveHistory(node: node))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _linkCard(context, t, DhenuIcons.trendingUp, 'Report',
+            CcReportTab(node: node))),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: _linkCard(context, t, DhenuIcons.barChart, 'QC report',
             CcQcReport(node: node))),

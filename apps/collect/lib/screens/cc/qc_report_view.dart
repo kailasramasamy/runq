@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../api/mp_models.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -25,6 +24,10 @@ class QcAcc {
   double? get avgWater => watQ > 0 ? watW / watQ : null;
 }
 
+/// One QC reading for the report: a dated quantity with optional FAT/SNF/Water.
+/// Decouples [QcReportView] from the source (CC consignments or VMCC pours).
+typedef QcSample = ({String date, double qty, double? fat, double? snf, double? water});
+
 /// Per-day weighted QC: qty-weighted FAT/SNF/Water and total for one date.
 class _DayQc {
   const _DayQc(this.date, {this.fat, this.snf, this.water, required this.qty});
@@ -39,24 +42,25 @@ class _DayQc {
 class QcReportView extends StatelessWidget {
   const QcReportView({
     super.key,
-    required this.rows,
+    required this.samples,
     required this.days,
     required this.heroLabel,
     required this.heroFooter,
+    this.emptyTitle = 'No receipts in this window',
     this.emptySubtitle = 'Receive milk from VMCCs to see the daily QC report',
   });
 
-  final List<MpConsignment> rows;
+  final List<QcSample> samples;
   final int days;
-  final String heroLabel, heroFooter, emptySubtitle;
+  final String heroLabel, heroFooter, emptyTitle, emptySubtitle;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final daily = _aggregate(rows);
+    final daily = _aggregate(samples);
     final overall = QcAcc();
-    for (final c in rows) {
-      overall.add(c.receiptQty ?? 0, c.receiptFat, c.receiptSnf, c.receiptWater);
+    for (final s in samples) {
+      overall.add(s.qty, s.fat, s.snf, s.water);
     }
     final hasData = daily.any((d) => d.qty > 0);
     return ListView(
@@ -73,7 +77,7 @@ class QcReportView extends StatelessWidget {
           const SizedBox(height: DhenuSpacing.xl),
           DhenuEmptyState(
               icon: DhenuIcons.barChart,
-              title: 'No receipts in this window',
+              title: emptyTitle,
               subtitle: emptySubtitle),
         ] else ...[
           const SizedBox(height: DhenuSpacing.lg),
@@ -95,11 +99,11 @@ class QcReportView extends StatelessWidget {
   }
 
   /// One per-day weighted point for every date in the window (oldest → newest).
-  List<_DayQc> _aggregate(List<MpConsignment> rows) {
+  List<_DayQc> _aggregate(List<QcSample> samples) {
     final dates = [for (var i = days - 1; i >= 0; i--) isoDaysAgo(i)];
     final acc = {for (final d in dates) d: QcAcc()};
-    for (final c in rows) {
-      acc[c.collectionDate]?.add(c.receiptQty ?? 0, c.receiptFat, c.receiptSnf, c.receiptWater);
+    for (final s in samples) {
+      acc[s.date]?.add(s.qty, s.fat, s.snf, s.water);
     }
     return [
       for (final d in dates)
@@ -203,7 +207,9 @@ class _QcBarPainter extends CustomPainter {
     final denom = maxV <= 0 ? 1.0 : maxV * 1.18;
     final n = points.length;
     final showLabels = n <= 12;
-    final gap = n <= 14 ? 8.0 : 3.0;
+    // Tighten the gap as bars multiply so a 90-day window still renders visible
+    // bars instead of sub-pixel slivers.
+    final gap = n <= 14 ? 8.0 : (n <= 31 ? 3.0 : 1.0);
     var bw = (size.width - gap * (n - 1)) / n;
     bw = math.min(bw, 40.0);
     final totalW = bw * n + gap * (n - 1);

@@ -37,7 +37,9 @@ class FarmerPoursTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
+    final poursAsync = ref.watch(
+      farmerHistoryPoursProvider((nodeId: node.id, farmerId: farmer.id)),
+    );
     return poursAsync.when(
       loading: () => const DhenuLoadingList(rows: 6),
       error: (e, _) => DhenuEmptyState(
@@ -45,13 +47,7 @@ class FarmerPoursTab extends ConsumerWidget {
         title: l.farmerPoursLoadError,
         subtitle: '$e',
       ),
-      data: (all) {
-        final mine = [
-          for (final p in all)
-            if (p.farmerId == farmer.id) p,
-        ];
-        return _body(context, mine);
-      },
+      data: (mine) => _body(context, mine),
     );
   }
 

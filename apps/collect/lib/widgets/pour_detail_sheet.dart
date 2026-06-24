@@ -58,6 +58,8 @@ class _PourDetailSheet extends ConsumerWidget {
       await mpRepo.reversePour(pour.id);
       ref.invalidate(nodeTodayPoursProvider(node.id));
       ref.invalidate(nodeTodaySummaryProvider(node.id));
+      ref.invalidate(nodeHistoryPoursProvider(node.id));
+      ref.invalidate(farmerHistoryPoursProvider);
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
       if (context.mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);

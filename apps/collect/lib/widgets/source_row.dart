@@ -21,6 +21,7 @@ class SourceRow extends StatelessWidget {
     this.onTap,
     this.trailingStatus,
     this.amountFirst = false,
+    this.hideLeading = false,
   });
 
   /// Display name.
@@ -56,6 +57,11 @@ class SourceRow extends StatelessWidget {
   /// the payout cycle where the ₹ figure leads. Default keeps litres primary.
   final bool amountFirst;
 
+  /// Drops the leading avatar/initials circle entirely — used in single-farmer
+  /// pour history where the farmer is already implied by the screen, so a
+  /// per-row avatar would just be noise.
+  final bool hideLeading;
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
@@ -70,8 +76,10 @@ class SourceRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _Avatar(initials: leadingInitials, farmer: farmer, t: t),
-              const SizedBox(width: DhenuSpacing.md),
+              if (!hideLeading) ...[
+                _Avatar(initials: leadingInitials, farmer: farmer, t: t),
+                const SizedBox(width: DhenuSpacing.md),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
