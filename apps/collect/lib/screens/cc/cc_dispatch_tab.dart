@@ -7,6 +7,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
@@ -36,11 +37,15 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   String? _error;
   // No-BMC nodes dispatch each shift separately; BMC nodes pool the whole day.
   Shift _shift = shiftFrom(currentShift());
+  // Dispatch date — defaults to today; back-date to backfill a missed day so PP
+  // downstream can receive it.
+  String _date = todayIso();
 
   bool get _perShift => !widget.node.hasBmc;
   bool get _overnight => widget.node.overnightPooling;
-  AvailabilityArgs get _availArgs =>
-      (nodeId: widget.node.id, shift: _perShift ? _shift.name : null);
+  AvailabilityDateArgs get _availArgs =>
+      (nodeId: widget.node.id, date: _date, shift: _perShift ? _shift.name : null);
+  NodeDateArgs get _dateArgs => (nodeId: widget.node.id, date: _date);
 
   // Hard gate: collection must be closed before dispatch. BMC pools the whole
   // day (both shifts closed); no-BMC needs just the selected shift.
@@ -59,18 +64,19 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   String? get _closeArg => _perShift ? _shift.name : null;
 
   Future<void> _closeReceiving() =>
-      _runClose(() => mpRepo.closeShift(widget.node.id, todayIso(), shift: _closeArg));
+      _runClose(() => mpRepo.closeShift(widget.node.id, _date, shift: _closeArg));
 
   Future<void> _reopenReceiving() =>
-      _runClose(() => mpRepo.reopenShift(widget.node.id, todayIso(), shift: _closeArg));
+      _runClose(() => mpRepo.reopenShift(widget.node.id, _date, shift: _closeArg));
 
   Future<void> _runClose(Future<MpShiftStatus> Function() action) async {
     setState(() => _closingBusy = true);
     try {
       await action();
       if (!mounted) return;
+      ref.invalidate(shiftStatusForDateProvider(_dateArgs));
+      ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(shiftStatusProvider(widget.node.id));
-      ref.invalidate(nodeAvailabilityProvider(_availArgs));
     } catch (e) {
       if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
     } finally {
@@ -80,11 +86,20 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
 
   void _onShiftChanged(Shift s) {
     // re-prefill qty/fat/snf/water from the newly selected shift's availability
+    _clearInputs();
+    setState(() => _shift = s);
+  }
+
+  void _onDateChanged(String d) {
+    _clearInputs();
+    setState(() { _date = d; _error = null; });
+  }
+
+  void _clearInputs() {
     _qtyCtrl.clear();
     _fatCtrl.clear();
     _snfCtrl.clear();
     _waterCtrl.clear();
-    setState(() => _shift = s);
   }
 
   @override
@@ -150,7 +165,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       setState(() => _error = 'Select a destination plant');
       return;
     }
-    if (!_slotClosed(ref.read(shiftStatusProvider(widget.node.id)).asData?.value)) {
+    if (!_slotClosed(ref.read(shiftStatusForDateProvider(_dateArgs)).asData?.value)) {
       setState(() => _error = _closeFirstMsg);
       return;
     }
@@ -162,7 +177,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       setState(() => _error = 'Enter valid numbers');
       return;
     }
-    final available = ref.read(nodeAvailabilityProvider(_availArgs)).asData?.value?.available ?? 0;
+    final available = ref.read(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
     if (qty - available > 0.001) {
       setState(() => _error = 'Only ${available.toStringAsFixed(1)} L available to dispatch');
       return;
@@ -173,7 +188,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         'kind': 'cc_to_pp',
         'fromNodeId': widget.node.id,
         'toNodeId': _destPp!.id,
-        'collectionDate': todayIso(),
+        'collectionDate': _date,
         if (_perShift) 'shift': _shift.name,
         'dispatchQty': qty,
         'dispatchFat': fat,
@@ -182,13 +197,12 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
       });
       setState(() { _saving = false; });
-      _qtyCtrl.clear();
-      _fatCtrl.clear();
-      _snfCtrl.clear();
-      _waterCtrl.clear();
+      _clearInputs();
       _containerCtrl.clear();
+      ref.invalidate(nodeOutboundForDateProvider(_dateArgs));
+      ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
-      ref.invalidate(nodeAvailabilityProvider(_availArgs));
+      ref.invalidate(nodeAvailabilityProvider);
     } catch (e) {
       setState(() { _saving = false; _error = '$e'; });
     }
@@ -197,15 +211,15 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final availAsync = ref.watch(nodeAvailabilityProvider(_availArgs));
-    final outboundAsync = ref.watch(nodeOutboundConsignmentsProvider(widget.node.id));
+    final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
+    final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
     final ppNames = {
       for (final n in ref.watch(nodesByTypeProvider('pp')).value ?? const <MpNode>[]) n.id: n.name,
     };
 
     availAsync.whenData(_prefillFromAvailability);
     final canDispatch = (availAsync.asData?.value?.available ?? 0) > 0;
-    final closeRequired = !_slotClosed(ref.watch(shiftStatusProvider(widget.node.id)).asData?.value);
+    final closeRequired = !_slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -218,6 +232,8 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
+        DateStepper(date: _date, onChanged: _onDateChanged),
+        const SizedBox(height: DhenuSpacing.lg),
         Row(children: [
           Expanded(child: Text('Availability', style: DhenuText.title.copyWith(color: t.ink))),
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),

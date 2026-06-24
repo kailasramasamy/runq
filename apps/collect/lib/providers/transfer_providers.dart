@@ -62,6 +62,15 @@ final nodeOutboundConsignmentsProvider =
   return mpRepo.consignments(fromNodeId: nodeId, collectionDate: todayIso(), limit: 200);
 });
 
+/// Outbound consignments from a node on a specific collection date — backs the
+/// dispatch screen's date picker for backfilling a missed day.
+typedef NodeDateArgs = ({String nodeId, String date});
+
+final nodeOutboundForDateProvider =
+    FutureProvider.family<List<MpConsignment>, NodeDateArgs>((ref, args) async {
+  return mpRepo.consignments(fromNodeId: args.nodeId, collectionDate: args.date, limit: 200);
+});
+
 /// Availability (collected / dispatched / available) for a node today.
 /// `shift` scopes the figure to AM/PM for no-BMC nodes that dispatch each shift
 /// separately; pass null for BMC nodes that pool the whole day.
@@ -72,11 +81,27 @@ final nodeAvailabilityProvider =
   return mpRepo.availability(args.nodeId, todayIso(), shift: args.shift);
 });
 
+/// Availability for a node on a specific collection date — backs the dispatch
+/// screen's date picker. `shift` scopes AM/PM for no-BMC nodes (null for BMC).
+typedef AvailabilityDateArgs = ({String nodeId, String date, String? shift});
+
+final nodeAvailabilityForDateProvider =
+    FutureProvider.family<MpAvailability?, AvailabilityDateArgs>((ref, args) async {
+  return mpRepo.availability(args.nodeId, args.date, shift: args.shift);
+});
+
 /// Which shifts are closed for collection at a node today. Drives the close
 /// banner on Record Collection and the hard dispatch gate. Key: nodeId.
 final shiftStatusProvider =
     FutureProvider.family<MpShiftStatus, String>((ref, nodeId) async {
   return mpRepo.shiftStatus(nodeId, todayIso());
+});
+
+/// Shift-closure status for a node on a specific date — gates back-dated
+/// dispatch (a past day can only be dispatched once its collection was closed).
+final shiftStatusForDateProvider =
+    FutureProvider.family<MpShiftStatus, NodeDateArgs>((ref, args) async {
+  return mpRepo.shiftStatus(args.nodeId, args.date);
 });
 
 /// All active nodes of a given nodeType ('vmcc' | 'cc' | 'pp').

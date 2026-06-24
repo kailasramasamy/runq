@@ -156,7 +156,7 @@ class _SummaryViewState extends ConsumerState<_SummaryView> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: DhenuSpacing.md,
       mainAxisSpacing: DhenuSpacing.md,
-      childAspectRatio: 1.6,
+      childAspectRatio: 2.0,
       children: [
         DhenuStatCard(label: l.reportsStatAmLabel, value: litres(s.amQty, unit: true), valueColor: t.am),
         DhenuStatCard(label: l.reportsStatPmLabel, value: litres(s.pmQty, unit: true), valueColor: t.pm),

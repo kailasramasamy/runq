@@ -8,6 +8,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/primary_action.dart';
@@ -37,10 +38,14 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   String? _error;
   // No-BMC VMCCs dispatch each shift separately; BMC VMCCs pool the whole day.
   Shift _shift = shiftFrom(currentShift());
+  // Dispatch date — defaults to today; back-date to backfill a missed day so the
+  // CC/PP modules downstream can receive it.
+  String _date = todayIso();
 
   bool get _perShift => !widget.node.hasBmc;
-  AvailabilityArgs get _availArgs =>
-      (nodeId: widget.node.id, shift: _perShift ? _shift.name : null);
+  AvailabilityDateArgs get _availArgs =>
+      (nodeId: widget.node.id, date: _date, shift: _perShift ? _shift.name : null);
+  NodeDateArgs get _dateArgs => (nodeId: widget.node.id, date: _date);
 
   // Hard gate: collection must be closed before dispatch. BMC pools the whole
   // day (both shifts closed); no-BMC needs just the selected shift.
@@ -51,11 +56,21 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
 
   void _onShiftChanged(Shift s) {
     // re-prefill qty/fat/snf/water from the newly selected shift's availability
+    _clearInputs();
+    setState(() => _shift = s);
+  }
+
+  void _onDateChanged(String d) {
+    // re-prefill from the newly selected date's availability
+    _clearInputs();
+    setState(() { _date = d; _error = null; });
+  }
+
+  void _clearInputs() {
     _qtyCtrl.clear();
     _fatCtrl.clear();
     _snfCtrl.clear();
     _waterCtrl.clear();
-    setState(() => _shift = s);
   }
 
   @override
@@ -111,7 +126,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       setState(() => _error = l.dispatchErrorNoDestination);
       return;
     }
-    if (!_slotClosed(ref.read(shiftStatusProvider(widget.node.id)).asData?.value)) {
+    if (!_slotClosed(ref.read(shiftStatusForDateProvider(_dateArgs)).asData?.value)) {
       setState(() => _error = widget.node.hasBmc ? l.dispatchCloseFirstDay : l.dispatchCloseFirst);
       return;
     }
@@ -123,7 +138,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       setState(() => _error = l.dispatchErrorInvalidQty);
       return;
     }
-    final available = ref.read(nodeAvailabilityProvider(_availArgs)).asData?.value?.available ?? 0;
+    final available = ref.read(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
     if (qty - available > 0.001) {
       setState(() => _error = l.dispatchErrorOverQty(available.toStringAsFixed(1)));
       return;
@@ -134,7 +149,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         'kind': 'vmcc_to_cc',
         'fromNodeId': widget.node.id,
         'toNodeId': _destCc!.id,
-        'collectionDate': todayIso(),
+        'collectionDate': _date,
         if (_perShift) 'shift': _shift.name,
         'dispatchQty': qty,
         'dispatchFat': ?fat,
@@ -142,15 +157,14 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         'dispatchWater': ?water,
         if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
       });
-      _qtyCtrl.clear();
-      _fatCtrl.clear();
-      _snfCtrl.clear();
-      _waterCtrl.clear();
+      _clearInputs();
       _containerCtrl.clear();
       setState(() => _saving = false);
+      // Refresh this date's outbound + availability, plus the today-scoped
+      // families so the Home "To dispatch" card stays in sync when date == today.
+      ref.invalidate(nodeOutboundForDateProvider);
+      ref.invalidate(nodeAvailabilityForDateProvider);
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
-      // Invalidate the whole family so both this tab's per-shift view AND the
-      // Home's whole-day "To dispatch" card recompute reactively.
       ref.invalidate(nodeAvailabilityProvider);
     } catch (e) {
       setState(() { _saving = false; _error = '$e'; });
@@ -161,11 +175,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final availAsync = ref.watch(nodeAvailabilityProvider(_availArgs));
-    final outboundAsync = ref.watch(nodeOutboundConsignmentsProvider(widget.node.id));
+    final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
+    final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
     availAsync.whenData(_prefillFromAvailability);
     final canDispatch = (availAsync.asData?.value?.available ?? 0) > 0;
-    final closeRequired = !_slotClosed(ref.watch(shiftStatusProvider(widget.node.id)).asData?.value);
+    final closeRequired = !_slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -178,6 +192,8 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
+        DateStepper(date: _date, todayLabel: l.commonToday, onChanged: _onDateChanged),
+        const SizedBox(height: DhenuSpacing.lg),
         Row(children: [
           Expanded(child: Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink))),
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),

@@ -511,20 +511,26 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           type: DhenuToastType.error);
       return;
     }
-    await _runClose(() => mpRepo.closeShift(widget.node.id, todayIso(), shift: _closeShiftArg));
+    await _runClose(() => mpRepo.closeShift(widget.node.id, _date, shift: _closeShiftArg));
   }
 
   Future<void> _reopenShift() async =>
-      _runClose(() => mpRepo.reopenShift(widget.node.id, todayIso(), shift: _closeShiftArg));
+      _runClose(() => mpRepo.reopenShift(widget.node.id, _date, shift: _closeShiftArg));
 
   Future<void> _runClose(Future<MpShiftStatus> Function() action) async {
     setState(() => _closingBusy = true);
     try {
       await action();
       if (!mounted) return;
+      // Date-scoped so the dispatch screen's gate (which reads the same date)
+      // and this screen's banner refresh; the today-scoped families keep Home in
+      // sync when the entry is for today.
+      ref.invalidate(shiftStatusForDateProvider((nodeId: widget.node.id, date: _date)));
       ref.invalidate(shiftStatusProvider(widget.node.id));
       ref.invalidate(nodeTodayPoursProvider(widget.node.id));
       ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
+      ref.invalidate(nodeAvailabilityForDateProvider((nodeId: widget.node.id, date: _date, shift: _shift.name)));
+      ref.invalidate(nodeAvailabilityForDateProvider((nodeId: widget.node.id, date: _date, shift: null)));
       ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: _shift.name)));
       ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: null)));
     } catch (e) {
@@ -538,7 +544,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final shiftStatus = ref.watch(shiftStatusProvider(widget.node.id)).asData?.value;
+    final shiftStatus =
+        ref.watch(shiftStatusForDateProvider((nodeId: widget.node.id, date: _date))).asData?.value;
     final closed = _slotClosed(shiftStatus);
     return Scaffold(
       appBar: AppBar(

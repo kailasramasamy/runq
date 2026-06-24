@@ -97,7 +97,7 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: DhenuSpacing.md,
       mainAxisSpacing: DhenuSpacing.md,
-      childAspectRatio: 1.6,
+      childAspectRatio: 2.0,
       children: [
         DhenuStatCard(label: 'AM', value: litres(amQty, unit: true), valueColor: t.am),
         DhenuStatCard(label: 'PM', value: litres(pmQty, unit: true), valueColor: t.pm),

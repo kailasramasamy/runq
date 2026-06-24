@@ -29,7 +29,7 @@ class DhenuStatCard extends StatelessWidget {
               style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.8)),
           const SizedBox(height: DhenuSpacing.xs),
           Text(value,
-              style: DhenuText.number(size: 18, color: valueColor),
+              style: DhenuText.number(size: 23, color: valueColor),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
