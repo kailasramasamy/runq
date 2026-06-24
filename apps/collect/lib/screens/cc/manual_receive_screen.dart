@@ -374,16 +374,24 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
                   Text(isAm ? 'AM' : 'PM', style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 ]),
                 const SizedBox(height: DhenuSpacing.md),
-                _field(_qty, 'Quantity (L)', focusNode: _qtyFocus, next: _fatFocus,
-                    autofocus: widget.existing == null),
-                const SizedBox(height: DhenuSpacing.md),
+                // Qty / FAT / SNF on one line, Water at the same field width on
+                // the next — consistent with the VMCC record-collection layout.
                 Row(children: [
+                  Expanded(child: _field(_qty, 'Qty (L)', focusNode: _qtyFocus, next: _fatFocus,
+                      autofocus: widget.existing == null)),
+                  const SizedBox(width: DhenuSpacing.md),
                   Expanded(child: _field(_fat, 'FAT %', focusNode: _fatFocus, next: _snfFocus)),
                   const SizedBox(width: DhenuSpacing.md),
                   Expanded(child: _field(_snf, 'SNF %', focusNode: _snfFocus, next: _waterFocus)),
                 ]),
                 const SizedBox(height: DhenuSpacing.md),
-                _field(_water, 'Water % (optional)', focusNode: _waterFocus),
+                Row(children: [
+                  Expanded(child: _field(_water, 'Water %', focusNode: _waterFocus)),
+                  const SizedBox(width: DhenuSpacing.md),
+                  const Expanded(child: SizedBox.shrink()),
+                  const SizedBox(width: DhenuSpacing.md),
+                  const Expanded(child: SizedBox.shrink()),
+                ]),
               ])),
               if (_error != null) ...[
                 const SizedBox(height: DhenuSpacing.sm),
@@ -425,6 +433,8 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
         textCapitalization: TextCapitalization.none,
         textInputAction: next != null ? TextInputAction.next : TextInputAction.done,
         onSubmitted: (_) => next?.requestFocus(),
+        // Larger, bolder value text so measured quantities read clearly at a glance.
+        style: DhenuText.h2.copyWith(color: DT(context).ink, fontWeight: FontWeight.w700),
         decoration: InputDecoration(labelText: hint),
       );
 }
