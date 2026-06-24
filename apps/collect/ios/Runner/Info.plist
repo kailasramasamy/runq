@@ -89,6 +89,8 @@
 		<string>Dhenu accesses your photo library to select the farmer's profile photo and KYC documents.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Dhenu captures the farm's GPS location to record the farmer's registered address.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Dhenu captures the farm's GPS location to record the farmer's registered address. Location is used only while you are using the app.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>UIStatusBarHidden</key>
