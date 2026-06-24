@@ -2,7 +2,7 @@ import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import { mpCredentials, mpFarmers, mpNodeOperators, users, type MpCredentialRow } from '@runq/db';
+import { mpCredentials, mpFarmers, mpNodeOperators, users, userTenants, type MpCredentialRow } from '@runq/db';
 import { mpSocialLoginSchema, mpSocialBindSchema, mpPhoneDobLoginSchema } from '@runq/validators';
 import { UnauthorizedError, NotFoundError, ForbiddenError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
@@ -80,24 +80,47 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
   }
 
   if (!user) {
-    let name = cred.role === 'farmer' ? 'Farmer' : 'Field Operator';
-    if (cred.farmerId) {
-      const [f] = await db.select({ name: mpFarmers.name }).from(mpFarmers)
-        .where(eq(mpFarmers.id, cred.farmerId)).limit(1);
-      if (f?.name) name = f.name;
-    }
-    const randomHash = await argon2.hash(randomBytes(32).toString('hex'));
+    // A user may already exist for this phone — web Settings creates one (a
+    // viewer) with the same number, and the global phone-unique index then
+    // blocks minting a second ("A duplicate record already exists"). Reuse it.
     [user] = await db
-      .insert(users)
-      .values({
-        tenantId: cred.tenantId,
-        email: `mp-${phone}@dhenu.local`,
-        name,
-        phone,
-        role: cred.role,
-        passwordHash: randomHash,
-      })
-      .returning();
+      .select()
+      .from(users)
+      .where(sql`regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g') IN (${phone}, ${'91' + phone})`)
+      .limit(1);
+
+    if (user) {
+      // Promote only the powerless default so the operator/farmer flow resolves
+      // (role gates node access) — never downgrade a privileged web user.
+      if (user.role === 'viewer') {
+        await db.update(users).set({ role: cred.role }).where(eq(users.id, user.id));
+        await db.update(userTenants).set({ role: cred.role }).where(and(
+          eq(userTenants.userId, user.id),
+          eq(userTenants.tenantId, cred.tenantId),
+          eq(userTenants.role, 'viewer'),
+        ));
+        user = { ...user, role: cred.role };
+      }
+    } else {
+      let name = cred.role === 'farmer' ? 'Farmer' : 'Field Operator';
+      if (cred.farmerId) {
+        const [f] = await db.select({ name: mpFarmers.name }).from(mpFarmers)
+          .where(eq(mpFarmers.id, cred.farmerId)).limit(1);
+        if (f?.name) name = f.name;
+      }
+      const randomHash = await argon2.hash(randomBytes(32).toString('hex'));
+      [user] = await db
+        .insert(users)
+        .values({
+          tenantId: cred.tenantId,
+          email: `mp-${phone}@dhenu.local`,
+          name,
+          phone,
+          role: cred.role,
+          passwordHash: randomHash,
+        })
+        .returning();
+    }
     await db.update(mpCredentials).set({ userId: user.id }).where(eq(mpCredentials.id, cred.id));
     await ensureMembership(db, user.id, cred.tenantId, cred.role);
   }
