@@ -64,11 +64,15 @@ export class ConsignmentService {
       hasBmc: mpNodes.hasBmc, nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling,
     }).from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
-    if (!from.hasBmc && !input.shift) {
+    const overnight = from.nodeType === 'cc' && from.overnightPooling;
+    // An overnight CC pools its whole window (prev PM + today AM) and dispatches
+    // as one shift-null tanker, exactly like a BMC node — so it never needs a
+    // per-shift selection even when it has no BMC of its own.
+    const pooled = from.hasBmc || overnight;
+    if (!pooled && !input.shift) {
       throw new ValidationError('This node has no BMC — select a shift (AM/PM) to dispatch.');
     }
-    const overnight = from.nodeType === 'cc' && from.overnightPooling;
-    const shift = from.hasBmc ? null : input.shift ?? null;
+    const shift = pooled ? null : input.shift ?? null;
     // Hard gate: collection must be closed before milk leaves. An overnight CC's
     // pool spans yesterday-PM + today-AM; a BMC node pools the whole day (both
     // shifts); no-BMC needs just the one.

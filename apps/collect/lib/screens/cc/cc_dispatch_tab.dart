@@ -41,7 +41,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   // downstream can receive it.
   String _date = todayIso();
 
-  bool get _perShift => !widget.node.hasBmc;
+  // An overnight CC pools its whole window (prev PM + today AM) like a BMC node,
+  // so it dispatches once (shift-null) with no per-shift split — independent of
+  // whether it has a BMC of its own.
+  bool get _perShift => !widget.node.hasBmc && !_overnight;
   bool get _overnight => widget.node.overnightPooling;
   AvailabilityDateArgs get _availArgs =>
       (nodeId: widget.node.id, date: _date, shift: _perShift ? _shift.name : null);
@@ -51,7 +54,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   // day (both shifts closed); no-BMC needs just the selected shift.
   bool _slotClosed(MpShiftStatus? st) {
     if (st == null) return false;
-    return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
+    // Pooled (BMC or overnight) → the whole pool must be closed; the server
+    // reports both window slots' closure in dayClosed.
+    return (widget.node.hasBmc || _overnight) ? st.dayClosed : st.closedFor(_shift.name);
   }
 
   String get _closeFirstMsg => _overnight
