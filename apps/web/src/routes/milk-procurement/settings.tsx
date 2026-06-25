@@ -95,7 +95,7 @@ function VmccPayoutOverridesCard() {
 }
 
 function VmccPayoutRow({ node }: { node: MpNode }) {
-  const update = useUpdateNode();
+  const update = useUpdateNode('vmcc');
   const { toast } = useToast();
   const [mode, setMode] = useState(node.payoutMode ?? '');
   useEffect(() => { setMode(node.payoutMode ?? ''); }, [node.payoutMode]);

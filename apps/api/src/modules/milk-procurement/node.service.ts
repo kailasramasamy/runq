@@ -76,8 +76,10 @@ export class NodeService {
     const patch: Partial<typeof mpNodes.$inferInsert> = { updatedAt: new Date() };
     // raw values: assignDefined skips `undefined` (not provided) and applies
     // `null` (explicit clear) — so nullable fields clear correctly.
+    // nodeType is immutable — a node can't change type; the typed write route
+    // already fixes which resource (and type) a node belongs to.
     assignDefined(patch, {
-      name: input.name, nodeType: input.nodeType, hasBmc: input.hasBmc,
+      name: input.name, hasBmc: input.hasBmc,
       overnightPooling: input.overnightPooling,
       measurementMode: input.measurementMode, collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,

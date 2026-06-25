@@ -1,5 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
+import {
+  createVmccSchema, updateVmccSchema,
+  createChillingCentreSchema, updateChillingCentreSchema,
+  createProcessingPlantSchema, updateProcessingPlantSchema,
+} from '@runq/validators';
 import { nodeRoutes } from './node.routes';
+import { typedNodeRoutes } from './typed-node.routes';
 import { farmerRoutes } from './farmer.routes';
 import { rateChartRoutes } from './rate-chart.routes';
 import { pourRoutes } from './pour.routes';
@@ -20,7 +26,12 @@ import { reportRoutes } from './report.routes';
  * Next: rate charts + the pour-capture path.
  */
 export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
+  // Shared read surface for all node types.
   await app.register(nodeRoutes, { prefix: '/nodes' });
+  // Type-specific write surfaces (create / update / deactivate).
+  await app.register(typedNodeRoutes('vmcc', createVmccSchema, updateVmccSchema), { prefix: '/vmccs' });
+  await app.register(typedNodeRoutes('cc', createChillingCentreSchema, updateChillingCentreSchema), { prefix: '/chilling-centres' });
+  await app.register(typedNodeRoutes('pp', createProcessingPlantSchema, updateProcessingPlantSchema), { prefix: '/processing-plants' });
   await app.register(farmerRoutes, { prefix: '/farmers' });
   await app.register(rateChartRoutes, { prefix: '/rate-charts' });
   await app.register(pourRoutes, { prefix: '/pours' });

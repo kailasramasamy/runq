@@ -217,6 +217,9 @@ import { AdminSettingsPage } from './admin/settings';
 import { ManufacturingHomePage } from './manufacturing/index';
 import { MilkProcurementHomePage } from './milk-procurement/index';
 import { MpNodesPage } from './milk-procurement/nodes';
+import { MpNodeFormPage } from './milk-procurement/node-form';
+import { MpNodeDetailPage } from './milk-procurement/node-detail';
+import { MpOperatorFormPage } from './milk-procurement/operator-form';
 import { MpFarmersPage } from './milk-procurement/farmers';
 import { MpRateChartsPage } from './milk-procurement/rate-charts';
 import { MpRateChartNewPage } from './milk-procurement/rate-charts-new';
@@ -2589,6 +2592,16 @@ const milkProcurementRoute = createRoute({
 });
 const mpIndexRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/', component: MilkProcurementHomePage });
 const mpNodesRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes', component: MpNodesPage });
+// Dedicated per-type create + node detail/edit + node-scoped operator add.
+const mpNodeNewRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes/new/$type', component: MpNodeFormPage });
+const mpNodeDetailRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes/$id', component: MpNodeDetailPage });
+const mpNodeEditRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes/$id/edit', component: MpNodeFormPage });
+const mpNodeOperatorNewRoute = createRoute({
+  getParentRoute: () => milkProcurementRoute,
+  path: '/nodes/$id/operators/new',
+  validateSearch: (s: Record<string, unknown>): { from?: string } => ({ from: typeof s.from === 'string' ? s.from : undefined }),
+  component: MpOperatorFormPage,
+});
 const mpFarmersRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/farmers', component: MpFarmersPage });
 const mpRateChartsRoute = createRoute({
   getParentRoute: () => milkProcurementRoute,
@@ -2855,6 +2868,10 @@ export const routeTree = rootRoute.addChildren([
     milkProcurementRoute.addChildren([
       mpIndexRoute,
       mpNodesRoute,
+      mpNodeNewRoute,
+      mpNodeDetailRoute,
+      mpNodeEditRoute,
+      mpNodeOperatorNewRoute,
       mpFarmersRoute,
       mpRateChartsRoute,
       mpRateChartNewRoute,

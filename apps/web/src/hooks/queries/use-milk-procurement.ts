@@ -2,7 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type { PaginatedResponse, ApiSuccess } from '@runq/types';
 import type {
-  CreateNodeInput, UpdateNodeInput, CreateFarmerInput, UpdateFarmerInput,
+  CreateVmccInput, CreateChillingCentreInput, CreateProcessingPlantInput,
+  UpdateVmccInput, UpdateChillingCentreInput, UpdateProcessingPlantInput,
+  CreateFarmerInput, UpdateFarmerInput,
   CreateRateChartInput, RecordPourInput, CreateLedgerEntryInput,
   CreateConsignmentInput, ReceiveConsignmentInput, CreatePayoutCycleInput,
   CreateNodeOperatorInput, UpsertGlSettingsInput, CreateOperatorPayoutInput,
@@ -109,31 +111,52 @@ function qs(params: Record<string, string | number | boolean | undefined>): stri
 }
 
 // ── nodes ─────────────────────────────────────────────────────────────────
+// Reads are shared across all node types; writes are type-specific resources.
+export type CreateNodeBody = CreateVmccInput | CreateChillingCentreInput | CreateProcessingPlantInput;
+export type UpdateNodeBody = UpdateVmccInput | UpdateChillingCentreInput | UpdateProcessingPlantInput;
+
+/** Map a node type to its dedicated write resource. */
+export function nodeEndpoint(nodeType: NodeType): string {
+  switch (nodeType) {
+    case 'vmcc': return '/vmccs';
+    case 'cc': return '/chilling-centres';
+    case 'pp': return '/processing-plants';
+  }
+}
+
 export function useNodes(filters?: { nodeType?: NodeType; search?: string; limit?: number }) {
   return useQuery({
     queryKey: MP_KEYS.nodes(filters),
     queryFn: () => api.get<PaginatedResponse<MpNode>>(`${BASE}/nodes${qs({ ...filters })}`),
   });
 }
-export function useCreateNode() {
+export function useNode(id: string) {
+  return useQuery({
+    queryKey: ['mp', 'nodes', id],
+    queryFn: () => api.get<ApiSuccess<MpNode>>(`${BASE}/nodes/${id}`),
+    enabled: !!id,
+  });
+}
+export function useCreateNode(nodeType: NodeType) {
   const c = useQueryClient();
   return useMutation({
-    mutationFn: (d: CreateNodeInput) => api.post<ApiSuccess<MpNode>>(`${BASE}/nodes`, d),
+    mutationFn: (d: CreateNodeBody) => api.post<ApiSuccess<MpNode>>(`${BASE}${nodeEndpoint(nodeType)}`, d),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'nodes'] }),
   });
 }
-export function useUpdateNode() {
+export function useUpdateNode(nodeType: NodeType) {
   const c = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateNodeInput }) =>
-      api.put<ApiSuccess<MpNode>>(`${BASE}/nodes/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateNodeBody }) =>
+      api.put<ApiSuccess<MpNode>>(`${BASE}${nodeEndpoint(nodeType)}/${id}`, data),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'nodes'] }),
   });
 }
 export function useDeactivateNode() {
   const c = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.post<ApiSuccess<MpNode>>(`${BASE}/nodes/${id}/deactivate`, {}),
+    mutationFn: ({ id, nodeType }: { id: string; nodeType: NodeType }) =>
+      api.post<ApiSuccess<MpNode>>(`${BASE}${nodeEndpoint(nodeType)}/${id}/deactivate`, {}),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'nodes'] }),
   });
 }
