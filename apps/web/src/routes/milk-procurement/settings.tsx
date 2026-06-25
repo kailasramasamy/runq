@@ -35,9 +35,9 @@ const MILK_TYPES: { value: MpMilkType; label: string }[] = [
 export function MpSettingsPage() {
   const { data } = useGlSettings();
   return (
-    <div>
-      <PageHeader title="Settings" description="Tenant-level milk-procurement configuration." fullWidth />
-      <div className="grid max-w-xl gap-4">
+    <div className="mx-auto max-w-xl">
+      <PageHeader title="Settings" description="Tenant-level milk-procurement configuration." />
+      <div className="grid gap-4">
         <PayoutCard settings={data?.data ?? null} />
         <VmccPayoutOverridesCard />
         <CycleCard settings={data?.data ?? null} />
