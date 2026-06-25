@@ -1,12 +1,12 @@
 import { and, eq, desc, sql, or, isNull, lte, gte, getTableColumns } from 'drizzle-orm';
-import { mpNodeOperators, mpNodes, mpPours, mpCredentials } from '@runq/db';
+import { mpNodeOperators, mpNodes, mpPours, mpCredentials, mpOperatorPayouts } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import type {
   CreateNodeOperatorInput, NodeOperatorFilter, OperatorCompQuery,
 } from '@runq/validators';
-import { NotFoundError } from '../../utils/errors';
+import { ConflictError, NotFoundError } from '../../utils/errors';
 import { upsertCredential } from './credentials.service';
 
 type OperatorRow = typeof mpNodeOperators.$inferSelect;
@@ -175,6 +175,22 @@ export class NodeOperatorService {
       .set({ isActive: false, updatedAt: new Date() })
       .where(and(eq(mpNodeOperators.tenantId, this.tenantId), eq(mpNodeOperators.id, id))).returning();
     return row!;
+  }
+
+  /**
+   * Hard-delete an operator comp term — for ones added by mistake. Refused once
+   * the operator has any payout history (the snapshot rows FK-reference it and
+   * stay as the audit trail); end the term instead in that case. The shared
+   * Dhenu login (mp_credentials) is left untouched — it may belong to a farmer
+   * or another operator row keyed on the same phone.
+   */
+  async remove(id: string): Promise<void> {
+    await this.getById(id);
+    const [payout] = await this.db.select({ id: mpOperatorPayouts.id }).from(mpOperatorPayouts)
+      .where(and(eq(mpOperatorPayouts.tenantId, this.tenantId), eq(mpOperatorPayouts.operatorId, id))).limit(1);
+    if (payout) throw new ConflictError('Operator has payout history — end the term instead of deleting');
+    await this.db.delete(mpNodeOperators)
+      .where(and(eq(mpNodeOperators.tenantId, this.tenantId), eq(mpNodeOperators.id, id)));
   }
 
   /** Commission = node pour volume in period × per-litre rate; + salary/rent. */

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Pencil, Power, Plus, Copy } from 'lucide-react';
+import { ArrowLeft, Pencil, Power, Plus, Copy, Trash2 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, CardHeader, Button, Badge, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import {
-  useNode, useDeactivateNode, useOperators, useDeactivateOperator,
+  useNode, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
   milkTypeLabel, type MpNode, type MpOperator,
 } from '@/hooks/queries/use-milk-procurement';
 import { NODE_TYPE_META } from './_node-shared';
@@ -100,7 +100,9 @@ function OperatorsSection({ nodeId }: { nodeId: string }) {
   const { data, isLoading } = useOperators({ nodeId, limit: 100 });
   const operators = data?.data ?? [];
   const deactivate = useDeactivateOperator();
+  const del = useDeleteOperator();
   const [endId, setEndId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const addOperator = () => navigate({ to: '/milk-procurement/nodes/$id/operators/new', params: { id: nodeId } });
   const newTerm = (o: MpOperator) =>
@@ -140,6 +142,7 @@ function OperatorsSection({ nodeId }: { nodeId: string }) {
                     {o.isActive && (
                       <Button variant="ghost" size="sm" onClick={() => setEndId(o.id)} title="End term"><Power className="h-4 w-4" /></Button>
                     )}
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteId(o.id)} title="Delete operator"><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -159,6 +162,20 @@ function OperatorsSection({ nodeId }: { nodeId: string }) {
         onConfirm={() => endId && deactivate.mutate(endId, {
           onSuccess: () => { toast('Operator term ended', 'success'); setEndId(null); },
           onError: () => toast('Failed to end term', 'error'),
+        })}
+      />
+
+      <ConfirmationDialog
+        open={!!deleteId}
+        title="Delete operator?"
+        description="Permanently removes this operator. Use this only for ones added by mistake — an operator with payout history can't be deleted (end the term instead)."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={del.isPending}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && del.mutate(deleteId, {
+          onSuccess: () => { toast('Operator deleted', 'success'); setDeleteId(null); },
+          onError: (e) => toast(e instanceof Error ? e.message : 'Failed to delete', 'error'),
         })}
       />
     </Card>

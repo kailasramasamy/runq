@@ -52,4 +52,12 @@ export const operatorRoutes: FastifyPluginAsync = async (app) => {
     const service = new NodeOperatorService(request.server.db, request.tenantId);
     return { data: await service.deactivate(id) };
   });
+
+  // Hard delete — only for mistakenly-added operators (409 if payout history).
+  app.delete('/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const service = new NodeOperatorService(request.server.db, request.tenantId);
+    await service.remove(id);
+    return reply.status(204).send();
+  });
 };

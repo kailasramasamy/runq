@@ -443,6 +443,13 @@ export function useDeactivateOperator() {
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'operators'] }),
   });
 }
+export function useDeleteOperator() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`${BASE}/operators/${id}`),
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'operators'] }),
+  });
+}
 export function useOperatorCommission(q: { nodeId: string; from: string; to: string }) {
   return useQuery({
     queryKey: ['mp', 'operators', 'commission', q],
