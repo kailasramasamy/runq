@@ -299,6 +299,11 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
+  String homeShiftDone(Object shift, Object litres) {
+    return '$shift ಮುಗಿದಿದೆ · $litres ಸಂಗ್ರಹ';
+  }
+
+  @override
   String get homeToDispatch => 'ರವಾನಿಸಬೇಕಾದದ್ದು';
 
   @override

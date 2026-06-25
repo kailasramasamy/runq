@@ -97,8 +97,6 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         if (seed.snf != null) _snf.text = _trimNum(seed.snf!);
         if (seed.water != null) _water.text = _trimNum(seed.water!);
       }
-      // Editing a prior pour is a correction — don't re-route through water.
-      _waterVisited = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _resolveRate();
       });
@@ -138,10 +136,15 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // edits keep the original collection date; fresh entries default to today
   // but can be back-dated via the date picker.
   String get _collectionDate => _date;
+  // Water is optional, but the operator must reach it once (or actually fill it)
+  // before the flow lets them save — so it's never silently skipped. "Visited"
+  // is set when the field gains focus; editing FAT/SNF re-arms it (so going back
+  // to a quality field routes through water again instead of jumping to save).
+  bool get _waterReady => _waterVal != null || _waterVisited;
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
-          : _fatVal != null && _snfVal != null && _waterVisited);
+          : _fatVal != null && _snfVal != null && _waterReady);
 
   void _onFieldChanged() {
     setState(() {});
@@ -220,7 +223,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       if (_fatVal == null) { _fatFocus.requestFocus(); return; }
       if (_snfVal == null) { _snfFocus.requestFocus(); return; }
-      if (!_waterVisited) { _waterFocus.requestFocus(); return; }
+      if (!_waterReady) { _waterFocus.requestFocus(); return; }
     }
     _save();
   }
@@ -584,9 +587,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             Row(children: [
               Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _fatFocus)),
               const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
+              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus, resetsWater: true)),
               const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
+              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus, resetsWater: true)),
             ]),
             const SizedBox(height: DhenuSpacing.md),
             // Same one-third width as the trio above (optional → left-aligned,
@@ -852,8 +855,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   String _milkLabel(MilkType m) => milkTypeL10n(AppLocalizations.of(context), m);
 
   Widget _numberField(
-    TextEditingController c, String label, String suffix, FocusNode focus, FocusNode? next,
-  ) =>
+    TextEditingController c, String label, String suffix, FocusNode focus, FocusNode? next, {
+    bool resetsWater = false,
+  }) =>
       TextField(
         controller: c,
         focusNode: focus,
@@ -862,8 +866,20 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         textAlign: TextAlign.center,
         style: DhenuText.number(size: 22),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-        decoration: InputDecoration(labelText: label, suffixText: suffix),
-        onChanged: (_) => _onFieldChanged(),
+        // Tighter horizontal padding than the themed default (lg) — the 3-up
+        // FAT/SNF/Litres row is narrow on small phones and the centred 22px
+        // value clips against the suffix. Vertical kept at the theme value.
+        decoration: InputDecoration(
+          labelText: label,
+          suffixText: suffix,
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.md + 2),
+        ),
+        onChanged: (_) {
+          // Editing FAT/SNF re-arms the (empty) water step so it isn't skipped.
+          if (resetsWater && _waterVisited && _waterVal == null) _waterVisited = false;
+          _onFieldChanged();
+        },
         onSubmitted: (_) => next == null ? _onPrimary() : next.requestFocus(),
       );
 
@@ -888,15 +904,25 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     return _previewShell(
       t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          if (widget.node.isLactometer)
-            QualityBadge(fat: null, snf: null, grade: r.grade ?? Grade.unknown)
-          else
-            QualityBadge(fat: _fatVal, snf: _snfVal, water: _waterVal, grade: r.grade ?? Grade.unknown),
-          const Spacer(),
-          Text(rupees(r.ratePerLitre, paise: true), style: DhenuText.number(size: 22, color: t.brand)),
-          Text(' /L', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        ]),
+        // spaceBetween + a Flexible badge so the pill shrinks (and a forced gap
+        // keeps it off the rate) instead of overflowing into ₹/L on narrow phones.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(right: DhenuSpacing.md),
+                child: widget.node.isLactometer
+                    ? QualityBadge(fat: null, snf: null, grade: r.grade ?? Grade.unknown)
+                    : QualityBadge(fat: _fatVal, snf: _snfVal, water: _waterVal, grade: r.grade ?? Grade.unknown),
+              ),
+            ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(rupees(r.ratePerLitre, paise: true), style: DhenuText.number(size: 22, color: t.brand)),
+              Text(' /L', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ]),
+          ],
+        ),
         if (_qtyVal > 0) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Row(children: [

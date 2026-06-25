@@ -113,11 +113,40 @@ class ShiftGroupedPours extends StatelessWidget {
       hideLeading: noAvatar,
       farmer: noAvatar ? null : farmer,
       litres: litres(p.qtyLitres, unit: true),
-      quality: p.fat == null
-          ? null
-          : QualityPills(fat: p.fat, snf: p.snf, water: p.water, grade: p.qualityGrade),
+      quality: p.fat == null ? null : _qualityLine(context, p),
       amount: rupees(p.lineAmount),
       onTap: () => onTapPour(p, farmer),
     );
   }
+}
+
+/// Low-emphasis quality read for list rows: muted "FAT · SNF · W" with only the
+/// grade letter carrying the grade colour. Replaces the heavier bordered pill
+/// cluster so the row's litres/₹ stay the focus and the line never wraps on
+/// narrow phones.
+Widget _qualityLine(BuildContext context, MpPour p) {
+  final t = DT(context);
+  final muted = DhenuText.caption.copyWith(color: t.inkSoft);
+  final parts = <String>[
+    'FAT ${p.fat!.toStringAsFixed(1)}',
+    if (p.snf != null) 'SNF ${p.snf!.toStringAsFixed(1)}',
+    if (p.water != null) 'W ${p.water!.toStringAsFixed(1)}',
+  ];
+  final hasGrade = p.qualityGrade != Grade.unknown;
+  return Text.rich(
+    TextSpan(children: [
+      TextSpan(text: parts.join('  ·  '), style: muted),
+      if (hasGrade) ...[
+        TextSpan(text: '  ·  ', style: muted),
+        TextSpan(
+          text: QualityBadge.gradeLetter(p.qualityGrade),
+          style: muted.copyWith(
+              color: QualityBadge.gradeColor(p.qualityGrade, t),
+              fontWeight: FontWeight.w700),
+        ),
+      ],
+    ]),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
 }

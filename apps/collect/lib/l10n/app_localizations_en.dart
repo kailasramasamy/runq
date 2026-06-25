@@ -301,6 +301,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String homeShiftDone(Object shift, Object litres) {
+    return '$shift done · $litres collected';
+  }
+
+  @override
   String get homeToDispatch => 'To dispatch';
 
   @override

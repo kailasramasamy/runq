@@ -137,20 +137,36 @@ class VmccHome extends ConsumerWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          footer: s == null
-              ? null
-              : Row(children: [
-                  Text(l.homeFarmerCount(s.farmerCount),
-                      style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
-                  const Spacer(),
-                  Text(
-                      'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
-                      '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
-                      style: DhenuText.caption.copyWith(color: Colors.white)),
-                ]),
+          footer: _heroFooter(l, s, isAm),
         );
       },
     );
+  }
+
+  /// Footer for the shift-scoped hero. The headline is the *current* shift, so
+  /// the footer carries cross-shift context: once the other shift has milk it
+  /// reads "AM done · 147.8 L collected". Farmer count + quality show only while
+  /// the other shift is empty — there the whole day's data is this shift, so the
+  /// day-level figures match the headline. Hidden before any collection today.
+  Widget? _heroFooter(AppLocalizations l, MpCollectionSummary? s, bool isAm) {
+    if (s == null) return null;
+    final otherQty = isAm ? s.pmQty : s.amQty;
+    if (otherQty > 0.05) {
+      return Text(
+        l.homeShiftDone(isAm ? l.shiftPm : l.shiftAm, litres(otherQty, unit: true)),
+        style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82)),
+      );
+    }
+    if (s.totalQty <= 0.05) return null;
+    return Row(children: [
+      Text(l.homeFarmerCount(s.farmerCount),
+          style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
+      const Spacer(),
+      Text(
+          'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
+          '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
+          style: DhenuText.caption.copyWith(color: Colors.white)),
+    ]);
   }
 
   Widget _statsRow(WidgetRef ref, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {

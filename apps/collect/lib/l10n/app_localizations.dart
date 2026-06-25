@@ -634,6 +634,12 @@ abstract class AppLocalizations {
   /// **'{count} farmers'**
   String homeFarmerCount(Object count);
 
+  /// No description provided for @homeShiftDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{shift} done · {litres} collected'**
+  String homeShiftDone(Object shift, Object litres);
+
   /// No description provided for @homeToDispatch.
   ///
   /// In en, this message translates to:

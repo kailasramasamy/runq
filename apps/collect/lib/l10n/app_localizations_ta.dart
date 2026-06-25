@@ -303,6 +303,11 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
+  String homeShiftDone(Object shift, Object litres) {
+    return '$shift முடிந்தது · $litres சேகரிக்கப்பட்டது';
+  }
+
+  @override
   String get homeToDispatch => 'அனுப்ப வேண்டியது';
 
   @override

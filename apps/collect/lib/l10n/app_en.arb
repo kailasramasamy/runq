@@ -169,6 +169,13 @@
       "count": {}
     }
   },
+  "homeShiftDone": "{shift} done · {litres} collected",
+  "@homeShiftDone": {
+    "placeholders": {
+      "shift": {},
+      "litres": {}
+    }
+  },
   "homeToDispatch": "To dispatch",
   "homeAllDispatched": "All dispatched",
   "homeNothingYet": "Nothing yet",

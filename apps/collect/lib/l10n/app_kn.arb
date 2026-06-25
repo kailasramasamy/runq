@@ -89,6 +89,7 @@
   "homeHeroTodayAm": "ಇಂದು ☀️ ಬೆಳಿಗ್ಗೆ",
   "homeHeroTodayPm": "ಇಂದು ☾ ಸಂಜೆ",
   "homeFarmerCount": "{count} ರೈತರು",
+  "homeShiftDone": "{shift} ಮುಗಿದಿದೆ · {litres} ಸಂಗ್ರಹ",
   "homeToDispatch": "ರವಾನಿಸಬೇಕಾದದ್ದು",
   "homeAllDispatched": "ಎಲ್ಲವನ್ನೂ ರವಾನಿಸಲಾಗಿದೆ",
   "homeNothingYet": "ಇನ್ನೂ ಏನೂ ಇಲ್ಲ",
