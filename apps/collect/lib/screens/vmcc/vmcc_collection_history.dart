@@ -277,9 +277,9 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     final display = farmer != null ? farmerName(context, farmer) : l.historyFarmerFallback;
     return SourceRow(
       title: display,
-      farmer: farmer,
       litres: litres(qty, unit: true),
       amount: rupees(amt),
+      hideLeading: true,
       onTap: farmer == null
           ? null
           : () => Navigator.of(context).push(MaterialPageRoute(

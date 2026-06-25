@@ -78,6 +78,9 @@ export const nodeFilterSchema = z.object({
   parentNodeId: z.string().uuid().optional(),
   search: z.string().optional(),
   isActive: boolFilter.optional(),
+  // operators only: return just the nodes they're directly assigned to,
+  // not the descendant-expanded scope.
+  assignedOnly: boolFilter.optional(),
 });
 
 export type CreateVmccInput = z.infer<typeof createVmccSchema>;

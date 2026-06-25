@@ -8,9 +8,11 @@ import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/centre_switcher.dart';
 import '../widgets/dhenu_states.dart';
+import '../widgets/operator_switcher.dart';
 import 'admin/centre_picker_screen.dart';
 import 'auth/splash_screen.dart';
 import 'no_access_screen.dart';
+import 'operator/operator_node_selector_screen.dart';
 import 'vmcc/vmcc_shell.dart';
 import 'cc/cc_shell.dart';
 import 'pp/pp_shell.dart';
@@ -55,34 +57,39 @@ class _AdminHome extends ConsumerWidget {
   }
 }
 
-/// Resolves the operator's assigned node and shows the matching dashboard.
+/// Resolves the operator's directly-assigned node(s) and shows the matching
+/// dashboard. One assignment → land straight in its shell. More than one → a
+/// node-selector landing screen, then the chosen shell with a switcher header.
 class _OperatorHome extends ConsumerWidget {
   const _OperatorHome();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nodes = ref.watch(operatorNodesProvider);
+    final nodes = ref.watch(operatorAssignedNodesProvider);
     return nodes.when(
       loading: () => const SplashScreen(animate: false),
       error: (e, _) => _OperatorError(message: e.toString()),
       data: (list) {
-        if (list.isEmpty) return const NoAccessScreen();
-        // An operator's assignment now resolves to their whole subtree (a CC
-        // also sees its child VMCCs). Land them on their management tier — the
-        // highest node in the set: PP ▸ CC ▸ VMCC.
-        final node = _primaryNode(list);
-        if (node.isPp) return PpShell(node: node);
-        if (node.isCc) return CcShell(node: node);
-        return VmccShell(node: node);
+        final active = list.where((n) => n.isActive).toList();
+        if (active.isEmpty) return const NoAccessScreen();
+        // Single assignment: no picker, no switcher — land directly.
+        if (active.length == 1) return _shellFor(active.single, null);
+        // Multiple: pick which centre to operate. Guard against a stale pick
+        // left over from a previous login (not in the current assigned set).
+        final selected = ref.watch(mpActiveNodeProvider);
+        final node = selected != null && active.any((n) => n.id == selected.id) ? selected : null;
+        if (node == null) return const OperatorNodeSelectorScreen();
+        return _shellFor(node, OperatorSwitcherBar(node: node));
       },
     );
   }
 }
 
-/// The node whose shell an operator lands on: the highest tier they manage.
-MpNode _primaryNode(List<MpNode> nodes) {
-  int rank(MpNode n) => n.isPp ? 3 : (n.isCc ? 2 : 1);
-  return nodes.reduce((a, b) => rank(b) > rank(a) ? b : a);
+/// The persona shell for a node, with an optional header (the operator switcher).
+Widget _shellFor(MpNode node, Widget? header) {
+  if (node.isPp) return PpShell(node: node, header: header);
+  if (node.isCc) return CcShell(node: node, header: header);
+  return VmccShell(node: node, header: header);
 }
 
 class _OperatorError extends ConsumerWidget {

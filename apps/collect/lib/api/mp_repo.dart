@@ -39,9 +39,15 @@ class MpRepo {
     String? nodeType,
     String? search,
     int limit = 100,
+    bool assignedOnly = false,
   }) async {
     final res = await _api.get(
-      '$_base/nodes${_qs({'nodeType': nodeType, 'search': search, 'limit': limit})}',
+      '$_base/nodes${_qs({
+        'nodeType': nodeType,
+        'search': search,
+        'limit': limit,
+        'assignedOnly': assignedOnly ? 'true' : null,
+      })}',
     );
     return _list(res).map(MpNode.fromJson).toList();
   }

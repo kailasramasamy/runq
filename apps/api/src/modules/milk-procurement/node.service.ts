@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, or, ilike } from 'drizzle-orm';
+import { and, eq, desc, sql, or, ilike, inArray } from 'drizzle-orm';
 import { mpNodes } from '@runq/db';
 import type { Db, MpNodeRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -111,6 +111,13 @@ export class NodeService {
     if (filters.isActive !== undefined) conds.push(eq(mpNodes.isActive, filters.isActive));
     if (filters.search) {
       conds.push(or(ilike(mpNodes.name, `%${filters.search}%`), ilike(mpNodes.code, `%${filters.search}%`))!);
+    }
+    // assignedOnly (operator selector): restrict to the nodes the operator is
+    // DIRECTLY assigned to, ignoring descendant expansion and the nodeType
+    // dispatch-lookup override below.
+    if (filters.assignedOnly && principal.kind === 'operator') {
+      conds.push(principal.directNodeIds.size ? inArray(mpNodes.id, [...principal.directNodeIds]) : sql`false`);
+      return and(...conds);
     }
     // Operators are normally restricted to their own node(s) so the app lands on
     // an owned node. An explicit nodeType query is a dispatch-destination lookup

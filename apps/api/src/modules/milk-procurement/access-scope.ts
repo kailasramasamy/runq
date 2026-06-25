@@ -22,7 +22,9 @@ import { ForbiddenError } from '../../utils/errors';
 
 export type MpPrincipal =
   | { kind: 'all' }
-  | { kind: 'operator'; nodeIds: Set<string> }
+  // nodeIds = assignment expanded to descendants (the operable scope);
+  // directNodeIds = only the nodes the operator is explicitly assigned to.
+  | { kind: 'operator'; nodeIds: Set<string>; directNodeIds: Set<string> }
   | { kind: 'farmer'; farmerId: string }
   | { kind: 'none' };
 
@@ -61,8 +63,9 @@ async function compute(req: FastifyRequest): Promise<MpPrincipal> {
             : sql`false`,
         ),
       ));
-    const nodeIds = await expandWithDescendants(db, tenantId, rows.map((r) => r.nodeId));
-    return { kind: 'operator', nodeIds };
+    const directNodeIds = new Set(rows.map((r) => r.nodeId));
+    const nodeIds = await expandWithDescendants(db, tenantId, [...directNodeIds]);
+    return { kind: 'operator', nodeIds, directNodeIds };
   }
 
   if (role === 'farmer') {

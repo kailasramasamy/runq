@@ -15,6 +15,7 @@ import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
+import '../dispatch_history.dart';
 
 /// CC Dispatch tab — availability summary + dispatch form + today's outbound.
 class CcDispatchTab extends ConsumerStatefulWidget {
@@ -309,10 +310,27 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         Text('Today\'s Outbound', style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         _outboundList(t, outboundAsync, ppNames),
+        _seeDispatchHistoryLink(context, t),
       ],
       ),
     );
   }
+
+  Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t) => Center(
+        child: TextButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: Text('Dispatch history', style: DhenuText.h2.copyWith(color: t.ink))),
+              body: DispatchHistory(node: widget.node, kind: 'cc_to_pp'),
+            ),
+          )),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('See full history', style: DhenuText.label.copyWith(color: t.brand)),
+            const SizedBox(width: 4),
+            Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
+          ]),
+        ),
+      );
 
   /// Shown in place of the form once availability is exhausted: how much was
   /// sent out this shift, with the container number for each leg.

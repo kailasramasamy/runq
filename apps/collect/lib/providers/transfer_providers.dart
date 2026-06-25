@@ -71,6 +71,20 @@ final nodeOutboundForDateProvider =
   return mpRepo.consignments(fromNodeId: args.nodeId, collectionDate: args.date, limit: 200);
 });
 
+/// Outbound dispatches from a node over the last [days] for the given leg
+/// [kind] ('vmcc_to_cc' | 'cc_to_pp'), newest first. Powers the dispatch-history
+/// screen. All statuses included so in-transit dispatches still show. Keyed by
+/// (nodeId, kind, days) so each leg + window caches separately.
+typedef DispatchedRangeArgs = ({String nodeId, String kind, int days});
+
+final nodeDispatchedRangeProvider =
+    FutureProvider.family<List<MpConsignment>, DispatchedRangeArgs>((ref, args) async {
+  return mpRepo.consignments(
+    fromNodeId: args.nodeId, kind: args.kind,
+    from: isoDaysAgo(args.days - 1), to: todayIso(), limit: 500,
+  );
+});
+
 /// Availability (collected / dispatched / available) for a node today.
 /// `shift` scopes the figure to AM/PM for no-BMC nodes that dispatch each shift
 /// separately; pass null for BMC nodes that pool the whole day.

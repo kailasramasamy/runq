@@ -4,10 +4,20 @@ import '../api/mp_repo.dart';
 import '../utils/format.dart';
 import 'auth_provider.dart';
 
-/// The centre an admin (owner/accountant/viewer) is currently operating as.
-/// Null → show the centre picker. Field-operators never use this — their node
-/// resolves from their assignment, not a manual pick.
+/// The centre currently being operated as. Null → show the picker. Used by
+/// admins (owner/accountant/viewer) operating "view as" any centre, AND by
+/// field-operators who are directly assigned to more than one node (they pick
+/// which one to run). A single-node operator never sets this.
 final mpActiveNodeProvider = StateProvider<MpNode?>((ref) => null);
+
+/// The nodes a field-operator is DIRECTLY assigned to (not the descendant-
+/// expanded scope). Backs the operator node-selector + in-shell switcher. The
+/// API returns just their assigned VMCC(s)/CC(s)/PP(s) via `assignedOnly=true`.
+final operatorAssignedNodesProvider = FutureProvider<List<MpNode>>((ref) async {
+  final auth = ref.watch(authProvider);
+  if (!auth.isAuthenticated) return const [];
+  return mpRepo.nodes(assignedOnly: true, limit: 100);
+});
 
 /// The operator's assigned nodes. For a `field_operator` the API scopes
 /// `GET /nodes` to just the nodes they run (via `mp_node_operators.user_id`),
