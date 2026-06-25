@@ -87,6 +87,12 @@ function NodeForm({ nodeType, node }: { nodeType: NodeType; node: MpNode | null 
           <Combobox label="Parent node" value={f.parentNodeId} onChange={(v) => setF({ ...f, parentNodeId: v })} options={parentOptions} placeholder="None" />
           <Input label="Capacity (L)" type="number" value={String(f.capacityLitres)} onChange={(e) => setF({ ...f, capacityLitres: e.target.value })} />
           <Combobox label="Payout mode" value={f.payoutMode} onChange={(v) => setF({ ...f, payoutMode: v })} options={PAYOUT_MODES} />
+          {nodeType === 'vmcc' && (
+            <p className="-mt-1 text-xs text-zinc-500">
+              Who pays farmers: the CC pays directly, or hands the bulk amount to the VMCC operator to
+              redistribute. Left on default, this VMCC follows the tenant payout mode.
+            </p>
+          )}
 
           {nodeType !== 'pp' && (
             <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { PageHeader, Card, CardContent, CardHeader, Button, Input, Combobox, useToast } from '@/components/ui';
 import {
-  useGlSettings, useUpsertGlSettings, useNodes, useUpdateNode,
+  useGlSettings, useUpsertGlSettings,
   useRawMilkItems, useUpsertRawMilkItems,
-  type MpGlSettings, type MpNode, type MpMilkType,
+  type MpGlSettings, type MpMilkType,
 } from '@/hooks/queries/use-milk-procurement';
 import { useItems } from '@/hooks/queries/use-items';
 import { useWarehouses } from '@/hooks/queries/use-inventory';
@@ -12,8 +12,6 @@ const PAYOUT_MODES = [
   { value: 'direct_to_farmer', label: 'Direct to farmer' },
   { value: 'via_vmcc', label: 'Via VMCC (society redistributes)' },
 ];
-// Per-VMCC override: blank value falls back to the tenant default above.
-const VMCC_PAYOUT_MODES = [{ value: '', label: 'Use tenant default' }, ...PAYOUT_MODES];
 const CYCLE_LENGTHS = [
   { value: '10', label: '10 days' },
   { value: '15', label: '15 days' },
@@ -39,7 +37,6 @@ export function MpSettingsPage() {
       <PageHeader title="Settings" description="Tenant-level milk-procurement configuration." />
       <div className="grid gap-4">
         <PayoutCard settings={data?.data ?? null} />
-        <VmccPayoutOverridesCard />
         <CycleCard settings={data?.data ?? null} />
         <RawMilkInventoryCard settings={data?.data ?? null} />
         <SupportCard settings={data?.data ?? null} />
@@ -70,49 +67,6 @@ function PayoutCard({ settings }: { settings: MpGlSettings | null }) {
         <Button onClick={save} loading={upsert.isPending}>Save</Button>
       </CardContent>
     </Card>
-  );
-}
-
-function VmccPayoutOverridesCard() {
-  const { data } = useNodes({ nodeType: 'vmcc', limit: 200 });
-  const vmccs = data?.data ?? [];
-  return (
-    <Card>
-      <CardHeader>Who pays farmers (per VMCC)</CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-zinc-500">
-          Per VMCC, choose whether the CC pays farmers directly or hands the bulk amount to the VMCC
-          operator to redistribute. Left on default, the VMCC follows the tenant payout mode above.
-        </p>
-        {vmccs.length === 0 ? (
-          <p className="text-sm text-zinc-500">No VMCCs yet.</p>
-        ) : (
-          vmccs.map((n) => <VmccPayoutRow key={n.id} node={n} />)
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function VmccPayoutRow({ node }: { node: MpNode }) {
-  const update = useUpdateNode('vmcc');
-  const { toast } = useToast();
-  const [mode, setMode] = useState(node.payoutMode ?? '');
-  useEffect(() => { setMode(node.payoutMode ?? ''); }, [node.payoutMode]);
-
-  const onChange = (v: string) => {
-    setMode(v);
-    update.mutate(
-      { id: node.id, data: { payoutMode: (v || null) as 'direct_to_farmer' | 'via_vmcc' | null } },
-      { onSuccess: () => toast('Saved', 'success'), onError: () => toast('Failed to save', 'error') },
-    );
-  };
-
-  return (
-    <div className="grid grid-cols-2 items-center gap-2">
-      <span className="text-sm">{node.name}</span>
-      <Combobox value={mode} onChange={onChange} options={VMCC_PAYOUT_MODES} />
-    </div>
   );
 }
 
