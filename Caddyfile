@@ -35,7 +35,7 @@ handle /login {
 # Keep this list aligned with the top-level paths registered in
 # apps/web/src/routes/__root.tsx. Adding a new module here is a one-line
 # change — append its base path.
-@spa path /finance /finance/* /hr /hr/* /settings /settings/* /admin /admin/* /portal /portal/* /ca/* /vendor-portal/* /signup/invite/* /accept-invite /dashboard /inbox /analytics
+@spa path /finance /finance/* /hr /hr/* /inventory /inventory/* /manufacturing /manufacturing/* /milk-procurement /milk-procurement/* /purchase /purchase/* /profile /profile/* /settings /settings/* /admin /admin/* /portal /portal/* /ca/* /vendor-portal/* /signup/invite/* /accept-invite /dashboard /inbox /analytics
 handle @spa {
 	root * /srv/web
 	try_files {path} /index.html
