@@ -316,11 +316,34 @@ export function useAddLedgerEntry() {
 }
 
 // ── reports ─────────────────────────────────────────────────────────────────
+// Qty-weighted per-day QC rollups, newest day first (see report.service.ts).
+export interface MpPourDay {
+  date: string; totalQty: number; farmerCount: number;
+  fat: number | null; snf: number | null; water: number | null;
+}
+export interface MpReceivedDay {
+  date: string; totalQty: number; vmccCount: number;
+  fat: number | null; snf: number | null; water: number | null;
+}
 export function useCollectionSummary(q: { from: string; to: string; nodeId?: string }) {
   return useQuery({
     queryKey: MP_KEYS.collection(q),
     queryFn: () => api.get<ApiSuccess<MpCollectionSummary>>(`${BASE}/reports/collection${qs({ ...q })}`),
     enabled: !!q.from && !!q.to,
+  });
+}
+export function usePoursDaily(q: { nodeId: string; from: string; to: string; farmerId?: string }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'pours-daily', q],
+    queryFn: () => api.get<ApiSuccess<MpPourDay[]>>(`${BASE}/reports/pours-daily${qs({ ...q })}`),
+    enabled: !!q.nodeId && !!q.from && !!q.to,
+  });
+}
+export function useReceivedDaily(q: { nodeId: string; from: string; to: string }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'received-daily', q],
+    queryFn: () => api.get<ApiSuccess<MpReceivedDay[]>>(`${BASE}/reports/received-daily${qs({ ...q })}`),
+    enabled: !!q.nodeId && !!q.from && !!q.to,
   });
 }
 

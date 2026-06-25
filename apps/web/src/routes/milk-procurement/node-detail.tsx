@@ -5,11 +5,26 @@ import {
   PageHeader, Card, CardContent, CardHeader, Button, Badge, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
+import { Tabs } from '@/components/ar/primitives';
 import {
   useNode, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
   milkTypeLabel, type MpNode, type MpOperator,
 } from '@/hooks/queries/use-milk-procurement';
 import { NODE_TYPE_META } from './_node-shared';
+import { VMCC_TABS, VmccDashboard } from './node-dashboard-vmcc';
+import { CC_TABS, CcDashboard } from './node-dashboard-cc';
+import { PP_TABS, PpDashboard } from './node-dashboard-pp';
+
+const SETUP_TAB = { id: 'setup', label: 'Setup' };
+function tabsForType(t: MpNode['nodeType']) {
+  const base = t === 'vmcc' ? VMCC_TABS : t === 'cc' ? CC_TABS : PP_TABS;
+  return [...base, SETUP_TAB];
+}
+function DashboardForType({ node, tab }: { node: MpNode; tab: string }) {
+  if (node.nodeType === 'vmcc') return <VmccDashboard node={node} tab={tab} />;
+  if (node.nodeType === 'cc') return <CcDashboard node={node} tab={tab} />;
+  return <PpDashboard node={node} tab={tab} />;
+}
 
 export function MpNodeDetailPage() {
   const { id } = useParams({ strict: false }) as { id: string };
@@ -19,6 +34,7 @@ export function MpNodeDetailPage() {
   const node = data?.data ?? null;
   const deactivate = useDeactivateNode();
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [tab, setTab] = useState('overview');
 
   if (isLoading) return <PageHeader title="Loading…" fullWidth />;
   if (!node) return <PageHeader title="Node not found" fullWidth />;
@@ -44,8 +60,15 @@ export function MpNodeDetailPage() {
         }
       />
 
-      <NodeSummary node={node} />
-      <OperatorsSection nodeId={id} />
+      <Tabs active={tab} onChange={setTab} tabs={tabsForType(node.nodeType)} />
+      {tab === 'setup' ? (
+        <>
+          <NodeSummary node={node} />
+          <OperatorsSection nodeId={id} />
+        </>
+      ) : (
+        <DashboardForType node={node} tab={tab} />
+      )}
 
       <ConfirmationDialog
         open={confirmDeactivate}
