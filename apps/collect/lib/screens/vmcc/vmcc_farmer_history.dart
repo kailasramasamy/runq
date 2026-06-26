@@ -42,12 +42,14 @@ class VmccFarmerHistory extends ConsumerWidget {
         loading: () => const DhenuLoadingList(rows: 5),
         error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: '$e'),
-        data: (all) => _body(context, t, l, [for (final p in all) if (p.farmerId == farmer.id) p]),
+        data: (all) => _body(context, t, l, [for (final p in all) if (p.farmerId == farmer.id) p],
+            ref.watch(qualityBandsProvider(node.id)).valueOrNull),
       ),
     );
   }
 
-  Widget _body(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPour> mine) {
+  Widget _body(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPour> mine,
+      QualityBands? bands) {
     if (mine.isEmpty) {
       return DhenuEmptyState(
         icon: DhenuIcons.history,
@@ -72,6 +74,7 @@ class VmccFarmerHistory extends ConsumerWidget {
           ShiftGroupedPours(
             pours: groups[d]!,
             farmersById: byId,
+            bands: bands,
             onTapPour: (p, f) => _openPour(context, p, f),
           ),
           const SizedBox(height: DhenuSpacing.lg),

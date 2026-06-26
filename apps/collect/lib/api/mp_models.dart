@@ -934,25 +934,6 @@ class QualityBands {
     return QualityLevel.low;
   }
 
-  /// The most severe band across the supplied FAT/SNF/CLR — a single quality
-  /// colour for dense aggregate rows. Null when none of them has a band.
-  QualityLevel? worstLevel(MilkType type, {double? fat, double? snf, double? clr}) {
-    final levels = <QualityLevel>[];
-    void add(String metric, double? v) {
-      if (v == null) return;
-      final l = levelFor(type, metric, v);
-      if (l != null) levels.add(l);
-    }
-
-    add('fat', fat);
-    add('snf', snf);
-    add('clr', clr);
-    if (levels.isEmpty) return null;
-    if (levels.contains(QualityLevel.low)) return QualityLevel.low;
-    if (levels.contains(QualityLevel.watch)) return QualityLevel.watch;
-    return QualityLevel.good;
-  }
-
   factory QualityBands.fromJson(Map<String, dynamic> j) {
     final bands = <MilkType, Map<String, QualityBand>>{};
     j.forEach((typeKey, metricsRaw) {

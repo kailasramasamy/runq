@@ -40,47 +40,50 @@ class QualityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final level = (bands != null && milkType != null)
-        ? bands!.worstLevel(milkType!, fat: fat, snf: snf)
-        : null;
-    final gradeColor = level != null ? levelColor(level, t) : _gradeColor(grade, t);
-    final fillColor = gradeColor.withValues(alpha: 0.12);
-    final label = _buildLabel();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: DhenuSpacing.md,
-        vertical: DhenuSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: fillColor,
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-        border: Border.all(color: gradeColor.withValues(alpha: 0.35), width: 1),
-      ),
-      child: Text(
-        label,
-        style: DhenuText.caption.copyWith(color: gradeColor),
-      ),
+    final muted = DhenuText.caption.copyWith(color: t.inkSoft);
+    return Text.rich(
+      TextSpan(children: _spans(t, muted)),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
-  String _buildLabel() {
-    // Drop the grade segment entirely when unknown — no dangling "?".
+  // Band colour for one metric (falls back to muted when no band / no value).
+  Color _metricColor(String metric, double? value, DhenuTokens t) {
+    if (bands == null || milkType == null || value == null) return t.inkSoft;
+    final level = bands!.levelFor(milkType!, metric, value);
+    return level == null ? t.inkSoft : levelColor(level, t);
+  }
+
+  /// Low-emphasis spans: muted "FAT · SNF · W", FAT/SNF in their own band colour
+  /// and the grade letter coloured — no filled pill (see record-collection rows).
+  List<TextSpan> _spans(DhenuTokens t, TextStyle muted) {
     final hasGrade = grade != Grade.unknown;
-    final g = hasGrade ? ' · ${_gradeLetter(grade)}' : '';
     final fatStr = fat != null ? fat!.toStringAsFixed(1) : '—';
     final snfStr = snf != null ? snf!.toStringAsFixed(1) : '—';
-    final w = water != null ? ' · W ${water!.toStringAsFixed(1)}' : '';
-    final wLabel = water != null ? ', ${water!.toStringAsFixed(1)} W' : '';
+    final fatC = muted.copyWith(color: _metricColor('fat', fat, t));
+    final snfC = muted.copyWith(color: _metricColor('snf', snf, t));
+    final sep = TextSpan(text: '  ·  ', style: muted);
+    final gradeSpan = TextSpan(
+      text: _gradeLetter(grade),
+      style: muted.copyWith(color: _gradeColor(grade, t), fontWeight: FontWeight.w700),
+    );
     final fmt = format ?? (compact ? QualityFormat.compact : QualityFormat.full);
-    switch (fmt) {
-      case QualityFormat.compact:
-        return hasGrade ? '$fatStr$g' : fatStr;
-      case QualityFormat.valueLabel:
-        return '$fatStr FAT, $snfStr SNF$wLabel$g';
-      case QualityFormat.full:
-        return 'FAT $fatStr · SNF $snfStr$w$g';
+    if (fmt == QualityFormat.compact) {
+      return [TextSpan(text: fatStr, style: fatC), if (hasGrade) ...[sep, gradeSpan]];
     }
+    final valueFirst = fmt == QualityFormat.valueLabel;
+    return [
+      TextSpan(text: valueFirst ? '$fatStr FAT' : 'FAT $fatStr', style: fatC),
+      sep,
+      TextSpan(text: valueFirst ? '$snfStr SNF' : 'SNF $snfStr', style: snfC),
+      if (water != null)
+        TextSpan(
+          text: valueFirst ? '  ·  ${water!.toStringAsFixed(1)} W' : '  ·  W ${water!.toStringAsFixed(1)}',
+          style: muted,
+        ),
+      if (hasGrade) ...[sep, gradeSpan],
+    ];
   }
 
   static String _gradeLetter(Grade g) {

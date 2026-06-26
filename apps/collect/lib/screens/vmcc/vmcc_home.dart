@@ -241,6 +241,7 @@ class VmccHome extends ConsumerWidget {
         return ShiftGroupedPours(
           pours: pours,
           farmersById: byId,
+          bands: ref.watch(qualityBandsProvider(node.id)).valueOrNull,
           showDate: true,
           showAvatar: false,
           onTapPour: (p, farmer) => showPourDetailSheet(

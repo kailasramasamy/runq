@@ -41,23 +41,6 @@ void main() {
     });
   });
 
-  group('QualityBands.worstLevel (aggregate rows)', () {
-    test('takes the most severe band across fat/snf', () {
-      // good fat + low snf → low (worst wins)
-      expect(bands.worstLevel(MilkType.cowA1, fat: 4.5, snf: 7.4), QualityLevel.low);
-      // good fat + watch snf → watch
-      expect(bands.worstLevel(MilkType.cowA1, fat: 4.5, snf: 8.1), QualityLevel.watch);
-      // both good → good
-      expect(bands.worstLevel(MilkType.cowA1, fat: 4.5, snf: 8.9), QualityLevel.good);
-    });
-
-    test('ignores metrics with no band, null when none apply', () {
-      // buffalo only has a fat band here → snf ignored
-      expect(bands.worstLevel(MilkType.buffalo, fat: 5.6, snf: 7.0), QualityLevel.watch);
-      expect(bands.worstLevel(MilkType.mixed, fat: 4.0, snf: 8.0), isNull);
-    });
-  });
-
   group('MpNode.effectiveMilkType', () {
     MpNode node({MilkType? def, List<MilkType>? allowed}) => MpNode(
         id: 'n', code: 'c', name: 'n', nodeType: 'vmcc',

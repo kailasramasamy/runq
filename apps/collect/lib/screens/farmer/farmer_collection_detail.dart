@@ -207,7 +207,7 @@ class FarmerCollectionDetail extends ConsumerWidget {
           style: DhenuText.number(size: 18, w: FontWeight.w700, color: t.ink),
         ),
         const SizedBox(height: DhenuSpacing.xs),
-        QualityPills(
+        QualityBadge(
           fat: p.fat, snf: p.snf, water: p.water,
           grade: p.qualityGrade, bands: bands, milkType: p.milkType,
         ),

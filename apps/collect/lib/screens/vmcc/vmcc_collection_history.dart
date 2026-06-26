@@ -36,6 +36,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
   String _query = '';
   final Set<String> _expanded = {};
   bool _seededExpand = false;
+  QualityBands? _bands; // resolved in build, used by the day-grouped pour list
 
   MpNode get node => widget.node;
 
@@ -64,6 +65,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
     final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
+    _bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull;
     return RefreshIndicator(
       onRefresh: _refresh,
       child: poursAsync.when(
@@ -225,7 +227,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       ),
       if (isOpen) ...[
         const SizedBox(height: DhenuSpacing.sm),
-        ShiftGroupedPours(pours: dayPours, farmersById: byId, onTapPour: _openPour),
+        ShiftGroupedPours(pours: dayPours, farmersById: byId, bands: _bands, onTapPour: _openPour),
       ],
     ]);
   }

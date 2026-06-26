@@ -47,11 +47,11 @@ class FarmerPoursTab extends ConsumerWidget {
         title: l.farmerPoursLoadError,
         subtitle: '$e',
       ),
-      data: (mine) => _body(context, mine),
+      data: (mine) => _body(context, mine, ref.watch(qualityBandsProvider(node.id)).valueOrNull),
     );
   }
 
-  Widget _body(BuildContext context, List<MpPour> mine) {
+  Widget _body(BuildContext context, List<MpPour> mine, QualityBands? bands) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     if (mine.isEmpty) {
@@ -95,6 +95,7 @@ class FarmerPoursTab extends ConsumerWidget {
           ShiftGroupedPours(
             pours: groups[d]!,
             farmersById: byId,
+            bands: bands,
             onTapPour: (p, f) => _openPour(context, p, f),
             singleFarmer: true,
           ),

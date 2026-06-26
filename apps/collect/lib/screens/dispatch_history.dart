@@ -87,33 +87,45 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     return m.entries.toList();
   }
 
+  /// One day = one card: a tappable date/total header, a divider, then the
+  /// day's dispatch rows (open) or a one-line count summary (collapsed).
   Widget _daySection(
       DhenuTokens t, MapEntry<String, List<MpConsignment>> day, Map<String, String> names) {
     final open = _open.contains(day.key);
     final total = day.value.fold<double>(0, (s, c) => s + (c.dispatchQty ?? 0));
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      InkWell(
+    return DhenuCard(
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(DhenuRadii.card),
-        onTap: () => setState(() => open ? _open.remove(day.key) : _open.add(day.key)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.xs),
-          child: Row(children: [
-            Icon(open ? DhenuIcons.chevronDown : DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
-            const SizedBox(width: DhenuSpacing.xs),
-            Expanded(child: Text(prettyDate(day.key), style: DhenuText.title.copyWith(color: t.ink))),
-            Text(litres(total, unit: true), style: DhenuText.number(size: 16, color: t.brand)),
-          ]),
-        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: () => setState(() => open ? _open.remove(day.key) : _open.add(day.key)),
+              child: Padding(
+                padding: const EdgeInsets.all(DhenuSpacing.lg),
+                child: Row(children: [
+                  Icon(open ? DhenuIcons.chevronDown : DhenuIcons.chevronRight,
+                      size: 18, color: t.inkSoft),
+                  const SizedBox(width: DhenuSpacing.sm),
+                  Expanded(child: Text(prettyDate(day.key), style: DhenuText.title.copyWith(color: t.ink))),
+                  Text(litres(total, unit: true), style: DhenuText.number(size: 16, color: t.brand)),
+                ]),
+              ),
+            ),
+          ),
+          Divider(height: 1, color: t.hairline),
+          if (open) ..._detailRows(t, day.value, names) else _collapsedRow(t, day.value),
+        ]),
       ),
-      const SizedBox(height: DhenuSpacing.sm),
-      if (open) _dayDetail(t, day.value, names) else _collapsedSummary(t, day.value),
-    ]);
+    );
   }
 
-  /// Collapsed: dispatch count + how many are still in transit.
-  Widget _collapsedSummary(DhenuTokens t, List<MpConsignment> cs) {
+  /// Collapsed body: dispatch count + how many are still in transit.
+  Widget _collapsedRow(DhenuTokens t, List<MpConsignment> cs) {
     final inTransit = cs.where((c) => c.inTransit).length;
-    return DhenuCard(
+    return Padding(
+      padding: const EdgeInsets.all(DhenuSpacing.lg),
       child: Row(children: [
         Icon(DhenuIcons.truck, size: 18, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.md),
@@ -126,11 +138,8 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     );
   }
 
-  /// Expanded: one row per dispatch leg — destination, shift · no., qty, status.
-  Widget _dayDetail(DhenuTokens t, List<MpConsignment> cs, Map<String, String> names) {
-    return DhenuCard(
-      padding: EdgeInsets.zero,
-      child: Column(children: [
+  /// Expanded body: one row per dispatch leg — destination, shift · no., qty, status.
+  List<Widget> _detailRows(DhenuTokens t, List<MpConsignment> cs, Map<String, String> names) => [
         for (var i = 0; i < cs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
           SourceRow(
@@ -140,9 +149,7 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
             trailingStatus: _status(t, cs[i]),
           ),
         ],
-      ]),
-    );
-  }
+      ];
 
   String _subtitle(MpConsignment c) {
     final shift = c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · ';
