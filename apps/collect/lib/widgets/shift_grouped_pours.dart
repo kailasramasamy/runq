@@ -24,6 +24,7 @@ class ShiftGroupedPours extends StatelessWidget {
     this.showDate = false,
     this.singleFarmer = false,
     this.showAvatar = true,
+    this.bands,
   });
 
   final List<MpPour> pours;
@@ -49,6 +50,10 @@ class ShiftGroupedPours extends StatelessWidget {
   /// "Today's entries" where the farmer name already leads and the avatar adds
   /// nothing. Ignored in [singleFarmer] mode (already avatar-less).
   final bool showAvatar;
+
+  /// When provided, each pour row's quality metrics are colored per-metric by
+  /// band level instead of the single grade color. Null → existing behavior.
+  final QualityBands? bands;
 
   @override
   Widget build(BuildContext context) {
@@ -108,12 +113,10 @@ class ShiftGroupedPours extends StatelessWidget {
     final noAvatar = singleFarmer || !showAvatar;
     return SourceRow(
       title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
-      // In single-farmer mode the farmer is implied by the screen, so drop the
-      // leading avatar entirely — milk type leads the row instead.
       hideLeading: noAvatar,
       farmer: noAvatar ? null : farmer,
       litres: litres(p.qtyLitres, unit: true),
-      quality: p.fat == null ? null : _qualityLine(context, p),
+      quality: p.fat == null ? null : _qualityLine(context, p, bands),
       amount: rupees(p.lineAmount),
       onTap: () => onTapPour(p, farmer),
     );
@@ -121,21 +124,32 @@ class ShiftGroupedPours extends StatelessWidget {
 }
 
 /// Low-emphasis quality read for list rows: muted "FAT · SNF · W" with only the
-/// grade letter carrying the grade colour. Replaces the heavier bordered pill
-/// cluster so the row's litres/₹ stay the focus and the line never wraps on
-/// narrow phones.
-Widget _qualityLine(BuildContext context, MpPour p) {
+/// grade letter (and per-metric values when bands are provided) carrying color.
+Widget _qualityLine(BuildContext context, MpPour p, QualityBands? bands) {
   final t = DT(context);
   final muted = DhenuText.caption.copyWith(color: t.inkSoft);
-  final parts = <String>[
-    'FAT ${p.fat!.toStringAsFixed(1)}',
-    if (p.snf != null) 'SNF ${p.snf!.toStringAsFixed(1)}',
-    if (p.water != null) 'W ${p.water!.toStringAsFixed(1)}',
-  ];
   final hasGrade = p.qualityGrade != Grade.unknown;
+
+  Color metricColor(String metric, double? value) {
+    if (bands == null || value == null) return t.inkSoft;
+    final level = bands.levelFor(p.milkType, metric, value);
+    return level == null ? t.inkSoft : QualityBadge.levelColor(level, t);
+  }
+
   return Text.rich(
     TextSpan(children: [
-      TextSpan(text: parts.join('  ·  '), style: muted),
+      if (p.fat != null) TextSpan(
+        text: 'FAT ${p.fat!.toStringAsFixed(1)}',
+        style: muted.copyWith(color: metricColor('fat', p.fat)),
+      ),
+      if (p.snf != null) ...[
+        TextSpan(text: '  ·  ', style: muted),
+        TextSpan(
+          text: 'SNF ${p.snf!.toStringAsFixed(1)}',
+          style: muted.copyWith(color: metricColor('snf', p.snf)),
+        ),
+      ],
+      if (p.water != null) TextSpan(text: '  ·  W ${p.water!.toStringAsFixed(1)}', style: muted),
       if (hasGrade) ...[
         TextSpan(text: '  ·  ', style: muted),
         TextSpan(

@@ -7,6 +7,7 @@ import {
 } from '@/hooks/queries/use-milk-procurement';
 import { useItems } from '@/hooks/queries/use-items';
 import { useWarehouses } from '@/hooks/queries/use-inventory';
+import { QualityBandsEditor } from './_quality-bands-editor';
 
 const PAYOUT_MODES = [
   { value: 'direct_to_farmer', label: 'Direct to farmer' },
@@ -33,11 +34,12 @@ const MILK_TYPES: { value: MpMilkType; label: string }[] = [
 export function MpSettingsPage() {
   const { data } = useGlSettings();
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-2xl">
       <PageHeader title="Settings" description="Tenant-level milk-procurement configuration." />
       <div className="grid gap-4">
         <PayoutCard settings={data?.data ?? null} />
         <CycleCard settings={data?.data ?? null} />
+        <QualityBandsEditor nodeId={null} title="Quality bands (tenant defaults)" />
         <RawMilkInventoryCard settings={data?.data ?? null} />
         <SupportCard settings={data?.data ?? null} />
       </div>

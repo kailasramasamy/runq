@@ -5,8 +5,10 @@ import {
 } from '@/components/ui';
 import {
   useCollectionSummary, useNodeAvailability, usePours, usePoursDaily, useConsignments, useFarmers,
-  type MpNode, type MpPour, type MpConsignment,
+  useQualityBands,
+  type MpNode, type MpPour, type MpConsignment, type QualityBandMap,
 } from '@/hooks/queries/use-milk-procurement';
+import { bandLevel, bandCellClass } from './_quality-bands';
 import {
   today, daysAgo, SummaryStats, QcReportView, DayAccordion, groupByDate, Pills,
 } from './_node-dashboard-shared';
@@ -44,6 +46,7 @@ function Overview({ nodeId }: { nodeId: string }) {
   const { data: sum } = useCollectionSummary({ from: d, to: d, nodeId });
   const { data: avail } = useNodeAvailability(nodeId, d);
   const { data: pours, isLoading } = usePours({ nodeId, collectionDate: d, status: 'recorded', limit: 200 });
+  const { data: bandsData } = useQualityBands(nodeId);
   const farmerName = useFarmerName(nodeId);
   const a = avail?.data;
 
@@ -57,14 +60,21 @@ function Overview({ nodeId }: { nodeId: string }) {
       </div>
       <Card>
         <CardContent className="p-0">
-          <PourTable pours={pours?.data ?? []} farmerName={farmerName} loading={isLoading} empty="No pours recorded today." />
+          <PourTable pours={pours?.data ?? []} farmerName={farmerName} loading={isLoading} empty="No pours recorded today." bands={bandsData?.data} />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function PourTable({ pours, farmerName, loading, empty }: { pours: MpPour[]; farmerName: (id: string) => string; loading?: boolean; empty: string }) {
+function QcSpan({ val, band }: { val: string | null; band: Parameters<typeof bandLevel>[1] }) {
+  const cls = val != null ? bandCellClass(bandLevel(Number(val), band)) : '';
+  return <span className={cls}>{val ?? '—'}</span>;
+}
+
+function PourTable({ pours, farmerName, loading, empty, bands }: {
+  pours: MpPour[]; farmerName: (id: string) => string; loading?: boolean; empty: string; bands?: QualityBandMap;
+}) {
   return (
     <Table>
       <TableHeader>
@@ -80,7 +90,11 @@ function PourTable({ pours, farmerName, loading, empty }: { pours: MpPour[]; far
               <TableCell>{farmerName(p.farmerId)}</TableCell>
               <TableCell>{p.shift.toUpperCase()}</TableCell>
               <TableCell className="text-right tabular-nums">{p.qtyLitres}</TableCell>
-              <TableCell className="tabular-nums">{p.fat ?? '—'}/{p.snf ?? '—'}</TableCell>
+              <TableCell className="tabular-nums">
+                <QcSpan val={p.fat} band={bands?.[p.milkType]?.fat} />
+                /
+                <QcSpan val={p.snf} band={bands?.[p.milkType]?.snf} />
+              </TableCell>
               <TableCell><Badge variant={p.qualityGrade === 'a' ? 'success' : 'default'}>{p.qualityGrade?.toUpperCase() ?? '—'}</Badge></TableCell>
               <TableCell className="text-right tabular-nums">{p.lineAmount}</TableCell>
             </TableRow>
@@ -96,8 +110,10 @@ function Collection({ nodeId }: { nodeId: string }) {
   const [mode, setMode] = useState<'day' | 'farmer'>('day');
   const [shift, setShift] = useState<'' | 'am' | 'pm'>('');
   const { data, isLoading } = usePours({ nodeId, from: daysAgo(30), to: today(), status: 'recorded', shift: shift || undefined, limit: 500 });
+  const { data: bandsData } = useQualityBands(nodeId);
   const farmerName = useFarmerName(nodeId);
   const pours = data?.data ?? [];
+  const bands = bandsData?.data;
 
   return (
     <div className="space-y-3">
@@ -106,12 +122,12 @@ function Collection({ nodeId }: { nodeId: string }) {
         <Pills value={shift} onChange={setShift} options={SHIFT_PILLS} />
       </div>
       {isLoading ? <Card><CardContent><TableSkeleton rows={6} cols={1} /></CardContent></Card>
-        : mode === 'day' ? <ByDay pours={pours} farmerName={farmerName} /> : <ByFarmer pours={pours} farmerName={farmerName} />}
+        : mode === 'day' ? <ByDay pours={pours} farmerName={farmerName} bands={bands} /> : <ByFarmer pours={pours} farmerName={farmerName} />}
     </div>
   );
 }
 
-function ByDay({ pours, farmerName }: { pours: MpPour[]; farmerName: (id: string) => string }) {
+function ByDay({ pours, farmerName, bands }: { pours: MpPour[]; farmerName: (id: string) => string; bands?: QualityBandMap }) {
   const groups = groupByDate(pours, (p) => p.collectionDate);
   return (
     <DayAccordion
@@ -122,7 +138,7 @@ function ByDay({ pours, farmerName }: { pours: MpPour[]; farmerName: (id: string
         const amt = g.rows.reduce((a, p) => a + Number(p.lineAmount), 0);
         return <span className="tabular-nums">{qty.toLocaleString()} L · ₹{amt.toLocaleString()} · {new Set(g.rows.map((p) => p.farmerId)).size} farmers</span>;
       }}
-      renderBody={(g) => <PourTable pours={g.rows} farmerName={farmerName} empty="—" />}
+      renderBody={(g) => <PourTable pours={g.rows} farmerName={farmerName} empty="—" bands={bands} />}
     />
   );
 }

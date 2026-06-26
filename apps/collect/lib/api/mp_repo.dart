@@ -259,6 +259,12 @@ class MpRepo {
     return MpCycleConfig.fromJson(_one(res) ?? const {});
   }
 
+  /// Per-milk-type quality band thresholds; [nodeId] null → tenant defaults.
+  Future<QualityBands> qualityBands({String? nodeId}) async {
+    final res = await _api.get('$_base/quality-bands${_qs({'nodeId': nodeId})}');
+    return QualityBands.fromJson(_one(res) ?? const {});
+  }
+
   /// Tenant support contacts shown on the Help & Support screen (all personas).
   Future<MpSupportConfig> supportConfig() async {
     final res = await _api.get('$_base/config/support');

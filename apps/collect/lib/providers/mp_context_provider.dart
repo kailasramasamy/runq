@@ -110,6 +110,12 @@ final operatorSelfProvider = FutureProvider<List<MpOperatorSelf>>((ref) async {
   return mpRepo.operatorSelf();
 });
 
+/// Quality band thresholds per milk type, keyed by nodeId (null = tenant default).
+/// Cached per node; refreshes when provider is invalidated.
+final qualityBandsProvider = FutureProvider.family<QualityBands, String?>((ref, nodeId) async {
+  return mpRepo.qualityBands(nodeId: nodeId);
+});
+
 /// The node whose dashboard an operator lands on: the highest tier they manage
 /// (PP ▸ CC ▸ VMCC), since a CC's assignment also resolves its child VMCCs.
 /// Null while loading or if none assigned.

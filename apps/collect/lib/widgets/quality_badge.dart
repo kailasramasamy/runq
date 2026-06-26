@@ -88,6 +88,13 @@ class QualityBadge extends StatelessWidget {
   static Color gradeColor(Grade g, DhenuTokens t) => _gradeColor(g, t);
   static String gradeLetter(Grade g) => _gradeLetter(g);
 
+  /// Maps a [QualityLevel] to the semantic grade token (dark-mode safe).
+  static Color levelColor(QualityLevel level, DhenuTokens t) => switch (level) {
+    QualityLevel.good => t.gradeA,
+    QualityLevel.watch => t.gradeB,
+    QualityLevel.low => t.gradeC,
+  };
+
   static Color _gradeColor(Grade g, DhenuTokens t) {
     switch (g) {
       case Grade.a:
@@ -105,38 +112,57 @@ class QualityBadge extends StatelessWidget {
 /// FAT, SNF and grade rendered as three separate chips (vs the single combined
 /// [QualityBadge] pill). Used in dense entry rows where each metric reads on its
 /// own. Wraps to a second line on narrow rows.
+///
+/// When both [bands] and [milkType] are provided, each metric pill is colored by
+/// its own [QualityLevel]; otherwise all pills use the grade color (existing
+/// behavior, all existing call sites compile unchanged).
 class QualityPills extends StatelessWidget {
-  const QualityPills({super.key, this.fat, this.snf, this.water, required this.grade});
+  const QualityPills({
+    super.key,
+    this.fat,
+    this.snf,
+    this.water,
+    required this.grade,
+    this.bands,
+    this.milkType,
+  });
 
   final double? fat;
   final double? snf;
   final double? water;
   final Grade grade;
+  final QualityBands? bands;
+  final MilkType? milkType;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final gc = QualityBadge.gradeColor(grade, t);
-    final border = gc.withValues(alpha: 0.35);
-    final fill = gc.withValues(alpha: 0.12);
+
+    Color metricColor(String metric, double? value) {
+      if (bands == null || milkType == null || value == null) return gc;
+      final level = bands!.levelFor(milkType!, metric, value);
+      return level == null ? gc : QualityBadge.levelColor(level, t);
+    }
+
     return Wrap(
       spacing: DhenuSpacing.xs,
       runSpacing: DhenuSpacing.xs,
       children: [
-        if (fat != null) _pill('FAT ${fat!.toStringAsFixed(1)}', gc, border, fill),
-        if (snf != null) _pill('SNF ${snf!.toStringAsFixed(1)}', gc, border, fill),
-        if (water != null) _pill('W ${water!.toStringAsFixed(1)}', gc, border, fill),
-        if (grade != Grade.unknown) _pill(QualityBadge.gradeLetter(grade), gc, border, fill),
+        if (fat != null) _pill('FAT ${fat!.toStringAsFixed(1)}', metricColor('fat', fat), t),
+        if (snf != null) _pill('SNF ${snf!.toStringAsFixed(1)}', metricColor('snf', snf), t),
+        if (water != null) _pill('W ${water!.toStringAsFixed(1)}', gc, t),
+        if (grade != Grade.unknown) _pill(QualityBadge.gradeLetter(grade), gc, t),
       ],
     );
   }
 
-  Widget _pill(String label, Color fg, Color border, Color fill) => Container(
+  Widget _pill(String label, Color fg, DhenuTokens t) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
         decoration: BoxDecoration(
-          color: fill,
+          color: fg.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
-          border: Border.all(color: border),
+          border: Border.all(color: fg.withValues(alpha: 0.35)),
         ),
         child: Text(label, style: DhenuText.caption.copyWith(color: fg)),
       );

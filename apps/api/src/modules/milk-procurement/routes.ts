@@ -8,6 +8,7 @@ import { nodeRoutes } from './node.routes';
 import { typedNodeRoutes } from './typed-node.routes';
 import { farmerRoutes } from './farmer.routes';
 import { rateChartRoutes } from './rate-chart.routes';
+import { qualityBandRoutes } from './quality-band.routes';
 import { pourRoutes } from './pour.routes';
 import { shiftClosureRoutes } from './shift-closure.routes';
 import { consignmentRoutes } from './consignment.routes';
@@ -34,6 +35,7 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(typedNodeRoutes('pp', createProcessingPlantSchema, updateProcessingPlantSchema), { prefix: '/processing-plants' });
   await app.register(farmerRoutes, { prefix: '/farmers' });
   await app.register(rateChartRoutes, { prefix: '/rate-charts' });
+  await app.register(qualityBandRoutes, { prefix: '/quality-bands' });
   await app.register(pourRoutes, { prefix: '/pours' });
   await app.register(shiftClosureRoutes, { prefix: '/shifts' });
   await app.register(consignmentRoutes, { prefix: '/consignments' });

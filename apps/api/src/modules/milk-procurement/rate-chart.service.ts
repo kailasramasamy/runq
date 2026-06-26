@@ -6,6 +6,7 @@ import type { PaginationMeta } from '@runq/types';
 import type { CreateRateChartInput, RateChartFilter, ResolveRateInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import type { RateChartPrintData } from './rate-chart-template';
+import { QualityBandService, gradeFromBands } from './quality-band.service';
 
 type Cell = typeof mpRateChartCells.$inferSelect;
 type Rule = typeof mpRateChartRules.$inferSelect;
@@ -29,10 +30,14 @@ type PricingMode = MpRateChartRow['pricingMode'];
 
 /** Rate charts (matrix/flat) + the per-pour rate resolution used by A3. */
 export class RateChartService {
+  private readonly bands: QualityBandService;
+
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
-  ) {}
+  ) {
+    this.bands = new QualityBandService(db, tenantId);
+  }
 
   async list(
     filters: RateChartFilter,
@@ -142,7 +147,10 @@ export class RateChartService {
       : chart.pricingMode === 'clr'
         ? await this.clrRate(chart.id, input.clr!)
         : await this.matrixRate(chart.id, input.fat!, input.snf!);
-    const grade = useClr ? null : deriveGrade(input.fat!, input.snf!);
+    // Grade from configurable bands: milk-type aware, and now grades CLR
+    // (lactometer) pours too instead of leaving them ungraded.
+    const bands = await this.bands.resolve(input.milkType, input.scopeNodeId ?? null);
+    const grade = gradeFromBands(bands, { fat: input.fat, snf: input.snf, clr: input.clr });
     const bonus = await this.bonusFor(chart.id, grade, input.cycleQtyLitres);
     return {
       rateChartId: chart.id,
@@ -215,16 +223,6 @@ export class RateChartService {
     if (filters.isActive !== undefined) conds.push(eq(mpRateCharts.isActive, filters.isActive));
     return and(...conds);
   }
-}
-
-/**
- * Default grade heuristic. Placeholder thresholds — to be made configurable
- * per pilot (tracker C4). A: FAT≥4.0 & SNF≥8.5 · B: FAT≥3.5 & SNF≥8.0 · else C.
- */
-function deriveGrade(fat: number, snf: number): Grade {
-  if (fat >= 4.0 && snf >= 8.5) return 'a';
-  if (fat >= 3.5 && snf >= 8.0) return 'b';
-  return 'c';
 }
 
 function numOrNull(v: number | null | undefined): string | null {

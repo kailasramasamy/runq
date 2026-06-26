@@ -16,6 +16,8 @@ export const mpPricingMode = pgEnum('mp_pricing_mode', ['matrix', 'flat', 'clr']
 // `lactometer` → CLR-only (clr charts). VMCC-level toggle; CC/PP are analyzer.
 export const mpMeasurementMode = pgEnum('mp_measurement_mode', ['analyzer', 'lactometer']);
 export const mpGrade = pgEnum('mp_grade', ['a', 'b', 'c']);
+// Which milk-quality metric a configurable good/watch/low band applies to.
+export const mpQualityMetric = pgEnum('mp_quality_metric', ['fat', 'snf', 'clr']);
 export const mpRateRule = pgEnum('mp_rate_rule', ['quality_bonus', 'volume_slab']);
 export const mpShift = pgEnum('mp_shift', ['am', 'pm']);
 // Which shifts a VMCC collects in. `both` (default) | `am` | `pm` — drives the

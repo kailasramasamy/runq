@@ -14,6 +14,7 @@ import { NODE_TYPE_META } from './_node-shared';
 import { VMCC_TABS, VmccDashboard } from './node-dashboard-vmcc';
 import { CC_TABS, CcDashboard } from './node-dashboard-cc';
 import { PP_TABS, PpDashboard } from './node-dashboard-pp';
+import { QualityBandsEditor } from './_quality-bands-editor';
 
 const SETUP_TAB = { id: 'setup', label: 'Setup' };
 function tabsForType(t: MpNode['nodeType']) {
@@ -65,6 +66,9 @@ export function MpNodeDetailPage() {
         <>
           <NodeSummary node={node} />
           <OperatorsSection nodeId={id} />
+          <div className="mt-4">
+            <QualityBandsEditor nodeId={id} title="Quality bands (node override)" />
+          </div>
         </>
       ) : (
         <DashboardForType node={node} tab={tab} />

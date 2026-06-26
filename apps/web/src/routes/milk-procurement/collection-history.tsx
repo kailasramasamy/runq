@@ -3,7 +3,8 @@ import {
   Card, CardContent, Badge, Combobox, Input, Pagination,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton,
 } from '@/components/ui';
-import { useNodes, useFarmers, usePours } from '@/hooks/queries/use-milk-procurement';
+import { useNodes, useFarmers, usePours, useQualityBands } from '@/hooks/queries/use-milk-procurement';
+import { bandLevel, bandCellClass } from './_quality-bands';
 
 const SHIFTS = [{ value: '', label: 'All shifts' }, { value: 'am', label: 'AM' }, { value: 'pm', label: 'PM' }];
 const STATUSES = [{ value: '', label: 'Active (recorded)' }, { value: 'recorded', label: 'Recorded' }, { value: 'reversed', label: 'Reversed' }];
@@ -32,9 +33,13 @@ export function CollectionHistoryView() {
     page,
     limit: LIMIT,
   });
+  const { data: bandsData } = useQualityBands(f.nodeId || undefined);
+  const bands = bandsData?.data;
   const pours = data?.data ?? [];
   const meta = data?.meta;
   const set = (patch: Partial<typeof f>) => { setF({ ...f, ...patch }); setPage(1); };
+  const qcClass = (val: string | null, band: Parameters<typeof bandLevel>[1]) =>
+    val != null ? bandCellClass(bandLevel(Number(val), band)) : '';
 
   return (
     <div>
@@ -74,7 +79,11 @@ export function CollectionHistoryView() {
                     <TableCell>{farmerName(p.farmerId)}</TableCell>
                     <TableCell>{p.shift.toUpperCase()}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.qtyLitres}</TableCell>
-                    <TableCell className="tabular-nums">{p.fat}/{p.snf}</TableCell>
+                    <TableCell className="tabular-nums">
+                      <span className={qcClass(p.fat, bands?.[p.milkType]?.fat)}>{p.fat ?? '—'}</span>
+                      /
+                      <span className={qcClass(p.snf, bands?.[p.milkType]?.snf)}>{p.snf ?? '—'}</span>
+                    </TableCell>
                     <TableCell className="tabular-nums">{p.water ?? '—'}</TableCell>
                     <TableCell><Badge variant={p.qualityGrade === 'a' ? 'success' : 'default'}>{p.qualityGrade?.toUpperCase()}</Badge></TableCell>
                     <TableCell className="text-right tabular-nums">{p.ratePerLitre}</TableCell>

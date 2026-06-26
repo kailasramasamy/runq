@@ -732,6 +732,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     if (pours.isEmpty) return const SizedBox.shrink();
     final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
+    final bands = ref.watch(qualityBandsProvider(widget.node.id)).asData?.value;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(isToday ? l.collectTodaysEntries(pours.length) : l.collectEntries(pours.length),
           style: DhenuText.title.copyWith(color: t.ink)),
@@ -742,6 +743,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         maxRowsPerShift: 8,
         showAvatar: false,
         showDate: !isToday,
+        bands: bands,
         onTapPour: (p, farmer) => showPourDetailSheet(
           context,
           pour: p,
@@ -901,11 +903,11 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           ));
     }
     final line = _qtyVal * r.ratePerLitre;
+    final bands = ref.watch(qualityBandsProvider(widget.node.id)).asData?.value;
+    final lowLabels = _lowMetricLabels(bands);
     return _previewShell(
       t,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // spaceBetween + a Flexible badge so the pill shrinks (and a forced gap
-        // keeps it off the rate) instead of overflowing into ₹/L on narrow phones.
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -923,6 +925,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             ]),
           ],
         ),
+        if (lowLabels.isNotEmpty) ...[
+          const SizedBox(height: DhenuSpacing.sm),
+          _lowQualityChip(lowLabels, t),
+        ],
         if (_qtyVal > 0) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Row(children: [
@@ -935,6 +941,35 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       ]),
     );
   }
+
+  /// Returns labels (e.g. ['FAT', 'SNF']) for metrics that are LOW per bands.
+  List<String> _lowMetricLabels(QualityBands? bands) {
+    if (bands == null) return const [];
+    final low = <String>[];
+    if (widget.node.isLactometer) {
+      final clr = _clrVal;
+      if (clr != null && bands.levelFor(_milkType, 'clr', clr) == QualityLevel.low) low.add('CLR');
+    } else {
+      final fat = _fatVal;
+      if (fat != null && bands.levelFor(_milkType, 'fat', fat) == QualityLevel.low) low.add('FAT');
+      final snf = _snfVal;
+      if (snf != null && bands.levelFor(_milkType, 'snf', snf) == QualityLevel.low) low.add('SNF');
+    }
+    return low;
+  }
+
+  Widget _lowQualityChip(List<String> labels, DhenuTokens t) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
+        decoration: BoxDecoration(
+          color: t.gradeC.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(DhenuRadii.pill),
+          border: Border.all(color: t.gradeC.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          '⚠ Low ${labels.join(' · Low ')}',
+          style: DhenuText.caption.copyWith(color: t.gradeC),
+        ),
+      );
 
   Widget _previewShell(DhenuTokens t, {required Widget child}) => SizedBox(
         width: double.infinity,

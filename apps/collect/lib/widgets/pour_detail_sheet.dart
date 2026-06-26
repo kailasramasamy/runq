@@ -71,6 +71,7 @@ class _PourDetailSheet extends ConsumerWidget {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final reversed = pour.status != 'recorded';
+    final bands = ref.watch(qualityBandsProvider(node.id)).asData?.value;
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
@@ -104,7 +105,11 @@ class _PourDetailSheet extends ConsumerWidget {
               ]),
               if (pour.fat != null) ...[
                 const SizedBox(height: DhenuSpacing.md),
-                QualityPills(fat: pour.fat, snf: pour.snf, water: pour.water, grade: pour.qualityGrade),
+                QualityPills(
+                  fat: pour.fat, snf: pour.snf, water: pour.water,
+                  grade: pour.qualityGrade,
+                  bands: bands, milkType: pour.milkType,
+                ),
               ],
               const SizedBox(height: DhenuSpacing.lg),
               Divider(height: 1, color: t.hairline),

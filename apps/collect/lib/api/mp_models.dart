@@ -899,3 +899,45 @@ class MpOperatorPayoutLine {
     paidOn: _sn(j['paidOn']),
   );
 }
+
+enum QualityLevel { good, watch, low }
+
+class QualityBand {
+  const QualityBand({required this.goodMin, required this.watchMin});
+  final double goodMin;
+  final double watchMin;
+
+  factory QualityBand.fromJson(Map<String, dynamic> j) =>
+      QualityBand(goodMin: _d(j['goodMin']), watchMin: _d(j['watchMin']));
+}
+
+class QualityBands {
+  const QualityBands(this._bands);
+  final Map<MilkType, Map<String, QualityBand>> _bands;
+
+  static const empty = QualityBands({});
+
+  /// Returns null when no band is configured for [type]+[metric] (no coloring).
+  QualityLevel? levelFor(MilkType type, String metric, double value) {
+    final band = _bands[type]?[metric];
+    if (band == null) return null;
+    if (value >= band.goodMin) return QualityLevel.good;
+    if (value >= band.watchMin) return QualityLevel.watch;
+    return QualityLevel.low;
+  }
+
+  factory QualityBands.fromJson(Map<String, dynamic> j) {
+    final bands = <MilkType, Map<String, QualityBand>>{};
+    j.forEach((typeKey, metricsRaw) {
+      if (metricsRaw is! Map) return;
+      final metrics = <String, QualityBand>{};
+      metricsRaw.forEach((metric, bandRaw) {
+        if (bandRaw is Map<String, dynamic>) {
+          metrics[metric.toString()] = QualityBand.fromJson(bandRaw);
+        }
+      });
+      bands[milkTypeFrom(typeKey)] = metrics;
+    });
+    return QualityBands(bands);
+  }
+}

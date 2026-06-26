@@ -101,6 +101,8 @@ export const MP_KEYS = {
   pours: (f?: unknown) => ['mp', 'pours', f] as const,
   ledger: (farmerId?: string) => ['mp', 'ledger', farmerId] as const,
   collection: (f?: unknown) => ['mp', 'reports', 'collection', f] as const,
+  qualityBands: (nodeId?: string) => ['mp', 'quality-bands', nodeId ?? null] as const,
+  qualityBandsConfig: (nodeId?: string) => ['mp', 'quality-bands-config', nodeId ?? null] as const,
 };
 
 function qs(params: Record<string, string | number | boolean | undefined>): string {
@@ -513,6 +515,21 @@ export function useMarkOperatorPayout() {
   });
 }
 
+// ── quality bands ─────────────────────────────────────────────────────────────
+export type QualityMetric = 'fat' | 'snf' | 'clr';
+export interface QualityBandRange { goodMin: number; watchMin: number }
+export type QualityBandMetrics = Partial<Record<QualityMetric, QualityBandRange>>
+export type QualityBandMap = Partial<Record<MilkType, QualityBandMetrics>>
+export interface QualityBandRow {
+  id: string; tenantId: string; nodeId: string | null;
+  milkType: MilkType; metric: QualityMetric; goodMin: string; watchMin: string;
+  createdAt: string; updatedAt: string;
+}
+export interface UpsertQualityBandsInput {
+  nodeId?: string | null;
+  bands: { milkType: MilkType; metric: QualityMetric; goodMin: number; watchMin: number }[];
+}
+
 // ── config (gl settings) ─────────────────────────────────────────────────────
 export interface MpGlSettings {
   id: string; defaultPayoutMode: PayoutMode;
@@ -551,5 +568,26 @@ export function useUpsertRawMilkItems() {
     mutationFn: (mappings: { milkType: MpMilkType; itemId: string }[]) =>
       api.put<ApiSuccess<MpRawMilkItem[]>>(`${BASE}/config/raw-milk-items`, { mappings }),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'raw-milk-items'] }),
+  });
+}
+
+// ── quality bands ─────────────────────────────────────────────────────────────
+export function useQualityBands(nodeId?: string) {
+  return useQuery({
+    queryKey: MP_KEYS.qualityBands(nodeId),
+    queryFn: () => api.get<ApiSuccess<QualityBandMap>>(`${BASE}/quality-bands${qs({ nodeId })}`),
+  });
+}
+export function useQualityBandsConfig(nodeId?: string) {
+  return useQuery({
+    queryKey: MP_KEYS.qualityBandsConfig(nodeId),
+    queryFn: () => api.get<ApiSuccess<QualityBandRow[]>>(`${BASE}/quality-bands/config${qs({ nodeId })}`),
+  });
+}
+export function useUpsertQualityBands() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: UpsertQualityBandsInput) => api.put<ApiSuccess<void>>(`${BASE}/quality-bands`, d),
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'quality-bands'] }),
   });
 }
