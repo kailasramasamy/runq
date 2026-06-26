@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PageHeader, Card, CardContent, CardHeader, Button, Input, Combobox, useToast } from '@/components/ui';
+import { Tabs } from '@/components/ar/primitives';
 import {
   useGlSettings, useUpsertGlSettings,
   useRawMilkItems, useUpsertRawMilkItems,
@@ -31,18 +32,37 @@ const MILK_TYPES: { value: MpMilkType; label: string }[] = [
   { value: 'cow', label: 'Cow (legacy)' },
 ];
 
+type SettingsTab = 'general' | 'quality' | 'inventory' | 'support';
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'general', label: 'Payout & cycle' },
+  { id: 'quality', label: 'Quality bands' },
+  { id: 'inventory', label: 'Raw-milk inventory' },
+  { id: 'support', label: 'Support' },
+];
+
 export function MpSettingsPage() {
   const { data } = useGlSettings();
+  const [tab, setTab] = useState<SettingsTab>('general');
+  const settings = data?.data ?? null;
   return (
-    <div className="mx-auto max-w-2xl">
+    <div>
       <PageHeader title="Settings" description="Tenant-level milk-procurement configuration." />
-      <div className="grid gap-4">
-        <PayoutCard settings={data?.data ?? null} />
-        <CycleCard settings={data?.data ?? null} />
+      <Tabs active={tab} onChange={setTab} tabs={SETTINGS_TABS} />
+      {tab === 'general' && (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <PayoutCard settings={settings} />
+          <CycleCard settings={settings} />
+        </div>
+      )}
+      {tab === 'quality' && (
         <QualityBandsEditor nodeId={null} title="Quality bands (tenant defaults)" />
-        <RawMilkInventoryCard settings={data?.data ?? null} />
-        <SupportCard settings={data?.data ?? null} />
-      </div>
+      )}
+      {tab === 'inventory' && (
+        <div className="max-w-2xl"><RawMilkInventoryCard settings={settings} /></div>
+      )}
+      {tab === 'support' && (
+        <div className="max-w-2xl"><SupportCard settings={settings} /></div>
+      )}
     </div>
   );
 }
