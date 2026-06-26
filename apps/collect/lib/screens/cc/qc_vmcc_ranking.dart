@@ -6,6 +6,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/quality_badge.dart';
 import 'qc_report_view.dart';
 
 enum _SortKey { litres, fat, snf, water }
@@ -16,10 +17,19 @@ typedef _Row = ({MpNode vmcc, QcAcc acc});
 /// qty-weighted FAT/SNF/Water and total received over the window. Tap a column
 /// header to re-rank by that metric (Water defaults low→high, the rest high→low).
 class QcVmccRanking extends StatefulWidget {
-  const QcVmccRanking({super.key, required this.rows, required this.vmccs, required this.days});
+  const QcVmccRanking({
+    super.key,
+    required this.rows,
+    required this.vmccs,
+    required this.days,
+    this.bands,
+    this.milkType,
+  });
   final List<MpConsignment> rows;
   final List<MpNode> vmccs;
   final int days;
+  final QualityBands? bands;
+  final MilkType? milkType;
 
   @override
   State<QcVmccRanking> createState() => _QcVmccRankingState();
@@ -94,11 +104,11 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
             ]),
           ),
           _metricSection(t, 'By FAT', 'high → low', t.brand,
-              _sorted(withData, (a) => a.avgFat, desc: true), (a) => a.avgFat),
+              _sorted(withData, (a) => a.avgFat, desc: true), (a) => a.avgFat, 'fat'),
           _metricSection(t, 'By SNF', 'high → low', t.am,
-              _sorted(withData, (a) => a.avgSnf, desc: true), (a) => a.avgSnf),
+              _sorted(withData, (a) => a.avgSnf, desc: true), (a) => a.avgSnf, 'snf'),
           _metricSection(t, 'By Water', 'low → high', t.pm,
-              _sorted(withData, (a) => a.avgWater, desc: false), (a) => a.avgWater),
+              _sorted(withData, (a) => a.avgWater, desc: false), (a) => a.avgWater, 'water'),
         ],
       ],
     );
@@ -115,7 +125,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
   }
 
   Widget _metricSection(DhenuTokens t, String title, String hint, Color accent,
-      List<_Row> ranked, double? Function(QcAcc) metric) {
+      List<_Row> ranked, double? Function(QcAcc) metric, String metricKey) {
     if (ranked.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: DhenuSpacing.lg),
@@ -130,16 +140,19 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
         child: Column(children: [
           for (var i = 0; i < ranked.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
-            _metricRow(t, i + 1, ranked[i], accent, metric),
+            _metricRow(t, i + 1, ranked[i], accent, metric, metricKey),
           ],
         ]),
       ),
     ]);
   }
 
-  Widget _metricRow(
-      DhenuTokens t, int rank, _Row r, Color accent, double? Function(QcAcc) metric) {
+  Widget _metricRow(DhenuTokens t, int rank, _Row r, Color accent,
+      double? Function(QcAcc) metric, String metricKey) {
     final v = metric(r.acc);
+    final valueColor = (metricKey != 'water' && widget.bands != null && widget.milkType != null && v != null)
+        ? QualityBadge.bandColor(widget.bands, widget.milkType, metricKey, v, t) ?? accent
+        : accent;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.sm),
       child: Row(children: [
@@ -152,7 +165,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600))),
-        Text(v == null ? '—' : oneDp(v), style: DhenuText.number(size: 15, color: accent)),
+        Text(v == null ? '—' : oneDp(v), style: DhenuText.number(size: 15, color: valueColor)),
         const SizedBox(width: DhenuSpacing.md),
         SizedBox(
             width: 64,
@@ -230,16 +243,22 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
             child: Text(empty ? '—' : litres(r.acc.qty),
                 textAlign: TextAlign.right,
                 style: DhenuText.number(size: 14, color: empty ? t.inkSoft : t.ink))),
-        Expanded(flex: 2, child: _mCell(t, r.acc.avgFat)),
-        Expanded(flex: 2, child: _mCell(t, r.acc.avgSnf)),
-        Expanded(flex: 2, child: _mCell(t, r.acc.avgWater)),
+        Expanded(flex: 2, child: _mCell(t, r.acc.avgFat, 'fat')),
+        Expanded(flex: 2, child: _mCell(t, r.acc.avgSnf, 'snf')),
+        Expanded(flex: 2, child: _mCell(t, r.acc.avgWater, null)),
       ]),
     );
   }
 
-  Widget _mCell(DhenuTokens t, double? v) => Text(
-        v == null ? '—' : oneDp(v),
-        textAlign: TextAlign.right,
-        style: DhenuText.number(size: 14, color: v == null ? t.inkSoft : t.ink),
-      );
+  Widget _mCell(DhenuTokens t, double? v, String? metric) {
+    final Color color;
+    if (metric != null && widget.bands != null && widget.milkType != null) {
+      color = QualityBadge.bandColor(widget.bands, widget.milkType, metric, v, t)
+          ?? (v == null ? t.inkSoft : t.ink);
+    } else {
+      color = v == null ? t.inkSoft : t.ink;
+    }
+    return Text(v == null ? '—' : oneDp(v), textAlign: TextAlign.right,
+        style: DhenuText.number(size: 14, color: color));
+  }
 }

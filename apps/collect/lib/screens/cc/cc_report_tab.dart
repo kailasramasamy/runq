@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -9,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
+import '../../widgets/quality_badge.dart';
 import '../../widgets/stat_card.dart';
 import 'qc_report_view.dart';
 
@@ -52,19 +54,22 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
               title: 'Could not load the report',
               subtitle: '$e',
             ),
-            data: (rows) => rows.isEmpty
-                ? const DhenuEmptyState(
-                    icon: DhenuIcons.drop,
-                    title: 'No milk received on this date',
-                  )
-                : _body(t, rows),
+            data: (rows) {
+              final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
+              return rows.isEmpty
+                  ? const DhenuEmptyState(
+                      icon: DhenuIcons.drop,
+                      title: 'No milk received on this date',
+                    )
+                  : _body(t, rows, bands);
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _body(DhenuTokens t, List<MpConsignment> rows) {
+  Widget _body(DhenuTokens t, List<MpConsignment> rows, QualityBands bands) {
     final acc = QcAcc();
     var amQty = 0.0, pmQty = 0.0;
     final sources = <String>{};
@@ -85,11 +90,11 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
         ),
       ),
       const SizedBox(height: DhenuSpacing.md),
-      _statsGrid(t, acc, amQty, pmQty, sources.length),
+      _statsGrid(t, acc, amQty, pmQty, sources.length, bands),
     ]);
   }
 
-  Widget _statsGrid(DhenuTokens t, QcAcc acc, double amQty, double pmQty, int sources) {
+  Widget _statsGrid(DhenuTokens t, QcAcc acc, double amQty, double pmQty, int sources, QualityBands bands) {
     String pct(double? v) => v == null ? '—' : '${oneDp(v)} %';
     return GridView.count(
       crossAxisCount: 2,
@@ -101,8 +106,14 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
       children: [
         DhenuStatCard(label: 'AM', value: litres(amQty, unit: true), valueColor: t.am),
         DhenuStatCard(label: 'PM', value: litres(pmQty, unit: true), valueColor: t.pm),
-        DhenuStatCard(label: 'AVG FAT', value: pct(acc.avgFat), valueColor: t.brand),
-        DhenuStatCard(label: 'AVG SNF', value: pct(acc.avgSnf), valueColor: t.brand),
+        DhenuStatCard(
+          label: 'AVG FAT', value: pct(acc.avgFat),
+          valueColor: QualityBadge.bandColor(bands, widget.node.effectiveMilkType, 'fat', acc.avgFat, t) ?? t.brand,
+        ),
+        DhenuStatCard(
+          label: 'AVG SNF', value: pct(acc.avgSnf),
+          valueColor: QualityBadge.bandColor(bands, widget.node.effectiveMilkType, 'snf', acc.avgSnf, t) ?? t.brand,
+        ),
         if ((acc.avgWater ?? 0) > 0)
           DhenuStatCard(label: 'AVG WATER', value: pct(acc.avgWater), valueColor: t.brand),
         DhenuStatCard(label: 'SOURCE VMCCS', value: '$sources', valueColor: t.ink),

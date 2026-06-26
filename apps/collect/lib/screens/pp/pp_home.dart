@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../providers/sync_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -42,6 +43,8 @@ class PpHome extends ConsumerWidget {
     final flow = _flowByNode(tankers);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
+    final bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
+    final milkType = node.effectiveMilkType;
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -52,7 +55,7 @@ class PpHome extends ConsumerWidget {
         children: [
           _header(context, ref, t, sync),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, consAsync),
+          _hero(t, consAsync, bands, milkType),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
@@ -69,7 +72,7 @@ class PpHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.lg),
           Text('Recent receives', style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _recentReceives(t, tankers, names),
+          _recentReceives(t, tankers, names, bands, milkType),
         ],
       ),
     );
@@ -98,7 +101,7 @@ class PpHome extends ConsumerWidget {
     );
   }
 
-  Widget _hero(DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync) {
+  Widget _hero(DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
     return consAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(
@@ -137,10 +140,23 @@ class PpHome extends ConsumerWidget {
                 style: DhenuText.body.copyWith(color: onHeroSoft)),
             const Spacer(),
             if (avgFat > 0)
-              Text(
-                  'FAT ${avgFat.toStringAsFixed(1)} · SNF ${avgSnf.toStringAsFixed(1)}'
-                  '${avgWater > 0 ? ' · W ${avgWater.toStringAsFixed(1)}' : ''}',
-                  style: DhenuText.caption.copyWith(color: onHero)),
+              Text.rich(TextSpan(
+                style: DhenuText.caption.copyWith(color: onHero),
+                children: [
+                  TextSpan(
+                    text: 'FAT ${avgFat.toStringAsFixed(1)}',
+                    style: TextStyle(
+                        color: QualityBadge.bandColor(bands, milkType, 'fat', avgFat, t) ?? onHero),
+                  ),
+                  const TextSpan(text: ' · '),
+                  TextSpan(
+                    text: 'SNF ${avgSnf.toStringAsFixed(1)}',
+                    style: TextStyle(
+                        color: QualityBadge.bandColor(bands, milkType, 'snf', avgSnf, t) ?? onHero),
+                  ),
+                  if (avgWater > 0) TextSpan(text: ' · W ${avgWater.toStringAsFixed(1)}'),
+                ],
+              )),
           ]),
         );
       },
@@ -264,7 +280,7 @@ class PpHome extends ConsumerWidget {
     );
   }
 
-  Widget _recentReceives(DhenuTokens t, List<MpConsignment> tankers, Map<String, String> names) {
+  Widget _recentReceives(DhenuTokens t, List<MpConsignment> tankers, Map<String, String> names, QualityBands bands, MilkType milkType) {
     final received = tankers.where((c) => c.received).toList().reversed.toList();
     if (received.isEmpty) {
       return const DhenuEmptyState(
@@ -279,13 +295,13 @@ class PpHome extends ConsumerWidget {
       child: Column(children: [
         for (var i = 0; i < show.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _receiveRow(t, show[i], names),
+          _receiveRow(t, show[i], names, bands, milkType),
         ],
       ]),
     );
   }
 
-  Widget _receiveRow(DhenuTokens t, MpConsignment c, Map<String, String> names) {
+  Widget _receiveRow(DhenuTokens t, MpConsignment c, Map<String, String> names, QualityBands bands, MilkType milkType) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
     return Padding(
@@ -305,7 +321,8 @@ class PpHome extends ConsumerWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             if (c.receiptFat != null)
-              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater, grade: Grade.unknown),
+              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
+                  grade: Grade.unknown, bands: bands, milkType: milkType),
           ]),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

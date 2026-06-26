@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -32,12 +33,16 @@ class CcReceiveHistory extends ConsumerStatefulWidget {
 class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   final _open = <String>{};
   bool _seeded = false;
+  QualityBands _bands = QualityBands.empty;
+  MilkType _milkType = MilkType.cowA1;
 
   MpNode get node => widget.node;
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    _bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
+    _milkType = node.effectiveMilkType;
     final async =
         ref.watch(nodeReceivedDailyProvider((nodeId: node.id, days: CcReceiveHistory._days)));
     final names = {
@@ -118,7 +123,8 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
                 style: DhenuText.body.copyWith(color: t.inkSoft))),
         if (day.fat != null)
           QualityBadge(fat: day.fat, snf: day.snf, water: day.water,
-              grade: Grade.unknown, format: QualityFormat.valueLabel),
+              grade: Grade.unknown, format: QualityFormat.valueLabel,
+              bands: _bands, milkType: _milkType),
       ]),
     );
   }
@@ -202,7 +208,8 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
               ],
               if (a.fat != null)
                 QualityBadge(fat: a.fat, snf: a.snf, water: a.water,
-                    grade: Grade.unknown, format: QualityFormat.valueLabel),
+                    grade: Grade.unknown, format: QualityFormat.valueLabel,
+                    bands: _bands, milkType: _milkType),
             ]),
           ])),
           const SizedBox(width: DhenuSpacing.sm),
@@ -282,7 +289,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
         Row(children: [
           if (c.receiptFat != null)
             QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
-                grade: Grade.unknown),
+                grade: Grade.unknown, bands: _bands, milkType: _milkType),
           const Spacer(),
           Text('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}% var',
               style: DhenuText.caption.copyWith(color: vColor)),

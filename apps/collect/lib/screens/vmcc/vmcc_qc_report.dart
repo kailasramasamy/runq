@@ -38,6 +38,7 @@ class _VmccQcReportState extends ConsumerState<VmccQcReport> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final daysAsync = ref.watch(nodePoursDailyProvider(_key));
+    final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -66,14 +67,14 @@ class _VmccQcReportState extends ConsumerState<VmccQcReport> {
                     DhenuEmptyState(
                         icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
                   ]),
-                  data: (days) => _report(days),
+                  data: (days) => _report(days, bands),
                 ),
         ),
       ),
     ]);
   }
 
-  Widget _report(List<MpPourDay> days) {
+  Widget _report(List<MpPourDay> days, QualityBands? bands) {
     final perFarmer = _scope == _Scope.farmer;
     return QcReportView(
       samples: [
@@ -89,6 +90,8 @@ class _VmccQcReportState extends ConsumerState<VmccQcReport> {
           : 'Qty-weighted quality across all farmers',
       emptyTitle: 'No readings in this window',
       emptySubtitle: 'Record collections to see the daily QC trend',
+      bands: bands,
+      milkType: widget.node.effectiveMilkType,
     );
   }
 

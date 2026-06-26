@@ -20,6 +20,8 @@ class QualityBadge extends StatelessWidget {
     required this.grade,
     this.compact = false,
     this.format,
+    this.bands,
+    this.milkType,
   });
 
   final double? fat;
@@ -29,10 +31,19 @@ class QualityBadge extends StatelessWidget {
   final bool compact;
   final QualityFormat? format;
 
+  /// When both [bands] and [milkType] are set, the pill is coloured by the worst
+  /// band across FAT/SNF (a single quality colour for aggregate rows); otherwise
+  /// it falls back to the grade colour.
+  final QualityBands? bands;
+  final MilkType? milkType;
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final gradeColor = _gradeColor(grade, t);
+    final level = (bands != null && milkType != null)
+        ? bands!.worstLevel(milkType!, fat: fat, snf: snf)
+        : null;
+    final gradeColor = level != null ? levelColor(level, t) : _gradeColor(grade, t);
     final fillColor = gradeColor.withValues(alpha: 0.12);
     final label = _buildLabel();
 
@@ -94,6 +105,20 @@ class QualityBadge extends StatelessWidget {
     QualityLevel.watch => t.gradeB,
     QualityLevel.low => t.gradeC,
   };
+
+  /// Band colour for one metric value as plain text — null when no band applies
+  /// (caller keeps its default colour). Used where FAT/SNF render as raw text.
+  static Color? bandColor(
+    QualityBands? bands,
+    MilkType? milkType,
+    String metric,
+    double? value,
+    DhenuTokens t,
+  ) {
+    if (bands == null || milkType == null || value == null) return null;
+    final level = bands.levelFor(milkType, metric, value);
+    return level == null ? null : levelColor(level, t);
+  }
 
   static Color _gradeColor(Grade g, DhenuTokens t) {
     switch (g) {

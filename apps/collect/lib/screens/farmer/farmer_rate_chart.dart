@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -10,6 +11,7 @@ import '../../utils/format.dart';
 import '../../widgets/audio_play.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/quality_badge.dart';
 import 'farmer_insights.dart';
 
 /// Rate chart screen — FAT×SNF matrix or flat rate, with the farmer's last
@@ -29,6 +31,7 @@ class FarmerRateChart extends ConsumerWidget {
         ? monthPours.reduce((a, b) =>
             a.collectionDate.compareTo(b.collectionDate) >= 0 ? a : b)
         : null;
+    final bands = ref.watch(qualityBandsProvider(null)).valueOrNull;
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -77,6 +80,7 @@ class FarmerRateChart extends ConsumerWidget {
             lastPour: lastPour,
             lastRate: lastRate,
             dailyQty: averageDailyQty(monthPours),
+            bands: bands,
           );
         },
       ),
@@ -90,12 +94,14 @@ class _RateChartBody extends StatelessWidget {
     required this.lastPour,
     required this.lastRate,
     required this.dailyQty,
+    this.bands,
   });
 
   final MpRateChartDetail detail;
   final MpPour? lastPour;
   final MpRateResolution? lastRate;
   final double dailyQty;
+  final QualityBands? bands;
 
   @override
   Widget build(BuildContext context) {
@@ -196,18 +202,29 @@ class _RateChartBody extends StatelessWidget {
                     style: DhenuText.label.copyWith(color: t.brand),
                   ),
                   const SizedBox(height: DhenuSpacing.xs),
-                  Text(
-                    'FAT ${oneDp(lastPour!.fat ?? 0)} · '
-                    'SNF ${oneDp(lastPour!.snf ?? 0)} → '
-                    '${rupees(lastRate!.ratePerLitre, paise: true)}/L',
-                    style: DhenuText.body.copyWith(color: t.ink),
-                  ),
+                  _lastPourText(t),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _lastPourText(DhenuTokens t) {
+    final milkType = lastPour!.milkType;
+    final fatColor = QualityBadge.bandColor(bands, milkType, 'fat', lastPour!.fat, t) ?? t.ink;
+    final snfColor = QualityBadge.bandColor(bands, milkType, 'snf', lastPour!.snf, t) ?? t.ink;
+    final base = DhenuText.body.copyWith(color: t.ink);
+    return RichText(
+      text: TextSpan(style: base, children: [
+        const TextSpan(text: 'FAT '),
+        TextSpan(text: oneDp(lastPour!.fat ?? 0), style: TextStyle(color: fatColor)),
+        const TextSpan(text: ' · SNF '),
+        TextSpan(text: oneDp(lastPour!.snf ?? 0), style: TextStyle(color: snfColor)),
+        TextSpan(text: ' → ${rupees(lastRate!.ratePerLitre, paise: true)}/L'),
+      ]),
     );
   }
 

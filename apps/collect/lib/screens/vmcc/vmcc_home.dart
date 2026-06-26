@@ -15,6 +15,7 @@ import '../../widgets/hero_number_card.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
+import '../../widgets/quality_badge.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import 'record_collection.dart';
@@ -44,6 +45,7 @@ class VmccHome extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final sync = ref.watch(syncProvider);
     final summary = ref.watch(nodeTodaySummaryProvider(node.id));
+    final bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull;
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
       child: ListView(
@@ -53,7 +55,7 @@ class VmccHome extends ConsumerWidget {
         children: [
           _header(context, ref, t, l, sync),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, l, summary),
+          _hero(t, l, summary, bands),
           const SizedBox(height: DhenuSpacing.md),
           _statsRow(ref, t, l, summary),
           const SizedBox(height: DhenuSpacing.lg),
@@ -122,7 +124,7 @@ class VmccHome extends ConsumerWidget {
         ],
       );
 
-  Widget _hero(DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {
+  Widget _hero(DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary, QualityBands? bands) {
     return summary.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(label: l.homeHeroToday, primaryValue: '—', footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
@@ -137,7 +139,7 @@ class VmccHome extends ConsumerWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          footer: _heroFooter(l, s, isAm),
+          footer: _heroFooter(l, s, isAm, bands),
         );
       },
     );
@@ -148,7 +150,7 @@ class VmccHome extends ConsumerWidget {
   /// reads "AM done · 147.8 L collected". Farmer count + quality show only while
   /// the other shift is empty — there the whole day's data is this shift, so the
   /// day-level figures match the headline. Hidden before any collection today.
-  Widget? _heroFooter(AppLocalizations l, MpCollectionSummary? s, bool isAm) {
+  Widget? _heroFooter(AppLocalizations l, MpCollectionSummary? s, bool isAm, QualityBands? bands) {
     if (s == null) return null;
     final otherQty = isAm ? s.pmQty : s.amQty;
     if (otherQty > 0.05) {
@@ -158,15 +160,36 @@ class VmccHome extends ConsumerWidget {
       );
     }
     if (s.totalQty <= 0.05) return null;
+    final milkType = node.effectiveMilkType;
     return Row(children: [
       Text(l.homeFarmerCount(s.farmerCount),
           style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
       const Spacer(),
-      Text(
-          'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
-          '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
-          style: DhenuText.caption.copyWith(color: Colors.white)),
+      _qualityText(s, bands, milkType),
     ]);
+  }
+
+  Widget _qualityText(MpCollectionSummary s, QualityBands? bands, MilkType milkType) {
+    // Build inline color tokens here — this widget lives on the dark hero.
+    final base = DhenuText.caption.copyWith(color: Colors.white);
+    // Retrieve a single DhenuTokens via a Builder is expensive; instead use the
+    // static bandColor helper which returns null when no band matches and we fall
+    // back to white. We resolve colors at build time using a Builder.
+    return Builder(builder: (ctx) {
+      final tk = DT(ctx);
+      final fatColor = QualityBadge.bandColor(bands, milkType, 'fat', s.avgFat, tk) ?? Colors.white;
+      final snfColor = QualityBadge.bandColor(bands, milkType, 'snf', s.avgSnf, tk) ?? Colors.white;
+      return RichText(
+        text: TextSpan(style: base, children: [
+          const TextSpan(text: 'FAT '),
+          TextSpan(text: s.avgFat.toStringAsFixed(1), style: TextStyle(color: fatColor)),
+          const TextSpan(text: ' · SNF '),
+          TextSpan(text: s.avgSnf.toStringAsFixed(1), style: TextStyle(color: snfColor)),
+          if (s.avgWater > 0)
+            TextSpan(text: ' · W ${s.avgWater.toStringAsFixed(1)}'),
+        ]),
+      );
+    });
   }
 
   Widget _statsRow(WidgetRef ref, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {

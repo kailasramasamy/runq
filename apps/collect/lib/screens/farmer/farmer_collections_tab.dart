@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -30,6 +31,8 @@ class FarmerCollectionsTab extends ConsumerWidget {
     final periods = ref.watch(farmerCyclePeriodsProvider).asData?.value ?? const <MpCyclePeriod>[];
     final period = periods.isEmpty ? null : periods.first;
     final past = periods.length > 1 ? periods.sublist(1) : const <MpCyclePeriod>[];
+    final bands = ref.watch(qualityBandsProvider(null)).valueOrNull;
+    final farmer = ref.watch(farmerSelfProvider).valueOrNull;
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -48,8 +51,14 @@ class FarmerCollectionsTab extends ConsumerWidget {
             ),
           ],
         ),
-        data: (pours) =>
-            _Body(pours: pours, period: period, pastPeriods: past, onRefresh: () => _refresh(ref)),
+        data: (pours) => _Body(
+          pours: pours,
+          period: period,
+          pastPeriods: past,
+          onRefresh: () => _refresh(ref),
+          bands: bands,
+          milkType: farmer?.defaultMilkType,
+        ),
       ),
     );
   }
@@ -72,12 +81,16 @@ class _Body extends StatelessWidget {
     required this.period,
     required this.pastPeriods,
     required this.onRefresh,
+    this.bands,
+    this.milkType,
   });
 
   final List<MpPour> pours;
   final MpCyclePeriod? period;
   final List<MpCyclePeriod> pastPeriods;
   final VoidCallback onRefresh;
+  final QualityBands? bands;
+  final MilkType? milkType;
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +134,7 @@ class _Body extends StatelessWidget {
               sliver: SliverList.separated(
                 itemCount: dates.length,
                 separatorBuilder: (ctx, i) => const SizedBox(height: DhenuSpacing.sm),
-                itemBuilder: (context, i) => _DayRow(date: dates[i], pours: grouped[dates[i]]!),
+                itemBuilder: (context, i) => _DayRow(date: dates[i], pours: grouped[dates[i]]!, bands: bands, milkType: milkType),
               ),
             ),
           ],
@@ -437,10 +450,12 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
 // ── Day row card ──────────────────────────────────────────────────────────────
 
 class _DayRow extends StatelessWidget {
-  const _DayRow({required this.date, required this.pours});
+  const _DayRow({required this.date, required this.pours, this.bands, this.milkType});
 
   final String date;
   final List<MpPour> pours;
+  final QualityBands? bands;
+  final MilkType? milkType;
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +507,7 @@ class _DayRow extends StatelessWidget {
               children: [
                 Text(litres(totalL, unit: true), style: DhenuText.label.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.xs),
-                QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: bestGrade, compact: true),
+                QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: bestGrade, compact: true, bands: bands, milkType: milkType),
               ],
             ),
           ),

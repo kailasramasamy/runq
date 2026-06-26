@@ -414,6 +414,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     final priorQty = existing.fold<double>(0, (s, p) => s + p.qtyLitres);
     final combinedQty = priorQty + _qtyVal;
     final first = existing.first;
+    final bands = ref.read(qualityBandsProvider(widget.node.id)).valueOrNull;
     return showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -445,7 +446,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                       const SizedBox(height: DhenuSpacing.sm),
                       QualityBadge(
                         fat: first.fat, snf: first.snf, water: first.water,
-                        grade: first.qualityGrade, format: QualityFormat.valueLabel),
+                        grade: first.qualityGrade, format: QualityFormat.valueLabel,
+                        bands: bands, milkType: first.milkType),
                     ],
                   ]),
                 ),

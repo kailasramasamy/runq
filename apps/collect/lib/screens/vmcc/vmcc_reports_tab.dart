@@ -9,6 +9,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/quality_badge.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/stat_card.dart';
 import 'vmcc_qc_report.dart';
@@ -103,6 +104,7 @@ class _SummaryViewState extends ConsumerState<_SummaryView> {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final summaryAsync = ref.watch(nodeSummaryForDateProvider(_key));
+    final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull;
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
@@ -125,14 +127,14 @@ class _SummaryViewState extends ConsumerState<_SummaryView> {
             ),
             data: (s) => s == null || s.totalQty <= 0
                 ? DhenuEmptyState(icon: DhenuIcons.drop, title: l.reportsNoCollectionToday)
-                : _summaryBody(context, t, s),
+                : _summaryBody(context, t, s, bands),
           ),
         ],
       ),
     );
   }
 
-  Widget _summaryBody(BuildContext context, DhenuTokens t, MpCollectionSummary s) {
+  Widget _summaryBody(BuildContext context, DhenuTokens t, MpCollectionSummary s, QualityBands? bands) {
     final l = AppLocalizations.of(context);
     return Column(children: [
       HeroNumberCard(
@@ -144,12 +146,15 @@ class _SummaryViewState extends ConsumerState<_SummaryView> {
         ),
       ),
       const SizedBox(height: DhenuSpacing.md),
-      _statsGrid(context, t, s),
+      _statsGrid(context, t, s, bands),
     ]);
   }
 
-  Widget _statsGrid(BuildContext context, DhenuTokens t, MpCollectionSummary s) {
+  Widget _statsGrid(BuildContext context, DhenuTokens t, MpCollectionSummary s, QualityBands? bands) {
     final l = AppLocalizations.of(context);
+    final milkType = widget.node.effectiveMilkType;
+    final fatColor = QualityBadge.bandColor(bands, milkType, 'fat', s.avgFat, t) ?? t.brand;
+    final snfColor = QualityBadge.bandColor(bands, milkType, 'snf', s.avgSnf, t) ?? t.brand;
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -160,8 +165,8 @@ class _SummaryViewState extends ConsumerState<_SummaryView> {
       children: [
         DhenuStatCard(label: l.reportsStatAmLabel, value: litres(s.amQty, unit: true), valueColor: t.am),
         DhenuStatCard(label: l.reportsStatPmLabel, value: litres(s.pmQty, unit: true), valueColor: t.pm),
-        DhenuStatCard(label: l.reportsStatAvgFat, value: '${oneDp(s.avgFat)} %', valueColor: t.brand),
-        DhenuStatCard(label: l.reportsStatAvgSnf, value: '${oneDp(s.avgSnf)} %', valueColor: t.brand),
+        DhenuStatCard(label: l.reportsStatAvgFat, value: '${oneDp(s.avgFat)} %', valueColor: fatColor),
+        DhenuStatCard(label: l.reportsStatAvgSnf, value: '${oneDp(s.avgSnf)} %', valueColor: snfColor),
         if (s.avgWater > 0)
           DhenuStatCard(label: l.reportsStatAvgWater, value: '${oneDp(s.avgWater)} %', valueColor: t.brand),
         DhenuStatCard(label: l.reportsStatFarmers, value: '${s.farmerCount}', valueColor: t.ink),

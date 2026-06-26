@@ -3,11 +3,14 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../providers/mp_context_provider.dart';
+import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/primary_action.dart';
+import '../../widgets/quality_badge.dart';
 
 /// Dedicated screen for receiving an in-transit consignment — the receiving
 /// node's most critical task. The source's *dispatched* figures are shown
@@ -123,6 +126,13 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final bands = ref.watch(qualityBandsProvider(widget.nodeId)).valueOrNull ?? QualityBands.empty;
+    final ccNodes = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
+    final ppNodes = ref.watch(nodesByTypeProvider('pp')).value ?? const <MpNode>[];
+    MilkType? milkType;
+    for (final n in [...ccNodes, ...ppNodes]) {
+      if (n.id == widget.nodeId) { milkType = n.effectiveMilkType; break; }
+    }
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(title: Text(_readonly ? 'Receipt' : _isEdit ? 'Edit receipt' : 'Receive milk')),
@@ -134,9 +144,9 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
             children: [
               _headerCard(t),
               const SizedBox(height: DhenuSpacing.lg),
-              _dispatchCard(t),
+              _dispatchCard(t, bands, milkType),
               const SizedBox(height: DhenuSpacing.lg),
-              _receiptCard(t),
+              _receiptCard(t, bands, milkType),
               const SizedBox(height: DhenuSpacing.md),
               _varianceLine(t),
               if (_error != null) ...[
@@ -190,7 +200,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       ]);
 
   // ── Dispatched by VMCC (read-only reference) ──────────────────────────────
-  Widget _dispatchCard(DhenuTokens t) => DhenuCard(
+  Widget _dispatchCard(DhenuTokens t, QualityBands bands, MilkType? milkType) => DhenuCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(DhenuIcons.truck, size: 16, color: t.inkSoft),
@@ -200,24 +210,26 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
           const SizedBox(height: DhenuSpacing.md),
           Row(children: [
             _readTile(t, 'Quantity', litres(c.dispatchQty ?? 0, unit: true)),
-            _readTile(t, 'FAT', c.dispatchFat?.toStringAsFixed(1) ?? '—'),
-            _readTile(t, 'SNF', c.dispatchSnf?.toStringAsFixed(1) ?? '—'),
+            _readTile(t, 'FAT', c.dispatchFat?.toStringAsFixed(1) ?? '—',
+                valueColor: QualityBadge.bandColor(bands, milkType, 'fat', c.dispatchFat, t)),
+            _readTile(t, 'SNF', c.dispatchSnf?.toStringAsFixed(1) ?? '—',
+                valueColor: QualityBadge.bandColor(bands, milkType, 'snf', c.dispatchSnf, t)),
             if (c.dispatchWater != null)
               _readTile(t, 'Water %', c.dispatchWater!.toStringAsFixed(1)),
           ]),
         ]),
       );
 
-  Widget _readTile(DhenuTokens t, String label, String value) => Expanded(
+  Widget _readTile(DhenuTokens t, String label, String value, {Color? valueColor}) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(height: 2),
-          Text(value, style: DhenuText.number(size: 17, color: t.ink)),
+          Text(value, style: DhenuText.number(size: 17, color: valueColor ?? t.ink)),
         ]),
       );
 
   // ── Measured at CC (the actual recorded data) ─────────────────────────────
-  Widget _receiptCard(DhenuTokens t) => DhenuCard(
+  Widget _receiptCard(DhenuTokens t, QualityBands bands, MilkType? milkType) => DhenuCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(DhenuIcons.scale, size: 16, color: t.brand),
@@ -235,8 +247,10 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
           if (_readonly)
             Row(children: [
               _readTile(t, 'Quantity', litres(c.receiptQty ?? 0, unit: true)),
-              _readTile(t, 'FAT', c.receiptFat?.toStringAsFixed(1) ?? '—'),
-              _readTile(t, 'SNF', c.receiptSnf?.toStringAsFixed(1) ?? '—'),
+              _readTile(t, 'FAT', c.receiptFat?.toStringAsFixed(1) ?? '—',
+                  valueColor: QualityBadge.bandColor(bands, milkType, 'fat', c.receiptFat, t)),
+              _readTile(t, 'SNF', c.receiptSnf?.toStringAsFixed(1) ?? '—',
+                  valueColor: QualityBadge.bandColor(bands, milkType, 'snf', c.receiptSnf, t)),
               if (c.receiptWater != null)
                 _readTile(t, 'Water %', c.receiptWater!.toStringAsFixed(1)),
             ])

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -9,7 +11,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/quality_badge.dart';
 
 /// Day detail — AM and PM pours for one day with FAT/SNF and line values.
-class FarmerCollectionDetail extends StatelessWidget {
+class FarmerCollectionDetail extends ConsumerWidget {
   const FarmerCollectionDetail({
     super.key,
     required this.date,
@@ -20,13 +22,14 @@ class FarmerCollectionDetail extends StatelessWidget {
   final List<MpPour> pours;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final am = pours.where((p) => p.shift == Shift.am).toList();
     final pm = pours.where((p) => p.shift == Shift.pm).toList();
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
+    final bands = ref.watch(qualityBandsProvider(null)).valueOrNull;
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -50,9 +53,9 @@ class FarmerCollectionDetail extends StatelessWidget {
         children: [
           _summaryCard(context, t, l, totalL, totalRs),
           const SizedBox(height: DhenuSpacing.xxl),
-          _shiftSection(context, t, l, isAm: true, pours: am),
+          _shiftSection(context, t, l, isAm: true, pours: am, bands: bands),
           const SizedBox(height: DhenuSpacing.lg),
-          _shiftSection(context, t, l, isAm: false, pours: pm),
+          _shiftSection(context, t, l, isAm: false, pours: pm, bands: bands),
         ],
       ),
     );
@@ -112,7 +115,7 @@ class FarmerCollectionDetail extends StatelessWidget {
 
   // ── Shift section ────────────────────────────────────────────────────────
   Widget _shiftSection(BuildContext context, DhenuTokens t, AppLocalizations l,
-      {required bool isAm, required List<MpPour> pours}) {
+      {required bool isAm, required List<MpPour> pours, QualityBands? bands}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -135,7 +138,7 @@ class FarmerCollectionDetail extends StatelessWidget {
               children: [
                 for (var i = 0; i < pours.length; i++) ...[
                   if (i > 0) Divider(height: 1, color: t.hairline),
-                  _pourRow(t, l, pours[i]),
+                  _pourRow(t, l, pours[i], bands),
                 ],
               ],
             ),
@@ -177,7 +180,7 @@ class FarmerCollectionDetail extends StatelessWidget {
   }
 
   // ── Pour row ─────────────────────────────────────────────────────────────
-  Widget _pourRow(DhenuTokens t, AppLocalizations l, MpPour p) {
+  Widget _pourRow(DhenuTokens t, AppLocalizations l, MpPour p, QualityBands? bands) {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: DhenuSpacing.lg,
@@ -186,7 +189,7 @@ class FarmerCollectionDetail extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(child: _pourLeft(t, p)),
+          Expanded(child: _pourLeft(t, p, bands)),
           const SizedBox(width: DhenuSpacing.md),
           _pourRight(t, l, p),
         ],
@@ -194,7 +197,7 @@ class FarmerCollectionDetail extends StatelessWidget {
     );
   }
 
-  Widget _pourLeft(DhenuTokens t, MpPour p) {
+  Widget _pourLeft(DhenuTokens t, MpPour p, QualityBands? bands) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -204,7 +207,10 @@ class FarmerCollectionDetail extends StatelessWidget {
           style: DhenuText.number(size: 18, w: FontWeight.w700, color: t.ink),
         ),
         const SizedBox(height: DhenuSpacing.xs),
-        QualityBadge(fat: p.fat, snf: p.snf, water: p.water, grade: p.qualityGrade),
+        QualityPills(
+          fat: p.fat, snf: p.snf, water: p.water,
+          grade: p.qualityGrade, bands: bands, milkType: p.milkType,
+        ),
       ],
     );
   }

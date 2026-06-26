@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -67,14 +68,17 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
               DhenuEmptyState(
                   icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
             ]),
-            data: (rows) => _content(rows, vmccs),
+            data: (rows) {
+              final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
+              return _content(rows, vmccs, bands, widget.node.effectiveMilkType);
+            },
           ),
         ),
       ),
     ]);
   }
 
-  Widget _content(List<MpConsignment> rows, List<MpNode> vmccs) {
+  Widget _content(List<MpConsignment> rows, List<MpNode> vmccs, QualityBands bands, MilkType milkType) {
     switch (_scope) {
       case _Scope.all:
         return QcReportView(
@@ -82,9 +86,11 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           days: _days,
           heroLabel: 'RECEIVED · LAST $_days DAYS',
           heroFooter: 'Qty-weighted quality across all VMCC receipts',
+          bands: bands,
+          milkType: milkType,
         );
       case _Scope.ranking:
-        return QcVmccRanking(rows: rows, vmccs: vmccs, days: _days);
+        return QcVmccRanking(rows: rows, vmccs: vmccs, days: _days, bands: bands, milkType: milkType);
       case _Scope.vmcc:
         final id = _vmccId ?? (vmccs.isNotEmpty ? vmccs.first.id : null);
         if (id == null) {
@@ -101,6 +107,8 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           heroLabel: '${v.name.toUpperCase()} · LAST $_days DAYS',
           heroFooter: 'Qty-weighted quality received from this VMCC',
           emptySubtitle: 'No milk received from this VMCC in this window',
+          bands: bands,
+          milkType: milkType,
         );
     }
   }

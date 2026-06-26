@@ -4,6 +4,7 @@ import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/farmer_providers.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -44,6 +45,7 @@ class FarmerHome extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final user = ref.watch(authProvider).user;
     final farmer = ref.watch(farmerSelfProvider).asData?.value;
+    final bands = ref.watch(qualityBandsProvider(null)).valueOrNull;
     final cyclePours = ref.watch(farmerCurrentCyclePoursProvider);
     final period = ref.watch(farmerCurrentCyclePeriodProvider).asData?.value;
     final firstName = (user?.name ?? 'Farmer').split(' ').first;
@@ -77,7 +79,7 @@ class FarmerHome extends ConsumerWidget {
                       ),
                     ),
                   ]
-                : _content(context, ref, t, l, pours, period),
+                : _content(context, ref, t, l, pours, period, bands, farmer?.defaultMilkType),
           ),
         ],
       ),
@@ -90,7 +92,9 @@ class FarmerHome extends ConsumerWidget {
       DhenuTokens t,
       AppLocalizations l,
       List<MpPour> pours,
-      MpCyclePeriod? period) {
+      MpCyclePeriod? period,
+      QualityBands? bands,
+      MilkType? milkType) {
     final todayPours = ref.watch(farmerTodayPoursProvider);
     final recentPours = ref.watch(farmerRecentPoursProvider).asData?.value ?? const [];
     final nudge = detectQualityNudge(pours: recentPours, today: DateTime.now());
@@ -101,7 +105,7 @@ class FarmerHome extends ConsumerWidget {
         _qualityNudge(context, t, l, nudge),
       ],
       const SizedBox(height: DhenuSpacing.lg),
-      _today(context, t, l, todayPours),
+      _today(context, t, l, todayPours, bands, milkType),
       const SizedBox(height: DhenuSpacing.lg),
       _streakNudge(context, t, l, pours),
       _quickLinks(context, t, l),
@@ -339,7 +343,7 @@ class FarmerHome extends ConsumerWidget {
 
   // ── Today ───────────────────────────────────────────────────────────────
   Widget _today(BuildContext context, DhenuTokens t, AppLocalizations l,
-      AsyncValue<List<MpPour>> todayPours) {
+      AsyncValue<List<MpPour>> todayPours, QualityBands? bands, MilkType? milkType) {
     return todayPours.when(
       loading: () => const DhenuLoadingList(rows: 1),
       error: (e, s) => const SizedBox.shrink(),
@@ -364,9 +368,9 @@ class FarmerHome extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _shiftCard(t, isAm: true, pours: am)),
+                Expanded(child: _shiftCard(t, isAm: true, pours: am, bands: bands, milkType: milkType)),
                 const SizedBox(width: DhenuSpacing.md),
-                Expanded(child: _shiftCard(t, isAm: false, pours: pm)),
+                Expanded(child: _shiftCard(t, isAm: false, pours: pm, bands: bands, milkType: milkType)),
               ],
             ),
           ],
@@ -375,7 +379,7 @@ class FarmerHome extends ConsumerWidget {
     );
   }
 
-  Widget _shiftCard(DhenuTokens t, {required bool isAm, required List<MpPour> pours}) {
+  Widget _shiftCard(DhenuTokens t, {required bool isAm, required List<MpPour> pours, QualityBands? bands, MilkType? milkType}) {
     final has = pours.isNotEmpty;
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final grade = has
@@ -391,7 +395,7 @@ class FarmerHome extends ConsumerWidget {
       isAm: isAm,
       empty: !has,
       litresLabel: litres(totalL, unit: true),
-      quality: has ? QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: grade, format: QualityFormat.valueLabel) : null,
+      quality: has ? QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: grade, format: QualityFormat.valueLabel, bands: bands, milkType: milkType) : null,
     );
   }
 

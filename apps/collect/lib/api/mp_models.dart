@@ -106,6 +106,14 @@ class MpNode {
   bool get isPp => nodeType == 'pp';
   bool get isLactometer => measurementMode == 'lactometer';
 
+  /// The single milk type used to colour aggregate (mixed) FAT/SNF values at
+  /// this node: explicit default, else the sole/first allowed type, else Cow A1.
+  MilkType get effectiveMilkType =>
+      defaultMilkType ??
+      ((allowedMilkTypes != null && allowedMilkTypes!.isNotEmpty)
+          ? allowedMilkTypes!.first
+          : MilkType.cowA1);
+
   /// Whether this VMCC collects in the given shift ('am' | 'pm').
   bool collectsShift(String shift) => collectionShifts == 'both' || collectionShifts == shift;
 
@@ -924,6 +932,25 @@ class QualityBands {
     if (value >= band.goodMin) return QualityLevel.good;
     if (value >= band.watchMin) return QualityLevel.watch;
     return QualityLevel.low;
+  }
+
+  /// The most severe band across the supplied FAT/SNF/CLR — a single quality
+  /// colour for dense aggregate rows. Null when none of them has a band.
+  QualityLevel? worstLevel(MilkType type, {double? fat, double? snf, double? clr}) {
+    final levels = <QualityLevel>[];
+    void add(String metric, double? v) {
+      if (v == null) return;
+      final l = levelFor(type, metric, v);
+      if (l != null) levels.add(l);
+    }
+
+    add('fat', fat);
+    add('snf', snf);
+    add('clr', clr);
+    if (levels.isEmpty) return null;
+    if (levels.contains(QualityLevel.low)) return QualityLevel.low;
+    if (levels.contains(QualityLevel.watch)) return QualityLevel.watch;
+    return QualityLevel.good;
   }
 
   factory QualityBands.fromJson(Map<String, dynamic> j) {

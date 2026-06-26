@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../api/mp_models.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
+import '../../widgets/quality_badge.dart';
 
 /// Running qty-weighted accumulator → resolves to averages (null when no
 /// receipts carried that metric). Shared by the QC report and the VMCC ranking.
@@ -48,11 +50,18 @@ class QcReportView extends StatelessWidget {
     required this.heroFooter,
     this.emptyTitle = 'No receipts in this window',
     this.emptySubtitle = 'Receive milk from VMCCs to see the daily QC report',
+    this.bands,
+    this.milkType,
   });
 
   final List<QcSample> samples;
   final int days;
   final String heroLabel, heroFooter, emptyTitle, emptySubtitle;
+
+  /// Bands + the node's effective milk type colour the daily FAT/SNF cells
+  /// (these are qty-weighted, mixed-type aggregates). Null → no colouring.
+  final QualityBands? bands;
+  final MilkType? milkType;
 
   @override
   Widget build(BuildContext context) {
@@ -145,17 +154,22 @@ class QcReportView extends StatelessWidget {
           Expanded(flex: 4, child: Text(shortDate(d.date), style: DhenuText.body.copyWith(color: t.ink))),
           Expanded(flex: 3, child: Text(litres(d.qty),
               textAlign: TextAlign.right, style: DhenuText.number(size: 14, color: t.ink))),
-          Expanded(flex: 2, child: _qcCell(t, d.fat)),
-          Expanded(flex: 2, child: _qcCell(t, d.snf)),
-          Expanded(flex: 2, child: _qcCell(t, d.water)),
+          Expanded(flex: 2, child: _qcCell(t, 'fat', d.fat)),
+          Expanded(flex: 2, child: _qcCell(t, 'snf', d.snf)),
+          Expanded(flex: 2, child: _qcCell(t, null, d.water)),
         ]),
       );
 
-  Widget _qcCell(DhenuTokens t, double? v) => Text(
-        v == null ? '—' : oneDp(v),
-        textAlign: TextAlign.right,
-        style: DhenuText.number(size: 14, color: v == null ? t.inkSoft : t.ink),
-      );
+  Widget _qcCell(DhenuTokens t, String? metric, double? v) {
+    final banded = metric == null
+        ? null
+        : QualityBadge.bandColor(bands, milkType, metric, v, t);
+    return Text(
+      v == null ? '—' : oneDp(v),
+      textAlign: TextAlign.right,
+      style: DhenuText.number(size: 14, color: v == null ? t.inkSoft : (banded ?? t.ink)),
+    );
+  }
 
   /// Per-day vertical bar chart of the metric's daily qty-weighted value.
   Widget _chartCard(DhenuTokens t, String title, String unit, Color color,
