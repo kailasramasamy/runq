@@ -321,7 +321,7 @@ export class CategorizeService {
    * Look up the GL account code and bank GL code, then post a JE.
    */
   private async postJE(
-    txn: { id: string; type: 'credit' | 'debit'; narration: string | null; bankAccountId: string; transactionDate: string; amount: string },
+    txn: { id: string; type: 'credit' | 'debit'; narration: string | null; memo?: string | null; bankAccountId: string; transactionDate: string; amount: string },
     glAccountId: string,
   ): Promise<void> {
     const [[glAccount], bankGlCode] = await Promise.all([
@@ -334,6 +334,11 @@ export class CategorizeService {
     if (!glAccount || !bankGlCode) return;
 
     const posting = new CategorizePostingService(this.db, this.tenantId);
+    // Re-categorization: reverse any prior categorize posting so the JE is
+    // re-created against the new account and the txn re-linked + matched.
+    // Without this, isAlreadyPosted silently skips the repost, stranding the
+    // expense on the old account and leaving the txn unreconciled.
+    await posting.resetCategorizePosting(txn.type, txn.id);
     await this.postForTxnType(posting, txn, glAccount.code, bankGlCode);
   }
 

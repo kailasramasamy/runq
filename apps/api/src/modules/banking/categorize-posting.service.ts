@@ -118,6 +118,23 @@ export class CategorizePostingService {
     return journalEntryId;
   }
 
+  /**
+   * Reverse a prior categorize posting so a re-categorization can repost to a
+   * new account. Unlinks the txn first (the FK forbids deleting a JE the txn
+   * still points at), then deletes the bank_debit/bank_credit JE. Leaves
+   * vendor/customer AP/AR postings untouched. A no-op when nothing was posted.
+   */
+  async resetCategorizePosting(type: 'credit' | 'debit', transactionId: string): Promise<void> {
+    await this.db
+      .update(bankTransactions)
+      .set({ journalEntryId: null, updatedAt: new Date() })
+      .where(and(
+        eq(bankTransactions.id, transactionId),
+        eq(bankTransactions.tenantId, this.tenantId),
+      ));
+    await this.gl.deletePostingsFor(type === 'credit' ? 'bank_credit' : 'bank_debit', transactionId);
+  }
+
   private isCustomerPaymentAccount(code: string): boolean {
     return code === '1103' || /^4\d{3}$/.test(code);
   }
