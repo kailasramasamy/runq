@@ -112,6 +112,9 @@ const TxnRow = memo(function TxnRow({ txn, onSelect }: { txn: BankTransaction; o
       </TableCell>
       <TableCell className="max-w-xs">
         <p className="truncate text-sm">{txn.narration ?? '—'}</p>
+        {txn.memo && (
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={txn.memo}>{txn.memo}</p>
+        )}
       </TableCell>
       <TableCell className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
         {txn.reference ?? '—'}
