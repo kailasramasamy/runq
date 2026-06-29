@@ -120,6 +120,20 @@ export function useSetTransactionCategory() {
   });
 }
 
+// ── Set/clear the user memo ("paid to X for Y") ────────────────
+
+export function useSetTransactionMemo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ transactionId, memo }: { transactionId: string; memo: string | null }) =>
+      api.patch<ApiSuccess<{ success: boolean }>>(
+        `/banking/accounts/transactions/${transactionId}/memo`,
+        { memo },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: TXN_KEYS.all }),
+  });
+}
+
 // ── Smart statement import (file upload → parse → commit) ──────
 
 export function useParseStatement() {

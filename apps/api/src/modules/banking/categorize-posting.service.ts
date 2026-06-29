@@ -8,8 +8,26 @@ interface PostBankTxnParams {
   transactionDate: string;
   amount: number;
   narration: string | null;
+  memo?: string | null;
   glAccountCode: string;
   bankGlAccountCode: string;
+}
+
+/**
+ * The description shown on the bank transaction's journal entry. We keep BOTH
+ * the user memo ("paid to X for Y") and the bank's raw narration so the ledger
+ * reads as a note while staying traceable to the bank line:
+ *   "Paid to Shekar – delivery · MMT/IMPS/.../DELIVERYMA/..."
+ * With no memo it falls back to the narration prefixed by the flow direction.
+ */
+export function bankJeDescription(
+  memo: string | null | undefined,
+  narration: string | null,
+  type: 'debit' | 'credit',
+): string {
+  const m = memo?.trim();
+  if (!m) return `${type === 'credit' ? 'Bank receipt' : 'Bank payment'}: ${narration ?? 'N/A'}`;
+  return narration ? `${m} · ${narration}` : m;
 }
 
 export class CategorizePostingService {
@@ -32,7 +50,7 @@ export class CategorizePostingService {
 
     const entry = await this.gl.createJournalEntry({
       date: params.transactionDate,
-      description: `Bank payment: ${params.narration ?? 'N/A'}`,
+      description: bankJeDescription(params.memo, params.narration, 'debit'),
       sourceType: 'bank_debit',
       sourceId: params.transactionId,
       lines: [
@@ -73,7 +91,7 @@ export class CategorizePostingService {
 
     const entry = await this.gl.createJournalEntry({
       date: params.transactionDate,
-      description: `Bank receipt: ${params.narration ?? 'N/A'}`,
+      description: bankJeDescription(params.memo, params.narration, 'credit'),
       sourceType: 'bank_credit',
       sourceId: params.transactionId,
       lines: [

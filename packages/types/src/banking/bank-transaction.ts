@@ -11,6 +11,7 @@ export interface BankTransaction {
   amount: number;
   reference: string | null;
   narration: string | null;
+  memo: string | null;
   runningBalance: number | null;
   reconStatus: ReconStatus;
   importBatchId: string | null;

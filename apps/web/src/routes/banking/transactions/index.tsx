@@ -6,6 +6,7 @@ import { useBankTransactions, useCategorizeTransactions, useSyncTransactions } f
 import { formatINR } from '@/lib/utils';
 import { CategoryBadge } from '@/components/banking/category-badge';
 import { VendorBadge } from '@/components/banking/vendor-badge';
+import { MemoField } from '@/components/banking/memo-field';
 import { DocumentTrail } from '@/components/audit/document-trail';
 import type { BankTransaction, ReconStatus } from '@runq/types';
 import {
@@ -181,6 +182,7 @@ function TxnDetail({ txn }: { txn: BankTransaction }) {
                 <span className="font-mono text-zinc-900 dark:text-zinc-100">{txn.reference}</span>
               </div>
             )}
+            <MemoField txn={txn} />
             <div className="flex items-center gap-4">
               <div>
                 <span className="text-zinc-500 dark:text-zinc-400">Amount: </span>

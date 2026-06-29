@@ -1,10 +1,11 @@
 import { eq, and, gte, lte, sql, inArray, desc, isNotNull } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, cheques, vendors, customers } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, cheques, vendors, customers, journalEntries } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankTransaction, BankStatementImportResult, PaginationMeta } from '@runq/types';
 import type { TransactionFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
+import { bankJeDescription } from './categorize-posting.service';
 import { randomUUID } from 'crypto';
 import { getBankFeedProvider } from '../../utils/banking';
 
@@ -101,6 +102,44 @@ export class TransactionService {
         credit: parseFloat(totalsResult[0]?.totalCredit ?? '0'),
       },
     };
+  }
+
+  /**
+   * Set the user memo ("paid to X for Y") on a transaction. When the txn is
+   * already categorized, the linked journal entry's description is updated in
+   * step so the GL ledger reflects the memo too.
+   */
+  async setMemo(transactionId: string, memo: string | null): Promise<void> {
+    const trimmed = memo?.trim() || null;
+    const [txn] = await this.db
+      .select({
+        id: bankTransactions.id,
+        type: bankTransactions.type,
+        narration: bankTransactions.narration,
+        journalEntryId: bankTransactions.journalEntryId,
+      })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)))
+      .limit(1);
+    if (!txn) throw new NotFoundError('Bank transaction');
+
+    await this.db
+      .update(bankTransactions)
+      .set({ memo: trimmed, updatedAt: new Date() })
+      .where(and(eq(bankTransactions.id, transactionId), eq(bankTransactions.tenantId, this.tenantId)));
+
+    // Only sync the description for categorize entries. Vendor/customer txns
+    // link to AP/AR payment JEs whose descriptions must not be overwritten.
+    if (txn.journalEntryId) {
+      await this.db
+        .update(journalEntries)
+        .set({ description: bankJeDescription(trimmed, txn.narration, txn.type), updatedAt: new Date() })
+        .where(and(
+          eq(journalEntries.id, txn.journalEntryId),
+          eq(journalEntries.tenantId, this.tenantId),
+          inArray(journalEntries.sourceType, ['bank_debit', 'bank_credit']),
+        ));
+    }
   }
 
   async importCSV(bankAccountId: string, csvData: string): Promise<BankStatementImportResult> {
@@ -464,6 +503,7 @@ export class TransactionService {
       amount: parseFloat(row.amount),
       reference: row.reference,
       narration: row.narration,
+      memo: row.memo ?? null,
       runningBalance: row.runningBalance ? parseFloat(row.runningBalance) : null,
       reconStatus: row.reconStatus,
       importBatchId: row.importBatchId,

@@ -17,6 +17,10 @@ export const bankTransactions = pgTable('bank_transactions', {
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
   reference: varchar('reference', { length: 100 }),
   narration: varchar('narration', { length: 500 }),
+  // User-entered memo ("paid to X for Y") for party-less categorized txns;
+  // when set it becomes the journal entry description. The narration above is
+  // the bank's import string and is never overwritten.
+  memo: varchar('memo', { length: 500 }),
   runningBalance: decimal('running_balance', { precision: 15, scale: 2 }),
   reconStatus: reconStatusEnum('recon_status').notNull().default('unreconciled'),
   importBatchId: uuid('import_batch_id'),

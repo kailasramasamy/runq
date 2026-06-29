@@ -23,6 +23,7 @@ const setCategoryBodySchema = z.object({
   reconcile: z.boolean().optional().default(true),
   learn: z.boolean().optional().default(true),
 });
+const setMemoBodySchema = z.object({ memo: z.string().max(500).nullable() });
 
 export const transactionRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -94,6 +95,20 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       const { glAccountId, reconcile, learn } = setCategoryBodySchema.parse(request.body);
       const service = new CategorizeService(request.server.db, request.tenantId);
       await service.setCategory(id, glAccountId, { reconcile, learn });
+      return reply.status(200).send({ data: { success: true } });
+    },
+  );
+
+  // ── Set/clear the user memo ("paid to X for Y") ────────────────
+
+  app.patch(
+    '/transactions/:id/memo',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = transactionParamSchema.parse(request.params);
+      const { memo } = setMemoBodySchema.parse(request.body);
+      const service = new TransactionService(request.server.db, request.tenantId);
+      await service.setMemo(id, memo);
       return reply.status(200).send({ data: { success: true } });
     },
   );

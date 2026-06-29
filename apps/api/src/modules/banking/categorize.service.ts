@@ -273,6 +273,7 @@ export class CategorizeService {
       .select({
         id: bankTransactions.id,
         narration: bankTransactions.narration,
+        memo: bankTransactions.memo,
         type: bankTransactions.type,
         bankAccountId: bankTransactions.bankAccountId,
         transactionDate: bankTransactions.transactionDate,
@@ -338,7 +339,7 @@ export class CategorizeService {
 
   private async postForTxnType(
     posting: CategorizePostingService,
-    txn: { id: string; type: 'credit' | 'debit'; transactionDate: string; amount: string; narration: string | null },
+    txn: { id: string; type: 'credit' | 'debit'; transactionDate: string; amount: string; narration: string | null; memo?: string | null },
     glAccountCode: string,
     bankGlAccountCode: string,
   ): Promise<void> {
@@ -347,6 +348,7 @@ export class CategorizeService {
       transactionDate: txn.transactionDate,
       amount: parseFloat(txn.amount),
       narration: txn.narration,
+      memo: txn.memo,
       glAccountCode,
       bankGlAccountCode,
     };
