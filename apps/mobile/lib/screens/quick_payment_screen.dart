@@ -448,7 +448,6 @@ class _CategorySheetState extends State<_CategorySheet> {
         child: Column(
           children: [
             sheetHandle(t),
-            sheetTitle(t, 'Expense category'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
@@ -457,7 +456,7 @@ class _CategorySheetState extends State<_CategorySheet> {
                 onChanged: (v) => setState(() => _q = v),
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search_rounded),
-                  hintText: 'Search category…',
+                  hintText: 'Search expense category…',
                   border: OutlineInputBorder(),
                 ),
               ),
