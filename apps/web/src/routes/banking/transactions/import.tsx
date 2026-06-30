@@ -119,13 +119,14 @@ export function ImportTransactionsPage() {
     parseMutation.mutate(files, {
       onSuccess: (result) => {
         setParseResult(result);
-        // Pre-fill the account: the statement's detected account wins; else
-        // fall back to the account the user had selected on the transactions
-        // page (passed as ?accountId), so their choice is respected.
-        const fallback = new URLSearchParams(window.location.search).get('accountId') ?? '';
+        // Pre-fill the account. If the user arrived scoped to an account
+        // (?accountId from the transactions page), that explicit choice wins —
+        // they're importing for that account. Otherwise use the statement's
+        // detected account. Either way the per-file dropdown stays editable.
+        const scoped = new URLSearchParams(window.location.search).get('accountId') ?? '';
         const preSelected: Record<number, string> = {};
         result.files.forEach((f, i) => {
-          preSelected[i] = f.detectedAccountId ?? fallback;
+          preSelected[i] = scoped || (f.detectedAccountId ?? '');
         });
         setSelectedAccountIds(preSelected);
         setPhase('review');
