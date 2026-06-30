@@ -438,26 +438,29 @@ class _CategorySheetState extends State<_CategorySheet> {
     final filtered = q.isEmpty
         ? widget.accounts
         : widget.accounts.where((a) => a.label.toLowerCase().contains(q)).toList();
+    final radius = BorderRadius.circular(12);
+    // Open near the app bar so the list isn't hidden behind the keyboard.
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
+      initialChildSize: 0.95,
+      minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
-      builder: (_, scrollCtl) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
+      builder: (_, scrollCtl) => Column(
           children: [
             sheetHandle(t),
+            sheetTitle(t, 'Expense category'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 controller: _ctl,
                 autofocus: true,
                 onChanged: (v) => setState(() => _q = v),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search_rounded),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search_rounded),
                   hintText: 'Search expense category…',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(borderRadius: radius),
+                  enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: t.hairline)),
+                  focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: RunqColors.indigo, width: 1.5)),
                 ),
               ),
             ),
@@ -493,7 +496,6 @@ class _CategorySheetState extends State<_CategorySheet> {
             ),
           ],
         ),
-      ),
     );
   }
 }
