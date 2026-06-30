@@ -20,6 +20,8 @@ class QuickExpensesScreen extends ConsumerWidget {
       backgroundColor: t.bgWarmer,
       appBar: AppBar(title: const Text('Quick payments')),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: RunqColors.indigo,
+        foregroundColor: Colors.white,
         onPressed: () => context.push('/quick-payment'),
         icon: const Icon(Icons.add),
         label: const Text('New'),
