@@ -113,25 +113,37 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     final picked = await showModalBottomSheet<GlAccount>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) => _CategorySheet(accounts: accounts),
+      backgroundColor: RT(context).surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => _CategorySheet(accounts: accounts, selectedId: _category?.id),
     );
     if (picked != null) setState(() => _category = picked);
   }
 
   Future<void> _pickBankAccount(List<BankAccount> accounts) async {
+    final t = RT(context);
     final picked = await showModalBottomSheet<BankAccount>(
       context: context,
-      useSafeArea: true,
+      backgroundColor: t.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: accounts
-              .map((a) => ListTile(
-                    title: Text('${a.bankName} ${a.masked}'),
-                    onTap: () => Navigator.pop(ctx, a),
-                  ))
-              .toList(),
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            sheetHandle(t),
+            sheetTitle(t, 'Paid from'),
+            ...accounts.map((a) => ListTile(
+                  title: Text('${a.bankName} ${a.masked}', style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  trailing: a.id == _bankAccountId ? const Icon(Icons.check, color: RunqColors.indigo, size: 18) : null,
+                  onTap: () => Navigator.pop(ctx, a),
+                )),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -225,14 +237,22 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
             _dateField(t),
             const SizedBox(height: 16),
             _photoField(t),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Capture payment'),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: t.bgWarmer,
+          border: Border(top: BorderSide(color: t.hairline)),
+        ),
+        child: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Capture payment'),
+          ),
         ),
       ),
     );
@@ -321,17 +341,39 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
   }
 }
 
+/// Shared bottom-sheet chrome — matches the app's other selector sheets
+/// (drag handle + title), e.g. the goods-received item picker.
+Widget sheetHandle(RunqTokens t) => Container(
+      width: 40,
+      height: 4,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
+    );
+
+Widget sheetTitle(RunqTokens t, String s) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Align(alignment: Alignment.centerLeft, child: Text(s, style: RunqText.h3)),
+    );
+
 /// Searchable bottom-sheet picker for the (long) expense account list.
 class _CategorySheet extends StatefulWidget {
   final List<GlAccount> accounts;
-  const _CategorySheet({required this.accounts});
+  final String? selectedId;
+  const _CategorySheet({required this.accounts, this.selectedId});
 
   @override
   State<_CategorySheet> createState() => _CategorySheetState();
 }
 
 class _CategorySheetState extends State<_CategorySheet> {
+  final _ctl = TextEditingController();
   String _q = '';
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -340,29 +382,53 @@ class _CategorySheetState extends State<_CategorySheet> {
     final filtered = q.isEmpty
         ? widget.accounts
         : widget.accounts.where((a) => a.label.toLowerCase().contains(q)).toList();
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              autofocus: true,
-              decoration: fieldDecoration(t, hint: 'Search category…'),
-              onChanged: (v) => setState(() => _q = v),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (_, i) => ListTile(
-                title: Text(filtered[i].label, style: RunqText.body.copyWith(color: t.ink)),
-                onTap: () => Navigator.pop(context, filtered[i]),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtl) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+          children: [
+            sheetHandle(t),
+            sheetTitle(t, 'Expense category'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                controller: _ctl,
+                autofocus: true,
+                onChanged: (v) => setState(() => _q = v),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search_rounded),
+                  hintText: 'Search category…',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
-          ),
-        ]),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(child: Text('No matching category', style: RunqText.caption.copyWith(color: t.muted)))
+                  : ListView.separated(
+                      controller: scrollCtl,
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairline),
+                      itemBuilder: (_, i) {
+                        final a = filtered[i];
+                        return ListTile(
+                          title: Text(a.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                          subtitle: Text(a.code, style: RunqText.caption.copyWith(color: t.muted)),
+                          trailing: a.id == widget.selectedId
+                              ? const Icon(Icons.check, color: RunqColors.indigo, size: 18)
+                              : null,
+                          onTap: () => Navigator.pop(context, a),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
