@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
 import '../api/models.dart';
+import '../api/repos.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
+import '../widgets/runq_snack.dart';
 
 /// History of captured quick payments (QR/UPI). Pending ones are editable
 /// until the bank statement matches them; each card shows its match status.
@@ -72,6 +75,20 @@ class _PaymentCard extends StatelessWidget {
   final PendingPayment item;
   const _PaymentCard({required this.item});
 
+  Future<void> _viewAttachment(BuildContext context) async {
+    try {
+      final list = await bankingRepo.attachments(item.attachmentEntityType, item.attachmentEntityId);
+      if (!context.mounted) return;
+      if (list.isEmpty) {
+        showRunqSnack(context, 'No attachment found.', kind: SnackKind.error);
+        return;
+      }
+      context.push('/attachments/view', extra: list.first);
+    } on ApiException catch (e) {
+      if (context.mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
@@ -89,14 +106,29 @@ class _PaymentCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+              // Left column: category icon + payment date (bold) beneath it.
+              SizedBox(
+                width: 46,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(_dayMon(item.paymentDate),
+                        textAlign: TextAlign.center,
+                        style: RunqText.caption.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+                    Text(_year(item.paymentDate),
+                        textAlign: TextAlign.center,
+                        style: RunqText.micro.copyWith(color: t.muted2)),
+                  ],
                 ),
-                child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -129,13 +161,27 @@ class _PaymentCard extends StatelessWidget {
                           maxLines: 2, overflow: TextOverflow.ellipsis),
                     ],
                     const SizedBox(height: 10),
-                    Text(
-                      [_fmtDate(item.paymentDate), item.bankLabel].where((s) => s.isNotEmpty).join('  ·  '),
-                      style: RunqText.micro.copyWith(color: t.muted2),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    // Footer: bank · attachment · status chip, all inline.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(item.bankLabel,
+                              style: RunqText.micro.copyWith(color: t.muted2),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        if (item.hasAttachment)
+                          InkWell(
+                            onTap: () => _viewAttachment(context),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(Icons.image_outlined, size: 18, color: t.muted),
+                            ),
+                          ),
+                        const SizedBox(width: 6),
+                        _StatusChip(status: item.status),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Align(alignment: Alignment.centerLeft, child: _StatusChip(status: item.status)),
                   ],
                 ),
               ),
@@ -147,14 +193,20 @@ class _PaymentCard extends StatelessWidget {
   }
 }
 
-String _fmtDate(String iso) {
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+String _dayMon(String iso) {
   final p = iso.split('-');
   if (p.length != 3) return iso;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   final m = int.tryParse(p[1]) ?? 0;
   final d = int.tryParse(p[2]) ?? 0;
   if (m < 1 || m > 12 || d < 1) return iso;
-  return '$d ${months[m - 1]} ${p[0]}';
+  return '$d ${_months[m - 1]}';
+}
+
+String _year(String iso) {
+  final p = iso.split('-');
+  return p.isNotEmpty ? p[0] : '';
 }
 
 class _StatusChip extends StatelessWidget {

@@ -507,6 +507,12 @@ class BankingRepo {
     return _dataList(res).map(PendingPayment.fromJson).toList();
   }
 
+  /// Attachments bound to an entity (e.g. a captured payment's confirmation).
+  Future<List<BillAttachment>> attachments(String entityType, String entityId) async {
+    final res = await apiClient.get('/common/attachments/$entityType/$entityId');
+    return _dataList(res).map(BillAttachment.fromJson).toList();
+  }
+
   /// Edit a still-pending capture (matched/cancelled rows are immutable).
   Future<void> updatePendingPayment(String id, Map<String, dynamic> body) async {
     await apiClient.patch('/banking/pending-payments/$id', body);

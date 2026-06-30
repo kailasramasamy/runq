@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { pendingPayments, accounts, bankAccounts } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreatePendingPaymentInput, UpdatePendingPaymentInput } from '@runq/validators';
@@ -48,6 +48,15 @@ export class PendingPaymentService {
         bankAccountName: bankAccounts.bankName,
         bankAccountNumber: bankAccounts.accountNumber,
         matchedBankTransactionId: pendingPayments.matchedBankTransactionId,
+        // The confirmation photo lives under 'expense' while pending and moves
+        // to 'bank_transaction' once matched — surface its id either way.
+        attachmentId: sql<string | null>`(
+          SELECT da.id FROM document_attachments da
+          WHERE da.tenant_id = ${this.tenantId}
+            AND ((da.entity_type = 'expense' AND da.entity_id = ${pendingPayments.id})
+              OR (da.entity_type = 'bank_transaction' AND da.entity_id = ${pendingPayments.matchedBankTransactionId}))
+          LIMIT 1
+        )`,
         createdAt: pendingPayments.createdAt,
       })
       .from(pendingPayments)

@@ -881,7 +881,7 @@ class ExtractedConfirmation {
 class PendingPayment {
   final String id, bankAccountId, paymentDate, glAccountId, status;
   final String? glAccountCode, glAccountName, payeeName, note, upiRef;
-  final String? bankAccountName, bankAccountNumber, matchedBankTransactionId;
+  final String? bankAccountName, bankAccountNumber, matchedBankTransactionId, attachmentId;
   final double amount;
   PendingPayment({
     required this.id,
@@ -898,6 +898,7 @@ class PendingPayment {
     this.bankAccountName,
     this.bankAccountNumber,
     this.matchedBankTransactionId,
+    this.attachmentId,
   });
 
   factory PendingPayment.fromJson(Map<String, dynamic> j) => PendingPayment(
@@ -915,9 +916,13 @@ class PendingPayment {
         bankAccountName: _str(j['bankAccountName']),
         bankAccountNumber: _str(j['bankAccountNumber']),
         matchedBankTransactionId: _str(j['matchedBankTransactionId']),
+        attachmentId: _str(j['attachmentId']),
       );
 
   bool get isPending => status == 'pending';
+  bool get hasAttachment => attachmentId != null && attachmentId!.isNotEmpty;
+  String get attachmentEntityType => isPending ? 'expense' : 'bank_transaction';
+  String get attachmentEntityId => isPending ? id : (matchedBankTransactionId ?? '');
 
   String get bankLabel {
     final n = bankAccountNumber;
