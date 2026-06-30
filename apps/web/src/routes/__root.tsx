@@ -1084,6 +1084,9 @@ const bankTransactionsRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/transactions',
   component: TransactionsPage,
+  validateSearch: (s: Record<string, unknown>): { accountId?: string } => ({
+    accountId: typeof s.accountId === 'string' ? s.accountId : undefined,
+  }),
 });
 
 const bankTransactionsImportRoute = createRoute({

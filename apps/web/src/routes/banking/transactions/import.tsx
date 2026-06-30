@@ -64,6 +64,8 @@ export function ImportTransactionsPage() {
 
   // Result phase
   const [commitResult, setCommitResult] = useState<BankStatementImportResult | null>(null);
+  // The account we imported into, so the result screen can land the user on it.
+  const [committedAccountId, setCommittedAccountId] = useState('');
 
   // Duplicate-guard: analyses per account, plus a flag confirming the user
   // has acknowledged any duplicates before we proceed to commit.
@@ -202,6 +204,7 @@ export function ImportTransactionsPage() {
       }
     }
 
+    setCommittedAccountId([...byAccount.keys()][0] ?? '');
     setCommitResult({
       imported: totalImported,
       duplicatesSkipped: totalDuplicates,
@@ -413,7 +416,7 @@ export function ImportTransactionsPage() {
             <Button variant="outline" onClick={() => { setPhase('upload'); setFiles([]); setParseResult(null); setCommitResult(null); }}>
               Import More
             </Button>
-            <Button onClick={() => navigate({ to: '/finance/banking/transactions' })}>
+            <Button onClick={() => navigate({ to: '/finance/banking/transactions', search: { accountId: committedAccountId } })}>
               View Transactions
             </Button>
           </CardFooter>
