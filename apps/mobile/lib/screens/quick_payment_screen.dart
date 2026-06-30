@@ -512,10 +512,10 @@ class _CategorySheetState extends State<_CategorySheet> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                              color: RunqColors.indigo.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
+                            child: const Icon(Icons.sell_outlined, color: RunqColors.indigo, size: 20),
                           ),
                           title: Text(a.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                           subtitle: Text(a.code, style: RunqText.caption.copyWith(color: t.muted)),
