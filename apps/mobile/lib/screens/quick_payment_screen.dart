@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
@@ -37,15 +38,31 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
   File? _photo;
   bool _saving = false;
   bool _ocrBusy = false;
+  bool _prefsLoaded = false;
+
+  static const _kLastAccount = 'qp_last_bank_account_id';
 
   @override
   void initState() {
     super.initState();
+    // Default "Paid from" to the last account used (persisted across sessions).
+    SharedPreferences.getInstance().then((p) {
+      if (!mounted) return;
+      setState(() {
+        _bankAccountId ??= p.getString(_kLastAccount);
+        _prefsLoaded = true;
+      });
+    });
     final f = widget.initialFile;
     if (f != null) {
       _photo = f;
       WidgetsBinding.instance.addPostFrameCallback((_) => _runOcr(f));
     }
+  }
+
+  Future<void> _rememberAccount(String id) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kLastAccount, id);
   }
 
   @override
@@ -137,17 +154,50 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
           children: [
             sheetHandle(t),
             sheetTitle(t, 'Paid from'),
-            ...accounts.map((a) => ListTile(
-                  title: Text('${a.bankName} ${a.masked}', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  trailing: a.id == _bankAccountId ? const Icon(Icons.check, color: RunqColors.indigo, size: 18) : null,
-                  onTap: () => Navigator.pop(ctx, a),
-                )),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: accounts.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: t.hairline, indent: 16, endIndent: 16),
+                itemBuilder: (_, i) {
+                  final a = accounts[i];
+                  return ListTile(
+                    leading: _acctAvatar(t, a),
+                    title: Text(a.bankName, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                    subtitle: Text(a.masked, style: RunqText.caption.copyWith(color: t.muted)),
+                    trailing: a.id == _bankAccountId ? const Icon(Icons.check, color: RunqColors.indigo, size: 18) : null,
+                    onTap: () => Navigator.pop(ctx, a),
+                  );
+                },
+              ),
+            ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
-    if (picked != null) setState(() => _bankAccountId = picked.id);
+    if (picked != null) {
+      setState(() => _bankAccountId = picked.id);
+      _rememberAccount(picked.id);
+    }
+  }
+
+  Widget _acctAvatar(RunqTokens t, BankAccount a) {
+    final isCash = a.accountType.toLowerCase() == 'cash' || a.bankName.toLowerCase() == 'cash';
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: RunqColors.indigo.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        isCash ? Icons.account_balance_wallet_outlined : Icons.account_balance_outlined,
+        color: RunqColors.indigo,
+        size: 20,
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -167,6 +217,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
         upiRef: _upiCtrl.text,
         photo: _photo,
       );
+      await _rememberAccount(_bankAccountId!);
       if (!mounted) return;
       showRunqSnack(context, 'Payment captured — it\'ll match your bank statement.');
       context.pop();
@@ -264,7 +315,12 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
       );
 
   Widget _accountField(RunqTokens t, List<BankAccount> accounts) {
-    _bankAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
+    // Wait for the saved last-used account before defaulting, so we don't
+    // flash the first account then jump to the remembered one.
+    if (_prefsLoaded) {
+      final valid = _bankAccountId != null && accounts.any((a) => a.id == _bankAccountId);
+      if (!valid && accounts.isNotEmpty) _bankAccountId = accounts.first.id;
+    }
     BankAccount? selected;
     for (final a in accounts) {
       if (a.id == _bankAccountId) { selected = a; break; }
@@ -417,6 +473,15 @@ class _CategorySheetState extends State<_CategorySheet> {
                       itemBuilder: (_, i) {
                         final a = filtered[i];
                         return ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
+                          ),
                           title: Text(a.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                           subtitle: Text(a.code, style: RunqText.caption.copyWith(color: t.muted)),
                           trailing: a.id == widget.selectedId
