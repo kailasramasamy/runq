@@ -10,6 +10,7 @@ import type {
 } from '@runq/types';
 import { extractPdfText } from '../ar/invoice-import/extractors/pdf-text';
 import { extractImageText } from '../ar/invoice-import/extractors/image-ocr';
+import { PendingPaymentMatchService } from './pending-payment-match.service';
 import { analyze, extractFromPDF, extractFromImage, isAIEnabled } from '../../utils/ai/claude.service';
 import { randomUUID } from 'crypto';
 
@@ -307,6 +308,10 @@ export class StatementImportService {
 
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
+      // Reconcile any payments the user captured at pay-time against these
+      // new debits before they fall through to suspense categorisation.
+      await new PendingPaymentMatchService(this.db, this.tenantId)
+        .matchBatch(accountId, importBatchId);
     }
 
     // Sync currentBalance to the closing balance of the latest dated txn

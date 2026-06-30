@@ -160,6 +160,10 @@ final bankAccountsProvider = FutureProvider<List<BankAccount>>((ref) async {
   return _watchAuth(ref, () => bankingRepo.accounts());
 });
 
+final expenseAccountsProvider = FutureProvider<List<GlAccount>>((ref) async {
+  return _watchAuth(ref, () => bankingRepo.expenseAccounts());
+});
+
 final bankTxnsProvider = FutureProvider.family<PaginatedResponse<BankTxn>, String>((ref, accountId) async {
   return _watchAuth(ref, () => bankingRepo.transactions(accountId));
 });

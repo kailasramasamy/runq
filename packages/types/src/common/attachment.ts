@@ -5,7 +5,8 @@ export type AttachmentEntityType =
   | 'receipt'
   | 'expense'
   | 'employee'
-  | 'farmer';
+  | 'farmer'
+  | 'bank_transaction';
 
 /**
  * Categorisation tag for HR document uploads. Finance attachments leave

@@ -10,6 +10,7 @@ import 'screens/new_invoice_screen.dart';
 import 'screens/expense_detail_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/new_expense_screen.dart';
+import 'screens/quick_payment_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/po_inbox_screen.dart';
 import 'screens/quick_invoice_generate_screen.dart';
@@ -901,6 +902,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/expenses/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const NewExpenseScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/quick-payment',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const QuickPaymentScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/expenses/:id',

@@ -33,6 +33,7 @@ export * from './banking/statement-format-aliases';
 export * from './banking/narration-rules';
 export * from './banking/match-corrections';
 export * from './banking/petty-cash';
+export * from './banking/pending-payments';
 export * from './pg-recon/settlements';
 export * from './webhook-events';
 export * from './audit-log';

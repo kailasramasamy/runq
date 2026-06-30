@@ -6,6 +6,7 @@ import type { TransactionFilter } from '@runq/validators';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
 import { bankJeDescription } from './categorize-posting.service';
+import { PendingPaymentMatchService } from './pending-payment-match.service';
 import { randomUUID } from 'crypto';
 import { getBankFeedProvider } from '../../utils/banking';
 
@@ -184,6 +185,9 @@ export class TransactionService {
 
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
+      // Reconcile pay-time captured payments against the new debits first.
+      await new PendingPaymentMatchService(this.db, this.tenantId)
+        .matchBatch(bankAccountId, importBatchId);
     }
 
     await this.syncCurrentBalanceFromStatement(bankAccountId);
@@ -247,6 +251,8 @@ export class TransactionService {
 
     if (newRows.length > 0) {
       await this.db.insert(bankTransactions).values(newRows);
+      await new PendingPaymentMatchService(this.db, this.tenantId)
+        .matchBatch(bankAccountId, importBatchId);
     }
 
     await this.syncCurrentBalanceFromStatement(bankAccountId);

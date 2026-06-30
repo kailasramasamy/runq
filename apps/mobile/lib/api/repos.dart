@@ -491,6 +491,52 @@ class BankingRepo {
     return _dataList(res).map(BankAccount.fromJson).toList();
   }
 
+  /// Expense GL accounts (chart of accounts, type == expense) for categorising
+  /// a captured payment.
+  Future<List<GlAccount>> expenseAccounts() async {
+    final res = await apiClient.get('/gl/accounts');
+    return _dataList(res)
+        .map(GlAccount.fromJson)
+        .where((a) => a.type == 'expense')
+        .toList();
+  }
+
+  /// Capture an out-of-band payment (bank QR/UPI scan) so the imported bank
+  /// debit reconciles against it later. Optionally attaches the confirmation
+  /// photo, which moves onto the bank txn once matched.
+  Future<String> createPendingPayment({
+    required String bankAccountId,
+    required double amount,
+    required String paymentDate,
+    required String glAccountId,
+    String? payeeName,
+    String? note,
+    String? upiRef,
+    File? photo,
+  }) async {
+    final body = <String, dynamic>{
+      'bankAccountId': bankAccountId,
+      'amount': amount,
+      'paymentDate': paymentDate,
+      'glAccountId': glAccountId,
+      if (payeeName != null && payeeName.trim().isNotEmpty) 'payeeName': payeeName.trim(),
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      if (upiRef != null && upiRef.trim().isNotEmpty) 'upiRef': upiRef.trim(),
+    };
+    final res = await apiClient.post('/banking/pending-payments', body);
+    final id = _data(res)['id'] as String;
+    if (photo != null) {
+      final p = photo.path.toLowerCase();
+      await apiClient.upload(
+        '/attachments/expense/$id',
+        photo,
+        fileField: 'file',
+        mimeType: p.endsWith('.png') ? 'image/png' : 'image/jpeg',
+      );
+    }
+    return id;
+  }
+
   Future<PaginatedResponse<BankTxn>> transactions(String accountId, {int page = 1, int limit = 50, String? reconStatus}) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (reconStatus != null) qp['reconStatus'] = reconStatus;

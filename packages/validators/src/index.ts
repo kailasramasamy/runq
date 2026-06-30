@@ -22,6 +22,7 @@ export * from './banking/bank-account.schema';
 export * from './banking/transaction.schema';
 export * from './banking/reconciliation.schema';
 export * from './banking/petty-cash.schema';
+export * from './banking/pending-payment.schema';
 export * from './settings/company.schema';
 export * from './settings/invoice-numbering.schema';
 export * from './gl/gl.schema';

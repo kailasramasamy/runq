@@ -851,6 +851,20 @@ class BankAccount {
   }
 }
 
+class GlAccount {
+  final String id, code, name, type;
+  GlAccount({required this.id, required this.code, required this.name, required this.type});
+
+  factory GlAccount.fromJson(Map<String, dynamic> j) => GlAccount(
+        id: _strOr(j['id'], ''),
+        code: _strOr(j['code'], ''),
+        name: _strOr(j['name'], ''),
+        type: _strOr(j['type'], ''),
+      );
+
+  String get label => '$code · $name';
+}
+
 class BankTxn {
   final String id, bankAccountId, type, reconStatus;
   final String? reference, narration;
