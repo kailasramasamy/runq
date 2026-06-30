@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
   Plus, Landmark, ChevronRight,
-  ArrowUpDown, ClipboardCheck, CreditCard, ScrollText, Wallet,
+  ArrowUpDown, ClipboardCheck, CreditCard, ScrollText, Wallet, QrCode,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
@@ -44,6 +44,12 @@ const TOOLS: ToolLink[] = [
     description: 'Match bank transactions to invoices and payments.',
     to: '/finance/banking/reconciliation',
     icon: ClipboardCheck,
+  },
+  {
+    label: 'Pending payments',
+    description: 'QR/UPI payments captured in the app, awaiting bank reconciliation.',
+    to: '/finance/banking/pending-payments',
+    icon: QrCode,
   },
   {
     label: 'PG reconciliation',

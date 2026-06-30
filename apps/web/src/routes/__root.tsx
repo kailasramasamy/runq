@@ -83,6 +83,7 @@ import { BankAccountDetailPage } from './banking/accounts/detail';
 import { TransactionsPage } from './banking/transactions/index';
 import { ImportTransactionsPage } from './banking/transactions/import';
 import { ReconciliationPage } from './banking/reconciliation/index';
+import { PendingPaymentsPage } from './banking/pending-payments/index';
 import { PettyCashPage } from './banking/petty-cash/index';
 import { ChequesPage } from './banking/cheques/index';
 import { PGReconciliationPage } from './banking/pg-recon/index';
@@ -1095,6 +1096,12 @@ const bankReconciliationRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/reconciliation',
   component: ReconciliationPage,
+});
+
+const bankPendingPaymentsRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/pending-payments',
+  component: PendingPaymentsPage,
 });
 
 const bankChequesRoute = createRoute({
@@ -2728,6 +2735,7 @@ export const routeTree = rootRoute.addChildren([
         bankAccountNewRoute,
         bankAccountDetailRoute,
         bankTransactionsRoute,
+        bankPendingPaymentsRoute,
         bankTransactionsImportRoute,
         bankReconciliationRoute,
         bankChequesRoute,
