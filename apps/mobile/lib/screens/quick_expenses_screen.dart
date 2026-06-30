@@ -95,8 +95,14 @@ class _PaymentCard extends StatelessWidget {
     final payee = item.payeeName?.trim() ?? '';
     final note = item.note?.trim() ?? '';
     return Material(
-      color: t.bgWarm,
-      borderRadius: BorderRadius.circular(14),
+      // surface (not bgWarm) lifts above the scaffold in BOTH themes — in dark
+      // mode bgWarm is darker than the bg, so cards would recede. Hairline
+      // border adds definition.
+      color: t.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: t.hairline),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         // Only pending captures are editable — matched/cancelled are locked.
