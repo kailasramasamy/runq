@@ -1,7 +1,12 @@
 -- Pending payments: out-of-band payments (bank QR/UPI scans) captured in the
 -- app at pay time, auto-matched to the imported bank debit later so the
 -- "what was this for" context isn't lost at reconciliation.
-CREATE TYPE pending_payment_status AS ENUM ('pending', 'matched', 'cancelled');
+-- Idempotent: CREATE TYPE has no IF NOT EXISTS, so guard against a re-run
+-- (e.g. when the type was applied out-of-band before the migration tracker saw it).
+DO $$ BEGIN
+  CREATE TYPE pending_payment_status AS ENUM ('pending', 'matched', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS pending_payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
