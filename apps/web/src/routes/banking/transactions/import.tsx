@@ -117,10 +117,13 @@ export function ImportTransactionsPage() {
     parseMutation.mutate(files, {
       onSuccess: (result) => {
         setParseResult(result);
-        // Pre-fill detected account IDs
+        // Pre-fill the account: the statement's detected account wins; else
+        // fall back to the account the user had selected on the transactions
+        // page (passed as ?accountId), so their choice is respected.
+        const fallback = new URLSearchParams(window.location.search).get('accountId') ?? '';
         const preSelected: Record<number, string> = {};
         result.files.forEach((f, i) => {
-          if (f.detectedAccountId) preSelected[i] = f.detectedAccountId;
+          preSelected[i] = f.detectedAccountId ?? fallback;
         });
         setSelectedAccountIds(preSelected);
         setPhase('review');

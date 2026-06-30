@@ -1090,6 +1090,9 @@ const bankTransactionsImportRoute = createRoute({
   getParentRoute: () => bankingRoute,
   path: '/transactions/import',
   component: ImportTransactionsPage,
+  validateSearch: (s: Record<string, unknown>): { accountId?: string } => ({
+    accountId: typeof s.accountId === 'string' ? s.accountId : undefined,
+  }),
 });
 
 const bankReconciliationRoute = createRoute({
