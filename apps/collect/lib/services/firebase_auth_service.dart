@@ -88,13 +88,12 @@ class FirebaseAuthService {
     await _auth.signOut();
   }
 
-  /// Apple Sign In is temporarily OFF while the Apple Developer account is
-  /// mid personal→org transition — the App ID's "Sign in with Apple"
-  /// capability can't be toggled, so the entitlement is also removed from
-  /// Runner.entitlements. To re-enable: flip this to true, re-add the
-  /// `com.apple.developer.applesignin` entitlement, and enable the capability
-  /// on the App ID in the Apple Developer portal.
-  static const appleSignInEnabled = false;
+  /// Sign in with Apple — required by App Store guideline 4.8 as a privacy
+  /// equivalent to Google. Enabled once the org Apple Developer account had the
+  /// "Sign in with Apple" capability turned on for the App ID and the matching
+  /// `com.apple.developer.applesignin` entitlement was restored to
+  /// Runner.entitlements.
+  static const appleSignInEnabled = true;
 
   /// `true` on iOS / recent macOS, once [appleSignInEnabled]. Android has no
   /// native flow we ship, so the button is hidden there too.
