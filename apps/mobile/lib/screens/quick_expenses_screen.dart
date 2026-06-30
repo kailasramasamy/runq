@@ -75,7 +75,8 @@ class _PaymentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final subtitle = [item.payeeName, item.note].where((s) => s != null && s.isNotEmpty).join(' · ');
+    final payee = item.payeeName?.trim() ?? '';
+    final note = item.note?.trim() ?? '';
     return Material(
       color: t.bgWarm,
       borderRadius: BorderRadius.circular(14),
@@ -85,47 +86,58 @@ class _PaymentCard extends StatelessWidget {
         onTap: item.isPending ? () => context.push('/quick-payment', extra: item) : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF22C55E).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(item.glAccountName ?? 'Uncategorised',
-                        style: RunqText.bodyStrong.copyWith(color: t.ink),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(formatINR(item.amount), style: RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)),
-                ],
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.sell_outlined, color: Color(0xFF22C55E), size: 20),
               ),
-              if (subtitle.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(subtitle, style: RunqText.caption.copyWith(color: t.muted), maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      [item.paymentDate, item.bankLabel].where((s) => s.isNotEmpty).join('  ·  '),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Category + amount on the top line.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(item.glAccountName ?? 'Uncategorised',
+                              style: RunqText.bodyStrong.copyWith(color: t.ink),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(formatINR(item.amount),
+                            style: RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)),
+                      ],
+                    ),
+                    // Name (who) and reason (what for) on their own lines.
+                    if (payee.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(payee, style: RunqText.body.copyWith(color: t.ink),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ],
+                    if (note.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(note, style: RunqText.caption.copyWith(color: t.muted),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                    const SizedBox(height: 10),
+                    Text(
+                      [_fmtDate(item.paymentDate), item.bankLabel].where((s) => s.isNotEmpty).join('  ·  '),
                       style: RunqText.micro.copyWith(color: t.muted2),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusChip(status: item.status),
-                ],
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerLeft, child: _StatusChip(status: item.status)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -135,6 +147,16 @@ class _PaymentCard extends StatelessWidget {
   }
 }
 
+String _fmtDate(String iso) {
+  final p = iso.split('-');
+  if (p.length != 3) return iso;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final m = int.tryParse(p[1]) ?? 0;
+  final d = int.tryParse(p[2]) ?? 0;
+  if (m < 1 || m > 12 || d < 1) return iso;
+  return '$d ${months[m - 1]} ${p[0]}';
+}
+
 class _StatusChip extends StatelessWidget {
   final String status;
   const _StatusChip({required this.status});
@@ -142,9 +164,9 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
-      'matched' => ('Reconciled', const Color(0xFF22C55E), Icons.check_circle_outline),
+      'matched' => ('Matched to bank txn', const Color(0xFF22C55E), Icons.account_balance_outlined),
       'cancelled' => ('Cancelled', const Color(0xFF94A3B8), Icons.cancel_outlined),
-      _ => ('Pending', const Color(0xFFF59E0B), Icons.schedule_outlined),
+      _ => ('Awaiting bank txn', const Color(0xFFF59E0B), Icons.schedule_outlined),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
