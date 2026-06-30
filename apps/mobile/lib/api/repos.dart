@@ -558,12 +558,18 @@ class BankingRepo {
     final id = _data(res)['id'] as String;
     if (photo != null) {
       final p = photo.path.toLowerCase();
-      await apiClient.upload(
-        '/attachments/expense/$id',
-        photo,
-        fileField: 'file',
-        mimeType: p.endsWith('.png') ? 'image/png' : 'image/jpeg',
-      );
+      try {
+        await apiClient.upload(
+          '/common/attachments/expense/$id',
+          photo,
+          fileField: 'file',
+          mimeType: p.endsWith('.png') ? 'image/png' : 'image/jpeg',
+        );
+      } on ApiException {
+        // The payment is already saved; the photo is optional proof, so a
+        // failed upload must not fail the capture (which would orphan the row
+        // and tempt a duplicate re-capture).
+      }
     }
     return id;
   }
