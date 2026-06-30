@@ -2,7 +2,10 @@ import { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import { mpCredentials, mpFarmers, mpNodeOperators, users, userTenants, type MpCredentialRow } from '@runq/db';
+import {
+  mpCredentials, mpCredentialIdentities, mpFarmers, mpNodeOperators, users, userTenants,
+  type MpCredentialRow,
+} from '@runq/db';
 import { mpSocialLoginSchema, mpSocialBindSchema, mpPhoneDobLoginSchema } from '@runq/validators';
 import { UnauthorizedError, NotFoundError, ForbiddenError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
@@ -139,20 +142,22 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
 }
 
 export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
-  // Every login after binding. Token must map to a credential via firebase_uid;
-  // otherwise needsBinding routes the app into the one-time DOB bind below.
+  // Every login after binding. The social uid must map to a credential via a
+  // linked identity (Google OR Apple); otherwise needsBinding routes the app
+  // into the one-time DOB bind below.
   app.post('/mp/social/login', async (request, reply) => {
     const { idToken } = mpSocialLoginSchema.parse(request.body);
     const decoded = await verifyIdToken(idToken);
 
-    const [cred] = await app.db
-      .select()
-      .from(mpCredentials)
-      .where(and(eq(mpCredentials.firebaseUid, decoded.uid), eq(mpCredentials.isActive, true)))
+    const [row] = await app.db
+      .select({ cred: mpCredentials })
+      .from(mpCredentialIdentities)
+      .innerJoin(mpCredentials, eq(mpCredentials.id, mpCredentialIdentities.credentialId))
+      .where(and(eq(mpCredentialIdentities.firebaseUid, decoded.uid), eq(mpCredentials.isActive, true)))
       .limit(1);
-    if (!cred) return reply.send({ data: { needsBinding: true } });
+    if (!row) return reply.send({ data: { needsBinding: true } });
 
-    const user = await resolveOrProvisionUser(app, cred);
+    const user = await resolveOrProvisionUser(app, row.cred);
     return reply.send({ data: await issueSession(app, user) });
   });
 
@@ -167,20 +172,30 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
 
     const cred = await verifyCredentialByDob(app.db, phone, dob);
 
-    // Anti-hijack: refuse if this credential is bound to a different uid, or if
-    // this uid is already bound to another credential.
-    if (cred.firebaseUid && cred.firebaseUid !== decoded.uid) {
-      throw new UnauthorizedError('This account is already linked to another login. Contact your admin.');
-    }
-    const [conflict] = await app.db
-      .select({ id: mpCredentials.id })
-      .from(mpCredentials)
-      .where(and(eq(mpCredentials.firebaseUid, decoded.uid), sql`${mpCredentials.id} <> ${cred.id}`))
+    // Anti-hijack: a social identity belongs to exactly one account. If this uid
+    // is already linked elsewhere, refuse; if it's already on THIS account, the
+    // bind is idempotent. A *new* uid links as an additional provider — so the
+    // same farmer can use both Google and Apple.
+    const [existing] = await app.db
+      .select({ credentialId: mpCredentialIdentities.credentialId })
+      .from(mpCredentialIdentities)
+      .where(eq(mpCredentialIdentities.firebaseUid, decoded.uid))
       .limit(1);
-    if (conflict) {
+    if (existing && existing.credentialId !== cred.id) {
       throw new UnauthorizedError('This Google/Apple account is already linked to another Dhenu user.');
     }
+    if (!existing) {
+      // Link the identity; re-linking the same provider (e.g. a recreated Google
+      // account) updates the uid in place.
+      await app.db.insert(mpCredentialIdentities)
+        .values({ tenantId: cred.tenantId, credentialId: cred.id, firebaseUid: decoded.uid, provider: social })
+        .onConflictDoUpdate({
+          target: [mpCredentialIdentities.credentialId, mpCredentialIdentities.provider],
+          set: { firebaseUid: decoded.uid },
+        });
+    }
 
+    // Keep the credential's columns as the most-recently-linked provider (audit).
     await app.db.update(mpCredentials)
       .set({ firebaseUid: decoded.uid, authProvider: social, bindAttempts: 0 })
       .where(eq(mpCredentials.id, cred.id));

@@ -41,3 +41,25 @@ export const mpCredentials = pgTable('mp_credentials', {
 
 export type MpCredentialRow = typeof mpCredentials.$inferSelect;
 export type NewMpCredentialRow = typeof mpCredentials.$inferInsert;
+
+/**
+ * Social identities linked to a credential — one row per provider, so a single
+ * Dhenu account can sign in with BOTH Google and Apple (each is a distinct
+ * Firebase uid). `firebase_uid` is globally unique (an identity maps to exactly
+ * one account); `(credential_id, provider)` is unique so re-linking the same
+ * provider updates the uid rather than piling up rows.
+ */
+export const mpCredentialIdentities = pgTable('mp_credential_identities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  credentialId: uuid('credential_id').notNull().references(() => mpCredentials.id),
+  firebaseUid: varchar('firebase_uid', { length: 128 }).notNull(),
+  provider: varchar('provider', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('uq_mp_cred_identities_uid').on(t.firebaseUid),
+  uniqueIndex('uq_mp_cred_identities_cred_provider').on(t.credentialId, t.provider),
+  index('idx_mp_cred_identities_cred').on(t.credentialId),
+]);
+
+export type MpCredentialIdentityRow = typeof mpCredentialIdentities.$inferSelect;
