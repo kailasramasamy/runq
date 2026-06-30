@@ -66,11 +66,12 @@ CRITICAL — line item completeness (transcribe the bill, do not redo its math):
 
 CRITICAL — handling tax (two distinct bill styles):
 
-(a) TAX-EXCLUSIVE bills (most B2B tax invoices: Sanathana Foods, BESCOM-style):
-    Tax is printed as separate rows mixed in with the line items, between the goods and the grand total. Examples: "Output CGST@2.5%", "Output SGST@2.5%", "GST @18%", "Tax @ 9%".
-    → Capture every such tax row as its own line item with quantity=1, unitPrice=amount.
-    → Sum of line items (goods + tax rows + charges + discounts) should equal totalAmount.
-    → Set header taxAmount to 0; the tax IS the line items above.
+(a) TAX-EXCLUSIVE bills with separate tax rows (most B2B tax invoices: Sanathana Foods, BESCOM-style):
+    Tax is printed as separate rows between the goods and the grand total — e.g. "Output CGST@2.5%", "Output SGST@2.5%", "GST @18%", "Tax @ 9%". There is usually also an HSN-wise tax summary table near the footer (HSN | Taxable Value | CGST rate/amt | SGST rate/amt | IGST rate/amt).
+    Treat the tax AS TAX, not as goods, so input GST (ITC) is preserved:
+    → Capture only the goods/charge rows as line items, amount = the taxable amount as printed. Do NOT create line items for the "Output CGST/SGST/IGST" / "GST @x%" tax rows.
+    → For each goods line set taxRate = its GST percentage and taxCategory = "taxable". Read the rate from the HSN-wise summary by matching the line's HSN (CGST% + SGST%, or IGST%); if there is no summary, infer it from the tax rows (a single "GST @18%" → 18 on every taxable line; "CGST@2.5%" + "SGST@2.5%" → 5).
+    → Header taxAmount = total tax (sum of all CGST + SGST + IGST amounts). Header subtotal = sum of taxable amounts. totalAmount = the printed grand total.
 
 (b) TAX-INCLUSIVE bills (retail receipts: kirana stores, supermarkets, restaurants):
     Line item amounts already include GST. There may be a footer summary table showing "Taxable Value / CGST / SGST" broken down by HSN slab — this is for filing records only and is NOT additional charges.
@@ -93,7 +94,7 @@ Test for which style applies:
   • Else if explicit tax rows (e.g. "Output CGST@9%") appear between goods and grand total → case (a).
   • Else if goods amounts already include tax and any GST breakdown is footer-only → case (b).
 
-For line items, set taxRate only in case (c) (sum of the per-row tax %). In case (a) leave taxRate null on goods rows. The taxCategory field can be set when obvious from the bill ("taxable", "exempt", "nil_rated").
+For line items, set a per-goods-line taxRate in BOTH case (a) (from the tax rows / HSN summary) and case (c) (sum of the per-row tax %), so input GST is captured and never lost. In case (b) leave taxRate null (tax is already inside the price). The taxCategory field can be set when obvious from the bill ("taxable", "exempt", "nil_rated").
 
 subtotal = the bill's printed "Sub Total" / "Taxable Value" total when present; otherwise null.
 - A line is only zero-amount if the printed amount is literally zero. Skip those.

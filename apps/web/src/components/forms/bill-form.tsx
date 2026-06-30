@@ -138,6 +138,10 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
+  // When off, GST is NOT auto-calculated from per-line rates — the tax is
+  // entered as its own line items (common on invoices that show CGST/SGST as
+  // separate rows). Off ⇒ taxAmount=0, so no ITC is tracked for the bill.
+  const [autoGst, setAutoGst] = useState(true);
   // ─── AP Pattern-B (spec §3) state ────────────────────────────────────
   const [warehouseId, setWarehouseId] = useState('');
   const [goodsReceived, setGoodsReceived] = useState(false);
@@ -215,11 +219,14 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
   const showDuplicateWarning = duplicateMatches.length > 0 && !duplicateDismissed;
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
-  const tax = lines.reduce((sum, l) => {
+  const computedTax = lines.reduce((sum, l) => {
     const cat = l.taxCategory;
     if (cat === 'exempt' || cat === 'nil_rated' || cat === 'zero_rated') return sum;
     return sum + lineAmount(l) * (parseFloat(l.taxRate) || 0) / 100;
   }, 0);
+  // Auto-GST off ⇒ tax is captured as its own line items (already in subtotal);
+  // suppress the computed GST so it isn't double-counted.
+  const tax = autoGst ? computedTax : 0;
   const tdsTotal = lines.reduce((sum, l) => sum + lineAmount(l) * (parseFloat(l.tdsRate) || 0) / 100, 0);
   const total = Math.round((subtotal + tax) * 100) / 100;
 
@@ -305,7 +312,7 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
         unitPrice: parseFloat(l.unitPrice) || 0,
         amount: lineAmount(l),
         hsnSacCode: l.hsnSacCode || null,
-        taxRate: parseFloat(l.taxRate) || 0,
+        taxRate: autoGst ? (parseFloat(l.taxRate) || 0) : 0,
         taxCategory: l.taxCategory || 'taxable',
         tdsSection: l.tdsSection || null,
         tdsRate: parseFloat(l.tdsRate) || null,
@@ -411,7 +418,20 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
       </Card>
 
       <Card className="overflow-visible">
-        <CardHeader title="Line Items" />
+        <CardHeader
+          title="Line Items"
+          action={
+            <label className="flex cursor-pointer items-center gap-2 text-xs font-normal text-zinc-600 dark:text-zinc-400">
+              <input
+                type="checkbox"
+                checked={autoGst}
+                onChange={(e) => setAutoGst(e.target.checked)}
+                className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Auto-calculate GST from line rates
+            </label>
+          }
+        />
         <CardContent className="p-0 overflow-visible">
           {errors.items && (
             <p className="px-4 pt-3 text-xs text-red-600 dark:text-red-400">{errors.items}</p>
@@ -502,7 +522,7 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
                       value={line.taxRate}
                       onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
                       options={TAX_RATE_OPTIONS}
-                      disabled={line.taxCategory !== 'taxable' && line.taxCategory !== 'reverse_charge'}
+                      disabled={!autoGst || (line.taxCategory !== 'taxable' && line.taxCategory !== 'reverse_charge')}
                     />
                   </TableCell>
                   <TableCell>
@@ -677,9 +697,16 @@ export function BillForm({ onSubmit, isLoading, initialData, editingId, submitLa
               <span className="font-mono tabular-nums">{formatINR(subtotal)}</span>
             </div>
             <div className="flex w-56 justify-between gap-4">
-              <span className="text-zinc-500 dark:text-zinc-400">GST (auto-calculated)</span>
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {autoGst ? 'GST (auto-calculated)' : 'GST (in line items)'}
+              </span>
               <span className="font-mono tabular-nums">{formatINR(Math.round(tax * 100) / 100)}</span>
             </div>
+            {!autoGst && (
+              <p className="w-56 text-right text-xs text-amber-600 dark:text-amber-400">
+                Tax entered as line items — no ITC tracked for this bill.
+              </p>
+            )}
             {tdsTotal > 0 && (
               <div className="flex w-56 justify-between gap-4">
                 <span className="text-zinc-500 dark:text-zinc-400">TDS deductible</span>

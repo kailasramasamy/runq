@@ -20,6 +20,7 @@ export function NewBillPage() {
   return (
     <div>
       <PageHeader
+        fullWidth
         title="New Bill"
         description="Record a vendor bill (purchase invoice)."
         breadcrumbs={[

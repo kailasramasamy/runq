@@ -332,6 +332,19 @@ export function tryLocalExtraction(text: string): ExtractedInvoice | null {
   } else {
     if (totalAmount <= 0) totalAmount = subtotal;
     taxAmount = Math.max(0, Math.round((totalAmount - subtotal) * 100) / 100);
+    // Tax exists but the goods rows carry no per-line tax columns. The bill
+    // form is rate-driven, so we must attribute a per-line GST rate or the
+    // input tax (ITC) is lost. If the blended rate is a single standard slab,
+    // stamp it on the taxable lines; if it's a mix (e.g. 5% + 18%), defer to
+    // the AI extractor (which reads the HSN-wise summary) rather than drop ITC.
+    if (taxAmount > 0 && subtotal > 0) {
+      const blended = (taxAmount / subtotal) * 100;
+      const slab = [5, 12, 18, 28].find((r) => Math.abs(r - blended) <= 0.25);
+      if (!slab) return null;
+      for (const it of items) {
+        if (it.amount > 0) { it.taxRate = slab; it.taxCategory = 'taxable'; }
+      }
+    }
   }
 
   return {
