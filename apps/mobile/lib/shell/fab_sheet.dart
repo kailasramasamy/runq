@@ -55,10 +55,10 @@ List<FabAction> financeFabActions() => [
       ),
       FabAction(
         icon: Icons.qr_code_scanner_outlined,
-        title: 'Quick payment',
-        sub: 'Log a QR/UPI payment you just made',
+        title: 'Quick payments',
+        sub: 'Log & track QR/UPI payments you made',
         tint: RunqColors.indigo,
-        onTap: (ctx) => ctx.push('/quick-payment'),
+        onTap: (ctx) => ctx.push('/quick-expenses'),
       ),
       FabAction(
         icon: Icons.savings_outlined,

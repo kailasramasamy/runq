@@ -878,6 +878,54 @@ class ExtractedConfirmation {
       );
 }
 
+class PendingPayment {
+  final String id, bankAccountId, paymentDate, glAccountId, status;
+  final String? glAccountCode, glAccountName, payeeName, note, upiRef;
+  final String? bankAccountName, bankAccountNumber, matchedBankTransactionId;
+  final double amount;
+  PendingPayment({
+    required this.id,
+    required this.bankAccountId,
+    required this.amount,
+    required this.paymentDate,
+    required this.glAccountId,
+    required this.status,
+    this.glAccountCode,
+    this.glAccountName,
+    this.payeeName,
+    this.note,
+    this.upiRef,
+    this.bankAccountName,
+    this.bankAccountNumber,
+    this.matchedBankTransactionId,
+  });
+
+  factory PendingPayment.fromJson(Map<String, dynamic> j) => PendingPayment(
+        id: _strOr(j['id'], ''),
+        bankAccountId: _strOr(j['bankAccountId'], ''),
+        amount: _num(j['amount']),
+        paymentDate: _strOr(j['paymentDate'], ''),
+        glAccountId: _strOr(j['glAccountId'], ''),
+        status: _strOr(j['status'], 'pending'),
+        glAccountCode: _str(j['glAccountCode']),
+        glAccountName: _str(j['glAccountName']),
+        payeeName: _str(j['payeeName']),
+        note: _str(j['note']),
+        upiRef: _str(j['upiRef']),
+        bankAccountName: _str(j['bankAccountName']),
+        bankAccountNumber: _str(j['bankAccountNumber']),
+        matchedBankTransactionId: _str(j['matchedBankTransactionId']),
+      );
+
+  bool get isPending => status == 'pending';
+
+  String get bankLabel {
+    final n = bankAccountNumber;
+    final last4 = (n != null && n.length > 4) ? '··· ${n.substring(n.length - 4)}' : (n ?? '');
+    return [bankAccountName ?? '', last4].where((s) => s.isNotEmpty).join(' ');
+  }
+}
+
 class BankTxn {
   final String id, bankAccountId, type, reconStatus;
   final String? reference, narration;

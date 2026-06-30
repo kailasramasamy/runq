@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { createPendingPaymentSchema } from '@runq/validators';
+import { createPendingPaymentSchema, updatePendingPaymentSchema } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { PendingPaymentService } from './pending-payment.service';
@@ -11,7 +11,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 const listQuerySchema = z.object({
-  status: z.enum(['pending', 'matched', 'cancelled']).optional().default('pending'),
+  status: z.enum(['pending', 'matched', 'cancelled', 'all']).optional().default('all'),
 });
 
 export const pendingPaymentRoutes: FastifyPluginAsync = async (app) => {
@@ -32,7 +32,19 @@ export const pendingPaymentRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const { status } = listQuerySchema.parse(request.query);
       const service = new PendingPaymentService(request.server.db, request.tenantId);
-      return { data: await service.list(status) };
+      return { data: await service.list(status === 'all' ? undefined : status) };
+    },
+  );
+
+  app.patch(
+    '/:id',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = idParamSchema.parse(request.params);
+      const body = updatePendingPaymentSchema.parse(request.body);
+      const service = new PendingPaymentService(request.server.db, request.tenantId);
+      await service.update(id, body);
+      return reply.status(200).send({ data: { success: true } });
     },
   );
 

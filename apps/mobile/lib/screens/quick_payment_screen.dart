@@ -21,7 +21,11 @@ class QuickPaymentScreen extends ConsumerStatefulWidget {
   /// When opened from the share sheet, the shared confirmation file — OCR'd
   /// on open to pre-fill the form.
   final File? initialFile;
-  const QuickPaymentScreen({super.key, this.initialFile});
+
+  /// When set, the screen edits an existing (still-pending) capture instead
+  /// of creating a new one.
+  final PendingPayment? editPayment;
+  const QuickPaymentScreen({super.key, this.initialFile, this.editPayment});
 
   @override
   ConsumerState<QuickPaymentScreen> createState() => _QuickPaymentScreenState();
@@ -42,17 +46,31 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
 
   static const _kLastAccount = 'qp_last_bank_account_id';
 
+  bool get _isEdit => widget.editPayment != null;
+
   @override
   void initState() {
     super.initState();
-    // Default "Paid from" to the last account used (persisted across sessions).
-    SharedPreferences.getInstance().then((p) {
-      if (!mounted) return;
-      setState(() {
-        _bankAccountId ??= p.getString(_kLastAccount);
-        _prefsLoaded = true;
+    final e = widget.editPayment;
+    if (e != null) {
+      _bankAccountId = e.bankAccountId;
+      _amountCtrl.text = e.amount.toStringAsFixed(2);
+      _category = GlAccount(id: e.glAccountId, code: e.glAccountCode ?? '', name: e.glAccountName ?? '', type: 'expense');
+      _payeeCtrl.text = e.payeeName ?? '';
+      _noteCtrl.text = e.note ?? '';
+      _upiCtrl.text = e.upiRef ?? '';
+      _date = DateTime.tryParse(e.paymentDate) ?? _date;
+      _prefsLoaded = true; // don't override the edited account with the saved default
+    } else {
+      // Default "Paid from" to the last account used (persisted across sessions).
+      SharedPreferences.getInstance().then((p) {
+        if (!mounted) return;
+        setState(() {
+          _bankAccountId ??= p.getString(_kLastAccount);
+          _prefsLoaded = true;
+        });
       });
-    });
+    }
     final f = widget.initialFile;
     if (f != null) {
       _photo = f;
@@ -207,19 +225,32 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     if (_category == null) return _err('Pick an expense category.');
     setState(() => _saving = true);
     try {
-      await bankingRepo.createPendingPayment(
-        bankAccountId: _bankAccountId!,
-        amount: amount,
-        paymentDate: _dateIso,
-        glAccountId: _category!.id,
-        payeeName: _payeeCtrl.text,
-        note: _noteCtrl.text,
-        upiRef: _upiCtrl.text,
-        photo: _photo,
-      );
-      await _rememberAccount(_bankAccountId!);
+      if (_isEdit) {
+        await bankingRepo.updatePendingPayment(widget.editPayment!.id, {
+          'bankAccountId': _bankAccountId,
+          'amount': amount,
+          'paymentDate': _dateIso,
+          'glAccountId': _category!.id,
+          'payeeName': _payeeCtrl.text.trim().isEmpty ? null : _payeeCtrl.text.trim(),
+          'note': _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+          'upiRef': _upiCtrl.text.trim().isEmpty ? null : _upiCtrl.text.trim(),
+        });
+      } else {
+        await bankingRepo.createPendingPayment(
+          bankAccountId: _bankAccountId!,
+          amount: amount,
+          paymentDate: _dateIso,
+          glAccountId: _category!.id,
+          payeeName: _payeeCtrl.text,
+          note: _noteCtrl.text,
+          upiRef: _upiCtrl.text,
+          photo: _photo,
+        );
+        await _rememberAccount(_bankAccountId!);
+      }
       if (!mounted) return;
-      showRunqSnack(context, 'Payment captured — it\'ll match your bank statement.');
+      ref.invalidate(pendingPaymentsProvider);
+      showRunqSnack(context, _isEdit ? 'Payment updated.' : 'Payment captured — it\'ll match your bank statement.');
       context.pop();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
@@ -237,7 +268,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     final categoriesAsync = ref.watch(expenseAccountsProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
-      appBar: AppBar(title: const Text('Quick payment')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit payment' : 'Quick payment')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -286,8 +317,10 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
             const SizedBox(height: 16),
             _label(t, 'Payment date'),
             _dateField(t),
-            const SizedBox(height: 16),
-            _photoField(t),
+            if (!_isEdit) ...[
+              const SizedBox(height: 16),
+              _photoField(t),
+            ],
           ],
         ),
       ),
@@ -302,7 +335,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
             onPressed: _saving ? null : _save,
             child: _saving
                 ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Capture payment'),
+                : Text(_isEdit ? 'Save changes' : 'Capture payment'),
           ),
         ),
       ),

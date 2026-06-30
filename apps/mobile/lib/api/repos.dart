@@ -501,6 +501,21 @@ class BankingRepo {
         .toList();
   }
 
+  /// History of captured quick payments (optionally filtered by status).
+  Future<List<PendingPayment>> pendingPayments({String status = 'all'}) async {
+    final res = await apiClient.get('/banking/pending-payments?status=$status');
+    return _dataList(res).map(PendingPayment.fromJson).toList();
+  }
+
+  /// Edit a still-pending capture (matched/cancelled rows are immutable).
+  Future<void> updatePendingPayment(String id, Map<String, dynamic> body) async {
+    await apiClient.patch('/banking/pending-payments/$id', body);
+  }
+
+  Future<void> cancelPendingPayment(String id) async {
+    await apiClient.delete('/banking/pending-payments/$id');
+  }
+
   /// OCR a UPI/bank confirmation screenshot to pre-fill the capture form.
   /// Best-effort — fields come back null when not legible.
   Future<ExtractedConfirmation> extractConfirmation(File file) async {

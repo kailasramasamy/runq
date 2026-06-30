@@ -1,7 +1,7 @@
 import { eq, and, desc } from 'drizzle-orm';
 import { pendingPayments, accounts, bankAccounts } from '@runq/db';
 import type { Db } from '@runq/db';
-import type { CreatePendingPaymentInput } from '@runq/validators';
+import type { CreatePendingPaymentInput, UpdatePendingPaymentInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 
 /**
@@ -30,7 +30,8 @@ export class PendingPaymentService {
     return row;
   }
 
-  async list(status: 'pending' | 'matched' | 'cancelled') {
+  /** History for the quick-expenses screen. Omit status for all rows. */
+  async list(status?: 'pending' | 'matched' | 'cancelled') {
     return this.db
       .select({
         id: pendingPayments.id,
@@ -44,15 +45,41 @@ export class PendingPaymentService {
         note: pendingPayments.note,
         upiRef: pendingPayments.upiRef,
         status: pendingPayments.status,
-        bankAccountName: bankAccounts.accountNumber,
+        bankAccountName: bankAccounts.bankName,
+        bankAccountNumber: bankAccounts.accountNumber,
         matchedBankTransactionId: pendingPayments.matchedBankTransactionId,
         createdAt: pendingPayments.createdAt,
       })
       .from(pendingPayments)
       .leftJoin(accounts, eq(pendingPayments.glAccountId, accounts.id))
       .leftJoin(bankAccounts, eq(pendingPayments.bankAccountId, bankAccounts.id))
-      .where(and(eq(pendingPayments.tenantId, this.tenantId), eq(pendingPayments.status, status)))
+      .where(and(
+        eq(pendingPayments.tenantId, this.tenantId),
+        status ? eq(pendingPayments.status, status) : undefined,
+      ))
       .orderBy(desc(pendingPayments.createdAt));
+  }
+
+  /** Edit a still-pending capture. Matched/cancelled rows are immutable. */
+  async update(id: string, input: UpdatePendingPaymentInput): Promise<void> {
+    const set: Partial<typeof pendingPayments.$inferInsert> = { updatedAt: new Date() };
+    if (input.bankAccountId !== undefined) set.bankAccountId = input.bankAccountId;
+    if (input.amount !== undefined) set.amount = input.amount.toString();
+    if (input.paymentDate !== undefined) set.paymentDate = input.paymentDate;
+    if (input.glAccountId !== undefined) set.glAccountId = input.glAccountId;
+    if (input.payeeName !== undefined) set.payeeName = input.payeeName ?? null;
+    if (input.note !== undefined) set.note = input.note ?? null;
+    if (input.upiRef !== undefined) set.upiRef = input.upiRef ?? null;
+    const [row] = await this.db
+      .update(pendingPayments)
+      .set(set)
+      .where(and(
+        eq(pendingPayments.id, id),
+        eq(pendingPayments.tenantId, this.tenantId),
+        eq(pendingPayments.status, 'pending'),
+      ))
+      .returning({ id: pendingPayments.id });
+    if (!row) throw new NotFoundError('Pending payment');
   }
 
   async cancel(id: string): Promise<void> {
