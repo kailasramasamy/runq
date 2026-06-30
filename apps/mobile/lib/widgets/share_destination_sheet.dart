@@ -36,6 +36,8 @@ Future<ShareDestination?> showShareDestinationSheet(BuildContext context) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
     isDismissible: true,
+    // Size to content — the option list is taller than the default ~56% cap.
+    isScrollControlled: true,
     builder: (_) => const _Sheet(),
   );
 }
@@ -48,7 +50,7 @@ class _Sheet extends StatelessWidget {
     final t = RT(context);
     return SafeArea(
       top: false,
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
