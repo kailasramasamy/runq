@@ -3,9 +3,11 @@ import { createPendingPaymentSchema } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { PendingPaymentService } from './pending-payment.service';
+import { ConfirmationExtractService } from './confirmation-extract.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 const listQuerySchema = z.object({
@@ -31,6 +33,23 @@ export const pendingPaymentRoutes: FastifyPluginAsync = async (app) => {
       const { status } = listQuerySchema.parse(request.query);
       const service = new PendingPaymentService(request.server.db, request.tenantId);
       return { data: await service.list(status) };
+    },
+  );
+
+  // OCR a UPI/bank confirmation screenshot to pre-fill the capture form.
+  app.post(
+    '/extract',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const file = await request.file();
+      if (!file) return reply.status(400).send({ error: 'No file uploaded' });
+      const buffer = await file.toBuffer();
+      if (buffer.length > MAX_FILE_SIZE) {
+        return reply.status(400).send({ error: 'File too large. Maximum size is 10 MB.' });
+      }
+      const mimeType = file.mimetype.toLowerCase();
+      const data = await new ConfirmationExtractService().extract(buffer, mimeType);
+      return { data };
     },
   );
 

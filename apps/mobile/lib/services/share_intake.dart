@@ -89,6 +89,11 @@ class _ShareIntakeHostState extends State<ShareIntakeHost> {
         case ShareDestination.customerPo:
           openPoProcessing(ctx, file, source: 'share_sheet');
           break;
+        case ShareDestination.quickPayment:
+          // Pass the original file (colour screenshot) straight through — the
+          // quick-payment screen OCRs it to pre-fill, and keeps it as proof.
+          ctx.push('/quick-payment', extra: file);
+          break;
         case ShareDestination.receiveAgainstPo:
           // Compress images the same way the bill flow does — the scan
           // endpoint accepts both PDF and JPEG, so this just keeps

@@ -865,6 +865,19 @@ class GlAccount {
   String get label => '$code · $name';
 }
 
+class ExtractedConfirmation {
+  final double? amount;
+  final String? upiRef, payeeName, paymentDate;
+  ExtractedConfirmation({this.amount, this.upiRef, this.payeeName, this.paymentDate});
+
+  factory ExtractedConfirmation.fromJson(Map<String, dynamic> j) => ExtractedConfirmation(
+        amount: (j['amount'] as num?)?.toDouble(),
+        upiRef: _str(j['upiRef']),
+        payeeName: _str(j['payeeName']),
+        paymentDate: _str(j['paymentDate']),
+      );
+}
+
 class BankTxn {
   final String id, bankAccountId, type, reconStatus;
   final String? reference, narration;

@@ -18,6 +18,10 @@ enum ShareDestination {
   /// Routes to a "pick an open PO" picker, then into the scan-receive
   /// flow so we post a combined GRN + Bill in one shot.
   receiveAgainstPo,
+
+  /// A UPI/bank payment confirmation for money already paid. Routes to the
+  /// quick-payment capture, OCR-prefilled, to reconcile against the bank later.
+  quickPayment,
 }
 
 /// Bottom sheet shown when the user shares a file from another app
@@ -90,6 +94,13 @@ class _Sheet extends StatelessWidget {
               title: 'Receive against PO',
               subtitle: "Vendor's invoice for an open PO — posts GRN + bill",
               onTap: () => Navigator.pop(context, ShareDestination.receiveAgainstPo),
+            ),
+            _Tile(
+              icon: Icons.qr_code_scanner_outlined,
+              tint: const Color(0xFF22C55E),
+              title: 'Quick payment',
+              subtitle: 'UPI/QR payment you made — logs it to match your bank',
+              onTap: () => Navigator.pop(context, ShareDestination.quickPayment),
             ),
             const SizedBox(height: 4),
             TextButton(

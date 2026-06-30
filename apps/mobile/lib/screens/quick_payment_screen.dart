@@ -17,7 +17,10 @@ import 'new_expense_screen.dart' show fieldDecoration;
 /// so the imported bank debit reconciles against it later instead of being a
 /// forgotten "what was this for". Posts a pending payment + optional photo.
 class QuickPaymentScreen extends ConsumerStatefulWidget {
-  const QuickPaymentScreen({super.key});
+  /// When opened from the share sheet, the shared confirmation file — OCR'd
+  /// on open to pre-fill the form.
+  final File? initialFile;
+  const QuickPaymentScreen({super.key, this.initialFile});
 
   @override
   ConsumerState<QuickPaymentScreen> createState() => _QuickPaymentScreenState();
@@ -33,6 +36,17 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
   DateTime _date = DateTime.now();
   File? _photo;
   bool _saving = false;
+  bool _ocrBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final f = widget.initialFile;
+    if (f != null) {
+      _photo = f;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _runOcr(f));
+    }
+  }
 
   @override
   void dispose() {
@@ -49,6 +63,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
   Future<void> _pickPhoto() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
@@ -66,16 +81,61 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     );
     if (source == null) return;
     final x = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 2400);
-    if (x != null) setState(() => _photo = File(x.path));
+    if (x == null) return;
+    final file = File(x.path);
+    setState(() => _photo = file);
+    await _runOcr(file);
+  }
+
+  /// Read the confirmation and pre-fill empty fields. Best-effort: failures
+  /// are silent so the user can always fill the form by hand.
+  Future<void> _runOcr(File file) async {
+    setState(() => _ocrBusy = true);
+    try {
+      final c = await bankingRepo.extractConfirmation(file);
+      if (!mounted) return;
+      setState(() {
+        if (c.amount != null && _amountCtrl.text.trim().isEmpty) {
+          _amountCtrl.text = c.amount!.toStringAsFixed(2);
+        }
+        if (c.payeeName != null && _payeeCtrl.text.trim().isEmpty) _payeeCtrl.text = c.payeeName!;
+        if (c.upiRef != null && _upiCtrl.text.trim().isEmpty) _upiCtrl.text = c.upiRef!;
+        if (c.paymentDate != null) _date = DateTime.tryParse(c.paymentDate!) ?? _date;
+      });
+    } on ApiException catch (_) {
+      // OCR is best-effort; leave fields for manual entry.
+    } finally {
+      if (mounted) setState(() => _ocrBusy = false);
+    }
   }
 
   Future<void> _pickCategory(List<GlAccount> accounts) async {
     final picked = await showModalBottomSheet<GlAccount>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => _CategorySheet(accounts: accounts),
     );
     if (picked != null) setState(() => _category = picked);
+  }
+
+  Future<void> _pickBankAccount(List<BankAccount> accounts) async {
+    final picked = await showModalBottomSheet<BankAccount>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: accounts
+              .map((a) => ListTile(
+                    title: Text('${a.bankName} ${a.masked}'),
+                    onTap: () => Navigator.pop(ctx, a),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _bankAccountId = picked.id);
   }
 
   Future<void> _save() async {
@@ -185,14 +245,19 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
 
   Widget _accountField(RunqTokens t, List<BankAccount> accounts) {
     _bankAccountId ??= accounts.isNotEmpty ? accounts.first.id : null;
-    return DropdownButtonFormField<String>(
-      initialValue: _bankAccountId,
-      isExpanded: true,
-      decoration: fieldDecoration(t),
-      items: accounts
-          .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.bankName} ${a.masked}', style: RunqText.body.copyWith(color: t.ink))))
-          .toList(),
-      onChanged: (v) => setState(() => _bankAccountId = v),
+    BankAccount? selected;
+    for (final a in accounts) {
+      if (a.id == _bankAccountId) { selected = a; break; }
+    }
+    return InkWell(
+      onTap: () => _pickBankAccount(accounts),
+      child: InputDecorator(
+        decoration: fieldDecoration(t),
+        child: Text(
+          selected != null ? '${selected.bankName} ${selected.masked}' : 'Select account',
+          style: RunqText.body.copyWith(color: selected == null ? t.muted2 : t.ink),
+        ),
+      ),
     );
   }
 
@@ -238,11 +303,15 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
           border: Border.all(color: t.hairline),
         ),
         child: Row(children: [
-          Icon(_photo == null ? Icons.add_a_photo_outlined : Icons.check_circle_outline, color: t.muted),
+          _ocrBusy
+              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: t.muted))
+              : Icon(_photo == null ? Icons.add_a_photo_outlined : Icons.check_circle_outline, color: t.muted),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              _photo == null ? 'Attach payment confirmation' : 'Photo attached — tap to change',
+              _ocrBusy
+                  ? 'Reading confirmation…'
+                  : (_photo == null ? 'Attach payment confirmation' : 'Photo attached — tap to change'),
               style: RunqText.body.copyWith(color: t.ink),
             ),
           ),

@@ -501,6 +501,22 @@ class BankingRepo {
         .toList();
   }
 
+  /// OCR a UPI/bank confirmation screenshot to pre-fill the capture form.
+  /// Best-effort — fields come back null when not legible.
+  Future<ExtractedConfirmation> extractConfirmation(File file) async {
+    final p = file.path.toLowerCase();
+    final mime = p.endsWith('.pdf')
+        ? 'application/pdf'
+        : (p.endsWith('.png') ? 'image/png' : 'image/jpeg');
+    final res = await apiClient.upload(
+      '/banking/pending-payments/extract',
+      file,
+      fileField: 'file',
+      mimeType: mime,
+    );
+    return ExtractedConfirmation.fromJson(_data(res));
+  }
+
   /// Capture an out-of-band payment (bank QR/UPI scan) so the imported bank
   /// debit reconciles against it later. Optionally attaches the confirmation
   /// photo, which moves onto the bank txn once matched.

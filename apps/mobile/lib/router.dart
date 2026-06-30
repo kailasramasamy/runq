@@ -906,7 +906,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/quick-payment',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const QuickPaymentScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(
+            QuickPaymentScreen(initialFile: state.extra is File ? state.extra as File : null),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/expenses/:id',
