@@ -558,10 +558,11 @@ const ZERO_ROLLUP: DayRollup = {
   avgFat: 0, avgSnf: 0, avgWater: 0, grossAmount: 0,
 };
 
-/** A manual receipt records no milk type, but a pooled VMCC tanker is genuinely
- * a mix of its farmers' milk — so bucket type-less direct receives as 'mixed'
- * (an existing type, so the client's label/series need no change). */
-const drMilkType = sql<string>`coalesce(${mpConsignments.milkType}, 'mixed')`;
+/** A manual receipt often records no milk type, so fall back to the source
+ * VMCC's configured default (its whole tanker is that type), and only to
+ * 'mixed' when the VMCC has none — all existing types, so the client's
+ * label/series need no change. */
+const drMilkType = sql<string>`coalesce(${mpConsignments.milkType}, (select ${mpNodes.defaultMilkType} from ${mpNodes} where ${mpNodes.id} = ${mpConsignments.fromNodeId}), 'mixed')`;
 
 /** Merge pour and direct-receive QC series by (date, milk type): sum litres and
  * qty-weight FAT/SNF/Water, dropping a side with no sample. Oldest day first. */
