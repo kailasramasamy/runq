@@ -118,12 +118,13 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
               <Th align="right">Water %</Th>
+              <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={9} message="No pours for these filters." />
+              <TableEmpty colSpan={10} message="No pours for these filters." />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.farmerId}|${r.nodeId}`}>
@@ -138,6 +139,7 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
                   <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
                   <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
                 </TableRow>
               ))

@@ -27,7 +27,8 @@ export interface MpDailyRow {
   date: string;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
   farmerCount: number; avgFat: number; avgSnf: number;
-  amFat: number; pmFat: number; amSnf: number; pmSnf: number; avgWater: number;
+  amFat: number; pmFat: number; amSnf: number; pmSnf: number;
+  amRate: number; pmRate: number; avgWater: number;
   grossAmount: number;
 }
 
@@ -44,12 +45,13 @@ export function sumDailyByDate(rows: MpDailyRow[]): MpDailyRow[] {
   const metrics = [
     ['avgFat', 'totalQty'], ['avgSnf', 'totalQty'], ['avgWater', 'totalQty'],
     ['amFat', 'amQty'], ['pmFat', 'pmQty'], ['amSnf', 'amQty'], ['pmSnf', 'pmQty'],
+    ['amRate', 'amQty'], ['pmRate', 'pmQty'],
   ] as const;
   const m = new Map<string, Acc>();
   for (const r of rows) {
     const e = m.get(r.date) ?? {
       date: r.date, totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
-      avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, avgWater: 0,
+      avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0,
       grossAmount: 0, wSum: {}, wQty: {},
     };
     e.totalQty += r.totalQty; e.amQty += r.amQty; e.pmQty += r.pmQty;
@@ -194,12 +196,13 @@ export function DailyTable({ rows, page, setPage }: {
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
               <Th align="right">Water %</Th>
+              <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={9} message="No pours in the selected window." />
+              <TableEmpty colSpan={10} message="No pours in the selected window." />
             ) : (
               pageRows.map((r) => <DayRow key={r.date} r={r} />)
             )}
@@ -243,12 +246,13 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
               <Th align="right">Water %</Th>
+              <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={10} message="No pours in the selected window." />
+              <TableEmpty colSpan={11} message="No pours in the selected window." />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.nodeId}`}>
@@ -261,6 +265,7 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
                   <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
                   <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
                 </TableRow>
               ))
@@ -289,6 +294,7 @@ function DayRow({ r }: { r: MpDailyRow }) {
       <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
       <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
       <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
+      <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
       <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
     </TableRow>
   );

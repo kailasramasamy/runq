@@ -82,6 +82,8 @@ export interface CollectionMilkTypeRow {
   pmFat: number;
   amSnf: number;
   pmSnf: number;
+  amRate: number;
+  pmRate: number;
   avgWater: number;
   grossAmount: number;
 }
@@ -105,6 +107,8 @@ export interface CollectionNodeRow {
   pmFat: number;
   amSnf: number;
   pmSnf: number;
+  amRate: number;
+  pmRate: number;
   avgWater: number;
   grossAmount: number;
 }
@@ -132,6 +136,8 @@ export interface DayRollup {
   pmFat: number;
   amSnf: number;
   pmSnf: number;
+  amRate: number;
+  pmRate: number;
   avgWater: number;
   grossAmount: number;
 }
@@ -175,6 +181,8 @@ export interface CollectionSummary {
   pmFat: number;
   amSnf: number;
   pmSnf: number;
+  amRate: number;
+  pmRate: number;
   avgWater: number;
   grossAmount: number;
   byMilkType: CollectionMilkTypeRow[];
@@ -642,6 +650,9 @@ function rollupCols() {
     pmFat: sql<string>`coalesce(round(avg(${mpPours.fat}) filter (where ${mpPours.shift} = 'pm'), 2), 0)`,
     amSnf: sql<string>`coalesce(round(avg(${mpPours.snf}) filter (where ${mpPours.shift} = 'am'), 2), 0)`,
     pmSnf: sql<string>`coalesce(round(avg(${mpPours.snf}) filter (where ${mpPours.shift} = 'pm'), 2), 0)`,
+    // Effective ₹/L per shift = that shift's line amount over its litres.
+    amRate: sql<string>`coalesce(round(sum(${mpPours.lineAmount}) filter (where ${mpPours.shift} = 'am') / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'am'), 0), 2), 0)`,
+    pmRate: sql<string>`coalesce(round(sum(${mpPours.lineAmount}) filter (where ${mpPours.shift} = 'pm') / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'pm'), 0), 2), 0)`,
     avgWater: sql<string>`coalesce(round(avg(${mpPours.water}), 2), 0)`,
     grossAmount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
   };
@@ -670,6 +681,10 @@ function drRollupCols() {
     pmFat: wqs(mpConsignments.receiptFat, pmWhere),
     amSnf: wqs(mpConsignments.receiptSnf, amWhere),
     pmSnf: wqs(mpConsignments.receiptSnf, pmWhere),
+    // Manual receipts have no per-shift line amount; the priced gross is added
+    // on-read at the node level, so per-shift ₹/L stays blank for direct receives.
+    amRate: sql<string>`'0'`,
+    pmRate: sql<string>`'0'`,
     avgWater: wq(mpConsignments.receiptWater),
     grossAmount: sql<string>`'0'`,
   };
@@ -677,7 +692,7 @@ function drRollupCols() {
 
 const ZERO_ROLLUP: DayRollup = {
   totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
-  avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, avgWater: 0, grossAmount: 0,
+  avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0, grossAmount: 0,
 };
 
 function round2(n: number): number { return Math.round(n * 100) / 100; }
@@ -747,6 +762,8 @@ function mergeRollup(a: DayRollup, b: DayRollup): DayRollup {
     pmFat: blendBy(a.pmFat, a.pmQty, b.pmFat, b.pmQty),
     amSnf: blendBy(a.amSnf, a.amQty, b.amSnf, b.amQty),
     pmSnf: blendBy(a.pmSnf, a.pmQty, b.pmSnf, b.pmQty),
+    amRate: blendBy(a.amRate, a.amQty, b.amRate, b.amQty),
+    pmRate: blendBy(a.pmRate, a.pmQty, b.pmRate, b.pmQty),
     avgWater: blend(a.avgWater, b.avgWater),
     grossAmount: a.grossAmount + b.grossAmount,
   };
@@ -768,7 +785,7 @@ function mergeKeyed<T extends DayRollup>(pour: T[], dr: T[], key: (r: T) => stri
 function numRollup(r: {
   totalQty: string; amQty: string; pmQty: string; pourCount: number; farmerCount: number;
   avgFat: string; avgSnf: string; amFat: string; pmFat: string; amSnf: string; pmSnf: string;
-  avgWater: string; grossAmount: string;
+  amRate: string; pmRate: string; avgWater: string; grossAmount: string;
 }): DayRollup {
   return {
     totalQty: Number(r.totalQty ?? 0),
@@ -782,6 +799,8 @@ function numRollup(r: {
     pmFat: Number(r.pmFat ?? 0),
     amSnf: Number(r.amSnf ?? 0),
     pmSnf: Number(r.pmSnf ?? 0),
+    amRate: Number(r.amRate ?? 0),
+    pmRate: Number(r.pmRate ?? 0),
     avgWater: Number(r.avgWater ?? 0),
     grossAmount: Number(r.grossAmount ?? 0),
   };
@@ -792,7 +811,7 @@ function toNodeRow(n: {
   nodeId: string; nodeName: string; nodeCode: string; nodeType: string;
   totalQty: string; amQty: string; pmQty: string; pourCount: number; farmerCount: number;
   avgFat: string; avgSnf: string; amFat: string; pmFat: string; amSnf: string; pmSnf: string;
-  avgWater: string; grossAmount: string;
+  amRate: string; pmRate: string; avgWater: string; grossAmount: string;
 }): CollectionNodeRow {
   return {
     nodeId: n.nodeId,
