@@ -19,6 +19,22 @@ function distinctNodes(rows: MpNodeDayRow[]) {
 export function MpNodeHistoryPage({ groupBy, title, nodeLabel }: {
   groupBy: 'vmcc' | 'cc'; title: string; nodeLabel: string;
 }) {
+  return (
+    <div>
+      <PageHeader
+        title={title}
+        description={`Daily collection totals per ${nodeLabel.toLowerCase()}. Pick one below.`}
+        fullWidth
+      />
+      <NodeHistoryBody groupBy={groupBy} nodeLabel={nodeLabel} />
+    </div>
+  );
+}
+
+/** The node-daily history body (filters + chart + table) minus the page header,
+ * so it can stand alone (/reports/by-cc) or nest inside the Collection history
+ * scope tabs. VMCC and CC differ only by `groupBy`. */
+export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'; nodeLabel: string }) {
   const [cyc, setCyc] = useState<CycleState>(defaultCycleState);
   const [nodeId, setNodeId] = useState('');
   const [page, setPage] = useState(1);
@@ -31,12 +47,6 @@ export function MpNodeHistoryPage({ groupBy, title, nodeLabel }: {
 
   return (
     <div>
-      <PageHeader
-        title={title}
-        description={`Daily collection totals per ${nodeLabel.toLowerCase()}. Pick one below.`}
-        fullWidth
-      />
-
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <CycleFilter value={cyc} onChange={(next) => { setCyc(next); setPage(1); }} />
         {nodes.length > 0 && (

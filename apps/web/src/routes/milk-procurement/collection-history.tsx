@@ -6,12 +6,39 @@ import {
 } from '@/components/ui';
 import { useNodes, useFarmers, usePours, useQualityBands, useCollectionSummary } from '@/hooks/queries/use-milk-procurement';
 import { bandLevel, bandCellClass } from './_quality-bands';
+import { Pills } from './_node-dashboard-shared';
+import { NodeHistoryBody } from './node-history';
 
 const SHIFTS = [{ value: '', label: 'All shifts' }, { value: 'am', label: 'AM' }, { value: 'pm', label: 'PM' }];
 const STATUSES = [{ value: '', label: 'Active (recorded)' }, { value: 'recorded', label: 'Recorded' }, { value: 'reversed', label: 'Reversed' }];
 const LIMIT = 50;
 
+type Scope = 'farmer' | 'vmcc' | 'cc';
+const SCOPES: { value: Scope; label: string }[] = [
+  { value: 'farmer', label: 'Farmers' },
+  { value: 'vmcc', label: 'VMCC' },
+  { value: 'cc', label: 'Collection centre' },
+];
+
+/** Collection history, scoped by who's reading it: per-farmer pours, or the
+ * daily per-VMCC / per-CC rollup (same view, different grouping). */
 export function CollectionHistoryView() {
+  const [scope, setScope] = useState<Scope>('farmer');
+  return (
+    <div>
+      <div className="mb-4">
+        <Pills value={scope} onChange={setScope} options={SCOPES} />
+      </div>
+      {scope === 'farmer' ? (
+        <FarmerHistoryView />
+      ) : (
+        <NodeHistoryBody groupBy={scope} nodeLabel={scope === 'vmcc' ? 'VMCC' : 'Collection centre'} />
+      )}
+    </div>
+  );
+}
+
+function FarmerHistoryView() {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [f, setF] = useState({ nodeId: '', farmerId: '', from: monthAgo, to: today, shift: '', status: '' });
