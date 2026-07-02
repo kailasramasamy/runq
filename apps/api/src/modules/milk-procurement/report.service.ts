@@ -229,8 +229,8 @@ export class ReportService {
     const toN = alias(mpNodes, 'dr_to');
     const [[r], typeRows, nodeRows, ccRows] = await Promise.all([
       this.db.select(cols).from(mpConsignments).where(and(...conds)),
-      this.db.select({ milkType: mpConsignments.milkType, ...cols })
-        .from(mpConsignments).where(and(...conds)).groupBy(mpConsignments.milkType),
+      this.db.select({ milkType: drMilkType, ...cols })
+        .from(mpConsignments).where(and(...conds)).groupBy(drMilkType),
       this.db.select({
         nodeId: mpConsignments.fromNodeId, nodeName: fromN.name, nodeCode: fromN.code, nodeType: fromN.nodeType, ...cols,
       })
@@ -244,7 +244,7 @@ export class ReportService {
     ]);
     return {
       total: r ? numRollup(r) : ZERO_ROLLUP,
-      byMilkType: typeRows.filter((t) => t.milkType != null).map((t) => ({ milkType: t.milkType!, ...numRollup(t) })),
+      byMilkType: typeRows.map((t) => ({ milkType: t.milkType, ...numRollup(t) })),
       byNode: nodeRows.map(toNodeRow),
       byCc: ccRows.map(toNodeRow),
     };
@@ -349,24 +349,24 @@ export class ReportService {
       const scope = scopePours(principal);
       if (scope) conds.push(scope);
     }
-    const rows = await this.db.select({
-      date: mpPours.collectionDate,
-      milkType: mpPours.milkType,
-      totalQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
-      fat: wq(mpPours.fat),
-      snf: wq(mpPours.snf),
-      water: wq(mpPours.water),
-    }).from(mpPours).where(and(...conds))
-      .groupBy(mpPours.collectionDate, mpPours.milkType)
-      .orderBy(sql`${mpPours.collectionDate} asc`);
-    return rows.map((r) => ({
-      date: r.date,
-      milkType: r.milkType,
-      totalQty: Number(r.totalQty ?? 0),
-      fat: numOrNull2(r.fat),
-      snf: numOrNull2(r.snf),
-      water: numOrNull2(r.water),
-    }));
+    const drwq = (col: AnyPgColumn) =>
+      sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${col}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${col} is not null), 0), 2)`;
+    const drConds = this.drBaseConds(q.from, q.to, q.nodeId, principal);
+    const [pourRows, drRows] = await Promise.all([
+      this.db.select({
+        date: mpPours.collectionDate, milkType: mpPours.milkType,
+        totalQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
+        fat: wq(mpPours.fat), snf: wq(mpPours.snf), water: wq(mpPours.water),
+      }).from(mpPours).where(and(...conds)).groupBy(mpPours.collectionDate, mpPours.milkType),
+      this.db.select({
+        date: mpConsignments.collectionDate, milkType: drMilkType,
+        totalQty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
+        fat: drwq(mpConsignments.receiptFat), snf: drwq(mpConsignments.receiptSnf), water: drwq(mpConsignments.receiptWater),
+      }).from(mpConsignments).where(and(...drConds)).groupBy(mpConsignments.collectionDate, drMilkType),
+    ]);
+    const shape = (r: { date: string; milkType: string; totalQty: string; fat: string | null; snf: string | null; water: string | null }): QualityTrendRow =>
+      ({ date: r.date, milkType: r.milkType, totalQty: Number(r.totalQty ?? 0), fat: numOrNull2(r.fat), snf: numOrNull2(r.snf), water: numOrNull2(r.water) });
+    return mergeQc(pourRows.map(shape), drRows.map(shape));
   }
 
   /** Per-(date, milk type) full collection rollup across the tenant (optionally
@@ -386,12 +386,11 @@ export class ReportService {
     const [pourRows, drRows] = await Promise.all([
       this.db.select({ date: mpPours.collectionDate, milkType: mpPours.milkType, ...rollupCols() })
         .from(mpPours).where(and(...conds)).groupBy(mpPours.collectionDate, mpPours.milkType),
-      this.db.select({ date: mpConsignments.collectionDate, milkType: mpConsignments.milkType, ...drRollupCols() })
-        .from(mpConsignments).where(and(...drConds)).groupBy(mpConsignments.collectionDate, mpConsignments.milkType),
+      this.db.select({ date: mpConsignments.collectionDate, milkType: drMilkType, ...drRollupCols() })
+        .from(mpConsignments).where(and(...drConds)).groupBy(mpConsignments.collectionDate, drMilkType),
     ]);
     const pour = pourRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
-    const dr = drRows.filter((r) => r.milkType != null)
-      .map((r) => ({ date: r.date, milkType: r.milkType!, ...numRollup(r) }));
+    const dr = drRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
     return mergeKeyed(pour, dr, (r) => `${r.date}|${r.milkType}`).sort(byDateDesc);
   }
 
@@ -558,6 +557,36 @@ const ZERO_ROLLUP: DayRollup = {
   totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
   avgFat: 0, avgSnf: 0, avgWater: 0, grossAmount: 0,
 };
+
+/** A manual receipt records no milk type, but a pooled VMCC tanker is genuinely
+ * a mix of its farmers' milk — so bucket type-less direct receives as 'mixed'
+ * (an existing type, so the client's label/series need no change). */
+const drMilkType = sql<string>`coalesce(${mpConsignments.milkType}, 'mixed')`;
+
+/** Merge pour and direct-receive QC series by (date, milk type): sum litres and
+ * qty-weight FAT/SNF/Water, dropping a side with no sample. Oldest day first. */
+function mergeQc(pour: QualityTrendRow[], dr: QualityTrendRow[]): QualityTrendRow[] {
+  const m = new Map<string, QualityTrendRow>();
+  const key = (r: QualityTrendRow) => `${r.date}|${r.milkType}`;
+  for (const r of pour) m.set(key(r), r);
+  for (const r of dr) {
+    const a = m.get(key(r));
+    m.set(key(r), a ? blendQc(a, r) : r);
+  }
+  return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function blendQc(a: QualityTrendRow, b: QualityTrendRow): QualityTrendRow {
+  const wq = (ax: number | null, bx: number | null) => {
+    const aw = ax != null ? a.totalQty : 0, bw = bx != null ? b.totalQty : 0;
+    const w = aw + bw;
+    return w > 0 ? Number((((ax ?? 0) * aw + (bx ?? 0) * bw) / w).toFixed(2)) : null;
+  };
+  return {
+    date: a.date, milkType: a.milkType, totalQty: a.totalQty + b.totalQty,
+    fat: wq(a.fat, b.fat), snf: wq(a.snf, b.snf), water: wq(a.water, b.water),
+  };
+}
 
 /** Newest-day-first comparator for the daily history rollups. */
 const byDateDesc = (a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date);
