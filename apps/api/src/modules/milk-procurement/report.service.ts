@@ -4,9 +4,15 @@ import { mpPours, mpConsignments, mpNodes } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
   CollectionReportQuery, ReceivedDailyQuery, PoursDailyQuery, FlowReportQuery,
-  QualityTrendQuery, NodeDailyQuery,
+  QualityTrendQuery, NodeDailyQuery, ResolveRateInput,
 } from '@runq/validators';
 import { MpPrincipal, scopePours, scopeConsignments } from './access-scope';
+import { RateChartService } from './rate-chart.service';
+import { NotFoundError } from '../../utils/errors';
+
+/** A priced direct-receive group: one VMCC's manual receipt for a (day, milk
+ * type), valued via the milk-type rate chart. */
+interface DrGross { fromNodeId: string; toNodeId: string; milkType: string; date: string; gross: number }
 
 /** One node's movement on a given day: what came in, what left, what remains. */
 export interface FlowNode {
@@ -227,7 +233,7 @@ export class ReportService {
     const cols = drRollupCols();
     const fromN = alias(mpNodes, 'dr_from');
     const toN = alias(mpNodes, 'dr_to');
-    const [[r], typeRows, nodeRows, ccRows] = await Promise.all([
+    const [[r], typeRows, nodeRows, ccRows, priced] = await Promise.all([
       this.db.select(cols).from(mpConsignments).where(and(...conds)),
       this.db.select({ milkType: drMilkType, ...cols })
         .from(mpConsignments).where(and(...conds)).groupBy(drMilkType),
@@ -241,12 +247,18 @@ export class ReportService {
       })
         .from(mpConsignments).innerJoin(toN, eq(toN.id, mpConsignments.toNodeId)).where(and(...conds))
         .groupBy(mpConsignments.toNodeId, toN.name, toN.code, toN.nodeType),
+      this.pricedDrGross(q.from, q.to, q.nodeId, principal),
     ]);
+    // Manual receipts carry no line amount, so value them from the rate chart.
+    const byType = grossBy(priced, (g) => g.milkType);
+    const byFrom = grossBy(priced, (g) => g.fromNodeId);
+    const byTo = grossBy(priced, (g) => g.toNodeId);
+    const withGross = (row: CollectionNodeRow, g: number) => ({ ...row, grossAmount: g });
     return {
-      total: r ? numRollup(r) : ZERO_ROLLUP,
-      byMilkType: typeRows.map((t) => ({ milkType: t.milkType, ...numRollup(t) })),
-      byNode: nodeRows.map(toNodeRow),
-      byCc: ccRows.map(toNodeRow),
+      total: { ...(r ? numRollup(r) : ZERO_ROLLUP), grossAmount: round2(priced.reduce((s, g) => s + g.gross, 0)) },
+      byMilkType: typeRows.map((t) => ({ milkType: t.milkType, ...numRollup(t), grossAmount: byType.get(t.milkType) ?? 0 })),
+      byNode: nodeRows.map((n) => withGross(toNodeRow(n), byFrom.get(n.nodeId) ?? 0)),
+      byCc: ccRows.map((n) => withGross(toNodeRow(n), byTo.get(n.nodeId) ?? 0)),
     };
   }
 
@@ -264,6 +276,53 @@ export class ReportService {
       if (scope) conds.push(scope);
     }
     return conds;
+  }
+
+  /** Value each VMCC's manual receipts by day + milk type: apply that milk
+   * type's rate chart (FAT/SNF matrix — the receipt carries no CLR) to the
+   * qty-weighted QC. Type-less receipts fall back to the VMCC's default type;
+   * groups with no priceable chart or no QC contribute nothing. */
+  private async pricedDrGross(from: string, to: string, nodeId: string | undefined, principal?: MpPrincipal): Promise<DrGross[]> {
+    const conds = this.drBaseConds(from, to, nodeId, principal);
+    const rows = await this.db.select({
+      fromNodeId: mpConsignments.fromNodeId, toNodeId: mpConsignments.toNodeId,
+      date: mpConsignments.collectionDate, milkType: drMilkType,
+      qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
+      fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
+      snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
+    }).from(mpConsignments).where(and(...conds))
+      .groupBy(mpConsignments.fromNodeId, mpConsignments.toNodeId, mpConsignments.collectionDate, drMilkType);
+    const rates = new RateChartService(this.db, this.tenantId);
+    const cache = new Map<string, number | null>();
+    const out: DrGross[] = [];
+    for (const r of rows) {
+      const fat = numOrNull2(r.fat), snf = numOrNull2(r.snf);
+      let gross = 0;
+      if (fat != null && snf != null) {
+        const key = `${r.milkType}|${fat}|${snf}|${r.date}`;
+        let rate = cache.get(key);
+        if (rate === undefined) {
+          rate = await this.resolveRateSafe(rates, r.milkType, fat, snf, r.fromNodeId, r.date);
+          cache.set(key, rate);
+        }
+        if (rate != null) gross = round2(Number(r.qty) * rate);
+      }
+      out.push({ fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType, date: r.date, gross });
+    }
+    return out;
+  }
+
+  /** ratePerLitre for a milk type at (fat, snf), or null when no chart applies. */
+  private async resolveRateSafe(
+    rates: RateChartService, milkType: string, fat: number, snf: number, scopeNodeId: string, onDate: string,
+  ): Promise<number | null> {
+    try {
+      const res = await rates.resolveRate({ milkType: milkType as ResolveRateInput['milkType'], fat, snf, scopeNodeId, onDate });
+      return res.ratePerLitre;
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
   }
 
   /** One qty-weighted rollup row per collection_date of received vmcc→cc
@@ -383,14 +442,16 @@ export class ReportService {
       if (scope) conds.push(scope);
     }
     const drConds = this.drBaseConds(q.from, q.to, q.nodeId, principal);
-    const [pourRows, drRows] = await Promise.all([
+    const [pourRows, drRows, priced] = await Promise.all([
       this.db.select({ date: mpPours.collectionDate, milkType: mpPours.milkType, ...rollupCols() })
         .from(mpPours).where(and(...conds)).groupBy(mpPours.collectionDate, mpPours.milkType),
       this.db.select({ date: mpConsignments.collectionDate, milkType: drMilkType, ...drRollupCols() })
         .from(mpConsignments).where(and(...drConds)).groupBy(mpConsignments.collectionDate, drMilkType),
+      this.pricedDrGross(q.from, q.to, q.nodeId, principal),
     ]);
+    const gross = grossBy(priced, (g) => `${g.date}|${g.milkType}`);
     const pour = pourRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
-    const dr = drRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
+    const dr = drRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r), grossAmount: gross.get(`${r.date}|${r.milkType}`) ?? 0 }));
     return mergeKeyed(pour, dr, (r) => `${r.date}|${r.milkType}`).sort(byDateDesc);
   }
 
@@ -415,7 +476,7 @@ export class ReportService {
     const drConds = this.drBaseConds(q.from, q.to, undefined, principal);
     const drNode = alias(mpNodes, 'dr_node');
     const drCol = q.groupBy === 'cc' ? mpConsignments.toNodeId : mpConsignments.fromNodeId;
-    const [pourRows, drRows] = await Promise.all([
+    const [pourRows, drRows, priced] = await Promise.all([
       q.groupBy === 'cc'
         ? this.db.select({ date: mpPours.collectionDate, nodeId: cc.id, nodeName: cc.name, nodeCode: cc.code, ...cols })
             .from(mpPours)
@@ -431,10 +492,13 @@ export class ReportService {
       this.db.select({ date: mpConsignments.collectionDate, nodeId: drCol, nodeName: drNode.name, nodeCode: drNode.code, ...drRollupCols() })
         .from(mpConsignments).innerJoin(drNode, eq(drNode.id, drCol)).where(and(...drConds))
         .groupBy(drCol, drNode.name, drNode.code, mpConsignments.collectionDate),
+      this.pricedDrGross(q.from, q.to, undefined, principal),
     ]);
+    const gross = grossBy(priced, (g) => `${g.date}|${q.groupBy === 'cc' ? g.toNodeId : g.fromNodeId}`);
     const shape = (r: typeof pourRows[number] | typeof drRows[number]) =>
       ({ date: r.date, nodeId: r.nodeId, nodeName: r.nodeName, nodeCode: r.nodeCode, ...numRollup(r) });
-    return mergeKeyed(pourRows.map(shape), drRows.map(shape), (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
+    const dr = drRows.map((r) => ({ ...shape(r), grossAmount: gross.get(`${r.date}|${r.nodeId}`) ?? 0 }));
+    return mergeKeyed(pourRows.map(shape), dr, (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
   }
 
   /** Whole-network snapshot for one day: collected/dispatched/received per node
@@ -557,6 +621,15 @@ const ZERO_ROLLUP: DayRollup = {
   totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
   avgFat: 0, avgSnf: 0, avgWater: 0, grossAmount: 0,
 };
+
+function round2(n: number): number { return Math.round(n * 100) / 100; }
+
+/** Sum priced direct-receive gross into a map under a chosen key. */
+function grossBy(groups: DrGross[], key: (g: DrGross) => string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const g of groups) m.set(key(g), round2((m.get(key(g)) ?? 0) + g.gross));
+  return m;
+}
 
 /** A manual receipt often records no milk type, so fall back to the source
  * VMCC's configured default (its whole tanker is that type), and only to
