@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PageHeader, EmptyState, Combobox } from '@/components/ui';
 import { Droplets } from 'lucide-react';
 import { useNodeDaily, type MpNodeDayRow } from '@/hooks/queries/use-milk-procurement';
-import { DailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, type CycleState } from './_daily-history';
+import { DailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
 
 /** Distinct nodes present in the window, busiest (by total qty) first — powers
  * the node dropdown so only nodes with data appear. */
@@ -42,8 +42,9 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
   const { data } = useNodeDaily({ ...cycleRange(cyc), groupBy });
   const rows = data?.data ?? [];
   const nodes = distinctNodes(rows);
-  const activeId = nodeId && nodes.some((n) => n.nodeId === nodeId) ? nodeId : nodes[0]?.nodeId ?? '';
-  const nodeRows = rows.filter((r) => r.nodeId === activeId);
+  // Default is "All" (empty id) — the daily rows summed across every node.
+  const activeId = nodes.some((n) => n.nodeId === nodeId) ? nodeId : '';
+  const nodeRows = activeId ? rows.filter((r) => r.nodeId === activeId) : sumDailyByDate(rows);
 
   return (
     <div>
@@ -55,7 +56,10 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
               label={nodeLabel}
               value={activeId}
               onChange={(v) => { setNodeId(v); setPage(1); }}
-              options={nodes.map((n) => ({ value: n.nodeId, label: `${n.nodeCode} · ${n.nodeName}` }))}
+              options={[
+                { value: '', label: `All ${nodeLabel}s` },
+                ...nodes.map((n) => ({ value: n.nodeId, label: `${n.nodeCode} · ${n.nodeName}` })),
+              ]}
             />
           </div>
         )}

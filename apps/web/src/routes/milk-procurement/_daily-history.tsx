@@ -28,6 +28,30 @@ export function rangeFor(preset: Preset, custom: { from: string; to: string }) {
   return preset === 'custom' ? custom : { from: daysAgo(Number(preset) - 1), to: today() };
 }
 
+/** Collapse per-node daily rows into one row per date (the "All nodes" view):
+ * sum volumes / counts / gross and qty-weight the FAT/SNF, newest day first. */
+export function sumDailyByDate(rows: MpDailyRow[]): MpDailyRow[] {
+  const m = new Map<string, MpDailyRow & { fatW: number; fatQ: number; snfW: number; snfQ: number }>();
+  for (const r of rows) {
+    const e = m.get(r.date) ?? {
+      date: r.date, totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
+      avgFat: 0, avgSnf: 0, grossAmount: 0, fatW: 0, fatQ: 0, snfW: 0, snfQ: 0,
+    };
+    e.totalQty += r.totalQty; e.amQty += r.amQty; e.pmQty += r.pmQty;
+    e.pourCount += r.pourCount; e.farmerCount += r.farmerCount; e.grossAmount += r.grossAmount;
+    if (r.avgFat > 0) { e.fatW += r.avgFat * r.totalQty; e.fatQ += r.totalQty; }
+    if (r.avgSnf > 0) { e.snfW += r.avgSnf * r.totalQty; e.snfQ += r.totalQty; }
+    m.set(r.date, e);
+  }
+  return [...m.values()]
+    .map(({ fatW, fatQ, snfW, snfQ, ...e }) => ({
+      ...e,
+      avgFat: fatQ > 0 ? Number((fatW / fatQ).toFixed(2)) : 0,
+      avgSnf: snfQ > 0 ? Number((snfW / snfQ).toFixed(2)) : 0,
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
 // ── year / month / cycle range (half-month cycles: 1–15, 16–EOM) ─────────────
 export type Cycle = '1' | '2';
 export interface CycleState { year: string; month: string; cycle: Cycle }
