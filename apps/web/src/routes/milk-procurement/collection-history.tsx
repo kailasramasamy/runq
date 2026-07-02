@@ -51,7 +51,7 @@ function FarmerHistoryView() {
   const nodes = nodesData?.data ?? [];
   const farmers = farmersData?.data ?? [];
   const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? '—';
-  const farmerName = (id: string) => { const x = farmers.find((y) => y.id === id); return x ? `${x.code} · ${x.name}` : id.slice(0, 8); };
+  const farmerMeta = (id: string) => { const x = farmers.find((y) => y.id === id); return x ? { name: x.name, code: x.code } : { name: id.slice(0, 8), code: '' }; };
 
   const { data } = useFarmerDaily({ from: f.from, to: f.to, nodeId: f.nodeId || undefined, farmerId: f.farmerId || undefined });
   const rows = data?.data ?? [];
@@ -73,7 +73,7 @@ function FarmerHistoryView() {
 
       <FarmerSummaryCards rows={rows} />
       <DailyQtyChart rows={sumDailyByDate(rows)} />
-      <FarmerDailyTable rows={sorted} page={page} setPage={setPage} nodeName={nodeName} farmerName={farmerName} />
+      <FarmerDailyTable rows={sorted} page={page} setPage={setPage} nodeName={nodeName} farmerMeta={farmerMeta} />
     </div>
   );
 }
@@ -97,9 +97,9 @@ function FarmerSummaryCards({ rows }: { rows: MpFarmerDayRow[] }) {
 }
 
 /** Per-(day, farmer) table with AM/PM combined into one line, client-paginated. */
-function FarmerDailyTable({ rows, page, setPage, nodeName, farmerName }: {
+function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
   rows: MpFarmerDayRow[]; page: number; setPage: (p: number) => void;
-  nodeName: (id: string) => string; farmerName: (id: string) => string;
+  nodeName: (id: string) => string; farmerMeta: (id: string) => { name: string; code: string };
 }) {
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -128,7 +128,10 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerName }: {
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.farmerId}|${r.nodeId}`}>
                   <TableCell className="tabular-nums">{shortDate(r.date)}</TableCell>
-                  <TableCell>{farmerName(r.farmerId)}</TableCell>
+                  <TableCell>
+                    <div>{farmerMeta(r.farmerId).name}</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">{farmerMeta(r.farmerId).code}</div>
+                  </TableCell>
                   <TableCell>{nodeName(r.nodeId)}</TableCell>
                   <TableCell align="right" numeric>{r.totalQty.toLocaleString()}</TableCell>
                   <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
