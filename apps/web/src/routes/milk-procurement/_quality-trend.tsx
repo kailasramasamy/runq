@@ -28,10 +28,12 @@ const MILK_COLOR: Record<MilkType, string> = {
   mixed: '#f59e0b',
   cow: '#71717a',
 };
-const METRICS: { key: 'fat' | 'snf' | 'water'; label: string }[] = [
-  { key: 'fat', label: 'FAT' },
-  { key: 'snf', label: 'SNF' },
-  { key: 'water', label: 'Water' },
+// `min` fixes the Y-axis floor so small variations read clearly (FAT sits ~3-4,
+// SNF ~7-9); water starts at 0. Max stays auto.
+const METRICS: { key: 'fat' | 'snf' | 'water'; label: string; min: number }[] = [
+  { key: 'fat', label: 'FAT', min: 3 },
+  { key: 'snf', label: 'SNF', min: 7 },
+  { key: 'water', label: 'Water', min: 0 },
 ];
 
 /** Pivot per-(date, milk type) rows into recharts rows keyed by date, one field
@@ -54,10 +56,12 @@ function TrendChart({
   rows,
   metric,
   label,
+  min,
 }: {
   rows: MpQualityTrendRow[];
   metric: 'fat' | 'snf' | 'water';
   label: string;
+  min: number;
 }) {
   const { data, series } = pivot(rows, metric);
   return (
@@ -79,7 +83,7 @@ function TrendChart({
                 axisLine={false}
                 width={40}
                 tickFormatter={(v) => v.toFixed(1)}
-                domain={['auto', 'auto']}
+                domain={[min, 'auto']}
               />
               <Tooltip contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -143,7 +147,7 @@ export function QualityTrendSection({ nodeId }: { nodeId?: string }) {
       ) : (
         <div className="grid gap-3 lg:grid-cols-3">
           {METRICS.map((m) => (
-            <TrendChart key={m.key} rows={rows} metric={m.key} label={m.label} />
+            <TrendChart key={m.key} rows={rows} metric={m.key} label={m.label} min={m.min} />
           ))}
         </div>
       )}
