@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { Droplets, TrendingUp, Users, Coins } from 'lucide-react';
 import {
-  Card, CardContent, Badge, Combobox, Input, Pagination,
+  Card, CardContent, Badge, Combobox, Input, Pagination, StatsCard,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton,
 } from '@/components/ui';
-import { useNodes, useFarmers, usePours, useQualityBands } from '@/hooks/queries/use-milk-procurement';
+import { useNodes, useFarmers, usePours, useQualityBands, useCollectionSummary } from '@/hooks/queries/use-milk-procurement';
 import { bandLevel, bandCellClass } from './_quality-bands';
 
 const SHIFTS = [{ value: '', label: 'All shifts' }, { value: 'am', label: 'AM' }, { value: 'pm', label: 'PM' }];
@@ -56,6 +57,8 @@ export function CollectionHistoryView() {
         </CardContent>
       </Card>
 
+      <CollectionSummaryCards from={f.from} to={f.to} nodeId={f.nodeId || undefined} />
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -101,6 +104,21 @@ export function CollectionHistoryView() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Period totals for the current filters — folds the old standalone
+ * "Collection summary" report into this canonical collection view. */
+function CollectionSummaryCards({ from, to, nodeId }: { from: string; to: string; nodeId?: string }) {
+  const { data } = useCollectionSummary({ from, to, nodeId });
+  const s = data?.data;
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <StatsCard title="Total milk (L)" value={s?.totalQty ?? 0} icon={Droplets} formatValue={(v) => `${v.toLocaleString()} L`} />
+      <StatsCard title="AM / PM (L)" value={s?.amQty ?? 0} icon={TrendingUp} formatValue={() => `${s?.amQty ?? 0} / ${s?.pmQty ?? 0}`} />
+      <StatsCard title="Farmers" value={s?.farmerCount ?? 0} icon={Users} formatValue={(v) => String(v)} />
+      <StatsCard title="Gross value" value={s?.grossAmount ?? 0} icon={Coins} />
     </div>
   );
 }

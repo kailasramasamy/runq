@@ -49,11 +49,21 @@ export const mpPayoutLines = pgTable('mp_payout_lines', {
   netAmount: decimal('net_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   paymentId: uuid('payment_id').references(() => payments.id),
   settledViaNodeId: uuid('settled_via_node_id').references(() => mpNodes.id),
+  // Set when this line is settled through a per-VMCC bill (mp_vmcc_bills). Its
+  // presence excludes the line from the cycle-level pay path. FK enforced in SQL
+  // (0159) to avoid a circular import with billing.ts.
+  billId: uuid('bill_id'),
   statementNo: varchar('statement_no', { length: 40 }),
   // Operational disbursement flag — set when the operator marks this farmer paid
   // (cash/UPI in the field). Independent of the cycle-level Lock→Pay GL posting.
   paidAt: timestamp('paid_at', { withTimezone: true }),
   paidBy: uuid('paid_by').references(() => users.id),
+  // Direct-payment settlement confirmation (billing page): txn details + the GL
+  // entry posted when this farmer was settled individually.
+  paymentReference: varchar('payment_reference', { length: 120 }),
+  paymentMode: varchar('payment_mode', { length: 30 }),
+  paymentDate: date('payment_date'),
+  journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_mp_payout_lines_cycle').on(t.tenantId, t.payoutCycleId),

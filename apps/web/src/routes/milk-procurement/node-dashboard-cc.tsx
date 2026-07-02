@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Card, CardContent, StatsCard, Badge, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton,
@@ -96,7 +97,7 @@ function VmccTodayRow({ vmcc, date, inbound }: { vmcc: MpNode; date: string; inb
   const s = data?.data;
   return (
     <TableRow>
-      <TableCell>{vmcc.code} · {vmcc.name}</TableCell>
+      <TableCell><Link to="/milk-procurement/nodes/$id" params={{ id: vmcc.id }} className="text-zinc-900 hover:underline dark:text-zinc-100">{vmcc.code} · {vmcc.name}</Link></TableCell>
       <TableCell className="text-right tabular-nums">{(s?.totalQty ?? 0).toLocaleString()}</TableCell>
       <TableCell className="text-right tabular-nums">{s?.amQty ?? 0} / {s?.pmQty ?? 0}</TableCell>
       <TableCell className="text-right tabular-nums">{s?.farmerCount ?? 0}</TableCell>
@@ -141,7 +142,7 @@ function ReceiveDayDetail({ nodeId, date }: { nodeId: string; date: string }) {
       <TableBody>
         {byVmcc.length === 0 ? <TableEmpty colSpan={6} message="—" /> : byVmcc.map((r) => (
           <TableRow key={r.id}>
-            <TableCell>{name(r.id)}</TableCell>
+            <TableCell><Link to="/milk-procurement/nodes/$id" params={{ id: r.id }} className="text-zinc-900 hover:underline dark:text-zinc-100">{name(r.id)}</Link></TableCell>
             <TableCell className="text-right tabular-nums">{r.n}</TableCell>
             <TableCell className="text-right tabular-nums">{r.qty.toLocaleString()}</TableCell>
             <TableCell className="text-right tabular-nums">{r.fat?.toFixed(1) ?? '—'}</TableCell>
@@ -215,7 +216,7 @@ function Ranking({ samples, name }: { samples: (QcSample & { fromNodeId: string 
           <TableBody>
             {rows.length === 0 ? <TableEmpty colSpan={5} message="No receipts in this window." /> : rows.map((r, i) => (
               <TableRow key={r.id}>
-                <TableCell><span className="mr-2 text-xs text-zinc-400">#{i + 1}</span>{name(r.id)}</TableCell>
+                <TableCell><span className="mr-2 text-xs text-zinc-400">#{i + 1}</span><Link to="/milk-procurement/nodes/$id" params={{ id: r.id }} className="text-zinc-900 hover:underline dark:text-zinc-100">{name(r.id)}</Link></TableCell>
                 <TableCell className="text-right tabular-nums">{r.qty.toLocaleString()}</TableCell>
                 <TableCell className="text-right tabular-nums">{r.fat?.toFixed(1) ?? '—'}</TableCell>
                 <TableCell className="text-right tabular-nums">{r.snf?.toFixed(1) ?? '—'}</TableCell>

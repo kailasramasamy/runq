@@ -1,5 +1,5 @@
 import { and, eq, sql, or, isNull, lte, gte, desc, inArray } from 'drizzle-orm';
-import { mpNodeOperators, mpOperatorPayouts, mpPours, mpNodes } from '@runq/db';
+import { mpNodeOperators, mpOperatorPayouts, mpPours, mpNodes, mpVmccBills, mpPayoutCycles } from '@runq/db';
 import type { Db, MpOperatorPayoutRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -14,6 +14,12 @@ export interface OperatorPayoutLine {
   role: string; compType: string;
   nodeQty: number; commission: number; salary: number; rent: number; total: number;
   paidPayoutId: string | null; paidOn: string | null;
+}
+
+/** Node-level comp rollup (summed across a node's active operators). */
+export interface NodeCompRollup {
+  commission: number; salary: number; rent: number; total: number;
+  operatorIds: string[];
 }
 
 /** Lightweight operator-payout: derive what's owed per period, record what's paid. */
@@ -61,6 +67,38 @@ export class OperatorPayoutService {
     return { from: q.from, to: q.to, lines };
   }
 
+  /**
+   * Total comp per node summed across its active operators, for a period —
+   * powers VMCC billing (one bill's commission may span an owner + operator).
+   * Reuses the same active-operator window + pour volume as `compute()`.
+   */
+  async commissionByNode(nodeIds: string[], from: string, to: string): Promise<Map<string, NodeCompRollup>> {
+    const out = new Map<string, NodeCompRollup>();
+    if (nodeIds.length === 0) return out;
+    const ops = await this.db.select({
+      id: mpNodeOperators.id, nodeId: mpNodeOperators.nodeId, compType: mpNodeOperators.compType,
+      ratePerLitre: mpNodeOperators.ratePerLitre, monthlySalary: mpNodeOperators.monthlySalary,
+      rentAmount: mpNodeOperators.rentAmount,
+    }).from(mpNodeOperators).where(and(
+      eq(mpNodeOperators.tenantId, this.tenantId), eq(mpNodeOperators.isActive, true),
+      inArray(mpNodeOperators.nodeId, nodeIds), lte(mpNodeOperators.effectiveFrom, to),
+      or(isNull(mpNodeOperators.effectiveTo), gte(mpNodeOperators.effectiveTo, from)),
+    ));
+    if (ops.length === 0) return out;
+    const vol = await this.volumeByNode([...new Set(ops.map((o) => o.nodeId))], from, to);
+    for (const o of ops) {
+      const c = comp(o, vol.get(o.nodeId) ?? 0);
+      const cur = out.get(o.nodeId) ?? { commission: 0, salary: 0, rent: 0, total: 0, operatorIds: [] };
+      cur.commission = round2(cur.commission + c.commission);
+      cur.salary = round2(cur.salary + c.salary);
+      cur.rent = round2(cur.rent + c.rent);
+      cur.total = round2(cur.total + c.total);
+      cur.operatorIds.push(o.id);
+      out.set(o.nodeId, cur);
+    }
+    return out;
+  }
+
   /** Record a payout for one operator + period (amounts recomputed server-side). */
   async markPaid(
     input: CreateOperatorPayoutInput, today: string, principal?: MpPrincipal,
@@ -74,6 +112,9 @@ export class OperatorPayoutService {
       eq(mpOperatorPayouts.periodStart, input.periodStart), eq(mpOperatorPayouts.periodEnd, input.periodEnd),
     ));
     if (existing) throw new ConflictError('This operator is already paid for this period');
+    // A paid VMCC bill already settles this node's commission for its cycle —
+    // block a manual payout whose period overlaps it (avoids paying twice).
+    await this.assertNoOverlappingBill(op.nodeId, input.periodStart, input.periodEnd);
 
     const vol = (await this.volumeByNode([op.nodeId], input.periodStart, input.periodEnd)).get(op.nodeId) ?? 0;
     const c = comp(op, vol);
@@ -111,6 +152,20 @@ export class OperatorPayoutService {
     ]);
     const total = countResult[0]?.count ?? 0;
     return { data: rows, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
+  }
+
+  /** Reject if a paid VMCC bill for this node covers an overlapping period. */
+  private async assertNoOverlappingBill(nodeId: string, from: string, to: string): Promise<void> {
+    const [bill] = await this.db.select({ billNo: mpVmccBills.billNo }).from(mpVmccBills)
+      .innerJoin(mpPayoutCycles, eq(mpPayoutCycles.id, mpVmccBills.payoutCycleId))
+      .where(and(
+        eq(mpVmccBills.tenantId, this.tenantId), eq(mpVmccBills.vmccNodeId, nodeId),
+        eq(mpVmccBills.status, 'paid'),
+        lte(mpPayoutCycles.periodStart, to), gte(mpPayoutCycles.periodEnd, from),
+      )).limit(1);
+    if (bill) {
+      throw new ConflictError(`VMCC bill ${bill.billNo} already settled this node's commission for an overlapping period`);
+    }
   }
 
   private async volumeByNode(nodeIds: string[], from: string, to: string): Promise<Map<string, number>> {

@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Pencil, Power, Plus, Copy, Trash2 } from 'lucide-react';
+import { useNavigate, useParams, Link } from '@tanstack/react-router';
+import { ChevronRight, Pencil, Power, Plus, Copy, Trash2 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, CardHeader, Button, Badge, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import {
-  useNode, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
+  useNode, useNodes, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
   milkTypeLabel, type MpNode, type MpOperator,
 } from '@/hooks/queries/use-milk-procurement';
 import { NODE_TYPE_META } from './_node-shared';
@@ -32,6 +32,7 @@ export function MpNodeDetailPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isLoading } = useNode(id);
+  const { data: allNodesRes } = useNodes({ limit: 500 });
   const node = data?.data ?? null;
   const deactivate = useDeactivateNode();
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
@@ -42,9 +43,7 @@ export function MpNodeDetailPage() {
 
   return (
     <div>
-      <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/milk-procurement/nodes' })} className="mb-2">
-        <ArrowLeft className="h-4 w-4" />Network
-      </Button>
+      <NodeBreadcrumb node={node} allNodes={allNodesRes?.data ?? []} />
       <PageHeader
         title={node.name}
         titleBadge={<Badge>{node.code} · {NODE_TYPE_META[node.nodeType].label}</Badge>}
@@ -88,6 +87,32 @@ export function MpNodeDetailPage() {
         })}
       />
     </div>
+  );
+}
+
+/** Clickable ancestor trail (Network ▸ PP ▸ CC ▸ this node) so you can walk up
+ * the collection chain; children are reachable via the dashboard rows below. */
+function NodeBreadcrumb({ node, allNodes }: { node: MpNode; allNodes: MpNode[] }) {
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  const chain: MpNode[] = [];
+  let cur = node.parentNodeId ? byId.get(node.parentNodeId) : undefined;
+  let guard = 0;
+  while (cur && guard++ < 5) {
+    chain.unshift(cur);
+    cur = cur.parentNodeId ? byId.get(cur.parentNodeId) : undefined;
+  }
+  return (
+    <nav className="mb-2 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
+      <Link to="/milk-procurement/nodes" className="hover:underline">Network</Link>
+      {chain.map((n) => (
+        <span key={n.id} className="flex items-center gap-1">
+          <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+          <Link to="/milk-procurement/nodes/$id" params={{ id: n.id }} className="hover:underline">{n.name}</Link>
+        </span>
+      ))}
+      <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+      <span className="font-medium text-zinc-700 dark:text-zinc-300">{node.name}</span>
+    </nav>
   );
 }
 

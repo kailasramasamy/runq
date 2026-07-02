@@ -70,6 +70,7 @@ export class ConfigService {
       advanceAccountId: input.advanceAccountId ?? null,
       feedLoanAccountId: input.feedLoanAccountId ?? null,
       rawMilkInventoryAccountId: input.rawMilkInventoryAccountId ?? null,
+      commissionExpenseAccountId: input.commissionExpenseAccountId ?? null,
       rawMilkWarehouseId: input.rawMilkWarehouseId ?? null,
       varianceAccountId: input.varianceAccountId ?? null,
     }).returning();

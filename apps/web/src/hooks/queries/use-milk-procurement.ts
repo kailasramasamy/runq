@@ -82,10 +82,23 @@ export interface MpPour {
   qualityGrade: string | null; ratePerLitre: string; lineAmount: string; receiptNo: string | null;
   status: 'recorded' | 'reversed';
 }
+export interface MpMilkTypeRow {
+  milkType: MilkType;
+  totalQty: number; amQty: number; pmQty: number; pourCount: number;
+  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+}
+export interface MpCollectionNodeRow {
+  nodeId: string; nodeName: string; nodeCode: string; nodeType: NodeType;
+  totalQty: number; amQty: number; pmQty: number; pourCount: number;
+  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+}
 export interface MpCollectionSummary {
   from: string; to: string; nodeId: string | null;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
   farmerCount: number; avgFat: number; avgSnf: number; avgWater: number | null; grossAmount: number;
+  byMilkType: MpMilkTypeRow[];
+  byCc: MpCollectionNodeRow[];
+  byNode: MpCollectionNodeRow[];
 }
 export interface MpLedgerEntry {
   id: string; farmerId: string; entryType: string; amount: string;
@@ -341,11 +354,71 @@ export function usePoursDaily(q: { nodeId: string; from: string; to: string; far
     enabled: !!q.nodeId && !!q.from && !!q.to,
   });
 }
+export interface MpQualityTrendRow {
+  date: string; milkType: MilkType; totalQty: number;
+  fat: number | null; snf: number | null; water: number | null;
+}
+export function useQualityTrend(q: { from: string; to: string; nodeId?: string }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'quality-trend', q],
+    queryFn: () => api.get<ApiSuccess<MpQualityTrendRow[]>>(`${BASE}/reports/quality-trend${qs({ ...q })}`),
+    enabled: !!q.from && !!q.to,
+  });
+}
+// Per-day full rollup per milk type — same columns as the "By milk type — today"
+// home table, one row per (date, milk type). Newest day first.
+export interface MpMilkTypeDayRow {
+  date: string; milkType: MilkType;
+  totalQty: number; amQty: number; pmQty: number; pourCount: number;
+  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+}
+export function useMilkTypeDaily(q: { from: string; to: string; nodeId?: string }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'milk-type-daily', q],
+    queryFn: () => api.get<ApiSuccess<MpMilkTypeDayRow[]>>(`${BASE}/reports/milk-type-daily${qs({ ...q })}`),
+    enabled: !!q.from && !!q.to,
+  });
+}
+// Per-day full rollup per node (VMCC or parent CC) — same columns as the home
+// "By … — today" tables, one row per (date, node). Node picked via dropdown.
+export interface MpNodeDayRow {
+  date: string; nodeId: string; nodeName: string; nodeCode: string;
+  totalQty: number; amQty: number; pmQty: number; pourCount: number;
+  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+}
+export function useNodeDaily(q: { from: string; to: string; groupBy: 'vmcc' | 'cc' }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'node-daily', q],
+    queryFn: () => api.get<ApiSuccess<MpNodeDayRow[]>>(`${BASE}/reports/node-daily${qs({ ...q })}`),
+    enabled: !!q.from && !!q.to,
+  });
+}
 export function useReceivedDaily(q: { nodeId: string; from: string; to: string }) {
   return useQuery({
     queryKey: ['mp', 'reports', 'received-daily', q],
     queryFn: () => api.get<ApiSuccess<MpReceivedDay[]>>(`${BASE}/reports/received-daily${qs({ ...q })}`),
     enabled: !!q.nodeId && !!q.from && !!q.to,
+  });
+}
+
+// Whole-network flow snapshot for one date + optional shift (see report.service).
+export interface MpFlowNode {
+  nodeId: string; collected: number; dispatchedOut: number; receivedIn: number; onHand: number;
+}
+export interface MpFlowEdge {
+  fromNodeId: string; toNodeId: string; kind: 'vmcc_to_cc' | 'cc_to_pp';
+  dispatchedQty: number; receivedQty: number; measuredLoss: number; variancePct: number | null;
+}
+export interface MpFlowReport {
+  date: string; shift: 'am' | 'pm' | null;
+  nodes: MpFlowNode[]; edges: MpFlowEdge[];
+  totals: { collected: number; dispatched: number; received: number; receivedAtPlant: number; measuredLoss: number };
+}
+export function useFlow(q: { date: string; shift?: 'am' | 'pm' }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'flow', q],
+    queryFn: () => api.get<ApiSuccess<MpFlowReport>>(`${BASE}/reports/flow${qs({ ...q })}`),
+    enabled: !!q.date,
   });
 }
 
@@ -485,7 +558,7 @@ export function useOperatorCommission(q: { nodeId: string; from: string; to: str
 
 // ── operator payouts (lightweight tracking) ──────────────────────────────────
 export interface MpOperatorPayoutLine {
-  operatorId: string; nodeId: string; nodeName: string; role: string; compType: string;
+  operatorId: string; nodeId: string; nodeName: string; name: string | null; role: string; compType: string;
   nodeQty: number; commission: number; salary: number; rent: number; total: number;
   paidPayoutId: string | null; paidOn: string | null;
 }
@@ -511,7 +584,152 @@ export function useMarkOperatorPayout() {
   const c = useQueryClient();
   return useMutation({
     mutationFn: (d: CreateOperatorPayoutInput) => api.post<ApiSuccess<MpOperatorPayout>>(`${BASE}/operator-payouts`, d),
-    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'operator-payouts'] }),
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'operator-payouts'] });
+      c.invalidateQueries({ queryKey: ['mp', 'vmcc-bills'] }); // refresh the direct-billing operator flags
+    },
+  });
+}
+
+// ── VMCC billing ──────────────────────────────────────────────────────────────
+export type BillStatus = 'generated' | 'paid' | 'reversed';
+export interface MpVmccBill {
+  id: string; billNo: string; payoutCycleId: string; vmccNodeId: string; ccNodeId: string;
+  payeeVendorId: string | null;
+  milkCost: string; commission: string; salary: string; rent: string; totalAmount: string;
+  qtyLitres: string; farmerCount: number; status: BillStatus;
+  paymentId: string | null; txnReference: string | null; paymentMode: string | null;
+  paymentDate: string | null; paidAt: string | null;
+}
+export interface MpVmccBillListRow extends MpVmccBill { vmccName: string; vmccCode: string }
+/** Compute-on-the-fly preview row (amounts are numbers, not decimal strings). */
+export interface MpBillableVmcc {
+  vmccNodeId: string; vmccName: string; vmccCode: string; payeeVendorId: string | null;
+  milkCost: number; qtyLitres: number; farmerCount: number;
+  commission: number; salary: number; rent: number; total: number;
+  bill: MpVmccBill | null;
+}
+export interface PayVmccBillBody { txnReference?: string; paymentMode: string; paymentDate: string }
+export type BillingHalf = 'first' | 'second';
+export interface BillingPeriodSel { year: number; month: number; half: BillingHalf }
+
+export interface MpCycleBillingSummary {
+  cycleId: string; cycleNo: string; periodStart: string; periodEnd: string;
+  cycleStatus: string; billCount: number; paidBillCount: number;
+  billedTotal: number; paidTotal: number; pendingTotal: number;
+}
+export function useCycleBillingSummary(limit = 5) {
+  return useQuery({
+    queryKey: ['mp', 'vmcc-bills', 'cycle-summary', limit],
+    queryFn: () => api.get<ApiSuccess<MpCycleBillingSummary[]>>(`${BASE}/billing/cycle-summary${qs({ limit })}`),
+  });
+}
+
+export function useBillableVmccs(q: BillingPeriodSel & { ccNodeId: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['mp', 'vmcc-bills', 'billable', q],
+    queryFn: () => api.get<ApiSuccess<MpBillableVmcc[]>>(`${BASE}/billing/billable${qs({ ...q })}`),
+    enabled: enabled && !!q.ccNodeId && !!q.year && !!q.month && !!q.half,
+  });
+}
+export interface MpDirectPaymentRow {
+  vmccNodeId: string; vmccName: string; vmccCode: string;
+  farmerCount: number; paidCount: number;
+  netOwed: number; paidAmount: number; pendingAmount: number;
+}
+export interface MpDirectFarmerBill {
+  lineId: string; farmerId: string; farmerName: string; farmerCode: string;
+  vmccNodeId: string; vmccName: string;
+  qtyLitres: number; grossAmount: number; deductionTotal: number; netAmount: number;
+  paid: boolean; paymentReference: string | null;
+}
+export interface MpDirectDetail {
+  cycleId: string | null;
+  periodStart: string; periodEnd: string;
+  vmccs: MpDirectPaymentRow[];
+  farmers: MpDirectFarmerBill[];
+  operators: MpOperatorPayoutLine[];
+}
+export function useDirectDetail(q: BillingPeriodSel & { ccNodeId: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['mp', 'vmcc-bills', 'direct', q],
+    queryFn: () => api.get<ApiSuccess<MpDirectDetail>>(`${BASE}/billing/direct${qs({ ...q })}`),
+    enabled: enabled && !!q.ccNodeId && !!q.year && !!q.month && !!q.half,
+  });
+}
+/** Settle one farmer's bill in direct mode (posts GL + AP payment + txn confirmation). */
+export function useSettleFarmer() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, data }: { lineId: string; data: PayVmccBillBody }) =>
+      api.post<ApiSuccess<unknown>>(`${BASE}/billing/farmers/${lineId}/settle`, data),
+    onSuccess: () => invalidateBills(c),
+  });
+}
+export function useReverseFarmer() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: string) => api.post<ApiSuccess<unknown>>(`${BASE}/billing/farmers/${lineId}/reverse`, {}),
+    onSuccess: () => invalidateBills(c),
+  });
+}
+export interface SettleOperatorBody extends PayVmccBillBody { periodStart: string; periodEnd: string }
+export function useSettleOperator() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ operatorId, data }: { operatorId: string; data: SettleOperatorBody }) =>
+      api.post<ApiSuccess<unknown>>(`${BASE}/billing/operators/${operatorId}/settle`, data),
+    onSuccess: () => { invalidateBills(c); c.invalidateQueries({ queryKey: ['mp', 'operator-payouts'] }); },
+  });
+}
+/** Rebuild a direct-mode CC's farmer lines from corrected pours (milk-data fix). */
+export function useRegenerateDirect() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: BillingPeriodSel & { ccNodeId: string }) =>
+      api.post<ApiSuccess<{ rebuilt: boolean }>>(`${BASE}/billing/regenerate`, d),
+    onSuccess: () => invalidateBills(c),
+  });
+}
+export function useReverseOperator() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ operatorId, periodStart, periodEnd }: { operatorId: string; periodStart: string; periodEnd: string }) =>
+      api.post<ApiSuccess<unknown>>(`${BASE}/billing/operators/${operatorId}/reverse`, { periodStart, periodEnd }),
+    onSuccess: () => { invalidateBills(c); c.invalidateQueries({ queryKey: ['mp', 'operator-payouts'] }); },
+  });
+}
+export function useVmccBills(filters?: { cycleId?: string; ccNodeId?: string; status?: BillStatus; limit?: number }) {
+  return useQuery({
+    queryKey: ['mp', 'vmcc-bills', filters],
+    queryFn: () => api.get<PaginatedResponse<MpVmccBillListRow>>(`${BASE}/billing/bills${qs({ ...filters })}`),
+  });
+}
+function invalidateBills(c: ReturnType<typeof useQueryClient>) {
+  c.invalidateQueries({ queryKey: ['mp', 'vmcc-bills'] });
+  c.invalidateQueries({ queryKey: ['mp', 'cycles'] });
+}
+export function useGenerateVmccBills() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: BillingPeriodSel & { ccNodeId: string; vmccNodeId?: string }) =>
+      api.post<ApiSuccess<MpVmccBill[]>>(`${BASE}/billing/generate`, d),
+    onSuccess: () => invalidateBills(c),
+  });
+}
+export function usePayVmccBill() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: PayVmccBillBody }) =>
+      api.post<ApiSuccess<MpVmccBill>>(`${BASE}/billing/bills/${id}/pay`, data),
+    onSuccess: () => invalidateBills(c),
+  });
+}
+export function useReverseVmccBill() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<MpVmccBill>>(`${BASE}/billing/bills/${id}/reverse`, {}),
+    onSuccess: () => invalidateBills(c),
   });
 }
 
@@ -536,6 +754,7 @@ export interface MpGlSettings {
   cycleDays: number | null; cycleAnchorDate: string | null; autoGenerateCycle: boolean;
   supportPhone: string | null; supportEmail: string | null; supportWhatsapp: string | null;
   milkPurchaseAccountId: string | null; farmerPayableAccountId: string | null;
+  commissionExpenseAccountId: string | null;
   rawMilkWarehouseId: string | null;
 }
 

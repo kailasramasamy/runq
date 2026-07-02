@@ -137,9 +137,16 @@ export function Combobox({
     setActiveIndex(-1);
   }
 
-  function handleFocus() {
-    if (!disabled) setOpen(true);
-  }
+  // Open the list and highlight (+ scroll to) the current selection, so it
+  // behaves like a normal dropdown even when a value is already chosen. Also
+  // needed because after a pick the input keeps focus — a second click fires no
+  // `focus` event, so click must open it too.
+  const openDropdown = useCallback(() => {
+    if (disabled || open) return; // already open → don't disturb the active row while searching
+    setOpen(true);
+    const list = options.filter((o) => o.value !== '');
+    setActiveIndex(value ? list.findIndex((o) => o.value === value) : -1);
+  }, [disabled, open, options, value]);
 
   function selectOption(opt: ComboboxOption) {
     onChange(opt.value);
@@ -205,7 +212,8 @@ export function Combobox({
           placeholder={selectedOption ? selectedOption.label : placeholder}
           value={displayValue}
           onChange={handleInputChange}
-          onFocus={handleFocus}
+          onFocus={openDropdown}
+          onClick={openDropdown}
           onKeyDown={handleKeyDown}
           className={cn(
             baseInputClasses,

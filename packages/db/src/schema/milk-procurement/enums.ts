@@ -29,6 +29,9 @@ export const mpConsignmentKind = pgEnum('mp_consignment_kind', ['vmcc_to_cc', 'c
 export const mpConsignmentStatus = pgEnum('mp_consignment_status', ['in_transit', 'received', 'reversed']);
 export const mpQcVerdict = pgEnum('mp_qc_verdict', ['pass', 'fail', 'conditional']);
 export const mpCycleStatus = pgEnum('mp_cycle_status', ['open', 'locked', 'paid', 'reversed']);
+// Per-VMCC settlement bill for a locked cycle. `generated` on creation (amounts
+// already final), `paid` once the VMCC is settled + txn recorded, `reversed` to unwind.
+export const mpBillStatus = pgEnum('mp_bill_status', ['generated', 'paid', 'reversed']);
 export const mpDeduction = pgEnum('mp_deduction', ['advance', 'cattle_feed_loan', 'other']);
 export const mpLedgerEntry = pgEnum('mp_ledger_entry', [
   'advance_given', 'feed_loan_given', 'repayment', 'adjustment',

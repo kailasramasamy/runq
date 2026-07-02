@@ -4,6 +4,8 @@ import {
 import { tenants } from '../tenant';
 import { users } from '../user';
 import { vendors } from '../ap/vendors';
+import { payments } from '../ap/payments';
+import { journalEntries } from '../gl/journal-entries';
 import { accounts } from '../gl/accounts';
 import { warehouses } from '../inventory/warehouses';
 import { items } from '../masters/items';
@@ -71,6 +73,9 @@ export const mpGlSettings = pgTable('mp_gl_settings', {
   advanceAccountId: uuid('advance_account_id').references(() => accounts.id),
   feedLoanAccountId: uuid('feed_loan_account_id').references(() => accounts.id),
   rawMilkInventoryAccountId: uuid('raw_milk_inventory_account_id').references(() => accounts.id),
+  // Expense account for VMCC operator commission/handling (default code 5060),
+  // booked when a VMCC bill is paid. See mp_vmcc_bills.
+  commissionExpenseAccountId: uuid('commission_expense_account_id').references(() => accounts.id),
   // Single warehouse all PP raw-milk receipts post into (P1.2, §9.4).
   rawMilkWarehouseId: uuid('raw_milk_warehouse_id').references(() => warehouses.id),
   varianceAccountId: uuid('variance_account_id').references(() => accounts.id),
@@ -104,6 +109,11 @@ export const mpOperatorPayouts = pgTable('mp_operator_payouts', {
   payeeVendorId: uuid('payee_vendor_id').references(() => vendors.id),
   paidOn: date('paid_on').notNull(),
   reference: varchar('reference', { length: 120 }),
+  // Set when settled from the billing page (GL + AP payment posted); null when
+  // recorded as a lightweight payout from the Operators tab.
+  paymentMode: varchar('payment_mode', { length: 30 }),
+  journalEntryId: uuid('journal_entry_id').references(() => journalEntries.id),
+  paymentId: uuid('payment_id').references(() => payments.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('uq_mp_operator_payout_period').on(t.tenantId, t.operatorId, t.periodStart, t.periodEnd),

@@ -32,3 +32,32 @@ export const poursDailySchema = z.object({
 });
 
 export type PoursDailyQuery = z.infer<typeof poursDailySchema>;
+
+/** Per-day, per-milk-type qty-weighted QC rollup across the tenant (optionally
+ * one node) — powers the per-milk-type quality trend charts on the MP home. */
+export const qualityTrendSchema = z.object({
+  nodeId: z.string().uuid().optional(),
+  from: z.string().date(),
+  to: z.string().date(),
+});
+
+export type QualityTrendQuery = z.infer<typeof qualityTrendSchema>;
+
+/** Per-day full collection rollup grouped by node — either the pour's own VMCC
+ * (`vmcc`) or its parent CC (`cc`). Powers the per-node collection history. */
+export const nodeDailySchema = z.object({
+  from: z.string().date(),
+  to: z.string().date(),
+  groupBy: z.enum(['vmcc', 'cc']),
+});
+
+export type NodeDailyQuery = z.infer<typeof nodeDailySchema>;
+
+/** Whole-network flow snapshot for one collection date + optional shift —
+ * powers the Flow page (VMCC → CC → PP quantities + per-hop loss). */
+export const flowReportSchema = z.object({
+  date: z.string().date(),
+  shift: z.enum(['am', 'pm']).optional(),
+});
+
+export type FlowReportQuery = z.infer<typeof flowReportSchema>;

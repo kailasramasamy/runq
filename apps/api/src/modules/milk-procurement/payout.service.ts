@@ -1,7 +1,7 @@
 import { and, eq, desc, ne, or, sql, gte, lte, inArray, isNull } from 'drizzle-orm';
 import {
   mpPayoutCycles, mpPayoutLines, mpPayoutDeductions, mpFarmerLedger,
-  mpPours, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings, payments,
+  mpPours, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings, mpVmccBills, payments,
 } from '@runq/db';
 import type { Db, MpPayoutCycleRow, MpPayoutLineRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -273,11 +273,21 @@ export class PayoutService {
   async payCycle(id: string, principal?: MpPrincipal, userId?: string): Promise<MpPayoutCycleRow> {
     const cycle = await this.requireStatus(id, 'locked');
     if (principal?.kind === 'operator') assertNodeAccess(principal, cycle.scopeNodeId ?? '');
+    // VMCCs on via_vmcc are settled through per-VMCC bills. Block the bulk pay
+    // while any bill is still open, else those farmers would be paid twice.
+    const [openBill] = await this.db.select({ billNo: mpVmccBills.billNo }).from(mpVmccBills).where(and(
+      eq(mpVmccBills.tenantId, this.tenantId), eq(mpVmccBills.payoutCycleId, id), eq(mpVmccBills.status, 'generated'),
+    )).limit(1);
+    if (openBill) throw new ConflictError(`Settle VMCC bill ${openBill.billNo} before paying this cycle`);
+    // Lines already settled via a bill are excluded — pay only the direct remainder.
     const lines = await this.db.select({
       lineId: mpPayoutLines.id, farmerId: mpPayoutLines.farmerId,
       vendorId: mpFarmers.vendorId, netAmount: mpPayoutLines.netAmount,
     }).from(mpPayoutLines).innerJoin(mpFarmers, eq(mpFarmers.id, mpPayoutLines.farmerId))
-      .where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, id)));
+      .where(and(
+        eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, id),
+        isNull(mpPayoutLines.billId), isNull(mpPayoutLines.paymentId),
+      ));
     const mode = await this.resolvePayoutMode(cycle.scopeNodeId);
     const paidTotal = lines.reduce((s, l) => s + Math.max(0, Number(l.netAmount)), 0);
     return this.db.transaction(async (tx) => {
@@ -299,6 +309,113 @@ export class PayoutService {
         .where(and(eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, id))).returning();
       return updated!;
     });
+  }
+
+  /**
+   * Rebuild a cycle's farmer lines from the CURRENT pours after milk data is
+   * corrected — leaving already-PAID farmers frozen. Recomputes only unpaid lines
+   * (paidAt/paymentId/billId null) and, if the cycle is locked, posts a signed GL
+   * adjustment for the net change (Δ Milk Purchases / Payable / recoveries). An
+   * open cycle just recomputes lines (accrual not yet posted). Returns true if it
+   * changed anything. Reuses the farmer-primary aggregation, so it works for both
+   * VMCC bills and direct farmer bills.
+   */
+  async rebuildCycleLines(cycleId: string, userId?: string): Promise<boolean> {
+    const cycle = await this.requireCycle(cycleId);
+    if (cycle.status === 'reversed' || cycle.status === 'paid') return false;
+    const aggregates = await this.pourAggregates(cycle.periodStart, cycle.periodEnd, cycle.scopeNodeId ?? null);
+
+    if (cycle.status === 'open') {
+      // No accrual/repayments yet — recompute every line from current pours.
+      await this.db.transaction(async (tx) => {
+        const old = await tx.select({ id: mpPayoutLines.id }).from(mpPayoutLines)
+          .where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
+        const ids = old.map((l) => l.id);
+        if (ids.length) await tx.delete(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, ids));
+        await tx.delete(mpPayoutLines).where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
+        for (const a of aggregates) await this.insertLine(tx, cycleId, cycle.periodStart, a);
+        await this.updateCycleTotals(tx, cycleId);
+      });
+      return true;
+    }
+
+    // Locked: recompute only unpaid lines; freeze paid ones; post a delta accrual.
+    const lines = await this.db.select({
+      id: mpPayoutLines.id, farmerId: mpPayoutLines.farmerId,
+      gross: mpPayoutLines.grossAmount, net: mpPayoutLines.netAmount,
+      paidAt: mpPayoutLines.paidAt, paymentId: mpPayoutLines.paymentId, billId: mpPayoutLines.billId,
+    }).from(mpPayoutLines).where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
+    const unpaid = lines.filter((l) => !l.paidAt && !l.paymentId && !l.billId);
+    const paidFarmers = new Set(lines.filter((l) => l.paidAt || l.paymentId || l.billId).map((l) => l.farmerId));
+    const unpaidIds = unpaid.map((l) => l.id);
+    const oldRecovered = await this.recoveredByType(this.db, unpaidIds);
+    const oldNet = unpaid.reduce((s, l) => s + Number(l.net), 0);
+
+    await this.db.transaction(async (tx) => {
+      if (unpaidIds.length) {
+        await tx.delete(mpFarmerLedger).where(and(
+          eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.entryType, 'repayment'), inArray(mpFarmerLedger.refId, unpaidIds),
+        ));
+        await tx.delete(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, unpaidIds));
+        await tx.delete(mpPayoutLines).where(inArray(mpPayoutLines.id, unpaidIds));
+      }
+      const fresh: MpPayoutLineRow[] = [];
+      for (const a of aggregates) {
+        if (paidFarmers.has(a.farmerId)) continue; // frozen — keep the paid line as-is
+        fresh.push(await this.insertLine(tx, cycleId, cycle.periodStart, a));
+      }
+      const recovered = await this.postRepayments(tx, cycle, fresh);
+      const newNet = fresh.reduce((s, l) => s + Number(l.netAmount), 0);
+      const dNet = round2(newNet - oldNet);
+      const dAdvance = round2(recovered.advance - oldRecovered.advance);
+      const dFeed = round2(recovered.feedLoan - oldRecovered.feedLoan);
+      await new MpGlPoster(this.tenantId, userId).postAccrualDelta(tx, {
+        cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
+        gross: round2(dNet + dAdvance + dFeed), net: dNet, advance: dAdvance, feedLoan: dFeed,
+      });
+      await this.updateCycleTotals(tx, cycleId);
+    });
+    return unpaid.length > 0 || aggregates.some((a) => !paidFarmers.has(a.farmerId));
+  }
+
+  /** Insert one recomputed payout line (+ its deductions) from a pour aggregate. */
+  private async insertLine(
+    tx: Tx, cycleId: string, periodStart: string, a: { farmerId: string; qty: number; gross: number; bonus: number },
+  ): Promise<MpPayoutLineRow> {
+    const ded = await this.computeDeductionsTx(tx, a.farmerId, a.gross);
+    const statementNo = await nextDocNo(tx, this.tenantId, 'statement', periodStart, 'STM');
+    const [line] = await tx.insert(mpPayoutLines).values({
+      tenantId: this.tenantId, payoutCycleId: cycleId, farmerId: a.farmerId,
+      qtyLitres: String(a.qty), grossAmount: String(a.gross), bonusAmount: String(a.bonus),
+      deductionTotal: String(ded.total), netAmount: String(round2(a.gross - ded.total)), statementNo,
+    }).returning();
+    await this.insertDeductions(tx, line!.id, ded);
+    return line!;
+  }
+
+  /** Sum recovered advance / feed-loan across a set of payout lines' deductions. */
+  private async recoveredByType(db: Db | Tx, lineIds: string[]): Promise<{ advance: number; feedLoan: number }> {
+    if (!lineIds.length) return { advance: 0, feedLoan: 0 };
+    const rows = await (db as Db).select({
+      type: mpPayoutDeductions.deductionType, amt: sql<string>`coalesce(sum(${mpPayoutDeductions.amount}), 0)`,
+    }).from(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, lineIds)).groupBy(mpPayoutDeductions.deductionType);
+    let advance = 0, feedLoan = 0;
+    for (const r of rows) { if (r.type === 'cattle_feed_loan') feedLoan = Number(r.amt); else if (r.type === 'advance') advance = Number(r.amt); }
+    return { advance, feedLoan };
+  }
+
+  /** Recompute a cycle's header totals from its current lines. */
+  private async updateCycleTotals(tx: Tx, cycleId: string): Promise<void> {
+    const [t] = await tx.select({
+      qty: sql<string>`coalesce(sum(${mpPayoutLines.qtyLitres}), 0)`,
+      gross: sql<string>`coalesce(sum(${mpPayoutLines.grossAmount}), 0)`,
+      ded: sql<string>`coalesce(sum(${mpPayoutLines.deductionTotal}), 0)`,
+      net: sql<string>`coalesce(sum(${mpPayoutLines.netAmount}), 0)`,
+    }).from(mpPayoutLines).where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
+    await tx.update(mpPayoutCycles).set({
+      totalQty: String(round3(Number(t?.qty ?? 0))), totalGross: String(round2(Number(t?.gross ?? 0))),
+      totalDeductions: String(round2(Number(t?.ded ?? 0))), totalNet: String(round2(Number(t?.net ?? 0))), updatedAt: new Date(),
+    }).where(and(eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, cycleId)));
   }
 
   /** Mark one farmer line paid/unpaid (operational disbursement flag). */
@@ -355,6 +472,24 @@ export class PayoutService {
     let remaining = gross;
     const advance = Math.min(out.advance, remaining); remaining -= advance;
     const feedLoan = Math.min(out.feedLoan, remaining);
+    return { advance: round2(advance), feedLoan: round2(feedLoan), total: round2(advance + feedLoan) };
+  }
+
+  /** Tx-aware deduction compute — used by rebuild, after old repayments are dropped in the same tx. */
+  private async computeDeductionsTx(tx: Tx, farmerId: string, gross: number) {
+    const rows = await tx.select({
+      entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
+    }).from(mpFarmerLedger).where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
+    let advanceOut = 0, feedOut = 0;
+    for (const r of rows) {
+      const amt = Number(r.amount);
+      if (r.entryType === 'advance_given') advanceOut += amt;
+      else if (r.entryType === 'feed_loan_given') feedOut += amt;
+      else if (r.entryType === 'repayment') { if (r.refType === 'cattle_feed_loan') feedOut -= amt; else advanceOut -= amt; }
+    }
+    let remaining = gross;
+    const advance = Math.min(Math.max(0, round2(advanceOut)), remaining); remaining -= advance;
+    const feedLoan = Math.min(Math.max(0, round2(feedOut)), remaining);
     return { advance: round2(advance), feedLoan: round2(feedLoan), total: round2(advance + feedLoan) };
   }
 

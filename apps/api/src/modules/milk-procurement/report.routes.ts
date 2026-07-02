@@ -1,11 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
-import { collectionReportSchema, receivedDailySchema, poursDailySchema } from '@runq/validators';
+import { collectionReportSchema, receivedDailySchema, poursDailySchema, qualityTrendSchema, nodeDailySchema, flowReportSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReportService } from './report.service';
 import { resolveMpPrincipal, assertNodeAccess } from './access-scope';
 
 // field_operator reads their own node's rollup (service scopes pours to it)
 const READ_ROLES = ['owner', 'accountant', 'viewer', 'field_operator'] as const;
+// Flow is a whole-network view — tenant-side roles only, not per-node operators.
+const FLOW_ROLES = ['owner', 'accountant', 'viewer'] as const;
 
 export const reportRoutes: FastifyPluginAsync = async (app) => {
   app.get('/collection', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
@@ -30,5 +32,34 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
     if (principal.kind === 'operator') assertNodeAccess(principal, q.nodeId);
     const service = new ReportService(request.server.db, request.tenantId);
     return { data: await service.poursDaily(q, principal) };
+  });
+
+  app.get('/quality-trend', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = qualityTrendSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator' && q.nodeId) assertNodeAccess(principal, q.nodeId);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.qualityTrend(q, principal) };
+  });
+
+  app.get('/milk-type-daily', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = qualityTrendSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator' && q.nodeId) assertNodeAccess(principal, q.nodeId);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.milkTypeDaily(q, principal) };
+  });
+
+  app.get('/node-daily', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = nodeDailySchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.nodeDaily(q, principal) };
+  });
+
+  app.get('/flow', { preHandler: [rbacHook([...FLOW_ROLES])] }, async (request) => {
+    const q = flowReportSchema.parse(request.query);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.flow(q) };
   });
 };

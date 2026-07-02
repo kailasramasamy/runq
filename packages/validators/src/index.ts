@@ -95,4 +95,5 @@ export * from './milk-procurement/payout.schema';
 export * from './milk-procurement/operator.schema';
 export * from './milk-procurement/operator-payout.schema';
 export * from './milk-procurement/config.schema';
+export * from './milk-procurement/billing.schema';
 export * from './milk-procurement/report.schema';

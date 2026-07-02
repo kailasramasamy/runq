@@ -16,6 +16,7 @@ import { qcTestRoutes } from './qc-test.routes';
 import { payoutRoutes } from './payout.routes';
 import { operatorRoutes } from './operator.routes';
 import { operatorPayoutRoutes } from './operator-payout.routes';
+import { billingRoutes } from './billing.routes';
 import { configRoutes } from './config.routes';
 import { reportRoutes } from './report.routes';
 
@@ -43,6 +44,7 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(payoutRoutes, { prefix: '/payouts' });
   await app.register(operatorRoutes, { prefix: '/operators' });
   await app.register(operatorPayoutRoutes, { prefix: '/operator-payouts' });
+  await app.register(billingRoutes, { prefix: '/billing' });
   await app.register(configRoutes, { prefix: '/config' });
   await app.register(reportRoutes, { prefix: '/reports' });
 };

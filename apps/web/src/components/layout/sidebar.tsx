@@ -14,7 +14,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Menu, X,
   ArrowDownToLine, ArrowUpFromLine, HandCoins, ShoppingCart,
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
-  Network,
+  Network, Waypoints,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
   Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
   Factory, FlaskConical, TrendingUp, Milk, Droplets, Users2, SlidersHorizontal,
@@ -325,15 +325,23 @@ export const MILK_NAV_GROUPS: NavGroup[] = [
     label: 'Operate',
     items: [
       { key: 'mp-collection', label: 'Collection', icon: Droplets, path: '/milk-procurement/collection' },
-      { key: 'mp-consignments', label: 'Consignments', icon: Truck, path: '/milk-procurement/consignments' },
-      { key: 'mp-payouts', label: 'Payouts', icon: Coins, path: '/milk-procurement/payouts' },
+      { key: 'mp-consignments', label: 'Dispatch', icon: Truck, path: '/milk-procurement/consignments' },
       { key: 'mp-personas', label: 'View as persona', icon: Users2, path: '/milk-procurement/personas' },
     ],
   },
   {
-    label: 'Reports',
+    label: 'Track',
     items: [
-      { key: 'mp-report-collection', label: 'Collection summary', icon: BarChart3, path: '/milk-procurement/reports/collection' },
+      { key: 'mp-flow', label: 'Flow', icon: Waypoints, path: '/milk-procurement/flow' },
+      { key: 'mp-collection-history', label: 'Collection history', icon: BarChart3, path: '/milk-procurement/collection/history' },
+    ],
+  },
+  {
+    label: 'Bill',
+    items: [
+      { key: 'mp-billing', label: 'Billing', icon: Receipt, path: '/milk-procurement/billing' },
+      { key: 'mp-payouts', label: 'Payouts', icon: Coins, path: '/milk-procurement/payouts' },
+      { key: 'mp-operators', label: 'Operators', icon: HardHat, path: '/milk-procurement/operators' },
     ],
   },
   {
@@ -342,7 +350,6 @@ export const MILK_NAV_GROUPS: NavGroup[] = [
       { key: 'mp-nodes', label: 'Network (VMCC/CC/PP)', icon: Network, path: '/milk-procurement/nodes' },
       { key: 'mp-farmers', label: 'Farmers', icon: Users, path: '/milk-procurement/farmers' },
       { key: 'mp-rate-charts', label: 'Rate charts', icon: Scale, path: '/milk-procurement/rate-charts' },
-      { key: 'mp-operators', label: 'Operators', icon: HardHat, path: '/milk-procurement/operators' },
       { key: 'mp-settings', label: 'Settings', icon: SlidersHorizontal, path: '/milk-procurement/settings' },
     ],
   },

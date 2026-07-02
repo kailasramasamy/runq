@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Card, CardContent, StatsCard, Badge,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton,
@@ -59,7 +60,7 @@ function Overview({ nodeId }: { nodeId: string }) {
               {isLoading ? <TableSkeleton rows={3} cols={4} /> : perCc.length === 0 ? <TableEmpty colSpan={4} message="No tankers received today." /> : (
                 perCc.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell>{ccName(r.id)}</TableCell>
+                    <TableCell><Link to="/milk-procurement/nodes/$id" params={{ id: r.id }} className="text-zinc-900 hover:underline dark:text-zinc-100">{ccName(r.id)}</Link></TableCell>
                     <TableCell className="text-right tabular-nums">{r.n}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.qty.toLocaleString()}</TableCell>
                     <TableCell>{r.transit > 0 ? <Badge variant="default">{r.transit} in transit</Badge> : <Badge variant="success">received</Badge>}</TableCell>
@@ -102,7 +103,7 @@ function RecentReceives({ rows, ccName, loading }: { rows: MpConsignment[]; ccNa
           rows.map((c) => (
             <TableRow key={c.id}>
               <TableCell className="text-xs text-zinc-500">{c.containerNo || c.consignmentNo}</TableCell>
-              <TableCell>{ccName(c.fromNodeId)}</TableCell>
+              <TableCell><Link to="/milk-procurement/nodes/$id" params={{ id: c.fromNodeId }} className="text-zinc-900 hover:underline dark:text-zinc-100">{ccName(c.fromNodeId)}</Link></TableCell>
               <TableCell className="text-right tabular-nums">{c.receiptQty ?? c.dispatchQty ?? '—'}</TableCell>
               <TableCell className="tabular-nums">{c.receiptFat ?? c.dispatchFat ?? '—'}/{c.receiptSnf ?? c.dispatchSnf ?? '—'}/{c.receiptWater ?? c.dispatchWater ?? '—'}</TableCell>
               <TableCell className="text-right tabular-nums">{c.variancePct ?? '—'}</TableCell>

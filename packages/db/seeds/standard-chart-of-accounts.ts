@@ -171,6 +171,8 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5006', name: 'Purchase Returns', type: 'expense', parent: '5100' },
   // Milk procurement (Dhenu) — farmer milk cost, expensed at payout cycle lock.
   { code: '5050', name: 'Milk Purchases', type: 'expense', parent: '5100' },
+  // Milk procurement (Dhenu) — VMCC operator commission/handling, booked on VMCC bill pay.
+  { code: '5060', name: 'VMCC Commission & Handling', type: 'expense', parent: '5100' },
 
   // Employee Costs
   { code: '5200', name: 'Employee Costs', type: 'expense', parent: '5000' },

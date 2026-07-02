@@ -230,7 +230,10 @@ import { MpPayoutsPage } from './milk-procurement/payouts';
 import { MpPersonasPage } from './milk-procurement/personas';
 import { MpOperatorsPage } from './milk-procurement/operators';
 import { MpSettingsPage } from './milk-procurement/settings';
-import { MpCollectionReportPage } from './milk-procurement/reports-collection';
+import { MpFlowPage } from './milk-procurement/flow';
+import { MpBillingPage } from './milk-procurement/billing';
+import { MpByMilkTypeHistoryPage } from './milk-procurement/by-milk-type-history';
+import { MpNodeHistoryPage } from './milk-procurement/node-history';
 import { BomListPage } from './manufacturing/boms/index';
 import { NewBomPage } from './manufacturing/boms/new';
 import { EditBomPage } from './manufacturing/boms/edit';
@@ -2638,7 +2641,14 @@ const mpPayoutsRoute = createRoute({ getParentRoute: () => milkProcurementRoute,
 const mpPersonasRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/personas', component: MpPersonasPage });
 const mpOperatorsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/operators', component: MpOperatorsPage });
 const mpSettingsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/settings', component: MpSettingsPage });
-const mpReportCollectionRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/collection', component: MpCollectionReportPage });
+// Superseded by the Collection → History view (summary cards + searchable table). Redirect legacy links.
+const mpReportCollectionRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/collection', component: () => <Navigate to="/milk-procurement/collection/history" /> });
+// Single-pane roll-ups: Flow (milk movement VMCC→CC→PP) + Billing (cash position).
+const mpByMilkTypeRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/by-milk-type', component: MpByMilkTypeHistoryPage });
+const mpByCcRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/by-cc', component: () => <MpNodeHistoryPage groupBy="cc" title="By collection centre — history" nodeLabel="Collection centre" /> });
+const mpByVmccRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/reports/by-vmcc', component: () => <MpNodeHistoryPage groupBy="vmcc" title="By VMCC — history" nodeLabel="VMCC" /> });
+const mpFlowRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/flow', component: MpFlowPage });
+const mpBillingRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/billing', component: MpBillingPage });
 
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
@@ -2898,6 +2908,11 @@ export const routeTree = rootRoute.addChildren([
       mpOperatorsRoute,
       mpSettingsRoute,
       mpReportCollectionRoute,
+      mpByMilkTypeRoute,
+      mpByCcRoute,
+      mpByVmccRoute,
+      mpFlowRoute,
+      mpBillingRoute,
     ]),
     inventoryRoute.addChildren([
       inventoryIndexRoute,

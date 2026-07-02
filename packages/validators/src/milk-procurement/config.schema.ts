@@ -22,6 +22,8 @@ export const upsertGlSettingsSchema = z.object({
   advanceAccountId: z.string().uuid().nullish(),
   feedLoanAccountId: z.string().uuid().nullish(),
   rawMilkInventoryAccountId: z.string().uuid().nullish(),
+  // Expense account for VMCC operator commission/handling, booked on bill pay.
+  commissionExpenseAccountId: z.string().uuid().nullish(),
   // Single warehouse all PP raw-milk receipts post into (P1.2).
   rawMilkWarehouseId: z.string().uuid().nullish(),
   varianceAccountId: z.string().uuid().nullish(),
