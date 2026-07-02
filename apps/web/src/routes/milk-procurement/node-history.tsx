@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PageHeader, EmptyState, Combobox } from '@/components/ui';
 import { Droplets } from 'lucide-react';
 import { useNodeDaily, type MpNodeDayRow } from '@/hooks/queries/use-milk-procurement';
-import { DailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
+import { DailyTable, NodeDailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
 
 /** Distinct nodes present in the window, busiest (by total qty) first — powers
  * the node dropdown so only nodes with data appear. */
@@ -42,9 +42,12 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
   const { data } = useNodeDaily({ ...cycleRange(cyc), groupBy });
   const rows = data?.data ?? [];
   const nodes = distinctNodes(rows);
-  // Default is "All" (empty id) — the daily rows summed across every node.
+  // Default is "All" (empty id): the table lists every node's daily rows, while
+  // the chart shows the summed-across-nodes daily trend. A picked node filters.
   const activeId = nodes.some((n) => n.nodeId === nodeId) ? nodeId : '';
-  const nodeRows = activeId ? rows.filter((r) => r.nodeId === activeId) : sumDailyByDate(rows);
+  const nodeRows = rows.filter((r) => r.nodeId === activeId);
+  const allRows = [...rows].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.totalQty - a.totalQty));
+  const chartRows = activeId ? nodeRows : sumDailyByDate(rows);
 
   return (
     <div>
@@ -73,8 +76,12 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
         />
       ) : (
         <>
-          <DailyQtyChart rows={nodeRows} />
-          <DailyTable rows={nodeRows} page={page} setPage={setPage} />
+          <DailyQtyChart rows={chartRows} />
+          {activeId ? (
+            <DailyTable rows={nodeRows} page={page} setPage={setPage} />
+          ) : (
+            <NodeDailyTable rows={allRows} page={page} setPage={setPage} nodeLabel={nodeLabel} />
+          )}
         </>
       )}
     </div>

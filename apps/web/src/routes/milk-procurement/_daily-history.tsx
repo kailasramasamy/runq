@@ -200,6 +200,66 @@ export function DailyTable({ rows, page, setPage }: {
   );
 }
 
+/** A daily row tagged with its node — the "All nodes" table lists these
+ * individually (one line per node per day) rather than summing them. */
+export interface MpNodeDailyRow extends MpDailyRow { nodeId: string; nodeName: string; nodeCode: string }
+
+/** Per-(day, node) table with a node column — the "All VMCCs / All CCs" view.
+ * Rows arrive pre-sorted; paginated 25/page like DailyTable. */
+export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
+  rows: MpNodeDailyRow[]; page: number; setPage: (p: number) => void; nodeLabel: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <Th>Date</Th>
+              <Th>{nodeLabel}</Th>
+              <Th align="right">Qty (L)</Th>
+              <Th align="right">AM / PM</Th>
+              <Th align="right">Farmers</Th>
+              <Th align="right">Pours</Th>
+              <Th align="right">Avg FAT</Th>
+              <Th align="right">Avg SNF</Th>
+              <Th align="right">Gross payable</Th>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageRows.length === 0 ? (
+              <TableEmpty colSpan={9} message="No pours in the selected window." />
+            ) : (
+              pageRows.map((r) => (
+                <TableRow key={`${r.date}|${r.nodeId}`}>
+                  <TableCell className="tabular-nums">{shortDate(r.date)}</TableCell>
+                  <TableCell>{r.nodeCode} · {r.nodeName}</TableCell>
+                  <TableCell align="right" numeric>{r.totalQty.toLocaleString()}</TableCell>
+                  <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
+                  <TableCell align="right" numeric>{r.farmerCount}</TableCell>
+                  <TableCell align="right" numeric>{r.pourCount}</TableCell>
+                  <TableCell align="right" numeric>{r.avgFat > 0 ? r.avgFat.toFixed(2) : '—'}</TableCell>
+                  <TableCell align="right" numeric>{r.avgSnf > 0 ? r.avgSnf.toFixed(2) : '—'}</TableCell>
+                  <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+        {totalPages > 1 && (
+          <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
+            <Pagination page={safePage} totalPages={totalPages} total={rows.length}
+              limit={PAGE_SIZE} onPageChange={setPage} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DayRow({ r }: { r: MpDailyRow }) {
   return (
     <TableRow>
