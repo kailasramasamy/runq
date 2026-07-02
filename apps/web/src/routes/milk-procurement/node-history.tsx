@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PageHeader, EmptyState, Combobox, StatsCard } from '@/components/ui';
 import { Droplets, TrendingUp, Building2, Coins } from 'lucide-react';
 import { useNodeDaily, type MpNodeDayRow } from '@/hooks/queries/use-milk-procurement';
-import { DailyTable, NodeDailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
+import { DailyTable, NodeDailyTable, DailyQtyChart, DailyQualityCharts, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
 
 const fmt1 = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
@@ -98,6 +98,7 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
         <>
           <NodeSummaryCards rows={activeId ? nodeRows : rows} nodeLabel={nodeLabel} />
           <DailyQtyChart rows={chartRows} />
+          <DailyQualityCharts rows={chartRows} />
           {activeId ? (
             <DailyTable rows={nodeRows} page={page} setPage={setPage} />
           ) : (

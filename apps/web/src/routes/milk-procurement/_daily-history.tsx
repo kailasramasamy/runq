@@ -175,6 +175,64 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
   );
 }
 
+const AM_COLOR = '#f59e0b', PM_COLOR = '#3b82f6', VAL_COLOR = '#0F7A5A';
+
+/** One QC trend chart — plots the given day series, oldest day first, with a
+ * fixed Y floor so small variation reads clearly (a 0 reading is skipped). */
+function QcChart({ rows, title, min, series }: {
+  rows: MpDailyRow[]; title: string; min: number;
+  series: { key: keyof MpDailyRow; name: string; color: string }[];
+}) {
+  const data = [...rows].sort((a, b) => (a.date < b.date ? -1 : 1)).map((r) => {
+    const o: Record<string, number | string> = { date: shortDate(r.date) };
+    for (const s of series) { const v = Number(r[s.key]); if (v > 0) o[s.name] = v; }
+    return o;
+  });
+  return (
+    <Card>
+      <CardContent>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</p>
+        {data.length === 0 ? (
+          <div className="flex h-[200px] items-center justify-center text-xs text-zinc-400">No readings</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={36}
+                tickFormatter={(v) => v.toFixed(1)} domain={[min, 'auto']} />
+              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {series.map((s) => (
+                <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={false} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** FAT / SNF / Water daily trends in a 3-column grid (AM vs PM for FAT & SNF).
+ * Floors match the home quality trends: FAT 3, SNF 7, Water 0. */
+export function DailyQualityCharts({ rows }: { rows: MpDailyRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="mb-4 grid gap-3 lg:grid-cols-3">
+      <QcChart rows={rows} title="FAT %" min={3} series={[
+        { key: 'amFat', name: 'AM', color: AM_COLOR }, { key: 'pmFat', name: 'PM', color: PM_COLOR },
+      ]} />
+      <QcChart rows={rows} title="SNF %" min={7} series={[
+        { key: 'amSnf', name: 'AM', color: AM_COLOR }, { key: 'pmSnf', name: 'PM', color: PM_COLOR },
+      ]} />
+      <QcChart rows={rows} title="Water %" min={0} series={[
+        { key: 'avgWater', name: 'Water', color: VAL_COLOR },
+      ]} />
+    </div>
+  );
+}
+
 /** Client-paginated daily table, 25 rows/page. */
 export function DailyTable({ rows, page, setPage }: {
   rows: MpDailyRow[]; page: number; setPage: (p: number) => void;

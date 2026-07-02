@@ -8,7 +8,7 @@ import { formatINR } from '@/lib/utils';
 import { useNodes, useFarmers, useFarmerDaily, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
-import { DailyQtyChart, sumDailyByDate, PAGE_SIZE } from './_daily-history';
+import { DailyQtyChart, DailyQualityCharts, sumDailyByDate, PAGE_SIZE } from './_daily-history';
 
 type Scope = 'farmer' | 'vmcc' | 'cc';
 const SCOPES: { value: Scope; label: string }[] = [
@@ -57,6 +57,7 @@ function FarmerHistoryView() {
   const rows = data?.data ?? [];
   const set = (patch: Partial<typeof f>) => { setF({ ...f, ...patch }); setPage(1); };
   const sorted = [...rows].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.totalQty - a.totalQty));
+  const daily = sumDailyByDate(rows);
 
   return (
     <div>
@@ -72,7 +73,8 @@ function FarmerHistoryView() {
       </Card>
 
       <FarmerSummaryCards rows={rows} />
-      <DailyQtyChart rows={sumDailyByDate(rows)} />
+      <DailyQtyChart rows={daily} />
+      <DailyQualityCharts rows={daily} />
       <FarmerDailyTable rows={sorted} page={page} setPage={setPage} nodeName={nodeName} farmerMeta={farmerMeta} />
     </div>
   );
