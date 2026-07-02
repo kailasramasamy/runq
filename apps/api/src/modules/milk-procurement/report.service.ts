@@ -4,7 +4,7 @@ import { mpPours, mpConsignments, mpNodes } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
   CollectionReportQuery, ReceivedDailyQuery, PoursDailyQuery, FlowReportQuery,
-  QualityTrendQuery, NodeDailyQuery, ResolveRateInput,
+  QualityTrendQuery, NodeDailyQuery, FarmerDailyQuery, ResolveRateInput,
 } from '@runq/validators';
 import { MpPrincipal, scopePours, scopeConsignments } from './access-scope';
 import { RateChartService } from './rate-chart.service';
@@ -150,6 +150,14 @@ export interface NodeDayRow extends DayRollup {
   nodeId: string;
   nodeName: string;
   nodeCode: string;
+}
+
+/** One (date, farmer) full collection rollup with AM/PM combined — powers the
+ * per-farmer collection history. `nodeId` is the VMCC the farmer poured at. */
+export interface FarmerDayRow extends DayRollup {
+  date: string;
+  farmerId: string;
+  nodeId: string;
 }
 
 export interface CollectionSummary {
@@ -515,6 +523,28 @@ export class ReportService {
       ({ date: r.date, nodeId: r.nodeId, nodeName: r.nodeName, nodeCode: r.nodeCode, ...numRollup(r) });
     const dr = drRows.map((r) => ({ ...shape(r), grossAmount: gross.get(`${r.date}|${r.nodeId}`) ?? 0 }));
     return mergeKeyed(pourRows.map(shape), dr, (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
+  }
+
+  /** Per-(date, farmer) collection rollup with AM/PM combined, newest day first —
+   * one row per farmer per day at the VMCC they poured to. Pours only (farmers
+   * never have direct receipts); optionally scoped to a VMCC or one farmer. */
+  async farmerDaily(q: FarmerDailyQuery, principal?: MpPrincipal): Promise<FarmerDayRow[]> {
+    const conds = [
+      eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
+      gte(mpPours.collectionDate, q.from), lte(mpPours.collectionDate, q.to),
+    ];
+    if (q.nodeId) conds.push(eq(mpPours.nodeId, q.nodeId));
+    if (q.farmerId) conds.push(eq(mpPours.farmerId, q.farmerId));
+    if (principal) {
+      const scope = scopePours(principal);
+      if (scope) conds.push(scope);
+    }
+    const rows = await this.db.select({
+      date: mpPours.collectionDate, farmerId: mpPours.farmerId, nodeId: mpPours.nodeId, ...rollupCols(),
+    }).from(mpPours).where(and(...conds))
+      .groupBy(mpPours.collectionDate, mpPours.farmerId, mpPours.nodeId)
+      .orderBy(sql`${mpPours.collectionDate} desc`);
+    return rows.map((r) => ({ date: r.date, farmerId: r.farmerId, nodeId: r.nodeId, ...numRollup(r) }));
   }
 
   /** Whole-network snapshot for one day: collected/dispatched/received per node

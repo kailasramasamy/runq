@@ -53,6 +53,18 @@ export const nodeDailySchema = z.object({
 
 export type NodeDailyQuery = z.infer<typeof nodeDailySchema>;
 
+/** Per-day full collection rollup grouped by farmer (one row per farmer per day,
+ * AM/PM combined), optionally scoped to a VMCC or a single farmer. Powers the
+ * per-farmer collection history. */
+export const farmerDailySchema = z.object({
+  from: z.string().date(),
+  to: z.string().date(),
+  nodeId: z.string().uuid().optional(),
+  farmerId: z.string().uuid().optional(),
+});
+
+export type FarmerDailyQuery = z.infer<typeof farmerDailySchema>;
+
 /** Whole-network flow snapshot for one collection date + optional shift —
  * powers the Flow page (VMCC → CC → PP quantities + per-hop loss). */
 export const flowReportSchema = z.object({

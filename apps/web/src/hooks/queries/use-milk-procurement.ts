@@ -395,6 +395,21 @@ export function useNodeDaily(q: { from: string; to: string; groupBy: 'vmcc' | 'c
     enabled: !!q.from && !!q.to,
   });
 }
+
+// One row per (date, farmer) with AM/PM combined. `nodeId` is the VMCC poured at.
+export interface MpFarmerDayRow {
+  date: string; farmerId: string; nodeId: string;
+  totalQty: number; amQty: number; pmQty: number; pourCount: number;
+  farmerCount: number; avgFat: number; avgSnf: number;
+  amFat: number; pmFat: number; amSnf: number; pmSnf: number; avgWater: number; grossAmount: number;
+}
+export function useFarmerDaily(q: { from: string; to: string; nodeId?: string; farmerId?: string }) {
+  return useQuery({
+    queryKey: ['mp', 'reports', 'farmer-daily', q],
+    queryFn: () => api.get<ApiSuccess<MpFarmerDayRow[]>>(`${BASE}/reports/farmer-daily${qs({ ...q })}`),
+    enabled: !!q.from && !!q.to,
+  });
+}
 export function useReceivedDaily(q: { nodeId: string; from: string; to: string }) {
   return useQuery({
     queryKey: ['mp', 'reports', 'received-daily', q],

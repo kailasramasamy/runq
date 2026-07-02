@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { collectionReportSchema, receivedDailySchema, poursDailySchema, qualityTrendSchema, nodeDailySchema, flowReportSchema } from '@runq/validators';
+import { collectionReportSchema, receivedDailySchema, poursDailySchema, qualityTrendSchema, nodeDailySchema, farmerDailySchema, flowReportSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReportService } from './report.service';
 import { resolveMpPrincipal, assertNodeAccess } from './access-scope';
@@ -55,6 +55,14 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new ReportService(request.server.db, request.tenantId);
     return { data: await service.nodeDaily(q, principal) };
+  });
+
+  app.get('/farmer-daily', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = farmerDailySchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator' && q.nodeId) assertNodeAccess(principal, q.nodeId);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.farmerDaily(q, principal) };
   });
 
   app.get('/flow', { preHandler: [rbacHook([...FLOW_ROLES])] }, async (request) => {
