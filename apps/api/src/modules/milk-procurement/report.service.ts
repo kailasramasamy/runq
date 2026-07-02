@@ -1,4 +1,4 @@
-import { and, eq, ne, sql, gte, lte } from 'drizzle-orm';
+import { and, eq, ne, or, sql, gte, lte } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { mpPours, mpConsignments, mpNodes } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -6,7 +6,7 @@ import type {
   CollectionReportQuery, ReceivedDailyQuery, PoursDailyQuery, FlowReportQuery,
   QualityTrendQuery, NodeDailyQuery,
 } from '@runq/validators';
-import { MpPrincipal, scopePours } from './access-scope';
+import { MpPrincipal, scopePours, scopeConsignments } from './access-scope';
 
 /** One node's movement on a given day: what came in, what left, what remains. */
 export interface FlowNode {
@@ -159,7 +159,30 @@ export class ReportService {
     private readonly tenantId: string,
   ) {}
 
+  /** Home dashboard rollup. Milk reaches the tenant two ways: farmer-level pours
+   * logged at a VMCC, and manual "direct receive" at a CC (its VMCCs never log a
+   * pour — the CC just records what arrived). We roll up both and merge, so a
+   * pourless direct-receive network still shows its litres/AM-PM/QC. Farmer,
+   * pour-count and gross-payable stay pour-only (a direct receipt has none). */
   async collectionSummary(q: CollectionReportQuery, principal?: MpPrincipal): Promise<CollectionSummary> {
+    const [pour, dr] = await Promise.all([
+      this.pourSummary(q, principal),
+      this.directReceiveSummary(q, principal),
+    ]);
+    const byQty = (a: CollectionNodeRow, b: CollectionNodeRow) => b.totalQty - a.totalQty;
+    return {
+      from: q.from, to: q.to, nodeId: q.nodeId ?? null,
+      ...mergeRollup(pour.total, dr.total),
+      byMilkType: mergeKeyed(pour.byMilkType, dr.byMilkType, (r) => r.milkType)
+        .sort((a, b) => b.totalQty - a.totalQty),
+      byCc: mergeKeyed(pour.byCc, dr.byCc, (r) => r.nodeId).sort(byQty),
+      byNode: mergeKeyed(pour.byNode, dr.byNode, (r) => r.nodeId).sort(byQty),
+    };
+  }
+
+  /** Pour-side of the collection rollup: total + per-milk-type + per-VMCC + per-CC
+   * (pours rolled up to the VMCC's parent CC). */
+  private async pourSummary(q: CollectionReportQuery, principal?: MpPrincipal) {
     const conds = [
       eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
       gte(mpPours.collectionDate, q.from), lte(mpPours.collectionDate, q.to),
@@ -169,17 +192,7 @@ export class ReportService {
       const scope = scopePours(principal);
       if (scope) conds.push(scope);
     }
-    const cols = {
-      totalQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
-      amQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'am'), 0)`,
-      pmQty: sql<string>`coalesce(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'pm'), 0)`,
-      pourCount: sql<number>`count(*)::int`,
-      farmerCount: sql<number>`count(distinct ${mpPours.farmerId})::int`,
-      avgFat: sql<string>`coalesce(round(avg(${mpPours.fat}), 2), 0)`,
-      avgSnf: sql<string>`coalesce(round(avg(${mpPours.snf}), 2), 0)`,
-      avgWater: sql<string>`coalesce(round(avg(${mpPours.water}), 2), 0)`,
-      grossAmount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
-    };
+    const cols = rollupCols();
     // per-CC rollup: a pour is recorded at a VMCC whose parent is its CC, so we
     // group pours by that parent node. `vmcc`/`cc` are two aliases of mp_nodes.
     const vmcc = alias(mpNodes, 'pour_vmcc');
@@ -187,61 +200,70 @@ export class ReportService {
     const [[r], typeRows, nodeRows, ccRows] = await Promise.all([
       this.db.select(cols).from(mpPours).where(and(...conds)),
       this.db.select({ milkType: mpPours.milkType, ...cols })
-        .from(mpPours).where(and(...conds))
-        .groupBy(mpPours.milkType)
-        .orderBy(sql`sum(${mpPours.qtyLitres}) desc`),
+        .from(mpPours).where(and(...conds)).groupBy(mpPours.milkType),
       this.db.select({
-        nodeId: mpPours.nodeId,
-        nodeName: mpNodes.name,
-        nodeCode: mpNodes.code,
-        nodeType: mpNodes.nodeType,
-        ...cols,
+        nodeId: mpPours.nodeId, nodeName: mpNodes.name, nodeCode: mpNodes.code, nodeType: mpNodes.nodeType, ...cols,
       })
-        .from(mpPours)
-        .innerJoin(mpNodes, eq(mpNodes.id, mpPours.nodeId))
-        .where(and(...conds))
-        .groupBy(mpPours.nodeId, mpNodes.name, mpNodes.code, mpNodes.nodeType)
-        .orderBy(sql`sum(${mpPours.qtyLitres}) desc`),
+        .from(mpPours).innerJoin(mpNodes, eq(mpNodes.id, mpPours.nodeId)).where(and(...conds))
+        .groupBy(mpPours.nodeId, mpNodes.name, mpNodes.code, mpNodes.nodeType),
       this.db.select({
-        nodeId: cc.id,
-        nodeName: cc.name,
-        nodeCode: cc.code,
-        nodeType: cc.nodeType,
-        ...cols,
+        nodeId: cc.id, nodeName: cc.name, nodeCode: cc.code, nodeType: cc.nodeType, ...cols,
       })
-        .from(mpPours)
-        .innerJoin(vmcc, eq(vmcc.id, mpPours.nodeId))
-        .innerJoin(cc, eq(cc.id, vmcc.parentNodeId))
-        .where(and(...conds))
-        .groupBy(cc.id, cc.name, cc.code, cc.nodeType)
-        .orderBy(sql`sum(${mpPours.qtyLitres}) desc`),
+        .from(mpPours).innerJoin(vmcc, eq(vmcc.id, mpPours.nodeId)).innerJoin(cc, eq(cc.id, vmcc.parentNodeId))
+        .where(and(...conds)).groupBy(cc.id, cc.name, cc.code, cc.nodeType),
     ]);
     return {
-      from: q.from, to: q.to, nodeId: q.nodeId ?? null,
-      totalQty: Number(r?.totalQty ?? 0),
-      amQty: Number(r?.amQty ?? 0),
-      pmQty: Number(r?.pmQty ?? 0),
-      pourCount: r?.pourCount ?? 0,
-      farmerCount: r?.farmerCount ?? 0,
-      avgFat: Number(r?.avgFat ?? 0),
-      avgSnf: Number(r?.avgSnf ?? 0),
-      avgWater: Number(r?.avgWater ?? 0),
-      grossAmount: Number(r?.grossAmount ?? 0),
-      byMilkType: typeRows.map((t) => ({
-        milkType: t.milkType,
-        totalQty: Number(t.totalQty ?? 0),
-        amQty: Number(t.amQty ?? 0),
-        pmQty: Number(t.pmQty ?? 0),
-        pourCount: t.pourCount ?? 0,
-        farmerCount: t.farmerCount ?? 0,
-        avgFat: Number(t.avgFat ?? 0),
-        avgSnf: Number(t.avgSnf ?? 0),
-        avgWater: Number(t.avgWater ?? 0),
-        grossAmount: Number(t.grossAmount ?? 0),
-      })),
-      byCc: ccRows.map(toNodeRow),
+      total: r ? numRollup(r) : ZERO_ROLLUP,
+      byMilkType: typeRows.map((t) => ({ milkType: t.milkType, ...numRollup(t) })),
       byNode: nodeRows.map(toNodeRow),
+      byCc: ccRows.map(toNodeRow),
     };
+  }
+
+  /** Direct-receive side: manual CC receipts (no matching VMCC pour), rolled up
+   * per milk type, per source VMCC (byNode) and per receiving CC (byCc). */
+  private async directReceiveSummary(q: CollectionReportQuery, principal?: MpPrincipal) {
+    const conds = this.drBaseConds(q.from, q.to, q.nodeId, principal);
+    const cols = drRollupCols();
+    const fromN = alias(mpNodes, 'dr_from');
+    const toN = alias(mpNodes, 'dr_to');
+    const [[r], typeRows, nodeRows, ccRows] = await Promise.all([
+      this.db.select(cols).from(mpConsignments).where(and(...conds)),
+      this.db.select({ milkType: mpConsignments.milkType, ...cols })
+        .from(mpConsignments).where(and(...conds)).groupBy(mpConsignments.milkType),
+      this.db.select({
+        nodeId: mpConsignments.fromNodeId, nodeName: fromN.name, nodeCode: fromN.code, nodeType: fromN.nodeType, ...cols,
+      })
+        .from(mpConsignments).innerJoin(fromN, eq(fromN.id, mpConsignments.fromNodeId)).where(and(...conds))
+        .groupBy(mpConsignments.fromNodeId, fromN.name, fromN.code, fromN.nodeType),
+      this.db.select({
+        nodeId: mpConsignments.toNodeId, nodeName: toN.name, nodeCode: toN.code, nodeType: toN.nodeType, ...cols,
+      })
+        .from(mpConsignments).innerJoin(toN, eq(toN.id, mpConsignments.toNodeId)).where(and(...conds))
+        .groupBy(mpConsignments.toNodeId, toN.name, toN.code, toN.nodeType),
+    ]);
+    return {
+      total: r ? numRollup(r) : ZERO_ROLLUP,
+      byMilkType: typeRows.filter((t) => t.milkType != null).map((t) => ({ milkType: t.milkType!, ...numRollup(t) })),
+      byNode: nodeRows.map(toNodeRow),
+      byCc: ccRows.map(toNodeRow),
+    };
+  }
+
+  /** WHERE for received manual (direct-receive) VMCC→CC consignments in a window,
+   * optionally touching one node (as source or destination) and scoped by role. */
+  private drBaseConds(from: string, to: string, nodeId: string | undefined, principal?: MpPrincipal) {
+    const conds = [
+      eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.kind, 'vmcc_to_cc'),
+      eq(mpConsignments.directReceive, true), eq(mpConsignments.status, 'received'),
+      gte(mpConsignments.collectionDate, from), lte(mpConsignments.collectionDate, to),
+    ];
+    if (nodeId) conds.push(or(eq(mpConsignments.fromNodeId, nodeId), eq(mpConsignments.toNodeId, nodeId))!);
+    if (principal) {
+      const scope = scopeConsignments(principal);
+      if (scope) conds.push(scope);
+    }
+    return conds;
   }
 
   /** One qty-weighted rollup row per collection_date of received vmcc→cc
@@ -360,14 +382,17 @@ export class ReportService {
       const scope = scopePours(principal);
       if (scope) conds.push(scope);
     }
-    const rows = await this.db.select({
-      date: mpPours.collectionDate,
-      milkType: mpPours.milkType,
-      ...rollupCols(),
-    }).from(mpPours).where(and(...conds))
-      .groupBy(mpPours.collectionDate, mpPours.milkType)
-      .orderBy(sql`${mpPours.collectionDate} desc`);
-    return rows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
+    const drConds = this.drBaseConds(q.from, q.to, q.nodeId, principal);
+    const [pourRows, drRows] = await Promise.all([
+      this.db.select({ date: mpPours.collectionDate, milkType: mpPours.milkType, ...rollupCols() })
+        .from(mpPours).where(and(...conds)).groupBy(mpPours.collectionDate, mpPours.milkType),
+      this.db.select({ date: mpConsignments.collectionDate, milkType: mpConsignments.milkType, ...drRollupCols() })
+        .from(mpConsignments).where(and(...drConds)).groupBy(mpConsignments.collectionDate, mpConsignments.milkType),
+    ]);
+    const pour = pourRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
+    const dr = drRows.filter((r) => r.milkType != null)
+      .map((r) => ({ date: r.date, milkType: r.milkType!, ...numRollup(r) }));
+    return mergeKeyed(pour, dr, (r) => `${r.date}|${r.milkType}`).sort(byDateDesc);
   }
 
   /** Per-(date, node) full collection rollup, newest day first — grouped either
@@ -386,21 +411,31 @@ export class ReportService {
     // per-CC: roll pours up to the VMCC's parent CC (two aliases of mp_nodes).
     const vmcc = alias(mpNodes, 'pour_vmcc');
     const cc = alias(mpNodes, 'parent_cc');
-    const rows = q.groupBy === 'cc'
-      ? await this.db.select({ date: mpPours.collectionDate, nodeId: cc.id, nodeName: cc.name, nodeCode: cc.code, ...cols })
-          .from(mpPours)
-          .innerJoin(vmcc, eq(vmcc.id, mpPours.nodeId))
-          .innerJoin(cc, eq(cc.id, vmcc.parentNodeId))
-          .where(and(...conds))
-          .groupBy(cc.id, cc.name, cc.code, mpPours.collectionDate)
-          .orderBy(sql`${mpPours.collectionDate} desc`)
-      : await this.db.select({ date: mpPours.collectionDate, nodeId: mpNodes.id, nodeName: mpNodes.name, nodeCode: mpNodes.code, ...cols })
-          .from(mpPours)
-          .innerJoin(mpNodes, eq(mpNodes.id, mpPours.nodeId))
-          .where(and(...conds))
-          .groupBy(mpNodes.id, mpNodes.name, mpNodes.code, mpPours.collectionDate)
-          .orderBy(sql`${mpPours.collectionDate} desc`);
-    return rows.map((r) => ({ date: r.date, nodeId: r.nodeId, nodeName: r.nodeName, nodeCode: r.nodeCode, ...numRollup(r) }));
+    // Direct-receive milk groups on the receiving CC (byCc) or the source VMCC
+    // (byNode) — the same node the pour rollup keys on for each grouping.
+    const drConds = this.drBaseConds(q.from, q.to, undefined, principal);
+    const drNode = alias(mpNodes, 'dr_node');
+    const drCol = q.groupBy === 'cc' ? mpConsignments.toNodeId : mpConsignments.fromNodeId;
+    const [pourRows, drRows] = await Promise.all([
+      q.groupBy === 'cc'
+        ? this.db.select({ date: mpPours.collectionDate, nodeId: cc.id, nodeName: cc.name, nodeCode: cc.code, ...cols })
+            .from(mpPours)
+            .innerJoin(vmcc, eq(vmcc.id, mpPours.nodeId))
+            .innerJoin(cc, eq(cc.id, vmcc.parentNodeId))
+            .where(and(...conds))
+            .groupBy(cc.id, cc.name, cc.code, mpPours.collectionDate)
+        : this.db.select({ date: mpPours.collectionDate, nodeId: mpNodes.id, nodeName: mpNodes.name, nodeCode: mpNodes.code, ...cols })
+            .from(mpPours)
+            .innerJoin(mpNodes, eq(mpNodes.id, mpPours.nodeId))
+            .where(and(...conds))
+            .groupBy(mpNodes.id, mpNodes.name, mpNodes.code, mpPours.collectionDate),
+      this.db.select({ date: mpConsignments.collectionDate, nodeId: drCol, nodeName: drNode.name, nodeCode: drNode.code, ...drRollupCols() })
+        .from(mpConsignments).innerJoin(drNode, eq(drNode.id, drCol)).where(and(...drConds))
+        .groupBy(drCol, drNode.name, drNode.code, mpConsignments.collectionDate),
+    ]);
+    const shape = (r: typeof pourRows[number] | typeof drRows[number]) =>
+      ({ date: r.date, nodeId: r.nodeId, nodeName: r.nodeName, nodeCode: r.nodeCode, ...numRollup(r) });
+    return mergeKeyed(pourRows.map(shape), drRows.map(shape), (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
   }
 
   /** Whole-network snapshot for one day: collected/dispatched/received per node
@@ -497,6 +532,68 @@ function rollupCols() {
     avgWater: sql<string>`coalesce(round(avg(${mpPours.water}), 2), 0)`,
     grossAmount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
   };
+}
+
+/** Direct-receive counterpart of rollupCols(): qty-weighted QC over CC receipts,
+ * with zeroed pour/farmer/gross (a manual receipt logs no farmer-level pours).
+ * Same column shape as rollupCols() so the rows merge cleanly. */
+function drRollupCols() {
+  const wq = (col: AnyPgColumn) =>
+    sql<string>`coalesce(round(sum(${mpConsignments.receiptQty} * ${col}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${col} is not null), 0), 2), 0)`;
+  return {
+    totalQty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
+    // A whole-day (null-shift) receipt counts as AM, mirroring shiftFrom(null).
+    amQty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.shift} = 'am' or ${mpConsignments.shift} is null), 0)`,
+    pmQty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.shift} = 'pm'), 0)`,
+    pourCount: sql<number>`0`,
+    farmerCount: sql<number>`0`,
+    avgFat: wq(mpConsignments.receiptFat),
+    avgSnf: wq(mpConsignments.receiptSnf),
+    avgWater: wq(mpConsignments.receiptWater),
+    grossAmount: sql<string>`'0'`,
+  };
+}
+
+const ZERO_ROLLUP: DayRollup = {
+  totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
+  avgFat: 0, avgSnf: 0, avgWater: 0, grossAmount: 0,
+};
+
+/** Newest-day-first comparator for the daily history rollups. */
+const byDateDesc = (a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date);
+
+/** Fold a pour rollup and a direct-receive rollup for the same key: sum the
+ * additive fields and qty-weight the QC. A 0 average means "no sample", so that
+ * side is dropped from the blend instead of dragging QC toward zero. */
+function mergeRollup(a: DayRollup, b: DayRollup): DayRollup {
+  const blend = (av: number, bv: number) => {
+    const aw = av > 0 ? a.totalQty : 0, bw = bv > 0 ? b.totalQty : 0;
+    const w = aw + bw;
+    return w > 0 ? Number(((av * aw + bv * bw) / w).toFixed(2)) : 0;
+  };
+  return {
+    totalQty: a.totalQty + b.totalQty,
+    amQty: a.amQty + b.amQty,
+    pmQty: a.pmQty + b.pmQty,
+    pourCount: a.pourCount + b.pourCount,
+    farmerCount: a.farmerCount + b.farmerCount,
+    avgFat: blend(a.avgFat, b.avgFat),
+    avgSnf: blend(a.avgSnf, b.avgSnf),
+    avgWater: blend(a.avgWater, b.avgWater),
+    grossAmount: a.grossAmount + b.grossAmount,
+  };
+}
+
+/** Union pour rows with direct-receive rows by a shared key, folding matched
+ * pairs via mergeRollup and keeping each row's non-rollup fields (name/date). */
+function mergeKeyed<T extends DayRollup>(pour: T[], dr: T[], key: (r: T) => string): T[] {
+  const m = new Map<string, T>();
+  for (const r of pour) m.set(key(r), r);
+  for (const r of dr) {
+    const ex = m.get(key(r));
+    m.set(key(r), ex ? { ...ex, ...mergeRollup(ex, r) } : r);
+  }
+  return [...m.values()];
 }
 
 /** Coerce a raw rollupCols() row (numeric strings) into a typed DayRollup. */
