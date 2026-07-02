@@ -1,8 +1,28 @@
 import { useState } from 'react';
-import { PageHeader, EmptyState, Combobox } from '@/components/ui';
-import { Droplets } from 'lucide-react';
+import { PageHeader, EmptyState, Combobox, StatsCard } from '@/components/ui';
+import { Droplets, TrendingUp, Building2, Coins } from 'lucide-react';
 import { useNodeDaily, type MpNodeDayRow } from '@/hooks/queries/use-milk-procurement';
 import { DailyTable, NodeDailyTable, DailyQtyChart, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
+
+const fmt1 = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+/** Period totals for the rows currently shown (respects the cycle range and the
+ * node filter), mirroring the Farmers-tab summary cards. */
+function NodeSummaryCards({ rows, nodeLabel }: { rows: MpNodeDayRow[]; nodeLabel: string }) {
+  const t = rows.reduce(
+    (a, r) => ({ qty: a.qty + r.totalQty, am: a.am + r.amQty, pm: a.pm + r.pmQty, gross: a.gross + r.grossAmount }),
+    { qty: 0, am: 0, pm: 0, gross: 0 },
+  );
+  const nodeCount = new Set(rows.map((r) => r.nodeId)).size;
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <StatsCard title="Total milk (L)" value={t.qty} icon={Droplets} formatValue={(v) => `${fmt1(v)} L`} />
+      <StatsCard title="AM / PM (L)" value={t.qty} icon={TrendingUp} formatValue={() => `${fmt1(t.am)} / ${fmt1(t.pm)}`} />
+      <StatsCard title={`${nodeLabel}s`} value={nodeCount} icon={Building2} formatValue={(v) => String(v)} />
+      <StatsCard title="Gross value" value={t.gross} icon={Coins} />
+    </div>
+  );
+}
 
 /** Distinct nodes present in the window, busiest (by total qty) first — powers
  * the node dropdown so only nodes with data appear. */
@@ -76,6 +96,7 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
         />
       ) : (
         <>
+          <NodeSummaryCards rows={activeId ? nodeRows : rows} nodeLabel={nodeLabel} />
           <DailyQtyChart rows={chartRows} />
           {activeId ? (
             <DailyTable rows={nodeRows} page={page} setPage={setPage} />
