@@ -8,6 +8,11 @@ import { Pills, shortDate, daysAgo, today } from './_node-dashboard-shared';
 
 export const PAGE_SIZE = 25;
 
+/** One QC reading, blank when absent (a 0 average means no sample). */
+const q1 = (v: number) => (v > 0 ? v.toFixed(1) : '—');
+/** "am / pm" pair for a per-shift QC column. */
+const shiftPair = (am: number, pm: number) => `${q1(am)} / ${q1(pm)}`;
+
 export type Preset = '7' | '14' | '30' | '90' | 'custom';
 export const PRESETS: { value: Preset; label: string }[] = [
   { value: '7', label: '7 days' },
@@ -21,7 +26,9 @@ export const PRESETS: { value: Preset; label: string }[] = [
 export interface MpDailyRow {
   date: string;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
-  farmerCount: number; avgFat: number; avgSnf: number; grossAmount: number;
+  farmerCount: number; avgFat: number; avgSnf: number;
+  amFat: number; pmFat: number; amSnf: number; pmSnf: number; avgWater: number;
+  grossAmount: number;
 }
 
 export function rangeFor(preset: Preset, custom: { from: string; to: string }) {
@@ -31,24 +38,32 @@ export function rangeFor(preset: Preset, custom: { from: string; to: string }) {
 /** Collapse per-node daily rows into one row per date (the "All nodes" view):
  * sum volumes / counts / gross and qty-weight the FAT/SNF, newest day first. */
 export function sumDailyByDate(rows: MpDailyRow[]): MpDailyRow[] {
-  const m = new Map<string, MpDailyRow & { fatW: number; fatQ: number; snfW: number; snfQ: number }>();
+  // Each QC metric carries a weighted sum + the litres behind it, so the daily
+  // average is qty-weighted; per-shift metrics weight by that shift's litres.
+  type Acc = MpDailyRow & Record<'wSum' | 'wQty', Record<string, number>>;
+  const metrics = [
+    ['avgFat', 'totalQty'], ['avgSnf', 'totalQty'], ['avgWater', 'totalQty'],
+    ['amFat', 'amQty'], ['pmFat', 'pmQty'], ['amSnf', 'amQty'], ['pmSnf', 'pmQty'],
+  ] as const;
+  const m = new Map<string, Acc>();
   for (const r of rows) {
     const e = m.get(r.date) ?? {
       date: r.date, totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
-      avgFat: 0, avgSnf: 0, grossAmount: 0, fatW: 0, fatQ: 0, snfW: 0, snfQ: 0,
+      avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, avgWater: 0,
+      grossAmount: 0, wSum: {}, wQty: {},
     };
     e.totalQty += r.totalQty; e.amQty += r.amQty; e.pmQty += r.pmQty;
     e.pourCount += r.pourCount; e.farmerCount += r.farmerCount; e.grossAmount += r.grossAmount;
-    if (r.avgFat > 0) { e.fatW += r.avgFat * r.totalQty; e.fatQ += r.totalQty; }
-    if (r.avgSnf > 0) { e.snfW += r.avgSnf * r.totalQty; e.snfQ += r.totalQty; }
+    for (const [metric, qtyKey] of metrics) {
+      if (r[metric] > 0) { e.wSum[metric] = (e.wSum[metric] ?? 0) + r[metric] * r[qtyKey]; e.wQty[metric] = (e.wQty[metric] ?? 0) + r[qtyKey]; }
+    }
     m.set(r.date, e);
   }
   return [...m.values()]
-    .map(({ fatW, fatQ, snfW, snfQ, ...e }) => ({
-      ...e,
-      avgFat: fatQ > 0 ? Number((fatW / fatQ).toFixed(2)) : 0,
-      avgSnf: snfQ > 0 ? Number((snfW / snfQ).toFixed(2)) : 0,
-    }))
+    .map(({ wSum, wQty, ...e }) => {
+      for (const [metric] of metrics) e[metric] = wQty[metric] ? Number((wSum[metric] / wQty[metric]).toFixed(2)) : 0;
+      return e;
+    })
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -176,14 +191,15 @@ export function DailyTable({ rows, page, setPage }: {
               <Th align="right">AM / PM</Th>
               <Th align="right">Farmers</Th>
               <Th align="right">Pours</Th>
-              <Th align="right">Avg FAT</Th>
-              <Th align="right">Avg SNF</Th>
+              <Th align="right">FAT AM/PM</Th>
+              <Th align="right">SNF AM/PM</Th>
+              <Th align="right">Water %</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={8} message="No pours in the selected window." />
+              <TableEmpty colSpan={9} message="No pours in the selected window." />
             ) : (
               pageRows.map((r) => <DayRow key={r.date} r={r} />)
             )}
@@ -224,14 +240,15 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
               <Th align="right">AM / PM</Th>
               <Th align="right">Farmers</Th>
               <Th align="right">Pours</Th>
-              <Th align="right">Avg FAT</Th>
-              <Th align="right">Avg SNF</Th>
+              <Th align="right">FAT AM/PM</Th>
+              <Th align="right">SNF AM/PM</Th>
+              <Th align="right">Water %</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={9} message="No pours in the selected window." />
+              <TableEmpty colSpan={10} message="No pours in the selected window." />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.nodeId}`}>
@@ -241,8 +258,9 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
                   <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
                   <TableCell align="right" numeric>{r.farmerCount}</TableCell>
                   <TableCell align="right" numeric>{r.pourCount}</TableCell>
-                  <TableCell align="right" numeric>{r.avgFat > 0 ? r.avgFat.toFixed(2) : '—'}</TableCell>
-                  <TableCell align="right" numeric>{r.avgSnf > 0 ? r.avgSnf.toFixed(2) : '—'}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
+                  <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
                 </TableRow>
               ))
@@ -268,8 +286,9 @@ function DayRow({ r }: { r: MpDailyRow }) {
       <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
       <TableCell align="right" numeric>{r.farmerCount}</TableCell>
       <TableCell align="right" numeric>{r.pourCount}</TableCell>
-      <TableCell align="right" numeric>{r.avgFat > 0 ? r.avgFat.toFixed(2) : '—'}</TableCell>
-      <TableCell align="right" numeric>{r.avgSnf > 0 ? r.avgSnf.toFixed(2) : '—'}</TableCell>
+      <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
+      <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
+      <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
       <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
     </TableRow>
   );

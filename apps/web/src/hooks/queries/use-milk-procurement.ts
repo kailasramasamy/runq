@@ -370,7 +370,8 @@ export function useQualityTrend(q: { from: string; to: string; nodeId?: string }
 export interface MpMilkTypeDayRow {
   date: string; milkType: MilkType;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
-  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+  farmerCount: number; avgFat: number; avgSnf: number;
+  amFat: number; pmFat: number; amSnf: number; pmSnf: number; avgWater: number; grossAmount: number;
 }
 export function useMilkTypeDaily(q: { from: string; to: string; nodeId?: string }) {
   return useQuery({
@@ -384,7 +385,8 @@ export function useMilkTypeDaily(q: { from: string; to: string; nodeId?: string 
 export interface MpNodeDayRow {
   date: string; nodeId: string; nodeName: string; nodeCode: string;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
-  farmerCount: number; avgFat: number; avgSnf: number; avgWater: number; grossAmount: number;
+  farmerCount: number; avgFat: number; avgSnf: number;
+  amFat: number; pmFat: number; amSnf: number; pmSnf: number; avgWater: number; grossAmount: number;
 }
 export function useNodeDaily(q: { from: string; to: string; groupBy: 'vmcc' | 'cc' }) {
   return useQuery({
