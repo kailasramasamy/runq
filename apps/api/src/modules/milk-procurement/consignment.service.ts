@@ -13,6 +13,7 @@ import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
 import { ccReceiveWindow, type Slot } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
+import { sendDirectReceiptWhatsApp } from './mp-consignment-notify';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type MilkType = NonNullable<MpConsignmentRow['milkType']>;
@@ -172,7 +173,7 @@ export class ConsignmentService {
     const shift = from.hasBmc ? null : input.shift ?? null;
     const qty = String(input.qty);
     const milkType = await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
         tenantId: this.tenantId,
@@ -203,6 +204,12 @@ export class ConsignmentService {
       const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
       return stockLedgerId ? { ...row!, stockLedgerId } : row!;
     });
+
+    // Fire-and-forget: WhatsApp the source VMCC's operator that their milk was
+    // received. No-op for CC→PP receipts and when Interakt/operator phone absent.
+    void sendDirectReceiptWhatsApp(this.db, this.tenantId, result)
+      .catch((err) => console.error('manual receipt WhatsApp failed:', err));
+    return result;
   }
 
   /** Correct an already-received consignment's receipt figures (fix a just-made

@@ -2,48 +2,21 @@ import { eq } from 'drizzle-orm';
 import { mpFarmers, mpNodes } from '@runq/db';
 import type { Db, MpPourRow } from '@runq/db';
 import { getInteraktProvider } from '../../utils/messaging';
+import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
 
 // WhatsApp "milk collection receipt" to the farmer, sent when a pour is recorded
 // at a VMCC. Fire-and-forget from PourService.record(); may throw (the caller
 // fire-and-forgets with .catch). No-op unless Interakt is configured, the node
 // is a VMCC, and the farmer has a phone.
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// "2026-07-03" → "03 Jul 2026"
-function formatDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return iso;
-  const [, y, mo, d] = m;
-  return `${d} ${MONTHS[Number(mo) - 1] ?? mo} ${y}`;
-}
-
-// decimal string → trimmed number ("12.500" → "12.5", "10.00" → "10")
-function trimNum(v: string | null): string {
-  const n = Number(v ?? '');
-  return v != null && Number.isFinite(n) ? String(n) : '-';
-}
-
-function money(v: string | null): string {
-  const n = Number(v ?? '');
-  return Number.isFinite(n) ? `₹${n.toFixed(2)}` : '-';
-}
-
-// Template params must be non-empty — Interakt/Meta reject blank body values.
-function nz(v: string): string {
-  return v.trim().length ? v : '-';
-}
-
 // Positional body values for the milk_collection_receipt template. Key ORDER
 // must match {{1}}…{{6}}; the provider sends Object.values() as bodyValues.
 export function pourReceiptParams(farmerName: string, pour: MpPourRow): Record<string, string> {
-  const shift = pour.shift === 'am' ? 'Morning' : 'Evening';
-  const water = pour.water != null ? `${trimNum(pour.water)}%` : '-';
   return {
     name: nz(farmerName),
-    dateShift: nz(`${formatDate(pour.collectionDate)}, ${shift}`),
+    dateShift: nz(dateShift(pour.collectionDate, pour.shift)),
     quantity: nz(trimNum(pour.qtyLitres)),
-    quality: nz(`${trimNum(pour.fat)} / ${trimNum(pour.snf)} / ${water}`),
+    quality: nz(quality(pour.fat, pour.snf, pour.water)),
     rate: nz(money(pour.ratePerLitre)),
     total: nz(money(pour.lineAmount)),
   };
