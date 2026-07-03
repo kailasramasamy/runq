@@ -82,6 +82,12 @@ export function extractNarrationPattern(narration: string): string | null {
   const neftSlash = narration.match(/^NEFT\/[^\/]+\/(.+?)\/(?:.*BANK|.*INDIA|.*LTD)/i);
   if (neftSlash) return neftSlash[1]!.trim();
 
+  // RTGS format: "RTGS/REF/PAYEE_NAME/BANK_NAME/..." (incoming RTGS). Banks
+  // often truncate the payee mid-word here, so the captured token may be a
+  // prefix of the payer's real name — narrationContains handles that on match.
+  const rtgsSlash = narration.match(/^RTGS\/[^\/]+\/(.+?)\/(?:.*BANK|.*INDIA|.*LTD)/i);
+  if (rtgsSlash) return rtgsSlash[1]!.trim();
+
   // NEFT format: "NEFT-REFNO-PAYEE NAME..."
   const neftDash = narration.match(/NEFT-[A-Z0-9]+-(.+?)(?:\s*-|$)/i);
   if (neftDash) {
@@ -104,6 +110,33 @@ export function extractNarrationPattern(narration: string): string | null {
   if (narration.length <= 60) return narration.trim();
 
   return null;
+}
+
+/**
+ * Distinctive-token prefix of a party name / learned pattern: its first two
+ * tokens that are ≥3 chars and not purely numeric, upper-cased and joined.
+ * Returns null when the joined prefix is under 8 chars — too generic to match
+ * on safely. "THINK FRESHFIRST TECHNOLOGIE" → "THINK FRESHFIRST".
+ */
+function distinctivePrefix(s: string): string | null {
+  const tokens = s.toUpperCase().split(/[^A-Z0-9]+/).filter((t) => t.length >= 3 && !/^\d+$/.test(t));
+  const prefix = tokens.slice(0, 2).join(' ');
+  return prefix.length >= 8 ? prefix : null;
+}
+
+/**
+ * Truncation-tolerant containment. Bank statements cut a payer's name off
+ * mid-word (a rule learned as "THINK FRESHFIRST TECHNOLOGIE" from a NEFT
+ * credit won't substring-match an RTGS narration carrying only "THINK
+ * FRESHFIRST TECHN"). Exact containment is tried first — no behaviour change
+ * for names that already match — and only on a miss do we fall back to the
+ * first two distinctive tokens agreeing.
+ */
+export function narrationContains(narrationUpper: string, needle: string): boolean {
+  const n = needle.toUpperCase().trim();
+  if (n.length >= 3 && narrationUpper.includes(n)) return true;
+  const prefix = distinctivePrefix(needle);
+  return prefix != null && narrationUpper.includes(prefix);
 }
 
 export class CategorizeService {
@@ -421,7 +454,7 @@ export class CategorizeService {
     for (const rule of narrationRules) {
       if (!rule.vendorId && !rule.customerId) continue;
       if (rule.txnType && rule.txnType !== type) continue;
-      if (upper.includes(rule.pattern.toUpperCase())) {
+      if (narrationContains(upper, rule.pattern)) {
         const vendor = rule.vendorId ? vendorList.find((v) => v.id === rule.vendorId) : undefined;
         return {
           accountId: rule.glAccountId,
@@ -452,7 +485,7 @@ export class CategorizeService {
     for (const rule of narrationRules) {
       if (rule.vendorId || rule.customerId) continue; // already handled above
       if (rule.txnType && rule.txnType !== type) continue;
-      if (upper.includes(rule.pattern.toUpperCase())) {
+      if (narrationContains(upper, rule.pattern)) {
         return { accountId: rule.glAccountId, confidence: 0.95, autoReconcile: rule.autoReconcile };
       }
     }
@@ -467,7 +500,7 @@ export class CategorizeService {
     customerList: CustomerInfo[],
   ): RuleMatch | null {
     if (type === 'debit') {
-      const vendor = vendorList.find((v) => upper.includes(v.name.toUpperCase()));
+      const vendor = vendorList.find((v) => narrationContains(upper, v.name));
       if (vendor) {
         return {
           accountCode: '2101',
@@ -478,7 +511,7 @@ export class CategorizeService {
       }
     }
     if (type === 'credit') {
-      const customer = customerList.find((c) => upper.includes(c.name.toUpperCase()));
+      const customer = customerList.find((c) => narrationContains(upper, c.name));
       if (customer) {
         return { accountCode: '1103', confidence: 0.80, customerId: customer.id };
       }

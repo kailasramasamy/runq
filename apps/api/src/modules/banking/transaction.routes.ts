@@ -235,7 +235,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = transactionParamSchema.parse(request.params);
       const { customerId } = assignCustomerBodySchema.parse(request.body);
-      const { bankTransactions, customers } = await import('@runq/db');
+      const { bankTransactions, customers, reconciliationMatches } = await import('@runq/db');
       const { eq, and } = await import('drizzle-orm');
       const db = request.server.db;
       const tenantId = request.tenantId;
@@ -262,11 +262,21 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .set({ customerId, updatedAt: new Date() })
         .where(and(eq(bankTransactions.id, id), eq(bankTransactions.tenantId, tenantId)));
 
-      // For unreconciled credits, run the auto-receipt waterfall so the
-      // customer's open invoices are allocated and marked paid/partially_paid.
-      // (Mirrors the vendor route's auto-bill-pay step for debits.)
+      // Run the auto-receipt waterfall for a credit that isn't receipted yet —
+      // this covers freshly-imported credits AND ones that got tagged to a
+      // customer but never allocated (e.g. the categorizer marked them
+      // "matched" without a receipt), which the old reconStatus check stranded.
+      // A credit already linked to a receipt/JE is left alone so we never
+      // double-post.
+      const [existingMatch] = await db
+        .select({ id: reconciliationMatches.id })
+        .from(reconciliationMatches)
+        .where(and(eq(reconciliationMatches.bankTransactionId, id), eq(reconciliationMatches.tenantId, tenantId)))
+        .limit(1);
+      const alreadyReceipted = existingMatch != null || txn.journalEntryId != null;
+
       let result: Awaited<ReturnType<AutoReceiptService['createFromBankTxn']>> = null;
-      if (txn.type === 'credit' && txn.reconStatus === 'unreconciled') {
+      if (txn.type === 'credit' && !alreadyReceipted) {
         const { bankAccounts, accounts: glAccounts } = await import('@runq/db');
         const [bankGl] = await db
           .select({ code: glAccounts.code })
