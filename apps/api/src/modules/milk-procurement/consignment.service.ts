@@ -13,7 +13,8 @@ import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
 import { ccReceiveWindow, type Slot } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
-import { sendDirectReceiptWhatsApp } from './mp-consignment-notify';
+import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
+import { RateChartService } from './rate-chart.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type MilkType = NonNullable<MpConsignmentRow['milkType']>;
@@ -166,7 +167,7 @@ export class ConsignmentService {
   ): Promise<MpConsignmentRow> {
     assertNodeAccess(principal, input.toNodeId);
     assertNodeAccess(principal, input.fromNodeId);
-    const [from] = await this.db.select({ nodeType: mpNodes.nodeType, hasBmc: mpNodes.hasBmc }).from(mpNodes)
+    const [from] = await this.db.select({ nodeType: mpNodes.nodeType, hasBmc: mpNodes.hasBmc, defaultMilkType: mpNodes.defaultMilkType }).from(mpNodes)
       .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
     const kind = from.nodeType === 'cc' ? 'cc_to_pp' : 'vmcc_to_cc';
@@ -206,10 +207,30 @@ export class ConsignmentService {
     });
 
     // Fire-and-forget: WhatsApp the source VMCC's operator that their milk was
-    // received. No-op for CC→PP receipts and when Interakt/operator phone absent.
-    void sendDirectReceiptWhatsApp(this.db, this.tenantId, result)
+    // received, valuing the receipt's QC via the rate chart. No-op for CC→PP
+    // receipts and when Interakt/operator phone absent.
+    const pricing = await this.priceReceipt(milkType ?? from.defaultMilkType, input, Number(qty));
+    void sendDirectReceiptWhatsApp(this.db, this.tenantId, result, pricing)
       .catch((err) => console.error('manual receipt WhatsApp failed:', err));
     return result;
+  }
+
+  /** Value a manual receipt's QC with the source VMCC's rate chart (FAT/SNF —
+   * receipts carry no CLR). Null when QC is missing or no chart resolves, so the
+   * notice falls back to '-' rather than a misleading zero. */
+  private async priceReceipt(
+    milkType: MilkType | null, input: DirectReceiveConsignmentInput, qty: number,
+  ): Promise<ReceiptPricing | null> {
+    if (milkType == null || input.fat == null || input.snf == null) return null;
+    try {
+      const { ratePerLitre } = await new RateChartService(this.db, this.tenantId).resolveRate({
+        milkType, fat: input.fat, snf: input.snf, scopeNodeId: input.fromNodeId, onDate: input.collectionDate,
+      });
+      return { rate: ratePerLitre, total: round2(qty * ratePerLitre) };
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
   }
 
   /** Correct an already-received consignment's receipt figures (fix a just-made
@@ -489,4 +510,8 @@ function numOrNull2(v: string | null | undefined): number | null {
 
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

@@ -12,7 +12,7 @@ import { NotFoundError } from '../../utils/errors';
 
 /** A priced direct-receive group: one VMCC's manual receipt for a (day, milk
  * type), valued via the milk-type rate chart. */
-interface DrGross { fromNodeId: string; toNodeId: string; milkType: string; date: string; gross: number }
+interface DrGross { fromNodeId: string; toNodeId: string; milkType: string; date: string; shift: 'am' | 'pm'; gross: number }
 
 /** One node's movement on a given day: what came in, what left, what remains. */
 export interface FlowNode {
@@ -310,20 +310,22 @@ export class ReportService {
     return conds;
   }
 
-  /** Value each VMCC's manual receipts by day + milk type: apply that milk
-   * type's rate chart (FAT/SNF matrix — the receipt carries no CLR) to the
-   * qty-weighted QC. Type-less receipts fall back to the VMCC's default type;
-   * groups with no priceable chart or no QC contribute nothing. */
+  /** Value each VMCC's manual receipts by day + milk type + shift: apply that
+   * milk type's rate chart (FAT/SNF matrix — the receipt carries no CLR) to the
+   * shift's qty-weighted QC. Splitting by shift lets the history show per-shift
+   * ₹/L; callers sum across shifts for the day's gross. Type-less receipts fall
+   * back to the VMCC's default type; groups with no priceable chart or no QC
+   * contribute nothing. */
   private async pricedDrGross(from: string, to: string, nodeId: string | undefined, principal?: MpPrincipal): Promise<DrGross[]> {
     const conds = this.drBaseConds(from, to, nodeId, principal);
     const rows = await this.db.select({
       fromNodeId: mpConsignments.fromNodeId, toNodeId: mpConsignments.toNodeId,
-      date: mpConsignments.collectionDate, milkType: drMilkType,
+      date: mpConsignments.collectionDate, milkType: drMilkType, shift: drShift,
       qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
       fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
       snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
     }).from(mpConsignments).where(and(...conds))
-      .groupBy(mpConsignments.fromNodeId, mpConsignments.toNodeId, mpConsignments.collectionDate, drMilkType);
+      .groupBy(mpConsignments.fromNodeId, mpConsignments.toNodeId, mpConsignments.collectionDate, drMilkType, drShift);
     const rates = new RateChartService(this.db, this.tenantId);
     const cache = new Map<string, number | null>();
     const out: DrGross[] = [];
@@ -339,7 +341,7 @@ export class ReportService {
         }
         if (rate != null) gross = round2(Number(r.qty) * rate);
       }
-      out.push({ fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType, date: r.date, gross });
+      out.push({ fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType, date: r.date, shift: r.shift, gross });
     }
     return out;
   }
@@ -482,8 +484,13 @@ export class ReportService {
       this.pricedDrGross(q.from, q.to, q.nodeId, principal),
     ]);
     const gross = grossBy(priced, (g) => `${g.date}|${g.milkType}`);
+    const grossShift = grossBy(priced, (g) => `${g.date}|${g.milkType}|${g.shift}`);
     const pour = pourRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r) }));
-    const dr = drRows.map((r) => ({ date: r.date, milkType: r.milkType, ...numRollup(r), grossAmount: gross.get(`${r.date}|${r.milkType}`) ?? 0 }));
+    const dr = drRows.map((r) => {
+      const base = { date: r.date, milkType: r.milkType, ...numRollup(r), grossAmount: gross.get(`${r.date}|${r.milkType}`) ?? 0 };
+      const k = `${r.date}|${r.milkType}`;
+      return { ...base, amRate: effRate(grossShift.get(`${k}|am`), base.amQty), pmRate: effRate(grossShift.get(`${k}|pm`), base.pmQty) };
+    });
     return mergeKeyed(pour, dr, (r) => `${r.date}|${r.milkType}`).sort(byDateDesc);
   }
 
@@ -526,10 +533,16 @@ export class ReportService {
         .groupBy(drCol, drNode.name, drNode.code, mpConsignments.collectionDate),
       this.pricedDrGross(q.from, q.to, undefined, principal),
     ]);
-    const gross = grossBy(priced, (g) => `${g.date}|${q.groupBy === 'cc' ? g.toNodeId : g.fromNodeId}`);
+    const nodeKey = (g: DrGross) => (q.groupBy === 'cc' ? g.toNodeId : g.fromNodeId);
+    const gross = grossBy(priced, (g) => `${g.date}|${nodeKey(g)}`);
+    const grossShift = grossBy(priced, (g) => `${g.date}|${nodeKey(g)}|${g.shift}`);
     const shape = (r: typeof pourRows[number] | typeof drRows[number]) =>
       ({ date: r.date, nodeId: r.nodeId, nodeName: r.nodeName, nodeCode: r.nodeCode, ...numRollup(r) });
-    const dr = drRows.map((r) => ({ ...shape(r), grossAmount: gross.get(`${r.date}|${r.nodeId}`) ?? 0 }));
+    const dr = drRows.map((r) => {
+      const base = { ...shape(r), grossAmount: gross.get(`${r.date}|${r.nodeId}`) ?? 0 };
+      const k = `${r.date}|${r.nodeId}`;
+      return { ...base, amRate: effRate(grossShift.get(`${k}|am`), base.amQty), pmRate: effRate(grossShift.get(`${k}|pm`), base.pmQty) };
+    });
     return mergeKeyed(pourRows.map(shape), dr, (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
   }
 
@@ -681,8 +694,8 @@ function drRollupCols() {
     pmFat: wqs(mpConsignments.receiptFat, pmWhere),
     amSnf: wqs(mpConsignments.receiptSnf, amWhere),
     pmSnf: wqs(mpConsignments.receiptSnf, pmWhere),
-    // Manual receipts have no per-shift line amount; the priced gross is added
-    // on-read at the node level, so per-shift ₹/L stays blank for direct receives.
+    // Manual receipts have no per-shift line amount; nodeDaily/milkTypeDaily
+    // overwrite these on-read with the shift's priced gross ÷ litres (effRate).
     amRate: sql<string>`'0'`,
     pmRate: sql<string>`'0'`,
     avgWater: wq(mpConsignments.receiptWater),
@@ -709,6 +722,16 @@ function grossBy(groups: DrGross[], key: (g: DrGross) => string): Map<string, nu
  * 'mixed' when the VMCC has none — all existing types, so the client's
  * label/series need no change. */
 const drMilkType = sql<string>`coalesce(${mpConsignments.milkType}, (select ${mpNodes.defaultMilkType} from ${mpNodes} where ${mpNodes.id} = ${mpConsignments.fromNodeId}), 'mixed')`;
+
+/** Normalised shift for direct-receive pricing: a whole-day (null-shift) BMC
+ * receipt is counted as AM, matching drRollupCols()'s amQty bucket. */
+const drShift = sql<'am' | 'pm'>`case when ${mpConsignments.shift} = 'pm' then 'pm' else 'am' end`;
+
+/** Effective ₹/L for a shift = its priced gross over its litres, 0 when either
+ * is absent (mirrors the pour-based amRate/pmRate, which zero out an empty shift). */
+function effRate(gross: number | undefined, qty: number): number {
+  return gross && qty > 0 ? round2(gross / qty) : 0;
+}
 
 /** Merge pour and direct-receive QC series by (date, milk type): sum litres and
  * qty-weight FAT/SNF/Water, dropping a side with no sample. Oldest day first. */

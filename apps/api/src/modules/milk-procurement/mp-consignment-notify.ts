@@ -2,28 +2,31 @@ import { and, eq } from 'drizzle-orm';
 import { mpNodes, mpNodeOperators } from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { getInteraktProvider } from '../../utils/messaging';
-import { dateShift, trimNum, quality, nz } from './mp-notify-format';
+import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
+
+// Rate chart applied to the receipt's QC (null when no chart resolves).
+export interface ReceiptPricing { rate: number; total: number }
 
 // WhatsApp receipt to the VMCC operator when their milk is manually received at
-// a CC (direct-receive). Reuses the milk_collection_receipt template — a
-// VMCC→CC transfer has no farmer rate/amount, so those two params are '-'.
-// Fire-and-forget from ConsignmentService.directReceive(); may throw (caller
-// fire-and-forgets with .catch). No-op unless Interakt is configured, the
-// source node is a VMCC, and an operator has a phone.
+// a CC (direct-receive). Reuses the milk_collection_receipt template. The rate
+// chart values the receipt's QC (rate + total); both stay '-' when no chart
+// applies. Fire-and-forget from ConsignmentService.directReceive(); may throw
+// (caller fire-and-forgets with .catch). No-op unless Interakt is configured,
+// the source node is a VMCC, and an operator has a phone.
 
 // Positional body values for milk_collection_receipt ({{1}}…{{6}}).
-export function directReceiptParams(recipientName: string, c: MpConsignmentRow): Record<string, string> {
+export function directReceiptParams(recipientName: string, c: MpConsignmentRow, pricing: ReceiptPricing | null): Record<string, string> {
   return {
     name: nz(recipientName),
     dateShift: nz(dateShift(c.collectionDate, c.shift)),
     quantity: nz(trimNum(c.receiptQty)),
     quality: nz(quality(c.receiptFat, c.receiptSnf, c.receiptWater)),
-    rate: '-',
-    total: '-',
+    rate: pricing ? nz(money(String(pricing.rate))) : '-',
+    total: pricing ? nz(money(String(pricing.total))) : '-',
   };
 }
 
-export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpConsignmentRow): Promise<void> {
+export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpConsignmentRow, pricing: ReceiptPricing | null): Promise<void> {
   const provider = getInteraktProvider();
   const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_RECEIPT;
   if (!provider || !templateName) return;
@@ -46,7 +49,7 @@ export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpC
   if (!recipients.length) return;
 
   for (const op of recipients) {
-    const templateParams = directReceiptParams(op.name ?? src.name, c);
+    const templateParams = directReceiptParams(op.name ?? src.name, c, pricing);
     const res = await provider.sendWhatsApp({ to: op.phone!, templateName, templateParams });
     if (!res.success) {
       console.error('Interakt manual-receipt notice failed', { tenantId, consignmentId: c.id, phone: op.phone, error: res.error });
