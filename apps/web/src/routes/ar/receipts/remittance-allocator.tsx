@@ -12,8 +12,10 @@ import {
 interface ParsedLine { number: string; amount: number }
 interface ResolvedLine extends ParsedLine { invoiceId?: string; headroom?: number; ok: boolean; reason?: string }
 
-/** ₹ tolerance for absorbing sub-rupee remittance-advice vs deposit rounding gaps. */
+/** ₹ tolerance for closing an individual invoice in full within a sub-rupee gap. */
 const ROUNDING_TOLERANCE = 1;
+/** Max aggregate remittance-vs-cash overshoot auto-written-off to Round Off. */
+const AGG_ROUND_OFF_MAX = 5;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Parse pasted rows: "<invoice no> <amount>" separated by tab, comma, or spaces. */
@@ -55,33 +57,24 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
     });
   }, [text, invData, receipt.allocations]);
 
-  // A remittance advice can sum to a few paise more than the cash actually
-  // banked. Rather than reject the paste, shave that sub-rupee overshoot off the
-  // largest line so allocations tie to the receipt; the server then rounds that
-  // line off too, closing the invoice in full.
-  const { lines, rounding } = useMemo(() => {
-    const overBy = round2(resolved.reduce((s, r) => s + r.amount, 0) - receipt.amount);
-    if (overBy <= 0.01 || overBy > ROUNDING_TOLERANCE) return { lines: resolved, rounding: null };
-    const target = resolved.filter((r) => r.ok).reduce<ResolvedLine | null>((a, b) => (b.amount > (a?.amount ?? 0) ? b : a), null);
-    if (!target) return { lines: resolved, rounding: null };
-    return {
-      lines: resolved.map((r) => (r === target ? { ...r, amount: round2(r.amount - overBy) } : r)),
-      rounding: { number: target.number, amount: overBy },
-    };
-  }, [resolved, receipt.amount]);
-
-  const allocSum = lines.reduce((s, r) => s + r.amount, 0);
+  // Send the pasted amounts as-is. A remittance advice routinely sums to a few
+  // paise/rupees more than the cash banked (per-invoice rounding the customer
+  // deducted); the server settles the invoices in full and books that overshoot
+  // to Round Off. We only block once it clears the write-off ceiling.
+  const lines = resolved;
+  const allocSum = round2(lines.reduce((s, r) => s + r.amount, 0));
+  const overBy = round2(allocSum - receipt.amount);
   const hasErrors = lines.some((r) => !r.ok);
-  const overReceipt = allocSum - receipt.amount > 0.01;
+  const overReceipt = overBy > AGG_ROUND_OFF_MAX;
   const canApply = lines.length > 0 && !hasErrors && !overReceipt;
 
-  // Lines within ₹1 of clearing an invoice settle it in full server-side, with
-  // the paise booked to Round Off. Preview the total so fully-paid invoices
-  // (no lingering paise) aren't a surprise.
-  const closeRoundOff = round2(lines.reduce((s, r) => {
+  // Preview the total that lands in Round Off server-side: per-invoice sub-rupee
+  // gaps (a line settling an invoice within ₹1) plus any aggregate overshoot.
+  const perInvoiceRoundOff = lines.reduce((s, r) => {
     const gap = r.ok && r.headroom != null ? round2(r.headroom - r.amount) : 0;
     return gap > 0.005 && gap <= ROUNDING_TOLERANCE ? s + gap : s;
-  }, 0));
+  }, 0);
+  const roundOff = round2(perInvoiceRoundOff + (overBy > 0.005 ? overBy : 0));
 
   function apply() {
     const allocations = lines.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: r.amount }));
@@ -138,9 +131,8 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
                 <span className="text-zinc-500 dark:text-zinc-400">
                   {lines.length} line(s) · Allocated <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">{formatINR(allocSum)}</span> of {formatINR(receipt.amount)}
                   {remainder > 0.01 && <span className="ml-1 text-amber-600 dark:text-amber-400">· {formatINR(remainder)} stays on-account</span>}
-                  {rounding && <span className="ml-1 text-blue-600 dark:text-blue-400">· trimmed {formatINR(rounding.amount)} off #{rounding.number} to match deposit</span>}
-                  {closeRoundOff > 0.005 && <span className="ml-1 text-blue-600 dark:text-blue-400">· {formatINR(closeRoundOff)} rounded off to fully close paise balances</span>}
-                  {overReceipt && <span className="ml-1 text-red-600 dark:text-red-400">· exceeds receipt</span>}
+                  {roundOff > 0.005 && <span className="ml-1 text-blue-600 dark:text-blue-400">· {formatINR(roundOff)} booked to Round Off</span>}
+                  {overReceipt && <span className="ml-1 text-red-600 dark:text-red-400">· exceeds receipt by more than {formatINR(AGG_ROUND_OFF_MAX)}</span>}
                 </span>
                 <Button size="sm" onClick={apply} loading={update.isPending} disabled={!canApply}>Apply allocations</Button>
               </div>

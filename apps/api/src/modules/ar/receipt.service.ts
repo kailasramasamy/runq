@@ -15,6 +15,13 @@ import { getTenantName } from '../../utils/tenant-name';
 
 /** Max sub-rupee gap auto-absorbed into Round Off when a line settles an invoice in full. */
 const ROUND_OFF_MAX = 1;
+/**
+ * Max aggregate gap between a remittance's invoice total and the cash actually
+ * received that we auto-write-off to Round Off (rather than reject). A customer
+ * paying against many invoices routinely deducts a few paise/rupees of rounding;
+ * anything larger is treated as a real error and rejected.
+ */
+const AGG_ROUND_OFF_MAX = 5;
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export interface ReceiptListParams {
@@ -269,8 +276,13 @@ export class ReceiptService {
     }
 
     const sum = lines.reduce((s, l) => s + l.amount, 0);
-    if (sum - receipt.amount > 0.01) {
-      throw new ConflictError(`Allocations (₹${sum.toFixed(2)}) exceed receipt amount (₹${receipt.amount.toFixed(2)})`);
+    // A remittance's invoice total can run a few paise/rupees over the cash
+    // banked (per-invoice rounding the customer deducted). Within the ceiling
+    // we settle the invoices in full and write the gap off to Round Off below;
+    // beyond it, it's a real error.
+    const overBy = round2(sum - receipt.amount);
+    if (overBy > AGG_ROUND_OFF_MAX) {
+      throw new ConflictError(`Allocations (₹${sum.toFixed(2)}) exceed receipt amount (₹${receipt.amount.toFixed(2)}) by more than ₹${AGG_ROUND_OFF_MAX}`);
     }
 
     const ids = [...newByInv.keys()];
@@ -304,6 +316,10 @@ export class ReceiptService {
         settled.set(invId, amount);
       }
     }
+    // Aggregate overshoot (remittance total > cash) is written off to Round Off
+    // too, so the over-allocated invoices close in full and the books balance
+    // (cash + round-off = invoices settled).
+    if (overBy > 0.005) roundOffTotal += overBy;
     return { settled, roundOffByInv, roundOffTotal: round2(roundOffTotal) };
   }
 
