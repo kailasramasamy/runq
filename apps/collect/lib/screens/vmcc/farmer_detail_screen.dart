@@ -15,6 +15,7 @@ import 'add_farmer_screen.dart';
 import 'add_farmer_form_sections.dart';
 import 'farmer_payments_tab.dart';
 import 'farmer_pours_tab.dart';
+import 'farmer_qc_tab.dart';
 
 class FarmerDetailScreen extends ConsumerStatefulWidget {
   const FarmerDetailScreen({
@@ -37,7 +38,7 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -92,6 +93,7 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
           tabs: [
             Tab(text: l.farmerDetailTabDetails),
             Tab(text: l.farmerDetailTabPours),
+            Tab(text: l.reportsTabQc),
             Tab(text: l.farmerDetailTabPayments),
           ],
         ),
@@ -101,6 +103,7 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
         children: [
           _FarmerDetailsTab(farmer: farmer),
           FarmerPoursTab(node: widget.node, farmer: farmer),
+          FarmerQcTab(node: widget.node, farmer: farmer),
           FarmerPaymentsTab(farmer: farmer),
         ],
       ),
