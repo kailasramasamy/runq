@@ -70,7 +70,9 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
     return Scaffold(
       backgroundColor: t.surface,
       appBar: AppBar(
-        title: Text(farmerName(context, farmer), style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(farmerName(context, farmer),
+            style: DhenuText.h2
+                .copyWith(fontSize: 19, fontWeight: FontWeight.w800, color: t.ink, letterSpacing: -0.19)),
         actions: [
           IconButton(
             icon: Icon(DhenuIcons.edit, color: t.brand),
@@ -80,11 +82,13 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
         ],
         bottom: TabBar(
           controller: _tab,
-          indicatorColor: t.brand,
+          indicatorColor: DhenuColors.accent,
+          indicatorWeight: 2.5,
+          indicatorSize: TabBarIndicatorSize.tab,
           labelColor: t.brand,
           unselectedLabelColor: t.inkSoft,
-          labelStyle: DhenuText.label,
-          unselectedLabelStyle: DhenuText.label,
+          labelStyle: DhenuText.label.copyWith(fontSize: 14.5, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: DhenuText.label.copyWith(fontSize: 14.5, fontWeight: FontWeight.w600),
           tabs: [
             Tab(text: l.farmerDetailTabDetails),
             Tab(text: l.farmerDetailTabPours),
