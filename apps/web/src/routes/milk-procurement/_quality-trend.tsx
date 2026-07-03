@@ -9,6 +9,7 @@ import {
   type MpQualityTrendRow,
 } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate, daysAgo, today } from './_node-dashboard-shared';
+import { ChartTooltip } from './_daily-history';
 
 type Preset = '7' | '14' | '30' | '90' | 'custom';
 const PRESETS: { value: Preset; label: string }[] = [
@@ -85,7 +86,7 @@ function TrendChart({
                 tickFormatter={(v) => v.toFixed(1)}
                 domain={[min, 'auto']}
               />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {series.map((mt) => (
                 <Line

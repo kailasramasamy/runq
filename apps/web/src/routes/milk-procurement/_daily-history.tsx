@@ -148,6 +148,25 @@ export function RangePills({ preset, custom, setPreset, setCustom, onChange }: {
   );
 }
 
+/** Dark-mode-aware chart tooltip (recharts' default is a hard-coded white box,
+ * so the label washes out on dark backgrounds). Colours each series by its line. */
+export function ChartTooltip({ active, payload, label, unit = '' }: {
+  active?: boolean; label?: string | number; unit?: string;
+  payload?: { name?: string | number; value?: number | string; color?: string }[];
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+      <p className="mb-1 font-medium text-zinc-600 dark:text-zinc-300">{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="tabular-nums" style={{ color: p.color }}>
+          {p.name} : {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}{unit}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /** Daily AM / PM / Total volume across the window, plotted oldest day first. */
 export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
   const data = [...rows]
@@ -163,7 +182,7 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
             <CartesianGrid vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={44} />
-            <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v) => `${Number(v).toLocaleString()} L`} />
+            <Tooltip content={<ChartTooltip unit=" L" />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line type="monotone" dataKey="Total" stroke="#0F7A5A" strokeWidth={2.5} dot={false} />
             <Line type="monotone" dataKey="AM" stroke="#f59e0b" strokeWidth={2} dot={false} />
@@ -201,7 +220,7 @@ function QcChart({ rows, title, min, series }: {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={36}
                 tickFormatter={(v) => v.toFixed(1)} domain={[min, 'auto']} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {series.map((s) => (
                 <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={false} connectNulls />
