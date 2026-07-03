@@ -33,14 +33,12 @@ const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const NODE_CODE = 'DEMO-VMCC';
 const MILK_TYPE = 'cow_a1' as const;
 
-// Reviewer sign-in: phone + a fixed demo OTP. Register the number + code as a
-// demo bypass so the reviewer never needs to receive the real SMS. (Defaults
-// used only if the deployment hasn't already set MP_DEMO_* — set the SAME
-// values in the server env so the live app honours them too.)
+// Reviewer sign-in: phone + the seeded DOB code. The demo credential carries a
+// date_of_birth; the server accepts its DDMMYY form as the login code — for the
+// runq-demo tenant only (see mp-auth.routes.ts). No SMS, no env config.
 const OPERATOR_PHONE = '9000000001';
-const DEMO_OTP = process.env.MP_DEMO_OTP ?? '123456';
-process.env.MP_DEMO_OTP = DEMO_OTP;
-process.env.MP_DEMO_PHONES = [process.env.MP_DEMO_PHONES, OPERATOR_PHONE].filter(Boolean).join(',');
+const DEMO_DOB = '1990-01-01';
+const DEMO_OTP = '010190'; // DDMMYY(DEMO_DOB) — the code the reviewer types.
 
 const FARMERS = [
   { code: 'DEMO-F1', name: 'Ramesh Gowda', phone: '9000000011' },
@@ -130,11 +128,11 @@ async function main(): Promise<void> {
       .where(and(eq(mpCredentials.tenantId, TENANT_ID), eq(mpCredentials.phone, OPERATOR_PHONE))).limit(1);
     if (!existingCred) {
       await db.insert(mpCredentials).values({
-        tenantId: TENANT_ID, phone: OPERATOR_PHONE, role: 'field_operator',
+        tenantId: TENANT_ID, phone: OPERATOR_PHONE, role: 'field_operator', dateOfBirth: DEMO_DOB,
       });
     } else {
       await db.update(mpCredentials)
-        .set({ role: 'field_operator', bindAttempts: 0, isActive: true })
+        .set({ role: 'field_operator', bindAttempts: 0, isActive: true, dateOfBirth: DEMO_DOB })
         .where(eq(mpCredentials.id, existingCred.id));
     }
     const login = await mpOtpLogin(app, OPERATOR_PHONE);
@@ -201,7 +199,7 @@ async function main(): Promise<void> {
 
     console.log('\n✅ Dhenu demo ready — Google reviewer signs in on the app with:');
     console.log(`     Phone       : ${OPERATOR_PHONE}`);
-    console.log(`     Demo OTP    : ${DEMO_OTP}  (set MP_DEMO_OTP + MP_DEMO_PHONES in server env)`);
+    console.log(`     Demo OTP    : ${DEMO_OTP}  (seeded as DOB ${DEMO_DOB} on the demo credential; no env needed)`);
     console.log(`     Role        : VMCC operator @ Demo Dairy VMCC`);
     console.log(`     Tenant      : runq Demo Co\n`);
   } finally {

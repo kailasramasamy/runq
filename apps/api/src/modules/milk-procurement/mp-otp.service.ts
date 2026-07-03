@@ -17,35 +17,11 @@ const codeKey = (phone: string) => `mp:otp:code:${phone}`;
 const rateKey = (phone: string) => `mp:otp:rate:${phone}`;
 const attemptsKey = (phone: string) => `mp:otp:attempts:${phone}`;
 
-// Demo bypass for App/Play Store review: a fixed code for a small allow-list of
-// numbers, so a reviewer (who can't receive our SMS) can still sign in. Off
-// unless MP_DEMO_OTP (6 digits) + MP_DEMO_PHONES are both set.
-function demoConfig() {
-  const otp = process.env.MP_DEMO_OTP ?? '';
-  const phones = new Set(
-    (process.env.MP_DEMO_PHONES ?? '').split(',').map((p) => p.replace(/\D/g, '')).filter(Boolean),
-  );
-  return { otp, phones, enabled: /^\d{6}$/.test(otp) };
-}
-
-function isDemoPhone(phone: string): boolean {
-  const { enabled, phones } = demoConfig();
-  return enabled && phones.has(phone);
-}
-
 // Generate, store and SMS a fresh OTP. Returns the code only in non-production
 // (so headless provisioning/e2e scripts can complete the flow without SMS);
-// production always returns null.
+// production always returns null. The App/Play review demo account bypasses
+// this entirely — it signs in with its seeded DOB code (see mp-auth.routes.ts).
 export async function sendMpOtp(app: FastifyInstance, phone: string): Promise<string | null> {
-  // Demo numbers: store the fixed code (no SMS, no rate limit) and hand it back
-  // so the reviewer/provisioning flow can complete regardless of environment.
-  if (isDemoPhone(phone)) {
-    const { otp } = demoConfig();
-    await app.redis.set(codeKey(phone), otp, 'EX', OTP_TTL);
-    await app.redis.del(attemptsKey(phone));
-    return otp;
-  }
-
   const rk = rateKey(phone);
   const sends = await app.redis.incr(rk);
   if (sends === 1) await app.redis.expire(rk, RATE_TTL);

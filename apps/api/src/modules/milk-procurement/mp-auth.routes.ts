@@ -3,13 +3,14 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import {
-  mpCredentials, mpFarmers, mpNodeOperators, users, userTenants,
+  mpCredentials, mpFarmers, mpNodeOperators, tenants, users, userTenants,
   type MpCredentialRow,
 } from '@runq/db';
 import { mpOtpRequestSchema, mpPhoneLoginSchema } from '@runq/validators';
+import { loadEnv } from '../../config/env';
 import { UnauthorizedError, NotFoundError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
-import { ensureMembership, issueSession } from '../auth/auth-session';
+import { dobToDDMMYY, ensureMembership, issueSession } from '../auth/auth-session';
 import { sendMpOtp, verifyMpOtp } from './mp-otp.service';
 
 // Independent Dhenu (milk-procurement) auth. Resolves identity against
@@ -40,6 +41,21 @@ async function requireCredentialByPhone(db: FastifyInstance['db'], phoneRaw: str
   const cred = await findCredentialByPhone(db, phone);
   if (!cred) throw new NotFoundError('No Dhenu account for this phone');
   return cred;
+}
+
+const DEMO_TENANT_SLUG = 'runq-demo';
+
+// App Store / Play review sign-in, driven entirely by seeded DB data (no env
+// config): a credential in the reviewer demo tenant that carries a
+// date_of_birth accepts that DOB's DDMMYY form as its code, and never triggers
+// an SMS. Scoped to the demo tenant so the DOB lingering on pre-migration real
+// credentials stays inert. Returns the expected code, or null for real logins.
+async function demoOtpFor(db: FastifyInstance['db'], cred: MpCredentialRow): Promise<string | null> {
+  if (!cred.dateOfBirth) return null;
+  const [t] = await db.select({ slug: tenants.slug }).from(tenants)
+    .where(eq(tenants.id, cred.tenantId)).limit(1);
+  if (t?.slug !== DEMO_TENANT_SLUG) return null;
+  return dobToDDMMYY(cred.dateOfBirth);
 }
 
 // Find or mint the runq user backing a credential. The user carries the Dhenu
@@ -116,20 +132,32 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
 export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
   // Request a login OTP. The phone must belong to an active credential; the
   // server SMSes a 6-digit code via MSG91. `devCode` is only present outside
-  // production (for e2e scripts).
+  // production (for e2e scripts). The demo/review account sends no SMS — the
+  // reviewer signs in with its seeded DOB code.
   app.post('/mp/otp/request', async (request, reply) => {
     const { phone } = mpOtpRequestSchema.parse(request.body);
-    await requireCredentialByPhone(app.db, phone);
+    const cred = await requireCredentialByPhone(app.db, phone);
+    const demoCode = await demoOtpFor(app.db, cred);
+    if (demoCode) {
+      const isProd = loadEnv().NODE_ENV === 'production';
+      return reply.send({ data: { sent: true, ...(isProd ? {} : { devCode: demoCode }) } });
+    }
     const devCode = await sendMpOtp(app, normalisePhone(phone));
     return reply.send({ data: { sent: true, ...(devCode ? { devCode } : {}) } });
   });
 
   // Phone + OTP login — the sole Dhenu sign-in. Matches the credential by phone
-  // and verifies the OTP, then issues the session.
+  // and verifies the OTP (or the demo account's seeded DOB code), then issues
+  // the session.
   app.post('/mp/phone/login', async (request, reply) => {
     const { phone, otp } = mpPhoneLoginSchema.parse(request.body);
     const cred = await requireCredentialByPhone(app.db, phone);
-    await verifyMpOtp(app, normalisePhone(phone), otp);
+    const demoCode = await demoOtpFor(app.db, cred);
+    if (demoCode) {
+      if (otp !== demoCode) throw new UnauthorizedError('Invalid or expired code');
+    } else {
+      await verifyMpOtp(app, normalisePhone(phone), otp);
+    }
     const user = await resolveOrProvisionUser(app, cred);
     return reply.send({ data: await issueSession(app, user) });
   });

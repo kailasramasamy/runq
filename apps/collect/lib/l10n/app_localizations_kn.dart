@@ -264,6 +264,23 @@ class AppLocalizationsKn extends AppLocalizations {
   String get profileLogOut => 'ಲಾಗ್ ಔಟ್';
 
   @override
+  String get profileDeleteAccount => 'ಖಾತೆ ಅಳಿಸಿ';
+
+  @override
+  String get profileDeleteAccountTitle => 'ಖಾತೆ ಅಳಿಸುವುದೇ?';
+
+  @override
+  String get profileDeleteAccountBody =>
+      'ಇದು ನಿಮ್ಮ ಖಾತೆ ಮತ್ತು ವೈಯಕ್ತಿಕ ವಿವರಗಳನ್ನು ಶಾಶ್ವತವಾಗಿ ಅಳಿಸುತ್ತದೆ. ನಿಮ್ಮ ಹಾಲು ಸಂಗ್ರಹ ಮತ್ತು ಪಾವತಿ ದಾಖಲೆಗಳು ಡೈರಿಯ ಲೆಕ್ಕದಲ್ಲಿ ಉಳಿಯುತ್ತವೆ. ಇದನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗದು.';
+
+  @override
+  String get profileDeleteAccountConfirm => 'ಖಾತೆ ಅಳಿಸಿ';
+
+  @override
+  String get profileDeleteAccountError =>
+      'ನಿಮ್ಮ ಖಾತೆಯನ್ನು ಅಳಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
   String get homeRecentEntries => 'ಇತ್ತೀಚಿನ ನಮೂದುಗಳು';
 
   @override

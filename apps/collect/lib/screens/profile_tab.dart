@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/api_client.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
@@ -79,6 +80,9 @@ class ProfileTab extends ConsumerWidget {
         _appearanceCard(context, ref, t, l, mode),
         const SizedBox(height: DhenuSpacing.lg),
         _logoutButton(context, ref, t, l),
+        // Self-serve account deletion (Apple 5.1.1(v)) — only for the phone-OTP
+        // personas the app provisions. Owners/accountants manage on the web.
+        if (isFarmer || isOperator) _deleteAccountButton(context, ref, t, l),
       ],
     );
   }
@@ -376,6 +380,56 @@ class ProfileTab extends ConsumerWidget {
         backgroundColor: t.gradeC.withValues(alpha: 0.06),
       ),
     );
+  }
+
+  // ── Delete account ───────────────────────────────────────────────────────
+  Widget _deleteAccountButton(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
+    return Padding(
+      padding: const EdgeInsets.only(top: DhenuSpacing.md),
+      child: TextButton(
+        onPressed: () => _confirmDeleteAccount(context, ref, l),
+        child: Text(
+          l.profileDeleteAccount,
+          style: DhenuText.label.copyWith(color: t.gradeC, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  /// Confirm, then permanently delete. On success [AuthController.deleteAccount]
+  /// clears the session and the router redirects to login; on failure we surface
+  /// the error and the user stays signed in.
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref, AppLocalizations l) async {
+    final t = DT(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.profileDeleteAccountTitle),
+        content: Text(l.profileDeleteAccountBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              l.profileDeleteAccountConfirm,
+              style: TextStyle(color: t.gradeC, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(authProvider.notifier).deleteAccount();
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message.isEmpty ? l.profileDeleteAccountError : e.message)),
+      );
+    }
   }
 
   void _push(BuildContext context, Widget screen) {

@@ -164,6 +164,19 @@ class AuthController extends StateNotifier<AuthState> {
     unawaited(PushService.instance.onLogin());
   }
 
+  /// Permanently delete the signed-in Dhenu account (Apple 5.1.1(v)). The
+  /// server revokes the login and scrubs personal data (financial history is
+  /// retained, anonymised); we then clear the local session so the router drops
+  /// back to login. The FCM token is left to lapse — it targets a now-inactive
+  /// user, so no notifications reach the device.
+  Future<void> deleteAccount() async {
+    await apiClient.delete('/milk-procurement/account');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    apiClient.setToken(null);
+    state = const AuthState(isLoading: false);
+  }
+
   Future<void> logout() async {
     // Unregister the device first — the API call needs the still-valid token.
     await PushService.instance.onLogout();

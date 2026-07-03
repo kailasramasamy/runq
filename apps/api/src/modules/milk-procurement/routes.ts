@@ -19,6 +19,7 @@ import { operatorPayoutRoutes } from './operator-payout.routes';
 import { billingRoutes } from './billing.routes';
 import { configRoutes } from './config.routes';
 import { reportRoutes } from './report.routes';
+import { accountRoutes } from './account.routes';
 
 /**
  * Dhenu milk-procurement module. Mounted at /api/v1/milk-procurement behind the
@@ -47,4 +48,6 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(billingRoutes, { prefix: '/billing' });
   await app.register(configRoutes, { prefix: '/config' });
   await app.register(reportRoutes, { prefix: '/reports' });
+  // Self-serve account deletion (farmer / field operator).
+  await app.register(accountRoutes, { prefix: '/account' });
 };

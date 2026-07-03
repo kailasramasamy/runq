@@ -268,6 +268,23 @@ class AppLocalizationsTa extends AppLocalizations {
   String get profileLogOut => 'வெளியேறு';
 
   @override
+  String get profileDeleteAccount => 'கணக்கை நீக்கு';
+
+  @override
+  String get profileDeleteAccountTitle => 'கணக்கை நீக்கவா?';
+
+  @override
+  String get profileDeleteAccountBody =>
+      'இது உங்கள் கணக்கையும் தனிப்பட்ட விவரங்களையும் நிரந்தரமாக நீக்கும். உங்கள் பால் சேகரிப்பு மற்றும் பணப் பதிவுகள் பால் நிறுவனத்தின் கணக்கில் இருக்கும். இதை மீட்டெடுக்க முடியாது.';
+
+  @override
+  String get profileDeleteAccountConfirm => 'கணக்கை நீக்கு';
+
+  @override
+  String get profileDeleteAccountError =>
+      'உங்கள் கணக்கை நீக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.';
+
+  @override
   String get homeRecentEntries => 'சமீபத்திய உள்ளீடுகள்';
 
   @override

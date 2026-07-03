@@ -568,6 +568,36 @@ abstract class AppLocalizations {
   /// **'Log out'**
   String get profileLogOut;
 
+  /// No description provided for @profileDeleteAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get profileDeleteAccount;
+
+  /// No description provided for @profileDeleteAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account?'**
+  String get profileDeleteAccountTitle;
+
+  /// No description provided for @profileDeleteAccountBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes your account and personal details. Your milk collection and payment records stay in the dairy\'s books. This can\'t be undone.'**
+  String get profileDeleteAccountBody;
+
+  /// No description provided for @profileDeleteAccountConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get profileDeleteAccountConfirm;
+
+  /// No description provided for @profileDeleteAccountError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete your account. Please try again.'**
+  String get profileDeleteAccountError;
+
   /// No description provided for @homeRecentEntries.
   ///
   /// In en, this message translates to:

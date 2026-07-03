@@ -266,6 +266,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileLogOut => 'Log out';
 
   @override
+  String get profileDeleteAccount => 'Delete account';
+
+  @override
+  String get profileDeleteAccountTitle => 'Delete account?';
+
+  @override
+  String get profileDeleteAccountBody =>
+      'This permanently deletes your account and personal details. Your milk collection and payment records stay in the dairy\'s books. This can\'t be undone.';
+
+  @override
+  String get profileDeleteAccountConfirm => 'Delete account';
+
+  @override
+  String get profileDeleteAccountError =>
+      'Couldn\'t delete your account. Please try again.';
+
+  @override
   String get homeRecentEntries => 'Recent entries';
 
   @override
