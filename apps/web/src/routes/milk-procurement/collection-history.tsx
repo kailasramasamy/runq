@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Droplets, TrendingUp, Users, Coins } from 'lucide-react';
 import {
-  Card, CardContent, Combobox, Input, Pagination, StatsCard,
+  Card, CardContent, Combobox, Pagination, StatsCard,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import { useNodes, useFarmers, useFarmerDaily, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
-import { DailyQtyChart, DailyQualityCharts, sumDailyByDate, PAGE_SIZE } from './_daily-history';
+import { DailyQtyChart, DailyQualityCharts, sumDailyByDate, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
 
 type Scope = 'farmer' | 'vmcc' | 'cc';
 const SCOPES: { value: Scope; label: string }[] = [
@@ -41,9 +41,8 @@ export function CollectionHistoryView() {
 /** One row per farmer per day (AM/PM combined), with a daily-volume chart and
  * period summary — all honouring the VMCC / farmer / date filters. */
 function FarmerHistoryView() {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const [f, setF] = useState({ nodeId: '', farmerId: '', from: monthAgo, to: today });
+  const [cyc, setCyc] = useState<CycleState>(defaultCycleState);
+  const [f, setF] = useState({ nodeId: '', farmerId: '' });
   const [page, setPage] = useState(1);
 
   const { data: nodesData } = useNodes({ nodeType: 'vmcc', limit: 300 });
@@ -53,7 +52,7 @@ function FarmerHistoryView() {
   const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? '—';
   const farmerMeta = (id: string) => { const x = farmers.find((y) => y.id === id); return x ? { name: x.name, code: x.code } : { name: id.slice(0, 8), code: '' }; };
 
-  const { data } = useFarmerDaily({ from: f.from, to: f.to, nodeId: f.nodeId || undefined, farmerId: f.farmerId || undefined });
+  const { data } = useFarmerDaily({ ...cycleRange(cyc), nodeId: f.nodeId || undefined, farmerId: f.farmerId || undefined });
   const rows = data?.data ?? [];
   const set = (patch: Partial<typeof f>) => { setF({ ...f, ...patch }); setPage(1); };
   const sorted = [...rows].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.totalQty - a.totalQty));
@@ -61,16 +60,17 @@ function FarmerHistoryView() {
 
   return (
     <div>
-      <Card className="mb-4">
-        <CardContent className="grid grid-cols-2 gap-2 py-4 md:grid-cols-4">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <CycleFilter value={cyc} onChange={(next) => { setCyc(next); setPage(1); }} />
+        <div className="w-56">
           <Combobox label="VMCC" value={f.nodeId} onChange={(v) => set({ nodeId: v })}
             options={[{ value: '', label: 'All VMCCs' }, ...nodes.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))]} placeholder="All VMCCs" />
+        </div>
+        <div className="w-56">
           <Combobox label="Farmer" value={f.farmerId} onChange={(v) => set({ farmerId: v })}
             options={[{ value: '', label: 'All farmers' }, ...farmers.map((x) => ({ value: x.id, label: `${x.code} · ${x.name}` }))]} placeholder="All farmers" />
-          <Input label="From" type="date" value={f.from} max={f.to} onChange={(e) => set({ from: e.target.value })} />
-          <Input label="To" type="date" value={f.to} max={today} onChange={(e) => set({ to: e.target.value })} />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <FarmerSummaryCards rows={rows} />
       <DailyQtyChart rows={daily} />
