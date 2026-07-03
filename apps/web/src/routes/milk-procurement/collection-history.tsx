@@ -68,7 +68,7 @@ function FarmerHistoryView() {
         </div>
         <div className="w-56">
           <Combobox label="Farmer" value={f.farmerId} onChange={(v) => set({ farmerId: v })}
-            options={[{ value: '', label: 'All farmers' }, ...farmers.map((x) => ({ value: x.id, label: `${x.code} · ${x.name}` }))]} placeholder="All farmers" />
+            options={[{ value: '', label: 'All farmers' }, ...farmers.map((x) => ({ value: x.id, label: x.name }))]} placeholder="All farmers" />
         </div>
       </div>
 
