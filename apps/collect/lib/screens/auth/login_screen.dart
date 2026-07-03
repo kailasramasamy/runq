@@ -76,6 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   /// Shown when a session lapsed (token expired / 401). Re-auth is the same
   /// phone + OTP flow below — this just explains why they're back at login.
   Widget _expiredBanner(DhenuTokens t) => Container(
+        key: const ValueKey('login-expired-banner'),
         margin: const EdgeInsets.only(bottom: DhenuSpacing.lg),
         padding: const EdgeInsets.all(DhenuSpacing.md),
         decoration: BoxDecoration(
@@ -89,6 +90,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   /// Login controls live in their own card, set apart from the branding above
   /// so the action area reads as a distinct, focused section.
   Widget _loginSection(DhenuTokens t) => Container(
+        // Keyed so the banner appearing/disappearing above doesn't shift this
+        // card's position in the ListView and rebuild PhoneOtpForm — which would
+        // reset it from the OTP step back to the phone step mid-sign-in.
+        key: const ValueKey('login-section'),
         padding: const EdgeInsets.all(DhenuSpacing.xl),
         decoration: BoxDecoration(
           color: t.card,
