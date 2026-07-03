@@ -110,6 +110,8 @@ export interface CollectionNodeRow {
   amRate: number;
   pmRate: number;
   avgWater: number;
+  amWater: number;
+  pmWater: number;
   grossAmount: number;
 }
 
@@ -139,6 +141,8 @@ export interface DayRollup {
   amRate: number;
   pmRate: number;
   avgWater: number;
+  amWater: number;
+  pmWater: number;
   grossAmount: number;
 }
 
@@ -667,6 +671,8 @@ function rollupCols() {
     amRate: sql<string>`coalesce(round(sum(${mpPours.lineAmount}) filter (where ${mpPours.shift} = 'am') / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'am'), 0), 2), 0)`,
     pmRate: sql<string>`coalesce(round(sum(${mpPours.lineAmount}) filter (where ${mpPours.shift} = 'pm') / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.shift} = 'pm'), 0), 2), 0)`,
     avgWater: sql<string>`coalesce(round(avg(${mpPours.water}), 2), 0)`,
+    amWater: sql<string>`coalesce(round(avg(${mpPours.water}) filter (where ${mpPours.shift} = 'am'), 2), 0)`,
+    pmWater: sql<string>`coalesce(round(avg(${mpPours.water}) filter (where ${mpPours.shift} = 'pm'), 2), 0)`,
     grossAmount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
   };
 }
@@ -699,13 +705,15 @@ function drRollupCols() {
     amRate: sql<string>`'0'`,
     pmRate: sql<string>`'0'`,
     avgWater: wq(mpConsignments.receiptWater),
+    amWater: wqs(mpConsignments.receiptWater, amWhere),
+    pmWater: wqs(mpConsignments.receiptWater, pmWhere),
     grossAmount: sql<string>`'0'`,
   };
 }
 
 const ZERO_ROLLUP: DayRollup = {
   totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
-  avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0, grossAmount: 0,
+  avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0, amWater: 0, pmWater: 0, grossAmount: 0,
 };
 
 function round2(n: number): number { return Math.round(n * 100) / 100; }
@@ -788,6 +796,8 @@ function mergeRollup(a: DayRollup, b: DayRollup): DayRollup {
     amRate: blendBy(a.amRate, a.amQty, b.amRate, b.amQty),
     pmRate: blendBy(a.pmRate, a.pmQty, b.pmRate, b.pmQty),
     avgWater: blend(a.avgWater, b.avgWater),
+    amWater: blendBy(a.amWater, a.amQty, b.amWater, b.amQty),
+    pmWater: blendBy(a.pmWater, a.pmQty, b.pmWater, b.pmQty),
     grossAmount: a.grossAmount + b.grossAmount,
   };
 }
@@ -808,7 +818,7 @@ function mergeKeyed<T extends DayRollup>(pour: T[], dr: T[], key: (r: T) => stri
 function numRollup(r: {
   totalQty: string; amQty: string; pmQty: string; pourCount: number; farmerCount: number;
   avgFat: string; avgSnf: string; amFat: string; pmFat: string; amSnf: string; pmSnf: string;
-  amRate: string; pmRate: string; avgWater: string; grossAmount: string;
+  amRate: string; pmRate: string; avgWater: string; amWater: string; pmWater: string; grossAmount: string;
 }): DayRollup {
   return {
     totalQty: Number(r.totalQty ?? 0),
@@ -825,6 +835,8 @@ function numRollup(r: {
     amRate: Number(r.amRate ?? 0),
     pmRate: Number(r.pmRate ?? 0),
     avgWater: Number(r.avgWater ?? 0),
+    amWater: Number(r.amWater ?? 0),
+    pmWater: Number(r.pmWater ?? 0),
     grossAmount: Number(r.grossAmount ?? 0),
   };
 }
@@ -834,7 +846,7 @@ function toNodeRow(n: {
   nodeId: string; nodeName: string; nodeCode: string; nodeType: string;
   totalQty: string; amQty: string; pmQty: string; pourCount: number; farmerCount: number;
   avgFat: string; avgSnf: string; amFat: string; pmFat: string; amSnf: string; pmSnf: string;
-  amRate: string; pmRate: string; avgWater: string; grossAmount: string;
+  amRate: string; pmRate: string; avgWater: string; amWater: string; pmWater: string; grossAmount: string;
 }): CollectionNodeRow {
   return {
     nodeId: n.nodeId,

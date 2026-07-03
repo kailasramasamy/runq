@@ -28,7 +28,7 @@ export interface MpDailyRow {
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
   farmerCount: number; avgFat: number; avgSnf: number;
   amFat: number; pmFat: number; amSnf: number; pmSnf: number;
-  amRate: number; pmRate: number; avgWater: number;
+  amRate: number; pmRate: number; avgWater: number; amWater: number; pmWater: number;
   grossAmount: number;
 }
 
@@ -45,13 +45,13 @@ export function sumDailyByDate(rows: MpDailyRow[]): MpDailyRow[] {
   const metrics = [
     ['avgFat', 'totalQty'], ['avgSnf', 'totalQty'], ['avgWater', 'totalQty'],
     ['amFat', 'amQty'], ['pmFat', 'pmQty'], ['amSnf', 'amQty'], ['pmSnf', 'pmQty'],
-    ['amRate', 'amQty'], ['pmRate', 'pmQty'],
+    ['amRate', 'amQty'], ['pmRate', 'pmQty'], ['amWater', 'amQty'], ['pmWater', 'pmQty'],
   ] as const;
   const m = new Map<string, Acc>();
   for (const r of rows) {
     const e = m.get(r.date) ?? {
       date: r.date, totalQty: 0, amQty: 0, pmQty: 0, pourCount: 0, farmerCount: 0,
-      avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0,
+      avgFat: 0, avgSnf: 0, amFat: 0, pmFat: 0, amSnf: 0, pmSnf: 0, amRate: 0, pmRate: 0, avgWater: 0, amWater: 0, pmWater: 0,
       grossAmount: 0, wSum: {}, wQty: {},
     };
     e.totalQty += r.totalQty; e.amQty += r.amQty; e.pmQty += r.pmQty;
@@ -194,7 +194,7 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
   );
 }
 
-const AM_COLOR = '#f59e0b', PM_COLOR = '#3b82f6', VAL_COLOR = '#0F7A5A';
+const AM_COLOR = '#f59e0b', PM_COLOR = '#3b82f6';
 
 /** One QC trend chart — plots the given day series, oldest day first, with a
  * fixed Y floor so small variation reads clearly (a 0 reading is skipped). */
@@ -246,7 +246,7 @@ export function DailyQualityCharts({ rows }: { rows: MpDailyRow[] }) {
         { key: 'amSnf', name: 'AM', color: AM_COLOR }, { key: 'pmSnf', name: 'PM', color: PM_COLOR },
       ]} />
       <QcChart rows={rows} title="Water %" min={0} series={[
-        { key: 'avgWater', name: 'Water', color: VAL_COLOR },
+        { key: 'amWater', name: 'AM', color: AM_COLOR }, { key: 'pmWater', name: 'PM', color: PM_COLOR },
       ]} />
     </div>
   );
@@ -272,7 +272,7 @@ export function DailyTable({ rows, page, setPage }: {
               <Th align="right">Pours</Th>
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
-              <Th align="right">Water %</Th>
+              <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
@@ -322,7 +322,7 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
               <Th align="right">Pours</Th>
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
-              <Th align="right">Water %</Th>
+              <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
@@ -341,7 +341,7 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
                   <TableCell align="right" numeric>{r.pourCount}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
-                  <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amWater, r.pmWater)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
                 </TableRow>

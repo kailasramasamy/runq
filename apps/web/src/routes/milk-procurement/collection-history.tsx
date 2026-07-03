@@ -119,7 +119,7 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
               <Th align="right">AM / PM</Th>
               <Th align="right">FAT AM/PM</Th>
               <Th align="right">SNF AM/PM</Th>
-              <Th align="right">Water %</Th>
+              <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
             </TableRow>
@@ -140,7 +140,7 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
                   <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amSnf, r.pmSnf)}</TableCell>
-                  <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
+                  <TableCell align="right" numeric>{shiftPair(r.amWater, r.pmWater)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
                 </TableRow>
