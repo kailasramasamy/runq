@@ -8,7 +8,7 @@
  *   • three farmers attached to the node
  *   • 7 days of AM/PM pours so collection screens look alive
  *   • one paid payout cycle (oldest window) so the payments screen isn't empty
- *   • a field_operator login (phone + DOB secret code) attached to the node
+ *   • a field_operator login (phone + fixed demo OTP) attached to the node
  *
  * Idempotent and non-destructive to anything but its own demo pours (which are
  * rebuilt each run so the dates stay recent). Safe to re-run before review.
@@ -22,6 +22,7 @@ import {
 } from '@runq/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../src/app';
+import { mpOtpLogin } from './lib/mp-otp-login';
 import { NodeService } from '../src/modules/milk-procurement/node.service';
 import { FarmerService } from '../src/modules/milk-procurement/farmer.service';
 import { RateChartService } from '../src/modules/milk-procurement/rate-chart.service';
@@ -32,10 +33,15 @@ const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const NODE_CODE = 'DEMO-VMCC';
 const MILK_TYPE = 'cow_a1' as const;
 
-// Reviewer sign-in: phone + secret code (DDMMYY of the DOB).
+// Reviewer sign-in: phone + a fixed demo OTP. Register the number + code as a
+// demo bypass so the reviewer never needs to receive the real SMS. (Defaults
+// used only if the deployment hasn't already set MP_DEMO_* — set the SAME
+// values in the server env so the live app honours them too.)
 const OPERATOR_PHONE = '9000000001';
 const OPERATOR_DOB_ISO = '1990-01-01';
-const OPERATOR_DOB_DDMMYY = '010190';
+const DEMO_OTP = process.env.MP_DEMO_OTP ?? '123456';
+process.env.MP_DEMO_OTP = DEMO_OTP;
+process.env.MP_DEMO_PHONES = [process.env.MP_DEMO_PHONES, OPERATOR_PHONE].filter(Boolean).join(',');
 
 const FARMERS = [
   { code: 'DEMO-F1', name: 'Ramesh Gowda', phone: '9000000011' },
@@ -132,10 +138,7 @@ async function main(): Promise<void> {
         .set({ dateOfBirth: OPERATOR_DOB_ISO, role: 'field_operator', bindAttempts: 0, isActive: true })
         .where(eq(mpCredentials.id, existingCred.id));
     }
-    const login = await app.inject({
-      method: 'POST', url: '/api/v1/auth/mp/phone-dob/login',
-      payload: { phone: OPERATOR_PHONE, dob: OPERATOR_DOB_DDMMYY },
-    });
+    const login = await mpOtpLogin(app, OPERATOR_PHONE);
     if (login.statusCode !== 200) throw new Error(`operator login failed ${login.statusCode}: ${login.body}`);
     const operatorUserId = (login.json() as any)?.data?.user?.id as string;
 
@@ -199,7 +202,7 @@ async function main(): Promise<void> {
 
     console.log('\n✅ Dhenu demo ready — Google reviewer signs in on the app with:');
     console.log(`     Phone       : ${OPERATOR_PHONE}`);
-    console.log(`     Secret code : ${OPERATOR_DOB_DDMMYY}`);
+    console.log(`     Demo OTP    : ${DEMO_OTP}  (set MP_DEMO_OTP + MP_DEMO_PHONES in server env)`);
     console.log(`     Role        : VMCC operator @ Demo Dairy VMCC`);
     console.log(`     Tenant      : runq Demo Co\n`);
   } finally {

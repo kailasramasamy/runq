@@ -3,7 +3,7 @@
  *
  * Proves the web-admin path: creating a farmer with phone + DOB (via the real
  * FarmerService) provisions an `mp_credentials` row, and that farmer can then
- * sign in through `/auth/mp/phone-dob/login` — no manual seeding, no employees.
+ * sign in through the phone+OTP path — no manual seeding, no employees.
  *
  * Usage: tsx --env-file=../../.env apps/api/scripts/e2e-mp-provision.ts
  */
@@ -12,13 +12,13 @@ import { createDb, mpCredentials, mpFarmers, mpFarmerMemberships, users, userTen
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../src/app';
 import { FarmerService } from '../src/modules/milk-procurement/farmer.service';
+import { mpOtpLogin } from './lib/mp-otp-login';
 
 const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const CODE = 'E2E-PROV-1';
 const PHONE = '9876512345';
 const SYNTH_EMAIL = `mp-${PHONE}@dhenu.local`;
 const DOB_ISO = '1988-03-22';
-const DOB_GOOD = '220388'; // DDMMYY
 
 let pass = 0, fail = 0;
 function check(label: string, ok: boolean, detail?: string): void {
@@ -68,10 +68,8 @@ async function main(): Promise<void> {
     check('credential role = farmer', cred?.role === 'farmer');
     check('credential linked to farmer', cred?.farmerId === farmer.id);
 
-    // 2. That farmer can now log in via the independent Dhenu auth.
-    const res = await app.inject({
-      method: 'POST', url: '/api/v1/auth/mp/phone-dob/login', payload: { phone: PHONE, dob: DOB_GOOD },
-    });
+    // 2. That farmer can now log in via the independent Dhenu auth (phone+OTP).
+    const res = await mpOtpLogin(app, PHONE);
     const body = res.json() as any;
     check('login → 200', res.statusCode === 200, `got ${res.statusCode}`);
     check('login user role = farmer', body?.data?.user?.role === 'farmer', body?.data?.user?.role);

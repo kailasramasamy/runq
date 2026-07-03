@@ -6,19 +6,15 @@ import {
   mpCredentials, mpCredentialIdentities, mpFarmers, mpNodeOperators, users, userTenants,
   type MpCredentialRow,
 } from '@runq/db';
-import { mpSocialLoginSchema, mpSocialBindSchema, mpPhoneDobLoginSchema } from '@runq/validators';
-import { UnauthorizedError, NotFoundError, ForbiddenError } from '../../utils/errors';
+import { mpSocialLoginSchema, mpOtpRequestSchema, mpSocialBindSchema, mpPhoneLoginSchema } from '@runq/validators';
+import { UnauthorizedError, NotFoundError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
-import {
-  verifyIdToken, readSocialProvider, dobToDDMMYY, ensureMembership, issueSession,
-} from '../auth/auth-session';
+import { verifyIdToken, readSocialProvider, ensureMembership, issueSession } from '../auth/auth-session';
+import { sendMpOtp, verifyMpOtp } from './mp-otp.service';
 
 // Independent Dhenu (milk-procurement) auth. Resolves identity against
-// `mp_credentials` (farmers + field operators) — NEVER `employees`. Same UX as
-// HR mobile login: one-time phone + DOB bind, then Google/Apple after.
-
-// Failed DOB tries before the bind locks (admin reset required).
-const MAX_BIND_ATTEMPTS = 5;
+// `mp_credentials` (farmers + field operators) — NEVER `employees`. Ownership is
+// proved by a phone OTP (MSG91): one-time phone+OTP bind, then Google/Apple.
 
 // Resolve an active credential by phone (digit-normalised so rows stored with
 // spaces, +91, or a leading 91 still match). Login carries no tenant context
@@ -36,37 +32,13 @@ async function findCredentialByPhone(db: FastifyInstance['db'], phone: string) {
   return cred ?? null;
 }
 
-// Verify a credential by phone + DOB (DDMMYY), applying the 5-try lockout.
-// Shared by /social/bind and /phone-dob/login. The caller resets the counter
-// once a session is issued.
-async function verifyCredentialByDob(
-  db: FastifyInstance['db'],
-  phoneRaw: string,
-  dob: string,
-  // What the DDMMYY code is called to the user: 'date of birth' on the one-time
-  // social bind, 'secret code' on the standalone phone login.
-  codeLabel = 'date of birth',
-): Promise<MpCredentialRow> {
+// Resolve the credential for an OTP login, or throw. Shared by /social/bind and
+// /phone/login — both normalise the phone the same way the OTP was keyed.
+async function requireCredentialByPhone(db: FastifyInstance['db'], phoneRaw: string): Promise<MpCredentialRow> {
   const phone = normalisePhone(phoneRaw);
   if (phone.length < 10) throw new UnauthorizedError('Invalid phone');
-
   const cred = await findCredentialByPhone(db, phone);
   if (!cred) throw new NotFoundError('No Dhenu account for this phone');
-  if (cred.bindAttempts >= MAX_BIND_ATTEMPTS) {
-    throw new ForbiddenError('Too many attempts — ask your admin to reset your login');
-  }
-
-  const expected = dobToDDMMYY(cred.dateOfBirth);
-  if (!expected || dob !== expected) {
-    const attempts = cred.bindAttempts + 1;
-    await db.update(mpCredentials).set({ bindAttempts: attempts }).where(eq(mpCredentials.id, cred.id));
-    const left = MAX_BIND_ATTEMPTS - attempts;
-    throw new UnauthorizedError(
-      left > 0
-        ? `Incorrect ${codeLabel} — ${left} attempt${left === 1 ? '' : 's'} left`
-        : 'Too many attempts — ask your admin to reset your login',
-    );
-  }
   return cred;
 }
 
@@ -144,7 +116,7 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
 export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
   // Every login after binding. The social uid must map to a credential via a
   // linked identity (Google OR Apple); otherwise needsBinding routes the app
-  // into the one-time DOB bind below.
+  // into the one-time phone+OTP bind below.
   app.post('/mp/social/login', async (request, reply) => {
     const { idToken } = mpSocialLoginSchema.parse(request.body);
     const decoded = await verifyIdToken(idToken);
@@ -161,16 +133,26 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: await issueSession(app, user) });
   });
 
-  // One-time bind. The Google/Apple token proves the credential; phone + DOB
-  // (DDMMYY) prove which mp_credentials row it belongs to. DOB is the zero-cost
-  // ownership check, throttled to MAX_BIND_ATTEMPTS tries.
+  // Request a login OTP. The phone must belong to an active credential; the
+  // server SMSes a 6-digit code via MSG91. Shared by the bind and phone-login
+  // flows. `devCode` is only present outside production (for e2e scripts).
+  app.post('/mp/otp/request', async (request, reply) => {
+    const { phone } = mpOtpRequestSchema.parse(request.body);
+    await requireCredentialByPhone(app.db, phone);
+    const devCode = await sendMpOtp(app, normalisePhone(phone));
+    return reply.send({ data: { sent: true, ...(devCode ? { devCode } : {}) } });
+  });
+
+  // One-time bind. The Google/Apple token proves the social identity; phone +
+  // OTP prove which mp_credentials row it belongs to.
   app.post('/mp/social/bind', async (request, reply) => {
-    const { idToken, phone, dob } = mpSocialBindSchema.parse(request.body);
+    const { idToken, phone, otp } = mpSocialBindSchema.parse(request.body);
     const decoded = await verifyIdToken(idToken);
     const social = readSocialProvider(decoded);
     if (!social) throw new UnauthorizedError('Sign in with Google or Apple to finish setup');
 
-    const cred = await verifyCredentialByDob(app.db, phone, dob);
+    const cred = await requireCredentialByPhone(app.db, phone);
+    await verifyMpOtp(app, normalisePhone(phone), otp);
 
     // Anti-hijack: a social identity belongs to exactly one account. If this uid
     // is already linked elsewhere, refuse; if it's already on THIS account, the
@@ -197,7 +179,7 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
 
     // Keep the credential's columns as the most-recently-linked provider (audit).
     await app.db.update(mpCredentials)
-      .set({ firebaseUid: decoded.uid, authProvider: social, bindAttempts: 0 })
+      .set({ firebaseUid: decoded.uid, authProvider: social })
       .where(eq(mpCredentials.id, cred.id));
 
     const user = await resolveOrProvisionUser(app, cred);
@@ -207,14 +189,14 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: await issueSession(app, user) });
   });
 
-  // Standalone phone + DOB login (no Firebase) — for users without a Google
-  // account and for tests. Does not touch firebase_uid, so the user can still
-  // bind Google later. Same 5-try lockout as the bind.
-  app.post('/mp/phone-dob/login', async (request, reply) => {
-    const { phone, dob } = mpPhoneDobLoginSchema.parse(request.body);
-    const cred = await verifyCredentialByDob(app.db, phone, dob, 'secret code');
+  // Standalone phone + OTP login (no Firebase) — for users without a Google
+  // account and for provisioning/e2e scripts. Does not touch firebase_uid, so
+  // the user can still bind Google later.
+  app.post('/mp/phone/login', async (request, reply) => {
+    const { phone, otp } = mpPhoneLoginSchema.parse(request.body);
+    const cred = await requireCredentialByPhone(app.db, phone);
+    await verifyMpOtp(app, normalisePhone(phone), otp);
     const user = await resolveOrProvisionUser(app, cred);
-    await app.db.update(mpCredentials).set({ bindAttempts: 0 }).where(eq(mpCredentials.id, cred.id));
     return reply.send({ data: await issueSession(app, user) });
   });
 };

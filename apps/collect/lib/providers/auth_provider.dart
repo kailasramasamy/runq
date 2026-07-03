@@ -168,22 +168,27 @@ class AuthController extends StateNotifier<AuthState> {
     return SocialResult.signedIn;
   }
 
-  /// Standalone phone + DOB login (no Firebase). Works for testing the field
-  /// flows without a Firebase console setup — server matches by phone, gates
-  /// on DOB (DDMMYY).
-  Future<void> loginWithDob(String phone, String dob) async {
-    final res = await apiClient.post('/auth/mp/phone-dob/login', {'phone': phone.trim(), 'dob': dob.trim()});
+  /// Request a login OTP for [phone] (MSG91 SMS). Used by both the standalone
+  /// phone login and the one-time social bind.
+  Future<void> requestOtp(String phone) =>
+      apiClient.post('/auth/mp/otp/request', {'phone': phone.trim()});
+
+  /// Standalone phone + OTP login (no Firebase). Works for users without a
+  /// Google account and for testing field flows — server matches by phone and
+  /// verifies the OTP.
+  Future<void> loginWithOtp(String phone, String otp) async {
+    final res = await apiClient.post('/auth/mp/phone/login', {'phone': phone.trim(), 'otp': otp.trim()});
     await _finishLogin(res);
   }
 
   /// First-login bind: links the just-signed-in social identity to the user
-  /// matched by [phone], gated on [dob].
-  Future<void> bindWithDob(String phone, String dob) async {
+  /// matched by [phone], verified by [otp].
+  Future<void> bindWithOtp(String phone, String otp) async {
     final token = _pendingIdToken;
     if (token == null) {
       throw ApiException(statusCode: 0, message: 'Sign in with Google or Apple first');
     }
-    final res = await apiClient.post('/auth/mp/social/bind', {'idToken': token, 'phone': phone.trim(), 'dob': dob.trim()});
+    final res = await apiClient.post('/auth/mp/social/bind', {'idToken': token, 'phone': phone.trim(), 'otp': otp.trim()});
     await _finishLogin(res);
     _pendingIdToken = null;
   }

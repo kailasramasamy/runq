@@ -46,3 +46,15 @@ export class UnauthorizedError extends AppError {
     super(401, message, 'UnauthorizedError');
   }
 }
+
+export class TooManyRequestsError extends AppError {
+  constructor(message = 'Too many requests') {
+    super(429, message, 'TooManyRequestsError');
+  }
+}
+
+export class BadGatewayError extends AppError {
+  constructor(message = 'Upstream request failed') {
+    super(502, message, 'BadGatewayError');
+  }
+}

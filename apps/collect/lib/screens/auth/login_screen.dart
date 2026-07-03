@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -12,10 +11,10 @@ import '../../providers/auth_provider.dart';
 import '../../services/firebase_auth_service.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
-import '../../widgets/dob_otp_field.dart';
+import '../../widgets/phone_otp_form.dart';
 
 /// Dhenu sign-in. Google/Apple are the primary path (reused from runq mobile);
-/// phone + DOB is the no-Firebase fallback that lets field users (and tests)
+/// phone + OTP is the no-Firebase fallback that lets field users (and tests)
 /// sign in without a social account.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -27,8 +26,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   bool _busy = false;
   bool _phoneMode = false;
   String? _error;
-  final _phone = TextEditingController();
-  final _dob = TextEditingController();
   final _scroll = ScrollController();
 
   @override
@@ -40,14 +37,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _phone.dispose();
-    _dob.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   /// When the keyboard opens, scroll the form to the end so the phone field,
-  /// secret code, and Sign-in button all clear the keypad.
+  /// OTP code, and action button all clear the keypad.
   @override
   void didChangeMetrics() {
     if (!_phoneMode) return;
@@ -94,10 +89,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
         final r = await ref.read(authProvider.notifier).signInWithApple();
         if (r == SocialResult.needsBinding && mounted) context.push('/bind');
       });
-
-  Future<void> _phoneLogin() => _run(
-        () => ref.read(authProvider.notifier).loginWithDob(_phone.text, _dob.text),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -249,33 +240,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   }
 
   List<Widget> _phoneForm(DhenuTokens t) => [
-        TextField(
-          controller: _phone,
-          keyboardType: TextInputType.phone,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-          decoration: const InputDecoration(
-            labelText: 'Phone number',
-            hintText: '10-digit mobile',
-            prefixIcon: Icon(DhenuIcons.phone),
-          ),
-        ),
-        const SizedBox(height: DhenuSpacing.lg),
-        DobOtpField(
-          controller: _dob,
-          label: 'Secret code',
-          icon: DhenuIcons.lock,
-          dateHints: false,
-        ),
-        const SizedBox(height: DhenuSpacing.lg),
-        FilledButton(onPressed: _busy ? null : _phoneLogin, child: const Text('Sign in')),
-        const SizedBox(height: DhenuSpacing.sm),
-        TextButton(
-          onPressed: _busy ? null : () => setState(() => _phoneMode = false),
-          child: Text('Back', style: DhenuText.label.copyWith(color: t.inkSoft)),
-        ),
-        if (_busy) const Padding(
-          padding: EdgeInsets.only(top: DhenuSpacing.lg),
-          child: Center(child: CircularProgressIndicator()),
+        PhoneOtpForm(
+          onRequestOtp: (phone) => ref.read(authProvider.notifier).requestOtp(phone),
+          onSubmit: (phone, otp) => ref.read(authProvider.notifier).loginWithOtp(phone, otp),
+          onBack: () => setState(() => _phoneMode = false),
         ),
       ];
 }

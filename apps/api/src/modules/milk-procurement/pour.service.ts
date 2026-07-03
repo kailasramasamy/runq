@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError } from '../../utils/errors';
 import { RateChartService } from './rate-chart.service';
 import { isShiftClosed } from './shift-closure.queries';
 import { MpPrincipal, scopePours, assertNodeAccess } from './access-scope';
+import { sendPourReceiptWhatsApp } from './mp-pour-notify';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -60,7 +61,8 @@ export class PourService {
     const bonusAmount = round2(qty * res.bonusPerLitre);
     const lineAmount = round2(qty * res.ratePerLitre);
 
-    return this.db.transaction(async (tx) => {
+    let isNew = false;
+    const saved = await this.db.transaction(async (tx) => {
       // idempotent replay: same device row already synced → return it
       if (input.deviceLocalId) {
         const [dup] = await tx.select().from(mpPours).where(and(
@@ -117,8 +119,18 @@ export class PourService {
         recordedBy: userId ?? null,
         syncedAt: new Date(),
       }).returning();
+      isNew = true;
       return pour!;
     });
+
+    // Fire-and-forget: WhatsApp receipt to the farmer for a freshly recorded
+    // pour (skips idempotent device replays). The notifier gates on VMCC node
+    // type, farmer phone, and Interakt config.
+    if (isNew) {
+      void sendPourReceiptWhatsApp(this.db, this.tenantId, saved)
+        .catch((err) => console.error('pour WhatsApp receipt failed:', err));
+    }
+    return saved;
   }
 
   async reverse(id: string, principal: MpPrincipal): Promise<MpPourRow> {

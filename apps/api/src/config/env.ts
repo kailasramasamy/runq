@@ -22,6 +22,11 @@ const envSchema = z.object({
   EMAIL_DEBUG: z.string().transform(v => v === 'true').default('false'),
   // FCM service-account JSON (raw or base64). Unset = mobile push disabled.
   FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
+  // MSG91 OTP SMS (Dhenu phone login). Unset auth key = SMS disabled (dev logs the code).
+  MSG91_AUTH_KEY: z.string().default(''),
+  MSG91_SENDER_ID: z.string().default(''),
+  MSG91_ROUTE: z.string().default('4'),
+  MSG91_OTP_TEMPLATE_ID: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

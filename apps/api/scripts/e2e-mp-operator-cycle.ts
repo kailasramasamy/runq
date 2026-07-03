@@ -18,6 +18,7 @@ import {
 } from '@runq/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../src/app';
+import { mpOtpLogin } from './lib/mp-otp-login';
 import { NodeService } from '../src/modules/milk-procurement/node.service';
 import { FarmerService } from '../src/modules/milk-procurement/farmer.service';
 import { PayoutService } from '../src/modules/milk-procurement/payout.service';
@@ -26,7 +27,6 @@ const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const PHONE = '9876590001';
 const SYNTH_EMAIL = `mp-${PHONE}@dhenu.local`;
 const DOB_ISO = '1985-07-09';
-const DOB_GOOD = '090785';
 const DATE = '2020-01-05'; // synthetic period — no seeded cycle overlaps it
 const TODAY = new Date().toISOString().slice(0, 10);
 const NODE_A = 'E2E-OPCYC-A';
@@ -148,8 +148,7 @@ async function main(): Promise<void> {
     await db.insert(mpCredentials).values({
       tenantId: TENANT_ID, phone: PHONE, dateOfBirth: DOB_ISO, role: 'field_operator',
     });
-    const login = await app.inject({ method: 'POST', url: '/api/v1/auth/mp/phone-dob/login',
-      payload: { phone: PHONE, dob: DOB_GOOD } });
+    const login = await mpOtpLogin(app, PHONE);
     const token = (login.json() as any)?.data?.token as string;
     check('operator login → 200', login.statusCode === 200, `got ${login.statusCode}`);
     check('operator role = field_operator', (login.json() as any)?.data?.user?.role === 'field_operator');

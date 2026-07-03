@@ -6,34 +6,25 @@ import '../theme/dhenu_tokens.dart';
 
 /// OTP-style 6-box input for the 6-digit login code. Backed by the supplied
 /// [controller] (a hidden field captures keystrokes; the boxes render the
-/// value).
-///
-/// By default it presents the code as a date of birth (cake icon, `DD MM YY`
-/// hints) — used for the one-time account-binding ownership check. Pass
-/// [label], [icon] and `dateHints: false` to present the same 6 digits as a
-/// neutral "secret code" (e.g. on the phone login screen), with no DOB framing.
-class DobOtpField extends StatefulWidget {
-  const DobOtpField({
+/// value). Fires [onCompleted] once all six digits are entered.
+class OtpField extends StatefulWidget {
+  const OtpField({
     super.key,
     required this.controller,
     this.onCompleted,
-    this.label = 'Date of birth',
-    this.icon = DhenuIcons.cake,
-    this.dateHints = true,
+    this.label = 'Enter OTP',
+    this.icon = DhenuIcons.lock,
   });
   final TextEditingController controller;
   final VoidCallback? onCompleted;
   final String label;
   final IconData icon;
 
-  /// When true, show `DD MM YY` framing; when false, render neutral code dots.
-  final bool dateHints;
-
   @override
-  State<DobOtpField> createState() => _DobOtpFieldState();
+  State<OtpField> createState() => _OtpFieldState();
 }
 
-class _DobOtpFieldState extends State<DobOtpField> {
+class _OtpFieldState extends State<OtpField> {
   final _focus = FocusNode();
 
   @override
@@ -75,10 +66,6 @@ class _DobOtpFieldState extends State<DobOtpField> {
         Icon(widget.icon, size: 16, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.xs),
         Text(widget.label, style: DhenuText.label.copyWith(color: t.inkSoft)),
-        const Spacer(),
-        if (widget.dateHints)
-          Text('DD  MM  YY',
-              style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.55), letterSpacing: 1.5)),
       ]),
       const SizedBox(height: DhenuSpacing.sm),
       Stack(children: [
@@ -91,6 +78,7 @@ class _DobOtpFieldState extends State<DobOtpField> {
               controller: widget.controller,
               focusNode: _focus,
               keyboardType: TextInputType.number,
+              autofillHints: const [AutofillHints.oneTimeCode],
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(6),
@@ -109,10 +97,7 @@ class _DobOtpFieldState extends State<DobOtpField> {
                 child: _box(t, i, text),
               ),
             ),
-            if (i == 1 || i == 3)
-              const SizedBox(width: DhenuSpacing.md)
-            else if (i < 5)
-              const SizedBox(width: DhenuSpacing.sm),
+            if (i < 5) const SizedBox(width: DhenuSpacing.sm),
           ],
         ]),
       ]),
@@ -120,7 +105,6 @@ class _DobOtpFieldState extends State<DobOtpField> {
   }
 
   Widget _box(DhenuTokens t, int i, String text) {
-    final hints = widget.dateHints ? const ['D', 'D', 'M', 'M', 'Y', 'Y'] : const ['•', '•', '•', '•', '•', '•'];
     final filled = i < text.length;
     // Highlight the cell at the cursor: the next empty cell while typing, or the
     // specific cell the user tapped.
@@ -139,7 +123,7 @@ class _DobOtpFieldState extends State<DobOtpField> {
         ),
       ),
       child: Text(
-        filled ? text[i] : hints[i],
+        filled ? text[i] : '•',
         style: DhenuText.number(size: 20, color: filled ? t.ink : t.inkSoft.withValues(alpha: 0.30)),
       ),
     );
