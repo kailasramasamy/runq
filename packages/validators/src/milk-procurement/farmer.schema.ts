@@ -33,9 +33,6 @@ export const createFarmerSchema = z.object({
   // create/update → marks the row verified; left null → falls back to `name`.
   nameNative: z.string().max(255).nullish(),
   phone: z.string().max(20).nullish(),
-  // With `phone`, provisions a Dhenu app login (mp_credentials): phone + DOB
-  // (DDMMYY) is the sign-in. Independent of HR employee auth.
-  dateOfBirth: z.string().date().nullish(),
   village: z.string().max(120).nullish(),
   address: z.string().max(1000).nullish(),
   aadhaar: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits').nullish(),

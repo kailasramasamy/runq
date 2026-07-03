@@ -26,7 +26,6 @@ import { PayoutService } from '../src/modules/milk-procurement/payout.service';
 const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const PHONE = '9876590001';
 const SYNTH_EMAIL = `mp-${PHONE}@dhenu.local`;
-const DOB_ISO = '1985-07-09';
 const DATE = '2020-01-05'; // synthetic period — no seeded cycle overlaps it
 const TODAY = new Date().toISOString().slice(0, 10);
 const NODE_A = 'E2E-OPCYC-A';
@@ -146,7 +145,7 @@ async function main(): Promise<void> {
 
     // operator logs in (mints the user), then we attach them to node A
     await db.insert(mpCredentials).values({
-      tenantId: TENANT_ID, phone: PHONE, dateOfBirth: DOB_ISO, role: 'field_operator',
+      tenantId: TENANT_ID, phone: PHONE, role: 'field_operator',
     });
     const login = await mpOtpLogin(app, PHONE);
     const token = (login.json() as any)?.data?.token as string;

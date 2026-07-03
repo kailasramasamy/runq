@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'providers/auth_provider.dart';
 import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/auth/phone_bind_screen.dart';
 import 'screens/home_dispatcher.dart';
 import 'screens/dev/gallery_screen.dart';
 
@@ -32,13 +31,12 @@ GoRouter _build(Ref ref) => GoRouter(
         if (auth.isLoading) return loc == '/splash' ? null : '/splash';
 
         if (kDebugMode && loc == '/gallery') return null; // dev-only QA surface
-        final atAuth = loc == '/login' || loc == '/bind' || loc == '/splash';
+        final atAuth = loc == '/login' || loc == '/splash';
         if (!auth.isAuthenticated) {
-          // /bind is reachable only mid social-login; allow it.
-          return loc == '/login' || loc == '/bind' ? null : '/login';
+          return loc == '/login' ? null : '/login';
         }
         // Authenticated: get them off the auth/splash screens.
-        if (atAuth && loc != '/bind') return '/home';
+        if (atAuth) return '/home';
         return null;
       },
       routes: [
@@ -47,7 +45,6 @@ GoRouter _build(Ref ref) => GoRouter(
         GoRoute(path: '/splash',
             pageBuilder: (_, _) => const NoTransitionPage(child: SplashScreen())),
         GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-        GoRoute(path: '/bind', builder: (_, _) => const PhoneBindScreen()),
         GoRoute(path: '/home',
             pageBuilder: (_, _) => const NoTransitionPage(child: HomeDispatcher())),
         if (kDebugMode) GoRoute(path: '/gallery', builder: (_, _) => const GalleryScreen()),

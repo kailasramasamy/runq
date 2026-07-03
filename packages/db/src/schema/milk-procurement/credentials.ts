@@ -21,7 +21,7 @@ export const mpCredentials = pgTable('mp_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
   phone: varchar('phone', { length: 20 }).notNull(),
-  dateOfBirth: date('date_of_birth').notNull(),
+  dateOfBirth: date('date_of_birth'),
   role: mpCredentialRole('role').notNull(),
   // Set for `farmer` credentials; null for operators (resolved via mp_node_operators).
   farmerId: uuid('farmer_id').references(() => mpFarmers.id),

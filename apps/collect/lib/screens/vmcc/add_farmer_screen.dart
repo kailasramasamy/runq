@@ -45,7 +45,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
   final _phoneCtrl = TextEditingController();
   bool _nativeEdited = false;
   Timer? _transliterateTimer;
-  DateTime? _dob;
 
   // Location
   final _villageCtrl = TextEditingController();
@@ -144,17 +143,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDob() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dob ?? DateTime(now.year - 30),
-      firstDate: DateTime(1920),
-      lastDate: now,
-    );
-    if (picked != null) setState(() => _dob = picked);
-  }
-
   Future<void> _captureGps() async {
     setState(() => _gpsLoading = true);
     try {
@@ -220,7 +208,7 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     if (xf != null && mounted) setState(() => _kycFile = File(xf.path));
   }
 
-  // Aadhaar is two-sided: front carries name/DOB/sex/number, back the address.
+  // Aadhaar is two-sided: front carries name/number/sex, back the address.
   // Each scan overlays only the fields it finds, so the sides merge cleanly.
   Future<void> _scanAadhaar({required bool isBack}) async {
     final src = await showImageSourceSheet(context);
@@ -237,7 +225,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
           (data['name'] == null &&
               data['nameNative'] == null &&
               data['aadhaarNumber'] == null &&
-              data['dob'] == null &&
               data['village'] == null &&
               data['address'] == null);
       if (allNull) {
@@ -257,11 +244,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
         final aadhaar = data['aadhaarNumber'];
         if (aadhaar is String && aadhaar.trim().isNotEmpty) {
           _aadhaarCtrl.text = aadhaar.replaceAll(RegExp(r'\D'), '');
-        }
-        final dobStr = data['dob'];
-        if (dobStr is String) {
-          final parsed = DateTime.tryParse(dobStr);
-          if (parsed != null) _dob = parsed;
         }
         final village = data['village'];
         if (village is String && village.trim().isNotEmpty) {
@@ -341,10 +323,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
     final nameNative = _nameNativeCtrl.text.trim();
     if (nameNative.isNotEmpty) body['nameNative'] = nameNative;
     if (_phoneCtrl.text.isNotEmpty) body['phone'] = _phoneCtrl.text.trim();
-    if (_dob != null) {
-      body['dateOfBirth'] =
-          '${_dob!.year.toString().padLeft(4, '0')}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}';
-    }
     if (_villageCtrl.text.isNotEmpty) {
       body['village'] = _villageCtrl.text.trim();
     }
@@ -439,8 +417,6 @@ class _AddFarmerScreenState extends ConsumerState<AddFarmerScreen> {
           nameCtrl: _nameCtrl,
           nameNativeCtrl: _nameNativeCtrl,
           phoneCtrl: _phoneCtrl,
-          dob: _dob,
-          onPickDob: _dob != null ? () => setState(() => _dob = null) : _pickDob,
           onNameChanged: _onNameChanged,
           onNativeNameChanged: (_) => setState(() => _nativeEdited = true),
           onNativeVoiceResult: _onNativeVoiceResult,

@@ -112,7 +112,7 @@ export function MpFarmersPage() {
 // ── shared form state type ────────────────────────────────────────────────────
 
 interface FarmerFormState {
-  name: string; phone: string; dateOfBirth: string; isSociety: boolean;
+  name: string; phone: string; isSociety: boolean;
   defaultMilkType: string;
   village: string; address: string; aadhaar: string;
   cattleBreeds: CattleBreedCount[]; inMilkCount: string;
@@ -123,7 +123,6 @@ function initForm(f?: MpFarmer): FarmerFormState {
   return {
     name: f?.name ?? '',
     phone: f?.phone ?? '',
-    dateOfBirth: '',
     isSociety: f?.isSociety ?? false,
     defaultMilkType: f?.defaultMilkType ?? 'cow_a1',
     village: f?.village ?? '',
@@ -206,7 +205,6 @@ function formToPayload(f: FarmerFormState) {
   return {
     name: f.name,
     phone: f.phone || null,
-    dateOfBirth: f.dateOfBirth || null,
     isSociety: f.isSociety,
     defaultMilkType: f.defaultMilkType as MilkType,
     village: f.village || null,
@@ -247,10 +245,7 @@ function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () =>
       <div className="space-y-3">
         <Input label="Code" value={farmer.code} disabled />
         <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
-        <div className="grid grid-cols-2 gap-2">
-          <Input label="Phone" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
-          <Input label="Date of birth (app login)" type="date" value={f.dateOfBirth} onChange={(e) => patch({ dateOfBirth: e.target.value })} />
-        </div>
+        <Input label="Phone" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
         <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
           <input type="checkbox" checked={f.isSociety} onChange={(e) => patch({ isSociety: e.target.checked })} />
           This is a society / sub-collector
@@ -320,10 +315,7 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
       <div className="space-y-3">
         <Input label="Code / farmer no. (auto-assigned if blank)" value={f.code} onChange={(e) => patch({ code: e.target.value })} />
         <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
-        <div className="grid grid-cols-2 gap-2">
-          <Input label="Phone (app login + ledger)" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
-          <Input label="Date of birth (app login)" type="date" value={f.dateOfBirth} onChange={(e) => patch({ dateOfBirth: e.target.value })} />
-        </div>
+        <Input label="Phone (app login + ledger)" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
         <Combobox label="Primary VMCC" value={f.nodeId} onChange={(v) => patch({ nodeId: v })}
           options={[{ value: '', label: 'None' }, ...vmccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))]} placeholder="None" />
         <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">

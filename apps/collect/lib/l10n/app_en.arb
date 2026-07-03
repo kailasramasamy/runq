@@ -497,7 +497,7 @@
   "addFarmerScanFilled": "Details filled — please review",
   "addFarmerScanFailed": "Couldn't read the card — try a clearer photo",
   "addFarmerScanFront": "Front side",
-  "addFarmerScanFrontHint": "Name, DOB, number",
+  "addFarmerScanFrontHint": "Name, number",
   "addFarmerScanBack": "Back side",
   "addFarmerScanBackHint": "Address",
   "photoSourceTitle": "Add photo",

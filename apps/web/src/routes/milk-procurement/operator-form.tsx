@@ -12,7 +12,7 @@ import { COMP_TYPES, ROLES } from './_node-shared';
 type OperatorForm = {
   name: string; role: string; compType: string; ratePerLitre: string;
   monthlySalary: string; rentAmount: string; effectiveFrom: string;
-  loginPhone: string; loginDob: string;
+  loginPhone: string;
 };
 
 /** Dedicated "add operator" page for a node (/nodes/$id/operators/new). */
@@ -39,7 +39,7 @@ function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: 
     compType: source?.compType ?? 'per_litre_commission',
     ratePerLitre: source?.ratePerLitre ?? '', monthlySalary: source?.monthlySalary ?? '',
     rentAmount: source?.rentAmount ?? '', effectiveFrom: today,
-    loginPhone: source?.phone ?? '', loginDob: source?.dob ?? '',
+    loginPhone: source?.phone ?? '',
   });
 
   const submit = () => {
@@ -51,7 +51,7 @@ function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: 
         monthlySalary: f.compType === 'fixed_salary' && f.monthlySalary ? Number(f.monthlySalary) : null,
         rentAmount: f.rentAmount ? Number(f.rentAmount) : null,
         effectiveFrom: f.effectiveFrom,
-        loginPhone: f.loginPhone || null, loginDob: f.loginDob || null,
+        loginPhone: f.loginPhone || null,
       },
       {
         onSuccess: () => { toast(source ? 'New term added' : 'Operator added', 'success'); back(); },
@@ -82,10 +82,7 @@ function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: 
           </div>
           <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
             <p className="mb-2 text-xs font-medium text-zinc-500">App login (optional) — lets this operator sign in to Dhenu</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Input label="Phone" value={f.loginPhone} onChange={(e) => setF({ ...f, loginPhone: e.target.value })} />
-              <Input label="Date of birth" type="date" value={f.loginDob} onChange={(e) => setF({ ...f, loginDob: e.target.value })} />
-            </div>
+            <Input label="Phone" value={f.loginPhone} onChange={(e) => setF({ ...f, loginPhone: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={back}>Cancel</Button>

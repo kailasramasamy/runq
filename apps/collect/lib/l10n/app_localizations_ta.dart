@@ -1063,7 +1063,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get addFarmerScanFront => 'முன் பக்கம்';
 
   @override
-  String get addFarmerScanFrontHint => 'பெயர், பிறந்த தேதி, எண்';
+  String get addFarmerScanFrontHint => 'பெயர், எண்';
 
   @override
   String get addFarmerScanBack => 'பின் பக்கம்';

@@ -38,7 +38,6 @@ const MILK_TYPE = 'cow_a1' as const;
 // used only if the deployment hasn't already set MP_DEMO_* — set the SAME
 // values in the server env so the live app honours them too.)
 const OPERATOR_PHONE = '9000000001';
-const OPERATOR_DOB_ISO = '1990-01-01';
 const DEMO_OTP = process.env.MP_DEMO_OTP ?? '123456';
 process.env.MP_DEMO_OTP = DEMO_OTP;
 process.env.MP_DEMO_PHONES = [process.env.MP_DEMO_PHONES, OPERATOR_PHONE].filter(Boolean).join(',');
@@ -131,11 +130,11 @@ async function main(): Promise<void> {
       .where(and(eq(mpCredentials.tenantId, TENANT_ID), eq(mpCredentials.phone, OPERATOR_PHONE))).limit(1);
     if (!existingCred) {
       await db.insert(mpCredentials).values({
-        tenantId: TENANT_ID, phone: OPERATOR_PHONE, dateOfBirth: OPERATOR_DOB_ISO, role: 'field_operator',
+        tenantId: TENANT_ID, phone: OPERATOR_PHONE, role: 'field_operator',
       });
     } else {
       await db.update(mpCredentials)
-        .set({ dateOfBirth: OPERATOR_DOB_ISO, role: 'field_operator', bindAttempts: 0, isActive: true })
+        .set({ role: 'field_operator', bindAttempts: 0, isActive: true })
         .where(eq(mpCredentials.id, existingCred.id));
     }
     const login = await mpOtpLogin(app, OPERATOR_PHONE);

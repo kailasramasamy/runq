@@ -1,7 +1,7 @@
 /**
  * Dhenu provisioning → login, end-to-end against runq_dev.
  *
- * Proves the web-admin path: creating a farmer with phone + DOB (via the real
+ * Proves the web-admin path: creating a farmer with phone (via the real
  * FarmerService) provisions an `mp_credentials` row, and that farmer can then
  * sign in through the phone+OTP path — no manual seeding, no employees.
  *
@@ -18,7 +18,6 @@ const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b'; // runq Demo Co
 const CODE = 'E2E-PROV-1';
 const PHONE = '9876512345';
 const SYNTH_EMAIL = `mp-${PHONE}@dhenu.local`;
-const DOB_ISO = '1988-03-22';
 
 let pass = 0, fail = 0;
 function check(label: string, ok: boolean, detail?: string): void {
@@ -54,10 +53,10 @@ async function main(): Promise<void> {
   const app = await buildApp();
   await app.ready();
   try {
-    // 1. Owner creates a farmer with phone + DOB → provisions a credential.
+    // 1. Owner creates a farmer with phone → provisions a credential.
     const service = new FarmerService(db, TENANT_ID);
     const farmer = await service.create({
-      code: CODE, name: 'E2E Provision Farmer', phone: PHONE, dateOfBirth: DOB_ISO,
+      code: CODE, name: 'E2E Provision Farmer', phone: PHONE,
       isSociety: false, defaultMilkType: 'cow',
     } as any);
     check('farmer created', !!farmer?.id);

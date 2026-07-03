@@ -84,8 +84,6 @@ class FarmerBasicsSection extends StatelessWidget {
     required this.nameCtrl,
     required this.nameNativeCtrl,
     required this.phoneCtrl,
-    required this.dob,
-    required this.onPickDob,
     this.onNameChanged,
     this.onNativeNameChanged,
     this.onNativeVoiceResult,
@@ -94,8 +92,6 @@ class FarmerBasicsSection extends StatelessWidget {
   final TextEditingController nameCtrl;
   final TextEditingController nameNativeCtrl;
   final TextEditingController phoneCtrl;
-  final DateTime? dob;
-  final VoidCallback onPickDob;
   final ValueChanged<String>? onNameChanged;
   final ValueChanged<String>? onNativeNameChanged;
   /// Called when the operator dictates into the native-name field so the
@@ -104,7 +100,6 @@ class FarmerBasicsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = DT(context);
     final l = AppLocalizations.of(context);
     final isRegionalLocale =
         Localizations.localeOf(context).languageCode != 'en';
@@ -142,37 +137,6 @@ class FarmerBasicsSection extends StatelessWidget {
           ],
           decoration: InputDecoration(labelText: l.addFarmerFieldPhoneNumber),
           textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        GestureDetector(
-          onTap: onPickDob,
-          child: Container(
-            height: DhenuSpacing.minTap,
-            padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg),
-            decoration: BoxDecoration(
-              color: t.inputFill,
-              borderRadius: BorderRadius.circular(DhenuRadii.input),
-              border: Border.all(color: t.hairline),
-            ),
-            child: Row(
-              children: [
-                Icon(DhenuIcons.cake, size: 18, color: t.inkSoft),
-                const SizedBox(width: DhenuSpacing.sm),
-                Expanded(
-                  child: Text(
-                    dob == null
-                        ? l.addFarmerFieldDobHint
-                        : '${dob!.day.toString().padLeft(2, '0')}/${dob!.month.toString().padLeft(2, '0')}/${dob!.year}',
-                    style: DhenuText.body.copyWith(
-                      color: dob == null ? t.inkSoft : t.ink,
-                    ),
-                  ),
-                ),
-                if (dob != null)
-                  Icon(DhenuIcons.close, size: 18, color: t.inkSoft),
-              ],
-            ),
-          ),
         ),
       ],
     );

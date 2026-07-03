@@ -2053,7 +2053,7 @@ abstract class AppLocalizations {
   /// No description provided for @addFarmerScanFrontHint.
   ///
   /// In en, this message translates to:
-  /// **'Name, DOB, number'**
+  /// **'Name, number'**
   String get addFarmerScanFrontHint;
 
   /// No description provided for @addFarmerScanBack.

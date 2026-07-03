@@ -15,8 +15,8 @@ import 'widgets/app_update_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Social sign-in needs the Firebase app. Never block launch on a misconfig —
-  // the phone+DOB path works without it.
+  // Firebase powers FCM push. Never block launch on a misconfig — phone-OTP
+  // login works without it.
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } on FirebaseException catch (e) {

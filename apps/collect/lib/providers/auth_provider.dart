@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
-import '../services/firebase_auth_service.dart';
 import '../services/push_service.dart';
 
 const _tokenKey = 'dhenu-token';
@@ -16,10 +14,6 @@ const _tokenKey = 'dhenu-token';
 ///  - owner/accountant/viewer → admin "view-as" entry (org-wide)
 ///  - unknown        → no Dhenu access for this account
 enum Persona { farmer, operator, admin, unknown }
-
-/// Outcome of a Google/Apple sign-in attempt. Backed by the independent Dhenu
-/// auth module (`/auth/mp/*`, resolving `mp_credentials`) — not HR employee auth.
-enum SocialResult { signedIn, needsBinding, cancelled }
 
 class AuthUser {
   final String id, email;
@@ -97,8 +91,6 @@ class AuthController extends StateNotifier<AuthState> {
     _restore();
   }
 
-  String? _pendingIdToken;
-
   /// Minimum time the splash stays up so it never flashes on a fast restore.
   static const _minSplash = Duration(milliseconds: 1500);
 
@@ -143,54 +135,15 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  // ── Social sign-in (Google/Apple via Firebase) ──────────────────────────────
-  Future<SocialResult> signInWithGoogle() =>
-      _socialSignIn(FirebaseAuthService.instance.googleIdToken());
-
-  Future<SocialResult> signInWithApple() =>
-      _socialSignIn(FirebaseAuthService.instance.appleIdToken());
-
-  Future<SocialResult> _socialSignIn(Future<String> idTokenFuture) async {
-    final String idToken;
-    try {
-      idToken = await idTokenFuture;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'cancelled') return SocialResult.cancelled;
-      rethrow;
-    }
-    final res = await apiClient.post('/auth/mp/social/login', {'idToken': idToken});
-    final data = (res is Map && res['data'] is Map) ? res['data'] as Map : null;
-    if (data != null && data['needsBinding'] == true) {
-      _pendingIdToken = idToken;
-      return SocialResult.needsBinding;
-    }
-    await _finishLogin(res);
-    return SocialResult.signedIn;
-  }
-
-  /// Request a login OTP for [phone] (MSG91 SMS). Used by both the standalone
-  /// phone login and the one-time social bind.
+  /// Request a login OTP for [phone] (MSG91 SMS).
   Future<void> requestOtp(String phone) =>
       apiClient.post('/auth/mp/otp/request', {'phone': phone.trim()});
 
-  /// Standalone phone + OTP login (no Firebase). Works for users without a
-  /// Google account and for testing field flows — server matches by phone and
-  /// verifies the OTP.
+  /// Phone + OTP login — the sole Dhenu sign-in. The server matches the
+  /// credential by phone, verifies the OTP, then issues the session.
   Future<void> loginWithOtp(String phone, String otp) async {
     final res = await apiClient.post('/auth/mp/phone/login', {'phone': phone.trim(), 'otp': otp.trim()});
     await _finishLogin(res);
-  }
-
-  /// First-login bind: links the just-signed-in social identity to the user
-  /// matched by [phone], verified by [otp].
-  Future<void> bindWithOtp(String phone, String otp) async {
-    final token = _pendingIdToken;
-    if (token == null) {
-      throw ApiException(statusCode: 0, message: 'Sign in with Google or Apple first');
-    }
-    final res = await apiClient.post('/auth/mp/social/bind', {'idToken': token, 'phone': phone.trim(), 'otp': otp.trim()});
-    await _finishLogin(res);
-    _pendingIdToken = null;
   }
 
   Future<void> _finishLogin(Object? res) async {
@@ -214,15 +167,9 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> logout() async {
     // Unregister the device first — the API call needs the still-valid token.
     await PushService.instance.onLogout();
-    try {
-      await FirebaseAuthService.instance.signOut();
-    } on FirebaseAuthException {
-      // OK — clearing local session is what matters.
-    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     apiClient.setToken(null);
-    _pendingIdToken = null;
     state = const AuthState(isLoading: false);
   }
 

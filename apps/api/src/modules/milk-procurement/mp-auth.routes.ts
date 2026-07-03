@@ -3,18 +3,18 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import {
-  mpCredentials, mpCredentialIdentities, mpFarmers, mpNodeOperators, users, userTenants,
+  mpCredentials, mpFarmers, mpNodeOperators, users, userTenants,
   type MpCredentialRow,
 } from '@runq/db';
-import { mpSocialLoginSchema, mpOtpRequestSchema, mpSocialBindSchema, mpPhoneLoginSchema } from '@runq/validators';
+import { mpOtpRequestSchema, mpPhoneLoginSchema } from '@runq/validators';
 import { UnauthorizedError, NotFoundError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
-import { verifyIdToken, readSocialProvider, ensureMembership, issueSession } from '../auth/auth-session';
+import { ensureMembership, issueSession } from '../auth/auth-session';
 import { sendMpOtp, verifyMpOtp } from './mp-otp.service';
 
 // Independent Dhenu (milk-procurement) auth. Resolves identity against
 // `mp_credentials` (farmers + field operators) — NEVER `employees`. Ownership is
-// proved by a phone OTP (MSG91): one-time phone+OTP bind, then Google/Apple.
+// proved by a phone OTP (MSG91); phone is the sole account identity.
 
 // Resolve an active credential by phone (digit-normalised so rows stored with
 // spaces, +91, or a leading 91 still match). Login carries no tenant context
@@ -114,28 +114,9 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
 }
 
 export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
-  // Every login after binding. The social uid must map to a credential via a
-  // linked identity (Google OR Apple); otherwise needsBinding routes the app
-  // into the one-time phone+OTP bind below.
-  app.post('/mp/social/login', async (request, reply) => {
-    const { idToken } = mpSocialLoginSchema.parse(request.body);
-    const decoded = await verifyIdToken(idToken);
-
-    const [row] = await app.db
-      .select({ cred: mpCredentials })
-      .from(mpCredentialIdentities)
-      .innerJoin(mpCredentials, eq(mpCredentials.id, mpCredentialIdentities.credentialId))
-      .where(and(eq(mpCredentialIdentities.firebaseUid, decoded.uid), eq(mpCredentials.isActive, true)))
-      .limit(1);
-    if (!row) return reply.send({ data: { needsBinding: true } });
-
-    const user = await resolveOrProvisionUser(app, row.cred);
-    return reply.send({ data: await issueSession(app, user) });
-  });
-
   // Request a login OTP. The phone must belong to an active credential; the
-  // server SMSes a 6-digit code via MSG91. Shared by the bind and phone-login
-  // flows. `devCode` is only present outside production (for e2e scripts).
+  // server SMSes a 6-digit code via MSG91. `devCode` is only present outside
+  // production (for e2e scripts).
   app.post('/mp/otp/request', async (request, reply) => {
     const { phone } = mpOtpRequestSchema.parse(request.body);
     await requireCredentialByPhone(app.db, phone);
@@ -143,55 +124,8 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { sent: true, ...(devCode ? { devCode } : {}) } });
   });
 
-  // One-time bind. The Google/Apple token proves the social identity; phone +
-  // OTP prove which mp_credentials row it belongs to.
-  app.post('/mp/social/bind', async (request, reply) => {
-    const { idToken, phone, otp } = mpSocialBindSchema.parse(request.body);
-    const decoded = await verifyIdToken(idToken);
-    const social = readSocialProvider(decoded);
-    if (!social) throw new UnauthorizedError('Sign in with Google or Apple to finish setup');
-
-    const cred = await requireCredentialByPhone(app.db, phone);
-    await verifyMpOtp(app, normalisePhone(phone), otp);
-
-    // Anti-hijack: a social identity belongs to exactly one account. If this uid
-    // is already linked elsewhere, refuse; if it's already on THIS account, the
-    // bind is idempotent. A *new* uid links as an additional provider — so the
-    // same farmer can use both Google and Apple.
-    const [existing] = await app.db
-      .select({ credentialId: mpCredentialIdentities.credentialId })
-      .from(mpCredentialIdentities)
-      .where(eq(mpCredentialIdentities.firebaseUid, decoded.uid))
-      .limit(1);
-    if (existing && existing.credentialId !== cred.id) {
-      throw new UnauthorizedError('This Google/Apple account is already linked to another Dhenu user.');
-    }
-    if (!existing) {
-      // Link the identity; re-linking the same provider (e.g. a recreated Google
-      // account) updates the uid in place.
-      await app.db.insert(mpCredentialIdentities)
-        .values({ tenantId: cred.tenantId, credentialId: cred.id, firebaseUid: decoded.uid, provider: social })
-        .onConflictDoUpdate({
-          target: [mpCredentialIdentities.credentialId, mpCredentialIdentities.provider],
-          set: { firebaseUid: decoded.uid },
-        });
-    }
-
-    // Keep the credential's columns as the most-recently-linked provider (audit).
-    await app.db.update(mpCredentials)
-      .set({ firebaseUid: decoded.uid, authProvider: social })
-      .where(eq(mpCredentials.id, cred.id));
-
-    const user = await resolveOrProvisionUser(app, cred);
-    await app.db.update(users)
-      .set({ firebaseUid: decoded.uid, authProvider: social })
-      .where(eq(users.id, user.id));
-    return reply.send({ data: await issueSession(app, user) });
-  });
-
-  // Standalone phone + OTP login (no Firebase) — for users without a Google
-  // account and for provisioning/e2e scripts. Does not touch firebase_uid, so
-  // the user can still bind Google later.
+  // Phone + OTP login — the sole Dhenu sign-in. Matches the credential by phone
+  // and verifies the OTP, then issues the session.
   app.post('/mp/phone/login', async (request, reply) => {
     const { phone, otp } = mpPhoneLoginSchema.parse(request.body);
     const cred = await requireCredentialByPhone(app.db, phone);

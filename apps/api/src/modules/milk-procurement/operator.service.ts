@@ -1,5 +1,5 @@
-import { and, eq, desc, sql, or, isNull, lte, gte, getTableColumns } from 'drizzle-orm';
-import { mpNodeOperators, mpNodes, mpPours, mpCredentials, mpOperatorPayouts } from '@runq/db';
+import { and, eq, desc, sql, or, isNull, lte, gte } from 'drizzle-orm';
+import { mpNodeOperators, mpNodes, mpPours, mpOperatorPayouts } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -39,24 +39,15 @@ export class NodeOperatorService {
   async list(
     filters: NodeOperatorFilter,
     pagination: { page: number; limit: number },
-  ): Promise<{ data: (OperatorRow & { dob: string | null })[]; meta: PaginationMeta }> {
+  ): Promise<{ data: OperatorRow[]; meta: PaginationMeta }> {
     const { page, limit } = pagination;
     const { offset } = applyPagination(page, limit);
     const conds = [eq(mpNodeOperators.tenantId, this.tenantId)];
     if (filters.nodeId) conds.push(eq(mpNodeOperators.nodeId, filters.nodeId));
     if (filters.isActive !== undefined) conds.push(eq(mpNodeOperators.isActive, filters.isActive));
     const where = and(...conds);
-    // Pull the login DOB from the matching credential (by phone) so the web edit
-    // form can show it back — DOB itself lives in mp_credentials, not here.
-    const credByPhone = and(
-      eq(mpCredentials.tenantId, mpNodeOperators.tenantId),
-      sql`${mpNodeOperators.phone} is not null
-        and regexp_replace(${mpCredentials.phone}, '\\D', '', 'g')
-          = regexp_replace(${mpNodeOperators.phone}, '\\D', '', 'g')`,
-    );
     const [rows, countResult] = await Promise.all([
-      this.db.select({ ...getTableColumns(mpNodeOperators), dob: mpCredentials.dateOfBirth })
-        .from(mpNodeOperators).leftJoin(mpCredentials, credByPhone).where(where)
+      this.db.select().from(mpNodeOperators).where(where)
         .orderBy(desc(mpNodeOperators.effectiveFrom), desc(mpNodeOperators.createdAt)).limit(limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpNodeOperators).where(where),
     ]);
@@ -158,10 +149,10 @@ export class NodeOperatorService {
         effectiveFrom: input.effectiveFrom,
         effectiveTo: input.effectiveTo ?? null,
       }).returning();
-      // Provision a Dhenu app login for this operator when phone + DOB given.
-      if (input.loginPhone && input.loginDob) {
+      // Provision a Dhenu app login for this operator when phone is given.
+      if (input.loginPhone) {
         await upsertCredential(tx, {
-          tenantId: this.tenantId, phone: input.loginPhone, dateOfBirth: input.loginDob,
+          tenantId: this.tenantId, phone: input.loginPhone,
           role: 'field_operator', userId: input.userId ?? null,
         });
       }

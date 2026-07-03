@@ -1056,7 +1056,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addFarmerScanFront => 'Front side';
 
   @override
-  String get addFarmerScanFrontHint => 'Name, DOB, number';
+  String get addFarmerScanFrontHint => 'Name, number';
 
   @override
   String get addFarmerScanBack => 'Back side';

@@ -17,10 +17,9 @@ export const createNodeOperatorSchema = z
     // Responsible person's display name (shown in web & app).
     name: z.string().max(255).nullish(),
     payeeVendorId: z.string().uuid().nullish(),
-    // Optional Dhenu app login for this operator: phone + DOB (DDMMYY) →
+    // Optional Dhenu app login for this operator: phone →
     // provisions an mp_credentials row (role field_operator). Independent of HR.
     loginPhone: z.string().max(20).nullish(),
-    loginDob: z.string().date().nullish(),
     role: z.enum(['operator', 'owner']).default('operator'),
     compType: z.enum(['per_litre_commission', 'fixed_salary']),
     ratePerLitre: z.number().nonnegative().nullish(),

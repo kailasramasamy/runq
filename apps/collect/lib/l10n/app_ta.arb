@@ -325,7 +325,7 @@
   "addFarmerScanFilled": "விவரங்கள் நிரப்பப்பட்டன — சரிபார்க்கவும்",
   "addFarmerScanFailed": "அட்டையைப் படிக்க முடியவில்லை — தெளிவான படத்தை முயற்சிக்கவும்",
   "addFarmerScanFront": "முன் பக்கம்",
-  "addFarmerScanFrontHint": "பெயர், பிறந்த தேதி, எண்",
+  "addFarmerScanFrontHint": "பெயர், எண்",
   "addFarmerScanBack": "பின் பக்கம்",
   "addFarmerScanBackHint": "முகவரி",
   "photoSourceTitle": "புகைப்படம் சேர்க்கவும்",

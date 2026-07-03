@@ -12,7 +12,7 @@ import {
 type OperatorForm = {
   nodeId: string; name: string; role: string; compType: string; ratePerLitre: string;
   monthlySalary: string; rentAmount: string; effectiveFrom: string;
-  loginPhone: string; loginDob: string;
+  loginPhone: string;
 };
 
 const COMP_TYPES = [
@@ -42,7 +42,7 @@ export function MpOperatorsPage() {
   const duplicate = (o: MpOperator) => setDupInitial({
     nodeId: o.nodeId, name: o.name ?? '', role: o.role, compType: o.compType,
     ratePerLitre: o.ratePerLitre ?? '', monthlySalary: o.monthlySalary ?? '',
-    rentAmount: o.rentAmount ?? '', effectiveFrom: today, loginPhone: o.phone ?? '', loginDob: o.dob ?? '',
+    rentAmount: o.rentAmount ?? '', effectiveFrom: today, loginPhone: o.phone ?? '',
   });
 
   return (
@@ -149,7 +149,7 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
   const create = useCreateOperator();
   const { toast } = useToast();
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState<OperatorForm>(initial ?? { nodeId: '', name: '', role: 'operator', compType: 'per_litre_commission', ratePerLitre: '', monthlySalary: '', rentAmount: '', effectiveFrom: today, loginPhone: '', loginDob: '' });
+  const [f, setF] = useState<OperatorForm>(initial ?? { nodeId: '', name: '', role: 'operator', compType: 'per_litre_commission', ratePerLitre: '', monthlySalary: '', rentAmount: '', effectiveFrom: today, loginPhone: '' });
 
   const submit = () => {
     create.mutate(
@@ -160,7 +160,6 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
         rentAmount: f.rentAmount ? Number(f.rentAmount) : null,
         effectiveFrom: f.effectiveFrom,
         loginPhone: f.loginPhone || null,
-        loginDob: f.loginDob || null,
       },
       { onSuccess: () => { toast('Operator added', 'success'); onClose(); }, onError: () => toast('Failed to add operator', 'error') },
     );
@@ -187,10 +186,7 @@ function CreateOperatorModal({ nodes, initial, onClose }: { nodes: { id: string;
         </div>
         <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
           <p className="mb-2 text-xs font-medium text-zinc-500">App login (optional) — lets this operator sign in to Dhenu</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Input label="Phone" value={f.loginPhone} onChange={(e) => setF({ ...f, loginPhone: e.target.value })} />
-            <Input label="Date of birth" type="date" value={f.loginDob} onChange={(e) => setF({ ...f, loginDob: e.target.value })} />
-          </div>
+          <Input label="Phone" value={f.loginPhone} onChange={(e) => setF({ ...f, loginPhone: e.target.value })} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

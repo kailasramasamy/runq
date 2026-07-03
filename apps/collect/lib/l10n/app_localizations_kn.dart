@@ -1056,7 +1056,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get addFarmerScanFront => 'ಮುಂಭಾಗ';
 
   @override
-  String get addFarmerScanFrontHint => 'ಹೆಸರು, ಜನ್ಮ ದಿನಾಂಕ, ಸಂಖ್ಯೆ';
+  String get addFarmerScanFrontHint => 'ಹೆಸರು, ಸಂಖ್ಯೆ';
 
   @override
   String get addFarmerScanBack => 'ಹಿಂಭಾಗ';

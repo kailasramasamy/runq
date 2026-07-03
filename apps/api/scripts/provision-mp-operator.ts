@@ -16,7 +16,6 @@ import { mpOtpLogin } from './lib/mp-otp-login';
 
 const NODE_CODE = process.argv[2] || 'VMCC1';
 const PHONE = '9899000001';
-const DOB_ISO = '1980-01-01';
 const TODAY = new Date().toISOString().slice(0, 10);
 
 async function main(): Promise<void> {
@@ -33,10 +32,10 @@ async function main(): Promise<void> {
     .where(and(eq(mpCredentials.tenantId, tenantId), eq(mpCredentials.phone, PHONE))).limit(1);
   if (!existing) {
     await db.insert(mpCredentials).values({
-      tenantId, phone: PHONE, dateOfBirth: DOB_ISO, role: 'field_operator',
+      tenantId, phone: PHONE, role: 'field_operator',
     });
   } else {
-    await db.update(mpCredentials).set({ dateOfBirth: DOB_ISO, role: 'field_operator', bindAttempts: 0 })
+    await db.update(mpCredentials).set({ role: 'field_operator', bindAttempts: 0 })
       .where(eq(mpCredentials.id, existing.id));
   }
 

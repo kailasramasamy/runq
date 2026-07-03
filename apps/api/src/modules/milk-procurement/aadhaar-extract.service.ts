@@ -7,7 +7,6 @@ export interface AadhaarFields {
   name: string | null;        // English/Latin name
   nameNative: string | null;  // name in the regional-language script on the card
   aadhaarNumber: string | null;
-  dob: string | null;         // ISO YYYY-MM-DD
   gender: 'male' | 'female' | 'other' | null;
   village: string | null;
   address: string | null;
@@ -15,7 +14,7 @@ export interface AadhaarFields {
 
 const EMPTY: AadhaarFields = {
   name: null, nameNative: null, aadhaarNumber: null,
-  dob: null, gender: null, village: null, address: null,
+  gender: null, village: null, address: null,
 };
 
 /**
@@ -30,7 +29,6 @@ export async function extractAadhaar(imageBase64: string, mediaType: ImageMime):
   const user = 'Extract these fields from this Aadhaar card image as JSON: '
     + '{"name": English/Latin name, "nameNative": the name in the regional-language script printed on the card, '
     + '"aadhaarNumber": the 12-digit number with no spaces, '
-    + '"dob": date of birth as YYYY-MM-DD only if a full date is printed (not just a year), '
     + '"gender": "male"|"female"|"other", "village": village or locality from the address, '
     + '"address": the full address as printed}. '
     + 'Use null for any field not clearly visible. Return ONLY the JSON object.';
@@ -42,13 +40,11 @@ export async function extractAadhaar(imageBase64: string, mediaType: ImageMime):
 function sanitize(o: Record<string, unknown>): AadhaarFields {
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const digits = str(o.aadhaarNumber)?.replace(/\D/g, '') ?? null;
-  const dob = str(o.dob);
   const gender = str(o.gender)?.toLowerCase();
   return {
     name: str(o.name),
     nameNative: str(o.nameNative),
     aadhaarNumber: digits && digits.length === 12 ? digits : null,
-    dob: dob && /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : null,
     gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : null,
     village: str(o.village),
     address: str(o.address),

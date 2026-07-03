@@ -180,10 +180,10 @@ export class FarmerService {
           tenantId: this.tenantId, farmerId: farmer!.id, nodeId: input.nodeId, isPrimary: true,
         });
       }
-      // Provision a Dhenu app login when phone + DOB are supplied.
-      if (input.phone && input.dateOfBirth) {
+      // Provision a Dhenu app login when phone is supplied.
+      if (input.phone) {
         await upsertCredential(tx, {
-          tenantId: this.tenantId, phone: input.phone, dateOfBirth: input.dateOfBirth,
+          tenantId: this.tenantId, phone: input.phone,
           role: 'farmer', farmerId: farmer!.id,
         });
       }
@@ -196,11 +196,11 @@ export class FarmerService {
     await this.db.update(mpFarmers).set(farmerUpdatePatch(input))
       .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, id)));
     await this.updateVendorBank(existing.vendorId, input);
-    // Keep the Dhenu login in sync when DOB is (re)entered; honour a phone clear.
+    // Keep the Dhenu login in sync when phone changes.
     const phone = input.phone !== undefined ? input.phone : existing.phone;
-    if (input.dateOfBirth && phone) {
+    if (input.phone && phone) {
       await upsertCredential(this.db, {
-        tenantId: this.tenantId, phone, dateOfBirth: input.dateOfBirth, role: 'farmer', farmerId: id,
+        tenantId: this.tenantId, phone, role: 'farmer', farmerId: id,
       });
     }
     return this.getById(id);

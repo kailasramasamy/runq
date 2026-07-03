@@ -48,7 +48,6 @@ export interface MpFarmerAttachment { id: string; kind: string; fileName: string
 export interface MpFarmer {
   id: string; code: string; name: string; phone: string | null; vendorId: string;
   isSociety: boolean; defaultMilkType: MilkType; cattleCount: number | null; isActive: boolean;
-  dateOfBirth?: string | null;
   village?: string | null; address?: string | null; aadhaar?: string | null;
   cattleBreeds?: CattleBreedCount[] | null; inMilkCount?: number | null;
   lat?: number | null; lng?: number | null;
@@ -529,7 +528,7 @@ export function useCycleAction(action: 'lock' | 'pay') {
 // ── operators ────────────────────────────────────────────────────────────────
 export interface MpOperator {
   id: string; nodeId: string; userId: string | null; name: string | null; phone: string | null;
-  dob: string | null; role: 'operator' | 'owner';
+  role: 'operator' | 'owner';
   compType: 'per_litre_commission' | 'fixed_salary';
   ratePerLitre: string | null; monthlySalary: string | null; rentAmount: string | null;
   effectiveFrom: string; isActive: boolean;

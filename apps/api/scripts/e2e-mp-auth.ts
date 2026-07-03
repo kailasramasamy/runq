@@ -19,7 +19,6 @@ const TENANT_ID = '4ae78c54-aef4-46cb-9283-3db65edd076b';
 const FARMER_ID = '57c3ae29-c4b9-4ac5-8bb3-30166a1a4779';
 const PHONE = '9876500000';
 const SYNTH_EMAIL = `mp-${PHONE}@dhenu.local`;
-const DOB_ISO = '1990-05-15'; // credential still carries a DOB (profile data); not used for auth
 const OTP_BAD = '000000';
 
 let pass = 0, fail = 0;
@@ -44,7 +43,7 @@ async function main(): Promise<void> {
   }
   await db.delete(mpCredentials).where(and(eq(mpCredentials.tenantId, TENANT_ID), eq(mpCredentials.phone, PHONE)));
   await db.insert(mpCredentials).values({
-    tenantId: TENANT_ID, phone: PHONE, dateOfBirth: DOB_ISO, role: 'farmer', farmerId: FARMER_ID,
+    tenantId: TENANT_ID, phone: PHONE, role: 'farmer', farmerId: FARMER_ID,
   });
 
   const app = await buildApp();
