@@ -429,6 +429,8 @@ class MpCollectionSummary {
   final String from, to;
   final double totalQty, amQty, pmQty, avgFat, avgSnf, avgWater, grossAmount;
   final int pourCount, farmerCount;
+  final List<MpMilkTypeSummary> byMilkType;
+  final List<MpNodeSummary> byCc;
 
   MpCollectionSummary({
     this.nodeId,
@@ -443,6 +445,8 @@ class MpCollectionSummary {
     required this.grossAmount,
     required this.pourCount,
     required this.farmerCount,
+    this.byMilkType = const [],
+    this.byCc = const [],
   });
 
   factory MpCollectionSummary.fromJson(Map<String, dynamic> j) =>
@@ -459,6 +463,96 @@ class MpCollectionSummary {
         grossAmount: _d(j['grossAmount']),
         pourCount: _i(j['pourCount']),
         farmerCount: _i(j['farmerCount']),
+        byMilkType: (j['byMilkType'] as List<dynamic>? ?? const [])
+            .map((e) => MpMilkTypeSummary.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        byCc: (j['byCc'] as List<dynamic>? ?? const [])
+            .map((e) => MpNodeSummary.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+/// One node (chilling centre) slice of a collection summary — total qty plus
+/// qty-weighted avg fat/SNF/water. Backs the admin home per-CC breakdown.
+class MpNodeSummary {
+  final String nodeId, nodeName, nodeCode;
+  final double totalQty, amQty, pmQty, avgFat, avgSnf, avgWater;
+  final double amFat, pmFat, amSnf, pmSnf, amWater, pmWater;
+
+  MpNodeSummary({
+    required this.nodeId,
+    required this.nodeName,
+    required this.nodeCode,
+    required this.totalQty,
+    required this.amQty,
+    required this.pmQty,
+    required this.avgFat,
+    required this.avgSnf,
+    required this.avgWater,
+    required this.amFat,
+    required this.pmFat,
+    required this.amSnf,
+    required this.pmSnf,
+    required this.amWater,
+    required this.pmWater,
+  });
+
+  factory MpNodeSummary.fromJson(Map<String, dynamic> j) => MpNodeSummary(
+        nodeId: _s(j['nodeId']),
+        nodeName: _s(j['nodeName']),
+        nodeCode: _s(j['nodeCode']),
+        totalQty: _d(j['totalQty']),
+        amQty: _d(j['amQty']),
+        pmQty: _d(j['pmQty']),
+        avgFat: _d(j['avgFat']),
+        avgSnf: _d(j['avgSnf']),
+        avgWater: _d(j['avgWater']),
+        amFat: _d(j['amFat']),
+        pmFat: _d(j['pmFat']),
+        amSnf: _d(j['amSnf']),
+        pmSnf: _d(j['pmSnf']),
+        amWater: _d(j['amWater']),
+        pmWater: _d(j['pmWater']),
+      );
+}
+
+/// One milk-type slice of a collection summary — total qty plus qty-weighted
+/// avg fat/SNF/water for that type. Backs the admin home per-type breakdown.
+class MpMilkTypeSummary {
+  final MilkType milkType;
+  final double totalQty, amQty, pmQty, avgFat, avgSnf, avgWater;
+  final double amFat, pmFat, amSnf, pmSnf, amWater, pmWater;
+
+  MpMilkTypeSummary({
+    required this.milkType,
+    required this.totalQty,
+    required this.amQty,
+    required this.pmQty,
+    required this.avgFat,
+    required this.avgSnf,
+    required this.avgWater,
+    required this.amFat,
+    required this.pmFat,
+    required this.amSnf,
+    required this.pmSnf,
+    required this.amWater,
+    required this.pmWater,
+  });
+
+  factory MpMilkTypeSummary.fromJson(Map<String, dynamic> j) => MpMilkTypeSummary(
+        milkType: milkTypeFrom(_sn(j['milkType'])),
+        totalQty: _d(j['totalQty']),
+        amQty: _d(j['amQty']),
+        pmQty: _d(j['pmQty']),
+        avgFat: _d(j['avgFat']),
+        avgSnf: _d(j['avgSnf']),
+        avgWater: _d(j['avgWater']),
+        amFat: _d(j['amFat']),
+        pmFat: _d(j['pmFat']),
+        amSnf: _d(j['amSnf']),
+        pmSnf: _d(j['pmSnf']),
+        amWater: _d(j['amWater']),
+        pmWater: _d(j['pmWater']),
       );
 }
 

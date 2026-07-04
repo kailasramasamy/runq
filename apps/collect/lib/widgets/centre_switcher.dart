@@ -55,6 +55,19 @@ class CentreSwitcherBar extends ConsumerWidget {
             const Spacer(),
             Text('Switch',
                 style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700)),
+            const SizedBox(width: DhenuSpacing.sm),
+            Container(width: 1, height: 18, color: t.hairline),
+            const SizedBox(width: DhenuSpacing.xs),
+            // Home: back to the centre picker (main screen) — clearing the
+            // active node drops the admin shell back to CentrePickerScreen.
+            InkWell(
+              onTap: () => ref.read(mpActiveNodeProvider.notifier).state = null,
+              borderRadius: BorderRadius.circular(DhenuRadii.card),
+              child: Padding(
+                padding: const EdgeInsets.all(DhenuSpacing.xs),
+                child: Icon(DhenuIcons.home, size: 18, color: t.brand),
+              ),
+            ),
           ]),
         ),
       ),

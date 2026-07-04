@@ -41,6 +41,14 @@ final nodeTodaySummaryProvider = FutureProvider.family<MpCollectionSummary?, Str
   return mpRepo.collectionSummary(from: today, to: today, nodeId: nodeId);
 });
 
+/// Today's tenant-wide collection summary (no node scope) — total milk collected
+/// across the whole network plus qty-weighted avg fat/SNF/water. Backs the admin
+/// home summary card.
+final tenantTodaySummaryProvider = FutureProvider<MpCollectionSummary?>((ref) async {
+  final today = todayIso();
+  return mpRepo.collectionSummary(from: today, to: today);
+});
+
 /// A node's collection summary for a single chosen date — backs the VMCC report
 /// screen's date picker. Keyed by (nodeId, date).
 final nodeSummaryForDateProvider =
