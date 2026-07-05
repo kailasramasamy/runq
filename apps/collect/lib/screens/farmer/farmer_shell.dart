@@ -13,7 +13,11 @@ import 'farmer_services_stub.dart';
 /// Farmer persona shell — 5-tab home (spec §4.3):
 /// 🏠 Home · 📊 Collections · 💰 Payments · 🛒 Services · 👤 Profile
 class FarmerShell extends ConsumerWidget {
-  const FarmerShell({super.key});
+  const FarmerShell({super.key, this.header});
+
+  /// Optional bar pinned above the tabs — the admin "view as farmer" switcher.
+  /// Null for a real farmer login.
+  final Widget? header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,6 +31,7 @@ class FarmerShell extends ConsumerWidget {
     ];
     return RoleShell(
       items: items,
+      header: header,
       pages: const [
         FarmerHome(),
         FarmerCollectionsTab(),

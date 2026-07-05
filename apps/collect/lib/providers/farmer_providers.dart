@@ -2,29 +2,39 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
 import '../api/mp_repo.dart';
 import '../utils/format.dart';
+import 'mp_context_provider.dart';
 
-/// This month's pours for the signed-in farmer (server auto-scopes).
+/// The farmer id the farmer views resolve to: the admin's "view as" selection
+/// when set, else null (a real farmer login → the server self-scopes). Threaded
+/// into the repo calls below so an admin sees the selected farmer's data.
+final _farmerScopeId = Provider<String?>((ref) => ref.watch(mpViewAsFarmerProvider)?.id);
+
+/// This month's pours for the resolved farmer (server auto-scopes when null).
 final farmerMonthPoursProvider = FutureProvider<List<MpPour>>((ref) async {
   final now = DateTime.now();
   final from = '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
   final to = todayIso();
-  return mpRepo.pours(from: from, to: to, status: 'recorded', limit: 500);
+  return mpRepo.pours(
+      farmerId: ref.watch(_farmerScopeId), from: from, to: to, status: 'recorded', limit: 500);
 });
 
-/// Today's pours for the signed-in farmer.
+/// Today's pours for the resolved farmer.
 final farmerTodayPoursProvider = FutureProvider<List<MpPour>>((ref) async {
-  return mpRepo.pours(collectionDate: todayIso(), status: 'recorded', limit: 10);
+  return mpRepo.pours(
+      farmerId: ref.watch(_farmerScopeId), collectionDate: todayIso(), status: 'recorded', limit: 10);
 });
 
 /// Rolling 14-day pours — drives the week-over-week quality nudge (P3.1).
 final farmerRecentPoursProvider = FutureProvider<List<MpPour>>((ref) async {
-  return mpRepo.pours(from: isoDaysAgo(13), to: todayIso(), status: 'recorded', limit: 500);
+  return mpRepo.pours(
+      farmerId: ref.watch(_farmerScopeId), from: isoDaysAgo(13), to: todayIso(),
+      status: 'recorded', limit: 500);
 });
 
-/// Ledger for the signed-in farmer (balance + all entries).
+/// Ledger for the resolved farmer (balance + all entries).
 final farmerLedgerProvider =
     FutureProvider<({double balance, List<MpLedgerEntry> entries})>((ref) async {
-  return mpRepo.farmerLedger();
+  return mpRepo.farmerLedger(farmerId: ref.watch(_farmerScopeId));
 });
 
 /// All active cow rate charts (farmer permission allows this).
@@ -54,9 +64,12 @@ final farmerLastRateResolutionProvider = FutureProvider<MpRateResolution?>((ref)
   );
 });
 
-/// The signed-in farmer's own master row (server scopes to self). Drives the
-/// profile header (friendly code as Farmer ID, member-since).
+/// The resolved farmer's own master row. When an admin is "viewing as" a farmer
+/// this is that farmer; otherwise the server scopes to the signed-in farmer.
+/// Drives the profile header (friendly code as Farmer ID, member-since).
 final farmerSelfProvider = FutureProvider<MpFarmer?>((ref) async {
+  final viewAs = ref.watch(mpViewAsFarmerProvider);
+  if (viewAs != null) return viewAs;
   final list = await mpRepo.farmers(limit: 1);
   return list.isEmpty ? null : list.first;
 });
@@ -148,7 +161,8 @@ final farmerCyclePeriodsProvider = FutureProvider<List<MpCyclePeriod>>((ref) asy
 /// Recorded pours within one cycle window.
 final farmerCyclePoursProvider =
     FutureProvider.family<List<MpPour>, MpCyclePeriod>((ref, p) async {
-  return mpRepo.pours(from: p.start, to: p.end, status: 'recorded', limit: 500);
+  return mpRepo.pours(
+      farmerId: ref.watch(_farmerScopeId), from: p.start, to: p.end, status: 'recorded', limit: 500);
 });
 
 /// The current (in-progress) cycle window — null until cadence resolves.

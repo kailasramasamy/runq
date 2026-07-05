@@ -92,11 +92,7 @@ class QcReportView extends StatelessWidget {
           const SizedBox(height: DhenuSpacing.lg),
           Text('Quality trends', style: DhenuText.label.copyWith(color: t.inkSoft)),
           const SizedBox(height: DhenuSpacing.sm),
-          _chartCard(t, 'FAT', '%', t.brand, daily, (d) => d.fat),
-          const SizedBox(height: DhenuSpacing.md),
-          _chartCard(t, 'SNF', '%', t.am, daily, (d) => d.snf),
-          const SizedBox(height: DhenuSpacing.md),
-          _chartCard(t, 'Water', '%', t.pm, daily, (d) => d.water),
+          _trendStrip(context, t, daily),
           const SizedBox(height: DhenuSpacing.lg),
           Text('Daily quality · qty-weighted',
               style: DhenuText.label.copyWith(color: t.inkSoft)),
@@ -168,6 +164,29 @@ class QcReportView extends StatelessWidget {
       v == null ? '—' : oneDp(v),
       textAlign: TextAlign.right,
       style: DhenuText.number(size: 14, color: v == null ? t.inkSoft : (banded ?? t.ink)),
+    );
+  }
+
+  /// FAT / SNF / Water trend cards laid side-by-side in a horizontal scroller —
+  /// each ~82% of the width so the next card peeks, signalling more to swipe.
+  Widget _trendStrip(BuildContext context, DhenuTokens t, List<_DayQc> daily) {
+    final cardW = (MediaQuery.sizeOf(context).width - DhenuSpacing.screen * 2) * 0.82;
+    Widget card(String title, Color color, double? Function(_DayQc) sel) =>
+        SizedBox(width: cardW, child: _chartCard(t, title, '%', color, daily, sel));
+    return SizedBox(
+      height: 232,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        clipBehavior: Clip.none,
+        children: [
+          card('FAT', t.brand, (d) => d.fat),
+          const SizedBox(width: DhenuSpacing.md),
+          card('SNF', t.am, (d) => d.snf),
+          const SizedBox(width: DhenuSpacing.md),
+          card('Water', t.pm, (d) => d.water),
+        ],
+      ),
     );
   }
 

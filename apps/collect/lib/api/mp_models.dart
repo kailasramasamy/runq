@@ -428,6 +428,8 @@ class MpCollectionSummary {
   final String? nodeId;
   final String from, to;
   final double totalQty, amQty, pmQty, avgFat, avgSnf, avgWater, grossAmount;
+  // Per-shift qty-weighted QC + effective ₹/L, straight from the report rollup.
+  final double amFat, pmFat, amSnf, pmSnf, amWater, pmWater, amRate, pmRate;
   final int pourCount, farmerCount;
   final List<MpMilkTypeSummary> byMilkType;
   final List<MpNodeSummary> byCc;
@@ -443,6 +445,14 @@ class MpCollectionSummary {
     required this.avgSnf,
     required this.avgWater,
     required this.grossAmount,
+    required this.amFat,
+    required this.pmFat,
+    required this.amSnf,
+    required this.pmSnf,
+    required this.amWater,
+    required this.pmWater,
+    required this.amRate,
+    required this.pmRate,
     required this.pourCount,
     required this.farmerCount,
     this.byMilkType = const [],
@@ -461,6 +471,14 @@ class MpCollectionSummary {
         avgSnf: _d(j['avgSnf']),
         avgWater: _d(j['avgWater']),
         grossAmount: _d(j['grossAmount']),
+        amFat: _d(j['amFat']),
+        pmFat: _d(j['pmFat']),
+        amSnf: _d(j['amSnf']),
+        pmSnf: _d(j['pmSnf']),
+        amWater: _d(j['amWater']),
+        pmWater: _d(j['pmWater']),
+        amRate: _d(j['amRate']),
+        pmRate: _d(j['pmRate']),
         pourCount: _i(j['pourCount']),
         farmerCount: _i(j['farmerCount']),
         byMilkType: (j['byMilkType'] as List<dynamic>? ?? const [])

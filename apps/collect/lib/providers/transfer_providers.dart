@@ -56,6 +56,14 @@ final nodeReceivedDayDetailProvider =
   );
 });
 
+/// Single-VMCC collection summary for one date — supplies the effective per-shift
+/// ₹/L (amRate/pmRate) shown in the receive-history breakup. Fetched lazily when
+/// a VMCC entry is expanded, cached per (nodeId, date).
+final nodeDaySummaryProvider =
+    FutureProvider.family<MpCollectionSummary?, ReceivedDayArgs>((ref, args) async {
+  return mpRepo.collectionSummary(from: args.date, to: args.date, nodeId: args.nodeId);
+});
+
 /// Today's outbound consignments from a node (all statuses, all kinds).
 final nodeOutboundConsignmentsProvider =
     FutureProvider.family<List<MpConsignment>, String>((ref, nodeId) async {
@@ -131,7 +139,19 @@ final recentQcTestsProvider = FutureProvider<List<MpQcTest>>((ref) async {
 
 /// Live today-collection at each child VMCC of a CC — regardless of dispatch, so
 /// the CC operator sees how much milk sits at each VMCC at any moment.
-typedef VmccCollection = ({MpNode vmcc, double collected, double amQty, double pmQty, int farmers});
+/// Per-shift qty-weighted QC (fat/snf/water) and effective ₹/L rate for one slot
+/// — powers the CC-home entry's expanded AM/PM breakdown.
+typedef ShiftQc = ({double fat, double snf, double water, double rate});
+
+typedef VmccCollection = ({
+  MpNode vmcc,
+  double collected,
+  double amQty,
+  double pmQty,
+  int farmers,
+  ShiftQc am,
+  ShiftQc pm,
+});
 
 final ccVmccCollectionsProvider =
     FutureProvider.family<List<VmccCollection>, String>((ref, ccNodeId) async {
@@ -146,6 +166,8 @@ final ccVmccCollectionsProvider =
       amQty: s?.amQty ?? 0.0,
       pmQty: s?.pmQty ?? 0.0,
       farmers: s?.farmerCount ?? 0,
+      am: (fat: s?.amFat ?? 0, snf: s?.amSnf ?? 0, water: s?.amWater ?? 0, rate: s?.amRate ?? 0),
+      pm: (fat: s?.pmFat ?? 0, snf: s?.pmSnf ?? 0, water: s?.pmWater ?? 0, rate: s?.pmRate ?? 0),
     );
   }));
 });

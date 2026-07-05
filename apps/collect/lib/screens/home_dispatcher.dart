@@ -8,6 +8,7 @@ import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/centre_switcher.dart';
 import '../widgets/dhenu_states.dart';
+import '../widgets/farmer_view.dart';
 import '../widgets/operator_switcher.dart';
 import 'admin/centre_picker_screen.dart';
 import 'auth/splash_screen.dart';
@@ -48,6 +49,9 @@ class _AdminHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // "View as farmer" takes precedence over any active centre.
+    final farmer = ref.watch(mpViewAsFarmerProvider);
+    if (farmer != null) return FarmerShell(header: FarmerViewBar(farmer: farmer));
     final node = ref.watch(mpActiveNodeProvider);
     if (node == null) return const CentrePickerScreen();
     final header = CentreSwitcherBar(node: node);

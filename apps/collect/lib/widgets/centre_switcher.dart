@@ -43,7 +43,7 @@ class CentreSwitcherBar extends ConsumerWidget {
           child: Row(children: [
             Icon(nodeTierIcon(node), size: 16, color: t.brand),
             const SizedBox(width: DhenuSpacing.sm),
-            Flexible(
+            Expanded(
               child: Text(
                 '${nodeTierLabel(node)} · ${node.name}',
                 maxLines: 1,
@@ -51,20 +51,19 @@ class CentreSwitcherBar extends ConsumerWidget {
                 style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700),
               ),
             ),
+            const SizedBox(width: DhenuSpacing.xs),
             Icon(DhenuIcons.chevronDown, size: 18, color: t.brand),
-            const Spacer(),
-            Text('Switch',
-                style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700)),
             const SizedBox(width: DhenuSpacing.sm),
             Container(width: 1, height: 18, color: t.hairline),
-            const SizedBox(width: DhenuSpacing.xs),
             // Home: back to the centre picker (main screen) — clearing the
-            // active node drops the admin shell back to CentrePickerScreen.
+            // active node drops the admin shell back to CentrePickerScreen. Wide
+            // padding gives it a comfortable tap target.
             InkWell(
               onTap: () => ref.read(mpActiveNodeProvider.notifier).state = null,
               borderRadius: BorderRadius.circular(DhenuRadii.card),
               child: Padding(
-                padding: const EdgeInsets.all(DhenuSpacing.xs),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
                 child: Icon(DhenuIcons.home, size: 18, color: t.brand),
               ),
             ),

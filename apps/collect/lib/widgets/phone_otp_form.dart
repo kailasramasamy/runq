@@ -184,7 +184,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
           ),
         ),
         const SizedBox(height: DhenuSpacing.lg),
-        OtpField(controller: _otp, onCompleted: _busy ? null : _submit),
+        OtpField(controller: _otp, onCompleted: _busy ? null : _submit, autofocus: true),
         const SizedBox(height: DhenuSpacing.lg),
         FilledButton(onPressed: _busy ? null : _submit, child: Text(widget.submitLabel)),
         const SizedBox(height: DhenuSpacing.sm),

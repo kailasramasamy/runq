@@ -32,6 +32,7 @@ class CcReceiveHistory extends ConsumerStatefulWidget {
 
 class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   final _open = <String>{};
+  final _openVmcc = <String>{}; // expanded per-VMCC entries, keyed "date|vmccId"
   bool _seeded = false;
   QualityBands _bands = QualityBands.empty;
   MilkType _milkType = MilkType.cowA1;
@@ -185,75 +186,85 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
         water: wq > 0 ? ww / wq : null);
   }
 
+  /// A VMCC's day receipts as a collapsed row that expands inline (no bottom
+  /// sheet) into its per-shift legs.
   Widget _entry(BuildContext context, DhenuTokens t, String date,
       MapEntry<String, List<MpConsignment>> e, Map<String, String> names) {
+    final key = '$date|${e.key}';
+    final expanded = _openVmcc.contains(key);
     final name = names[e.key] ?? 'VMCC';
     final a = _agg(e.value);
     final shifts = e.value.map((c) => c.shift).toSet();
-    return InkWell(
-      onTap: () => _openBreakup(context, t, name, date, e.value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-        child: Row(children: [
-          Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
-          const SizedBox(width: DhenuSpacing.md),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Row(children: [
-              for (final s in [Shift.am, Shift.pm, null].where(shifts.contains)) ...[
-                Icon(_shiftIcon(s), size: 13, color: t.inkSoft),
-                const SizedBox(width: 4),
-              ],
-              if (a.fat != null)
-                QualityBadge(fat: a.fat, snf: a.snf, water: a.water,
-                    grade: Grade.unknown, format: QualityFormat.valueLabel,
-                    bands: _bands, milkType: _milkType),
-            ]),
-          ])),
-          const SizedBox(width: DhenuSpacing.sm),
-          Text(litres(a.qty, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(width: DhenuSpacing.xs),
-          Icon(DhenuIcons.chevronRight, size: 16, color: t.inkSoft),
-        ]),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      InkWell(
+        onTap: () => setState(
+            () => expanded ? _openVmcc.remove(key) : _openVmcc.add(key)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+          child: Row(children: [
+            Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Row(children: [
+                for (final s in [Shift.am, Shift.pm, null].where(shifts.contains)) ...[
+                  Icon(_shiftIcon(s), size: 13, color: t.inkSoft),
+                  const SizedBox(width: 4),
+                ],
+                if (a.fat != null)
+                  QualityBadge(fat: a.fat, snf: a.snf, water: a.water,
+                      grade: Grade.unknown, format: QualityFormat.valueLabel,
+                      bands: _bands, milkType: _milkType),
+              ]),
+            ])),
+            const SizedBox(width: DhenuSpacing.sm),
+            Text(litres(a.qty, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
+            const SizedBox(width: DhenuSpacing.xs),
+            AnimatedRotation(
+              turns: expanded ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Icon(DhenuIcons.chevronDown, size: 16, color: t.inkSoft),
+            ),
+          ]),
+        ),
       ),
+      if (expanded) _entryDetail(t, date, e.key, e.value),
+    ]);
+  }
+
+  /// Inline per-shift breakup (replaces the old bottom sheet): each AM/PM/Day leg
+  /// with received qty, quality, variance and the effective ₹/L for that shift.
+  Widget _entryDetail(DhenuTokens t, String date, String vmccId, List<MpConsignment> cs) {
+    final legs = [...cs]..sort((a, b) => _shiftOrder(a.shift).compareTo(_shiftOrder(b.shift)));
+    final summary = ref.watch(nodeDaySummaryProvider((nodeId: vmccId, date: date))).valueOrNull;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+          DhenuSpacing.x4, 0, DhenuSpacing.lg, DhenuSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md),
+      decoration: BoxDecoration(
+        color: t.brand.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(DhenuRadii.card),
+      ),
+      child: Column(children: [
+        for (var i = 0; i < legs.length; i++) ...[
+          if (i > 0) Divider(height: 1, color: t.hairline),
+          _legTile(t, legs[i], _legRate(summary, legs[i].shift)),
+        ],
+      ]),
     );
   }
 
-  // ── shift breakup sheet ────────────────────────────────────────────────────
-  Future<void> _openBreakup(BuildContext context, DhenuTokens t, String name,
-      String date, List<MpConsignment> cs) {
-    final legs = [...cs]..sort((a, b) => _shiftOrder(a.shift).compareTo(_shiftOrder(b.shift)));
-    return showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: t.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet))),
-      builder: (_) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.lg),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                    color: t.hairline, borderRadius: BorderRadius.circular(DhenuRadii.pill)),
-              )),
-              const SizedBox(height: DhenuSpacing.lg),
-              Text(name, style: DhenuText.h2.copyWith(color: t.ink)),
-              Text(prettyDate(date), style: DhenuText.caption.copyWith(color: t.inkSoft)),
-              const SizedBox(height: DhenuSpacing.md),
-              for (var i = 0; i < legs.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: t.hairline),
-                _legTile(t, legs[i]),
-              ],
-            ]),
-        ),
-      ),
-    );
+  /// Effective ₹/L for a leg's shift, from the day's single-VMCC summary
+  /// (whole-day legs fall back to gross ÷ litres).
+  double? _legRate(MpCollectionSummary? s, Shift? shift) {
+    if (s == null) return null;
+    if (shift == Shift.am) return s.amRate > 0 ? s.amRate : null;
+    if (shift == Shift.pm) return s.pmRate > 0 ? s.pmRate : null;
+    final r = s.totalQty > 0 ? s.grossAmount / s.totalQty : 0.0;
+    return r > 0 ? r : null;
   }
 
   int _shiftOrder(Shift? s) => s == Shift.am ? 0 : s == Shift.pm ? 1 : 2;
@@ -261,7 +272,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   IconData _shiftIcon(Shift? s) =>
       s == Shift.am ? DhenuIcons.sun : s == Shift.pm ? DhenuIcons.moon : DhenuIcons.calendar;
 
-  Widget _legTile(DhenuTokens t, MpConsignment c) {
+  Widget _legTile(DhenuTokens t, MpConsignment c, double? rate) {
     final isAm = c.shift == Shift.am, isPm = c.shift == Shift.pm;
     final label = isAm ? 'AM' : isPm ? 'PM' : 'Day';
     final color = isAm ? t.am : isPm ? t.pm : t.inkSoft;
@@ -282,6 +293,11 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
               Text(label, style: DhenuText.label.copyWith(color: color)),
             ]),
           ),
+          if (rate != null) ...[
+            const SizedBox(width: DhenuSpacing.sm),
+            Text('₹/L ${rate.toStringAsFixed(2)}',
+                style: DhenuText.number(size: 13, color: t.brand)),
+          ],
           const Spacer(),
           Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 18, color: t.ink)),
         ]),

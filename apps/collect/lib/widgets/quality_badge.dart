@@ -22,6 +22,7 @@ class QualityBadge extends StatelessWidget {
     this.format,
     this.bands,
     this.milkType,
+    this.showGrade = true,
   });
 
   final double? fat;
@@ -30,6 +31,10 @@ class QualityBadge extends StatelessWidget {
   final Grade grade;
   final bool compact;
   final QualityFormat? format;
+
+  /// When false, the trailing grade letter is omitted (e.g. rows that show only
+  /// the FAT/SNF/W values).
+  final bool showGrade;
 
   /// When both [bands] and [milkType] are set, the pill is coloured by the worst
   /// band across FAT/SNF (a single quality colour for aggregate rows); otherwise
@@ -58,7 +63,7 @@ class QualityBadge extends StatelessWidget {
   /// Low-emphasis spans: muted "FAT · SNF · W", FAT/SNF in their own band colour
   /// and the grade letter coloured — no filled pill (see record-collection rows).
   List<TextSpan> _spans(DhenuTokens t, TextStyle muted) {
-    final hasGrade = grade != Grade.unknown;
+    final hasGrade = showGrade && grade != Grade.unknown;
     final fatStr = fat != null ? fat!.toStringAsFixed(1) : '—';
     final snfStr = snf != null ? snf!.toStringAsFixed(1) : '—';
     final fatC = muted.copyWith(color: _metricColor('fat', fat, t));

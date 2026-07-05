@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/farmer_view.dart';
 import '../../widgets/gradient_hero_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/sheet_grabber.dart';
@@ -79,20 +80,19 @@ class CentrePickerScreen extends ConsumerWidget {
         ),
       ),
       // Standard Dhenu bottom nav; no persistent selection (each tap opens a
-      // centre sheet), so currentIndex is -1.
-      bottomNavigationBar: tiers.isEmpty
-          ? null
-          : AppBottomNav(
-              currentIndex: -1,
-              onTap: (i) => _showNodeSheet(context, ref, tiers[i], active),
-              items: [
-                for (final ty in tiers)
-                  DhenuNavItem(
-                    icon: _iconForType(ty),
-                    label: '${_abbrForType(ty)} · ${active.where((n) => n.nodeType == ty).length}',
-                  ),
-              ],
-            ),
+      // sheet), so currentIndex is -1. Node tiers first, then a "Farmers" entry
+      // that opens the tenant-wide farmer picker ("view as farmer").
+      bottomNavigationBar: AppBottomNav(
+        currentIndex: -1,
+        onTap: (i) => i < tiers.length
+            ? _showNodeSheet(context, ref, tiers[i], active)
+            : showFarmerViewPicker(context, ref),
+        items: [
+          for (final ty in tiers)
+            DhenuNavItem(icon: _iconForType(ty), label: _abbrForType(ty)),
+          const DhenuNavItem(icon: DhenuIcons.users, label: 'Farmers'),
+        ],
+      ),
     );
   }
 }
@@ -408,8 +408,8 @@ class _Breakdowns extends ConsumerWidget {
     ]..sort((a, b) => b.qty.compareTo(a.qty));
 
     if (types.isEmpty && ccs.isEmpty) {
-      return const SizedBox(
-        height: 240,
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
         child: DhenuEmptyState(
           icon: DhenuIcons.drop,
           title: 'No collection yet today',

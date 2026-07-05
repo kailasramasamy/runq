@@ -273,60 +273,22 @@ class CcHome extends ConsumerWidget {
           child: Column(children: [
             for (var i = 0; i < rows.length; i++) ...[
               if (i > 0) Divider(height: 1, color: t.hairline),
-              _vmccRow(t, rows[i], flow[rows[i].vmcc.id], overnight),
+              _VmccEntry(
+                name: rows[i].vmcc.name,
+                farmers: rows[i].farmers,
+                overnight: overnight,
+                totalQty: _shownQty(rows[i], flow[rows[i].vmcc.id], overnight),
+                amQty: _amShown(rows[i], flow[rows[i].vmcc.id], overnight),
+                pmQty: _pmShown(rows[i], flow[rows[i].vmcc.id], overnight),
+                amQc: rows[i].am,
+                pmQc: rows[i].pm,
+                amReceived: (flow[rows[i].vmcc.id]?.amRecv ?? 0) > 0,
+                pmReceived: (flow[rows[i].vmcc.id]?.pmRecv ?? 0) > 0,
+              ),
             ],
           ]),
         );
       },
-    );
-  }
-
-  Widget _vmccRow(DhenuTokens t, VmccCollection vc, _Flow? f, bool overnight) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      child: Row(children: [
-        Container(
-          width: 38, height: 38,
-          decoration: BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
-          child: Icon(DhenuIcons.store, size: 20, color: t.brand),
-        ),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(vc.vmcc.name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Row(children: overnight
-              ? [
-                  _shiftQty(t, DhenuIcons.moon, _pmShown(vc, f, overnight)),
-                  Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-                  _shiftQty(t, DhenuIcons.sun, _amShown(vc, f, overnight)),
-                ]
-              : [
-                  _shiftQty(t, DhenuIcons.sun, _amShown(vc, f, overnight)),
-                  Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-                  _shiftQty(t, DhenuIcons.moon, _pmShown(vc, f, overnight)),
-                ]),
-          const SizedBox(height: 1),
-          Text('${vc.farmers} farmers', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        ])),
-        const SizedBox(width: DhenuSpacing.sm),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(_shownQty(vc, f, overnight), unit: true),
-              style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 6),
-          Row(mainAxisSize: MainAxisSize.min, children: overnight
-              ? [
-                  _shiftTick(t, DhenuIcons.moon, (f?.pmRecv ?? 0) > 0),
-                  const SizedBox(width: 4),
-                  _shiftTick(t, DhenuIcons.sun, (f?.amRecv ?? 0) > 0),
-                ]
-              : [
-                  _shiftTick(t, DhenuIcons.sun, (f?.amRecv ?? 0) > 0),
-                  const SizedBox(width: 4),
-                  _shiftTick(t, DhenuIcons.moon, (f?.pmRecv ?? 0) > 0),
-                ]),
-        ]),
-      ]),
     );
   }
 
@@ -336,6 +298,162 @@ class CcHome extends ConsumerWidget {
       (!overnight && vc.amQty > 0) ? vc.amQty : (f?.amRecv ?? 0);
   double _pmShown(VmccCollection vc, _Flow? f, bool overnight) =>
       (!overnight && vc.pmQty > 0) ? vc.pmQty : (f?.pmRecv ?? 0);
+
+}
+
+/// One VMCC row on the CC home. Collapsed: name, per-shift qty + receipt ticks,
+/// day total. Tap to expand into a per-shift AM/PM breakdown of qty, quality
+/// (fat / SNF / water) and the effective ₹/L rate.
+class _VmccEntry extends StatefulWidget {
+  const _VmccEntry({
+    required this.name,
+    required this.farmers,
+    required this.overnight,
+    required this.totalQty,
+    required this.amQty,
+    required this.pmQty,
+    required this.amQc,
+    required this.pmQc,
+    required this.amReceived,
+    required this.pmReceived,
+  });
+
+  final String name;
+  final int farmers;
+  final bool overnight, amReceived, pmReceived;
+  final double totalQty, amQty, pmQty;
+  final ShiftQc amQc, pmQc;
+
+  @override
+  State<_VmccEntry> createState() => _VmccEntryState();
+}
+
+class _VmccEntryState extends State<_VmccEntry> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return Column(children: [
+      InkWell(
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: _collapsed(t),
+      ),
+      AnimatedCrossFade(
+        firstChild: const SizedBox(width: double.infinity),
+        secondChild: _detail(t),
+        crossFadeState:
+            _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+        duration: const Duration(milliseconds: 180),
+      ),
+    ]);
+  }
+
+  Widget _collapsed(DhenuTokens t) {
+    // AM before PM by default; overnight pools show the carried PM first.
+    final shifts = widget.overnight
+        ? [(DhenuIcons.moon, widget.pmQty), (DhenuIcons.sun, widget.amQty)]
+        : [(DhenuIcons.sun, widget.amQty), (DhenuIcons.moon, widget.pmQty)];
+    final ticks = widget.overnight
+        ? [(DhenuIcons.moon, widget.pmReceived), (DhenuIcons.sun, widget.amReceived)]
+        : [(DhenuIcons.sun, widget.amReceived), (DhenuIcons.moon, widget.pmReceived)];
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      child: Row(children: [
+        Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+              color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
+          child: Icon(DhenuIcons.store, size: 20, color: t.brand),
+        ),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.name,
+              style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Row(children: [
+            _shiftQty(t, shifts[0].$1, shifts[0].$2),
+            Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            _shiftQty(t, shifts[1].$1, shifts[1].$2),
+          ]),
+          const SizedBox(height: 1),
+          Text('${widget.farmers} farmers',
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        ])),
+        const SizedBox(width: DhenuSpacing.sm),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(litres(widget.totalQty, unit: true),
+              style: DhenuText.number(size: 16, color: t.ink)),
+          const SizedBox(height: 6),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            _shiftTick(t, ticks[0].$1, ticks[0].$2),
+            const SizedBox(width: 4),
+            _shiftTick(t, ticks[1].$1, ticks[1].$2),
+          ]),
+        ]),
+        const SizedBox(width: DhenuSpacing.xs),
+        AnimatedRotation(
+          turns: _expanded ? 0.5 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: Icon(DhenuIcons.chevronDown, size: 18, color: t.inkSoft),
+        ),
+      ]),
+    );
+  }
+
+  /// Expanded panel: one block per shift with qty, quality and ₹/L rate.
+  Widget _detail(DhenuTokens t) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(
+            DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.md),
+        padding: const EdgeInsets.all(DhenuSpacing.md),
+        decoration: BoxDecoration(
+          color: t.brand.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(DhenuRadii.card),
+        ),
+        child: Column(children: [
+          _shiftDetail(t, 'Morning', DhenuIcons.sun, t.am, widget.amQty, widget.amQc),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
+            child: Divider(height: 1, color: t.hairline),
+          ),
+          _shiftDetail(t, 'Evening', DhenuIcons.moon, t.pm, widget.pmQty, widget.pmQc),
+        ]),
+      );
+
+  Widget _shiftDetail(DhenuTokens t, String label, IconData icon, Color accent,
+      double qty, ShiftQc qc) {
+    // No collection this shift → dash every metric rather than show stale zeros.
+    final has = qty > 0;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(icon, size: 14, color: accent),
+        const SizedBox(width: 6),
+        Text(label,
+            style: DhenuText.label.copyWith(color: accent, fontWeight: FontWeight.w700)),
+        const Spacer(),
+        Text(has ? litres(qty, unit: true) : '—',
+            style: DhenuText.number(size: 15, color: t.ink)),
+      ]),
+      const SizedBox(height: 6),
+      Wrap(spacing: DhenuSpacing.lg, runSpacing: DhenuSpacing.xs, children: [
+        _qcCell(t, 'FAT', has && qc.fat > 0 ? oneDp(qc.fat) : '—', t.ink),
+        _qcCell(t, 'SNF', has && qc.snf > 0 ? oneDp(qc.snf) : '—', t.ink),
+        _qcCell(t, 'WATER', has && qc.water > 0 ? oneDp(qc.water) : '—', t.ink),
+        _qcCell(t, '₹/L', has && qc.rate > 0 ? qc.rate.toStringAsFixed(2) : '—', t.brand),
+      ]),
+    ]);
+  }
+
+  Widget _qcCell(DhenuTokens t, String label, String value, Color color) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label ',
+              style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.4)),
+          Text(value, style: DhenuText.number(size: 13, color: color)),
+        ],
+      );
 
   /// Receipt tick for one shift: green check when that shift's milk is in, a
   /// greyed check otherwise.

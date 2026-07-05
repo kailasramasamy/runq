@@ -14,11 +14,15 @@ class OtpField extends StatefulWidget {
     this.onCompleted,
     this.label = 'Enter OTP',
     this.icon = DhenuIcons.lock,
+    this.autofocus = false,
   });
   final TextEditingController controller;
   final VoidCallback? onCompleted;
   final String label;
   final IconData icon;
+
+  /// Focus the hidden field on mount so the keypad opens automatically.
+  final bool autofocus;
 
   @override
   State<OtpField> createState() => _OtpFieldState();
@@ -77,6 +81,7 @@ class _OtpFieldState extends State<OtpField> {
             child: TextField(
               controller: widget.controller,
               focusNode: _focus,
+              autofocus: widget.autofocus,
               keyboardType: TextInputType.number,
               autofillHints: const [AutofillHints.oneTimeCode],
               inputFormatters: [

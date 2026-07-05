@@ -3,6 +3,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../api/api_client.dart';
 
+/// The running build's user-facing version label ("1.0.0 (3)"), read from the
+/// bundled package metadata. Used to surface the app version on the profile.
+final appVersionLabelProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return '${info.version} (${info.buildNumber})';
+});
+
 /// Force-update config served from the backend (`dhenu.*` keys in app_config),
 /// exposed at the public, no-auth `/public/app-config` endpoint.
 class AppUpdateConfig {

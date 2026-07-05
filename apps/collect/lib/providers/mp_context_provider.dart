@@ -10,6 +10,23 @@ import 'auth_provider.dart';
 /// which one to run). A single-node operator never sets this.
 final mpActiveNodeProvider = StateProvider<MpNode?>((ref) => null);
 
+/// The farmer an admin is currently "viewing as" — operate the app as that
+/// farmer. Null → not in farmer view. Mirrors [mpActiveNodeProvider] but for the
+/// farmer persona; the farmer-scoped providers thread its id into repo calls so
+/// the backend returns that farmer's data (owner/admin may pass an explicit
+/// farmerId within the tenant). Always null for a real farmer login — the server
+/// self-scopes those. Takes precedence over [mpActiveNodeProvider] in the admin
+/// home, so setting a farmer clears any active node.
+final mpViewAsFarmerProvider = StateProvider<MpFarmer?>((ref) => null);
+
+/// All active farmers in the tenant — source for the admin "view as farmer"
+/// picker. The server returns the whole tenant for owner/admin roles; the picker
+/// searches this list client-side.
+final tenantFarmersProvider = FutureProvider<List<MpFarmer>>((ref) async {
+  final farmers = await mpRepo.farmers(limit: 500);
+  return farmers.where((f) => f.isActive).toList();
+});
+
 /// The nodes a field-operator is DIRECTLY assigned to (not the descendant-
 /// expanded scope). Backs the operator node-selector + in-shell switcher. The
 /// API returns just their assigned VMCC(s)/CC(s)/PP(s) via `assignedOnly=true`.
