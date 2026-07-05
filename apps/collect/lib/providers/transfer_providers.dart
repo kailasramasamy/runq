@@ -171,3 +171,15 @@ final ccVmccCollectionsProvider =
     );
   }));
 });
+
+/// A rate-chart resolution for one QC reading, keyed by (milk type, fat, snf,
+/// node). Used to price a manual-receive VMCC shift on the CC home, where the
+/// receipt carries no per-litre rate — the ₹/L is resolved from its QC against
+/// the node's active rate chart. Null when no chart resolves.
+typedef ReceiptRateKey = ({MilkType milkType, double fat, double snf, String nodeId, String? onDate});
+
+final receiptRateProvider = FutureProvider.family<double?, ReceiptRateKey>((ref, k) async {
+  final res = await mpRepo.resolveRate(
+      milkType: k.milkType, fat: k.fat, snf: k.snf, scopeNodeId: k.nodeId, onDate: k.onDate);
+  return res?.ratePerLitre;
+});

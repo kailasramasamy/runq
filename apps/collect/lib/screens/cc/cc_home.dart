@@ -22,6 +22,21 @@ import 'cc_report_tab.dart';
 /// row can show per-shift quantities and AM/PM receipt ticks.
 typedef _Flow = ({double transit, double received, double amRecv, double pmRecv});
 
+/// Accumulates qty-weighted QC for one shift while summing a VMCC's receipts.
+class _QcAcc {
+  double _q = 0, _fat = 0, _snf = 0, _water = 0;
+  void add(double qty, double? fat, double? snf, double? water) {
+    _q += qty;
+    if (fat != null) _fat += qty * fat;
+    if (snf != null) _snf += qty * snf;
+    if (water != null) _water += qty * water;
+  }
+
+  ShiftQc toQc() => _q <= 0
+      ? (fat: 0, snf: 0, water: 0, rate: 0)
+      : (fat: _fat / _q, snf: _snf / _q, water: _water / _q, rate: 0);
+}
+
 /// CC operator home — a live view of the VMCC network feeding this chilling
 /// centre: how much each VMCC has collected today (even before dispatch), what's
 /// in transit, what's been received, and onward-dispatch room.
@@ -66,6 +81,7 @@ class CcHome extends ConsumerWidget {
         ref.watch(nodeAvailabilityProvider((nodeId: node.id, shift: null))).asData?.value?.available ??
             0;
     final flow = _flowByNode(cons);
+    final receiptQc = _receiptQcByNode(cons);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
     final nextPm = overnight
@@ -118,7 +134,7 @@ class CcHome extends ConsumerWidget {
             ]),
           ],
           const SizedBox(height: DhenuSpacing.sm),
-          _vmccList(t, vmccsAsync, flow, overnight),
+          _vmccList(t, vmccsAsync, flow, receiptQc, overnight),
         ],
       ),
     );
@@ -160,6 +176,31 @@ class CcHome extends ConsumerWidget {
     }
     return m;
   }
+
+  /// Qty-weighted receipt QC per source VMCC, split by shift, from the pool's
+  /// consignments. Fills FAT/SNF/water for manual-receive VMCCs (no pours) and
+  /// matches the overnight pool window, which the today-scoped pour summary
+  /// misses. Whole-day (null-shift) receipts count as AM, like the backend.
+  Map<String, ({ShiftQc am, ShiftQc pm})> _receiptQcByNode(List<MpConsignment> cons) {
+    final am = <String, _QcAcc>{};
+    final pm = <String, _QcAcc>{};
+    for (final c in cons.where((c) => c.kind == 'vmcc_to_cc' && c.received)) {
+      final q = c.receiptQty ?? 0;
+      if (q <= 0) continue;
+      final bucket = c.shift == Shift.pm ? pm : am;
+      (bucket[c.fromNodeId] ??= _QcAcc()).add(q, c.receiptFat, c.receiptSnf, c.receiptWater);
+    }
+    return {
+      for (final id in {...am.keys, ...pm.keys})
+        id: (am: (am[id] ?? _QcAcc()).toQc(), pm: (pm[id] ?? _QcAcc()).toQc()),
+    };
+  }
+
+  /// Manual-receipt QC overrides the VMCC's pour QC: the milk is re-tested at the
+  /// CC on receipt, so that reading is authoritative. Falls back to pours when no
+  /// receipt QC was captured (fat == 0 means no sample).
+  ShiftQc _resolveQc(ShiftQc pour, ShiftQc? receipt) =>
+      (receipt != null && receipt.fat > 0) ? receipt : pour;
 
   Widget _hero(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
       Map<String, _Flow> flow, double inTransit, bool overnight) {
@@ -254,7 +295,8 @@ class CcHome extends ConsumerWidget {
       );
 
   Widget _vmccList(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
-      Map<String, _Flow> flow, bool overnight) {
+      Map<String, _Flow> flow, Map<String, ({ShiftQc am, ShiftQc pm})> receiptQc,
+      bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => DhenuEmptyState(
@@ -280,8 +322,10 @@ class CcHome extends ConsumerWidget {
                 totalQty: _shownQty(rows[i], flow[rows[i].vmcc.id], overnight),
                 amQty: _amShown(rows[i], flow[rows[i].vmcc.id], overnight),
                 pmQty: _pmShown(rows[i], flow[rows[i].vmcc.id], overnight),
-                amQc: rows[i].am,
-                pmQc: rows[i].pm,
+                amQc: _resolveQc(rows[i].am, receiptQc[rows[i].vmcc.id]?.am),
+                pmQc: _resolveQc(rows[i].pm, receiptQc[rows[i].vmcc.id]?.pm),
+                milkType: rows[i].vmcc.effectiveMilkType,
+                nodeId: rows[i].vmcc.id,
                 amReceived: (flow[rows[i].vmcc.id]?.amRecv ?? 0) > 0,
                 pmReceived: (flow[rows[i].vmcc.id]?.pmRecv ?? 0) > 0,
               ),
@@ -304,7 +348,7 @@ class CcHome extends ConsumerWidget {
 /// One VMCC row on the CC home. Collapsed: name, per-shift qty + receipt ticks,
 /// day total. Tap to expand into a per-shift AM/PM breakdown of qty, quality
 /// (fat / SNF / water) and the effective ₹/L rate.
-class _VmccEntry extends StatefulWidget {
+class _VmccEntry extends ConsumerStatefulWidget {
   const _VmccEntry({
     required this.name,
     required this.farmers,
@@ -316,6 +360,8 @@ class _VmccEntry extends StatefulWidget {
     required this.pmQc,
     required this.amReceived,
     required this.pmReceived,
+    required this.milkType,
+    required this.nodeId,
   });
 
   final String name;
@@ -323,12 +369,14 @@ class _VmccEntry extends StatefulWidget {
   final bool overnight, amReceived, pmReceived;
   final double totalQty, amQty, pmQty;
   final ShiftQc amQc, pmQc;
+  final MilkType milkType;
+  final String nodeId;
 
   @override
-  State<_VmccEntry> createState() => _VmccEntryState();
+  ConsumerState<_VmccEntry> createState() => _VmccEntryState();
 }
 
-class _VmccEntryState extends State<_VmccEntry> {
+class _VmccEntryState extends ConsumerState<_VmccEntry> {
   bool _expanded = false;
 
   @override
@@ -426,6 +474,16 @@ class _VmccEntryState extends State<_VmccEntry> {
       double qty, ShiftQc qc) {
     // No collection this shift → dash every metric rather than show stale zeros.
     final has = qty > 0;
+    // Pour-priced rate when present; otherwise resolve the receipt QC against the
+    // node's rate chart (manual receipts carry no per-litre rate).
+    double? rate = qc.rate > 0 ? qc.rate : null;
+    if (rate == null && has && qc.fat > 0) {
+      rate = ref
+          .watch(receiptRateProvider((
+            milkType: widget.milkType, fat: qc.fat, snf: qc.snf, nodeId: widget.nodeId, onDate: null,
+          )))
+          .valueOrNull;
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(icon, size: 14, color: accent),
@@ -441,7 +499,7 @@ class _VmccEntryState extends State<_VmccEntry> {
         _qcCell(t, 'FAT', has && qc.fat > 0 ? oneDp(qc.fat) : '—', t.ink),
         _qcCell(t, 'SNF', has && qc.snf > 0 ? oneDp(qc.snf) : '—', t.ink),
         _qcCell(t, 'WATER', has && qc.water > 0 ? oneDp(qc.water) : '—', t.ink),
-        _qcCell(t, '₹/L', has && qc.rate > 0 ? qc.rate.toStringAsFixed(2) : '—', t.brand),
+        _qcCell(t, '₹/L', has && rate != null && rate > 0 ? rate.toStringAsFixed(2) : '—', t.brand),
       ]),
     ]);
   }

@@ -36,6 +36,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   bool _seeded = false;
   QualityBands _bands = QualityBands.empty;
   MilkType _milkType = MilkType.cowA1;
+  Map<String, MilkType> _vmccMilkType = const {};
 
   MpNode get node => widget.node;
 
@@ -46,10 +47,9 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     _milkType = node.effectiveMilkType;
     final async =
         ref.watch(nodeReceivedDailyProvider((nodeId: node.id, days: CcReceiveHistory._days)));
-    final names = {
-      for (final n in ref.watch(nodesByTypeProvider('vmcc')).value ?? const <MpNode>[])
-        n.id: n.name,
-    };
+    final vmccNodes = ref.watch(nodesByTypeProvider('vmcc')).value ?? const <MpNode>[];
+    final names = {for (final n in vmccNodes) n.id: n.name};
+    _vmccMilkType = {for (final n in vmccNodes) n.id: n.effectiveMilkType};
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(
@@ -91,41 +91,54 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   /// when open, the lazily-loaded per-VMCC detail.
   Widget _daySection(DhenuTokens t, MpReceivedDay day, Map<String, String> names) {
     final open = _open.contains(day.date);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      InkWell(
-        borderRadius: BorderRadius.circular(DhenuRadii.card),
-        onTap: () => setState(() => open ? _open.remove(day.date) : _open.add(day.date)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.xs),
-          child: Row(children: [
-            Icon(open ? DhenuIcons.chevronDown : DhenuIcons.chevronRight,
-                size: 18, color: t.inkSoft),
-            const SizedBox(width: DhenuSpacing.xs),
-            Expanded(
-                child: Text(prettyDate(day.date), style: DhenuText.title.copyWith(color: t.ink))),
-            Text(litres(day.totalQty, unit: true),
-                style: DhenuText.number(size: 16, color: t.brand)),
-          ]),
+    return DhenuCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Primary row: the scan axis — date and the day's total, both bold.
+        InkWell(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(DhenuRadii.card)),
+          onTap: () => setState(() => open ? _open.remove(day.date) : _open.add(day.date)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+            child: Row(children: [
+              Expanded(
+                  child: Text(prettyDate(day.date),
+                      style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700))),
+              Text(litres(day.totalQty, unit: true),
+                  style: DhenuText.number(size: 18, w: FontWeight.w800, color: t.brand)),
+              const SizedBox(width: DhenuSpacing.sm),
+              AnimatedRotation(
+                turns: open ? 0.25 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
+              ),
+            ]),
+          ),
         ),
-      ),
-      const SizedBox(height: DhenuSpacing.sm),
-      if (open) _dayDetail(t, day.date, names) else _collapsedSummary(t, day),
-    ]);
+        Divider(height: 1, color: t.hairline),
+        if (open) _dayDetail(t, day.date, names) else _collapsedSummary(t, day),
+      ]),
+    );
   }
 
-  /// Collapsed: VMCC count + qty-weighted avg quality, straight from the rollup.
+  /// Collapsed secondary row: VMCC count + qty-weighted avg quality, kept muted
+  /// so it reads below the date/total. Colour-graded QC lives in the expanded
+  /// per-leg detail.
   Widget _collapsedSummary(DhenuTokens t, MpReceivedDay day) {
-    return DhenuCard(
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       child: Row(children: [
-        Icon(DhenuIcons.package, size: 18, color: t.inkSoft),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(
-            child: Text('${day.vmccCount} VMCC${day.vmccCount == 1 ? '' : 's'}',
-                style: DhenuText.body.copyWith(color: t.inkSoft))),
-        if (day.fat != null)
+        Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
+        const SizedBox(width: DhenuSpacing.sm),
+        Text('${day.vmccCount} VMCC${day.vmccCount == 1 ? '' : 's'}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        if (day.fat != null) ...[
+          const Spacer(),
           QualityBadge(fat: day.fat, snf: day.snf, water: day.water,
-              grade: Grade.unknown, format: QualityFormat.valueLabel,
-              bands: _bands, milkType: _milkType),
+              grade: Grade.unknown, format: QualityFormat.valueLabel),
+        ],
       ]),
     );
   }
@@ -134,29 +147,24 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   Widget _dayDetail(DhenuTokens t, String date, Map<String, String> names) {
     final async = ref.watch(nodeReceivedDayDetailProvider((nodeId: node.id, date: date)));
     return async.when(
-      loading: () => DhenuCard(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(DhenuSpacing.lg),
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(DhenuSpacing.sm),
-            child: SizedBox(
-                width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: t.brand)),
-          ),
+          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
         ),
       ),
-      error: (e, _) => DhenuCard(
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(DhenuSpacing.lg),
         child: Text('Could not load this day', style: DhenuText.body.copyWith(color: t.inkSoft)),
       ),
       data: (cs) {
         final vmccs = _groupByVmcc(cs);
-        return DhenuCard(
-          padding: EdgeInsets.zero,
-          child: Column(children: [
-            for (var i = 0; i < vmccs.length; i++) ...[
-              if (i > 0) Divider(height: 1, color: t.hairline),
-              _entry(context, t, date, vmccs[i], names),
-            ],
-          ]),
-        );
+        return Column(children: [
+          for (var i = 0; i < vmccs.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: t.hairline),
+            _entry(context, t, date, vmccs[i], names),
+          ],
+        ]);
       },
     );
   }
@@ -251,10 +259,23 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: Column(children: [
         for (var i = 0; i < legs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _legTile(t, legs[i], _legRate(summary, legs[i].shift)),
+          _legTile(t, legs[i], _rateFor(summary, legs[i], vmccId, date)),
         ],
       ]),
     );
+  }
+
+  /// Effective ₹/L for a leg: the pour-priced shift rate when present, else the
+  /// leg's receipt QC resolved against the node's rate chart — manual receipts
+  /// carry no per-litre rate, so the summary reports 0.
+  double? _rateFor(MpCollectionSummary? s, MpConsignment leg, String vmccId, String date) {
+    final r = _legRate(s, leg.shift);
+    if (r != null) return r;
+    if (leg.receiptFat == null || leg.receiptSnf == null) return null;
+    return ref.watch(receiptRateProvider((
+      milkType: _vmccMilkType[vmccId] ?? _milkType, fat: leg.receiptFat!, snf: leg.receiptSnf!,
+      nodeId: vmccId, onDate: date,
+    ))).valueOrNull;
   }
 
   /// Effective ₹/L for a leg's shift, from the day's single-VMCC summary
