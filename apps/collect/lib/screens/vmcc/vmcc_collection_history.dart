@@ -12,9 +12,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/shift_grouped_pours.dart';
-import '../../widgets/source_row.dart';
 import 'record_collection.dart';
-import 'vmcc_farmer_history.dart';
 
 enum _HistoryView { byDay, byFarmer }
 
@@ -35,6 +33,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
   Shift? _shift; // null = all shifts
   String _query = '';
   final Set<String> _expanded = {};
+  final Set<String> _expandedFarmers = {};
   bool _seededExpand = false;
   QualityBands? _bands; // resolved in build, used by the day-grouped pour list
 
@@ -123,40 +122,66 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   Widget _segment<E>(DhenuTokens t, E current, void Function(E) onSelect,
       List<(E, String, IconData?)> options) {
+    final n = options.length;
+    final idx = options.indexWhere((o) => o.$1 == current);
     return Container(
       padding: const EdgeInsets.all(DhenuSpacing.xs),
       decoration: BoxDecoration(
         color: t.inputFill,
         borderRadius: BorderRadius.circular(DhenuRadii.input),
       ),
-      child: Row(children: [
-        for (final (val, label, icon) in options)
-          Expanded(child: _segmentItem(t, label, icon, current == val, () => onSelect(val))),
+      // A single brand pill slides to the selected item — only ever one
+      // highlight, so switching options reads as a move, not a double-flash.
+      child: Stack(children: [
+        if (idx >= 0)
+          Positioned.fill(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment(n == 1 ? 0 : -1 + 2 * idx / (n - 1), 0),
+              child: FractionallySizedBox(
+                widthFactor: 1 / n,
+                heightFactor: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: t.brandSubtle,
+                    borderRadius: BorderRadius.circular(DhenuRadii.input - 2),
+                    border: Border.all(color: t.brand),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        Row(children: [
+          for (final (val, label, icon) in options)
+            Expanded(child: _segmentItem(t, label, icon, current == val, () => onSelect(val))),
+        ]),
       ]),
     );
   }
 
-  Widget _segmentItem(DhenuTokens t, String label, IconData? icon, bool selected, VoidCallback onTap) =>
-      GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? t.card : Colors.transparent,
-            borderRadius: BorderRadius.circular(DhenuRadii.input - 2),
+  Widget _segmentItem(DhenuTokens t, String label, IconData? icon, bool selected, VoidCallback onTap) {
+    final fg = selected ? t.brand : t.inkSoft;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
+        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: fg),
+            const SizedBox(width: 4),
+          ],
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            style: DhenuText.label.copyWith(color: fg),
+            child: Text(label),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: selected ? t.brand : t.inkSoft),
-              const SizedBox(width: 4),
-            ],
-            Text(label, style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft)),
-          ]),
-        ),
-      );
+        ]),
+      ),
+    );
+  }
 
   Widget _searchField(DhenuTokens t, AppLocalizations l) => TextField(
         onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
@@ -205,6 +230,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       DhenuCard(
         padding: EdgeInsets.zero,
+        selected: isOpen,
         onTap: () => setState(() => isOpen ? _expanded.remove(date) : _expanded.add(date)),
         child: Padding(
           padding: const EdgeInsets.all(DhenuSpacing.lg),
@@ -256,15 +282,10 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       ];
     }
     return [
-      DhenuCard(
-        padding: EdgeInsets.zero,
-        child: Column(children: [
-          for (var i = 0; i < ids.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: t.hairline),
-            _farmerRow(l, byId[ids[i]], byFarmer[ids[i]]!),
-          ],
-        ]),
-      ),
+      for (final id in ids) ...[
+        _farmerSection(t, l, byId[id], byFarmer[id]!),
+        const SizedBox(height: DhenuSpacing.md),
+      ],
     ];
   }
 
@@ -273,20 +294,70 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     return f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query);
   }
 
-  Widget _farmerRow(AppLocalizations l, MpFarmer? farmer, List<MpPour> pours) {
+  /// A farmer's totals as a tappable card that expands inline into that
+  /// farmer's day-grouped pours — mirrors the by-day accordion.
+  Widget _farmerSection(DhenuTokens t, AppLocalizations l, MpFarmer? farmer, List<MpPour> pours) {
+    final id = farmer?.id ?? '';
+    final canOpen = farmer != null;
+    final isOpen = canOpen && _expandedFarmers.contains(id);
     final qty = pours.fold<double>(0, (a, p) => a + p.qtyLitres);
     final amt = pours.fold<double>(0, (a, p) => a + p.lineAmount);
-    final display = farmer != null ? farmerName(context, farmer) : l.historyFarmerFallback;
-    return SourceRow(
-      title: display,
-      litres: litres(qty, unit: true),
-      amount: rupees(amt),
-      hideLeading: true,
-      onTap: farmer == null
-          ? null
-          : () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => VmccFarmerHistory(node: node, farmer: farmer),
-              )),
+    final display = canOpen ? farmerName(context, farmer) : l.historyFarmerFallback;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      DhenuCard(
+        padding: EdgeInsets.zero,
+        selected: isOpen,
+        onTap: !canOpen
+            ? null
+            : () => setState(() => isOpen ? _expandedFarmers.remove(id) : _expandedFarmers.add(id)),
+        child: Padding(
+          padding: const EdgeInsets.all(DhenuSpacing.lg),
+          child: Row(children: [
+            if (canOpen) ...[
+              Icon(isOpen ? DhenuIcons.chevronUp : DhenuIcons.chevronDown, color: t.inkSoft),
+              const SizedBox(width: DhenuSpacing.sm),
+            ],
+            Expanded(child: Text(display, style: DhenuText.title.copyWith(color: t.ink))),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(litres(qty, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
+              Text(rupees(amt), style: DhenuText.caption.copyWith(color: t.brand)),
+            ]),
+          ]),
+        ),
+      ),
+      if (isOpen) ..._farmerDays(t, farmer, pours),
+    ]);
+  }
+
+  List<Widget> _farmerDays(DhenuTokens t, MpFarmer farmer, List<MpPour> pours) {
+    final groups = <String, List<MpPour>>{};
+    for (final p in pours) {
+      (groups[p.collectionDate] ??= []).add(p);
+    }
+    final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final byId = {farmer.id: farmer};
+    return [
+      const SizedBox(height: DhenuSpacing.sm),
+      for (final d in dates) ...[
+        _farmerDayHeader(t, d, groups[d]!),
+        const SizedBox(height: DhenuSpacing.xs),
+        ShiftGroupedPours(pours: groups[d]!, farmersById: byId, bands: _bands, onTapPour: _openPour),
+        const SizedBox(height: DhenuSpacing.sm),
+      ],
+    ];
+  }
+
+  Widget _farmerDayHeader(DhenuTokens t, String date, List<MpPour> dayPours) {
+    final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres);
+    final amt = dayPours.fold<double>(0, (a, p) => a + p.lineAmount);
+    return Padding(
+      padding: const EdgeInsets.only(left: DhenuSpacing.xs),
+      child: Row(children: [
+        Text(prettyDate(date), style: DhenuText.label.copyWith(color: t.ink)),
+        const Spacer(),
+        Text('${litres(qty, unit: true)} · ${rupees(amt)}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+      ]),
     );
   }
 }

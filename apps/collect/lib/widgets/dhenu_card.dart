@@ -13,6 +13,7 @@ class DhenuCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(DhenuSpacing.lg),
     this.onTap,
     this.elevated = false,
+    this.selected = false,
   });
 
   final Widget child;
@@ -20,13 +21,16 @@ class DhenuCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool elevated;
 
+  /// Highlights the card as active — faint brand fill + brand border.
+  final bool selected;
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final decoration = BoxDecoration(
-      color: t.card,
+      color: selected ? t.brandSubtle : t.card,
       borderRadius: BorderRadius.circular(DhenuRadii.card),
-      border: Border.all(color: t.hairline),
+      border: Border.all(color: selected ? t.brand : t.hairline),
       boxShadow: elevated ? DhenuShadows.card : null,
     );
     final content = Padding(padding: padding, child: child);
