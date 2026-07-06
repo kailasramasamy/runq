@@ -40,8 +40,8 @@ GoRouter _build(Ref ref) => GoRouter(
         return null;
       },
       routes: [
-        // Splash → home is an automatic redirect; use no page transition so it
-        // doesn't visibly slide from one green screen to another.
+        // Animated in-app splash shown while the session restores. No page
+        // transition so it doesn't visibly slide into home/login.
         GoRoute(path: '/splash',
             pageBuilder: (_, _) => const NoTransitionPage(child: SplashScreen())),
         GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),

@@ -91,19 +91,20 @@ class AuthController extends StateNotifier<AuthState> {
     _restore();
   }
 
-  /// Minimum time the splash stays up so it never flashes on a fast restore.
-  static const _minSplash = Duration(milliseconds: 1500);
+  /// Minimum time the (native) splash stays up, so a fast restore still shows
+  /// the milk-drop long enough to register instead of flashing past.
+  static const _minSplash = Duration(milliseconds: 1800);
 
   Future<void> _restore() async {
     final minSplash = Future<void>.delayed(_minSplash);
     final (next, doLoginPush) = await _resolveRestored();
-    await minSplash; // hold the splash for a standard minimum — no flash
+    await minSplash; // hold isLoading until the minimum elapses — no flash
     state = next;
     if (doLoginPush) unawaited(PushService.instance.onLogin());
   }
 
   /// Resolve the post-restore state without touching `state`, so `_restore`
-  /// can enforce the minimum splash duration before applying it.
+  /// can hold the splash for the minimum duration before applying it.
   Future<(AuthState, bool)> _resolveRestored() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_tokenKey);

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 
@@ -70,10 +69,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.dispose();
   }
 
-  Widget _drop() => SvgPicture.asset(
-        'assets/branding/dhenu-milk-drop.svg',
+  Widget _drop() => Image.asset(
+        'assets/branding/dhenu-milk-drop.png',
         width: 116,
         height: 116,
+        cacheWidth: 232, // decode small; the source PNG is very large
       );
 
   @override
@@ -82,6 +82,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     final colors = isDark
         ? const [DhenuColors.brandDark, DhenuColors.brandPressedDark]
         : const [DhenuColors.brand, DhenuColors.brandPressed];
+    const cream = Color(0xFFFEF7EE); // matches the milk drop
 
     return Scaffold(
       backgroundColor: colors.first,
@@ -140,7 +141,19 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       child: child,
                     ),
                   ),
-                  child: Text('dhenu', style: DhenuText.h1.copyWith(color: Colors.white)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('dhenu', style: DhenuText.h1.copyWith(color: cream)),
+                      const SizedBox(height: DhenuSpacing.xs),
+                      Text('Every drop counts',
+                          style: DhenuText.label.copyWith(
+                            color: cream.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.5,
+                          )),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: DhenuSpacing.x3),
                 SizedBox(

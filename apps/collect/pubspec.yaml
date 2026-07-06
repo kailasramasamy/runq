@@ -50,8 +50,6 @@ dependencies:
   # Deep-link to the app's Settings page when mic permission is denied.
   permission_handler: ^11.3.1
   flutter_lucide: ^1.11.0
-  # Renders the milk-drop splash icon (vector).
-  flutter_svg: ^2.0.10
 
   # Add Farmer — camera/gallery photo pick and GPS location capture.
   image_picker: ^1.1.2
@@ -79,6 +77,9 @@ flutter:
 # wordmark/glyph is finalised; replace assets, then re-run the icon tool.
 flutter_launcher_icons:
   image_path: "assets/branding/dhenu-app-logo.png"
+  # iOS icon = drop on the same #0F7A5A as the splash, so the icon-open zoom
+  # blends into the launch screen instead of flashing a lighter-green box.
+  image_path_ios: "assets/branding/dhenu-app-icon.png"
   android: true
   ios: true
   remove_alpha_ios: true
@@ -87,14 +88,11 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/branding/dhenu-app-logo.png"
 
 flutter_native_splash:
-  # Padded asset (drop centred on a transparent canvas) so the splash logo
-  # renders at ~40% width instead of full-bleed/oversized. See dhenu-splash-logo.png.
+  # Plain emerald bridge only — no logo. The branded, animated drop + wordmark
+  # + tagline live in the in-app SplashScreen (lib/screens/auth/splash_screen.dart),
+  # which takes over the moment the engine boots and the drop falls in cleanly.
   color: "#0F7A5A"
-  image: "assets/branding/dhenu-splash-logo.png"
   color_dark: "#0B5E45"
-  image_dark: "assets/branding/dhenu-splash-logo.png"
   android_12:
     color: "#0F7A5A"
-    image: "assets/branding/dhenu-splash-logo.png"
     color_dark: "#0B5E45"
-    image_dark: "assets/branding/dhenu-splash-logo.png"
