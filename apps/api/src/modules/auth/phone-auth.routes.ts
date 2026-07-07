@@ -2,16 +2,34 @@ import { FastifyPluginAsync } from 'fastify';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
-import { users, employees } from '@runq/db';
+import { users, employees, tenants } from '@runq/db';
 import { otpRequestSchema, phoneLoginSchema } from '@runq/validators';
-import { NotFoundError } from '../../utils/errors';
+import { NotFoundError, UnauthorizedError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
 import { sendPhoneOtp, verifyPhoneOtp } from '../../utils/otp/phone-otp.service';
-import { ensureMembership, issueSession } from './auth-session';
+import { ensureMembership, issueSession, dobToDDMMYY } from './auth-session';
 import { loadEnv } from '../../config/env';
 
 // Isolate the HR/runq OTP Redis keys from Dhenu's ('mp').
 const HR_OTP = { namespace: 'hr', label: 'runq' } as const;
+
+// App Store / Play review sign-in, driven entirely by seeded DB data (no env
+// config): an employee in the reviewer demo tenant who carries a date_of_birth
+// accepts that DOB's DDMMYY form as the OTP, and never triggers an SMS. Scoped
+// to the demo tenant so a real employee's DOB is never a login shortcut.
+// Returns the expected code, or null for real logins.
+const DEMO_TENANT_SLUG = 'runq-demo';
+
+async function demoOtpFor(db: any, emp: any): Promise<string | null> {
+  if (!emp.dateOfBirth) return null;
+  const [t] = await db
+    .select({ slug: tenants.slug })
+    .from(tenants)
+    .where(eq(tenants.id, emp.tenantId))
+    .limit(1);
+  if (t?.slug !== DEMO_TENANT_SLUG) return null;
+  return dobToDDMMYY(emp.dateOfBirth);
+}
 
 // Match an employee by phone — digit-normalised so rows stored with spaces,
 // +91, or a leading 91 still resolve. Returns null when no employee matches.
@@ -73,12 +91,17 @@ async function requireEmployeePhone(app: any, phoneRaw: string): Promise<{ phone
 export const phoneAuthRoutes: FastifyPluginAsync = async (app) => {
   // Step 1 — send the SMS code. Gated on an existing employee (no self-signup),
   // then handed to the shared Redis+MSG91 OTP service. `devCode` is returned
-  // outside production so headless e2e scripts can complete without SMS.
+  // outside production so headless e2e scripts can complete without SMS. The
+  // review demo account sends no SMS — the reviewer uses its seeded code.
   app.post('/otp/request', async (request, reply) => {
     const { phone } = otpRequestSchema.parse(request.body);
-    const { phone: normalised } = await requireEmployeePhone(app, phone);
-    const devCode = await sendPhoneOtp(app, normalised, HR_OTP);
+    const { phone: normalised, emp } = await requireEmployeePhone(app, phone);
     const isProd = loadEnv().NODE_ENV === 'production';
+    const demoCode = await demoOtpFor(app.db, emp);
+    if (demoCode) {
+      return reply.send({ data: { sent: true, ...(isProd ? {} : { devCode: demoCode }) } });
+    }
+    const devCode = await sendPhoneOtp(app, normalised, HR_OTP);
     return reply.send({ data: { sent: true, ...(isProd ? {} : { devCode }) } });
   });
 
@@ -88,7 +111,12 @@ export const phoneAuthRoutes: FastifyPluginAsync = async (app) => {
   app.post('/phone/login', async (request, reply) => {
     const { phone, otp } = phoneLoginSchema.parse(request.body);
     const { phone: normalised, emp } = await requireEmployeePhone(app, phone);
-    await verifyPhoneOtp(app, normalised, otp, HR_OTP);
+    const demoCode = await demoOtpFor(app.db, emp);
+    if (demoCode) {
+      if (otp !== demoCode) throw new UnauthorizedError('Invalid or expired code');
+    } else {
+      await verifyPhoneOtp(app, normalised, otp, HR_OTP);
+    }
 
     const user = await resolveOrProvisionUser(app.db, emp, normalised);
     if (user.authProvider !== 'phone' || !user.phone) {

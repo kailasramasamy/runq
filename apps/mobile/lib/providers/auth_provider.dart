@@ -144,6 +144,20 @@ class AuthController extends StateNotifier<AuthState> {
     unawaited(PushService.instance.onLogin());
   }
 
+  /// Permanently delete the signed-in account (Apple 5.1.1(v)). The server drops
+  /// the tenant membership and anonymises + deactivates the login; we then clear
+  /// the local session so the router falls back to sign-in. The employer's HR
+  /// records are retained (anonymised of this login) — an admin can re-invite.
+  Future<void> deleteAccount() async {
+    await PushService.instance.onLogout();
+    await apiClient.delete('/account');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    apiClient.setToken(null);
+    _otpPhone = null;
+    state = const AuthState(isLoading: false);
+  }
+
   Future<void> logout() async {
     // Unregister the device first — the API call needs the still-valid token.
     await PushService.instance.onLogout();

@@ -13,6 +13,7 @@ import { requireModule } from './hooks/module-access';
 import type { ModuleCode } from '@runq/types';
 import { authRoutes } from './modules/auth/routes';
 import { phoneAuthRoutes } from './modules/auth/phone-auth.routes';
+import { accountRoutes } from './modules/auth/account.routes';
 import { mpAuthRoutes } from './modules/milk-procurement/mp-auth.routes';
 import { apRoutes } from './modules/ap/routes';
 import { purchaseRoutes } from './modules/purchase/routes';
@@ -139,6 +140,7 @@ export async function buildApp() {
 
     // Shared / cross-cutting — NOT module-gated. A single-module user still
     // needs masters, settings, attachments, reports, audit, agent, etc.
+    await scope.register(accountRoutes, { prefix: '/api/v1/account' });
     await scope.register(dashboardRoutes, { prefix: '/api/v1/dashboard' });
     await scope.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
     await scope.register(settingsRoutes, { prefix: '/api/v1/settings' });

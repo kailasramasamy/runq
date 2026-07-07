@@ -143,9 +143,9 @@ class SignInScreen extends ConsumerStatefulWidget {
 }
 
 // Two-step phone-OTP sign-in:
-//   - `phone` — enter the mobile number; we send an SMS code via Firebase.
-//   - `otp`   — enter the 6-digit code Firebase texted, which proves ownership
-//               of the number and signs the matching employee in.
+//   - `phone` — enter the mobile number; the server texts a code via MSG91.
+//   - `otp`   — enter the 6-digit code, which the server verifies (Redis) and
+//               signs the matching employee in.
 enum _Step { phone, otp }
 
 // Seconds to wait before the "Resend code" link becomes tappable again.

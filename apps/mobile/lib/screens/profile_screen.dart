@@ -137,7 +137,21 @@ class ProfileScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _SignOutButton(onTap: () => _confirmSignOut(context, ref)),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _confirmDeleteAccount(context, ref),
+                      child: Text(
+                        'Delete account',
+                        style: RunqText.caption.copyWith(
+                          color: const Color(0xFFB91C1C),
+                          decoration: TextDecoration.underline,
+                          decorationColor: const Color(0xFFB91C1C),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   const _Footer(),
                 ],
               ),
@@ -221,6 +235,40 @@ class ProfileScreen extends ConsumerWidget {
     await ref.read(authProvider.notifier).logout();
     if (!context.mounted) return;
     showRunqSnack(context, 'Signed out', kind: SnackKind.success);
+    context.go('/signin');
+  }
+
+  // Permanent, destructive — a single explicit confirm gated on the danger copy.
+  // The employer's business records are retained; only this login is removed.
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently removes your runQ login and revokes your access. '
+          'Your organisation keeps its own business records. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete account'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(authProvider.notifier).deleteAccount();
+    } catch (e) {
+      if (!context.mounted) return;
+      showRunqSnack(context, 'Could not delete account. Please try again.', kind: SnackKind.error);
+      return;
+    }
+    if (!context.mounted) return;
+    showRunqSnack(context, 'Account deleted', kind: SnackKind.success);
     context.go('/signin');
   }
 }
