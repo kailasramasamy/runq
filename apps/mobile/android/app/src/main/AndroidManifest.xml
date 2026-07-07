@@ -5,7 +5,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- These permissions imply hardware features Play treats as REQUIRED by
+         default, which filters out devices without them (e.g. no GPS, no
+         autofocus). Mark them optional so the app stays available to all
+         devices — the features are conveniences, not requirements. -->
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+    <uses-feature android:name="android.hardware.location" android:required="false"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <application
         android:label="runQ"
         android:name="${applicationName}"
