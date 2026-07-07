@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Android 13+ runtime permission for FCM push notifications. -->
@@ -9,8 +10,14 @@
          default, which filters out devices without them (e.g. no GPS, no
          autofocus). Mark them optional so the app stays available to all
          devices — the features are conveniences, not requirements. -->
-    <uses-feature android:name="android.hardware.camera" android:required="false"/>
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+    <!-- tools:replace forces our required="false" to win over the camera/
+         image_picker plugin manifests, which declare camera required="true"
+         (the merger ORs android:required, so true would otherwise win and drop
+         camera-less devices). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"
+        tools:replace="android:required"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"
+        tools:replace="android:required"/>
     <uses-feature android:name="android.hardware.location" android:required="false"/>
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <application
