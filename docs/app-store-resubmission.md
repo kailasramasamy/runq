@@ -98,15 +98,20 @@ set the app's device support to iPhone.
 
 ## 3. Reviewer notes (App Store Connect → App Review Information)
 
-Paste this once the demo account is seeded in **production**:
+The demo account is **seeded in production** (verified against the live API):
 
 > Sign in with phone number and one-time code.
-> Demo account (no SMS needed):
->   Mobile number: 9000000001   (the runq-demo reviewer account)
->   Code: <the account's DDMMYY, e.g. 010190>
-> Enter the number, tap "Send code", then enter the code above.
+> Demo account (no SMS is sent — the code is fixed for this account):
+>   Mobile number: 9000000002
+>   Code: 010190
+> Enter the number, tap "Send code", then enter the code above. This signs you
+> in as an owner of the "runQ Demo Co" workspace with full access.
 > This is a B2B business app; subscriptions are purchased on https://runq.in,
 > not in the app.
+
+(Phone `9000000001` is the separate **Dhenu** app's reviewer operator — the
+runQ HR/finance reviewer uses `9000000002`. Re-seed either with
+`apps/api/scripts/provision-runq-demo-login.ts` against the prod `DATABASE_URL`.)
 
 ---
 
@@ -122,12 +127,11 @@ Program account enrolled as an **organization** (not individual). Now handled.
 
 ## 4. Remaining manual steps (before archiving/uploading)
 
-1. **Seed the production demo account.** In prod DB, ensure a tenant with slug
-   `runq-demo` exists with **finance + hr modules enabled** and a little sample
-   data (a few invoices/employees) so the app looks functional. Add an employee
-   with a known phone (e.g. `9000000001`) and a `date_of_birth`. The reviewer
-   signs in with that number and the DOB's DDMMYY code — no SMS. (Mirror
-   `apps/api/scripts/provision-mp-demo.ts`, which does this for Dhenu.)
+1. **Production demo account — DONE.** Seeded via
+   `apps/api/scripts/provision-runq-demo-login.ts` (owner user + demo employee in
+   the `runq-demo` tenant, phone `9000000002`, code `010190`, no SMS). Re-run
+   with `DATABASE_URL=<prod> tsx apps/api/scripts/provision-runq-demo-login.ts`
+   if it ever needs refreshing.
 2. **Verify the privacy manifest is bundled** — open `ios/Runner.xcodeproj` in
    Xcode, confirm `PrivacyInfo.xcprivacy` is in the Runner target's "Copy Bundle
    Resources" (it was added to `project.pbxproj`; a visual check is worth it).
