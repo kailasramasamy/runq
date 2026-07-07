@@ -1,20 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
-import '../services/firebase_auth_service.dart';
 import '../services/push_service.dart';
 
 const _tokenKey = 'runq-token';
-
-/// Outcome of a Google/Apple sign-in attempt.
-///  - `signedIn`     — already bound; a runq session is now active.
-///  - `needsBinding` — first login; the UI must collect phone + DOB and call
-///    [AuthController.bindWithDob].
-///  - `cancelled`    — user dismissed the provider sheet; show nothing.
-enum SocialResult { signedIn, needsBinding, cancelled }
 
 class AuthUser {
   final String id, email;
@@ -98,61 +89,38 @@ class AuthController extends StateNotifier<AuthState> {
     await _finishLogin(res);
   }
 
-  // Mobile sign-in is Google/Apple only. The Firebase ID token from a
-  // successful first sign-in is held here so the follow-up bind call (phone +
-  // DOB) can reuse it without a second social handshake.
-  String? _pendingIdToken;
+  // The number the current OTP was sent to, held between the request and verify
+  // steps so the login call submits the exact same phone.
+  String? _otpPhone;
 
-  Future<SocialResult> signInWithGoogle() =>
-      _socialSignIn(FirebaseAuthService.instance.googleIdToken());
-
-  Future<SocialResult> signInWithApple() =>
-      _socialSignIn(FirebaseAuthService.instance.appleIdToken());
-
-  Future<SocialResult> _socialSignIn(Future<String> idTokenFuture) async {
-    final String idToken;
-    try {
-      idToken = await idTokenFuture;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'cancelled') return SocialResult.cancelled;
-      rethrow;
-    }
-    final res = await apiClient.post('/auth/social/login', {'idToken': idToken});
-    final data = (res is Map && res['data'] is Map) ? res['data'] as Map : null;
-    if (data != null && data['needsBinding'] == true) {
-      _pendingIdToken = idToken;
-      return SocialResult.needsBinding;
-    }
-    await _finishLogin(res);
-    return SocialResult.signedIn;
+  /// Request an SMS OTP for the given 10-digit national [phone]. The server
+  /// (MSG91 + Redis) sends and stores the code; nothing is verified client-side.
+  /// Throws [ApiException] (e.g. 404 when no employee matches the number).
+  Future<void> requestOtp(String phone) async {
+    final national = _national(phone);
+    await apiClient.post('/auth/otp/request', {'phone': national});
+    _otpPhone = national;
   }
 
-  /// Standalone phone + DOB login (no Google/Apple). For iOS users without a
-  /// Google account, and as an Android fallback. Server matches the employee by
-  /// [phone] and verifies [dob] (DDMMYY); no Firebase identity is involved.
-  Future<void> loginWithDob(String phone, String dob) async {
-    final res = await apiClient.post('/auth/phone-dob/login', {
-      'phone': phone.trim(),
-      'dob': dob.trim(),
+  /// Submit the user-typed [otp] for the number the code was sent to. On success
+  /// the server verifies the code, matches the employee, and returns a runq JWT.
+  Future<void> submitOtp(String otp) async {
+    final phone = _otpPhone;
+    if (phone == null) {
+      throw ApiException(statusCode: 0, message: 'Request a code first');
+    }
+    final res = await apiClient.post('/auth/phone/login', {
+      'phone': phone,
+      'otp': otp.trim(),
     });
     await _finishLogin(res);
+    _otpPhone = null;
   }
 
-  /// First-login bind: links the just-signed-in Google/Apple identity to the
-  /// employee matched by [phone], gated on [dob] (DDMMYY). On success the
-  /// server returns a runq JWT exactly like a normal login.
-  Future<void> bindWithDob(String phone, String dob) async {
-    final token = _pendingIdToken;
-    if (token == null) {
-      throw ApiException(statusCode: 0, message: 'Sign in with Google or Apple first');
-    }
-    final res = await apiClient.post('/auth/social/bind', {
-      'idToken': token,
-      'phone': phone.trim(),
-      'dob': dob.trim(),
-    });
-    await _finishLogin(res);
-    _pendingIdToken = null;
+  // Reduce any input to the bare 10-digit national number the API expects.
+  String _national(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
   }
 
   Future<void> _finishLogin(Object? res) async {
@@ -179,14 +147,10 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> logout() async {
     // Unregister the device first — the API call needs the still-valid token.
     await PushService.instance.onLogout();
-    // Clear the Firebase/Google session so the next sign-in shows the picker.
-    try {
-      await FirebaseAuthService.instance.signOut();
-    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     apiClient.setToken(null);
-    _pendingIdToken = null;
+    _otpPhone = null;
     state = const AuthState(isLoading: false);
   }
 

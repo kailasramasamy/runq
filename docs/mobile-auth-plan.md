@@ -1,8 +1,77 @@
 # runq Mobile Auth — Implementation Plan
 
-**Status:** IMPLEMENTED (2026-06-11) — DOB-gated variant. Code complete; pending
-manual Firebase Console + native config before on-device testing (see
-"Implemented variant" below).
+**Status:** IMPLEMENTED (2026-07-07) — **phone-OTP only via MSG91** (server-side
+send/verify over Redis), reusing the exact infra Dhenu uses. This supersedes
+every earlier variant below (Firebase Phone Auth, Google/Apple + DOB).
+
+> ## Current variant — MSG91 phone OTP (2026-07-07)
+>
+> Mobile sign-in is a single path: **phone number → SMS OTP**. The **server**
+> generates, stores (Redis, 5-min TTL), and verifies the code; **MSG91 is only
+> the SMS channel**. No Firebase Auth is involved. The verified OTP is the
+> ownership proof, so **DOB, Google, and Apple are all gone** — a phone-only app
+> also sidesteps App Store guideline 4.8 (no third-party social login).
+>
+> **Flow**
+> 1. User enters mobile number → `POST /auth/otp/request {phone}`.
+> 2. Server gates on an existing employee (404 otherwise — no SMS to strangers),
+>    then `sendPhoneOtp` generates a 6-digit code, stores it in Redis under
+>    `hr:otp:*`, and texts it via MSG91. Dev returns the code as `devCode`.
+> 3. User enters the code → `POST /auth/phone/login {phone, otp}`.
+> 4. Server `verifyPhoneOtp` (attempt-capped) → match employee by phone →
+>    auto-provision/reuse user → set `auth_provider = 'phone'` → issue runq JWT.
+> 5. A phone matching **no employee** is rejected (404) — no self-signup.
+>
+> **Trust boundary:** the OTP is verified server-side against the Redis store;
+> the client never asserts identity. Rate limits: 5 sends/hr, 5 verify tries per
+> code (shared OTP service).
+>
+> **Shared OTP infra:** `utils/otp/phone-otp.service.ts` — `sendPhoneOtp` /
+> `verifyPhoneOtp`, keyed by a `namespace` (`hr` for runq, `mp` for Dhenu) so
+> the two flows never share OTP state. `utils/messaging/msg91.ts#sendOtpSms` is
+> the SMS transport. Dhenu's `mp-otp.service.ts` now delegates to this service
+> (namespace `mp`, identical keys/behaviour). Env vars (already set, shared with
+> Dhenu): `MSG91_AUTH_KEY` / `SENDER_ID` / `ROUTE` / `OTP_TEMPLATE_ID`. Unset
+> auth key → dev logs the code, no SMS.
+>
+> **Touched:**
+> - API: new `utils/otp/phone-otp.service.ts` (shared, namespaced); `mp-otp.service.ts`
+>   → thin delegator; new `auth/phone-auth.routes.ts` (`POST /auth/otp/request`
+>   + `POST /auth/phone/login {phone, otp}`), replacing the deleted
+>   `social-auth.routes.ts`; `auth-session.ts` stripped of the Firebase helpers
+>   (`verifyIdToken`, `readPhoneNumber`) — `dobToDDMMYY` kept (Dhenu uses it);
+>   `push/firebase-admin.ts` dropped the unused `getFirebaseAuth` (FCM messaging
+>   stays); `app.ts` registers `phoneAuthRoutes`.
+> - Validators: `social-auth.schema.ts` → `otpRequestSchema {phone}` +
+>   `phoneLoginSchema {phone, otp}`.
+> - Mobile: deleted `firebase_auth_service.dart`; `auth_provider.dart`
+>   (`requestOtp` / `submitOtp` over HTTP, holds `_otpPhone` between steps);
+>   `signin_screen.dart` (same two-step `_Step{phone, otp}` UI + resend
+>   countdown, now calling the HTTP endpoints); `pubspec.yaml` removed
+>   `firebase_auth` (kept `firebase_core` + `firebase_messaging` for FCM push).
+> - Left in place (harmless): `employees.mobile_bind_attempts` column + migration
+>   `0130`, web "Reset mobile login" button (now near-moot — every login
+>   re-verifies OTP against the current phone).
+>
+> **Verified:** `apps/api/scripts/e2e-hr-otp.ts` (8/8: unknown→404, request→devCode,
+> wrong-otp→401, login→token, /auth/me) and Dhenu regression `e2e-mp-auth.ts`
+> (9/9) both green. `flutter analyze` clean on touched files.
+>
+> **Manual setup:** none new — MSG91 env vars are shared with Dhenu and already
+> configured. No Firebase Console / APNs / SHA / Blaze requirements. (For real
+> SMS in prod, MSG91 must have credit + an approved OTP template.)
+
+---
+
+### Older: Firebase Phone OTP variant (2026-07-07, same day) — superseded by MSG91
+
+The intermediate step used Firebase Phone Auth (`verifyPhoneNumber` client-side,
+`readPhoneNumber` server-side). Replaced by MSG91 to reuse Dhenu's infra and
+avoid Firebase Auth / Blaze / SHA-key setup. Firebase now only powers FCM push.
+
+---
+
+### Older: DOB-gated variant (2026-06-11) — superseded
 
 > ## Implemented variant (supersedes the MSG91/Firebase-Phone design below)
 >

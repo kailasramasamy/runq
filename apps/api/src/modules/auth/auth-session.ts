@@ -1,36 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
-import type { DecodedIdToken } from 'firebase-admin/auth';
 import { tenants, userTenants, userRoleEnum } from '@runq/db';
-import { UnauthorizedError, AppError } from '../../utils/errors';
-import { getFirebaseAuth } from '../../utils/push/firebase-admin';
+import { UnauthorizedError } from '../../utils/errors';
 import { loadEnv } from '../../config/env';
 
 const env = loadEnv();
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
-
-// Verify a Firebase ID token. checkRevoked=true catches a stale token after an
-// admin disables/resets the Firebase user — important for the reset-login flow.
-// Shared by HR (`employees`) and Dhenu (`mp_credentials`) social auth.
-export async function verifyIdToken(idToken: string): Promise<DecodedIdToken> {
-  const auth = getFirebaseAuth();
-  if (!auth) throw new AppError(503, 'Firebase auth not configured', 'ConfigError');
-  try {
-    return await auth.verifyIdToken(idToken, true);
-  } catch {
-    throw new UnauthorizedError('Invalid or expired sign-in token');
-  }
-}
-
-// Which social provider minted this token. Bind/login only trust Google/Apple —
-// never a bare phone or anonymous identity.
-export function readSocialProvider(t: DecodedIdToken): 'google' | 'apple' | null {
-  const ids = (t.firebase?.identities ?? {}) as Record<string, unknown>;
-  if (Array.isArray(ids['google.com'])) return 'google';
-  if (Array.isArray(ids['apple.com'])) return 'apple';
-  return null;
-}
 
 // A stored date_of_birth → DDMMYY, the format the mobile client submits. Returns
 // null when no DOB is on file. drizzle's `date` column comes back 'YYYY-MM-DD';

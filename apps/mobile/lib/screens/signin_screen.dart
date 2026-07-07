@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +9,6 @@ import '../providers/app_module_provider.dart';
 import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/hr_providers.dart';
-import '../services/firebase_auth_service.dart';
 import '../theme/runq_theme.dart';
 
 // Theme-aware colour palette for the sign-in screen. The whole screen used
@@ -143,20 +142,23 @@ class SignInScreen extends ConsumerStatefulWidget {
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-// `choose` shows the sign-in options: Continue with Google, plus a phone +
-// date-of-birth path for users without a Google account. Two ways DOB is used:
-//   - `bind`     — after a first Google sign-in, links the social identity to
-//                  the employee (one-time; every Google login after is one tap).
-//   - `dobLogin` — standalone phone + DOB login, no Google at all.
-// Both collect phone + DDMMYY; they differ only in which API call they make.
-enum _Step { choose, bind, dobLogin }
+// Two-step phone-OTP sign-in:
+//   - `phone` — enter the mobile number; we send an SMS code via Firebase.
+//   - `otp`   — enter the 6-digit code Firebase texted, which proves ownership
+//               of the number and signs the matching employee in.
+enum _Step { phone, otp }
+
+// Seconds to wait before the "Resend code" link becomes tappable again.
+const _resendCooldown = 30;
 
 class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerProviderStateMixin {
   final _phone = TextEditingController();
-  final _dob = TextEditingController();
-  _Step _step = _Step.choose;
+  final _otp = TextEditingController();
+  _Step _step = _Step.phone;
   bool _loading = false;
   String? _error;
+  Timer? _resendTimer;
+  int _resendIn = 0;
 
   late final AnimationController _enter;
   late final Animation<double> _logoFade;
@@ -182,67 +184,56 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   @override
   void dispose() {
     _phone.dispose();
-    _dob.dispose();
+    _otp.dispose();
+    _resendTimer?.cancel();
     _enter.dispose();
     super.dispose();
   }
 
-  Future<void> _google() => _social(() => ref.read(authProvider.notifier).signInWithGoogle());
-  Future<void> _apple() => _social(() => ref.read(authProvider.notifier).signInWithApple());
-
-  // Run a provider sign-in: land if already bound, switch to the bind step if
-  // this is a first login, do nothing if the user cancelled the sheet.
-  Future<void> _social(Future<SocialResult> Function() run) async {
+  // Request (or resend) the SMS code for the entered number. The server sends
+  // it via MSG91; on success we advance to the code step and start the resend
+  // cooldown. A 404 means the number isn't on file.
+  Future<void> _sendCode() async {
     FocusScope.of(context).unfocus();
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final result = await run();
-      if (!mounted) return;
-      if (result == SocialResult.signedIn) {
-        await _land();
-      } else if (result == SocialResult.needsBinding) {
-        setState(() => _step = _Step.bind);
-      }
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.message);
-    } catch (e) {
-      if (!mounted) return;
-      debugPrint('[signin] social error: $e');
-      setState(() => _error = kDebugMode
-          ? 'Sign-in failed: $e'
-          : 'Could not sign in. Check your connection and try again.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _goToDobLogin() => setState(() {
-        _step = _Step.dobLogin;
-        _dob.clear();
-        _error = null;
-      });
-
-  void _back() => setState(() {
-        _step = _Step.choose;
-        _dob.clear();
-        _error = null;
-      });
-
-  // Submit the phone + DOB form. In `bind` it links the just-signed-in
-  // Google/Apple identity to the employee; in `dobLogin` it's a standalone
-  // login with no social identity. Same validation + error handling either way.
-  Future<void> _submitDob() async {
-    FocusScope.of(context).unfocus();
-    if (_phone.text.replaceAll(RegExp(r'\D'), '').length < 10) {
+    if (_phone.text.replaceAll(RegExp(r'\D'), '').length != 10) {
       setState(() => _error = 'Enter a valid 10-digit mobile number.');
       return;
     }
-    if (_dob.text.trim().length != 6) {
-      setState(() => _error = 'Enter your date of birth as DDMMYY.');
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authProvider.notifier).requestOtp(_phone.text);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _step = _Step.otp;
+      });
+      _startResendCountdown();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.statusCode == 404
+            ? 'No employee found for this number. Ask your admin to add you.'
+            : e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('[signin] sendCode error: $e');
+      setState(() {
+        _loading = false;
+        _error = 'Could not send the code. Check your connection and try again.';
+      });
+    }
+  }
+
+  // Verify the typed 6-digit code, then land on success.
+  Future<void> _verify() async {
+    FocusScope.of(context).unfocus();
+    if (_otp.text.trim().length != 6) {
+      setState(() => _error = 'Enter the 6-digit code from the SMS.');
       return;
     }
     setState(() {
@@ -250,32 +241,43 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
       _error = null;
     });
     try {
-      final auth = ref.read(authProvider.notifier);
-      if (_step == _Step.dobLogin) {
-        await auth.loginWithDob(_phone.text, _dob.text);
-      } else {
-        await auth.bindWithDob(_phone.text, _dob.text);
-      }
+      await ref.read(authProvider.notifier).submitOtp(_otp.text);
       if (!mounted) return;
       await _land();
     } on ApiException catch (e) {
       if (!mounted) return;
-      // Wipe a wrong DOB so the boxes reset cleanly for the retry; the server
-      // message already carries the remaining-attempts / lockout copy.
-      if (e.statusCode == 401) _dob.clear();
+      _otp.clear();
       setState(() => _error = e.statusCode == 404
           ? 'No employee found for this number. Ask your admin to add you.'
           : e.message);
     } catch (e) {
       if (!mounted) return;
-      debugPrint('[signin] bind error: $e');
-      setState(() => _error = kDebugMode
-          ? 'Connection failed: $e'
-          : 'Could not reach the server. Check your connection.');
+      _otp.clear();
+      debugPrint('[signin] verify error: $e');
+      setState(() => _error = 'Could not reach the server. Check your connection.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() => _resendIn = _resendCooldown);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _resendIn -= 1);
+      if (_resendIn <= 0) t.cancel();
+    });
+  }
+
+  // Return to the number step to correct a typo or use a different phone.
+  void _editNumber() => setState(() {
+        _step = _Step.phone;
+        _otp.clear();
+        _error = null;
+        _resendTimer?.cancel();
+        _resendIn = 0;
+      });
 
   // Wait briefly for /hr/me so the landing matches role on first paint —
   // admins get Finance Home, everyone else gets HR Home. The router redirect
@@ -347,17 +349,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           child: _SignInCard(
                             palette: p,
                             phone: _phone,
-                            dob: _dob,
+                            otp: _otp,
                             step: _step,
                             error: _error,
                             loading: _loading,
-                            appleSupported:
-                                FirebaseAuthService.instance.appleSignInSupported,
-                            onGoogle: _google,
-                            onApple: _apple,
-                            onUseDob: _goToDobLogin,
-                            onSubmitDob: _submitDob,
-                            onBack: _back,
+                            resendIn: _resendIn,
+                            onSendCode: _sendCode,
+                            onVerify: _verify,
+                            onResend: _sendCode,
+                            onEditNumber: _editNumber,
                           ),
                         ),
                       ),
@@ -508,29 +508,27 @@ class _SessionExpiredBanner extends StatelessWidget {
 
 class _SignInCard extends StatelessWidget {
   final _Palette palette;
-  final TextEditingController phone, dob;
+  final TextEditingController phone, otp;
   final _Step step;
   final String? error;
   final bool loading;
-  final bool appleSupported;
-  final VoidCallback onGoogle;
-  final VoidCallback onApple;
-  final VoidCallback onUseDob;
-  final VoidCallback onSubmitDob;
-  final VoidCallback onBack;
+  final int resendIn;
+  final VoidCallback onSendCode;
+  final VoidCallback onVerify;
+  final VoidCallback onResend;
+  final VoidCallback onEditNumber;
   const _SignInCard({
     required this.palette,
     required this.phone,
-    required this.dob,
+    required this.otp,
     required this.step,
     required this.error,
     required this.loading,
-    required this.appleSupported,
-    required this.onGoogle,
-    required this.onApple,
-    required this.onUseDob,
-    required this.onSubmitDob,
-    required this.onBack,
+    required this.resendIn,
+    required this.onSendCode,
+    required this.onVerify,
+    required this.onResend,
+    required this.onEditNumber,
   });
 
   @override
@@ -548,7 +546,7 @@ class _SignInCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (step == _Step.choose) ..._chooseBody() else ..._dobBody(),
+          if (step == _Step.phone) ..._phoneBody() else ..._otpBody(),
           if (error != null) ...[
             const SizedBox(height: 14),
             _ErrorBanner(palette: palette, message: error!),
@@ -558,74 +556,12 @@ class _SignInCard extends StatelessWidget {
     );
   }
 
-  List<Widget> _chooseBody() {
-    return [
-      _SocialButton(
-        palette: palette,
-        label: 'Continue with Google',
-        logo: SvgPicture.asset('assets/branding/google-g.svg', width: 18, height: 18),
-        background: Colors.white,
-        foreground: const Color(0xFF1F1F1F),
-        border: palette.fieldBorder,
-        onPressed: loading ? null : onGoogle,
-      ),
-      if (appleSupported) ...[
-        const SizedBox(height: 12),
-        _SocialButton(
-          palette: palette,
-          label: 'Continue with Apple',
-          logo: const Icon(Icons.apple, size: 22, color: Colors.white),
-          background: Colors.black,
-          foreground: Colors.white,
-          onPressed: loading ? null : onApple,
-        ),
-      ],
-      if (loading)
-        const Padding(
-          padding: EdgeInsets.only(top: 16),
-          child: Center(
-            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-        )
-      else ...[
-        // Divider so the no-Google path reads as a clear alternative, not a
-        // lesser option — important since some users won't have Google.
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Row(
-            children: [
-              Expanded(child: Divider(color: palette.cardBorder, height: 1)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text('or', style: RunqText.caption.copyWith(color: palette.subtleInk)),
-              ),
-              Expanded(child: Divider(color: palette.cardBorder, height: 1)),
-            ],
-          ),
-        ),
-        _SocialButton(
-          palette: palette,
-          label: 'Use phone & date of birth',
-          logo: Icon(Icons.phone_iphone_rounded, size: 18, color: palette.linkInk),
-          background: palette.fieldBg,
-          foreground: palette.titleInk,
-          border: palette.fieldBorder,
-          onPressed: onUseDob,
-        ),
-      ],
-    ];
-  }
-
-  List<Widget> _dobBody() {
-    final isLogin = step == _Step.dobLogin;
+  List<Widget> _phoneBody() {
     return [
       Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Text(
-          isLogin
-              ? 'Enter your mobile number and security code to sign in.'
-              : "First time here? Confirm it's you with your phone number and "
-                  "security code. You'll only do this once.",
+          'Enter your mobile number and we\'ll text you a one-time code.',
           style: RunqText.caption.copyWith(color: palette.subtitleInk),
         ),
       ),
@@ -638,104 +574,122 @@ class _SignInCard extends StatelessWidget {
         keyboardType: TextInputType.phone,
         leadingText: '+91',
         autofillHints: const [AutofillHints.telephoneNumber],
-        textInputAction: TextInputAction.next,
+        textInputAction: TextInputAction.done,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(10),
         ],
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
+      _PrimaryButton(
+        palette: palette,
+        loading: loading,
+        icon: Icons.sms_outlined,
+        label: 'Send code',
+        onPressed: loading ? null : onSendCode,
+      ),
+    ];
+  }
+
+  List<Widget> _otpBody() {
+    return [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text.rich(
+          TextSpan(
+            style: RunqText.caption.copyWith(color: palette.subtitleInk),
+            children: [
+              const TextSpan(text: 'Enter the 6-digit code sent to '),
+              TextSpan(
+                text: '+91 ${phone.text}',
+                style: RunqText.caption.copyWith(color: palette.titleInk),
+              ),
+              const TextSpan(text: '.'),
+            ],
+          ),
+        ),
+      ),
       _OtpInput(
         palette: palette,
-        controller: dob,
+        controller: otp,
         loading: loading,
-        label: 'Security code',
-        hint: 'DOB · DDMMYY',
-        autofocus: false,
-        onCompleted: onSubmitDob,
+        label: 'Verification code',
+        autofocus: true,
+        onCompleted: onVerify,
       ),
       const SizedBox(height: 18),
-      SizedBox(
-        height: 48,
-        child: FilledButton(
-          onPressed: loading ? null : onSubmitDob,
-          style: FilledButton.styleFrom(
-            backgroundColor: palette.primaryBtn,
-            disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: loading
-              ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.login_rounded, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      isLogin ? 'Sign in' : 'Verify & continue',
-                      style: RunqText.bodyStrong.copyWith(color: Colors.white),
-                    ),
-                  ],
-                ),
-        ),
+      _PrimaryButton(
+        palette: palette,
+        loading: loading,
+        icon: Icons.login_rounded,
+        label: 'Verify & sign in',
+        onPressed: loading ? null : onVerify,
       ),
       const SizedBox(height: 6),
-      Center(
-        child: TextButton(
-          onPressed: loading ? null : onBack,
-          child: Text(isLogin ? 'Back' : 'Use a different account',
-              style: RunqText.bodyStrong.copyWith(color: palette.linkInk)),
-        ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton(
+            onPressed: loading ? null : onEditNumber,
+            child: Text('Change number',
+                style: RunqText.bodyStrong.copyWith(color: palette.linkInk)),
+          ),
+          TextButton(
+            onPressed: (loading || resendIn > 0) ? null : onResend,
+            child: Text(
+              resendIn > 0 ? 'Resend in ${resendIn}s' : 'Resend code',
+              style: RunqText.bodyStrong.copyWith(
+                color: resendIn > 0 ? palette.subtleInk : palette.linkInk,
+              ),
+            ),
+          ),
+        ],
       ),
     ];
   }
 }
 
-// Provider sign-in button — a logo + label on a brand-coloured pill.
-class _SocialButton extends StatelessWidget {
+// The card's primary action — a full-width brand-coloured pill with a spinner
+// while [loading].
+class _PrimaryButton extends StatelessWidget {
   final _Palette palette;
+  final bool loading;
+  final IconData icon;
   final String label;
-  final Widget logo;
-  final Color background, foreground;
-  final Color? border;
   final VoidCallback? onPressed;
-  const _SocialButton({
+  const _PrimaryButton({
     required this.palette,
+    required this.loading,
+    required this.icon,
     required this.label,
-    required this.logo,
-    required this.background,
-    required this.foreground,
-    this.border,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 50,
+      height: 48,
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: border == null ? BorderSide.none : BorderSide(color: border!, width: 0.5),
-          ),
+          backgroundColor: palette.primaryBtn,
+          disabledBackgroundColor: palette.primaryBtn.withValues(alpha: 0.6),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            logo,
-            const SizedBox(width: 10),
-            Text(label, style: RunqText.bodyStrong.copyWith(color: foreground)),
-          ],
-        ),
+        child: loading
+            ? const SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16),
+                  const SizedBox(width: 8),
+                  Text(label, style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+                ],
+              ),
       ),
     );
   }
@@ -813,13 +767,14 @@ class _ThemedField extends StatelessWidget {
             autofillHints: autofillHints,
             textInputAction: textInputAction,
             inputFormatters: inputFormatters,
-            // resizeToAvoidBottomInset is false, so the scroll viewport runs
-            // full-height behind the keypad and scrollPadding is measured from
-            // the screen bottom. To lift the focused field clear of the keypad
-            // we must add the keyboard height; the +220 then makes room for the
-            // DOB boxes + Sign-in button that sit ~160px below this field.
+            // resizeToAvoidBottomInset is false, so the viewport runs full-height
+            // behind the keypad; scrollPadding is measured from the screen
+            // bottom, hence the keyboard height. Only a small margin on top —
+            // the field sits well above the keypad and just needs the "Send
+            // code" button below it clear. A larger value over-scrolls and
+            // clips the logo off the top.
             scrollPadding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 220),
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24),
             style: RunqText.body.copyWith(color: palette.fieldText),
             cursorColor: palette.linkInk,
             decoration: InputDecoration(
@@ -864,7 +819,6 @@ class _OtpInput extends StatefulWidget {
   final TextEditingController controller;
   final bool loading;
   final String label;
-  final String? hint;
   final bool autofocus;
   final VoidCallback onCompleted;
   const _OtpInput({
@@ -872,7 +826,6 @@ class _OtpInput extends StatefulWidget {
     required this.controller,
     required this.loading,
     this.label = 'One-time code',
-    this.hint,
     this.autofocus = true,
     required this.onCompleted,
   });
@@ -909,20 +862,9 @@ class _OtpInputState extends State<_OtpInput> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              widget.label,
-              style: RunqText.bodyStrong.copyWith(color: p.labelInk),
-            ),
-            if (widget.hint != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                widget.hint!,
-                style: RunqText.caption.copyWith(color: p.subtleInk),
-              ),
-            ],
-          ],
+        Text(
+          widget.label,
+          style: RunqText.bodyStrong.copyWith(color: p.labelInk),
         ),
         const SizedBox(height: 6),
         Stack(
@@ -970,10 +912,11 @@ class _OtpInputState extends State<_OtpInput> {
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.oneTimeCode],
-                  // Add the keyboard height (viewport runs behind the keypad)
-                  // plus room for the Sign-in + Back buttons just below.
+                  // Keyboard height (viewport runs behind the keypad) plus a
+                  // small margin for the verify button just below. Keep it
+                  // small so focus doesn't over-scroll and clip the logo.
                   scrollPadding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 130),
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(6),
