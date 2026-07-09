@@ -58,6 +58,26 @@ async function demoOtpFor(db: FastifyInstance['db'], cred: MpCredentialRow): Pro
   return dobToDDMMYY(cred.dateOfBirth);
 }
 
+// Re-assert a linked credential's Dhenu role on the user + tenant membership on
+// every login. An admin editing this person in Settings → Users can flip their
+// tenant role to the web default 'viewer', which strips `milk_procurement` and
+// silently breaks the operator/farmer app — and the first-login promotion below
+// no longer runs once the credential is linked (cred.userId set). An ACTIVE
+// credential proves they're a Dhenu user, so heal it here. Only promotes FROM
+// 'viewer', leaving a deliberate owner/accountant grant intact.
+async function healDhenuRole(db: FastifyInstance['db'], user: any, cred: MpCredentialRow) {
+  await db.update(userTenants).set({ role: cred.role }).where(and(
+    eq(userTenants.userId, user.id),
+    eq(userTenants.tenantId, cred.tenantId),
+    eq(userTenants.role, 'viewer'),
+  ));
+  if (user.role === 'viewer') {
+    await db.update(users).set({ role: cred.role }).where(eq(users.id, user.id));
+    return { ...user, role: cred.role };
+  }
+  return user;
+}
+
 // Find or mint the runq user backing a credential. The user carries the Dhenu
 // role (farmer | field_operator); its tenant membership defaults to the
 // milk_procurement module (see roleAllowedModules). Synthesises a non-routable
@@ -115,6 +135,11 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
     await db.update(mpCredentials).set({ userId: user.id }).where(eq(mpCredentials.id, cred.id));
     await ensureMembership(db, user.id, cred.tenantId, cred.role);
   }
+
+  // Re-assert the credential's role on the tenant membership (see healDhenuRole)
+  // — heals an operator/farmer an admin demoted to 'viewer' in Settings → Users,
+  // which the first-login promotion no longer catches once the credential is linked.
+  user = await healDhenuRole(db, user, cred);
 
   // Link any operator rows for this phone not yet bound to the user. Web-admin
   // created rows start with a null user_id; node access keys on user_id, so this

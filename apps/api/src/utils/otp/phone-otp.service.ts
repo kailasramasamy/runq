@@ -37,6 +37,8 @@ export async function sendPhoneOtp(
   const sends = await app.redis.incr(rk);
   if (sends === 1) await app.redis.expire(rk, RATE_TTL);
   if (sends > MAX_SENDS_PER_HOUR) {
+    // This blocked attempt must not inflate the window beyond the cap.
+    await app.redis.decr(rk);
     throw new TooManyRequestsError('Too many OTP requests. Try again in an hour.');
   }
 
@@ -46,13 +48,19 @@ export async function sendPhoneOtp(
 
   const result = await sendOtpSms(phone, code);
   const isProd = loadEnv().NODE_ENV === 'production';
-  if (result.skipped) {
-    app.log.warn({ phone }, 'MSG91 not configured — OTP not sent over SMS');
-  } else if (!result.success) {
-    app.log.error({ phone, error: result.error }, 'MSG91 OTP send failed');
-    // Only fatal in production — dev returns the code below so testing (incl.
-    // e2e against fake numbers MSG91 rejects) still works.
-    if (isProd) throw new BadGatewayError("Couldn't send the OTP. Please try again.");
+  if (!result.success) {
+    // The SMS never left MSG91, so refund this send: a delivery failure or
+    // missing config must not consume the user's hourly budget — otherwise a
+    // user who never receives a code retries and locks themselves out for an hour.
+    await app.redis.decr(rk);
+    if (result.skipped) {
+      app.log.warn({ phone }, 'MSG91 not configured — OTP not sent over SMS');
+    } else {
+      app.log.error({ phone, error: result.error }, 'MSG91 OTP send failed');
+      // Only fatal in production — dev returns the code below so testing (incl.
+      // e2e against fake numbers MSG91 rejects) still works.
+      if (isProd) throw new BadGatewayError("Couldn't send the OTP. Please try again.");
+    }
   }
 
   if (!isProd) {

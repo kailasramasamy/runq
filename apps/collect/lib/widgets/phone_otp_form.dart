@@ -116,7 +116,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
 
   void _startCooldown() {
     _timer?.cancel();
-    setState(() => _resendIn = 30);
+    setState(() => _resendIn = 45);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return timer.cancel();
       setState(() => _resendIn--);
@@ -187,7 +187,10 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
         OtpField(controller: _otp, onCompleted: _busy ? null : _submit, autofocus: true),
         const SizedBox(height: DhenuSpacing.lg),
         FilledButton(onPressed: _busy ? null : _submit, child: Text(widget.submitLabel)),
-        const SizedBox(height: DhenuSpacing.sm),
+        const SizedBox(height: DhenuSpacing.md),
+        Text('The SMS can take up to a minute to arrive.',
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        const SizedBox(height: DhenuSpacing.xs),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
