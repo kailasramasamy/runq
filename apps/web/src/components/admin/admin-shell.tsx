@@ -43,16 +43,17 @@ export function AdminShell({ children }: { children?: ReactNode }) {
   // on /admin, but this is a belt-and-braces check).
   useEffect(() => {
     if (isLoading) return;
+    // Routes are served at root; only static assets live under BASE_URL
+    // (/app-assets/). So the login path is root-relative, never BASE_URL-prefixed
+    // — otherwise the guard bounces to /app-assets/login, which 404s.
     if (!isAuthenticated) {
-      const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-      window.location.replace(`${base}/login`);
+      window.location.replace('/login');
       return;
     }
     if (!isPlatform) {
       // Authenticated as tenant user — clear it and bounce to login.
       localStorage.removeItem('runq-token');
-      const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-      window.location.replace(`${base}/login`);
+      window.location.replace('/login');
     }
   }, [isLoading, isAuthenticated, isPlatform]);
 
