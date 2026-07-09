@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
-import '../providers/app_update_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/farmer_providers.dart';
 import '../providers/locale_provider.dart';
@@ -84,23 +83,7 @@ class ProfileTab extends ConsumerWidget {
         // Self-serve account deletion (Apple 5.1.1(v)) — only for the phone-OTP
         // personas the app provisions. Owners/accountants manage on the web.
         if (isFarmer || isOperator) _deleteAccountButton(context, ref, t, l),
-        _versionLabel(ref, t),
       ],
-    );
-  }
-
-  /// Small, non-interactive build label at the foot of the profile. Silently
-  /// omitted while the package metadata is still loading.
-  Widget _versionLabel(WidgetRef ref, DhenuTokens t) {
-    final version = ref.watch(appVersionLabelProvider).asData?.value;
-    if (version == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: DhenuSpacing.lg),
-      child: Text(
-        'Dhenu v$version',
-        textAlign: TextAlign.center,
-        style: DhenuText.caption.copyWith(color: t.inkSoft),
-      ),
     );
   }
 

@@ -1,19 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 
-const _appVersion = '1.0.0';
-const _buildNumber = '1';
 const _privacyUrl = 'https://dhenu.app/privacy';
 const _termsUrl = 'https://dhenu.app/terms';
 
 /// About screen — app identity, version, legal links.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  String? _version;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _version = 'Version ${info.version} (${info.buildNumber})');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +85,7 @@ class AboutScreen extends StatelessWidget {
         ),
         const SizedBox(height: DhenuSpacing.xs),
         Text(
-          'Version $_appVersion ($_buildNumber)',
+          _version ?? '',
           style: DhenuText.caption.copyWith(color: t.inkSoft),
         ),
       ],
