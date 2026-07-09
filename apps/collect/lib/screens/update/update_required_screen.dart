@@ -12,10 +12,10 @@ import '../../widgets/primary_action.dart';
 
 // Store links live in the app (not config) — they never change for a listing
 // and the app already knows its platform. Mirrors apps/mobile's
-// app_version_service.dart. iOS is empty until the App Store listing exists.
+// app_version_service.dart.
 const String _androidStoreUrl =
     'https://play.google.com/store/apps/details?id=com.quartex.dhenu';
-const String _iosStoreUrl = '';
+const String _iosStoreUrl = 'https://apps.apple.com/app/id6783588572';
 
 /// Full-screen, non-dismissable gate shown when the running build is below
 /// the server's `dhenu.minVersion`. The only way forward is the store.
