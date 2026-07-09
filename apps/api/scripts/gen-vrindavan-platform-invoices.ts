@@ -2,7 +2,7 @@
  * Generate daily AR invoices for "Vrindavan Platform Customers" from the
  * monthly GST sales CSV — one invoice per day, one line per product sold.
  *
- * Mirrors last month's (April) invoices exactly:
+ * Mirrors last month's (May) invoices exactly:
  *   - description  = `${Product} (${UOM})`
  *   - uom / pack_size_uqc = canonical UQC (ML/GMS/KGS/LTR/NOS)
  *   - unit_price   = CSV "Unit Price (excl GST)" column (verbatim)
@@ -30,8 +30,8 @@ import { sql } from 'drizzle-orm';
 const TENANT_ID = 'a0365382-afa0-48b6-92cd-4db615a7d98b'; // Vrindavan Dairy LLP
 const CUSTOMER_ID = 'f6b0b0e2-bd94-44ba-a11a-ef3e2ecfd34b'; // Vrindavan Platform Customers
 const FY = '2627';
-const GST_CSV = '/Users/vaidehi/Projects/misc/vrindavan-sales-data/sales-gst-2026-05.csv';
-const SUMMARY_CSV = '/Users/vaidehi/Projects/misc/vrindavan-sales-data/sales-2026-05.csv';
+const GST_CSV = '/Users/vaidehi/Projects/misc/vrindavan-sales-data/sales-gst-2026-06.csv';
+const SUMMARY_CSV = '/Users/vaidehi/Projects/misc/vrindavan-sales-data/sales-2026-06.csv';
 
 type Cat = 'taxable' | 'exempt';
 type Tax = { hsn: string; cat: Cat; rate: number };
@@ -73,7 +73,11 @@ const TAX_MAP: Record<string, Tax> = {
   'Horse Gram - Kulthi Dal': { hsn: '07139090', cat: 'taxable', rate: 5 }, // new in May
   'Idli Rice - Ponmani Gundu': { hsn: '10063090', cat: 'taxable', rate: 5 },
   'Methi (Fenugreek)': { hsn: '09109929', cat: 'taxable', rate: 5 },
+  'Moong Dal (Yellow)': { hsn: '07139090', cat: 'taxable', rate: 5 }, // new in June
+  'Moong Dal Green (Whole)': { hsn: '07139090', cat: 'taxable', rate: 5 }, // new in June
   'Muscle & Joint Pain Balm - Vaata Haara': { hsn: '30049011', cat: 'taxable', rate: 12 },
+  'Nasal Drops - Pranshakthi': { hsn: '30049011', cat: 'taxable', rate: 12 }, // new in June (3004 medicament family)
+  'Neem Oil': { hsn: '15159040', cat: 'taxable', rate: 5 }, // new in June (1515 oil family)
   'Organic Jaggery Powder': { hsn: '17011490', cat: 'taxable', rate: 5 },
   'Ponni Hand Pounded Rice': { hsn: '10063090', cat: 'taxable', rate: 5 }, // new in May
   'Premium Crystal Sugar': { hsn: '17019100', cat: 'taxable', rate: 5 },
@@ -201,8 +205,8 @@ async function main(): Promise<void> {
   await db.transaction(async (tx) => {
     const exists = await tx.execute<{ n: number }>(sql`
       SELECT count(*)::int AS n FROM sales_invoices
-      WHERE customer_id = ${CUSTOMER_ID} AND invoice_date >= '2026-05-01' AND invoice_date <= '2026-05-31'`);
-    if ((exists.rows[0]?.n ?? 0) > 0) throw new Error('May invoices already exist for this customer — aborting.');
+      WHERE customer_id = ${CUSTOMER_ID} AND invoice_date >= '2026-06-01' AND invoice_date <= '2026-06-30'`);
+    if ((exists.rows[0]?.n ?? 0) > 0) throw new Error('June invoices already exist for this customer — aborting.');
 
     const seqRow = await tx.execute<{ last_sequence: number }>(sql`
       SELECT last_sequence FROM invoice_sequences
