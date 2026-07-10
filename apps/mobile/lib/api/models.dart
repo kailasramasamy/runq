@@ -314,14 +314,68 @@ class GstReturnError {
       );
 }
 
+class GstDriftEntry {
+  final String section;
+  final String field;
+  final double sent;
+  final double stored;
+  final double delta;
+  GstDriftEntry({
+    required this.section,
+    required this.field,
+    required this.sent,
+    required this.stored,
+    required this.delta,
+  });
+
+  factory GstDriftEntry.fromJson(Map<String, dynamic> j) => GstDriftEntry(
+        section: _strOr(j['section'], ''),
+        field: _strOr(j['field'], ''),
+        sent: _num(j['sent']),
+        stored: _num(j['stored']),
+        delta: _num(j['delta']),
+      );
+}
+
 class GstReturnDetail {
   final GstReturn ret;
   final Map<String, dynamic> data; // raw section payload (b2b, b2cs, hsn, etc.)
-  GstReturnDetail({required this.ret, required this.data});
+  /// Post-upload data drift: GSTN stored values differing from what we sent
+  /// (GSTR-3B only). Empty when no drift or not yet uploaded.
+  final List<GstDriftEntry> verifyDrift;
+  /// Free-text notes on the return; used to detect the ITC source
+  /// ("auto-populated from GSTR-2B" vs purchase register) on GSTR-3B.
+  final String? notes;
+  GstReturnDetail({
+    required this.ret,
+    required this.data,
+    this.verifyDrift = const [],
+    this.notes,
+  });
 
   factory GstReturnDetail.fromJson(Map<String, dynamic> j) => GstReturnDetail(
         ret: GstReturn.fromJson(j),
         data: (j['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+        verifyDrift: (j['verifyDrift'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(GstDriftEntry.fromJson)
+            .toList(),
+        notes: _str(j['notes']),
+      );
+
+  /// ITC on a GSTR-3B was sourced from GSTR-2B (vs purchase invoices).
+  bool get itcFrom2b => (notes ?? '').toLowerCase().contains('2b');
+}
+
+/// GSTN company identity used to pre-fill the auth sheet.
+class GstCompanyProfile {
+  final String gstin;
+  final String? gstUsername;
+  GstCompanyProfile({required this.gstin, this.gstUsername});
+
+  factory GstCompanyProfile.fromJson(Map<String, dynamic> j) => GstCompanyProfile(
+        gstin: _strOr(j['gstin'], ''),
+        gstUsername: _str(j['gstUsername']),
       );
 }
 

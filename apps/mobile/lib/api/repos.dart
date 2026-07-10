@@ -852,9 +852,39 @@ class GstRepo {
     return _data(res);
   }
 
+  /// Trigger GSTN to SMS an EVC to the authorized signatory for this return.
+  Future<void> requestEvc(String id) async {
+    await apiClient.post('/gst/returns/$id/request-evc', const {});
+  }
+
   Future<Map<String, dynamic>> file(String id, String evc) async {
     final res = await apiClient.post('/gst/returns/$id/file', {'evc': evc});
     return _data(res);
+  }
+
+  /// Re-run the post-upload drift check (GSTR-3B): compares submitted values
+  /// against what GSTN stored. Returns the refreshed detail.
+  Future<GstReturnDetail> verify3b(String id) async {
+    await apiClient.post('/gst/returns/$id/verify-3b', const {});
+    return get(id);
+  }
+
+  /// GSTN-side summary of an uploaded GSTR-1 (for pre-file review).
+  Future<Map<String, dynamic>> gstr1Summary(String id) async {
+    final res = await apiClient.get('/gst/returns/$id/summary');
+    return _data(res);
+  }
+
+  /// GSTN auto-populated GSTR-3B (for pre-file review).
+  Future<Map<String, dynamic>> auto3b(String id) async {
+    final res = await apiClient.get('/gst/returns/$id/auto-3b');
+    return _data(res);
+  }
+
+  /// Company GSTN identity (gstin + username) to pre-fill the auth sheet.
+  Future<GstCompanyProfile> companyGstProfile() async {
+    final res = await apiClient.get('/settings/company');
+    return GstCompanyProfile.fromJson(_data(res));
   }
 
   Future<void> pull2b(String period) async {

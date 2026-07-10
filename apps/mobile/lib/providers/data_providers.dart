@@ -30,6 +30,18 @@ final gstReturnDetailProvider =
   return _watchAuth(ref, () => gstRepo.get(id));
 });
 
+/// Company GSTN identity (gstin + username) for pre-filling the auth sheet.
+/// Null on failure so the sheet falls back to manual entry.
+final gstCompanyProfileProvider = FutureProvider<GstCompanyProfile?>((ref) async {
+  return _watchAuth(ref, () async {
+    try {
+      return await gstRepo.companyGstProfile();
+    } catch (_) {
+      return null;
+    }
+  });
+});
+
 final gst2bSummaryProvider =
     FutureProvider.family<Gstr2bSummary, String>((ref, period) async {
   return _watchAuth(ref, () => gstRepo.summary2b(period));

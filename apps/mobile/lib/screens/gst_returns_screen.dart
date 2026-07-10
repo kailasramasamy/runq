@@ -9,6 +9,7 @@ import '../theme/runq_tokens.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
+import 'gst/gst_auth_sheet.dart';
 import 'gst/gst_status_chip.dart';
 
 class GstReturnsScreen extends ConsumerStatefulWidget {
@@ -43,7 +44,8 @@ class _GstReturnsScreenState extends ConsumerState<GstReturnsScreen> {
       context.push('/gst/returns/${ret.id}');
     } catch (e) {
       if (!mounted) return;
-      showRunqSnack(context, "Couldn't generate: $e", kind: SnackKind.error);
+      showRunqSnack(context, friendlyGstError(e, "Couldn't generate the draft."),
+          kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -283,52 +285,33 @@ Future<String?> _pickGenerateType(BuildContext context) async {
   final t = RT(context);
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: t.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: t.hairline,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-              child: Row(
-                children: [
-                  Text('Generate draft',
-                      style: RunqText.h4.copyWith(color: t.ink)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            _GenerateTile(
-              icon: Icons.description_outlined,
-              tint: RunqColors.indigo,
-              title: 'GSTR-1',
-              subtitle: 'Outward supplies — invoices, B2B, B2C, HSN summary',
-              onTap: () => Navigator.pop(context, 'gstr1'),
-            ),
-            _GenerateTile(
-              icon: Icons.account_balance_wallet_outlined,
-              tint: const Color(0xFF06B6D4),
-              title: 'GSTR-3B',
-              subtitle: 'Summary return — tax payable, ITC, net liability',
-              onTap: () => Navigator.pop(context, 'gstr3b'),
-            ),
-            const SizedBox(height: 4),
-          ],
-        ),
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => GstSheetShell(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Text('Generate draft', style: RunqText.h4.copyWith(color: t.ink)),
+          ),
+          _GenerateTile(
+            icon: Icons.description_outlined,
+            tint: RunqColors.indigo,
+            title: 'GSTR-1',
+            subtitle: 'Outward supplies — invoices, B2B, B2C, HSN summary',
+            onTap: () => Navigator.pop(context, 'gstr1'),
+          ),
+          _GenerateTile(
+            icon: Icons.account_balance_wallet_outlined,
+            tint: RunqColors.greenInk,
+            title: 'GSTR-3B',
+            subtitle: 'Summary return — tax payable, ITC, net liability',
+            onTap: () => Navigator.pop(context, 'gstr3b'),
+          ),
+        ],
       ),
     ),
   );
@@ -399,34 +382,24 @@ Future<String?> _pickPeriod(BuildContext context) async {
   }
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: t.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => SafeArea(
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => GstSheetShell(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-              color: t.hairline,
-              borderRadius: BorderRadius.circular(999),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Text('Select period', style: RunqText.h4.copyWith(color: t.ink)),
           ),
-          const SizedBox(height: 16),
-          Text('Select period',
-              style: RunqText.h4.copyWith(color: t.ink)),
-          const SizedBox(height: 8),
           for (final o in options)
             ListTile(
               dense: true,
-              title: Text(o.label,
-                  style: RunqText.body.copyWith(color: t.ink)),
+              title: Text(o.label, style: RunqText.body.copyWith(color: t.ink)),
               onTap: () => Navigator.of(context).pop(o.value),
             ),
-          const SizedBox(height: 8),
         ],
       ),
     ),
