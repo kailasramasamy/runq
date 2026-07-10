@@ -17,7 +17,10 @@ final _periodProvider = StateProvider<String>((_) {
   return '${d.month.toString().padLeft(2, '0')}${d.year}';
 });
 
-final _statusProvider = StateProvider<String>((_) => 'matched');
+// Client-side list filter. 'all' shows every row; 'missing' combines the two
+// missing statuses (not_in_books + not_in_2b) so it maps 1:1 to the hero's
+// "Missing" stat.
+final _statusProvider = StateProvider<String>((_) => 'all');
 
 class Gst2bScreen extends ConsumerStatefulWidget {
   const Gst2bScreen({super.key});
@@ -70,8 +73,9 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
     final period = ref.watch(_periodProvider);
     final status = ref.watch(_statusProvider);
     final summary = ref.watch(gst2bSummaryProvider(period));
-    final matches =
-        ref.watch(gst2bMatchesProvider(Gstr2bFilter(period: period, status: status)));
+    // Fetch all rows once and filter client-side, so the 'Missing' filter can
+    // combine both missing statuses and tab/stat switches are instant.
+    final matches = ref.watch(gst2bMatchesProvider(Gstr2bFilter(period: period)));
 
     return Scaffold(
       body: SafeArea(
@@ -101,7 +105,11 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
                   child: AsyncSlot<Gstr2bSummary>(
                     value: summary,
                     onRetry: () => ref.invalidate(gst2bSummaryProvider(period)),
-                    data: (s) => _SummaryCard(summary: s),
+                    data: (s) => _SummaryCard(
+                      summary: s,
+                      activeStatus: status,
+                      onSelect: (v) => ref.read(_statusProvider.notifier).state = v,
+                    ),
                   ),
                 ),
               ),
@@ -118,8 +126,9 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
                   child: AsyncSlot<List<Gstr2bMatch>>(
                     value: matches,
                     onRetry: () => ref.invalidate(
-                        gst2bMatchesProvider(Gstr2bFilter(period: period, status: status))),
-                    data: (rows) {
+                        gst2bMatchesProvider(Gstr2bFilter(period: period))),
+                    data: (allRows) {
+                      final rows = _filterRows(allRows, status);
                       if (rows.isEmpty) {
                         return RunqCard(
                           child: EmptyState(
@@ -155,9 +164,20 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
   String _emptyTitle(String s) => switch (s) {
         'matched' => 'No matches yet',
         'mismatched' => 'No mismatches',
-        'not_in_books' => 'Nothing missing in books',
-        'not_in_2b' => 'Nothing missing in 2B',
+        'missing' => 'Nothing missing',
+        'all' => 'No 2B rows yet',
         _ => 'No data',
+      };
+
+  List<Gstr2bMatch> _filterRows(List<Gstr2bMatch> rows, String status) =>
+      switch (status) {
+        'matched' => rows.where((r) => r.matchStatus == 'matched').toList(),
+        'mismatched' => rows.where((r) => r.matchStatus == 'mismatched').toList(),
+        'missing' => rows
+            .where((r) =>
+                r.matchStatus == 'not_in_books' || r.matchStatus == 'not_in_2b')
+            .toList(),
+        _ => rows, // 'all'
       };
 }
 
@@ -194,34 +214,170 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          PopupMenuButton<String>(
-            tooltip: 'Actions',
-            enabled: !busyPull && !busyReconcile,
-            onSelected: (v) =>
-                v == 'pull' ? onPull() : onReconcile(),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'pull', child: Text('Pull 2B from GSTN')),
-              PopupMenuItem(value: 'reconcile', child: Text('Reconcile with books')),
-            ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: RunqColors.indigo,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: (busyPull || busyReconcile)
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text('Actions',
-                      style: RunqText.body
-                          .copyWith(color: Colors.white)),
-            ),
+          _ActionsButton(
+            busy: busyPull || busyReconcile,
+            onPull: onPull,
+            onReconcile: onReconcile,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Circular icon button that opens the actions bottom sheet. Shows a spinner
+/// in place of the icon while a pull/reconcile is running.
+class _ActionsButton extends StatelessWidget {
+  final bool busy;
+  final VoidCallback onPull, onReconcile;
+  const _ActionsButton({
+    required this.busy,
+    required this.onPull,
+    required this.onReconcile,
+  });
+
+  Future<void> _open(BuildContext context) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ActionsSheet(),
+    );
+    if (action == 'pull') onPull();
+    if (action == 'reconcile') onReconcile();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: RunqColors.indigo,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: busy ? null : () => _open(context),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.more_horiz_rounded,
+                    color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet listing the 2B actions. Returns the chosen action id (or null
+/// on dismiss) so the caller runs it after the sheet closes.
+class _ActionsSheet extends StatelessWidget {
+  const _ActionsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        border: Border.all(color: t.hairline, width: 0.5),
+        boxShadow: RunqShadows.sheet,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: t.hairline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              _ActionSheetItem(
+                icon: Icons.cloud_download_outlined,
+                tint: RunqColors.indigo,
+                label: 'Pull 2B from GSTN',
+                subtitle: 'Fetch the latest 2B from the portal',
+                onTap: () => Navigator.pop(context, 'pull'),
+              ),
+              _ActionSheetItem(
+                icon: Icons.sync_alt_rounded,
+                tint: RunqColors.greenInk,
+                label: 'Reconcile with books',
+                subtitle: 'Match 2B against your purchase register',
+                onTap: () => Navigator.pop(context, 'reconcile'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSheetItem extends StatelessWidget {
+  final IconData icon;
+  final Color tint;
+  final String label, subtitle;
+  final VoidCallback onTap;
+  const _ActionSheetItem({
+    required this.icon,
+    required this.tint,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: tint, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: RunqText.caption.copyWith(color: t.muted)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -293,7 +449,13 @@ class _PeriodPicker extends ConsumerWidget {
 
 class _SummaryCard extends StatelessWidget {
   final Gstr2bSummary summary;
-  const _SummaryCard({required this.summary});
+  final String activeStatus;
+  final ValueChanged<String> onSelect;
+  const _SummaryCard({
+    required this.summary,
+    required this.activeStatus,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +494,8 @@ class _SummaryCard extends StatelessWidget {
                 child: _Stat(
                   label: 'Matched',
                   value: '${summary.matchedCount}',
+                  active: activeStatus == 'matched',
+                  onTap: () => onSelect('matched'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -339,6 +503,8 @@ class _SummaryCard extends StatelessWidget {
                 child: _Stat(
                   label: 'Mismatched',
                   value: '${summary.mismatchedCount}',
+                  active: activeStatus == 'mismatched',
+                  onTap: () => onSelect('mismatched'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -346,6 +512,8 @@ class _SummaryCard extends StatelessWidget {
                 child: _Stat(
                   label: 'Missing',
                   value: '${summary.notInBooksCount + summary.notIn2bCount}',
+                  active: activeStatus == 'missing',
+                  onTap: () => onSelect('missing'),
                 ),
               ),
             ],
@@ -359,28 +527,47 @@ class _SummaryCard extends StatelessWidget {
 class _Stat extends StatelessWidget {
   final String label;
   final String value;
-  const _Stat({required this.label, required this.value});
+  final bool active;
+  final VoidCallback onTap;
+  const _Stat({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    this.active = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: RunqText.caption.copyWith(
-                color: Colors.white.withValues(alpha: 0.65),
-              )),
-          const SizedBox(height: 2),
-          Text(value,
-              style: RunqText.tabular(
-                  size: 18, w: FontWeight.w700, color: Colors.white)),
-        ],
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: active ? 0.22 : 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: active ? 0.55 : 0.0),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: RunqText.caption.copyWith(
+                    color: Colors.white.withValues(alpha: 0.65),
+                  )),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: RunqText.tabular(
+                      size: 18, w: FontWeight.w700, color: Colors.white)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -398,11 +585,22 @@ class _StatusTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = summary;
     final tabs = <({String value, String label, int? count})>[
-      (value: 'matched', label: 'Matched', count: summary?.matchedCount),
-      (value: 'mismatched', label: 'Mismatched', count: summary?.mismatchedCount),
-      (value: 'not_in_books', label: 'Missing in books', count: summary?.notInBooksCount),
-      (value: 'not_in_2b', label: 'Missing in 2B', count: summary?.notIn2bCount),
+      (
+        value: 'all',
+        label: 'All',
+        count: s == null
+            ? null
+            : s.matchedCount + s.mismatchedCount + s.notInBooksCount + s.notIn2bCount,
+      ),
+      (value: 'matched', label: 'Matched', count: s?.matchedCount),
+      (value: 'mismatched', label: 'Mismatched', count: s?.mismatchedCount),
+      (
+        value: 'missing',
+        label: 'Missing',
+        count: s == null ? null : s.notInBooksCount + s.notIn2bCount,
+      ),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
