@@ -64,9 +64,9 @@ Verified: `flutter analyze` clean, font guard clean, all drill targets resolve.
 
 Follow-up (P2 #13, not done): relegate the whole accountant-facing "Books health" section into a collapsed "For your accountant" group.
 
-### 5. GST hub answers "am I ready?" but not "how much do I owe?"
-`gst_hub_screen.dart:116-243` — readiness % + due-date chip, but tax payable appears nowhere on the hub; it's buried in Analytics ("Cash payable", `section_gst.dart:60-66`) and the 3B detail.
-**Fix:** Add "₹X to pay this period" as the hub's second headline stat, next to the deadline.
+### 5. GST hub answers "am I ready?" but not "how much do I owe?" — ✅ DONE (2026-07-10)
+The GST hub's readiness card now shows a **"TAX TO PAY · <period>"** block with the net **cash payable** (from `gstLiabilityProvider` — the same provider the analytics GST-liability card uses, so no new backend). It's labelled with the *liability's own* period (the current filable 3B), which can differ from the readiness target period. Renders only once a GSTR-3B exists; shows "Nothing to pay / ITC covers it" (green) when fully offset, and "after ₹X ITC" context otherwise. Added to pull-to-refresh.
+Verified: `flutter analyze` clean, font guard clean.
 
 ### 6. Dead taps on activity rows
 `activity_screen.dart:172-177` — `payment` / `receipt` / `credit_note` / `debit_note` activity types silently do nothing on tap.
