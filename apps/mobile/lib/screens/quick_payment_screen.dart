@@ -256,7 +256,14 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
       if (!mounted) return;
       ref.invalidate(pendingPaymentsProvider);
       showRunqSnack(context, _isEdit ? 'Payment updated.' : 'Payment captured — it\'ll match your bank statement.');
-      context.pop();
+      // Always end on the Payments-made list. From the list's + button a pop
+      // returns to it; opened from the share sheet a pop would land on home,
+      // so route to the list explicitly instead.
+      if (!_isEdit && widget.initialFile != null) {
+        context.pushReplacement('/quick-expenses');
+      } else {
+        context.pop();
+      }
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } finally {
