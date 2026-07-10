@@ -9,6 +9,7 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
+import 'gst/gst_auth_sheet.dart';
 
 final _periodProvider = StateProvider<String>((_) {
   final now = DateTime.now();
@@ -44,7 +45,8 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
       showRunqSnack(context, '2B pulled from GSTN', kind: SnackKind.success);
     } catch (e) {
       if (!mounted) return;
-      showRunqSnack(context, "Couldn't pull: $e", kind: SnackKind.error);
+      showRunqSnack(context, friendlyGstError(e, "Couldn't pull 2B from GSTN."),
+          kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busyPull = false);
     }
@@ -61,10 +63,101 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
       showRunqSnack(context, 'Reconciled with books', kind: SnackKind.success);
     } catch (e) {
       if (!mounted) return;
-      showRunqSnack(context, "Couldn't reconcile: $e", kind: SnackKind.error);
+      showRunqSnack(context, friendlyGstError(e, "Couldn't reconcile with books."),
+          kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busyReconcile = false);
     }
+  }
+
+  /// Book a "not in books" 2B line as a draft purchase bill to claim its ITC.
+  /// If the supplier GSTIN matches existing vendors, GSTN-side returns a
+  /// vendor decision which we resolve with a dialog, then re-book.
+  Future<void> _book(Gstr2bMatch match) async {
+    final period = ref.read(_periodProvider);
+    Future<void> invalidate() async {
+      ref.invalidate(gst2bSummaryProvider(period));
+      ref.invalidate(gst2bMatchesProvider(Gstr2bFilter(period: period)));
+    }
+
+    try {
+      var res = await gstRepo.book2b(match.id);
+      if (res['status'] == 'needs_vendor_decision') {
+        if (!mounted) return;
+        final candidates = (res['candidates'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        final choice = await _askVendorDecision(match, candidates);
+        if (choice == null) return; // cancelled
+        res = await gstRepo.book2b(
+          match.id,
+          vendorAction: choice.$1,
+          existingVendorId: choice.$2,
+        );
+      }
+      if (!mounted) return;
+      await invalidate();
+      showRunqSnack(context, 'Booked as a draft bill', kind: SnackKind.success);
+    } catch (e) {
+      if (!mounted) return;
+      showRunqSnack(context, friendlyGstError(e, "Couldn't book this bill."),
+          kind: SnackKind.error);
+    }
+  }
+
+  /// Returns (vendorAction, existingVendorId?) or null if cancelled.
+  Future<(String, String?)?> _askVendorDecision(
+    Gstr2bMatch match,
+    List<Map<String, dynamic>> candidates,
+  ) {
+    final t = RT(context);
+    return showModalBottomSheet<(String, String?)>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => GstSheetShell(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Which vendor?', style: RunqText.h3.copyWith(color: t.ink)),
+            const SizedBox(height: 4),
+            Text(
+              '${match.supplierName ?? match.supplierGstin} may already exist. '
+              'Pick a match, or create a new vendor.',
+              style: RunqText.caption.copyWith(color: t.muted),
+            ),
+            const SizedBox(height: 12),
+            for (final c in candidates)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text((c['name'] ?? c['gstin'] ?? '—').toString(),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                subtitle: Text(
+                    [c['gstin'], c['reason']]
+                        .where((e) => e != null && '$e'.isNotEmpty)
+                        .join(' · '),
+                    style: RunqText.caption.copyWith(color: t.muted2)),
+                trailing: Icon(Icons.chevron_right_rounded, color: t.muted2),
+                onTap: () => Navigator.pop(
+                    ctx, ('use_existing', (c['id'] ?? '').toString())),
+              ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.pop(ctx, ('create_new', null)),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Create new vendor'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -143,7 +236,12 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
                         child: Column(
                           children: [
                             for (var i = 0; i < rows.length; i++) ...[
-                              _MatchRow(match: rows[i]),
+                              _MatchRow(
+                                match: rows[i],
+                                onBook: rows[i].matchStatus == 'not_in_books'
+                                    ? () => _book(rows[i])
+                                    : null,
+                              ),
                               if (i < rows.length - 1)
                                 Divider(height: 1, thickness: 0.6, color: t.hairline),
                             ],
@@ -463,9 +561,7 @@ class _SummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: RunqColors.heroGradient,
         borderRadius: BorderRadius.circular(RunqRadii.hero),
-        boxShadow: const [
-          BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
-        ],
+        boxShadow: RunqShadows.card,
       ),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       child: Column(
@@ -649,15 +745,18 @@ class _StatusTabs extends StatelessWidget {
 
 class _MatchRow extends StatelessWidget {
   final Gstr2bMatch match;
-  const _MatchRow({required this.match});
+  /// Non-null only for bookable ("not in books") rows — tapping books a bill.
+  final VoidCallback? onBook;
+  const _MatchRow({required this.match, this.onBook});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final tax = match.igst2b + match.cgst2b + match.sgst2b;
     final dim = match.matchStatus == 'not_in_2b' ||
         match.matchStatus == 'not_in_books';
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -667,11 +766,11 @@ class _MatchRow extends StatelessWidget {
             height: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _statusBg(match.matchStatus, t),
+              color: _statusBg(match.matchStatus, isDark),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(_statusIcon(match.matchStatus),
-                size: 16, color: _statusInk(match.matchStatus)),
+                size: 16, color: _statusInk(match.matchStatus, isDark)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -708,15 +807,20 @@ class _MatchRow extends StatelessWidget {
                     color: dim ? t.muted : t.ink),
               ),
               const SizedBox(height: 2),
-              Text(
-                tax > 0 ? '+${formatINR(tax, compact: true)} tax' : '—',
-                style: RunqText.caption.copyWith(color: t.muted2),
-              ),
+              if (onBook != null)
+                Text('Book bill →',
+                    style: RunqText.caption.copyWith(
+                        color: RunqColors.indigo, fontWeight: FontWeight.w700))
+              else
+                Text(tax > 0 ? '+${formatINR(tax, compact: true)} tax' : '—',
+                    style: RunqText.caption.copyWith(color: t.muted2)),
             ],
           ),
         ],
       ),
     );
+    if (onBook == null) return row;
+    return InkWell(onTap: onBook, child: row);
   }
 
   String _subtitle(Gstr2bMatch m) {
@@ -725,7 +829,7 @@ class _MatchRow extends StatelessWidget {
         final diff = m.valueDiff ?? 0;
         return '${m.invoiceNumber2b} · diff ${formatINR(diff, compact: true)}';
       case 'not_in_books':
-        return '${m.invoiceNumber2b} · only in 2B';
+        return '${m.invoiceNumber2b} · claim ITC — not in books';
       case 'not_in_2b':
         return '${m.invoiceNumberBooks ?? '—'} · only in books';
       case 'matched':
@@ -734,25 +838,31 @@ class _MatchRow extends StatelessWidget {
     }
   }
 
-  Color _statusBg(String s, dynamic t) {
+  Color _statusBg(String s, bool isDark) {
     switch (s) {
-      case 'matched': return RunqColors.greenBg;
-      case 'mismatched': return RunqColors.amberBg;
+      case 'matched':
+        return isDark ? const Color(0x3310B981) : RunqColors.greenBg;
+      case 'mismatched':
+        return isDark ? const Color(0x33F59E0B) : RunqColors.amberBg;
       case 'not_in_books':
       case 'not_in_2b':
-        return RunqColors.redBg;
-      default: return RunqColors.greenBg;
+        return isDark ? const Color(0x22EF4444) : RunqColors.redBg;
+      default:
+        return isDark ? const Color(0x3310B981) : RunqColors.greenBg;
     }
   }
 
-  Color _statusInk(String s) {
+  Color _statusInk(String s, bool isDark) {
     switch (s) {
-      case 'matched': return RunqColors.greenInk;
-      case 'mismatched': return RunqColors.amberInk;
+      case 'matched':
+        return isDark ? const Color(0xFF34D399) : RunqColors.greenInk;
+      case 'mismatched':
+        return isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk;
       case 'not_in_books':
       case 'not_in_2b':
-        return RunqColors.redInk;
-      default: return RunqColors.greenInk;
+        return isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk;
+      default:
+        return isDark ? const Color(0xFF34D399) : RunqColors.greenInk;
     }
   }
 

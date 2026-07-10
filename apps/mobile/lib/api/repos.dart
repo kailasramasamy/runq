@@ -929,6 +929,22 @@ class GstRepo {
     final res = await apiClient.get('/gst/2b/summary?period=$period');
     return Gstr2bSummary.fromJson(_data(res));
   }
+
+  /// Promote a "not in books" 2B match into a draft purchase bill to claim
+  /// ITC. Returns the raw response — either the created bill, or
+  /// `{status: 'needs_vendor_decision', candidates: [...]}` when the supplier
+  /// GSTIN matches existing vendors and the owner must pick one.
+  Future<Map<String, dynamic>> book2b(
+    String matchId, {
+    String? vendorAction,
+    String? existingVendorId,
+  }) async {
+    final body = <String, dynamic>{};
+    if (vendorAction != null) body['vendorAction'] = vendorAction;
+    if (existingVendorId != null) body['existingVendorId'] = existingVendorId;
+    final res = await apiClient.post('/gst/2b/matches/$matchId/book', body);
+    return _data(res);
+  }
 }
 
 final dashboardRepo = DashboardRepo();
