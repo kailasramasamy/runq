@@ -79,13 +79,14 @@ Verified: `flutter analyze` clean, font guard clean.
 
 ## P1 — Mental-model confusion (the "which button do I press?" problem)
 
-### 7. Four overlapping payment-ish FAB entries
-`fab_sheet.dart:27-70`: "Record payment" (money in), "Pay a vendor" (money out), "Quick payments" (QR/UPI you made = money out), "Expenses" (also money out). A non-accountant cannot pick correctly. Worse, `quick_payment_screen.dart:18-20` — "Quick payment" *sounds like* receiving money but is expense capture requiring a **GL expense category** (`:225`).
-**Fix:** Reframe the FAB around money direction:
-- **Got paid** → receive-payment flow (P0 #1)
-- **Create invoice** → direct to form (see #8)
-- **Add a bill** → scan (keep, it's good)
-- **I spent money** → single merged expense/quick-payment entry (see #9)
+### 7. Four overlapping payment-ish FAB entries — ✅ DONE (2026-07-10)
+The FAB is now grouped by money direction with **Money in / Money out** headers, and the confusable payment entries are relabelled so each reads distinctly:
+- **Money in:** Create invoice · Collect payment (UPI QR)
+- **Money out:** Add a bill · Pay a vendor · **Payment made** (was "Quick payments" — "log a UPI/QR payment you made, matches your bank") · **Expense claim** (was "Expenses" — "out-of-pocket to reimburse")
+
+`FabAction` gained an optional `section`; `FabSheet` renders a group label once per run. The **share-destination sheet** was aligned to match: renamed "Quick payment" → "Payment made" (+matching teal tint) and standardized to the app sheet chrome (transparent barrier, hero radius, hairline border, sheet shadow).
+
+Follow-up (#9, not done): fully merge the two money-out expense *screens* (`/quick-expenses` vs `/expenses`) — this item only disambiguates them in the FAB.
 
 ### 8. Invoice creation is 3 taps through two stacked sheets
 `invoice_quick_sheet.dart:44-49` opens `invoice_create_sheet.dart` — a sheet whose only job is opening another sheet.

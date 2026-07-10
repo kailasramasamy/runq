@@ -13,33 +13,34 @@ class FabAction {
   final String title, sub;
   final Color tint;
   final void Function(BuildContext) onTap;
+  /// Optional group label (e.g. "Money in"). When a run of actions shares a
+  /// section, [FabSheet] renders the label once above the first of the run.
+  final String? section;
   const FabAction({
     required this.icon,
     required this.title,
     required this.sub,
     required this.tint,
     required this.onTap,
+    this.section,
   });
 }
 
-/// Action set surfaced when the user is in Finance mode. Original quick
-/// actions — bill, invoice, payment, vendor pay, expenses.
+/// Action set surfaced when the user is in Finance mode. Grouped by money
+/// direction so a non-accountant picks the right one without confusing the
+/// several payment-ish flows.
 List<FabAction> financeFabActions() => [
+      // ── Money in ──
       FabAction(
-        icon: Icons.receipt_long_outlined,
-        title: 'Add a bill',
-        sub: 'Scan or upload',
-        tint: RunqColors.indigo,
-        onTap: (ctx) => startBillIntake(ctx),
-      ),
-      FabAction(
+        section: 'Money in',
         icon: Icons.send_outlined,
         title: 'Create invoice',
-        sub: 'From a PO, blank, or upload',
+        sub: 'Bill a customer — PO, blank, or upload',
         tint: const Color(0xFF06B6D4),
         onTap: (ctx) => showInvoiceCreateSheet(ctx),
       ),
       FabAction(
+        section: 'Money in',
         icon: Icons.qr_code_2_outlined,
         title: 'Collect payment',
         sub: 'Show a UPI QR on an unpaid invoice',
@@ -49,24 +50,36 @@ List<FabAction> financeFabActions() => [
         // invoice → its payment QR.
         onTap: (ctx) => ctx.push('/sales/invoices?tab=unpaid'),
       ),
+      // ── Money out ──
       FabAction(
+        section: 'Money out',
+        icon: Icons.receipt_long_outlined,
+        title: 'Add a bill',
+        sub: 'Scan or upload a vendor bill',
+        tint: RunqColors.indigo,
+        onTap: (ctx) => startBillIntake(ctx),
+      ),
+      FabAction(
+        section: 'Money out',
         icon: Icons.account_balance_wallet_outlined,
         title: 'Pay a vendor',
-        sub: 'From any bank account',
+        sub: 'Settle approved bills from a bank account',
         tint: RunqColors.amberInk,
         onTap: (ctx) => ctx.push('/bills'),
       ),
       FabAction(
+        section: 'Money out',
         icon: Icons.qr_code_scanner_outlined,
-        title: 'Quick payments',
-        sub: 'Log & track QR/UPI payments you made',
-        tint: RunqColors.indigo,
+        title: 'Payment made',
+        sub: 'Log a UPI/QR payment you made — matches your bank',
+        tint: const Color(0xFF0891B2),
         onTap: (ctx) => ctx.push('/quick-expenses'),
       ),
       FabAction(
+        section: 'Money out',
         icon: Icons.savings_outlined,
-        title: 'Expenses',
-        sub: 'Record + view out-of-pocket spends',
+        title: 'Expense claim',
+        sub: 'Out-of-pocket spend to reimburse',
         tint: const Color(0xFF7C3AED),
         onTap: (ctx) => ctx.push('/expenses'),
       ),
@@ -228,23 +241,46 @@ class FabSheet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (final a in actions)
+                for (var i = 0; i < actions.length; i++) ...[
+                  // Group label once, above the first action of each run.
+                  if (actions[i].section != null &&
+                      (i == 0 || actions[i].section != actions[i - 1].section))
+                    _SectionHeader(label: actions[i].section!),
                   _ActionRow(
-                    action: a,
+                    action: actions[i],
                     onTap: () {
                       onClose();
                       // Run the action after the sheet collapse animation
                       // starts so the chooser/picker overlays the dashboard
                       // smoothly.
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (context.mounted) a.onTap(context);
+                        if (context.mounted) actions[i].onTap(context);
                       });
                     },
                   ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 12, 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(label.toUpperCase(),
+            style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.6)),
       ),
     );
   }

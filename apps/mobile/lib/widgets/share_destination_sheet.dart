@@ -31,10 +31,7 @@ enum ShareDestination {
 Future<ShareDestination?> showShareDestinationSheet(BuildContext context) {
   return showModalBottomSheet<ShareDestination>(
     context: context,
-    backgroundColor: RT(context).surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
+    backgroundColor: Colors.transparent,
     isDismissible: true,
     // Size to content — the option list is taller than the default ~56% cap.
     isScrollControlled: true,
@@ -48,18 +45,26 @@ class _Sheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 12),
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(RunqRadii.hero)),
+        border: Border.all(color: t.hairline, width: 0.5),
+        boxShadow: RunqShadows.sheet,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
@@ -99,8 +104,8 @@ class _Sheet extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.qr_code_scanner_outlined,
-              tint: const Color(0xFF22C55E),
-              title: 'Quick payment',
+              tint: const Color(0xFF0891B2),
+              title: 'Payment made',
               subtitle: 'UPI/QR payment you made — logs it to match your bank',
               onTap: () => Navigator.pop(context, ShareDestination.quickPayment),
             ),
@@ -109,7 +114,8 @@ class _Sheet extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
