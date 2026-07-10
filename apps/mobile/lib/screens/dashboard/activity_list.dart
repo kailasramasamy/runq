@@ -65,26 +65,15 @@ class _Row extends StatelessWidget {
   final ActivityEntry entry;
   const _Row({required this.entry});
 
-  void _onTap(BuildContext context) {
-    switch (entry.entityType) {
-      case 'sales_invoice':
-        context.push('/invoices/${entry.entityId}');
-        break;
-      case 'purchase_invoice':
-        context.push('/bills/${entry.entityId}');
-        break;
-      case 'bank_transaction':
-        context.push('/banking');
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final spec = activitySpec(entry);
+    final route = activityRoute(entry);
     return InkWell(
-      onTap: () => _onTap(context),
+      // Non-tappable when there's no mobile detail screen (payment/receipt/
+      // credit_note/debit_note) — avoids a ripple that goes nowhere.
+      onTap: route == null ? null : () => context.push(route),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Row(

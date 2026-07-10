@@ -68,8 +68,12 @@ Follow-up (P2 #13, not done): relegate the whole accountant-facing "Books health
 The GST hub's readiness card now shows a **"TAX TO PAY · <period>"** block with the net **cash payable** (from `gstLiabilityProvider` — the same provider the analytics GST-liability card uses, so no new backend). It's labelled with the *liability's own* period (the current filable 3B), which can differ from the readiness target period. Renders only once a GSTR-3B exists; shows "Nothing to pay / ITC covers it" (green) when fully offset, and "after ₹X ITC" context otherwise. Added to pull-to-refresh.
 Verified: `flutter analyze` clean, font guard clean.
 
-### 6. Dead taps on activity rows
+### 6. Dead taps on activity rows — ✅ DONE (2026-07-10)
+`payment` / `receipt` / `credit_note` / `debit_note` rows silently did nothing on tap. These entities carry no linked invoice/customer id and have no mobile detail screen, so there's no honest destination. Added a shared `activityRoute()` in `activity_spec.dart`; both the activity screen and the dashboard activity list now render those rows **non-tappable** (no ripple) instead of a dead tap — invoices/bills/bank rows still navigate. Verified: analyze + font guard clean.
+
+<details><summary>Original finding</summary>
 `activity_screen.dart:172-177` — `payment` / `receipt` / `credit_note` / `debit_note` activity types silently do nothing on tap.
+</details>
 
 ---
 

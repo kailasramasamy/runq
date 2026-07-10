@@ -17,6 +17,22 @@ class ActivitySpec {
   });
 }
 
+/// Route to open for an activity entry, or null when the entity has no
+/// mobile detail screen (payment / receipt / credit_note / debit_note). Rows
+/// with no route render non-tappable rather than showing a dead ripple.
+String? activityRoute(ActivityEntry e) {
+  switch (e.entityType) {
+    case 'sales_invoice':
+      return '/invoices/${e.entityId}';
+    case 'purchase_invoice':
+      return '/bills/${e.entityId}';
+    case 'bank_transaction':
+      return '/banking';
+    default:
+      return null;
+  }
+}
+
 ActivitySpec activitySpec(ActivityEntry e) {
   final ref = e.entityRef ?? '';
   final who = e.counterparty ?? 'someone';
