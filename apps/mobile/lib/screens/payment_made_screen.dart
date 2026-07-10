@@ -18,7 +18,7 @@ import '../widgets/runq_snack.dart';
 /// Capture a payment made out-of-band (bank QR/UPI scan) right after paying,
 /// so the imported bank debit reconciles against it later instead of being a
 /// forgotten "what was this for". Posts a pending payment + optional photo.
-class QuickPaymentScreen extends ConsumerStatefulWidget {
+class PaymentMadeScreen extends ConsumerStatefulWidget {
   /// When opened from the share sheet, the shared confirmation file — OCR'd
   /// on open to pre-fill the form.
   final File? initialFile;
@@ -26,13 +26,13 @@ class QuickPaymentScreen extends ConsumerStatefulWidget {
   /// When set, the screen edits an existing (still-pending) capture instead
   /// of creating a new one.
   final PendingPayment? editPayment;
-  const QuickPaymentScreen({super.key, this.initialFile, this.editPayment});
+  const PaymentMadeScreen({super.key, this.initialFile, this.editPayment});
 
   @override
-  ConsumerState<QuickPaymentScreen> createState() => _QuickPaymentScreenState();
+  ConsumerState<PaymentMadeScreen> createState() => _PaymentMadeScreenState();
 }
 
-class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
+class _PaymentMadeScreenState extends ConsumerState<PaymentMadeScreen> {
   final _amountCtrl = TextEditingController();
   final _payeeCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
@@ -260,7 +260,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
       // returns to it; opened from the share sheet a pop would land on home,
       // so route to the list explicitly instead.
       if (!_isEdit && widget.initialFile != null) {
-        context.pushReplacement('/quick-expenses');
+        context.pushReplacement('/payments-made');
       } else {
         context.pop();
       }

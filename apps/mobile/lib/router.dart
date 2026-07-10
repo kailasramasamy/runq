@@ -10,8 +10,8 @@ import 'screens/new_invoice_screen.dart';
 import 'screens/expense_detail_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/new_expense_screen.dart';
-import 'screens/quick_payment_screen.dart';
-import 'screens/quick_expenses_screen.dart';
+import 'screens/payment_made_screen.dart';
+import 'screens/payments_made_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/po_inbox_screen.dart';
 import 'screens/quick_invoice_generate_screen.dart';
@@ -905,15 +905,15 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const NewExpenseScreen(), key: state.pageKey),
         ),
         GoRoute(
-          path: '/quick-expenses',
+          path: '/payments-made',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const QuickExpensesScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(const PaymentsMadeScreen(), key: state.pageKey),
         ),
         GoRoute(
-          path: '/quick-payment',
+          path: '/payment-made',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
-            QuickPaymentScreen(
+            PaymentMadeScreen(
               initialFile: state.extra is File ? state.extra as File : null,
               editPayment: state.extra is PendingPayment ? state.extra as PendingPayment : null,
             ),

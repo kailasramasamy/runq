@@ -99,7 +99,7 @@ List<FabAction> financeFabActions() => [
         title: 'Payment made',
         sub: 'Log a UPI/QR payment you made — matches your bank',
         tint: const Color(0xFF0891B2),
-        onTap: (ctx) => ctx.push('/quick-expenses'),
+        onTap: (ctx) => ctx.push('/payments-made'),
       ),
       FabAction(
         section: 'Money out',

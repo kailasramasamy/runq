@@ -10,10 +10,10 @@ import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/runq_snack.dart';
 
-/// History of captured quick payments (QR/UPI). Pending ones are editable
+/// History of captured payments made (QR/UPI). Pending ones are editable
 /// until the bank statement matches them; each card shows its match status.
-class QuickExpensesScreen extends ConsumerWidget {
-  const QuickExpensesScreen({super.key});
+class PaymentsMadeScreen extends ConsumerWidget {
+  const PaymentsMadeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +25,7 @@ class QuickExpensesScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: RunqColors.indigo,
         foregroundColor: Colors.white,
-        onPressed: () => context.push('/quick-payment'),
+        onPressed: () => context.push('/payment-made'),
         icon: const Icon(Icons.add),
         label: const Text('New'),
       ),
@@ -106,7 +106,7 @@ class _PaymentCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         // Only pending captures are editable — matched/cancelled are locked.
-        onTap: item.isPending ? () => context.push('/quick-payment', extra: item) : null,
+        onTap: item.isPending ? () => context.push('/payment-made', extra: item) : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(

@@ -20,7 +20,7 @@ enum ShareDestination {
   receiveAgainstPo,
 
   /// A UPI/bank payment confirmation for money already paid. Routes to the
-  /// quick-payment capture, OCR-prefilled, to reconcile against the bank later.
+  /// payment-made capture, OCR-prefilled, to reconcile against the bank later.
   quickPayment,
 }
 
