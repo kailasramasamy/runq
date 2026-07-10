@@ -58,9 +58,11 @@ Setup: tenant sets **Settings → Company → UPI Collection → UPI ID** (web) 
 
 Both widgets are reused by the dashboard's Recent lists, so those get the same treatment. Verified: `flutter analyze` clean, font guard clean.
 
-### 4. Analytics drill-downs land nowhere
-`section_books.dart:164,194,283,323` — "Balance sheet", "Trial balance", "Suspense" cards all push `/money/reports`, which only renders P&L/Revenue/Expenses (`router.dart:883-885`). Tapping "Trial balance → View reports" shows no trial balance.
-**Fix:** Either build those views or (better, for this persona) remove/relegate the Books-health cards — see P2 #12.
+### 4. Analytics drill-downs land nowhere — ✅ DONE (2026-07-10)
+The three cards that pushed `/money/reports` for a view that screen doesn't contain — **Balance sheet, Trial balance, Suspense/clearing** (`section_books.dart`) — no longer drill. They stay as glanceable health indicators (accountant territory, no owner-facing mobile screen to act on; building full BS/TB screens is wrong-priority for this persona). Every remaining analytics drill was verified to land on a real route with the promised content: the surviving `/money/reports` drills are P&L / Gross-margin / Revenue-vs-expense / Top-expense (all views the reports screen actually has); others → banking / invoices / bills / approvals / collections / gst.
+Verified: `flutter analyze` clean, font guard clean, all drill targets resolve.
+
+Follow-up (P2 #13, not done): relegate the whole accountant-facing "Books health" section into a collapsed "For your accountant" group.
 
 ### 5. GST hub answers "am I ready?" but not "how much do I owe?"
 `gst_hub_screen.dart:116-243` — readiness % + due-date chip, but tax payable appears nowhere on the hub; it's buried in Analytics ("Cash payable", `section_gst.dart:60-66`) and the 3B detail.

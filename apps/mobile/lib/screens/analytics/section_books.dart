@@ -158,10 +158,12 @@ class _BsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No mobile Balance Sheet view exists (it's web/accountant territory), so
+    // this stays a glanceable health indicator with no drill — better than a
+    // tap that dead-ends on the P&L reports screen.
     return MetricCard<BsSummary>(
       title: 'Balance sheet',
       value: value,
-      onTap: () => context.push('/money/reports'),
       builder: (d) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -188,10 +190,11 @@ class _TbCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No mobile Trial Balance view — glanceable indicator only, no dead-end
+    // drill.
     return MetricCard<TbSummary>(
       title: 'Trial balance',
       value: value,
-      onTap: () => context.push('/money/reports'),
       builder: (d) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -276,12 +279,12 @@ class _SuspenseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Suspense/clearing is an accountant follow-up with no owner-facing mobile
+    // screen to act on — indicator only, no dead-end "View reports" drill.
     return MetricCard<SuspenseSummary>(
       title: 'Suspense / clearing',
       subtitle: 'Stuck balances',
       value: value,
-      onTap: () => context.push('/money/reports'),
-      footerLabel: 'View reports',
       emptyHint: 'No suspense accounts',
       builder: (d) => Row(
         children: [
