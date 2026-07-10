@@ -51,9 +51,12 @@ Setup: tenant sets **Settings → Company → UPI Collection → UPI ID** (web) 
 `invoice_detail_screen.dart:160-175` — "Copy UPI payment link" only copies text to clipboard, buried in the "…" overflow menu. API returns `qrData` (`models.dart:656-662`) but no QR is ever rendered (no `qr_flutter`). For an Indian SME the #1 collection move is *show a scannable QR on the spot*. Fix: "Show payment QR" as a primary action on any unpaid invoice.
 </details>
 
-### 3. Invoice rows hide the two numbers that matter
-`invoices_screen.dart:737-746` — rows show **invoice date** (not due date), no days-overdue count, and headline amount is gross `totalAmount` (not `balanceDue`).
-**Fix:** Row line 2 = `Due 12 Jan · 18d late` (red when overdue); headline = balance due. Same fix for bills (`bills_screen.dart:724-773` — no due date or overdue signal at all on bill rows).
+### 3. Invoice rows hide the two numbers that matter — ✅ DONE (2026-07-10)
+`InvoiceRow` (`invoices_screen.dart`) and `BillRow` (`bills_screen.dart`) now show:
+- **Headline = balance due** (what's still owed) for any non-draft row with an open balance; drafts/paid keep the invoice/bill value.
+- **Line 2 = `INV-042 · Due 20 Jan`**, with a red **`· 18d late`** (or `due today`) when past due. Lateness is **date-derived**, not status-derived, so it's honest even before the backend's overnight job flips `sent → overdue`.
+
+Both widgets are reused by the dashboard's Recent lists, so those get the same treatment. Verified: `flutter analyze` clean, font guard clean.
 
 ### 4. Analytics drill-downs land nowhere
 `section_books.dart:164,194,283,323` — "Balance sheet", "Trial balance", "Suspense" cards all push `/money/reports`, which only renders P&L/Revenue/Expenses (`router.dart:883-885`). Tapping "Trial balance → View reports" shows no trial balance.

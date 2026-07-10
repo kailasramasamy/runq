@@ -716,7 +716,20 @@ class InvoiceRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
     final isPartial = invoice.status == 'partially_paid';
+    // Money still owed on this invoice. Drafts/paid rows have nothing
+    // outstanding, so they keep showing the invoice value + its date.
+    final hasBalance = invoice.balanceDue > 0 && invoice.status != 'draft';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(invoice.dueDate.year, invoice.dueDate.month, invoice.dueDate.day);
+    // Derive lateness from the date, not the status flag, so triage is honest
+    // even before the backend's overnight job flips 'sent' -> 'overdue'.
+    final isLate = hasBalance && due.isBefore(today);
+    final daysLate = isLate ? today.difference(due).inDays : 0;
+    // Headline = what's still owed (balance), not the gross total.
+    final headline = hasBalance ? invoice.balanceDue : invoice.totalAmount;
     final actions = _buildActions(context, ref);
     final body = Column(
       children: [
@@ -735,7 +748,29 @@ class InvoiceRow extends ConsumerWidget {
                 children: [
                   Text(invoice.customerName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text('${invoice.invoiceNumber} · ${_date(invoice.invoiceDate)}', style: RunqText.caption),
+                  Text.rich(
+                    TextSpan(
+                      style: RunqText.caption.copyWith(color: t.muted),
+                      children: [
+                        TextSpan(text: invoice.invoiceNumber),
+                        const TextSpan(text: '  ·  '),
+                        if (hasBalance)
+                          TextSpan(
+                            text: 'Due ${_date(invoice.dueDate)}',
+                            style: isLate ? TextStyle(color: RunqColors.redInk) : null,
+                          )
+                        else
+                          TextSpan(text: _date(invoice.invoiceDate)),
+                        if (isLate)
+                          TextSpan(
+                            text: '  ·  ${daysLate < 1 ? 'due today' : '${daysLate}d late'}',
+                            style: TextStyle(color: RunqColors.redInk, fontWeight: FontWeight.w700),
+                          ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   if (!isPartial) ...[
                     const SizedBox(height: 6),
                     StatusPill(invoice.status, warning: invoice.status == 'overdue'),
@@ -744,7 +779,7 @@ class InvoiceRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(formatINR(invoice.totalAmount), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
+            Text(formatINR(headline), style: RunqText.tabular(size: 15, w: FontWeight.w700)),
           ],
         ),
         if (isPartial) ...[

@@ -738,6 +738,17 @@ class BillRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    // Amount still payable to the vendor. Drafts/paid rows have nothing
+    // outstanding, so they keep showing the bill value + its date.
+    final hasBalance = bill.balanceDue > 0 && bill.status != 'draft';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+    // Date-derived lateness so triage is honest regardless of status flag.
+    final isLate = hasBalance && due.isBefore(today);
+    final daysLate = isLate ? today.difference(due).inDays : 0;
+    final headline = hasBalance ? bill.balanceDue : bill.totalAmount;
     final actions = _buildActions(context, ref);
     final body = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -750,7 +761,29 @@ class BillRow extends ConsumerWidget {
             children: [
               Text(bill.vendorName, style: RunqText.bodyStrong, maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
-              Text('${bill.invoiceNumber} · ${_date(bill.invoiceDate)}', style: RunqText.caption),
+              Text.rich(
+                TextSpan(
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  children: [
+                    TextSpan(text: bill.invoiceNumber),
+                    const TextSpan(text: '  ·  '),
+                    if (hasBalance)
+                      TextSpan(
+                        text: 'Due ${_date(bill.dueDate)}',
+                        style: isLate ? TextStyle(color: RunqColors.redInk) : null,
+                      )
+                    else
+                      TextSpan(text: _date(bill.invoiceDate)),
+                    if (isLate)
+                      TextSpan(
+                        text: '  ·  ${daysLate < 1 ? 'due today' : '${daysLate}d late'}',
+                        style: TextStyle(color: RunqColors.redInk, fontWeight: FontWeight.w700),
+                      ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -768,7 +801,7 @@ class BillRow extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(formatINR(bill.totalAmount), style: RunqText.tabular(size: 16, w: FontWeight.w700)),
+        Text(formatINR(headline), style: RunqText.tabular(size: 16, w: FontWeight.w700)),
       ],
     );
     final tap = () => context.push('/bills/${bill.id}');
