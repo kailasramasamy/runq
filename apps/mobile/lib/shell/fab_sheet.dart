@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/bill_intake.dart';
+import '../services/po_intake.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
-import '../widgets/invoice_create_sheet.dart';
 
 /// One row in the centre-FAB action sheet. Public so module-specific
 /// builders (Finance + HR) can hand their list to [FabSheet] without
@@ -31,13 +31,39 @@ class FabAction {
 /// several payment-ish flows.
 List<FabAction> financeFabActions() => [
       // ── Money in ──
+      // The four invoice-creation modes are inlined here (rather than behind a
+      // second chooser sheet) so any mode is two taps from the FAB.
       FabAction(
         section: 'Money in',
-        icon: Icons.send_outlined,
-        title: 'Create invoice',
-        sub: 'Bill a customer — PO, blank, or upload',
+        icon: Icons.note_add_outlined,
+        title: 'Create blank invoice',
+        sub: 'Pick a customer, add items, and save',
         tint: const Color(0xFF06B6D4),
-        onTap: (ctx) => showInvoiceCreateSheet(ctx),
+        onTap: (ctx) => ctx.push('/invoices/new'),
+      ),
+      FabAction(
+        section: 'Money in',
+        icon: Icons.bolt_outlined,
+        title: 'Quick invoice',
+        sub: 'Pick a saved template, set quantities, and generate',
+        tint: RunqColors.amberInk,
+        onTap: (ctx) => ctx.push('/quick-invoice/templates'),
+      ),
+      FabAction(
+        section: 'Money in',
+        icon: Icons.inbox_outlined,
+        title: 'Invoice from PO',
+        sub: 'Pick a customer PO — AI extracts and drafts the invoice',
+        tint: RunqColors.indigo,
+        onTap: (ctx) => startPoIntake(ctx),
+      ),
+      FabAction(
+        section: 'Money in',
+        icon: Icons.upload_file_outlined,
+        title: 'Upload invoice',
+        sub: 'Pick a PDF or image — AI extracts and drafts the invoice',
+        tint: RunqColors.accent,
+        onTap: (ctx) => startPoIntake(ctx),
       ),
       FabAction(
         section: 'Money in',
@@ -225,7 +251,7 @@ class FabSheet extends StatelessWidget {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: media.padding.bottom + 88,
+      bottom: media.padding.bottom + 36,
       child: Opacity(
         opacity: progress,
         child: Padding(
@@ -238,28 +264,42 @@ class FabSheet extends StatelessWidget {
               boxShadow: RunqShadows.sheet,
             ),
             padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < actions.length; i++) ...[
-                  // Group label once, above the first action of each run.
-                  if (actions[i].section != null &&
-                      (i == 0 || actions[i].section != actions[i - 1].section))
-                    _SectionHeader(label: actions[i].section!),
-                  _ActionRow(
-                    action: actions[i],
-                    onTap: () {
-                      onClose();
-                      // Run the action after the sheet collapse animation
-                      // starts so the chooser/picker overlays the dashboard
-                      // smoothly.
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (context.mounted) actions[i].onTap(context);
-                      });
-                    },
-                  ),
-                ],
-              ],
+            // Cap the height to the space above the nav bar so a long action
+            // list (e.g. Finance's inlined invoice modes) scrolls instead of
+            // overflowing on small phones.
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: media.size.height -
+                    media.padding.top -
+                    (media.padding.bottom + 36) -
+                    24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      // Group label once, above the first action of each run.
+                      if (actions[i].section != null &&
+                          (i == 0 ||
+                              actions[i].section != actions[i - 1].section))
+                        _SectionHeader(label: actions[i].section!),
+                      _ActionRow(
+                        action: actions[i],
+                        onTap: () {
+                          onClose();
+                          // Run the action after the sheet collapse animation
+                          // starts so the chooser/picker overlays the dashboard
+                          // smoothly.
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (context.mounted) actions[i].onTap(context);
+                          });
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
