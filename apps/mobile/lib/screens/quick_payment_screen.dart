@@ -11,8 +11,8 @@ import '../api/repos.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
+import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
-import 'new_expense_screen.dart' show fieldDecoration;
 
 /// Capture a payment made out-of-band (bank QR/UPI scan) right after paying,
 /// so the imported bank debit reconciles against it later instead of being a
@@ -261,6 +261,28 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
 
   void _err(String m) => showRunqSnack(context, m, kind: SnackKind.error);
 
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  String _prettyDate() {
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${_date.day} ${m[_date.month - 1]} ${_date.year}';
+  }
+
+  String? _selectedAccountLabel(List<BankAccount> accounts) {
+    for (final a in accounts) {
+      if (a.id == _bankAccountId) return '${a.bankName} ${a.masked}';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
@@ -271,56 +293,97 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
       appBar: AppBar(title: Text(_isEdit ? 'Edit payment' : 'Payment made')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           children: [
-            _label(t, 'Paid from'),
-            accountsAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => Text('Could not load accounts', style: RunqText.body.copyWith(color: t.muted)),
-              data: (accounts) => _accountField(t, accounts),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'Amount'),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              decoration: fieldDecoration(t, hint: '0.00', prefix: '₹ '),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'Expense category'),
-            categoriesAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => Text('Could not load categories', style: RunqText.body.copyWith(color: t.muted)),
-              data: (accounts) => _categoryField(t, accounts),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'Paid to (optional)'),
-            TextField(
-              controller: _payeeCtrl,
-              textCapitalization: TextCapitalization.words,
-              decoration: fieldDecoration(t, hint: 'e.g. Ramesh transport'),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'Note — what for (optional)'),
-            TextField(
-              controller: _noteCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: fieldDecoration(t, hint: 'e.g. sand for plant flooring'),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'UPI reference (optional — enables exact match)'),
-            TextField(
-              controller: _upiCtrl,
-              decoration: fieldDecoration(t, hint: 'UTR / UPI txn id'),
-            ),
-            const SizedBox(height: 16),
-            _label(t, 'Payment date'),
-            _dateField(t),
+            _amountCard(t),
             if (!_isEdit) ...[
-              const SizedBox(height: 16),
-              _photoField(t),
+              const SizedBox(height: 12),
+              _scanRow(t),
             ],
+            const SizedBox(height: 20),
+            _sectionHeader(t, 'Details'),
+            const SizedBox(height: 8),
+            RunqCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  accountsAsync.when(
+                    loading: () => _loadingRow(t, 'Paid from'),
+                    error: (_, __) => _pickerRow(t,
+                        icon: Icons.account_balance_outlined,
+                        label: 'Paid from',
+                        value: null,
+                        placeholder: 'Could not load accounts',
+                        onTap: () {}),
+                    data: (accounts) {
+                      // Default to the last-used account once prefs have loaded.
+                      if (_prefsLoaded) {
+                        final valid = _bankAccountId != null &&
+                            accounts.any((a) => a.id == _bankAccountId);
+                        if (!valid && accounts.isNotEmpty) {
+                          _bankAccountId = accounts.first.id;
+                        }
+                      }
+                      return _pickerRow(t,
+                          icon: Icons.account_balance_outlined,
+                          label: 'Paid from',
+                          value: _selectedAccountLabel(accounts),
+                          placeholder: 'Select account',
+                          onTap: () => _pickBankAccount(accounts));
+                    },
+                  ),
+                  _rowDivider(t),
+                  categoriesAsync.when(
+                    loading: () => _loadingRow(t, 'Category'),
+                    error: (_, __) => _pickerRow(t,
+                        icon: Icons.sell_outlined,
+                        label: 'Category',
+                        value: null,
+                        placeholder: 'Could not load categories',
+                        onTap: () {}),
+                    data: (accounts) => _pickerRow(t,
+                        icon: Icons.sell_outlined,
+                        label: 'Category',
+                        value: _category?.label,
+                        placeholder: 'Choose a category',
+                        onTap: () => _pickCategory(accounts)),
+                  ),
+                  _rowDivider(t),
+                  _pickerRow(t,
+                      icon: Icons.event_outlined,
+                      label: 'Date',
+                      value: _prettyDate(),
+                      onTap: _pickDate),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            _sectionHeader(t, 'Optional'),
+            const SizedBox(height: 8),
+            RunqCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Column(
+                children: [
+                  _textRow(t,
+                      controller: _payeeCtrl,
+                      label: 'Paid to',
+                      hint: 'e.g. Ramesh transport',
+                      cap: TextCapitalization.words),
+                  _rowDivider(t),
+                  _textRow(t,
+                      controller: _noteCtrl,
+                      label: 'Note',
+                      hint: 'What was it for?',
+                      cap: TextCapitalization.sentences),
+                  _rowDivider(t),
+                  _textRow(t,
+                      controller: _upiCtrl,
+                      label: 'UPI reference',
+                      hint: 'UTR / UPI txn id',
+                      helper: 'Enables an exact match to your bank statement'),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -342,92 +405,194 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     );
   }
 
-  Widget _label(RunqTokens t, String s) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(s, style: RunqText.caption.copyWith(color: t.muted)),
+  // ── Layout pieces ──────────────────────────────────────────────────────
+
+  Widget _sectionHeader(RunqTokens t, String s) => Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(s.toUpperCase(),
+            style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.6)),
       );
 
-  Widget _accountField(RunqTokens t, List<BankAccount> accounts) {
-    // Wait for the saved last-used account before defaulting, so we don't
-    // flash the first account then jump to the remembered one.
-    if (_prefsLoaded) {
-      final valid = _bankAccountId != null && accounts.any((a) => a.id == _bankAccountId);
-      if (!valid && accounts.isNotEmpty) _bankAccountId = accounts.first.id;
-    }
-    BankAccount? selected;
-    for (final a in accounts) {
-      if (a.id == _bankAccountId) { selected = a; break; }
-    }
-    return InkWell(
-      onTap: () => _pickBankAccount(accounts),
-      child: InputDecorator(
-        decoration: fieldDecoration(t),
-        child: Text(
-          selected != null ? '${selected.bankName} ${selected.masked}' : 'Select account',
-          style: RunqText.body.copyWith(color: selected == null ? t.muted2 : t.ink),
-        ),
+  /// Hero amount input — the number is the point of the screen, so it leads.
+  Widget _amountCard(RunqTokens t) {
+    return RunqCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('AMOUNT PAID',
+              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.6)),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('₹',
+                  style: RunqText.tabular(size: 28, w: FontWeight.w700, color: t.muted)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                  style: RunqText.tabular(size: 28, w: FontWeight.w700, color: t.ink),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: '0.00',
+                    hintStyle:
+                        RunqText.tabular(size: 28, w: FontWeight.w700, color: t.muted2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _categoryField(RunqTokens t, List<GlAccount> accounts) {
-    return InkWell(
-      onTap: () => _pickCategory(accounts),
-      child: InputDecorator(
-        decoration: fieldDecoration(t),
-        child: Text(
-          _category?.label ?? 'Select category',
-          style: RunqText.body.copyWith(color: _category == null ? t.muted2 : t.ink),
-        ),
-      ),
-    );
-  }
-
-  Widget _dateField(RunqTokens t) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _date,
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
-        );
-        if (picked != null) setState(() => _date = picked);
-      },
-      child: InputDecorator(
-        decoration: fieldDecoration(t),
-        child: Text(_dateIso, style: RunqText.body.copyWith(color: t.ink)),
-      ),
-    );
-  }
-
-  Widget _photoField(RunqTokens t) {
+  /// Fast path — snap the confirmation and let OCR fill the form.
+  Widget _scanRow(RunqTokens t) {
+    final attached = _photo != null;
     return InkWell(
       onTap: _pickPhoto,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(RunqRadii.card),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: t.hairline),
+          color: RunqColors.indigo.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(RunqRadii.card),
+          border: Border.all(
+              color: RunqColors.indigo.withValues(alpha: 0.25), width: 0.8),
         ),
-        child: Row(children: [
-          _ocrBusy
-              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: t.muted))
-              : Icon(_photo == null ? Icons.add_a_photo_outlined : Icons.check_circle_outline, color: t.muted),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _ocrBusy
-                  ? 'Reading confirmation…'
-                  : (_photo == null ? 'Attach payment confirmation' : 'Photo attached — tap to change'),
-              style: RunqText.body.copyWith(color: t.ink),
+        child: Row(
+          children: [
+            _ocrBusy
+                ? const SizedBox(
+                    width: 22, height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: RunqColors.indigo))
+                : Icon(attached ? Icons.check_circle_rounded : Icons.document_scanner_outlined,
+                    color: RunqColors.indigo, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _ocrBusy
+                        ? 'Reading confirmation…'
+                        : (attached ? 'Confirmation attached' : 'Scan confirmation'),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    attached ? 'Tap to change' : 'Auto-fill amount, payee & date',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ]),
+            Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
+          ],
+        ),
       ),
     );
   }
+
+  /// Tappable selector row inside a grouped card.
+  Widget _pickerRow(
+    RunqTokens t, {
+    required IconData icon,
+    required String label,
+    required String? value,
+    String placeholder = 'Select',
+    required VoidCallback onTap,
+  }) {
+    final hasValue = value != null && value.isNotEmpty;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: Row(
+          children: [
+            Container(
+              width: 38, height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: RunqColors.indigo.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: RunqColors.indigo, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: RunqText.caption.copyWith(color: t.muted)),
+                  const SizedBox(height: 2),
+                  Text(hasValue ? value : placeholder,
+                      style: RunqText.bodyStrong
+                          .copyWith(color: hasValue ? t.ink : t.muted2),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: t.muted2, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingRow(RunqTokens t, String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 18, 14, 18),
+        child: Row(children: [
+          Text(label, style: RunqText.caption.copyWith(color: t.muted)),
+          const Spacer(),
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        ]),
+      );
+
+  /// Borderless text field with a label above, for the Optional card.
+  Widget _textRow(
+    RunqTokens t, {
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    String? helper,
+    TextCapitalization cap = TextCapitalization.none,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: RunqText.caption.copyWith(color: t.muted)),
+          TextField(
+            controller: controller,
+            textCapitalization: cap,
+            style: RunqText.body.copyWith(color: t.ink),
+            decoration: InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              hintText: hint,
+              hintStyle: RunqText.body.copyWith(color: t.muted2),
+            ),
+          ),
+          if (helper != null)
+            Text(helper, style: RunqText.micro.copyWith(color: t.muted2)),
+        ],
+      ),
+    );
+  }
+
+  Widget _rowDivider(RunqTokens t) =>
+      Divider(height: 1, thickness: 0.6, color: t.hairline, indent: 14, endIndent: 14);
 }
 
 /// Shared bottom-sheet chrome — matches the app's other selector sheets
