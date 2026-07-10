@@ -21,7 +21,7 @@ class QuickExpensesScreen extends ConsumerWidget {
     final async = ref.watch(pendingPaymentsProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
-      appBar: AppBar(title: const Text('Quick payments')),
+      appBar: AppBar(title: const Text('Payments made')),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: RunqColors.indigo,
         foregroundColor: Colors.white,
@@ -60,7 +60,7 @@ class _EmptyState extends StatelessWidget {
         const SizedBox(height: 120),
         Icon(Icons.qr_code_scanner_outlined, size: 48, color: t.muted2),
         const SizedBox(height: 12),
-        Center(child: Text('No quick payments yet', style: RunqText.h4.copyWith(color: t.ink))),
+        Center(child: Text('No payments logged yet', style: RunqText.h4.copyWith(color: t.ink))),
         const SizedBox(height: 4),
         Center(
           child: Text('Tap + to log a QR/UPI payment you made',

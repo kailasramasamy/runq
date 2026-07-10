@@ -268,7 +268,7 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     final categoriesAsync = ref.watch(expenseAccountsProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
-      appBar: AppBar(title: Text(_isEdit ? 'Edit payment' : 'Quick payment')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit payment' : 'Payment made')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
