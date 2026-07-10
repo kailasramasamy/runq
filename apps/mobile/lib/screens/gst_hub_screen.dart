@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/analytics_models.dart';
 import '../api/models.dart';
+import '../providers/analytics_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
+import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/section_head.dart';
@@ -15,6 +18,7 @@ class GstHubScreen extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(gstReadinessProvider);
+    ref.invalidate(gstLiabilityProvider);
     ref.invalidate(gstReturnsProvider);
     await ref.read(gstReturnsProvider.future).catchError((_) => throw 0);
   }
@@ -22,6 +26,9 @@ class GstHubScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final readiness = ref.watch(gstReadinessProvider);
+    // "How much do I owe" — cash payable for the current filable 3B period.
+    // Loads independently of readiness; null while loading or before 3B.
+    final liability = ref.watch(gstLiabilityProvider).valueOrNull;
     final returns = ref.watch(gstReturnsProvider);
 
     return Scaffold(
@@ -42,7 +49,7 @@ class GstHubScreen extends ConsumerWidget {
                     onRetry: () => ref.invalidate(gstReadinessProvider),
                     data: (g) => g == null
                         ? const _NoGstinCard()
-                        : _ReadinessCard(readiness: g),
+                        : _ReadinessCard(readiness: g, liability: liability),
                   ),
                 ),
               ),
@@ -115,7 +122,8 @@ const _hideWhenOkKeys = {'gstin_configured', 'gst_username'};
 
 class _ReadinessCard extends StatelessWidget {
   final GstReadiness readiness;
-  const _ReadinessCard({required this.readiness});
+  final GstLiabilityCurrent? liability;
+  const _ReadinessCard({required this.readiness, this.liability});
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +216,10 @@ class _ReadinessCard extends StatelessWidget {
                 : '$passing of $total checks passing',
             style: RunqText.caption.copyWith(color: t.muted),
           ),
+          if (liability != null && liability!.has3b) ...[
+            const SizedBox(height: 14),
+            _TaxToPay(liability: liability!),
+          ],
           if (hint != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -239,6 +251,65 @@ class _ReadinessCard extends StatelessWidget {
       ),
     ),
     ),
+    );
+  }
+}
+
+/// The "how much do I owe" answer — net cash payable for the current filable
+/// 3B period, sat next to the readiness score so the two headline GST
+/// questions ("ready?" + "owe?") are answered together.
+class _TaxToPay extends StatelessWidget {
+  final GstLiabilityCurrent liability;
+  const _TaxToPay({required this.liability});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cash = liability.totalCashPayable;
+    final nothingDue = cash <= 0;
+    final accent = nothingDue
+        ? (isDark ? const Color(0xFF34D399) : RunqColors.greenInk)
+        : t.ink;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'TAX TO PAY · ${liability.period.label.toUpperCase()}',
+                  style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  nothingDue ? 'Nothing to pay' : formatINR(cash),
+                  style: RunqText.tabular(size: 22, w: FontWeight.w700, color: accent),
+                ),
+              ],
+            ),
+          ),
+          if (liability.totalItcUsed > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 2),
+              child: Text(
+                nothingDue
+                    ? 'ITC covers it'
+                    : 'after ${formatINR(liability.totalItcUsed, compact: true)} ITC',
+                style: RunqText.caption.copyWith(color: t.muted),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
