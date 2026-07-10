@@ -887,6 +887,26 @@ class GstRepo {
     return GstCompanyProfile.fromJson(_data(res));
   }
 
+  /// GSTN wire-format GSTR-1 JSON (for manual portal upload). Bytes.
+  Future<List<int>> gstr1PayloadJson(String id) =>
+      apiClient.getBytes('/gst/returns/$id/payload.json');
+
+  /// GSTR-1 CSV export (record-keeping). Bytes.
+  Future<List<int>> gstr1ExportCsv(String id) =>
+      apiClient.getBytes('/gst/returns/$id/export.csv');
+
+  /// Invoice-line drill-down behind one GSTR-1 HSN+rate row.
+  Future<List<Map<String, dynamic>>> hsnBreakdown(
+    String id, {
+    required String hsn,
+    required String rate,
+  }) async {
+    final qp = {'hsn': hsn, 'rate': rate};
+    final res = await apiClient.get(
+        '/gst/returns/$id/hsn-breakdown?${Uri(queryParameters: qp).query}');
+    return _dataList(res);
+  }
+
   Future<void> pull2b(String period) async {
     await apiClient.post('/gst/2b/pull', {'period': period});
   }
