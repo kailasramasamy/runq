@@ -17,6 +17,7 @@ import '../widgets/customer_picker_screen.dart';
 import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/date_range_sheet.dart';
+import '../widgets/payment_qr_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/swipe_action.dart';
@@ -810,10 +811,10 @@ class InvoiceRow extends ConsumerWidget {
             onTap: () => _remind(context, ref),
           ),
           SwipeAction(
-            icon: Icons.check_rounded,
-            label: 'Mark paid',
+            icon: Icons.qr_code_2_rounded,
+            label: 'Collect',
             color: const Color(0xFF047857),
-            onTap: () => _markPaid(context, ref),
+            onTap: () => _showQr(context),
           ),
         ];
       default:
@@ -919,27 +920,18 @@ class InvoiceRow extends ConsumerWidget {
     }
   }
 
-  Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
-    final result = await showPaymentMethodSheet(context, invoice.balanceDue);
-    if (result == null) return;
-    if (!context.mounted) return;
-    try {
-      await invoicesRepo.markPaid(
-        invoice.id,
-        paymentMethod: result.method,
-        referenceNumber: result.reference,
-      );
-      await _refreshAll(ref);
-      if (!context.mounted) return;
-      showRunqSnack(
-        context,
-        'Marked ${formatINR(invoice.balanceDue, compact: true)} paid',
-        kind: SnackKind.success,
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      showRunqSnack(context, "Couldn't mark paid: $e", kind: SnackKind.error);
-    }
+  /// Show the invoice's UPI QR so the customer pays into the business account.
+  /// Recording is left to bank reconciliation, so this never mutates state.
+  /// (Cash / personal-account receipts use "Record offline payment" on the
+  /// invoice detail's overflow menu.)
+  Future<void> _showQr(BuildContext context) {
+    return showPaymentQrSheet(
+      context,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      customerName: invoice.customerName,
+      balanceDue: invoice.balanceDue,
+    );
   }
 }
 

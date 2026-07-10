@@ -40,11 +40,14 @@ List<FabAction> financeFabActions() => [
         onTap: (ctx) => showInvoiceCreateSheet(ctx),
       ),
       FabAction(
-        icon: Icons.payments_outlined,
-        title: 'Record payment',
-        sub: 'Mark a payment received',
+        icon: Icons.qr_code_2_outlined,
+        title: 'Collect payment',
+        sub: 'Show a UPI QR on an unpaid invoice',
         tint: RunqColors.greenInk,
-        onTap: (ctx) => ctx.push('/invoices'),
+        // Canonical path (not the `/invoices` alias) so the `tab` query param
+        // survives the router redirect. Lands on the unpaid list → tap an
+        // invoice → its payment QR.
+        onTap: (ctx) => ctx.push('/sales/invoices?tab=unpaid'),
       ),
       FabAction(
         icon: Icons.account_balance_wallet_outlined,

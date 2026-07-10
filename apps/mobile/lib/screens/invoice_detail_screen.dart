@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +15,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
+import '../widgets/payment_qr_sheet.dart';
 import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
@@ -146,8 +146,8 @@ class _DetailHeaderState extends ConsumerState<_DetailHeader> {
     );
     if (action == null || !mounted) return;
     switch (action) {
-      case _InvoiceAction.copyUpi:
-        await _copyUpiLink();
+      case _InvoiceAction.recordOffline:
+        await _recordOfflinePayment();
       case _InvoiceAction.amend:
         if (mounted) context.push('/invoices/${widget.invoice.id}/edit');
       case _InvoiceAction.discard:
@@ -157,18 +157,31 @@ class _DetailHeaderState extends ConsumerState<_DetailHeader> {
     }
   }
 
-  Future<void> _copyUpiLink() async {
+  /// Escape hatch for the rare case where the customer paid in cash or into a
+  /// personal account, so the receipt will never land on a bank statement to
+  /// reconcile. Normal (bank-account) payments must NOT go through here — they
+  /// record themselves at statement import. Kept off the primary footer and in
+  /// the overflow menu so it isn't the default money-in path.
+  Future<void> _recordOfflinePayment() async {
     if (_busy) return;
+    final result = await showPaymentMethodSheet(context, widget.invoice.balanceDue);
+    if (result == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      final data = await invoicesRepo.upiLink(widget.invoice.id);
-      await Clipboard.setData(ClipboardData(text: data.deepLink));
+      await invoicesRepo.markPaid(
+        widget.invoice.id,
+        paymentMethod: result.method,
+        referenceNumber: result.reference,
+      );
       if (!mounted) return;
-      showRunqSnack(context, 'UPI link copied', kind: SnackKind.success);
+      showRunqSnack(context, 'Payment recorded', kind: SnackKind.success);
+      ref.invalidate(invoiceDetailProvider(widget.invoice.id));
+      ref.invalidate(invoiceSummaryProvider);
+      ref.invalidate(dashboardSummaryProvider);
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
-      if (mounted) showRunqSnack(context, 'Could not get UPI link', kind: SnackKind.error);
+      if (mounted) showRunqSnack(context, 'Could not record payment', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -275,7 +288,7 @@ class _DetailHeaderState extends ConsumerState<_DetailHeader> {
   }
 }
 
-enum _InvoiceAction { copyUpi, amend, discard, hardDelete }
+enum _InvoiceAction { recordOffline, amend, discard, hardDelete }
 
 class _MoreActionsSheet extends StatelessWidget {
   final InvoiceWithDetails invoice;
@@ -294,7 +307,10 @@ class _MoreActionsSheet extends StatelessWidget {
     final canHardDelete = status == 'draft' ||
         status == 'cancelled' ||
         ((status == 'sent' || status == 'overdue') && invoice.amountReceived == 0);
-    final canCopyUpi = invoice.balanceDue > 0;
+    // Offline (cash / personal-account) receipt — the rare payment that won't
+    // reconcile from a bank statement. Bank payments should NOT use this.
+    final canRecordOffline = invoice.balanceDue > 0 &&
+        (status == 'sent' || status == 'overdue' || status == 'partially_paid');
 
     return SafeArea(
       top: false,
@@ -308,12 +324,13 @@ class _MoreActionsSheet extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
             ),
-            if (canCopyUpi)
+            if (canRecordOffline)
               _SheetItem(
-                icon: Icons.copy_rounded,
-                label: 'Copy UPI payment link',
-                subtitle: 'For ${formatINR(invoice.balanceDue)} balance due',
-                onTap: () => Navigator.pop(context, _InvoiceAction.copyUpi),
+                icon: Icons.payments_outlined,
+                label: 'Record offline payment',
+                subtitle: 'Only for cash / personal a/c — bank payments record '
+                    'themselves at reconciliation',
+                onTap: () => Navigator.pop(context, _InvoiceAction.recordOffline),
               ),
             if (canAmend)
               _SheetItem(
@@ -340,7 +357,7 @@ class _MoreActionsSheet extends StatelessWidget {
                 onTap: () => Navigator.pop(context, _InvoiceAction.hardDelete),
                 destructive: true,
               ),
-            if (!canCopyUpi && !canAmend && !canDiscard && !canHardDelete)
+            if (!canRecordOffline && !canAmend && !canDiscard && !canHardDelete)
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
@@ -736,7 +753,7 @@ class _StickyFooter extends ConsumerStatefulWidget {
 }
 
 class _StickyFooterState extends ConsumerState<_StickyFooter> {
-  bool _sending = false, _marking = false;
+  bool _sending = false;
 
   Future<void> _send() async {
     setState(() => _sending = true);
@@ -817,25 +834,18 @@ class _StickyFooterState extends ConsumerState<_StickyFooter> {
   }
 
 
-  Future<void> _recordPayment() async {
-    final result = await showPaymentMethodSheet(context, widget.invoice.balanceDue);
-    if (result == null || !mounted) return;
-    setState(() => _marking = true);
-    try {
-      await invoicesRepo.markPaid(
-        widget.invoice.id,
-        paymentMethod: result.method,
-        referenceNumber: result.reference,
-      );
-      if (!mounted) return;
-      showRunqSnack(context, 'Payment recorded', kind: SnackKind.success);
-      widget.onChange();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      showRunqSnack(context, e.message, kind: SnackKind.error);
-    } finally {
-      if (mounted) setState(() => _marking = false);
-    }
+  /// Show a scannable UPI QR so the customer pays into the business account.
+  /// Recording is left to bank reconciliation — this sheet never mutates the
+  /// invoice, so no busy state or onChange is needed.
+  Future<void> _showPaymentQr() {
+    final inv = widget.invoice;
+    return showPaymentQrSheet(
+      context,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      customerName: inv.customerName,
+      balanceDue: inv.balanceDue,
+    );
   }
 
   @override
@@ -893,11 +903,10 @@ class _StickyFooterState extends ConsumerState<_StickyFooter> {
                   child: SizedBox(
                     height: 48,
                     child: FilledButton.icon(
-                      onPressed: !canMark || _marking ? null : _recordPayment,
-                      icon: _marking
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.payments_rounded, size: 18),
-                      label: const Text('Record payment'),
+                      onPressed: !canMark ? null : _showPaymentQr,
+                      style: FilledButton.styleFrom(backgroundColor: RunqColors.indigo),
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: const Text('Payment QR'),
                     ),
                   ),
                 ),

@@ -26,6 +26,9 @@ dependencies:
   receive_sharing_intent: ^1.8.1
   package_info_plus: ^8.3.0
   url_launcher: ^6.3.2
+  # Render the invoice UPI payload into a scannable QR so a customer can
+  # pay into the business account on the spot (money-in is recon-driven).
+  qr_flutter: ^4.1.0
   # Geo-location for HR mobile attendance check-in / out (phase-next).
   geolocator: ^13.0.4
   # Multi-page bill scanning: stitch scanned page images into a single
