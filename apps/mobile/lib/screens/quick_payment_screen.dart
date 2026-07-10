@@ -9,6 +9,7 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
 import '../providers/data_providers.dart';
+import '../services/upi_confirmation_ocr.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../widgets/runq_card.dart';
@@ -122,12 +123,16 @@ class _QuickPaymentScreenState extends ConsumerState<QuickPaymentScreen> {
     await _runOcr(file);
   }
 
-  /// Read the confirmation and pre-fill empty fields. Best-effort: failures
-  /// are silent so the user can always fill the form by hand.
+  /// Read the confirmation and pre-fill empty fields. Local-first: on-device
+  /// OCR reads image screenshots instantly and offline; only a PDF or an
+  /// unreadable image falls back to the server extractor. Best-effort —
+  /// failures are silent so the user can always fill the form by hand.
   Future<void> _runOcr(File file) async {
     setState(() => _ocrBusy = true);
     try {
-      final c = await bankingRepo.extractConfirmation(file);
+      final isImage = !file.path.toLowerCase().endsWith('.pdf');
+      final local = isImage ? await UpiConfirmationOcr.tryExtract(file) : null;
+      final c = local ?? await bankingRepo.extractConfirmation(file);
       if (!mounted) return;
       setState(() {
         if (c.amount != null && _amountCtrl.text.trim().isEmpty) {

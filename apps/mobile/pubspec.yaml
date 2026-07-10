@@ -29,6 +29,10 @@ dependencies:
   # Render the invoice UPI payload into a scannable QR so a customer can
   # pay into the business account on the spot (money-in is recon-driven).
   qr_flutter: ^4.1.0
+  # On-device OCR (Apple Vision / Android model) to read UPI payment
+  # confirmations locally — instant, offline, no API round-trip. Server
+  # extractor stays as the fallback for PDFs / unreadable shots.
+  google_mlkit_text_recognition: ^0.15.0
   # Geo-location for HR mobile attendance check-in / out (phase-next).
   geolocator: ^13.0.4
   # Multi-page bill scanning: stitch scanned page images into a single
