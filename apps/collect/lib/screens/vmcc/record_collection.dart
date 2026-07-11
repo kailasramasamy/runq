@@ -57,9 +57,6 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   bool _resolving = false;
   bool _saving = false;
   bool _closingBusy = false;
-  // Water (analyzer) is optional, but the operator is routed through it before
-  // save so it isn't silently skipped — gates "Save & next" in analyzer mode.
-  bool _waterVisited = false;
 
   /// Types the operator may select at this node. Falls back to the four
   /// non-legacy defaults when the node has no restriction.
@@ -103,9 +100,6 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       _milkType = _nodeDefaultMilkType;
     }
-    _waterFocus.addListener(() {
-      if (_waterFocus.hasFocus && !_waterVisited) setState(() => _waterVisited = true);
-    });
   }
 
   String _trimNum(double n) =>
@@ -136,11 +130,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // edits keep the original collection date; fresh entries default to today
   // but can be back-dated via the date picker.
   String get _collectionDate => _date;
-  // Water is optional, but the operator must reach it once (or actually fill it)
-  // before the flow lets them save — so it's never silently skipped. "Visited"
-  // is set when the field gains focus; editing FAT/SNF re-arms it (so going back
-  // to a quality field routes through water again instead of jumping to save).
-  bool get _waterReady => _waterVal != null || _waterVisited;
+  // Water is required in analyzer mode (read off the analyzer, same as FAT/SNF)
+  // so the pour — and the farmer's WhatsApp receipt — always carries the value
+  // instead of a blank "-".
+  bool get _waterReady => _waterVal != null;
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
@@ -589,13 +582,13 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             Row(children: [
               Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _fatFocus)),
               const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus, resetsWater: true)),
+              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
               const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus, resetsWater: true)),
+              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
             ]),
             const SizedBox(height: DhenuSpacing.md),
-            // Same one-third width as the trio above (optional → left-aligned,
-            // two empty slots fill the row).
+            // Same one-third width as the trio above (left-aligned, two empty
+            // slots fill the row).
             Row(children: [
               Expanded(child: _numberField(_water, 'Water', '%', _waterFocus, null)),
               const SizedBox(width: DhenuSpacing.md),
@@ -859,9 +852,8 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   String _milkLabel(MilkType m) => milkTypeL10n(AppLocalizations.of(context), m);
 
   Widget _numberField(
-    TextEditingController c, String label, String suffix, FocusNode focus, FocusNode? next, {
-    bool resetsWater = false,
-  }) =>
+    TextEditingController c, String label, String suffix, FocusNode focus, FocusNode? next,
+  ) =>
       TextField(
         controller: c,
         focusNode: focus,
@@ -879,11 +871,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           contentPadding: const EdgeInsets.symmetric(
               horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.md + 2),
         ),
-        onChanged: (_) {
-          // Editing FAT/SNF re-arms the (empty) water step so it isn't skipped.
-          if (resetsWater && _waterVisited && _waterVal == null) _waterVisited = false;
-          _onFieldChanged();
-        },
+        onChanged: (_) => _onFieldChanged(),
         onSubmitted: (_) => next == null ? _onPrimary() : next.requestFocus(),
       );
 

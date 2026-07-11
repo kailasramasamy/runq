@@ -143,7 +143,8 @@ class _PaymentMadeScreenState extends ConsumerState<PaymentMadeScreen> {
         if (c.paymentDate != null) _date = DateTime.tryParse(c.paymentDate!) ?? _date;
       });
     } on ApiException catch (_) {
-      // OCR is best-effort; leave fields for manual entry.
+      // OCR is best-effort (covers offline/timeout via NetworkException too);
+      // leave fields for manual entry.
     } finally {
       if (mounted) setState(() => _ocrBusy = false);
     }
@@ -265,6 +266,8 @@ class _PaymentMadeScreenState extends ConsumerState<PaymentMadeScreen> {
         context.pop();
       }
     } on ApiException catch (e) {
+      // NetworkException (offline/timeout) arrives here too — the form is left
+      // intact (we only pop on success) so a retry is one tap.
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -16,6 +16,21 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Thrown when a request never reached the server (no connectivity) or timed
+/// out. Extends [ApiException] with statusCode 0 so every existing
+/// `on ApiException` handler surfaces a friendly message app-wide, while
+/// callers that care can special-case `is NetworkException`.
+class NetworkException extends ApiException {
+  final bool isTimeout;
+  NetworkException._(String message, {this.isTimeout = false})
+      : super(statusCode: 0, message: message, code: isTimeout ? 'timeout' : 'offline');
+  factory NetworkException.offline() =>
+      NetworkException._('No internet — check your connection and try again.');
+  factory NetworkException.timeout() => NetworkException._(
+      'Request timed out — check your connection and try again.',
+      isTimeout: true);
+}
+
 typedef OnUnauthorized = void Function();
 
 class ApiClient {
@@ -31,6 +46,26 @@ class ApiClient {
 
   Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
+  /// Sends [request], enforces [timeout], and buffers the response — mapping
+  /// every "never reached the server" failure to a [NetworkException] so the
+  /// whole app's `on ApiException` handlers give a friendly message instead of
+  /// a raw, uncaught transport error.
+  Future<http.Response> _roundTrip(
+      Future<http.StreamedResponse> Function() request, Duration timeout) async {
+    try {
+      final streamed = await request().timeout(timeout);
+      return await http.Response.fromStream(streamed);
+    } on TimeoutException {
+      throw NetworkException.timeout();
+    } on SocketException {
+      throw NetworkException.offline();
+    } on http.ClientException {
+      throw NetworkException.offline();
+    } on HandshakeException {
+      throw NetworkException.offline();
+    }
+  }
+
   Map<String, String> _headers({bool jsonBody = false}) {
     final h = <String, String>{'Accept': 'application/json'};
     if (jsonBody) h['Content-Type'] = 'application/json';
@@ -44,8 +79,7 @@ class ApiClient {
   Future<List<int>> getBytes(String path) async {
     final sentToken = _token;
     final req = http.Request('GET', _uri(path))..headers.addAll(_headers());
-    final streamed = await _inner.send(req).timeout(const Duration(seconds: 60));
-    final res = await http.Response.fromStream(streamed);
+    final res = await _roundTrip(() => _inner.send(req), const Duration(seconds: 60));
 
     if (res.statusCode == 401 && sentToken != null) {
       _token = null;
@@ -89,8 +123,7 @@ class ApiClient {
     );
     req.files.add(part);
 
-    final streamed = await _inner.send(req).timeout(const Duration(seconds: 120));
-    final res = await http.Response.fromStream(streamed);
+    final res = await _roundTrip(() => _inner.send(req), const Duration(seconds: 120));
 
     if (res.statusCode == 401 && sentToken != null) {
       _token = null;
@@ -127,8 +160,7 @@ class ApiClient {
     req.headers.addAll(_headers(jsonBody: hasBody));
     if (hasBody) req.body = jsonEncode(body);
 
-    final streamed = await _inner.send(req).timeout(const Duration(seconds: 30));
-    final res = await http.Response.fromStream(streamed);
+    final res = await _roundTrip(() => _inner.send(req), const Duration(seconds: 30));
 
     if (res.statusCode == 401 && sentToken != null) {
       _token = null;

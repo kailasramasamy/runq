@@ -2,8 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../providers/auth_provider.dart';
 import '../router.dart';
 import '../widgets/open_po_picker_sheet.dart';
 import '../widgets/runq_snack.dart';
@@ -17,15 +21,15 @@ import 'scan_compiler.dart';
 /// Wraps the app shell so we can keep one subscription for the process lifetime.
 /// Cold-start shares (app was launched by the share action) come in via
 /// `getInitialMedia()`; warm-start shares come through the stream.
-class ShareIntakeHost extends StatefulWidget {
+class ShareIntakeHost extends ConsumerStatefulWidget {
   final Widget child;
   const ShareIntakeHost({super.key, required this.child});
 
   @override
-  State<ShareIntakeHost> createState() => _ShareIntakeHostState();
+  ConsumerState<ShareIntakeHost> createState() => _ShareIntakeHostState();
 }
 
-class _ShareIntakeHostState extends State<ShareIntakeHost> {
+class _ShareIntakeHostState extends ConsumerState<ShareIntakeHost> {
   static const _iosChannel = MethodChannel('runq.in/share-files');
 
   StreamSubscription<List<SharedMediaFile>>? _sub;
@@ -67,6 +71,21 @@ class _ShareIntakeHostState extends State<ShareIntakeHost> {
     final file = File(path);
     if (!file.existsSync()) return;
 
+    // Hold the share across sign-in when the session isn't ready — cold start
+    // still restoring, logged out, or expired. Otherwise the destination
+    // screen 401s and the shared file (the whole point) is silently lost. The
+    // authProvider listener in build() replays it once the session is valid.
+    final auth = ref.read(authProvider);
+    if (auth.isLoading || !auth.isAuthenticated) {
+      _PendingShare.stash(path);
+      return;
+    }
+
+    _present(file);
+  }
+
+  /// Ask which pipeline the share belongs to, then route it there.
+  void _present(File file) {
     // Defer until the navigator is mounted — covers the cold-start case where
     // initial media arrives before the splash → home redirect lands.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -130,6 +149,75 @@ class _ShareIntakeHostState extends State<ShareIntakeHost> {
     return const {'jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'}.contains(ext);
   }
 
+  /// Replay a share that was stashed while the session wasn't ready. Safe to
+  /// call repeatedly — [_PendingShare.take] clears the store, so extra calls
+  /// no-op.
+  Future<void> _maybeReplay() async {
+    if (!ref.read(authProvider).isAuthenticated) return;
+    final path = await _PendingShare.take();
+    if (path != null) _handlePath(path);
+  }
+
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // Replay the moment sign-in completes — covers cold start and re-login
+    // after expiry. Because the store is durable, this also fires on the first
+    // authenticated state of a fresh process, so a share whose login was
+    // interrupted by an OS kill still lands.
+    ref.listen<AuthState>(authProvider, (_, next) {
+      if (next.isAuthenticated) unawaited(_maybeReplay());
+    });
+    return widget.child;
+  }
+}
+
+/// A file shared into runQ while the session wasn't ready (cold start mid-load,
+/// logged out, or expired). Held across sign-in — in memory for the common
+/// same-process case, and mirrored to the documents dir (+ a prefs pointer) so
+/// it also survives the OS killing the app mid-login. Replayed once auth
+/// succeeds, so the share is never silently dropped.
+class _PendingShare {
+  static const _prefKey = 'pending_share_path';
+  static String? _memPath; // original shared path, valid within this process
+
+  /// Remember [srcPath]: synchronous in-memory set (wins the common case and
+  /// sidesteps any copy race) plus a best-effort durable mirror on disk.
+  static void stash(String srcPath) {
+    _memPath = srcPath;
+    unawaited(_persist(srcPath));
+  }
+
+  /// Only ever called while logged out, so no open screen can be holding the
+  /// previous copy — safe to wipe the dir and keep just one pending file.
+  static Future<void> _persist(String srcPath) async {
+    try {
+      final base = await getApplicationDocumentsDirectory();
+      final dir = Directory('${base.path}/pending_share');
+      if (dir.existsSync()) {
+        try { await dir.delete(recursive: true); } catch (_) {}
+      }
+      await dir.create(recursive: true);
+      final dest = '${dir.path}/${srcPath.split(Platform.pathSeparator).last}';
+      await File(srcPath).copy(dest);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefKey, dest);
+    } catch (_) {
+      // Durability is best-effort; the in-memory path still covers a login
+      // completed within the same process.
+    }
+  }
+
+  /// Return the pending share (in-memory original first, else the durable copy)
+  /// and clear both pointers. The file is left on disk for the destination
+  /// screen to read; the durable copy is reclaimed by the next [stash].
+  static Future<String?> take() async {
+    final mem = _memPath;
+    _memPath = null;
+    final prefs = await SharedPreferences.getInstance();
+    final disk = prefs.getString(_prefKey);
+    await prefs.remove(_prefKey);
+    if (mem != null && File(mem).existsSync()) return mem;
+    if (disk != null && File(disk).existsSync()) return disk;
+    return null;
+  }
 }
