@@ -878,6 +878,7 @@ class BankAccount {
   final String id, name, bankName, accountNumber, accountType;
   final String? logoUrl;
   final double currentBalance;
+  final int unreconciledCount;
   BankAccount({
     required this.id,
     required this.name,
@@ -886,6 +887,7 @@ class BankAccount {
     required this.accountType,
     required this.currentBalance,
     this.logoUrl,
+    this.unreconciledCount = 0,
   });
 
   factory BankAccount.fromJson(Map<String, dynamic> j) => BankAccount(
@@ -896,6 +898,7 @@ class BankAccount {
         accountType: _strOr(j['accountType'], 'current'),
         currentBalance: _num(j['currentBalance']),
         logoUrl: _str(j['logoUrl']),
+        unreconciledCount: _int(j['unreconciledCount']),
       );
 
   String get masked {

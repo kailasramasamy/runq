@@ -46,7 +46,10 @@ class BankingScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(bankAccountsProvider);
           final selected = ref.read(_selectedAccountProvider);
-          if (selected != null) ref.invalidate(bankTxnsProvider(selected));
+          if (selected != null) {
+            ref.invalidate(bankTxnsProvider(selected));
+            ref.invalidate(bankUnreconciledTxnsProvider(selected));
+          }
           await ref.read(bankAccountsProvider.future).catchError((_) => throw 0);
         },
         child: AsyncSlot<List<BankAccount>>(
@@ -86,22 +89,19 @@ class _Body extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final txns = ref.watch(bankTxnsProvider(selected.id));
     final filter = ref.watch(_reconFilterProvider);
+    // The Unmatched filter fetches unreconciled txns server-side — all of
+    // them, not just those inside bankTxnsProvider's recent-50 window — so
+    // old stragglers can't hide and make the account look fully reconciled.
+    final txns = filter == _ReconFilter.unmatched
+        ? ref.watch(bankUnreconciledTxnsProvider(selected.id))
+        : ref.watch(bankTxnsProvider(selected.id));
     final party = ref.watch(_partyFilterProvider);
     final total = accounts.fold<double>(0, (s, a) => s + a.currentBalance);
 
     final parties = txns.maybeWhen(
       data: (page) => _collectParties(page.data),
       orElse: () => const <_PartySel>[],
-    );
-
-    // Match count for the *currently selected* account, derived from its
-    // loaded txns. Other accounts don't get a badge — we don't preload all
-    // of their txns just to show a count.
-    final selectedMatchCount = txns.maybeWhen(
-      data: (page) => page.data.where((t) => t.reconStatus == 'unreconciled').length,
-      orElse: () => 0,
     );
 
     return CustomScrollView(
@@ -114,6 +114,7 @@ class _Body extends ConsumerWidget {
             onRefresh: () {
               ref.invalidate(bankAccountsProvider);
               ref.invalidate(bankTxnsProvider(selected.id));
+              ref.invalidate(bankUnreconciledTxnsProvider(selected.id));
               ref.invalidate(bankLastSyncDateProvider(selected.id));
             },
           ),
@@ -122,7 +123,6 @@ class _Body extends ConsumerWidget {
           child: _AccountCardStrip(
             accounts: accounts,
             selectedId: selected.id,
-            selectedMatchCount: selectedMatchCount,
             onSelect: (id) => ref.read(_selectedAccountProvider.notifier).state = id,
           ),
         ),
@@ -159,7 +159,10 @@ class _Body extends ConsumerWidget {
         SliverToBoxAdapter(
           child: AsyncSlot<PaginatedResponse<BankTxn>>(
             value: txns,
-            onRetry: () => ref.invalidate(bankTxnsProvider(selected.id)),
+            onRetry: () {
+              ref.invalidate(bankTxnsProvider(selected.id));
+              ref.invalidate(bankUnreconciledTxnsProvider(selected.id));
+            },
             data: (page) {
               final items = _filterItems(_filterByParty(page.data, party), filter);
               if (items.isEmpty) {
@@ -340,15 +343,10 @@ class _IconChip extends StatelessWidget {
 class _AccountCardStrip extends StatelessWidget {
   final List<BankAccount> accounts;
   final String selectedId;
-  /// Unmatched-txn count for the currently selected account (computed from
-  /// loaded txns). Other cards don't get a badge — we don't preload all
-  /// accounts' txns just for the count.
-  final int selectedMatchCount;
   final ValueChanged<String> onSelect;
   const _AccountCardStrip({
     required this.accounts,
     required this.selectedId,
-    required this.selectedMatchCount,
     required this.onSelect,
   });
 
@@ -368,7 +366,7 @@ class _AccountCardStrip extends StatelessWidget {
           return _AccountCard(
             account: a,
             selected: isSelected,
-            matchCount: isSelected ? selectedMatchCount : 0,
+            matchCount: a.unreconciledCount,
             onTap: () => onSelect(a.id),
           );
         },
@@ -518,6 +516,10 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
       final n = await bankingRepo.categorize(widget.accountId);
       if (!mounted) return;
       ref.invalidate(bankTxnsProvider(widget.accountId));
+      // Categorizing clears unreconciled rows — refresh the unmatched list and
+      // the per-account badges (which come from bankAccountsProvider).
+      ref.invalidate(bankUnreconciledTxnsProvider(widget.accountId));
+      ref.invalidate(bankAccountsProvider);
       showRunqSnack(
         context,
         n == 0 ? 'Nothing to categorize' : 'Categorized $n transactions',

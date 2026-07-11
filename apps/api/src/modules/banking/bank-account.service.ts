@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { bankAccounts, bankTransactions } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankAccount } from '@runq/types';
@@ -41,9 +41,26 @@ export class BankAccountService {
       this.db.select({ count: sql<number>`count(*)::int` }).from(bankAccounts).where(tenantWhere),
     ]);
 
+    // Per-account unreconciled counts so each card can show its own badge —
+    // the home Reconcile total spans all accounts, so a single-account view
+    // otherwise can't explain the number.
+    const ids = rows.map((r) => r.id);
+    const unreconRows = ids.length
+      ? await this.db
+          .select({ bankAccountId: bankTransactions.bankAccountId, count: sql<number>`count(*)::int` })
+          .from(bankTransactions)
+          .where(and(
+            eq(bankTransactions.tenantId, this.tenantId),
+            eq(bankTransactions.reconStatus, 'unreconciled'),
+            inArray(bankTransactions.bankAccountId, ids),
+          ))
+          .groupBy(bankTransactions.bankAccountId)
+      : [];
+    const unreconByAccount = new Map(unreconRows.map((u) => [u.bankAccountId, u.count]));
+
     const total = countResult[0]?.count ?? 0;
     return {
-      data: rows.map((r) => this.toAccount(r)),
+      data: rows.map((r) => this.toAccount(r, unreconByAccount.get(r.id) ?? 0)),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -148,7 +165,7 @@ export class BankAccountService {
     if (!row) throw new NotFoundError('Bank account');
   }
 
-  private toAccount(row: typeof bankAccounts.$inferSelect): BankAccount {
+  private toAccount(row: typeof bankAccounts.$inferSelect, unreconciledCount = 0): BankAccount {
     // Always resolve from the bank name so URL/resolution bumps in
     // resolveBankLogoUrl propagate without needing to backfill the column.
     const logoUrl = resolveBankLogoUrl(row.bankName) ?? row.logoUrl;
@@ -167,6 +184,7 @@ export class BankAccountService {
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      unreconciledCount,
     };
   }
 }

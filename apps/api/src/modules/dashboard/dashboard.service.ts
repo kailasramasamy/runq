@@ -100,7 +100,13 @@ export class DashboardService {
       this.db
         .select({ count: sql<number>`COUNT(*)::int` })
         .from(bankTransactions)
-        .where(and(eq(bankTransactions.tenantId, this.tenantId), eq(bankTransactions.reconStatus, 'unreconciled'))),
+        .where(and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.reconStatus, 'unreconciled'),
+          // Only count txns on live accounts — an archived account can't be
+          // reconciled, so its stragglers must not inflate the badge.
+          sql`${bankTransactions.bankAccountId} IN (SELECT id FROM ${bankAccounts} WHERE ${bankAccounts.tenantId} = ${this.tenantId} AND ${bankAccounts.isActive} = true)`,
+        )),
 
       // Net burn current 30 days = debits - credits. Positive number means burn.
       this.db

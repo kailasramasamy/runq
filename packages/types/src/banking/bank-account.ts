@@ -15,4 +15,7 @@ export interface BankAccount {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Count of unreconciled transactions on this account. Populated on list
+   *  responses (0 elsewhere) so the UI can badge each account. */
+  unreconciledCount?: number;
 }

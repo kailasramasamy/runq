@@ -184,6 +184,14 @@ final bankTxnsProvider = FutureProvider.family<PaginatedResponse<BankTxn>, Strin
   return _watchAuth(ref, () => bankingRepo.transactions(accountId));
 });
 
+/// Unreconciled txns for an account, fetched server-side so old stragglers
+/// aren't hidden behind [bankTxnsProvider]'s 50-most-recent window. Backs the
+/// banking screen's "Unmatched" filter.
+final bankUnreconciledTxnsProvider =
+    FutureProvider.family<PaginatedResponse<BankTxn>, String>((ref, accountId) async {
+  return _watchAuth(ref, () => bankingRepo.transactions(accountId, reconStatus: 'unreconciled'));
+});
+
 /// Date of the most recent imported transaction on the account — backs the
 /// 'Synced till …' chip in the banking screen.
 final bankLastSyncDateProvider = FutureProvider.family<DateTime?, String>((ref, accountId) async {
