@@ -54,8 +54,8 @@ class SalesHubScreen extends ConsumerWidget {
                   ),
                   HubQuickChip(
                     icon: Icons.inbox_outlined,
-                    label: 'PO inbox',
-                    onTap: () => context.push('/po-inbox'),
+                    label: 'Customer orders',
+                    onTap: () => context.push('/sales/orders'),
                   ),
                   HubQuickChip(
                     icon: Icons.notifications_active_outlined,

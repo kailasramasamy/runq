@@ -10,29 +10,29 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/customer_picker_screen.dart';
 import '../widgets/invoice_success_sheet.dart';
-import '../widgets/po_line_edit_sheet.dart';
+import '../widgets/order_line_edit_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../providers/data_providers.dart';
-import 'po_inbox_screen.dart' show poInboxProvider;
+import 'customer_orders_screen.dart' show customerOrdersProvider;
 
-final poDraftDetailProvider =
-    FutureProvider.autoDispose.family<PoDraftDetail, String>((ref, uploadId) async {
-  return poRepo.getDraft(uploadId);
+final customerOrderDetailProvider =
+    FutureProvider.autoDispose.family<CustomerOrderDetail, String>((ref, uploadId) async {
+  return orderRepo.getDraft(uploadId);
 });
 
-class PoDraftReviewScreen extends ConsumerWidget {
+class CustomerOrderReviewScreen extends ConsumerWidget {
   final String uploadId;
-  const PoDraftReviewScreen({super.key, required this.uploadId});
+  const CustomerOrderReviewScreen({super.key, required this.uploadId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detail = ref.watch(poDraftDetailProvider(uploadId));
+    final detail = ref.watch(customerOrderDetailProvider(uploadId));
     return Scaffold(
       body: SafeArea(
-        child: AsyncSlot<PoDraftDetail>(
+        child: AsyncSlot<CustomerOrderDetail>(
           value: detail,
-          onRetry: () => ref.invalidate(poDraftDetailProvider(uploadId)),
+          onRetry: () => ref.invalidate(customerOrderDetailProvider(uploadId)),
           data: (d) => _Body(detail: d),
         ),
       ),
@@ -41,7 +41,7 @@ class PoDraftReviewScreen extends ConsumerWidget {
 }
 
 class _Body extends ConsumerStatefulWidget {
-  final PoDraftDetail detail;
+  final CustomerOrderDetail detail;
   const _Body({required this.detail});
 
   @override
@@ -49,7 +49,7 @@ class _Body extends ConsumerStatefulWidget {
 }
 
 class _BodyState extends ConsumerState<_Body> {
-  late PoDraftDetail _detail;
+  late CustomerOrderDetail _detail;
   bool _approving = false;
   bool _cancelling = false;
   bool _reassigning = false;
@@ -60,8 +60,8 @@ class _BodyState extends ConsumerState<_Body> {
     _detail = widget.detail;
   }
 
-  Future<void> _editLine(PoDraftLine line) async {
-    final updated = await showPoLineEditSheet(
+  Future<void> _editLine(CustomerOrderLine line) async {
+    final updated = await showOrderLineEditSheet(
       context: context,
       uploadId: _detail.id,
       line: line,
@@ -81,7 +81,7 @@ class _BodyState extends ConsumerState<_Body> {
     if (picked.id == _detail.customerId) return;
     setState(() => _reassigning = true);
     try {
-      final updated = await poRepo.updateDraft(_detail.id, customerId: picked.id);
+      final updated = await orderRepo.updateDraft(_detail.id, customerId: picked.id);
       if (!mounted) return;
       setState(() => _detail = updated);
       showRunqSnack(context, 'Customer updated to ${picked.name}');
@@ -99,7 +99,7 @@ class _BodyState extends ConsumerState<_Body> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel this PO?'),
+        title: const Text('Cancel this order?'),
         content: const Text(
           'This will permanently delete the upload and parsed draft. '
           'You can re-upload the file later if needed.',
@@ -120,14 +120,14 @@ class _BodyState extends ConsumerState<_Body> {
     if (confirm != true || !mounted) return;
     setState(() => _cancelling = true);
     try {
-      await poRepo.discard(_detail.id);
+      await orderRepo.discard(_detail.id);
       if (!mounted) return;
-      showRunqSnack(context, 'PO cancelled');
+      showRunqSnack(context, 'Order cancelled');
       if (context.mounted) context.pop();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
-      if (mounted) showRunqSnack(context, 'Could not cancel the PO.', kind: SnackKind.error);
+      if (mounted) showRunqSnack(context, 'Could not cancel the order.', kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _cancelling = false);
     }
@@ -137,13 +137,13 @@ class _BodyState extends ConsumerState<_Body> {
     if (_approving) return;
     setState(() => _approving = true);
     try {
-      final result = await poRepo.approve(_detail.id);
+      final result = await orderRepo.approve(_detail.id);
       if (!mounted) return;
       // The PO is now linked to an invoice — refresh the inbox row's
       // status pill, the unified inbox counter, and any open invoice list
       // so coming back from this screen reflects the new state without a
       // manual pull-to-refresh.
-      ref.invalidate(poInboxProvider);
+      ref.invalidate(customerOrdersProvider);
       ref.invalidate(inboxCountProvider);
       ref.invalidate(invoiceSummaryProvider);
       ref.invalidate(invoicesProvider);
@@ -153,7 +153,7 @@ class _BodyState extends ConsumerState<_Body> {
         invoiceNumber: result.invoiceNumber,
       );
       // If the user dismisses the sheet without picking an action, return to
-      // the PO inbox so the screen they came from is the next thing they see.
+      // the customer orders list so the screen they came from is the next thing they see.
       if (mounted && context.mounted) context.pop();
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
@@ -172,7 +172,7 @@ class _BodyState extends ConsumerState<_Body> {
     return Column(
       children: [
         _Header(
-          poNumber: d.poNumberExtracted ?? d.fileName ?? 'Review PO',
+          poNumber: d.poNumberExtracted ?? d.fileName ?? 'Review order',
           onCancel: _cancelling ? null : _cancel,
           cancelling: _cancelling,
         ),
@@ -206,7 +206,7 @@ class _BodyState extends ConsumerState<_Body> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Tip: tap any "Tap to map" line to pick the matching item from your masters. '
-                    'We\'ll remember it for the next PO from this customer.',
+                    'We\'ll remember it for the next order from this customer.',
                     style: RunqText.caption.copyWith(color: t.muted, height: 1.4),
                   ),
                 ),
@@ -245,7 +245,7 @@ class _Header extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('REVIEW PO',
+                  Text('REVIEW ORDER',
                       style: RunqText.micro.copyWith(
                         color: t.muted, letterSpacing: 1.2)),
                   const SizedBox(height: 2),
@@ -354,7 +354,7 @@ class _StatusStrip extends StatelessWidget {
 }
 
 class _CustomerCard extends StatelessWidget {
-  final PoDraftDetail detail;
+  final CustomerOrderDetail detail;
   final VoidCallback? onTap;
   final bool reassigning;
   const _CustomerCard({
@@ -429,7 +429,7 @@ class _CustomerCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'On PO: ${detail.buyerNameRaw}',
+                          'On order: ${detail.buyerNameRaw}',
                           style: RunqText.caption.copyWith(color: t.muted),
                           maxLines: 2, overflow: TextOverflow.ellipsis,
                         ),
@@ -520,8 +520,8 @@ class _GstChip extends StatelessWidget {
 }
 
 class _LinesCard extends StatelessWidget {
-  final List<PoDraftLine> lines;
-  final ValueChanged<PoDraftLine> onEdit;
+  final List<CustomerOrderLine> lines;
+  final ValueChanged<CustomerOrderLine> onEdit;
   final bool locked;
   const _LinesCard({required this.lines, required this.onEdit, this.locked = false});
 
@@ -563,7 +563,7 @@ class _LinesCard extends StatelessWidget {
 }
 
 class _LineRow extends StatelessWidget {
-  final PoDraftLine line;
+  final CustomerOrderLine line;
   final VoidCallback onTap;
   final bool locked;
   const _LineRow({required this.line, required this.onTap, this.locked = false});
@@ -680,7 +680,7 @@ class _LineRow extends StatelessWidget {
 }
 
 class _TotalsCard extends StatelessWidget {
-  final PoDraftDetail detail;
+  final CustomerOrderDetail detail;
   const _TotalsCard({required this.detail});
 
   @override
@@ -806,8 +806,8 @@ class _Footer extends StatelessWidget {
                 Expanded(
                   child: Text(
                     approvedInvoiceNumber != null
-                        ? 'Invoice $approvedInvoiceNumber created from this PO.'
-                        : 'Invoice already created from this PO.',
+                        ? 'Invoice $approvedInvoiceNumber created from this order.'
+                        : 'Invoice already created from this order.',
                     style: RunqText.caption.copyWith(color: t.ink),
                   ),
                 ),

@@ -86,18 +86,24 @@ The FAB is now grouped by money direction with **Money in / Money out** headers,
 
 `FabAction` gained an optional `section`; `FabSheet` renders a group label once per run. The **share-destination sheet** was aligned to match: renamed "Quick payment" → "Payment made" (+matching teal tint) and standardized to the app sheet chrome (transparent barrier, hero radius, hairline border, sheet shadow).
 
-Follow-up (#9, not done): fully merge the two money-out expense *screens* (`/quick-expenses` vs `/expenses`) — this item only disambiguates them in the FAB.
+Follow-up (#9, ✅ done 2026-07-11): the two money-out expense *screens* were **not** merged — they're distinct flows (reimbursement vs bank-recon); resolved by renaming `/quick-expenses` → `/payments-made` to kill the naming collision instead.
 
-### 8. Invoice creation is 3 taps through two stacked sheets
-`invoice_quick_sheet.dart:44-49` opens `invoice_create_sheet.dart` — a sheet whose only job is opening another sheet.
-**Fix:** One sheet: Quick invoice (templates) / Blank / From PO / Upload. Also: quick-invoice templates can't be created on mobile (`quick_invoice_templates_screen.dart:13,76` — "Set up from web admin") — a phone-only owner can never build the fast path. Add "Save as template" after any invoice.
+### 8. Invoice creation is 3 taps through two stacked sheets — ✅ DONE (2026-07-11)
+The FAB's "Create invoice" row used to open a second modal chooser (`invoice_create_sheet.dart`) — a sheet whose only job was opening another sheet. The four creation modes now sit **inline in the FAB sheet** under "Money in" (**Create blank invoice · Quick invoice · Invoice from PO · Upload invoice**), so any mode is **2 taps** from the FAB instead of 3 through stacked sheets. `FabSheet` is now height-capped + scrollable so the longer list can't overflow small phones. The chooser (`invoice_create_sheet.dart`) is retained for its other callers (`sales_hub_screen`, `invoice_quick_sheet`).
 
-### 9. Expenses vs Quick payments split
-Two surfaces (`/expenses`, `/quick-expenses`) with overlapping mental models and different names. Merge into one "Money I spent" surface with two capture modes (reimbursable claim vs paid-from-bank), category chips shared.
+**Still open (separate follow-up):** quick-invoice templates can't be created on mobile (`quick_invoice_templates_screen.dart:13,76` — "Set up from web admin") — a phone-only owner can never build the fast path. Add "Save as template" after any invoice.
 
-### 10. "PO Inbox" is a *sales* feature wearing a purchasing name
-`po_inbox_screen.dart:132` — it ingests **customer** POs and produces sales invoices, but "PO" on the purchases side reads as *my* order to a supplier (which lives separately under `lib/screens/purchase/`).
-**Fix:** Rename to "Customer orders" / "Order inbox" and house it under Sales.
+### 9. Expenses vs Quick payments split — ✅ DONE (2026-07-11)
+Re-scoped after audit: the two surfaces are **not** an overlap to merge — they're genuinely distinct flows with separate data models and backends (`ExpenseClaim` → `/hr/expense-claims` reimbursement vs `PendingPayment` → `/banking/pending-payments` bank-reconciliation). The only real problem was **naming**: the "Payment made" flow still carried "quick expenses" vocabulary that collided with the "Expense claim" feature. Fixed: route `/quick-expenses` → `/payments-made`, `/quick-payment` → `/payment-made`; `QuickExpensesScreen` → `PaymentsMadeScreen`, `QuickPaymentScreen` → `PaymentMadeScreen`; files renamed via `git mv`; all references updated. The FAB copy (item #7) already distinguishes them for the user ("Payment made — matches your bank" vs "Expense claim — out-of-pocket to reimburse").
+
+### 10. "PO Inbox" is a *sales* feature wearing a purchasing name — ✅ DONE (2026-07-11)
+Renamed the whole feature to **"Customer orders"** and housed it under Sales. This ingests **customer** POs and produces sales invoices; "PO" collided with the genuine purchasing module (`lib/screens/purchase/`, my order to a supplier), which was left untouched.
+- **Routes** → `/sales/orders`, `/sales/orders/processing`, `/sales/orders/:id` (was `/po-inbox`, `/po/processing`, `/po-drafts/:id`); auth allowlists cleaned of dead `/po*` entries (`/sales` prefix covers the new paths); notification deep-link rewrite retargeted to `/sales/orders/<id>` (backend still emits the legacy `/ar/po-inbox/` source).
+- **Files** (git mv) → `customer_orders_screen.dart`, `customer_order_processing_screen.dart`, `customer_order_review_screen.dart`, `order_intake.dart`, `order_line_edit_sheet.dart`.
+- **Code** → `PoInboxScreen`→`CustomerOrdersScreen`, `startPoIntake`→`startOrderIntake`, `PoInboxRow/PoDraftDetail/PoDraftLine`→`CustomerOrder*`, `PoRepo/poRepo`→`OrderRepo/orderRepo`, plus providers/enum/private classes.
+- **Copy** → "Customer orders" AppBar/chip, "Invoice from order", "Customer order" share option, "No customer orders yet", etc.
+
+**Deliberately kept:** the customer's literal PO-**number** data fields (`PO #<n>`, `PO number (optional)`) — that's the number printed on the customer's own document, not the feature name. Backend endpoints (`/ar/po-drafts/...`) and the entire `lib/screens/purchase/` module untouched. Full-project `flutter analyze` clean (0 errors).
 
 ### 11. Cash hero taps to the wrong place
 `cash_hero_card.dart:34` — the whole card goes to `/money/analytics`. "To collect" / "To pay" mini-stats aren't individually tappable. Owner tapping "To collect ₹4.2L" expects the debtor list.

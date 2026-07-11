@@ -12,44 +12,44 @@ import '../widgets/avatar.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/swipe_action.dart';
 
-final poInboxProvider = FutureProvider.autoDispose<List<PoInboxRow>>((ref) async {
-  return poRepo.listInbox(limit: 100);
+final customerOrdersProvider = FutureProvider.autoDispose<List<CustomerOrderRow>>((ref) async {
+  return orderRepo.listInbox(limit: 100);
 });
 
-enum PoFilter { all, toReview, parsing, invoiced, errors }
+enum CustomerOrderFilter { all, toReview, parsing, invoiced, errors }
 
-extension on PoFilter {
+extension on CustomerOrderFilter {
   String get label => switch (this) {
-        PoFilter.all => 'All',
-        PoFilter.toReview => 'To review',
-        PoFilter.parsing => 'Parsing',
-        PoFilter.invoiced => 'Invoiced',
-        PoFilter.errors => 'Errors',
+        CustomerOrderFilter.all => 'All',
+        CustomerOrderFilter.toReview => 'To review',
+        CustomerOrderFilter.parsing => 'Parsing',
+        CustomerOrderFilter.invoiced => 'Invoiced',
+        CustomerOrderFilter.errors => 'Errors',
       };
 }
 
-final _poFilterProvider = StateProvider.autoDispose<PoFilter>((_) => PoFilter.all);
+final _poFilterProvider = StateProvider.autoDispose<CustomerOrderFilter>((_) => CustomerOrderFilter.all);
 
-bool _matchesFilter(PoInboxRow r, PoFilter f) {
+bool _matchesFilter(CustomerOrderRow r, CustomerOrderFilter f) {
   final s = r.displayStatus;
   switch (f) {
-    case PoFilter.all:
+    case CustomerOrderFilter.all:
       return true;
-    case PoFilter.toReview:
+    case CustomerOrderFilter.toReview:
       return s == 'ready' || s == 'needs review';
-    case PoFilter.parsing:
+    case CustomerOrderFilter.parsing:
       return s == 'parsing';
-    case PoFilter.invoiced:
+    case CustomerOrderFilter.invoiced:
       return s == 'invoiced';
-    case PoFilter.errors:
+    case CustomerOrderFilter.errors:
       return s == 'error' || s == 'rejected';
   }
 }
 
-class _PoSummary {
+class _OrderSummary {
   final int toReview, parsing, invoiced, errors, total;
   final double pendingValue;
-  const _PoSummary({
+  const _OrderSummary({
     required this.toReview,
     required this.parsing,
     required this.invoiced,
@@ -58,7 +58,7 @@ class _PoSummary {
     required this.pendingValue,
   });
 
-  factory _PoSummary.from(List<PoInboxRow> rows) {
+  factory _OrderSummary.from(List<CustomerOrderRow> rows) {
     int toReview = 0, parsing = 0, invoiced = 0, errors = 0;
     double pending = 0;
     for (final r in rows) {
@@ -74,7 +74,7 @@ class _PoSummary {
         errors++;
       }
     }
-    return _PoSummary(
+    return _OrderSummary(
       toReview: toReview,
       parsing: parsing,
       invoiced: invoiced,
@@ -85,21 +85,21 @@ class _PoSummary {
   }
 }
 
-/// Mobile PO Inbox — paginated list of every PO upload (parsing, ready,
+/// Mobile Customer orders — paginated list of every customer-order upload (parsing, ready,
 /// invoiced, error). Tap a row to open the parse review screen, or tap the
 /// linked invoice chip on an invoiced row to jump straight to that invoice.
-class PoInboxScreen extends ConsumerWidget {
-  const PoInboxScreen({super.key});
+class CustomerOrdersScreen extends ConsumerWidget {
+  const CustomerOrdersScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final inbox = ref.watch(poInboxProvider);
+    final inbox = ref.watch(customerOrdersProvider);
     final filter = ref.watch(_poFilterProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
-        title: const Text('PO Inbox'),
+        title: const Text('Customer orders'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
@@ -109,30 +109,30 @@ class PoInboxScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: RunqColors.indigo,
           onRefresh: () async {
-            ref.invalidate(poInboxProvider);
-            await ref.read(poInboxProvider.future).catchError((_) => <PoInboxRow>[]);
+            ref.invalidate(customerOrdersProvider);
+            await ref.read(customerOrdersProvider.future).catchError((_) => <CustomerOrderRow>[]);
           },
           child: inbox.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) {
-              final msg = e is ApiException ? e.message : 'Could not load PO inbox';
+              final msg = e is ApiException ? e.message : 'Could not load customer orders';
               return _Centered(
                 icon: Icons.error_outline_rounded,
                 title: msg,
                 action: 'Retry',
-                onAction: () => ref.invalidate(poInboxProvider),
+                onAction: () => ref.invalidate(customerOrdersProvider),
               );
             },
             data: (rows) {
               if (rows.isEmpty) {
                 return const _Centered(
                   icon: Icons.inbox_outlined,
-                  title: 'No POs yet',
+                  title: 'No customer orders yet',
                   subtitle:
-                      'Share or upload a PO from a customer — it lands here, AI parses it, and you approve it into an invoice.',
+                      'Share or upload an order from a customer — it lands here, AI parses it, and you approve it into an invoice.',
                 );
               }
-              final summary = _PoSummary.from(rows);
+              final summary = _OrderSummary.from(rows);
               final visible = rows.where((r) => _matchesFilter(r, filter)).toList();
               return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -161,7 +161,7 @@ class PoInboxScreen extends ConsumerWidget {
                       child: _EmptyFilter(
                         label: filter.label,
                         onClear: () =>
-                            ref.read(_poFilterProvider.notifier).state = PoFilter.all,
+                            ref.read(_poFilterProvider.notifier).state = CustomerOrderFilter.all,
                       ),
                     )
                   else
@@ -170,9 +170,9 @@ class PoInboxScreen extends ConsumerWidget {
                       sliver: SliverList.separated(
                         itemCount: visible.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => _PoRow(
+                        itemBuilder: (_, i) => _OrderRow(
                           row: visible[i],
-                          onAfterDelete: () => ref.invalidate(poInboxProvider),
+                          onAfterDelete: () => ref.invalidate(customerOrdersProvider),
                         ),
                       ),
                     ),
@@ -187,9 +187,9 @@ class PoInboxScreen extends ConsumerWidget {
 }
 
 class _SummaryGrid extends StatelessWidget {
-  final _PoSummary summary;
-  final PoFilter active;
-  final ValueChanged<PoFilter> onTap;
+  final _OrderSummary summary;
+  final CustomerOrderFilter active;
+  final ValueChanged<CustomerOrderFilter> onTap;
   const _SummaryGrid({required this.summary, required this.active, required this.onTap});
 
   @override
@@ -200,25 +200,25 @@ class _SummaryGrid extends StatelessWidget {
         label: 'To review',
         value: '${summary.toReview}',
         valueColor: summary.toReview > 0 ? RunqColors.indigo : t.muted,
-        filter: PoFilter.toReview,
+        filter: CustomerOrderFilter.toReview,
       ),
       _SummaryStat(
         label: 'Parsing',
         value: '${summary.parsing}',
         valueColor: summary.parsing > 0 ? const Color(0xFFB45309) : t.muted,
-        filter: PoFilter.parsing,
+        filter: CustomerOrderFilter.parsing,
       ),
       _SummaryStat(
         label: 'Invoiced',
         value: '${summary.invoiced}',
         valueColor: summary.invoiced > 0 ? RunqColors.greenInk : t.muted,
-        filter: PoFilter.invoiced,
+        filter: CustomerOrderFilter.invoiced,
       ),
       _SummaryStat(
         label: 'Errors',
         value: '${summary.errors}',
         valueColor: summary.errors > 0 ? RunqColors.redInk : t.muted,
-        filter: PoFilter.errors,
+        filter: CustomerOrderFilter.errors,
       ),
     ];
 
@@ -244,7 +244,7 @@ class _SummaryGrid extends StatelessWidget {
                   stat: tiles[i],
                   active: active == tiles[i].filter,
                   onTap: () => onTap(active == tiles[i].filter
-                      ? PoFilter.all
+                      ? CustomerOrderFilter.all
                       : tiles[i].filter),
                 ),
               ),
@@ -259,7 +259,7 @@ class _SummaryGrid extends StatelessWidget {
 class _SummaryStat {
   final String label, value;
   final Color valueColor;
-  final PoFilter filter;
+  final CustomerOrderFilter filter;
   const _SummaryStat({
     required this.label,
     required this.value,
@@ -307,8 +307,8 @@ class _SummaryCell extends StatelessWidget {
 }
 
 class _FilterChipRow extends StatelessWidget {
-  final PoFilter active;
-  final ValueChanged<PoFilter> onChanged;
+  final CustomerOrderFilter active;
+  final ValueChanged<CustomerOrderFilter> onChanged;
   const _FilterChipRow({required this.active, required this.onChanged});
 
   @override
@@ -318,10 +318,10 @@ class _FilterChipRow extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: PoFilter.values.length,
+        itemCount: CustomerOrderFilter.values.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
-          final f = PoFilter.values[i];
+          final f = CustomerOrderFilter.values[i];
           return _FilterChip(
             label: f.label,
             active: f == active,
@@ -369,19 +369,19 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _PoRow extends StatelessWidget {
-  final PoInboxRow row;
+class _OrderRow extends StatelessWidget {
+  final CustomerOrderRow row;
   final VoidCallback onAfterDelete;
-  const _PoRow({required this.row, required this.onAfterDelete});
+  const _OrderRow({required this.row, required this.onAfterDelete});
 
   Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete this PO?'),
+        title: const Text('Delete this order?'),
         content: Text(
           row.reviewStatus == 'approved'
-              ? 'This PO has already been converted to invoice ${row.approvedInvoiceNumber ?? ''}. Deleting the PO will not delete the invoice. Continue?'
+              ? 'This order has already been converted to invoice ${row.approvedInvoiceNumber ?? ''}. Deleting the order will not delete the invoice. Continue?'
               : 'This permanently removes the upload and parsed draft. The original file can be re-uploaded later.',
         ),
         actions: [
@@ -396,14 +396,14 @@ class _PoRow extends StatelessWidget {
     );
     if (ok != true || !context.mounted) return;
     try {
-      await poRepo.discard(row.id);
+      await orderRepo.discard(row.id);
       if (!context.mounted) return;
-      showRunqSnack(context, 'PO deleted');
+      showRunqSnack(context, 'Order deleted');
       onAfterDelete();
     } on ApiException catch (e) {
       if (context.mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
     } catch (_) {
-      if (context.mounted) showRunqSnack(context, 'Could not delete the PO.', kind: SnackKind.error);
+      if (context.mounted) showRunqSnack(context, 'Could not delete the order.', kind: SnackKind.error);
     }
   }
 
@@ -429,7 +429,7 @@ class _PoRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(RunqRadii.smallCard),
         child: InkWell(
           borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-          onTap: () => context.push('/po-drafts/${row.id}'),
+          onTap: () => context.push('/sales/orders/${row.id}'),
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             decoration: BoxDecoration(

@@ -11,16 +11,16 @@ import '../widgets/runq_card.dart';
 
 enum _Step { uploading, parsing, matching, ready, error }
 
-class PoProcessingScreen extends ConsumerStatefulWidget {
+class CustomerOrderProcessingScreen extends ConsumerStatefulWidget {
   final File file;
   final String source;
-  const PoProcessingScreen({super.key, required this.file, this.source = 'share_sheet'});
+  const CustomerOrderProcessingScreen({super.key, required this.file, this.source = 'share_sheet'});
 
   @override
-  ConsumerState<PoProcessingScreen> createState() => _PoProcessingScreenState();
+  ConsumerState<CustomerOrderProcessingScreen> createState() => _CustomerOrderProcessingScreenState();
 }
 
-class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
+class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderProcessingScreen> {
   _Step _step = _Step.uploading;
   String? _uploadId;
   String? _errorMessage;
@@ -40,7 +40,7 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
 
   Future<void> _start() async {
     try {
-      final upload = await poRepo.upload(widget.file, source: widget.source);
+      final upload = await orderRepo.upload(widget.file, source: widget.source);
       if (!mounted) return;
       setState(() {
         _uploadId = upload.id;
@@ -50,7 +50,7 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
     } on ApiException catch (e) {
       _failWith(e.message);
     } catch (_) {
-      _failWith('Could not upload the PO. Try again.');
+      _failWith('Could not upload the order. Try again.');
     }
   }
 
@@ -63,11 +63,11 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
     final id = _uploadId;
     if (id == null || !mounted) return;
     try {
-      final draft = await poRepo.getDraft(id);
+      final draft = await orderRepo.getDraft(id);
       if (!mounted) return;
 
       if (draft.uploadStatus == 'parse_error') {
-        _failWith(draft.errorMessage ?? 'Could not parse this PO.');
+        _failWith(draft.errorMessage ?? 'Could not parse this order.');
         return;
       }
 
@@ -75,7 +75,7 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
         setState(() => _step = _Step.ready);
         // Replace this screen with the review screen so back navigation skips it.
         if (mounted) {
-          context.pushReplacement('/po-drafts/$id');
+          context.pushReplacement('/sales/orders/$id');
         }
         return;
       }
@@ -105,7 +105,7 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
     final id = _uploadId;
     if (id != null) {
       // Best-effort cleanup of the failed upload so we don't leave it in the inbox.
-      unawaited(poRepo.discard(id).catchError((_) {}));
+      unawaited(orderRepo.discard(id).catchError((_) {}));
     }
     setState(() {
       _uploadId = null;
@@ -127,7 +127,7 @@ class _PoProcessingScreenState extends ConsumerState<PoProcessingScreen> {
             children: [
               _Header(onCancel: () => context.pop()),
               const SizedBox(height: 20),
-              Text('Generating invoice from PO', style: RunqText.h2.copyWith(color: t.ink)),
+              Text('Generating invoice from order', style: RunqText.h2.copyWith(color: t.ink)),
               const SizedBox(height: 6),
               Text(widget.file.path.split(Platform.pathSeparator).last,
                   maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -171,7 +171,7 @@ class _StepsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _Item('Uploading PO', _state(_Step.uploading)),
+      _Item('Uploading order', _state(_Step.uploading)),
       _Item('AI parsing line items', _state(_Step.parsing)),
       _Item('Matching customer & SKUs', _state(_Step.matching)),
     ];

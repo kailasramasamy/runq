@@ -853,7 +853,7 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
       _error = null;
     });
     try {
-      final res = await poRepo.searchItems(q);
+      final res = await orderRepo.searchItems(q);
       if (!mounted) return;
       setState(() {
         _results = res;

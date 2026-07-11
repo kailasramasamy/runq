@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/bill_intake.dart';
-import '../services/po_intake.dart';
+import '../services/order_intake.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 
@@ -52,10 +52,10 @@ List<FabAction> financeFabActions() => [
       FabAction(
         section: 'Money in',
         icon: Icons.inbox_outlined,
-        title: 'Invoice from PO',
-        sub: 'Pick a customer PO — AI extracts and drafts the invoice',
+        title: 'Invoice from order',
+        sub: 'Pick a customer order — AI extracts and drafts the invoice',
         tint: RunqColors.indigo,
-        onTap: (ctx) => startPoIntake(ctx),
+        onTap: (ctx) => startOrderIntake(ctx),
       ),
       FabAction(
         section: 'Money in',
@@ -63,7 +63,7 @@ List<FabAction> financeFabActions() => [
         title: 'Upload invoice',
         sub: 'Pick a PDF or image — AI extracts and drafts the invoice',
         tint: RunqColors.accent,
-        onTap: (ctx) => startPoIntake(ctx),
+        onTap: (ctx) => startOrderIntake(ctx),
       ),
       FabAction(
         section: 'Money in',

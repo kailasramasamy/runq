@@ -91,8 +91,8 @@ class _Sheet extends StatelessWidget {
             _Tile(
               icon: Icons.assignment_outlined,
               tint: const Color(0xFF06B6D4),
-              title: 'Customer PO',
-              subtitle: 'Purchase order from a customer — generates a sales invoice',
+              title: 'Customer order',
+              subtitle: 'An order from a customer — generates a sales invoice',
               onTap: () => Navigator.pop(context, ShareDestination.customerPo),
             ),
             _Tile(

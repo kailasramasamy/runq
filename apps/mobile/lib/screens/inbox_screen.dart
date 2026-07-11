@@ -422,9 +422,9 @@ String? _toMobileRoute(String href) {
   if (href.startsWith('/ap/bills/')) {
     return '/bills/${href.substring('/ap/bills/'.length)}';
   }
-  // PO inbox detail
+  // Customer-order detail (backend still emits the legacy /ar/po-inbox/ path)
   if (href.startsWith('/ar/po-inbox/')) {
-    return '/po-drafts/${href.substring('/ar/po-inbox/'.length)}';
+    return '/sales/orders/${href.substring('/ar/po-inbox/'.length)}';
   }
   // Expense claims index — mobile has /expenses
   if (href.startsWith('/expenses')) {

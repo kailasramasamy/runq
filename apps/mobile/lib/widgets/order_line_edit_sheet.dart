@@ -13,14 +13,14 @@ import 'runq_snack.dart';
 ///   - Pick a matching item from the masters (or clear the match)
 ///   - Override quantity and rate
 ///
-/// Returns the updated `PoDraftDetail` from the server when the user saves so
+/// Returns the updated `CustomerOrderDetail` from the server when the user saves so
 /// the parent screen can refresh totals + flags. Returns null on cancel.
-Future<PoDraftDetail?> showPoLineEditSheet({
+Future<CustomerOrderDetail?> showOrderLineEditSheet({
   required BuildContext context,
   required String uploadId,
-  required PoDraftLine line,
+  required CustomerOrderLine line,
 }) {
-  return showModalBottomSheet<PoDraftDetail>(
+  return showModalBottomSheet<CustomerOrderDetail>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -30,7 +30,7 @@ Future<PoDraftDetail?> showPoLineEditSheet({
 
 class _LineEditSheet extends StatefulWidget {
   final String uploadId;
-  final PoDraftLine line;
+  final CustomerOrderLine line;
   const _LineEditSheet({required this.uploadId, required this.line});
 
   @override
@@ -169,7 +169,7 @@ class _LineEditSheetState extends State<_LineEditSheet> {
 
     setState(() => _saving = true);
     try {
-      final updated = await poRepo.updateLine(
+      final updated = await orderRepo.updateLine(
         widget.uploadId,
         widget.line.id,
         matchedItemId: _itemId,
@@ -492,7 +492,7 @@ class _ItemPickerScreenState extends State<_ItemPickerScreen> {
       _error = null;
     });
     try {
-      final res = await poRepo.searchItems(q);
+      final res = await orderRepo.searchItems(q);
       if (!mounted) return;
       setState(() {
         _results = res;
@@ -731,7 +731,7 @@ class _VariantPickerSheetState extends State<_VariantPickerSheet> {
 
   Future<void> _load() async {
     try {
-      final res = await poRepo.itemVariants(widget.itemId);
+      final res = await orderRepo.itemVariants(widget.itemId);
       if (!mounted) return;
       setState(() {
         _variants = res;

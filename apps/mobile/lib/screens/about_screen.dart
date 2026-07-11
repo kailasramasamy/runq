@@ -29,7 +29,7 @@ class AboutScreen extends StatelessWidget {
                     title: 'Sales (AR)',
                     bullets: [
                       'Issue GST invoices, send via WhatsApp / email',
-                      'PO inbox: drop a customer PO → AI drafts the invoice',
+                      'Customer orders: drop a customer order → AI drafts the invoice',
                       'Record receipts, dunning reminders, UPI payment links',
                     ],
                   ),

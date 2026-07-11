@@ -8,7 +8,7 @@ import '../router.dart';
 import '../widgets/open_po_picker_sheet.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/share_destination_sheet.dart';
-import 'po_intake.dart';
+import 'order_intake.dart';
 import 'scan_compiler.dart';
 
 /// Listens for files shared into runQ from other apps (Files, Photos, Mail,
@@ -87,7 +87,7 @@ class _ShareIntakeHostState extends State<ShareIntakeHost> {
           ctx.push('/bills/extract', extra: prepared);
           break;
         case ShareDestination.customerPo:
-          openPoProcessing(ctx, file, source: 'share_sheet');
+          openOrderProcessing(ctx, file, source: 'share_sheet');
           break;
         case ShareDestination.quickPayment:
           // Pass the original file (colour screenshot) straight through — the

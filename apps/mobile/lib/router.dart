@@ -13,7 +13,7 @@ import 'screens/new_expense_screen.dart';
 import 'screens/payment_made_screen.dart';
 import 'screens/payments_made_screen.dart';
 import 'screens/inbox_screen.dart';
-import 'screens/po_inbox_screen.dart';
+import 'screens/customer_orders_screen.dart';
 import 'screens/quick_invoice_generate_screen.dart';
 import 'screens/quick_invoice_templates_screen.dart';
 import 'dart:io';
@@ -60,8 +60,8 @@ import 'screens/language_screen.dart';
 import 'screens/help_screen.dart';
 import 'screens/support_chat_screen.dart';
 import 'screens/support_inbox_screen.dart';
-import 'screens/po_draft_review_screen.dart';
-import 'screens/po_processing_screen.dart';
+import 'screens/customer_order_review_screen.dart';
+import 'screens/customer_order_processing_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/splash_screen.dart';
@@ -133,7 +133,7 @@ import 'screens/manufacturing/reports/yield_trend_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
 import 'providers/app_role_provider.dart';
-import 'services/po_intake.dart';
+import 'services/order_intake.dart';
 
 final rootKey = GlobalKey<NavigatorState>();
 final shellKey = GlobalKey<NavigatorState>();
@@ -213,7 +213,7 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         const protected = {
           '/home', '/sales', '/purchases', '/money',
           '/invoices', '/bills', '/banking',
-          '/approvals', '/agent', '/po', '/profile',
+          '/approvals', '/agent', '/profile',
           '/hr', '/manufacturing',
         };
         final isProtected = protected.any(loc.startsWith);
@@ -239,7 +239,6 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         const financeRoots = {
           '/home', '/sales', '/purchases', '/money',
           '/banking', '/invoices', '/bills', '/expenses',
-          '/po', '/po-inbox', '/po-drafts',
           '/agent', '/approvals', '/inbox',
           '/quick-invoice', '/manufacturing',
         };
@@ -942,9 +941,9 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const InboxScreen(), key: state.pageKey),
         ),
         GoRoute(
-          path: '/po-inbox',
+          path: '/sales/orders',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const PoInboxScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(const CustomerOrdersScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/quick-invoice/templates',
@@ -983,21 +982,21 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           },
         ),
         GoRoute(
-          path: '/po/processing',
+          path: '/sales/orders/processing',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) {
-            final args = state.extra as PoIntakeArgs?;
+            final args = state.extra as OrderIntakeArgs?;
             if (args == null) {
               return _slidePage(const _MissingFileFallback(), key: state.pageKey);
             }
-            return _slidePage(PoProcessingScreen(file: args.file, source: args.source), key: state.pageKey);
+            return _slidePage(CustomerOrderProcessingScreen(file: args.file, source: args.source), key: state.pageKey);
           },
         ),
         GoRoute(
-          path: '/po-drafts/:id',
+          path: '/sales/orders/:id',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
-              _slidePage(PoDraftReviewScreen(uploadId: state.pathParameters['id']!), key: state.pageKey),
+              _slidePage(CustomerOrderReviewScreen(uploadId: state.pathParameters['id']!), key: state.pageKey),
         ),
         GoRoute(
           path: '/bills/:id',

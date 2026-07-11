@@ -677,7 +677,7 @@ Map<String, dynamic>? _safeJson(String s) {
   }
 }
 
-class PoRepo {
+class OrderRepo {
   Future<PoUpload> upload(File file, {String source = 'share_sheet', Map<String, dynamic>? sourceMetadata}) async {
     final fields = <String, String>{'source': source};
     if (sourceMetadata != null) fields['sourceMetadata'] = jsonEncode(sourceMetadata);
@@ -690,9 +690,9 @@ class PoRepo {
     return PoUpload.fromJson(_data(res));
   }
 
-  Future<PoDraftDetail> getDraft(String uploadId) async {
+  Future<CustomerOrderDetail> getDraft(String uploadId) async {
     final res = await apiClient.get('/ar/po-drafts/$uploadId');
-    return PoDraftDetail.fromJson(_data(res));
+    return CustomerOrderDetail.fromJson(_data(res));
   }
 
   Future<PoUpload> getUpload(String uploadId) async {
@@ -709,7 +709,7 @@ class PoRepo {
     await apiClient.delete('/ar/po-uploads/$uploadId');
   }
 
-  Future<PoDraftDetail> updateLine(
+  Future<CustomerOrderDetail> updateLine(
     String uploadId,
     String lineId, {
     Object? matchedItemId = _unset,
@@ -721,27 +721,27 @@ class PoRepo {
     if (quantity != null) body['quantity'] = quantity;
     if (rate != null) body['rate'] = rate;
     final res = await apiClient.patch('/ar/po-drafts/$uploadId/lines/$lineId', body);
-    return PoDraftDetail.fromJson(_data(res));
+    return CustomerOrderDetail.fromJson(_data(res));
   }
 
   /// PATCH /ar/po-drafts/:uploadId — update header fields (typically the
   /// matched customer when AI picked the wrong DC for a multi-DC buyer).
   /// Paginated PO inbox list. Returns the rows directly (the meta block is
   /// dropped — the mobile screen scrolls a single page for now).
-  Future<List<PoInboxRow>> listInbox({int page = 1, int limit = 50}) async {
+  Future<List<CustomerOrderRow>> listInbox({int page = 1, int limit = 50}) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     final res = await apiClient.get('/ar/po-drafts?${Uri(queryParameters: qp).query}');
-    return _dataList(res).map(PoInboxRow.fromJson).toList();
+    return _dataList(res).map(CustomerOrderRow.fromJson).toList();
   }
 
-  Future<PoDraftDetail> updateDraft(
+  Future<CustomerOrderDetail> updateDraft(
     String uploadId, {
     Object? customerId = _unset,
   }) async {
     final body = <String, dynamic>{};
     if (customerId != _unset) body['customerId'] = customerId;
     final res = await apiClient.patch('/ar/po-drafts/$uploadId', body);
-    return PoDraftDetail.fromJson(_data(res));
+    return CustomerOrderDetail.fromJson(_data(res));
   }
 
   Future<List<ItemSummary>> searchItems(String query) async {
@@ -985,7 +985,7 @@ final billsRepo = BillsRepo();
 final bankingRepo = BankingRepo();
 final approvalsRepo = ApprovalsRepo();
 final agentRepo = AgentRepo();
-final poRepo = PoRepo();
+final orderRepo = OrderRepo();
 final gstRepo = GstRepo();
 final supportRepo = SupportRepo();
 

@@ -1300,7 +1300,7 @@ class PoUpload {
   bool get isTerminal => status == 'parsed' || status == 'parse_error';
 }
 
-class PoDraftLine {
+class CustomerOrderLine {
   final String id;
   final int lineIndex;
   final String rawDescription;
@@ -1326,7 +1326,7 @@ class PoDraftLine {
   final bool? priceIncludesTax;
   final String? reviewFlag;
 
-  PoDraftLine({
+  CustomerOrderLine({
     required this.id,
     required this.lineIndex,
     required this.rawDescription,
@@ -1389,7 +1389,7 @@ class PoDraftLine {
   /// manual rate) and a positive rate × quantity.
   bool get isInvoiceable => matchedItemId != null && resolvedRate > 0 && rawQty > 0;
 
-  factory PoDraftLine.fromJson(Map<String, dynamic> j) => PoDraftLine(
+  factory CustomerOrderLine.fromJson(Map<String, dynamic> j) => CustomerOrderLine(
         id: _strOr(j['id'], ''),
         lineIndex: _int(j['lineIndex']),
         rawDescription: _strOr(j['rawDescription'], ''),
@@ -1650,7 +1650,7 @@ class ItemSummary {
 /// One row in the PO Inbox list. Mirrors the API's `InboxRow` shape so the
 /// mobile screen can render upload state, parsed header, and the linked
 /// invoice (when approved) without an extra fetch per row.
-class PoInboxRow {
+class CustomerOrderRow {
   final String id;
   final String? draftId;
   final String source;
@@ -1669,7 +1669,7 @@ class PoInboxRow {
   final DateTime uploadedAt;
   final DateTime updatedAt;
 
-  PoInboxRow({
+  CustomerOrderRow({
     required this.id,
     required this.source,
     required this.uploadStatus,
@@ -1705,7 +1705,7 @@ class PoInboxRow {
     return reviewStatus ?? uploadStatus;
   }
 
-  factory PoInboxRow.fromJson(Map<String, dynamic> j) => PoInboxRow(
+  factory CustomerOrderRow.fromJson(Map<String, dynamic> j) => CustomerOrderRow(
         id: _strOr(j['id'], ''),
         draftId: _str(j['draftId']),
         source: _strOr(j['source'], ''),
@@ -1726,7 +1726,7 @@ class PoInboxRow {
       );
 }
 
-class PoDraftDetail {
+class CustomerOrderDetail {
   final String id;
   final String? draftId;
   final String uploadStatus;
@@ -1743,13 +1743,13 @@ class PoDraftDetail {
   final double subtotal;
   final double taxTotal;
   final double grandTotal;
-  final List<PoDraftLine> lines;
+  final List<CustomerOrderLine> lines;
   final List<String> reviewFlags;
   final String? approvedInvoiceId;
   final String? approvedInvoiceNumber;
   final DateTime? approvedAt;
 
-  PoDraftDetail({
+  CustomerOrderDetail({
     required this.id,
     required this.draftId,
     required this.uploadStatus,
@@ -1779,7 +1779,7 @@ class PoDraftDetail {
   bool get hasError => uploadStatus == 'parse_error' || reviewStatus == 'error';
   bool get isReady => reviewStatus == 'ready' || reviewStatus == 'needs_review';
 
-  factory PoDraftDetail.fromJson(Map<String, dynamic> j) {
+  factory CustomerOrderDetail.fromJson(Map<String, dynamic> j) {
     final flagsRaw = j['reviewFlags'];
     final flags = <String>[];
     if (flagsRaw is List) {
@@ -1788,7 +1788,7 @@ class PoDraftDetail {
       }
     }
     final linesRaw = (j['lines'] as List?) ?? const [];
-    return PoDraftDetail(
+    return CustomerOrderDetail(
       id: _strOr(j['id'], ''),
       draftId: _str(j['draftId']),
       uploadStatus: _strOr(j['uploadStatus'], 'pending'),
@@ -1807,7 +1807,7 @@ class PoDraftDetail {
       grandTotal: _num(j['grandTotal']),
       lines: linesRaw
           .whereType<Map<String, dynamic>>()
-          .map(PoDraftLine.fromJson)
+          .map(CustomerOrderLine.fromJson)
           .toList(),
       reviewFlags: flags,
       approvedInvoiceId: _str(j['approvedInvoiceId']),

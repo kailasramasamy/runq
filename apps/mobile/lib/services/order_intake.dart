@@ -7,20 +7,20 @@ import '../widgets/runq_snack.dart';
 
 const _allowedExts = ['pdf', 'xlsx', 'xls', 'csv', 'jpg', 'jpeg', 'png', 'webp'];
 
-class PoIntakeArgs {
+class OrderIntakeArgs {
   final File file;
   final String source;
-  PoIntakeArgs({required this.file, this.source = 'share_sheet'});
+  OrderIntakeArgs({required this.file, this.source = 'share_sheet'});
 }
 
-Future<void> startPoIntake(BuildContext context) async {
+Future<void> startOrderIntake(BuildContext context) async {
   final file = await _pickFile(context);
   if (file == null || !context.mounted) return;
-  context.push('/po/processing', extra: PoIntakeArgs(file: file, source: 'share_sheet'));
+  context.push('/sales/orders/processing', extra: OrderIntakeArgs(file: file, source: 'share_sheet'));
 }
 
-void openPoProcessing(BuildContext context, File file, {String source = 'share_sheet'}) {
-  context.push('/po/processing', extra: PoIntakeArgs(file: file, source: source));
+void openOrderProcessing(BuildContext context, File file, {String source = 'share_sheet'}) {
+  context.push('/sales/orders/processing', extra: OrderIntakeArgs(file: file, source: source));
 }
 
 Future<File?> _pickFile(BuildContext context) async {

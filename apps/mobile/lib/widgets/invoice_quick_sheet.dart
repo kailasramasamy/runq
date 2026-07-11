@@ -40,7 +40,7 @@ class _InvoiceQuickSheet extends StatelessWidget {
               icon: Icons.add_circle_outline_rounded,
               tint: const Color(0xFF06B6D4),
               title: 'Create invoice',
-              subtitle: 'From a PO, blank, or upload a file',
+              subtitle: 'From an order, blank, or upload a file',
               onTap: () {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,13 +66,13 @@ class _InvoiceQuickSheet extends StatelessWidget {
             _Tile(
               icon: Icons.inbox_outlined,
               tint: RunqColors.amberInk,
-              title: 'PO Inbox',
-              subtitle: 'See uploaded POs and their invoice status',
+              title: 'Customer orders',
+              subtitle: 'See customer orders and their invoice status',
               background: t.bgWarm,
               onTap: () {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (context.mounted) context.push('/po-inbox');
+                  if (context.mounted) context.push('/sales/orders');
                 });
               },
             ),
