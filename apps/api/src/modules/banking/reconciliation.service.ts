@@ -79,7 +79,11 @@ export class ReconciliationService {
           eq(bankTransactions.tenantId, this.tenantId),
           eq(bankTransactions.reconStatus, 'unreconciled'),
         ),
-      ).orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt)),
+      ).orderBy(
+        desc(bankTransactions.transactionDate),
+        sql`${bankTransactions.statementSeq} desc nulls last`,
+        desc(bankTransactions.createdAt),
+      ),
       this.db.select().from(payments).where(
         and(
           eq(payments.bankAccountId, bankAccountId),

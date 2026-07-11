@@ -43,6 +43,7 @@ export interface BankTransaction {
   glAccountCode: string | null;
   glAccountName: string | null;
   glConfidence: number | null;
+  statementSeq: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -76,7 +76,11 @@ export class TransactionService {
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere)
-        .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
+        .orderBy(
+          desc(bankTransactions.transactionDate),
+          sql`${bankTransactions.statementSeq} desc nulls last`,
+          desc(bankTransactions.createdAt),
+        )
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` })
@@ -344,7 +348,11 @@ export class TransactionService {
           isNotNull(bankTransactions.runningBalance),
         ),
       )
-      .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
+      .orderBy(
+        desc(bankTransactions.transactionDate),
+        sql`${bankTransactions.statementSeq} desc nulls last`,
+        desc(bankTransactions.createdAt),
+      )
       .limit(1);
     if (!latest?.runningBalance) return;
     await this.updateAccountBalance(bankAccountId, parseFloat(latest.runningBalance));
@@ -522,6 +530,7 @@ export class TransactionService {
       glAccountCode: glAccountCode ?? null,
       glAccountName: glAccountName ?? null,
       glConfidence: row.glConfidence ? parseFloat(row.glConfidence) : null,
+      statementSeq: row.statementSeq,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

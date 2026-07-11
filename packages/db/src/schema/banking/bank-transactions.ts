@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, date, decimal, timestamp, pgEnum, index, integer } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { bankAccounts } from './bank-accounts';
 import { accounts } from '../gl/accounts';
@@ -22,6 +22,11 @@ export const bankTransactions = pgTable('bank_transactions', {
   // the bank's import string and is never overwritten.
   memo: varchar('memo', { length: 500 }),
   runningBalance: decimal('running_balance', { precision: 15, scale: 2 }),
+  // Row position within the source statement (0-based, in file order). Bank
+  // statements list oldest-first and carry no per-txn time, so this is the
+  // only signal that orders same-day transactions chronologically. Sorted
+  // desc alongside transaction_date so the latest same-day txn sits on top.
+  statementSeq: integer('statement_seq'),
   reconStatus: reconStatusEnum('recon_status').notNull().default('unreconciled'),
   importBatchId: uuid('import_batch_id'),
   // Vendor/Customer & GL posting

@@ -243,9 +243,12 @@ class _Body extends ConsumerWidget {
     final widgets = <Widget>[];
     final today = DateTime.now();
     for (final k in sortedKeys) {
-      // transaction_date is date-only, so order within a day by createdAt
-      // (import/insert time) to keep the latest transaction on top.
+      // transaction_date is date-only. Order within a day by statementSeq
+      // (row position in the source statement, oldest-first) so the latest
+      // txn sits on top; fall back to createdAt for rows without a seq.
       final list = byDate[k]!..sort((a, b) {
+        final sa = a.statementSeq, sb = b.statementSeq;
+        if (sa != null && sb != null && sa != sb) return sb.compareTo(sa);
         final ca = a.createdAt, cb = b.createdAt;
         if (ca != null && cb != null) return cb.compareTo(ca);
         return 0;
@@ -1100,6 +1103,14 @@ class _TxnDetail extends StatelessWidget {
 
   String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
+  String _fmtDateTime(DateTime d) {
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final ampm = d.hour < 12 ? 'AM' : 'PM';
+    final mm = d.minute.toString().padLeft(2, '0');
+    final ss = d.second.toString().padLeft(2, '0');
+    return '${_fmtDate(d)} · $h:$mm:$ss $ampm';
+  }
+
   String _statusLabel(String s) {
     switch (s) {
       case 'matched':
@@ -1128,6 +1139,10 @@ class _TxnDetail extends StatelessWidget {
           const SizedBox(height: 8),
           _DetailRow(label: 'Type', value: txn.isCredit ? 'Money in' : 'Money out'),
           _DetailRow(label: 'Date', value: _fmtDate(txn.transactionDate)),
+          if (txn.createdAt != null)
+            _DetailRow(label: 'Imported', value: _fmtDateTime(txn.createdAt!)),
+          if (txn.statementSeq != null)
+            _DetailRow(label: 'Statement #', value: '${txn.statementSeq}'),
           _DetailRow(
             label: 'Amount',
             value: '${txn.isCredit ? '+' : '−'}${formatINR(txn.amount.abs())}',

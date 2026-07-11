@@ -1,4 +1,4 @@
-import { eq, and, desc, isNotNull } from 'drizzle-orm';
+import { eq, and, desc, isNotNull, sql } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
 import { bankAccounts, bankTransactions, bankStatementFormatAliases } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -299,6 +299,8 @@ export class StatementImportService {
           type: txn.type, amount: txn.amount.toString(),
           reference: txn.reference, narration: txn.narration,
           runningBalance: txn.runningBalance?.toString() ?? null,
+          // Statement row position (file order) — orders same-day txns.
+          statementSeq: i,
           reconStatus: 'unreconciled', importBatchId,
         });
       } catch (err) {
@@ -326,7 +328,11 @@ export class StatementImportService {
           isNotNull(bankTransactions.runningBalance),
         ),
       )
-      .orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt))
+      .orderBy(
+        desc(bankTransactions.transactionDate),
+        sql`${bankTransactions.statementSeq} desc nulls last`,
+        desc(bankTransactions.createdAt),
+      )
       .limit(1);
     if (latest?.runningBalance) {
       await this.db.update(bankAccounts)

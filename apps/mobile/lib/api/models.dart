@@ -997,6 +997,7 @@ class BankTxn {
   final double amount;
   final DateTime transactionDate;
   final DateTime? createdAt;
+  final int? statementSeq;
 
   BankTxn({
     required this.id,
@@ -1015,6 +1016,7 @@ class BankTxn {
     required this.amount,
     required this.transactionDate,
     this.createdAt,
+    this.statementSeq,
   });
 
   factory BankTxn.fromJson(Map<String, dynamic> j) => BankTxn(
@@ -1034,6 +1036,7 @@ class BankTxn {
         amount: _num(j['amount']),
         transactionDate: _dt(j['transactionDate']) ?? DateTime.now(),
         createdAt: _dt(j['createdAt']),
+        statementSeq: j['statementSeq'] == null ? null : _int(j['statementSeq']),
       );
 
   bool get isCredit => type == 'credit';
