@@ -184,6 +184,7 @@ export const mpAuthRoutes: FastifyPluginAsync = async (app) => {
       await verifyMpOtp(app, normalisePhone(phone), otp);
     }
     const user = await resolveOrProvisionUser(app, cred);
-    return reply.send({ data: await issueSession(app, user) });
+    const expiresIn = loadEnv().MP_JWT_EXPIRES_IN;
+    return reply.send({ data: await issueSession(app, user, { expiresIn }) });
   });
 };

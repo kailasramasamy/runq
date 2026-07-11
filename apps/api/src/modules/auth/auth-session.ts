@@ -40,8 +40,13 @@ export async function ensureMembership(
 }
 
 // Final login step — issue the runq JWT + sanitised user. Shared across HR and
-// Dhenu auth so the token shape is identical everywhere.
-export async function issueSession(app: FastifyInstance, user: any) {
+// Dhenu auth so the token shape is identical everywhere. Callers may override
+// the token lifetime (Dhenu passes a longer expiry for field personas).
+export async function issueSession(
+  app: FastifyInstance,
+  user: any,
+  opts: { expiresIn?: string } = {},
+) {
   if (!user.isActive) throw new UnauthorizedError('Account is disabled');
   await ensureMembership(app.db, user.id, user.tenantId, user.role);
 
@@ -54,7 +59,7 @@ export async function issueSession(app: FastifyInstance, user: any) {
 
   const token = app.jwt.sign(
     { userId: user.id, tenantId: tenant.id, role: user.role },
-    { expiresIn: env.JWT_EXPIRES_IN },
+    { expiresIn: opts.expiresIn ?? env.JWT_EXPIRES_IN },
   );
   return {
     token,

@@ -5,6 +5,10 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('24h'),
+  // Dhenu field personas (farmer/operator) log in on their own phones and
+  // shouldn't re-auth daily — give the mp-auth token a much longer life than
+  // the web/HR default. No refresh token exists, so this is the whole session.
+  MP_JWT_EXPIRES_IN: z.string().default('30d'),
   SERVICE_JWT_SECRET: z.string().min(32),
   PORTAL_JWT_SECRET: z.string().min(32).optional(),
   CA_PORTAL_SECRET: z.string().min(32).optional(),
