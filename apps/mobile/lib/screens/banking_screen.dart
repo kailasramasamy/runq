@@ -935,13 +935,16 @@ class _TxnRowState extends State<_TxnRow> {
         ? (isDark ? const Color(0xFF6EE7B7) : RunqColors.greenInk)
         : (isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk);
 
-    // Lead with the vendor/customer; the description sits underneath. When
-    // there's no matched party yet, the description is promoted to the title
-    // and the recon suggestion takes the secondary line.
+    // Lead with the vendor/customer. With no matched party, fall back to the
+    // user memo ("paid to X for Y" — who + what) and then the bank's raw
+    // narration. The secondary line carries the memo/description underneath;
+    // when there's nothing to show there, the recon suggestion chip takes over.
     final party = txn.vendorName ?? txn.customerName;
+    final memo = txn.memo;
     final desc = txn.narration ?? txn.reference;
     final matched = txn.reconStatus == 'matched' || txn.reconStatus == 'manually_matched';
-    final title = party ?? desc ?? 'Transaction';
+    final title = party ?? memo ?? desc ?? 'Transaction';
+    final subtitle = party != null ? (memo ?? desc) : (memo != null ? desc : null);
 
     return RunqCard(
       padding: const EdgeInsets.all(12),
@@ -987,9 +990,9 @@ class _TxnRowState extends State<_TxnRow> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      if (party != null)
+                      if (subtitle != null)
                         Text(
-                          desc ?? 'No description',
+                          subtitle,
                           style: RunqText.caption.copyWith(color: t.muted2),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         )
@@ -1071,6 +1074,7 @@ class _TxnDetail extends StatelessWidget {
           ),
           if (txn.reference != null) _DetailRow(label: 'Reference', value: txn.reference!),
           if (txn.narration != null) _DetailRow(label: 'Description', value: txn.narration!),
+          if (txn.memo != null) _DetailRow(label: 'Memo', value: txn.memo!),
           if (party != null && partyLabel != null) _DetailRow(label: partyLabel, value: party),
           if (txn.glAccountName != null)
             _DetailRow(

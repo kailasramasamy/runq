@@ -990,7 +990,7 @@ class PendingPayment {
 
 class BankTxn {
   final String id, bankAccountId, type, reconStatus;
-  final String? reference, narration;
+  final String? reference, narration, memo;
   final String? vendorId, vendorName, customerId, customerName;
   final String? glAccountName;
   final double? glConfidence;
@@ -1004,6 +1004,7 @@ class BankTxn {
     required this.reconStatus,
     this.reference,
     this.narration,
+    this.memo,
     this.vendorId,
     this.vendorName,
     this.customerId,
@@ -1021,6 +1022,7 @@ class BankTxn {
         reconStatus: _strOr(j['reconStatus'], 'unreconciled'),
         reference: _str(j['reference']),
         narration: _str(j['narration']),
+        memo: _str(j['memo']),
         vendorId: _str(j['vendorId']),
         vendorName: _str(j['vendorName']),
         customerId: _str(j['customerId']),
