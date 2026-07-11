@@ -902,8 +902,8 @@ class _ActionsCardState extends State<_ActionsCard> {
     if (amount <= 0) return;
     final ok = await _confirm(
       title: 'Mark as paid',
-      body: 'Record ${formatINR(amount, paise: true)} for bill ${widget.bill.invoiceNumber} as paid by you. '
-          'Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced.',
+      body: 'Record ${formatINR(amount, paise: true)} for bill ${widget.bill.invoiceNumber} as paid from your own money. '
+          'This keeps your books balanced.',
       confirmLabel: 'Mark paid',
       confirmColor: const Color(0xFF047857),
     );
@@ -931,7 +931,7 @@ class _ActionsCardState extends State<_ActionsCard> {
     // gates this card via _hasPrimaryCta so we know one of these applies).
     final blurb = isDraft
         ? 'Approve to post the bill to your books and make it available for payment.'
-        : 'Settle the balance — books an owner-paid payment via Petty Cash with a paired owner-injection JE.';
+        : 'Settle the balance — records that you paid this from your own money.';
     final spinner = _busy
         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
         : null;

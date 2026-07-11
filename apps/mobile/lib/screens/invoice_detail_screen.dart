@@ -338,14 +338,14 @@ class _MoreActionsSheet extends StatelessWidget {
                 label: status == 'draft' ? 'Edit invoice' : 'Amend invoice',
                 subtitle: status == 'draft'
                     ? 'Update customer, items, dates'
-                    : 'Customer revised the PO — adjust qty/items, GL re-posts',
+                    : 'Customer revised the order — adjust qty/items',
                 onTap: () => Navigator.pop(context, _InvoiceAction.amend),
               ),
             if (canDiscard)
               _SheetItem(
                 icon: Icons.block_rounded,
                 label: 'Discard invoice',
-                subtitle: 'Mark as cancelled — keeps row for audit',
+                subtitle: 'Cancel it — kept on record for your books',
                 onTap: () => Navigator.pop(context, _InvoiceAction.discard),
                 destructive: true,
               ),

@@ -16,61 +16,89 @@ class CashHeroCard extends ConsumerWidget {
     final summary = ref.watch(dashboardSummaryProvider);
     final trend = ref.watch(cashTrendProvider);
     final accounts = ref.watch(bankAccountsProvider);
-    final accountCount = accounts.maybeWhen(data: (l) => l.length, orElse: () => 0);
-    final sparkData = trend.maybeWhen(data: (t) => t.spark, orElse: () => const <double>[]);
-    final weeklyDelta = trend.maybeWhen(data: (t) => t.weeklyDelta, orElse: () => 0.0);
+    final accountCount = accounts.maybeWhen(
+      data: (l) => l.length,
+      orElse: () => 0,
+    );
+    final sparkData = trend.maybeWhen(
+      data: (t) => t.spark,
+      orElse: () => const <double>[],
+    );
+    final weeklyDelta = trend.maybeWhen(
+      data: (t) => t.weeklyDelta,
+      orElse: () => 0.0,
+    );
     final cashPosition = trend.maybeWhen(
       data: (t) => t.cashPosition,
-      orElse: () => summary.maybeWhen(data: (s) => s.cashPosition, orElse: () => 0.0),
+      orElse: () =>
+          summary.maybeWhen(data: (s) => s.cashPosition, orElse: () => 0.0),
     );
 
-    // Tap-anywhere navigates to Analytics. Analytics is buried under Sales
-    // in the bottom-nav today and the hero card is the natural entry — cash,
-    // AR, AP, sparkline are all just the headlines of what Analytics shows
-    // in depth. Using GestureDetector (not InkWell) — the gradient surface
-    // doesn't host ink properly and InkWell can drop the tap.
+    // The card body is a cash-position headline, so tapping it goes to
+    // Banking (the account ledger behind that number). The "To collect" /
+    // "To pay" mini-stats intercept their own taps below and route to the
+    // debtor and bill lists respectively — an owner tapping "To collect
+    // ₹4.2L" expects the receivables, not a generic analytics screen.
+    // Using GestureDetector (not InkWell) — the gradient surface doesn't
+    // host ink properly and InkWell can drop the tap.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/money/analytics'),
+      onTap: () => context.push('/money/banking'),
       child: Container(
-          decoration: BoxDecoration(
-            gradient: RunqColors.heroGradient,
-            borderRadius: BorderRadius.circular(RunqRadii.hero),
-            boxShadow: const [
-              BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
-                child: _HeroBody(
-                  cashPosition: cashPosition,
-                  loaded: summary.hasValue || trend.hasValue,
-                  accountCount: accountCount,
-                  weeklyDelta: weeklyDelta,
-                  hasTrend: trend.hasValue,
-                ),
-              ),
-              if (_hasMovement(sparkData))
-                _SparkSection(data: sparkData)
-              else
-                const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                child: Row(
-                  children: [
-                    Expanded(child: _MiniStat(summary: summary, kind: _Kind.ar)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _MiniStat(summary: summary, kind: _Kind.ap)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        decoration: BoxDecoration(
+          gradient: RunqColors.heroGradient,
+          borderRadius: BorderRadius.circular(RunqRadii.hero),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x331E1B4B),
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
         ),
-      );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
+              child: _HeroBody(
+                cashPosition: cashPosition,
+                loaded: summary.hasValue || trend.hasValue,
+                accountCount: accountCount,
+                weeklyDelta: weeklyDelta,
+                hasTrend: trend.hasValue,
+              ),
+            ),
+            if (_hasMovement(sparkData))
+              _SparkSection(data: sparkData)
+            else
+              const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _MiniStat(
+                      summary: summary,
+                      kind: _Kind.ar,
+                      onTap: () => context.push('/sales/collections'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MiniStat(
+                      summary: summary,
+                      kind: _Kind.ap,
+                      onTap: () => context.push('/purchases/bills'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -121,7 +149,11 @@ class _HeroBody extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           loaded ? formatINR(cashPosition) : '—',
-          style: RunqText.tabular(size: 32, w: FontWeight.w700, color: Colors.white).copyWith(height: 1.05),
+          style: RunqText.tabular(
+            size: 32,
+            w: FontWeight.w700,
+            color: Colors.white,
+          ).copyWith(height: 1.05),
         ),
         const SizedBox(height: 6),
         if (hasTrend) _TrendChip(delta: weeklyDelta),
@@ -144,9 +176,7 @@ class _AccountsPill extends StatelessWidget {
       ),
       child: Text(
         '$count ${count == 1 ? 'account' : 'accounts'}',
-        style: RunqText.caption.copyWith(
-          color: Colors.white,
-        ),
+        style: RunqText.caption.copyWith(color: Colors.white),
       ),
     );
   }
@@ -165,7 +195,8 @@ class _TrendChip extends StatelessWidget {
       children: [
         Icon(
           positive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-          size: 14, color: tint,
+          size: 14,
+          color: tint,
         ),
         const SizedBox(width: 4),
         Text(
@@ -201,10 +232,18 @@ class _SparkSection extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('14 days ago',
-                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55))),
-                Text('today',
-                    style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.55))),
+                Text(
+                  '14 days ago',
+                  style: RunqText.caption.copyWith(
+                    color: Colors.white.withValues(alpha: 0.55),
+                  ),
+                ),
+                Text(
+                  'today',
+                  style: RunqText.caption.copyWith(
+                    color: Colors.white.withValues(alpha: 0.55),
+                  ),
+                ),
               ],
             ),
           ),
@@ -219,7 +258,12 @@ enum _Kind { ar, ap }
 class _MiniStat extends StatelessWidget {
   final AsyncValue<DashboardSummary> summary;
   final _Kind kind;
-  const _MiniStat({required this.summary, required this.kind});
+  final VoidCallback onTap;
+  const _MiniStat({
+    required this.summary,
+    required this.kind,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -232,33 +276,52 @@ class _MiniStat extends StatelessWidget {
       final amount = isAr ? s.outstandingReceivables : s.outstandingPayables;
       value = formatINR(amount, compact: true);
       if (isAr) {
-        caption = '${s.overdueCount} of ${s.outstandingReceivablesCount} overdue';
+        caption =
+            '${s.overdueCount} of ${s.outstandingReceivablesCount} overdue';
         captionColor = const Color(0xFFFCA5A5);
       } else {
-        caption = '${s.upcomingCount} of ${s.outstandingPayablesCount} due this week';
+        caption =
+            '${s.upcomingCount} of ${s.outstandingPayablesCount} due this week';
         captionColor = const Color(0xFFFCD34D);
       }
     });
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: RunqText.label.copyWith(color: Colors.white.withValues(alpha: 0.7))),
-          const SizedBox(height: 4),
-          Text(value, style: RunqText.tabular(size: 18, w: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 2),
-          Text(caption,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: RunqText.label.copyWith(
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: RunqText.tabular(
+                size: 18,
+                w: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              caption,
               style: RunqText.caption.copyWith(color: captionColor),
               maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ],
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

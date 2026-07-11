@@ -366,7 +366,7 @@ class _ActionTiles extends StatelessWidget {
           child: _ActionTile(
             icon: Icons.description_outlined,
             label: 'Returns',
-            sub: 'GSTR-1 & 3B',
+            sub: 'Your sales & tax returns',
             onTap: () => context.push('/gst/returns'),
           ),
         ),
@@ -375,7 +375,7 @@ class _ActionTiles extends StatelessWidget {
           child: _ActionTile(
             icon: Icons.sync_alt_rounded,
             label: 'Reconcile 2B',
-            sub: 'Match ITC claims',
+            sub: 'Protect your tax credit',
             onTap: () => context.push('/gst/2b'),
           ),
         ),

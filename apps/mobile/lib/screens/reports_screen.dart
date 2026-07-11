@@ -294,7 +294,7 @@ class _ProfitAndLossPanel extends ConsumerWidget {
                 children: [
                   _PnlRow(label: 'Revenue', amount: cur.totalRevenue, positive: true),
                   const SizedBox(height: 12),
-                  _PnlRow(label: 'COGS', amount: -cur.totalCogs),
+                  _PnlRow(label: 'Cost of goods', amount: -cur.totalCogs),
                   const SizedBox(height: 12),
                   _Divider(),
                   const SizedBox(height: 12),

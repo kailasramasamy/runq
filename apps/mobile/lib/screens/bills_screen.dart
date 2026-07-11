@@ -939,8 +939,8 @@ class BillRow extends ConsumerWidget {
       builder: (dctx) => AlertDialog(
         title: const Text('Mark as paid?'),
         content: Text(
-          'Record ${formatINR(amount)} for ${bill.invoiceNumber} as paid by you. '
-          'Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced.',
+          'Record ${formatINR(amount)} for ${bill.invoiceNumber} as paid from your own money. '
+          'This keeps your books balanced.',
           style: RunqText.body,
         ),
         actions: [
@@ -981,7 +981,7 @@ class _MatchChip extends StatelessWidget {
       children: [
         Icon(matched ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 12, color: color),
         const SizedBox(width: 3),
-        Text(matched ? '3WM' : 'Match needed',
+        Text(matched ? 'Verified' : 'Match needed',
             style: RunqText.label.copyWith(color: color)),
       ],
     );

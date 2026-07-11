@@ -34,7 +34,7 @@ const _lightSpec = <String, _PillSpec>{
   'overdue': _PillSpec(RunqColors.redInk, 'OVERDUE'),
   'draft': _PillSpec(RunqColors.grayInk, 'DRAFT'),
   'pending_match': _PillSpec(RunqColors.amberInk, 'MATCH NEEDED'),
-  'matched': _PillSpec(RunqColors.blueInk, '3-WAY MATCHED'),
+  'matched': _PillSpec(RunqColors.blueInk, 'VERIFIED'),
   'approved': _PillSpec(RunqColors.blueInk, 'APPROVED'),
   'pending_approval': _PillSpec(RunqColors.amberInk, 'PENDING'),
   'pending': _PillSpec(RunqColors.amberInk, 'PENDING'),

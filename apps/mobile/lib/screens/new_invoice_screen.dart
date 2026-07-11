@@ -365,7 +365,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
               ),
               child: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(_isEdit ? 'Save & repost' : 'Save invoice'),
+                  : Text(_isEdit ? 'Save changes' : 'Save invoice'),
             ),
           ],
         ),

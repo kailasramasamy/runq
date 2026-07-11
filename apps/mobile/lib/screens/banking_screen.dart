@@ -46,12 +46,18 @@ class BankingScreen extends ConsumerWidget {
         color: RT(context).brand,
         onRefresh: () async {
           ref.invalidate(bankAccountsProvider);
-          final selected = ref.read(_selectedAccountProvider);
+          final list = await ref.read(bankAccountsProvider.future).catchError((_) => throw 0);
+          // The list defaults to the first account without writing back to
+          // _selectedAccountProvider, so fall back to it here — otherwise a
+          // pull-to-refresh on the default (untapped) account skips the txn
+          // providers entirely and never picks up newly-synced rows.
+          final selected = ref.read(_selectedAccountProvider) ??
+              (list.isNotEmpty ? list.first.id : null);
           if (selected != null) {
             ref.invalidate(bankTxnsProvider(selected));
             ref.invalidate(bankUnreconciledTxnsProvider(selected));
+            ref.invalidate(bankLastSyncDateProvider(selected));
           }
-          await ref.read(bankAccountsProvider.future).catchError((_) => throw 0);
         },
         child: AsyncSlot<List<BankAccount>>(
           value: accounts,
@@ -262,7 +268,15 @@ class _Body extends ConsumerWidget {
           : isYesterday
               ? 'Yesterday · ${d.day} ${m[d.month - 1]}'
               : '${d.day} ${m[d.month - 1]}';
-      widgets.add(_DateHeader(label: label));
+      var credits = 0.0, debits = 0.0;
+      for (final txn in list) {
+        if (txn.isCredit) {
+          credits += txn.amount;
+        } else {
+          debits += txn.amount;
+        }
+      }
+      widgets.add(_DateHeader(label: label, credits: credits, debits: debits));
       for (var i = 0; i < list.length; i++) {
         widgets.add(Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, i == list.length - 1 ? 0 : 8),
@@ -634,7 +648,7 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
                   Text(_running ? 'Categorising…' : 'Auto-categorize transactions',
                       style: RunqText.bodyStrong.copyWith(color: bannerInk)),
                   const SizedBox(height: 2),
-                  Text('Apply rules + AI suggestions to unreconciled rows',
+                  Text('Apply rules + AI suggestions to uncategorised rows',
                       style: RunqText.caption.copyWith(color: bannerInk)),
                 ],
               ),
@@ -960,15 +974,37 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
 
 class _DateHeader extends StatelessWidget {
   final String label;
-  const _DateHeader({required this.label});
+  final double credits;
+  final double debits;
+  const _DateHeader({required this.label, required this.credits, required this.debits});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final creditInk = isDark ? const Color(0xFF6EE7B7) : RunqColors.greenInk;
+    final debitInk = isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk;
     return Container(
       color: t.bgWarm,
       padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
-      child: Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted2)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted2)),
+          ),
+          if (credits > 0)
+            Text('+${formatINR(credits)}',
+                style: RunqText.tabular(size: 12, w: FontWeight.w600, color: creditInk)),
+          if (credits > 0 && debits > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text('·', style: RunqText.label.copyWith(color: t.muted2)),
+            ),
+          if (debits > 0)
+            Text('−${formatINR(debits)}',
+                style: RunqText.tabular(size: 12, w: FontWeight.w600, color: debitInk)),
+        ],
+      ),
     );
   }
 }
@@ -1120,7 +1156,7 @@ class _TxnDetail extends StatelessWidget {
       case 'excluded':
         return 'Excluded';
       default:
-        return 'Unreconciled';
+        return 'Not matched';
     }
   }
 

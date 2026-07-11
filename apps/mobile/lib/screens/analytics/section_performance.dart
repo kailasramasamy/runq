@@ -166,7 +166,7 @@ class _DsoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return MetricCard<DsoTrend6mo>(
       title: 'Days sales outstanding',
-      subtitle: 'DSO trend, 6 months',
+      subtitle: 'Trend over 6 months',
       value: value,
       onTap: () => context.push('/sales/invoices'),
       footerLabel: 'View invoices',
@@ -304,7 +304,7 @@ class _TopExpenseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return MetricCard<TopExpenseCategories>(
       title: 'Top expense categories',
-      subtitle: 'This month, from GL',
+      subtitle: 'This month',
       value: value,
       onTap: () => context.push('/money/reports'),
       footerLabel: 'View reports',

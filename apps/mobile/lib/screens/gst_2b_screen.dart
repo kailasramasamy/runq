@@ -193,6 +193,15 @@ class _Gst2bScreenState extends ConsumerState<Gst2bScreen> {
               ),
               SliverToBoxAdapter(child: _PeriodPicker(period: period)),
               SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    '2B is what your vendors reported selling to you. Matching your bills to it protects the tax credit you can claim.',
+                    style: RunqText.caption.copyWith(color: RT(context).muted),
+                  ),
+                ),
+              ),
+              SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 sliver: SliverToBoxAdapter(
                   child: AsyncSlot<Gstr2bSummary>(

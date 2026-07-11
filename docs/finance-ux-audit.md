@@ -114,24 +114,26 @@ Renamed the whole feature to **"Customer orders"** and housed it under Sales. Th
 
 **Items 8 & 9 web parity:** #8 (invoice-create flow) is already fine on web — single 2-option "New invoice" menu, no stacked sheets; only the "Generate from order" label rode along with #10. #9 (quick payments naming) has no web counterpart — web has no "payment made / quick payments" capture flow, so there's nothing to rename (its Expenses / AP Payments / Banking "Pending payments" surfaces are already clearly named).
 
-### 11. Cash hero taps to the wrong place
+### 11. Cash hero taps to the wrong place — ✅ DONE (2026-07-12)
 `cash_hero_card.dart:34` — the whole card goes to `/money/analytics`. "To collect" / "To pay" mini-stats aren't individually tappable. Owner tapping "To collect ₹4.2L" expects the debtor list.
 **Fix:** per-stat taps → collections / bills; card body → banking.
+**Done:** card body now `→ /money/banking`; "To collect" mini-stat `→ /sales/collections`, "To pay" `→ /purchases/bills` (each intercepts its own tap via an `onTap` on `_MiniStat`).
 
 ---
 
 ## P2 — Jargon & copy pass (cheap, high leverage)
 
-### 12. Accountant copy in owner-critical dialogs
-- `bill_detail_screen.dart:905-934` (and `bills_screen.dart:909`): *"Books a Petty Cash payment with an owner-injection journal entry so the cash trail stays balanced."* → "Record that you paid this from your own money."
-- `new_invoice_screen.dart:368`: "Save & repost" → "Save changes".
-- `status_pill.dart:36-41`: "3-WAY MATCHED" / "3WM" / "MATCH NEEDED" → hide behind detail, or "Verified against order".
-- `bill_extract_screen.dart:812-815`: "TDS section", "HSN/SAC", "GSTIN", "PAN" shown with equal visual weight to required fields → collapse into an "Tax details (optional)" group.
-- `invoice_detail_screen.dart:324-339`: sheet subtitles "GL re-posts", "keeps row for audit".
-- `reports_screen.dart:297-307`: "COGS" → "Cost of goods"; gloss "Gross profit".
-- `section_performance.dart:169,307`: "Days sales outstanding / DSO", "from GL".
-- Banking (`banking_screen.dart:564-567`): "reconcile", "unreconciled", "Uncategorized" → "matched to your books" language.
-- GST: hub tiles `gst_hub_screen.dart:298-309` say "GSTR-1 & 3B", "Reconcile 2B / Match ITC claims" with zero gloss; 2B screen (`gst_2b_screen.dart:192-193`) never explains its purpose. One-line explainers fix most of this: *"GSTR-1 — your sales report to the government"*, *"2B — what your vendors reported buying from you; matching it protects your tax credit."*
+### 12. Accountant copy in owner-critical dialogs — ✅ MOSTLY DONE (2026-07-12)
+- ✅ Petty-cash owner-injection copy → "…paid from your own money. This keeps your books balanced." (`bill_detail_screen.dart` markPaid dialog + CTA blurb; `bills_screen.dart` markPaid dialog).
+- ✅ `new_invoice_screen.dart`: "Save & repost" → "Save changes".
+- ✅ Status jargon: `status_pill.dart` "3-WAY MATCHED" → "VERIFIED"; `bills_screen.dart` match chip "3WM" → "Verified".
+- ✅ `invoice_detail_screen.dart`: "…GL re-posts" → dropped; "keeps row for audit" → "kept on record for your books".
+- ✅ `reports_screen.dart`: "COGS" → "Cost of goods".
+- ✅ `section_performance.dart`: "DSO trend, 6 months" → "Trend over 6 months"; "This month, from GL" → "This month".
+- ✅ Banking: "unreconciled rows" → "uncategorised rows"; "Unreconciled" status → "Not matched".
+- ✅ GST: hub tiles "GSTR-1 & 3B" → "Your sales & tax returns", "Match ITC claims" → "Protect your tax credit"; 2B screen now opens with a one-line purpose explainer.
+- ⬜ **Deferred — `bill_extract_screen.dart` tax-field regroup:** the tax fields (GSTIN/PAN, TDS section, HSN/SAC) currently sit inside their entity sections (Vendor / Invoice / line-item). Lumping them into one "Tax details (optional)" group is a layout refactor that fights the per-entity grouping — needs its own pass, not a copy swap.
+- ⬜ **Deferred — "Gross profit" inline gloss:** would need a subtitle slot on the `_PnlRow` widget; skipped in the copy pass.
 
 ### 13. Analytics "Books health" section is accountant-internal
 `section_books.dart` — Trial balance, Debits/Credits, Suspense/clearing, Unreconciled. Move to a collapsed "For your accountant" section (also solves dead drills, P0 #4).
