@@ -132,8 +132,8 @@ export class InboxService {
       },
       {
         key: 'po_drafts_to_review',
-        title: 'PO drafts to review',
-        caption: 'Customer POs parsed by AI — confirm and convert to invoices.',
+        title: 'Customer orders to review',
+        caption: 'Customer orders parsed by AI — confirm and convert to invoices.',
         count: poToReview.count,
         items: poToReview.items,
       },
@@ -266,7 +266,7 @@ export class InboxService {
     const items: InboxItem[] = rows.slice(0, PER_GROUP_CAP).map((r) => ({
       id: r.uploadId,
       href: `/ar/po-inbox/${r.uploadId}`,
-      title: r.customerName ?? r.buyerNameRaw ?? r.fileName ?? 'PO upload',
+      title: r.customerName ?? r.buyerNameRaw ?? r.fileName ?? 'Customer order',
       subtitle: r.reviewStatus === 'ready' ? 'Ready to convert' : 'Needs review',
       amount: r.grandTotal != null ? Number(r.grandTotal) : null,
       date: r.createdAt.toISOString(),

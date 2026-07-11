@@ -1695,7 +1695,7 @@ class CustomerOrderRow {
   /// Display title — prefer the matched customer name, fall back to the raw
   /// buyer name from the PO, then the file name, then a generic placeholder.
   String get displayTitle =>
-      customerName ?? buyerNameRaw ?? fileName ?? 'PO upload';
+      customerName ?? buyerNameRaw ?? fileName ?? 'Customer order';
 
   /// Coarse status used to drive the pill color + label.
   String get displayStatus {
