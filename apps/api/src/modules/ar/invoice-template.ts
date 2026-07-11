@@ -371,12 +371,12 @@ function buildStyleBlock(): string {
   }
   .company-legal {
     font-size: 11px;
-    color: #777;
+    color: #374151;
     margin-top: 2px;
     font-style: italic;
   }
   .company-address {
-    color: #555;
+    color: #374151;
     margin-top: 6px;
     font-size: 11px;
     line-height: 1.4;
@@ -410,8 +410,8 @@ function buildStyleBlock(): string {
   .invoice-meta {
     margin-top: 12px;
     font-size: 11px;
-    color: #444;
-    border: 1px solid #e5e7eb;
+    color: #374151;
+    border: 1px solid #cbd5e1;
     border-radius: 6px;
     padding: 8px 12px;
     background: #fafafa;
@@ -425,30 +425,30 @@ function buildStyleBlock(): string {
     gap: 12px;
     padding: 2px 0;
   }
-  .invoice-meta-row + .invoice-meta-row { border-top: 1px dashed #e5e7eb; }
-  .invoice-meta-key { color: #777; font-weight: 500; }
+  .invoice-meta-row + .invoice-meta-row { border-top: 1px dashed #cbd5e1; }
+  .invoice-meta-key { color: #374151; font-weight: 600; }
   .invoice-meta-val { color: #111; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .gst-meta { margin-top: 8px; font-size: 10px; color: #444; line-height: 1.5; }
+  .gst-meta { margin-top: 8px; font-size: 10px; color: #374151; line-height: 1.5; }
 
   /* ─── Body ────────────────────────────────────────────────────────── */
-  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+  .divider { border: none; border-top: 1px solid #cbd5e1; margin: 12px 0; }
   .two-col { display: flex; gap: 24px; margin-bottom: 12px; }
   .col { flex: 1; }
-  .label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; margin-bottom: 2px; letter-spacing: 0.4px; }
+  .label { font-size: 10px; text-transform: uppercase; color: #374151; font-weight: bold; margin-bottom: 2px; letter-spacing: 0.4px; }
   .value { font-size: 12px; color: #111; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-  th { background: #f4f6f8; font-size: 11px; text-transform: uppercase; color: #555;
-       padding: 6px 8px; border: 1px solid #ddd; letter-spacing: 0.3px; }
-  .cell { padding: 6px 8px; border: 1px solid #ddd; vertical-align: top; }
+  th { background: #e8ecf1; font-size: 11px; text-transform: uppercase; color: #1f2937;
+       padding: 6px 8px; border: 1px solid #9ca3af; letter-spacing: 0.3px; }
+  .cell { padding: 6px 8px; border: 1px solid #9ca3af; vertical-align: top; }
   .center { text-align: center; }
   .right { text-align: right; }
-  .totals-row td { border: 1px solid #ddd; padding: 6px 8px; }
-  .totals-label { text-align: right; color: #555; }
-  .grand-total td { background: #f4f6f8; font-weight: bold; font-size: 13px; }
-  .words-box { border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin: 12px 0;
+  .totals-row td { border: 1px solid #9ca3af; padding: 6px 8px; }
+  .totals-label { text-align: right; color: #374151; }
+  .grand-total td { background: #e8ecf1; font-weight: bold; font-size: 13px; }
+  .words-box { border: 1px solid #9ca3af; border-radius: 4px; padding: 10px; margin: 12px 0;
                background: #fafafa; font-style: italic; }
   .bank-box { margin-top: 12px; }
-  .footer-note { color: #888; font-size: 10px; margin-top: 8px; }
+  .footer-note { color: #374151; font-size: 10px; margin-top: 8px; }
   .powered-by {
     display: flex;
     align-items: center;
@@ -456,8 +456,8 @@ function buildStyleBlock(): string {
     gap: 6px;
     margin-top: 18px;
     padding-top: 10px;
-    border-top: 1px solid #eee;
-    color: #888;
+    border-top: 1px solid #cbd5e1;
+    color: #4b5563;
     font-size: 9.5px;
   }
   .powered-by-logo {
